@@ -1,0 +1,14 @@
+{
+  "name": "unsubpost-internal",
+  "version": "1.0.0",
+  "description": "",
+  "author": "Vladimir Haltakov <vlad@creafexlab.com>",
+  "type": "module",
+  "scripts": {
+    "compile": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "unsubpost",
+  "version": "1.0.0",
+  "description": "Post to all social platforms with one TypeScript library.",
+  "author": "Vladimir Haltakov <vlad@creafexlab.com>",
+  "type": "module",
+  "scripts": {
+    "compile": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "twitter-api-v2": "^1.23.2",
+    "zod": "^3.25.63"
+  }
+}

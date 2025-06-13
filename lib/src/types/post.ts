@@ -9,7 +9,8 @@ export const ImageSchema = z.object({
 
 export const VideoSchema = z.object({
   type: z.literal("video"),
-  url: z.url(),
+  url: z.url().optional(),
+  path: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   thumbnailUrl: z.url().optional(),

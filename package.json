@@ -1,17 +1,14 @@
 {
-  "name": "unsubpost-internal",
+  "name": "unsubpost-monorepo",
   "version": "1.0.0",
-  "description": "",
-  "author": "Vladimir Haltakov <vlad@creafexlab.com>",
-  "type": "module",
-  "scripts": {
-    "compile": "tsc --noEmit"
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "lib"
+    ]
   },
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^5.8.3"
+  "engines": {
+    "node": ">=20.0.0"
   },
-  "dependencies": {
-    "zod": "^3.25.63"
-  }
+  "packageManager": "yarn@4.9.2"
 }

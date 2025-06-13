@@ -8,10 +8,10 @@ export class XPublisher implements Publisher {
 
   constructor() {
     this.client = new TwitterApi({
-      appKey: process.env.X_API_KEY,
-      appSecret: process.env.X_API_SECRET,
-      accessToken: process.env.X_ACCESS_TOKEN,
-      accessSecret: process.env.X_ACCESS_SECRET,
+      appKey: process.env.TWITTER_API_KEY,
+      appSecret: process.env.TWITTER_API_SECRET,
+      accessToken: process.env.TWITTER_ACCESS_TOKEN,
+      accessSecret: process.env.TWITTER_ACCESS_SECRET,
     } as TwitterApiTokens);
 
     this.clientV1 = this.client.v1;

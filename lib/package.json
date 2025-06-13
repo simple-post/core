@@ -4,6 +4,9 @@
   "description": "Post to all social platforms with one TypeScript library.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "compile": "tsc --noEmit"
   },

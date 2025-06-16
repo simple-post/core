@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "compile": "tsc --noEmit",
-    "x:text": "tsx x/text.ts"
+    "x:single": "tsx x/postSingle.ts",
+    "x:thread": "tsx x/postThread.ts",
+    "x:images": "tsx x/postImages.ts",
+    "x:video": "tsx x/postVideo.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

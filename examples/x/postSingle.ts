@@ -6,7 +6,7 @@ dotenv.config();
 
 async function main() {
   await post({
-    content: { text: "Hey" },
+    content: { text: "Hey, this is a test tweet" },
     platforms: ["x"],
   });
 }

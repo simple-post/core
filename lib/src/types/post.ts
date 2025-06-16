@@ -4,7 +4,8 @@ export const PlatformSchema = z.enum(["x", "youtube", "facebook", "instagram", "
 
 export const ImageSchema = z.object({
   type: z.literal("image"),
-  url: z.url(),
+  url: z.url().optional(),
+  path: z.string().optional(),
 });
 
 export const VideoSchema = z.object({
@@ -24,7 +25,7 @@ export const ContentSchema = z.object({
 });
 
 export const PostSchema = z.object({
-  content: ContentSchema,
+  content: z.union([ContentSchema, z.array(ContentSchema)]),
   platforms: z.array(PlatformSchema),
 });
 

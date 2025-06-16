@@ -8,10 +8,16 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "compile": "tsc --noEmit"
+    "compile": "tsc --noEmit",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/node": "^24.0.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.8.3"
   },
   "dependencies": {

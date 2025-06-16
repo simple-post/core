@@ -4249,7 +4249,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "unsubpost@workspace:lib"
   dependencies:
+    "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^24.0.0"
+    jest: "npm:^30.0.0"
+    ts-jest: "npm:^29.4.0"
     twitter-api-v2: "npm:^1.23.2"
     typescript: "npm:^5.8.3"
     zod: "npm:^3.25.63"

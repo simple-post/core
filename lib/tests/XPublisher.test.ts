@@ -1,11 +1,11 @@
-import { XPublisher } from "../publishers/x";
-import { Content, Media } from "../types/post";
+import { XPublisher } from "../src/publishers/x";
+import { Content, Media } from "../src/types/post";
 import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
-import logger from "../logger";
+import logger from "../src/logger";
 
 // Mock the entire twitter-api-v2 module
 jest.mock("twitter-api-v2");
-jest.mock("../logger");
+jest.mock("../src/logger");
 
 const MockedTwitterApi = TwitterApi as jest.MockedClass<typeof TwitterApi>;
 const mockLogger = logger as any;

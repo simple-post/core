@@ -1,16 +1,20 @@
 import { XPublisher } from "../publishers/x";
-import { Content } from "../types/post";
-import { TwitterApi, TwitterApiv2 } from "twitter-api-v2";
+import { Content, Media } from "../types/post";
+import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
+import logger from "../logger";
 
 // Mock the entire twitter-api-v2 module
 jest.mock("twitter-api-v2");
+jest.mock("../logger");
 
 const MockedTwitterApi = TwitterApi as jest.MockedClass<typeof TwitterApi>;
+const mockLogger = logger as any;
 
 describe("XPublisher", () => {
   let publisher: XPublisher;
-  let mockTwitterApi: jest.Mocked<TwitterApi>;
-  let mockV2: jest.Mocked<TwitterApiv2>;
+  let mockClient: any;
+  let mockClientV1: any;
+  let mockUploadMedia: jest.Mock;
   let mockTweet: jest.Mock;
 
   beforeEach(() => {
@@ -24,21 +28,23 @@ describe("XPublisher", () => {
     process.env.TWITTER_ACCESS_SECRET = "test_access_secret";
 
     // Create mock methods
+    mockUploadMedia = jest.fn();
     mockTweet = jest.fn();
-    mockV2 = {
-      tweet: mockTweet,
-    } as any;
-
-    // Create mock TwitterApi instance
-    mockTwitterApi = {
-      v2: mockV2,
-      v1: {} as any,
-    } as any;
+    mockClientV1 = { uploadMedia: mockUploadMedia };
+    mockClient = {
+      v1: mockClientV1,
+      v2: { tweet: mockTweet },
+    };
 
     // Mock the TwitterApi constructor to return our mock instance
-    MockedTwitterApi.mockImplementation(() => mockTwitterApi);
+    MockedTwitterApi.mockImplementation(() => mockClient);
 
     // Create a new publisher instance
+    mockLogger.child = jest.fn(() => mockLogger);
+    mockLogger.error = jest.fn();
+    mockLogger.warn = jest.fn();
+    mockLogger.info = jest.fn();
+    mockLogger.debug = jest.fn();
     publisher = new XPublisher();
   });
 
@@ -50,157 +56,152 @@ describe("XPublisher", () => {
         accessToken: "test_access_token",
         accessSecret: "test_access_secret",
       });
-    });
-
-    it("should set up v1 client reference", () => {
-      expect(publisher["clientV1"]).toBeDefined();
+      expect(publisher["clientV1"]).toBe(mockClientV1);
     });
   });
 
-  describe("post method", () => {
-    it("should post text content successfully", async () => {
-      // Arrange
-      const content: Content = {
-        text: "Hello, world! This is a test tweet.",
-      };
-
-      const mockResponse = {
-        data: {
-          id: "1234567890",
-          text: "Hello, world! This is a test tweet.",
-        },
-      };
-
-      mockTweet.mockResolvedValue(mockResponse);
-
-      // Act
-      await publisher.post(content);
-
-      // Assert
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: "Hello, world! This is a test tweet.",
-      });
-      expect(mockTweet).toHaveBeenCalledTimes(1);
+  describe("uploadMedia", () => {
+    it("should upload media with path", async () => {
+      mockUploadMedia.mockResolvedValue("media_id_1");
+      const media: Media = { type: "image", path: "img.jpg" };
+      const id = await publisher.uploadMedia(media);
+      expect(mockUploadMedia).toHaveBeenCalledWith("img.jpg");
+      expect(id).toBe("media_id_1");
     });
-
-    it("should post content with empty text", async () => {
-      // Arrange
-      const content: Content = {
-        text: "",
-      };
-
-      const mockResponse = {
-        data: {
-          id: "1234567890",
-          text: "",
-        },
-      };
-
-      mockTweet.mockResolvedValue(mockResponse);
-
-      // Act
-      await publisher.post(content);
-
-      // Assert
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: "",
-      });
+    it("should throw if media path is missing", async () => {
+      const media: Media = { type: "image" } as any;
+      await expect(publisher.uploadMedia(media)).rejects.toThrow("Media path is required");
     });
+  });
 
-    it("should post content with undefined text", async () => {
-      // Arrange
-      const content: Content = {
-        text: undefined,
-      };
-
-      const mockResponse = {
-        data: {
-          id: "1234567890",
-          text: undefined,
-        },
-      };
-
-      mockTweet.mockResolvedValue(mockResponse);
-
-      // Act
-      await publisher.post(content);
-
-      // Assert
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: undefined,
-      });
+  describe("postTweet", () => {
+    it("should post text-only tweet", async () => {
+      mockTweet.mockResolvedValue({ data: { id: "id1" } });
+      const content: Content = { text: "Hello X" };
+      await publisher.postTweet(content);
+      expect(mockTweet).toHaveBeenCalledWith("Hello X", { media: undefined, reply: undefined });
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("Tweet posted successfully"));
     });
-
-    it("should handle Twitter API errors gracefully", async () => {
-      // Arrange
+    it("should post tweet with up to 4 images", async () => {
+      mockUploadMedia
+        .mockResolvedValueOnce("m1")
+        .mockResolvedValueOnce("m2")
+        .mockResolvedValueOnce("m3")
+        .mockResolvedValueOnce("m4");
+      mockTweet.mockResolvedValue({ data: { id: "id2" } });
       const content: Content = {
-        text: "This tweet will fail",
-      };
-
-      const apiError = new Error("Twitter API Error: Rate limit exceeded");
-      mockTweet.mockRejectedValue(apiError);
-
-      // Act & Assert
-      await expect(publisher.post(content)).rejects.toThrow("Twitter API Error: Rate limit exceeded");
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: "This tweet will fail",
-      });
-    });
-
-    it("should post content with media (note: media handling not yet implemented)", async () => {
-      // Arrange
-      const content: Content = {
-        text: "Tweet with media",
+        text: "Images!",
         media: [
-          {
-            type: "image",
-            url: "https://example.com/image.jpg",
-          },
+          { type: "image", path: "1.jpg" },
+          { type: "image", path: "2.jpg" },
+          { type: "image", path: "3.jpg" },
+          { type: "image", path: "4.jpg" },
         ],
       };
-
-      const mockResponse = {
-        data: {
-          id: "1234567890",
-          text: "Tweet with media",
-        },
-      };
-
-      mockTweet.mockResolvedValue(mockResponse);
-
-      // Act
-      await publisher.post(content);
-
-      // Assert
-      // Currently only text is handled, media is ignored
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: "Tweet with media",
+      await publisher.postTweet(content);
+      expect(mockUploadMedia).toHaveBeenCalledTimes(4);
+      expect(mockTweet).toHaveBeenCalledWith("Images!", {
+        media: { media_ids: ["m1", "m2", "m3", "m4"] },
+        reply: undefined,
       });
     });
-
-    it("should handle long text content", async () => {
-      // Arrange
-      const longText = "A".repeat(300); // Longer than Twitter's 280 character limit
+    it("should warn and only post first 4 media if more than 4 provided", async () => {
+      mockUploadMedia.mockResolvedValue("mid");
+      mockTweet.mockResolvedValue({ data: { id: "id3" } });
       const content: Content = {
-        text: longText,
+        text: "Too many!",
+        media: [
+          { type: "image", path: "1.jpg" },
+          { type: "image", path: "2.jpg" },
+          { type: "image", path: "3.jpg" },
+          { type: "image", path: "4.jpg" },
+          { type: "image", path: "5.jpg" },
+        ],
       };
-
-      const mockResponse = {
-        data: {
-          id: "1234567890",
-          text: longText,
-        },
+      await publisher.postTweet(content);
+      expect(mockUploadMedia).toHaveBeenCalledTimes(4);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("More than 4 media elements"));
+    });
+    it("should post tweet with video", async () => {
+      mockUploadMedia.mockResolvedValue("vid1");
+      mockTweet.mockResolvedValue({ data: { id: "id4" } });
+      const content: Content = {
+        text: "Video!",
+        media: [{ type: "video", path: "1.mp4" }],
       };
-
-      mockTweet.mockResolvedValue(mockResponse);
-
-      // Act
-      await publisher.post(content);
-
-      // Assert
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: longText,
+      await publisher.postTweet(content);
+      expect(mockUploadMedia).toHaveBeenCalledWith("1.mp4");
+      expect(mockTweet).toHaveBeenCalledWith("Video!", {
+        media: { media_ids: ["vid1"] },
+        reply: undefined,
       });
+    });
+    it("should log error and skip media if upload fails", async () => {
+      mockUploadMedia.mockRejectedValueOnce(new Error("fail"));
+      mockUploadMedia.mockResolvedValueOnce("m2");
+      mockTweet.mockResolvedValue({ data: { id: "id5" } });
+      const content: Content = {
+        text: "Partial media",
+        media: [
+          { type: "image", path: "bad.jpg" },
+          { type: "image", path: "good.jpg" },
+        ],
+      };
+      await publisher.postTweet(content);
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error uploading media bad.jpg"));
+      expect(mockUploadMedia).toHaveBeenCalledTimes(2);
+      expect(mockTweet).toHaveBeenCalledWith("Partial media", {
+        media: { media_ids: ["m2"] },
+        reply: undefined,
+      });
+    });
+    it("should log error and not post if tweet is empty", async () => {
+      const content: Content = {};
+      await publisher.postTweet(content);
+      expect(mockLogger.error).toHaveBeenCalledWith("Empty tweet is not supported by X");
+      expect(mockTweet).not.toHaveBeenCalled();
+    });
+    it("should support replyTo for threads", async () => {
+      mockTweet.mockResolvedValue({ data: { id: "id6" } });
+      const content: Content = { text: "Reply!" };
+      await publisher.postTweet(content, "parentId");
+      expect(mockTweet).toHaveBeenCalledWith("Reply!", {
+        media: undefined,
+        reply: { in_reply_to_tweet_id: "parentId" },
+      });
+    });
+    it("should log info with tweet id", async () => {
+      mockTweet.mockResolvedValue({ data: { id: "id7" } });
+      const content: Content = { text: "Info log" };
+      await publisher.postTweet(content);
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("id7"));
+    });
+  });
+
+  describe("post (main entry)", () => {
+    it("should post a single tweet", async () => {
+      jest.spyOn(publisher, "postTweet").mockResolvedValue("tid");
+      const content: Content = { text: "Single!" };
+      await publisher.post(content);
+      expect(publisher.postTweet).toHaveBeenCalledWith(content, undefined);
+    });
+    it("should post a thread (array of Content)", async () => {
+      const spy = jest
+        .spyOn(publisher, "postTweet")
+        .mockResolvedValueOnce("id1")
+        .mockResolvedValueOnce("id2")
+        .mockResolvedValueOnce("id3");
+      const thread: Content[] = [{ text: "First" }, { text: "Second" }, { text: "Third" }];
+      await publisher.post(thread);
+      expect(spy).toHaveBeenNthCalledWith(1, thread[0], undefined);
+      expect(spy).toHaveBeenNthCalledWith(2, thread[1], "id1");
+      expect(spy).toHaveBeenNthCalledWith(3, thread[2], "id2");
+    });
+    it("should log error if postTweet throws", async () => {
+      jest.spyOn(publisher, "postTweet").mockRejectedValue(new Error("fail post"));
+      const content: Content = { text: "fail" };
+      await publisher.post(content);
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error posting tweet"));
     });
   });
 
@@ -224,8 +225,10 @@ describe("XPublisher", () => {
       const networkError = new Error("Network Error: Unable to connect");
       mockTweet.mockRejectedValue(networkError);
 
-      // Act & Assert
-      await expect(publisher.post(content)).rejects.toThrow("Network Error: Unable to connect");
+      // Act
+      await publisher.post(content);
+      // Assert
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error posting tweet"));
     });
 
     it("should handle API response errors", async () => {
@@ -249,8 +252,10 @@ describe("XPublisher", () => {
 
       mockTweet.mockRejectedValue(apiError);
 
-      // Act & Assert
-      await expect(publisher.post(content)).rejects.toEqual(apiError);
+      // Act
+      await publisher.post(content);
+      // Assert
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error posting tweet"));
     });
   });
 
@@ -263,10 +268,12 @@ describe("XPublisher", () => {
           {
             type: "image",
             url: "https://example.com/image1.jpg",
+            path: "img1.jpg",
           },
           {
             type: "video",
             url: "https://example.com/video1.mp4",
+            path: "vid1.mp4",
             title: "Test Video",
             description: "A test video",
             thumbnailUrl: "https://example.com/thumb1.jpg",
@@ -274,24 +281,19 @@ describe("XPublisher", () => {
         ],
       };
 
-      const mockResponse = {
-        data: {
-          id: "1234567890",
-          text: "Complete content test",
-        },
-      };
-
-      mockTweet.mockResolvedValue(mockResponse);
+      mockUploadMedia.mockResolvedValueOnce("img1id").mockResolvedValueOnce("vid1id");
+      mockTweet.mockResolvedValue({ data: { id: "1234567890", text: "Complete content test" } });
 
       // Act
       await publisher.post(content);
 
       // Assert
-      expect(mockTweet).toHaveBeenCalledWith({
-        text: "Complete content test",
+      expect(mockUploadMedia).toHaveBeenCalledWith("img1.jpg");
+      expect(mockUploadMedia).toHaveBeenCalledWith("vid1.mp4");
+      expect(mockTweet).toHaveBeenCalledWith("Complete content test", {
+        media: { media_ids: ["img1id", "vid1id"] },
+        reply: undefined,
       });
-      // Note: Media handling is not yet implemented in the XPublisher
-      // This test documents the current behavior and can be updated when media support is added
     });
   });
 });

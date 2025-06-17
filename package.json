@@ -5,7 +5,8 @@
   "workspaces": {
     "packages": [
       "lib",
-      "examples"
+      "examples",
+      "server/*"
     ]
   },
   "scripts": {

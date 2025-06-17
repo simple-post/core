@@ -1,4 +1,4 @@
-import { XPublisher } from "../publishers/x";
+import { XPublisher } from "../publishers/X";
 import { Content } from "../types/post";
 import { TwitterApi, TwitterApiv2 } from "twitter-api-v2";
 

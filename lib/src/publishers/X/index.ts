@@ -4,12 +4,14 @@ import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
 import logger from "../../logger";
 import { Logger } from "pino";
 
-export class XPublisher implements Publisher {
+export class XPublisher extends Publisher {
   private client: TwitterApi;
   private clientV1: TwitterApiv1;
   private logger: Logger;
 
   constructor() {
+    super();
+
     this.client = new TwitterApi({
       appKey: process.env.TWITTER_API_KEY,
       appSecret: process.env.TWITTER_API_SECRET,
@@ -70,17 +72,22 @@ export class XPublisher implements Publisher {
     return createdTweet.id;
   }
 
-  async post(content: Content | Content[]) {
-    const contentArray = Array.isArray(content) ? content : [content];
-
+  async post(content: Content[]): Promise<string[]> {
+    const results: string[] = [];
     let lastTweetId: string | undefined = undefined;
 
     try {
-      for (const item of contentArray) {
-        lastTweetId = await this.postTweet(item, lastTweetId);
+      for (const item of content) {
+        const tweetId = await this.postTweet(item, lastTweetId);
+        if (tweetId) {
+          results.push(tweetId);
+          lastTweetId = tweetId;
+        }
       }
+      return results;
     } catch (error) {
-      this.logger.error(`Error posting tweet: ${error}`);
+      this.logger.error(`Error posting tweets: ${error}`);
+      throw error;
     }
   }
 }

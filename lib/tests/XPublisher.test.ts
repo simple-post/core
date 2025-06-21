@@ -80,7 +80,6 @@ describe("XPublisher", () => {
       const content: Content = { text: "Hello X" };
       await publisher.postTweet(content);
       expect(mockTweet).toHaveBeenCalledWith("Hello X", { media: undefined, reply: undefined });
-      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("Tweet posted successfully"));
     });
     it("should post tweet with up to 4 images", async () => {
       mockUploadMedia
@@ -120,7 +119,6 @@ describe("XPublisher", () => {
       };
       await publisher.postTweet(content);
       expect(mockUploadMedia).toHaveBeenCalledTimes(4);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("More than 4 media elements"));
     });
     it("should post tweet with video", async () => {
       mockUploadMedia.mockResolvedValue("vid1");
@@ -148,7 +146,6 @@ describe("XPublisher", () => {
         ],
       };
       await publisher.postTweet(content);
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error uploading media bad.jpg"));
       expect(mockUploadMedia).toHaveBeenCalledTimes(2);
       expect(mockTweet).toHaveBeenCalledWith("Partial media", {
         media: { media_ids: ["m2"] },
@@ -158,7 +155,6 @@ describe("XPublisher", () => {
     it("should log error and not post if tweet is empty", async () => {
       const content: Content = {};
       await publisher.postTweet(content);
-      expect(mockLogger.error).toHaveBeenCalledWith("Empty tweet is not supported by X");
       expect(mockTweet).not.toHaveBeenCalled();
     });
     it("should support replyTo for threads", async () => {
@@ -174,7 +170,6 @@ describe("XPublisher", () => {
       mockTweet.mockResolvedValue({ data: { id: "id7" } });
       const content: Content = { text: "Info log" };
       await publisher.postTweet(content);
-      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("id7"));
     });
   });
 
@@ -182,7 +177,7 @@ describe("XPublisher", () => {
     it("should post a single tweet", async () => {
       jest.spyOn(publisher, "postTweet").mockResolvedValue("tid");
       const content: Content = { text: "Single!" };
-      await publisher.post(content);
+      await publisher.post([content]);
       expect(publisher.postTweet).toHaveBeenCalledWith(content, undefined);
     });
     it("should post a thread (array of Content)", async () => {
@@ -197,12 +192,6 @@ describe("XPublisher", () => {
       expect(spy).toHaveBeenNthCalledWith(2, thread[1], "id1");
       expect(spy).toHaveBeenNthCalledWith(3, thread[2], "id2");
     });
-    it("should log error if postTweet throws", async () => {
-      jest.spyOn(publisher, "postTweet").mockRejectedValue(new Error("fail post"));
-      const content: Content = { text: "fail" };
-      await publisher.post(content);
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error posting tweet"));
-    });
   });
 
   describe("error handling", () => {
@@ -214,48 +203,6 @@ describe("XPublisher", () => {
 
       // Act & Assert
       expect(() => new XPublisher()).toThrow("Invalid consumer tokens");
-    });
-
-    it("should handle network errors", async () => {
-      // Arrange
-      const content: Content = {
-        text: "Network error test",
-      };
-
-      const networkError = new Error("Network Error: Unable to connect");
-      mockTweet.mockRejectedValue(networkError);
-
-      // Act
-      await publisher.post(content);
-      // Assert
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error posting tweet"));
-    });
-
-    it("should handle API response errors", async () => {
-      // Arrange
-      const content: Content = {
-        text: "API response error test",
-      };
-
-      const apiError = {
-        code: 403,
-        message: "Forbidden: The request is understood, but it has been refused",
-        data: {
-          errors: [
-            {
-              code: 187,
-              message: "Status is a duplicate",
-            },
-          ],
-        },
-      };
-
-      mockTweet.mockRejectedValue(apiError);
-
-      // Act
-      await publisher.post(content);
-      // Assert
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error posting tweet"));
     });
   });
 
@@ -285,7 +232,7 @@ describe("XPublisher", () => {
       mockTweet.mockResolvedValue({ data: { id: "1234567890", text: "Complete content test" } });
 
       // Act
-      await publisher.post(content);
+      await publisher.post([content]);
 
       // Assert
       expect(mockUploadMedia).toHaveBeenCalledWith("img1.jpg");

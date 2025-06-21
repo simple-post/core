@@ -5,13 +5,15 @@ import { post } from "unsubpost";
 dotenv.config();
 
 async function main() {
-  await post({
+  const results = await post({
     content: {
       text: "Hey, posting video",
       media: [{ type: "video", path: "./x/data/1.mp4" }],
     },
     platforms: ["x"],
   });
+
+  console.log(results);
 }
 
 main();

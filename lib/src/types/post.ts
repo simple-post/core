@@ -25,7 +25,12 @@ export const ContentSchema = z.object({
 });
 
 export const PostSchema = z.object({
-  content: z.union([ContentSchema, z.array(ContentSchema)]),
+  content: ContentSchema,
+  platforms: z.array(PlatformSchema),
+});
+
+export const PostMultiSchema = z.object({
+  content: z.array(ContentSchema),
   platforms: z.array(PlatformSchema),
 });
 
@@ -35,3 +40,4 @@ export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type Post = z.infer<typeof PostSchema>;
+export type PostMulti = z.infer<typeof PostMultiSchema>;

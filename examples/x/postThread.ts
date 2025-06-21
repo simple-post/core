@@ -6,10 +6,12 @@ import { Content } from "../../lib/src/types/post";
 dotenv.config();
 
 async function main() {
-  await post({
+  const results = await post({
     content: [{ text: "Hey, this is a test thread. 1/3" }, { text: "This is post 2/3" }, { text: "This is post 3/3" }],
     platforms: ["x"],
   });
+
+  console.log(results);
 }
 
 main();

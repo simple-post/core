@@ -1,11 +1,12 @@
 import { getPublisher } from "./publishers";
+import { PostResult } from "./types";
 import { Platform, PostMulti, Post } from "./types/post";
 
-export async function post(post: Post): Promise<Map<Platform, string>>;
-export async function post(post: PostMulti): Promise<Map<Platform, string[]>>;
-export async function post(post: Post | PostMulti): Promise<Map<Platform, string | string[]>> {
+export async function post(post: Post): Promise<Map<Platform, PostResult>>;
+export async function post(post: PostMulti): Promise<Map<Platform, PostResult[]>>;
+export async function post(post: Post | PostMulti): Promise<Map<Platform, PostResult | PostResult[]>> {
   if (Array.isArray(post.content)) {
-    const results = new Map<Platform, string[]>();
+    const results = new Map<Platform, PostResult[]>();
 
     for (const platform of post.platforms) {
       const publisher = getPublisher(platform);
@@ -14,7 +15,7 @@ export async function post(post: Post | PostMulti): Promise<Map<Platform, string
 
     return results;
   } else {
-    const results = new Map<Platform, string>();
+    const results = new Map<Platform, PostResult>();
 
     for (const platform of post.platforms) {
       const publisher = getPublisher(platform);

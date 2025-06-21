@@ -2,6 +2,8 @@ import { XPublisher } from "../src/publishers/x";
 import { Content, Media } from "../src/types/post";
 import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
 import logger from "../src/logger";
+import { PostError } from "../src/types/publisher";
+import { PostErrorType } from "../src/types";
 
 // Mock the entire twitter-api-v2 module
 jest.mock("twitter-api-v2");
@@ -145,16 +147,11 @@ describe("XPublisher", () => {
           { type: "image", path: "good.jpg" },
         ],
       };
-      await publisher.postTweet(content);
-      expect(mockUploadMedia).toHaveBeenCalledTimes(2);
-      expect(mockTweet).toHaveBeenCalledWith("Partial media", {
-        media: { media_ids: ["m2"] },
-        reply: undefined,
-      });
+      await expect(publisher.postTweet(content)).rejects.toThrow("fail");
     });
     it("should log error and not post if tweet is empty", async () => {
       const content: Content = {};
-      await publisher.postTweet(content);
+      await expect(publisher.postTweet(content)).rejects.toThrow("Empty posts are not supported by X");
       expect(mockTweet).not.toHaveBeenCalled();
     });
     it("should support replyTo for threads", async () => {
@@ -191,6 +188,64 @@ describe("XPublisher", () => {
       expect(spy).toHaveBeenNthCalledWith(1, thread[0], undefined);
       expect(spy).toHaveBeenNthCalledWith(2, thread[1], "id1");
       expect(spy).toHaveBeenNthCalledWith(3, thread[2], "id2");
+    });
+
+    it("should return error result if postTweet fails with PostError", async () => {
+      const error = new PostError(PostErrorType.API_ERROR, "API Error", { code: 1 });
+      jest.spyOn(publisher, "postTweet").mockRejectedValue(error);
+      const content: Content = { text: "Will fail" };
+      const results = await publisher.post([content]);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        error: PostErrorType.API_ERROR,
+        message: "API Error",
+        details: { code: 1 },
+      });
+    });
+
+    it("should return error result if postTweet fails with other error", async () => {
+      const error = new Error("Unknown error");
+      jest.spyOn(publisher, "postTweet").mockRejectedValue(error);
+      const content: Content = { text: "Will fail" };
+      const results = await publisher.post([content]);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        error: PostErrorType.OTHER,
+        message: "Error posting: Unknown error",
+        details: error,
+      });
+    });
+
+    it("should handle mixed success and failure in a thread", async () => {
+      const error = new PostError(PostErrorType.INVALID_CONTENT, "Invalid content");
+      const spy = jest
+        .spyOn(publisher, "postTweet")
+        .mockResolvedValueOnce("id1")
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce("id3");
+
+      const thread: Content[] = [{ text: "First" }, { text: "Second" }, { text: "Third" }];
+      const results = await publisher.post(thread);
+
+      expect(spy).toHaveBeenCalledTimes(3);
+      expect(spy).toHaveBeenNthCalledWith(1, thread[0], undefined);
+      expect(spy).toHaveBeenNthCalledWith(2, thread[1], "id1");
+      expect(spy).toHaveBeenNthCalledWith(3, thread[2], "id1");
+
+      expect(results).toHaveLength(3);
+      expect(results[0]).toEqual({
+        id: "id1",
+        error: PostErrorType.NO_ERROR,
+      });
+      expect(results[1]).toEqual({
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Invalid content",
+        details: undefined,
+      });
+      expect(results[2]).toEqual({
+        id: "id3",
+        error: PostErrorType.NO_ERROR,
+      });
     });
   });
 

@@ -27,10 +27,6 @@ export class YouTubePublisher extends Publisher {
       });
     }
 
-    if (!auth) {
-      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "No credentials found for YouTube");
-    }
-
     this.youtube = google.youtube({ version: "v3", auth });
   }
 

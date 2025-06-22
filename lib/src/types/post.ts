@@ -4,17 +4,15 @@ export const PlatformSchema = z.enum(["x", "youtube", "facebook", "instagram", "
 
 export const ImageSchema = z.object({
   type: z.literal("image"),
-  url: z.url().optional(),
   path: z.string().optional(),
 });
 
 export const VideoSchema = z.object({
   type: z.literal("video"),
-  url: z.url().optional(),
   path: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
-  thumbnailUrl: z.url().optional(),
+  thumbnailPath: z.string().optional(),
 });
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);

@@ -35,6 +35,8 @@ jobs:
         run: yarn test
 
       - name: Run tests with coverage
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
         run: yarn test:coverage
 
       - name: Upload coverage reports

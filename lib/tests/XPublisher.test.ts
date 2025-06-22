@@ -269,16 +269,14 @@ describe("XPublisher", () => {
         media: [
           {
             type: "image",
-            url: "https://example.com/image1.jpg",
             path: "img1.jpg",
           },
           {
             type: "video",
-            url: "https://example.com/video1.mp4",
             path: "vid1.mp4",
             title: "Test Video",
             description: "A test video",
-            thumbnailUrl: "https://example.com/thumb1.jpg",
+            thumbnailPath: "thumb1.jpg",
           },
         ],
       };

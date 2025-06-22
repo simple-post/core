@@ -17,9 +17,22 @@ export const VideoSchema = z.object({
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);
 
+export const YouTubeSpecificOptionsSchema = z.object({
+  tags: z.array(z.string()).optional(),
+  categoryId: z.string().optional(),
+  playlistId: z.string().optional(),
+  selfDeclaredMadeForKids: z.boolean().optional(),
+});
+
+export const ContentOptionsSchema = z.object({
+  privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
+  youtubeSpecific: YouTubeSpecificOptionsSchema.optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
+  options: ContentOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -36,6 +49,8 @@ export type Platform = z.infer<typeof PlatformSchema>;
 export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
+export type YouTubeSpecificOptions = z.infer<typeof YouTubeSpecificOptionsSchema>;
+export type ContentOptions = z.infer<typeof ContentOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type Post = z.infer<typeof PostSchema>;
 export type PostMulti = z.infer<typeof PostMultiSchema>;

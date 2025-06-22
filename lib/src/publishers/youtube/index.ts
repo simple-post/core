@@ -71,6 +71,9 @@ export class YouTubePublisher extends Publisher {
     const postContent = content[0];
     const video = postContent.media?.find((m) => m.type === "video");
 
+    let videoId: string;
+
+    // Upload the video
     try {
       const response = await this.youtube.videos.insert({
         part: ["snippet", "status"],
@@ -78,11 +81,12 @@ export class YouTubePublisher extends Publisher {
           snippet: {
             title: video!.title,
             description: video!.description,
-            // TODO: Add support for tags, categoryId, playlist
+            tags: postContent.options?.youtubeSpecific?.tags,
+            categoryId: postContent.options?.youtubeSpecific?.categoryId,
           },
           status: {
-            // TODO: Add support for private and unlisted videos
-            privacyStatus: "public",
+            privacyStatus: postContent.options?.privacyStatus,
+            selfDeclaredMadeForKids: postContent.options?.youtubeSpecific?.selfDeclaredMadeForKids,
           },
         },
         media: {
@@ -90,28 +94,7 @@ export class YouTubePublisher extends Publisher {
         },
       });
 
-      const videoId = response.data.id!;
-
-      // Upload the thumbnail if provided
-      if (video!.thumbnailPath) {
-        try {
-          await this.youtube.thumbnails.set({
-            videoId: videoId,
-            media: {
-              body: fs.createReadStream(video!.thumbnailPath),
-            },
-          });
-        } catch (thumbnailError: any) {
-          // TODO: log thumbnail error
-        }
-      }
-
-      return [
-        {
-          id: videoId,
-          error: PostErrorType.NO_ERROR,
-        },
-      ];
+      videoId = response.data.id!;
     } catch (error: any) {
       let errorMessage = "An unknown error occurred while uploading to YouTube.";
       if (error.response && error.response.data && error.response.data.error) {
@@ -128,5 +111,46 @@ export class YouTubePublisher extends Publisher {
         },
       ];
     }
+
+    // Upload the thumbnail if provided
+    try {
+      if (video!.thumbnailPath) {
+        await this.youtube.thumbnails.set({
+          videoId: videoId,
+          media: {
+            body: fs.createReadStream(video!.thumbnailPath),
+          },
+        });
+      }
+    } catch (error: any) {
+      // TODO: log error
+    }
+
+    // Add to playlist if playlist ID is provided
+    try {
+      if (postContent.options?.youtubeSpecific?.playlistId) {
+        await this.youtube.playlistItems.insert({
+          part: ["snippet"],
+          requestBody: {
+            snippet: {
+              playlistId: postContent.options?.youtubeSpecific?.playlistId,
+              resourceId: {
+                kind: "youtube#video",
+                videoId: videoId,
+              },
+            },
+          },
+        });
+      }
+    } catch (error: any) {
+      // TODO: log error
+    }
+
+    return [
+      {
+        id: videoId,
+        error: PostErrorType.NO_ERROR,
+      },
+    ];
   }
 }

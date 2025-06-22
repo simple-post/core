@@ -8,11 +8,7 @@ export const getPublisher = (platform: Platform): Publisher => {
     case "x":
       return new XPublisher();
     case "youtube":
-      return new YouTubePublisher({
-        clientId: process.env.YOUTUBE_CLIENT_ID,
-        clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
-        refreshToken: process.env.YOUTUBE_REFRESH_TOKEN,
-      });
+      return new YouTubePublisher();
   }
 
   throw new Error(`Publisher for platform ${platform} not found`);

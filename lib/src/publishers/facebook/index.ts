@@ -29,17 +29,13 @@ export class FacebookPublisher extends Publisher {
   }
 
   async uploadMedia(media: Media): Promise<string> {
-    if (!media.path) {
-      throw new Error("Media path is required");
-    }
-
     try {
       const formData = new FormData();
       
       if (media.type === "image") {
         // For images, upload to the page's photos
         const fs = await import('fs');
-        const fileBuffer = fs.readFileSync(media.path);
+        const fileBuffer = fs.readFileSync(media.path!);
         const blob = new Blob([fileBuffer]);
         formData.append('source', blob);
         formData.append('published', 'false'); // Upload but don't publish yet
@@ -55,7 +51,7 @@ export class FacebookPublisher extends Publisher {
       } else if (media.type === "video") {
         // For videos, upload to the page's videos
         const fs = await import('fs');
-        const fileBuffer = fs.readFileSync(media.path);
+        const fileBuffer = fs.readFileSync(media.path!);
         const blob = new Blob([fileBuffer]);
         formData.append('source', blob);
         formData.append('published', 'false'); // Upload but don't publish yet
@@ -86,12 +82,50 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postToPage(content: Content): Promise<string> {
+    validate(content: Content[]): void {
+    // Facebook doesn't support threading, only single posts
+    if (content.length !== 1) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook publisher only supports single posts.");
+    }
+
+    const postContent = content[0];
+
     // Check for empty post
-    if (!content.text && !content.media) {
+    if (!postContent.text && !postContent.media) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook");
     }
 
+    // Validate media if present
+    if (postContent.media && postContent.media.length > 0) {
+      // Check for too many images in multi-media posts
+      if (postContent.media.length > 10) {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Facebook supports maximum of 10 images in a single post"
+        );
+      }
+
+      // For multiple media, only images are supported
+      if (postContent.media.length > 1) {
+        const imageMedias = postContent.media.filter(m => m.type === "image");
+        if (imageMedias.length !== postContent.media.length) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            "Multi-media posts only support images"
+          );
+        }
+      }
+
+      // Validate each media item has a path
+      for (const media of postContent.media) {
+        if (!media.path) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, "Media path is required");
+        }
+      }
+    }
+  }
+
+  async postToPage(content: Content): Promise<string> {
     try {
       const postData: any = {
         access_token: this.pageAccessToken,
@@ -117,28 +151,12 @@ export class FacebookPublisher extends Publisher {
             postData.object_attachment = mediaId;
           }
         } else {
-          // Multiple media post (only images supported for multi-media posts)
-          const imageMedias = content.media.filter(m => m.type === "image");
-          if (imageMedias.length !== content.media.length) {
-            throw new PostError(
-              PostErrorType.INVALID_CONTENT,
-              "Multi-media posts only support images"
-            );
+          // Multiple media post (validation ensures all are images)
+          const attachedMedia = [];
+          for (const media of content.media as Media[]) {
+            const mediaId = await this.uploadMedia(media);
+            attachedMedia.push({ media_fbid: mediaId });
           }
-
-          if (imageMedias.length > 10) {
-            throw new PostError(
-              PostErrorType.INVALID_CONTENT,
-              "Facebook supports maximum of 10 images in a single post"
-            );
-          }
-
-                     // Upload all images and create attached_media array
-           const attachedMedia = [];
-           for (const media of imageMedias as Media[]) {
-             const mediaId = await this.uploadMedia(media);
-             attachedMedia.push({ media_fbid: mediaId });
-           }
           
           postData.attached_media = JSON.stringify(attachedMedia);
         }
@@ -162,34 +180,40 @@ export class FacebookPublisher extends Publisher {
   }
 
   async post(content: Content[]): Promise<PostResult[]> {
-    const results: PostResult[] = [];
-
-    // Facebook doesn't support threading like Twitter, so we post each content item separately
-    for (const item of content) {
-      try {
-        const postId = await this.postToPage(item);
-
-        results.push({
-          id: postId,
-          error: PostErrorType.NO_ERROR,
-        });
-      } catch (error: any) {
-        if (error instanceof PostError) {
-          results.push({
-            error: error.errorType,
-            message: error.message,
-            details: error.details,
-          });
-        } else {
-          results.push({
-            error: PostErrorType.OTHER,
-            message: `Error posting: ${error.message}`,
-            details: error,
-          });
-        }
+    // Validate the content
+    try {
+      this.validate(content);
+    } catch (error) {
+      if (error instanceof PostError) {
+        return [{ error: error.errorType, message: error.message, details: error.details }];
       }
+      return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while validating Facebook post." }];
     }
 
-    return results;
+    // Since validation passed, we know there's exactly one content item
+    const postContent = content[0];
+
+    try {
+      const postId = await this.postToPage(postContent);
+
+      return [{
+        id: postId,
+        error: PostErrorType.NO_ERROR,
+      }];
+    } catch (error: any) {
+      if (error instanceof PostError) {
+        return [{
+          error: error.errorType,
+          message: error.message,
+          details: error.details,
+        }];
+      } else {
+        return [{
+          error: PostErrorType.OTHER,
+          message: `Error posting: ${error.message}`,
+          details: error,
+        }];
+      }
+    }
   }
 }

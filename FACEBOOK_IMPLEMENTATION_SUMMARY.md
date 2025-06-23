@@ -35,25 +35,25 @@ Added required dependency:
 
 ### 4. Comprehensive Test Suite (`lib/tests/FacebookPublisher.test.ts`)
 
-22 test cases covering:
+29 test cases covering:
 - Constructor validation and error handling
 - Environment variable requirements
+- Validation function testing (single posts, empty posts, media validation)
 - Media upload functionality (images and videos)
 - Text-only posting
 - Single media posting (image and video)
 - Multi-image posting
-- Error scenarios (empty posts, mixed media, too many images)
+- Error scenarios (multiple posts, empty posts, mixed media, too many images)
 - API error handling
-- Multiple content posting
-- Mixed success/failure scenarios
+- Validation error handling
+- Integration testing
 
 ### 5. Usage Examples (`examples/facebook/`)
 
-Four example files demonstrating different use cases:
+Three example files demonstrating different use cases:
 - `postSingle.ts` - Simple text post
 - `postImages.ts` - Post with multiple images
 - `postVideo.ts` - Post with video including title and description
-- `postMultiple.ts` - Multiple separate posts
 - `data/.gitkeep` - Placeholder directory for sample media files
 
 ### 6. Documentation (`lib/src/publishers/facebook/README.md`)
@@ -83,13 +83,14 @@ The implementation follows the established patterns from the existing X (Twitter
 
 ### Facebook-Specific Considerations
 
-1. **Threading**: Unlike Twitter, Facebook doesn't support reply threading, so multiple content items are posted as separate posts
+1. **Single Posts Only**: Facebook publisher only supports single posts, not multiple posts in sequence (like YouTube)
 2. **Media Limitations**: 
    - Multi-media posts only support images (no mixing images and videos)
    - Maximum of 10 images per post
    - Videos must be uploaded individually
 3. **API Flow**: Facebook requires uploading media as unpublished first, then attaching to posts
 4. **Permissions**: Requires both `pages_manage_posts` and `pages_read_engagement` permissions
+5. **Validation**: Uses a dedicated `validate()` function (like YouTube) to check content before posting
 
 ### Error Handling
 
@@ -112,7 +113,7 @@ The test suite achieves comprehensive coverage with:
 - **Integration Testing**: Tests for complete content posting workflows
 - **Edge Cases**: Tests for maximum limits and mixed scenarios
 
-All 62 tests pass successfully (22 for Facebook + 40 existing tests).
+All 69 tests pass successfully (29 for Facebook + 40 existing tests).
 
 ## Usage Requirements
 

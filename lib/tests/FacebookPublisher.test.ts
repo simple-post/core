@@ -58,6 +58,103 @@ describe("FacebookPublisher", () => {
     });
   });
 
+  describe("validate", () => {
+    beforeEach(() => {
+      process.env.FACEBOOK_PAGE_ACCESS_TOKEN = "test_page_access_token";
+      process.env.FACEBOOK_PAGE_ID = "test_page_id";
+      publisher = new FacebookPublisher();
+    });
+
+    it("should throw error for multiple posts", () => {
+      const content: Content[] = [{ text: "First post" }, { text: "Second post" }];
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Facebook publisher only supports single posts.")
+      );
+    });
+
+    it("should throw error for empty post", () => {
+      const content: Content[] = [{}];
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook")
+      );
+    });
+
+    it("should throw error for too many images", () => {
+      const content: Content[] = [{
+        text: "Too many images",
+        media: Array(11).fill({ type: "image", path: "test.jpg" })
+      }];
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Facebook supports maximum of 10 images in a single post")
+      );
+    });
+
+    it("should throw error for multi-media posts with mixed types", () => {
+      const content: Content[] = [{
+        text: "Mixed media",
+        media: [
+          { type: "image", path: "test.jpg" },
+          { type: "video", path: "test.mp4" }
+        ]
+      }];
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Multi-media posts only support images")
+      );
+    });
+
+    it("should throw error when media has no path", () => {
+      const content: Content[] = [{
+        text: "Post with media without path",
+        media: [{ type: "image" }]
+      }];
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Media path is required")
+      );
+    });
+
+    it("should pass validation for valid single text post", () => {
+      const content: Content[] = [{ text: "Valid post" }];
+
+      expect(() => publisher.validate(content)).not.toThrow();
+    });
+
+    it("should pass validation for valid single image post", () => {
+      const content: Content[] = [{
+        text: "Post with image",
+        media: [{ type: "image", path: "test.jpg" }]
+      }];
+
+      expect(() => publisher.validate(content)).not.toThrow();
+    });
+
+    it("should pass validation for valid multiple images post", () => {
+      const content: Content[] = [{
+        text: "Post with multiple images",
+        media: [
+          { type: "image", path: "test1.jpg" },
+          { type: "image", path: "test2.jpg" },
+          { type: "image", path: "test3.jpg" }
+        ]
+      }];
+
+      expect(() => publisher.validate(content)).not.toThrow();
+    });
+
+    it("should pass validation for valid video post", () => {
+      const content: Content[] = [{
+        text: "Post with video",
+        media: [{ type: "video", path: "test.mp4" }]
+      }];
+
+      expect(() => publisher.validate(content)).not.toThrow();
+    });
+  });
+
   describe("uploadMedia", () => {
     const mockFs = {
       readFileSync: jest.fn(),
@@ -119,11 +216,6 @@ describe("FacebookPublisher", () => {
         })
       );
       expect(result).toBe("video_id_456");
-    });
-
-    it("should throw error if media path is missing", async () => {
-      const media: Media = { type: "image" } as any;
-      await expect(publisher.uploadMedia(media)).rejects.toThrow("Media path is required");
     });
 
     it("should throw error for unsupported media type", async () => {
@@ -234,37 +326,7 @@ describe("FacebookPublisher", () => {
       expect(result).toBe("post_id_multi");
     });
 
-    it("should throw error for empty post", async () => {
-      const content: Content = {};
-      await expect(publisher.postToPage(content)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook")
-      );
-    });
 
-    it("should throw error for multi-media posts with mixed types", async () => {
-      const content: Content = {
-        text: "Mixed media",
-        media: [
-          { type: "image", path: "test.jpg" },
-          { type: "video", path: "test.mp4" }
-        ]
-      };
-      
-      await expect(publisher.postToPage(content)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Multi-media posts only support images")
-      );
-    });
-
-    it("should throw error for too many images", async () => {
-      const content: Content = {
-        text: "Too many images",
-        media: Array(11).fill({ type: "image", path: "test.jpg" })
-      };
-      
-      await expect(publisher.postToPage(content)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Facebook supports maximum of 10 images in a single post")
-      );
-    });
 
     it("should handle API errors during posting", async () => {
       const apiError = {
@@ -289,10 +351,10 @@ describe("FacebookPublisher", () => {
     it("should post a single content item", async () => {
       jest.spyOn(publisher, "postToPage").mockResolvedValue("post_id_123");
       
-      const content: Content = { text: "Single post!" };
-      const results = await publisher.post([content]);
+      const content: Content[] = [{ text: "Single post!" }];
+      const results = await publisher.post(content);
       
-      expect(publisher.postToPage).toHaveBeenCalledWith(content);
+      expect(publisher.postToPage).toHaveBeenCalledWith(content[0]);
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         id: "post_id_123",
@@ -300,38 +362,32 @@ describe("FacebookPublisher", () => {
       });
     });
 
-    it("should post multiple content items separately", async () => {
-      const spy = jest
-        .spyOn(publisher, "postToPage")
-        .mockResolvedValueOnce("post_id_1")
-        .mockResolvedValueOnce("post_id_2")
-        .mockResolvedValueOnce("post_id_3");
-      
+    it("should return validation error for multiple posts", async () => {
       const contents: Content[] = [
         { text: "First post" },
-        { text: "Second post" },
-        { text: "Third post" }
+        { text: "Second post" }
       ];
       
       const results = await publisher.post(contents);
       
-      expect(spy).toHaveBeenCalledTimes(3);
-      expect(spy).toHaveBeenNthCalledWith(1, contents[0]);
-      expect(spy).toHaveBeenNthCalledWith(2, contents[1]);
-      expect(spy).toHaveBeenNthCalledWith(3, contents[2]);
-      
-      expect(results).toHaveLength(3);
+      expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        id: "post_id_1",
-        error: PostErrorType.NO_ERROR,
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Facebook publisher only supports single posts.",
+        details: undefined,
       });
-      expect(results[1]).toEqual({
-        id: "post_id_2",
-        error: PostErrorType.NO_ERROR,
-      });
-      expect(results[2]).toEqual({
-        id: "post_id_3",
-        error: PostErrorType.NO_ERROR,
+    });
+
+    it("should return validation error for empty post", async () => {
+      const content: Content[] = [{}];
+      
+      const results = await publisher.post(content);
+      
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Empty posts are not supported by Facebook",
+        details: undefined,
       });
     });
 
@@ -339,8 +395,8 @@ describe("FacebookPublisher", () => {
       const error = new PostError(PostErrorType.API_ERROR, "API Error", { code: 1 });
       jest.spyOn(publisher, "postToPage").mockRejectedValue(error);
       
-      const content: Content = { text: "Will fail" };
-      const results = await publisher.post([content]);
+      const content: Content[] = [{ text: "Will fail" }];
+      const results = await publisher.post(content);
       
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
@@ -354,8 +410,8 @@ describe("FacebookPublisher", () => {
       const error = new Error("Unknown error");
       jest.spyOn(publisher, "postToPage").mockRejectedValue(error);
       
-      const content: Content = { text: "Will fail" };
-      const results = await publisher.post([content]);
+      const content: Content[] = [{ text: "Will fail" }];
+      const results = await publisher.post(content);
       
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
@@ -365,52 +421,25 @@ describe("FacebookPublisher", () => {
       });
     });
 
-    it("should handle mixed success and failure", async () => {
-      const error = new PostError(PostErrorType.INVALID_CONTENT, "Invalid content");
-      const spy = jest
-        .spyOn(publisher, "postToPage")
-        .mockResolvedValueOnce("post_id_1")
-        .mockRejectedValueOnce(error)
-        .mockResolvedValueOnce("post_id_3");
-
-      const contents: Content[] = [
-        { text: "First post" },
-        { text: "Second post" },
-        { text: "Third post" }
-      ];
+    it("should return validation error if validate throws generic error", async () => {
+      jest.spyOn(publisher, "validate").mockImplementation(() => {
+        throw new Error("Generic validation error");
+      });
       
-      const results = await publisher.post(contents);
-
-      expect(spy).toHaveBeenCalledTimes(3);
-      expect(results).toHaveLength(3);
+      const content: Content[] = [{ text: "Will fail validation" }];
+      const results = await publisher.post(content);
+      
+      expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        id: "post_id_1",
-        error: PostErrorType.NO_ERROR,
-      });
-      expect(results[1]).toEqual({
-        error: PostErrorType.INVALID_CONTENT,
-        message: "Invalid content",
-        details: undefined,
-      });
-      expect(results[2]).toEqual({
-        id: "post_id_3",
-        error: PostErrorType.NO_ERROR,
+        error: PostErrorType.OTHER,
+        message: "An unknown error occurred while validating Facebook post.",
       });
     });
   });
 
   describe("integration with Content types", () => {
-    it("should handle all valid Content properties", async () => {
-      // Mock uploadMedia
-      jest.spyOn(publisher, 'uploadMedia')
-        .mockResolvedValueOnce("photo_id_1")
-        .mockResolvedValueOnce("video_id_1");
-      
-      mockAxiosInstance.post.mockResolvedValue({ 
-        data: { id: "post_id_complete" } 
-      });
-
-      const content: Content = {
+    it("should return validation error for mixed media types", async () => {
+      const content: Content[] = [{
         text: "Complete content test",
         media: [
           {
@@ -425,14 +454,38 @@ describe("FacebookPublisher", () => {
             thumbnailPath: "thumb1.jpg",
           },
         ],
-      };
+      }];
 
       // This should fail due to mixed media types
-      await expect(publisher.post([content])).resolves.toEqual([
+      const results = await publisher.post(content);
+      
+      expect(results).toEqual([
         {
           error: PostErrorType.INVALID_CONTENT,
           message: "Multi-media posts only support images",
           details: undefined,
+        }
+      ]);
+    });
+
+    it("should successfully post valid single image content", async () => {
+      jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("photo_id_1");
+      jest.spyOn(publisher, 'postToPage').mockResolvedValue("post_id_123");
+      
+      const content: Content[] = [{
+        text: "Single image post",
+        media: [{
+          type: "image",
+          path: "img1.jpg",
+        }],
+      }];
+
+      const results = await publisher.post(content);
+      
+      expect(results).toEqual([
+        {
+          id: "post_id_123",
+          error: PostErrorType.NO_ERROR,
         }
       ]);
     });

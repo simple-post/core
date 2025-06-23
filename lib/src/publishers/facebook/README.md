@@ -100,26 +100,16 @@ const results = await post({
 });
 ```
 
-### Multiple Posts
 
-```typescript
-const results = await post({
-  content: [
-    { text: "First post" },
-    { text: "Second post with image", media: [{ type: "image", path: "./img.jpg" }] },
-    { text: "Third post" }
-  ],
-  platforms: ["facebook"],
-});
-```
 
 ## Limitations
 
+- **Single posts only**: Facebook publisher only supports single posts, not multiple posts in sequence
 - **Multi-media posts**: Only images are supported for multi-media posts (no mixing images and videos)
 - **Maximum images**: Facebook supports a maximum of 10 images per post
 - **File formats**: Supports common image formats (JPG, PNG, GIF) and video formats (MP4, MOV, etc.)
 - **File size**: Follows Facebook's file size limits for media uploads
-- **Threading**: Facebook doesn't support threading like Twitter, so multiple content items are posted as separate posts
+- **No threading**: Facebook doesn't support threading like Twitter
 
 ## Error Handling
 

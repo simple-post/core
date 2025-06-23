@@ -35,14 +35,12 @@ Added required dependency:
 
 ### 4. Comprehensive Test Suite (`lib/tests/FacebookPublisher.test.ts`)
 
-29 test cases covering:
+26 test cases covering:
 - Constructor validation and error handling
 - Environment variable requirements
 - Validation function testing (single posts, empty posts, media validation)
 - Media upload functionality (images and videos)
-- Text-only posting
-- Single media posting (image and video)
-- Multi-image posting
+- Complete posting functionality (text, single image, single video, multiple images)
 - Error scenarios (multiple posts, empty posts, mixed media, too many images)
 - API error handling
 - Validation error handling
@@ -113,7 +111,7 @@ The test suite achieves comprehensive coverage with:
 - **Integration Testing**: Tests for complete content posting workflows
 - **Edge Cases**: Tests for maximum limits and mixed scenarios
 
-All 69 tests pass successfully (29 for Facebook + 40 existing tests).
+All 66 tests pass successfully (26 for Facebook + 40 existing tests).
 
 ## Usage Requirements
 

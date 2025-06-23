@@ -220,7 +220,9 @@ describe("FacebookPublisher", () => {
 
     it("should throw error for unsupported media type", async () => {
       const media: Media = { type: "audio", path: "test.mp3" } as any;
-      await expect(publisher.uploadMedia(media)).rejects.toThrow("Unsupported media type: audio");
+      await expect(publisher.uploadMedia(media)).rejects.toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Unsupported media type: audio")
+      );
     });
 
     it("should handle API errors during upload", async () => {
@@ -240,18 +242,24 @@ describe("FacebookPublisher", () => {
     });
   });
 
-  describe("postToPage", () => {
+
+
+  describe("post", () => {
     it("should post text-only content", async () => {
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_123" } });
       
-      const content: Content = { text: "Hello Facebook!" };
-      const result = await publisher.postToPage(content);
+      const content: Content[] = [{ text: "Hello Facebook!" }];
+      const results = await publisher.post(content);
       
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
         access_token: "test_page_access_token",
         message: "Hello Facebook!",
       });
-      expect(result).toBe("post_id_123");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        id: "post_id_123",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should post content with single image", async () => {
@@ -259,11 +267,11 @@ describe("FacebookPublisher", () => {
       jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("photo_id_123");
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_456" } });
       
-      const content: Content = {
+      const content: Content[] = [{
         text: "Check out this image!",
         media: [{ type: "image", path: "test.jpg" }]
-      };
-      const result = await publisher.postToPage(content);
+      }];
+      const results = await publisher.post(content);
       
       expect(publisher.uploadMedia).toHaveBeenCalledWith({ type: "image", path: "test.jpg" });
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
@@ -271,7 +279,11 @@ describe("FacebookPublisher", () => {
         message: "Check out this image!",
         object_attachment: "photo_id_123",
       });
-      expect(result).toBe("post_id_456");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        id: "post_id_456",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should post content with single video", async () => {
@@ -279,11 +291,11 @@ describe("FacebookPublisher", () => {
       jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("video_id_789");
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_789" } });
       
-      const content: Content = {
+      const content: Content[] = [{
         text: "Check out this video!",
         media: [{ type: "video", path: "test.mp4" }]
-      };
-      const result = await publisher.postToPage(content);
+      }];
+      const results = await publisher.post(content);
       
       expect(publisher.uploadMedia).toHaveBeenCalledWith({ type: "video", path: "test.mp4" });
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
@@ -291,7 +303,11 @@ describe("FacebookPublisher", () => {
         message: "Check out this video!",
         object_attachment: "video_id_789",
       });
-      expect(result).toBe("post_id_789");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        id: "post_id_789",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should post content with multiple images", async () => {
@@ -303,15 +319,15 @@ describe("FacebookPublisher", () => {
       
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_multi" } });
       
-      const content: Content = {
+      const content: Content[] = [{
         text: "Multiple images!",
         media: [
           { type: "image", path: "test1.jpg" },
           { type: "image", path: "test2.jpg" },
           { type: "image", path: "test3.jpg" }
         ]
-      };
-      const result = await publisher.postToPage(content);
+      }];
+      const results = await publisher.post(content);
       
       expect(publisher.uploadMedia).toHaveBeenCalledTimes(3);
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
@@ -323,41 +339,9 @@ describe("FacebookPublisher", () => {
           { media_fbid: "photo_id_3" }
         ]),
       });
-      expect(result).toBe("post_id_multi");
-    });
-
-
-
-    it("should handle API errors during posting", async () => {
-      const apiError = {
-        response: {
-          data: {
-            error: {
-              message: "Post failed"
-            }
-          }
-        }
-      };
-      mockAxiosInstance.post.mockRejectedValue(apiError);
-      
-      const content: Content = { text: "Will fail" };
-      await expect(publisher.postToPage(content)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error posting to Facebook: Post failed")
-      );
-    });
-  });
-
-  describe("post (main entry)", () => {
-    it("should post a single content item", async () => {
-      jest.spyOn(publisher, "postToPage").mockResolvedValue("post_id_123");
-      
-      const content: Content[] = [{ text: "Single post!" }];
-      const results = await publisher.post(content);
-      
-      expect(publisher.postToPage).toHaveBeenCalledWith(content[0]);
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        id: "post_id_123",
+        id: "post_id_multi",
         error: PostErrorType.NO_ERROR,
       });
     });
@@ -391,9 +375,17 @@ describe("FacebookPublisher", () => {
       });
     });
 
-    it("should return error result if postToPage fails with PostError", async () => {
-      const error = new PostError(PostErrorType.API_ERROR, "API Error", { code: 1 });
-      jest.spyOn(publisher, "postToPage").mockRejectedValue(error);
+    it("should handle API errors during posting", async () => {
+      const apiError = {
+        response: {
+          data: {
+            error: {
+              message: "Post failed"
+            }
+          }
+        }
+      };
+      mockAxiosInstance.post.mockRejectedValue(apiError);
       
       const content: Content[] = [{ text: "Will fail" }];
       const results = await publisher.post(content);
@@ -401,23 +393,8 @@ describe("FacebookPublisher", () => {
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         error: PostErrorType.API_ERROR,
-        message: "API Error",
-        details: { code: 1 },
-      });
-    });
-
-    it("should return error result if postToPage fails with other error", async () => {
-      const error = new Error("Unknown error");
-      jest.spyOn(publisher, "postToPage").mockRejectedValue(error);
-      
-      const content: Content[] = [{ text: "Will fail" }];
-      const results = await publisher.post(content);
-      
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        error: PostErrorType.OTHER,
-        message: "Error posting: Unknown error",
-        details: error,
+        message: "Error posting to Facebook: Post failed",
+        details: apiError.response.data,
       });
     });
 
@@ -470,7 +447,7 @@ describe("FacebookPublisher", () => {
 
     it("should successfully post valid single image content", async () => {
       jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("photo_id_1");
-      jest.spyOn(publisher, 'postToPage').mockResolvedValue("post_id_123");
+      mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_123" } });
       
       const content: Content[] = [{
         text: "Single image post",

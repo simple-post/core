@@ -72,8 +72,12 @@ export class FacebookPublisher extends Publisher {
         return response.data.id;
       }
 
-      throw new Error(`Unsupported media type: ${(media as any).type}`);
+      throw new PostError(PostErrorType.INVALID_CONTENT, `Unsupported media type: ${(media as any).type}`);
     } catch (error: any) {
+      if (error instanceof PostError) {
+        throw error;
+      }
+      
       throw new PostError(
         PostErrorType.API_ERROR,
         `Error uploading media: ${error.response?.data?.error?.message || error.message}`,
@@ -125,60 +129,6 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postToPage(content: Content): Promise<string> {
-    try {
-      const postData: any = {
-        access_token: this.pageAccessToken,
-      };
-
-      // Add text message
-      if (content.text) {
-        postData.message = content.text;
-      }
-
-      // Handle media
-      if (content.media && content.media.length > 0) {
-        if (content.media.length === 1) {
-          // Single media post
-          const media = content.media[0];
-          const mediaId = await this.uploadMedia(media);
-          
-          if (media.type === "image") {
-            // For single image, use the photo endpoint with the uploaded photo ID
-            postData.object_attachment = mediaId;
-          } else if (media.type === "video") {
-            // For single video, use the video endpoint with the uploaded video ID
-            postData.object_attachment = mediaId;
-          }
-        } else {
-          // Multiple media post (validation ensures all are images)
-          const attachedMedia = [];
-          for (const media of content.media as Media[]) {
-            const mediaId = await this.uploadMedia(media);
-            attachedMedia.push({ media_fbid: mediaId });
-          }
-          
-          postData.attached_media = JSON.stringify(attachedMedia);
-        }
-      }
-
-      // Post to Facebook page feed
-      const response = await this.client.post(`/${this.pageId}/feed`, postData);
-      
-      return response.data.id;
-    } catch (error: any) {
-      if (error instanceof PostError) {
-        throw error;
-      }
-      
-      throw new PostError(
-        PostErrorType.API_ERROR,
-        `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
-        error.response?.data
-      );
-    }
-  }
-
   async post(content: Content[]): Promise<PostResult[]> {
     // Validate the content
     try {
@@ -194,10 +144,46 @@ export class FacebookPublisher extends Publisher {
     const postContent = content[0];
 
     try {
-      const postId = await this.postToPage(postContent);
+      const postData: any = {
+        access_token: this.pageAccessToken,
+      };
 
+      // Add text message
+      if (postContent.text) {
+        postData.message = postContent.text;
+      }
+
+      // Handle media
+      if (postContent.media && postContent.media.length > 0) {
+        if (postContent.media.length === 1) {
+          // Single media post
+          const media = postContent.media[0];
+          const mediaId = await this.uploadMedia(media);
+          
+          if (media.type === "image") {
+            // For single image, use the photo endpoint with the uploaded photo ID
+            postData.object_attachment = mediaId;
+          } else if (media.type === "video") {
+            // For single video, use the video endpoint with the uploaded video ID
+            postData.object_attachment = mediaId;
+          }
+        } else {
+          // Multiple media post (validation ensures all are images)
+          const attachedMedia = [];
+          for (const media of postContent.media as Media[]) {
+            const mediaId = await this.uploadMedia(media);
+            attachedMedia.push({ media_fbid: mediaId });
+          }
+          
+          postData.attached_media = JSON.stringify(attachedMedia);
+        }
+      }
+
+      // Post to Facebook page feed
+      const response = await this.client.post(`/${this.pageId}/feed`, postData);
+      
       return [{
-        id: postId,
+        id: response.data.id,
         error: PostErrorType.NO_ERROR,
       }];
     } catch (error: any) {
@@ -207,13 +193,13 @@ export class FacebookPublisher extends Publisher {
           message: error.message,
           details: error.details,
         }];
-      } else {
-        return [{
-          error: PostErrorType.OTHER,
-          message: `Error posting: ${error.message}`,
-          details: error,
-        }];
       }
+      
+      return [{
+        error: PostErrorType.API_ERROR,
+        message: `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
+        details: error.response?.data,
+      }];
     }
   }
 }

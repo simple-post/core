@@ -23,7 +23,7 @@ export class FacebookPublisher extends Publisher {
     }
 
     this.client = axios.create({
-      baseURL: 'https://graph.facebook.com/v18.0',
+      baseURL: 'https://graph.facebook.com/v23.0',
       timeout: 30000,
     });
   }

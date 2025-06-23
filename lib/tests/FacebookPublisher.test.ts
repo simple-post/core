@@ -42,7 +42,7 @@ describe("FacebookPublisher", () => {
   describe("constructor", () => {
     it("should initialize with correct credentials", () => {
       expect(mockAxios.create).toHaveBeenCalledWith({
-        baseURL: 'https://graph.facebook.com/v18.0',
+        baseURL: 'https://graph.facebook.com/v23.0',
         timeout: 30000,
       });
     });

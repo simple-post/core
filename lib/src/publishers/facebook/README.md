@@ -140,7 +140,7 @@ To debug issues:
 2. Check that your token has the required permissions
 3. Ensure you're using a Page Access Token, not a User Access Token
 4. Verify your Page ID is correct
-5. Check Facebook's API version compatibility (this publisher uses v18.0)
+5. Check Facebook's API version compatibility (this publisher uses v23.0)
 
 ## API Reference
 

@@ -17,7 +17,7 @@ A complete Facebook Page publisher following the existing patterns:
 - **Environment Configuration**: Uses environment variables for credentials
 
 **API Integration:**
-- Uses Facebook Graph API v18.0
+- Uses Facebook Graph API v23.0 (latest version as of May 2025)
 - Implements proper media upload flow (upload unpublished, then attach to post)
 - Uses `axios` for HTTP requests
 - Handles FormData for file uploads

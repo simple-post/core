@@ -3,10 +3,13 @@ import { Content, Media } from "../src/types/post";
 import { PostError } from "../src/types/publisher";
 import { PostErrorType } from "../src/types";
 import axios from "axios";
+import fs from "fs";
 
-// Mock axios
+// Mock axios and fs
 jest.mock("axios");
+jest.mock("fs");
 const mockAxios = axios as jest.Mocked<typeof axios>;
+const mockFs = fs as jest.Mocked<typeof fs>;
 
 describe("FacebookPublisher", () => {
   let publisher: FacebookPublisher;
@@ -160,13 +163,8 @@ describe("FacebookPublisher", () => {
   });
 
   describe("uploadMedia", () => {
-    const mockFs = {
-      readFileSync: jest.fn(),
-    };
-
     beforeEach(() => {
-      // Mock the dynamic import of fs
-      jest.doMock('fs', () => mockFs);
+      // Mock fs readFileSync
       mockFs.readFileSync.mockReturnValue(Buffer.from('test file content'));
       
       // Mock Blob constructor

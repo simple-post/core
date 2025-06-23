@@ -2,6 +2,7 @@ import { Content, Media } from "../../types/post";
 import { PostError, Publisher } from "../../types/publisher";
 import { PostErrorType, PostResult } from "../../types";
 import axios, { AxiosInstance } from "axios";
+import fs from "fs";
 
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
@@ -34,7 +35,6 @@ export class FacebookPublisher extends Publisher {
       
       if (media.type === "image") {
         // For images, upload to the page's photos
-        const fs = await import('fs');
         const fileBuffer = fs.readFileSync(media.path!);
         const blob = new Blob([fileBuffer]);
         formData.append('source', blob);
@@ -50,7 +50,6 @@ export class FacebookPublisher extends Publisher {
         return response.data.id;
       } else if (media.type === "video") {
         // For videos, upload to the page's videos
-        const fs = await import('fs');
         const fileBuffer = fs.readFileSync(media.path!);
         const blob = new Blob([fileBuffer]);
         formData.append('source', blob);

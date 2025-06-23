@@ -15,11 +15,11 @@ export class FacebookPublisher extends Publisher {
     this.pageId = process.env.FACEBOOK_PAGE_ID!;
 
     if (!this.pageAccessToken) {
-      throw new Error("FACEBOOK_PAGE_ACCESS_TOKEN environment variable is required");
+      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "FACEBOOK_PAGE_ACCESS_TOKEN environment variable is required");
     }
 
     if (!this.pageId) {
-      throw new Error("FACEBOOK_PAGE_ID environment variable is required");
+      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "FACEBOOK_PAGE_ID environment variable is required");
     }
 
     this.client = axios.create({

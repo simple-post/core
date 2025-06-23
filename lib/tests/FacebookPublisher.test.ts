@@ -49,12 +49,16 @@ describe("FacebookPublisher", () => {
 
     it("should throw error when FACEBOOK_PAGE_ACCESS_TOKEN is missing", () => {
       delete process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-      expect(() => new FacebookPublisher()).toThrow("FACEBOOK_PAGE_ACCESS_TOKEN environment variable is required");
+      expect(() => new FacebookPublisher()).toThrow(
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "FACEBOOK_PAGE_ACCESS_TOKEN environment variable is required")
+      );
     });
 
     it("should throw error when FACEBOOK_PAGE_ID is missing", () => {
       delete process.env.FACEBOOK_PAGE_ID;
-      expect(() => new FacebookPublisher()).toThrow("FACEBOOK_PAGE_ID environment variable is required");
+      expect(() => new FacebookPublisher()).toThrow(
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "FACEBOOK_PAGE_ID environment variable is required")
+      );
     });
   });
 

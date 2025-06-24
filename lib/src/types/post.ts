@@ -1,6 +1,15 @@
 import { z } from "zod/v4";
 
-export const PlatformSchema = z.enum(["x", "youtube", "facebook", "instagram", "tiktok", "linkedin", "pinterest"]);
+export const PlatformSchema = z.enum([
+  "x",
+  "youtube",
+  "telegram",
+  "facebook",
+  "instagram",
+  "tiktok",
+  "linkedin",
+  "pinterest",
+]);
 
 export const ImageSchema = z.object({
   type: z.literal("image"),
@@ -17,6 +26,11 @@ export const VideoSchema = z.object({
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);
 
+export const TelegramSpecificOptionsSchema = z.object({
+  chatId: z.string(),
+  parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
+});
+
 export const YouTubeSpecificOptionsSchema = z.object({
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
@@ -27,6 +41,7 @@ export const YouTubeSpecificOptionsSchema = z.object({
 export const ContentOptionsSchema = z.object({
   privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
   youtubeSpecific: YouTubeSpecificOptionsSchema.optional(),
+  telegramSpecific: TelegramSpecificOptionsSchema.optional(),
 });
 
 export const ContentSchema = z.object({
@@ -49,6 +64,7 @@ export type Platform = z.infer<typeof PlatformSchema>;
 export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
+export type TelegramSpecificOptions = z.infer<typeof TelegramSpecificOptionsSchema>;
 export type YouTubeSpecificOptions = z.infer<typeof YouTubeSpecificOptionsSchema>;
 export type ContentOptions = z.infer<typeof ContentOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;

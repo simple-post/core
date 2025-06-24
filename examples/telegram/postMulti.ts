@@ -8,7 +8,7 @@ async function main() {
   const results = await post({
     content: [
       {
-        text: "This is the first message in our Telegram thread",
+        text: "This is the first message",
         options: {
           telegramSpecific: {
             chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
@@ -16,7 +16,7 @@ async function main() {
         },
       },
       {
-        text: "This is the second message, replying to the first",
+        text: "This is the second message",
         options: {
           telegramSpecific: {
             chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
@@ -24,7 +24,7 @@ async function main() {
         },
       },
       {
-        text: "And this is the third message in the sequence",
+        text: "And this is the third message",
         options: {
           telegramSpecific: {
             chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID

@@ -117,7 +117,7 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  async postContent(content: Content, replyTo?: string): Promise<string> {
+  async postContent(content: Content): Promise<string> {
     // Check for telegram-specific options
     if (!content.options?.telegramSpecific?.chatId) {
       throw new PostError(
@@ -149,7 +149,7 @@ export class TelegramPublisher extends Publisher {
 
     // Otherwise send as text message
     if (content.text) {
-      return await this.sendMessage(chatId, content.text, parseMode, replyTo);
+      return await this.sendMessage(chatId, content.text, parseMode);
     }
 
     throw new PostError(PostErrorType.INVALID_CONTENT, "No valid content to send");
@@ -157,12 +157,10 @@ export class TelegramPublisher extends Publisher {
 
   async post(content: Content[]): Promise<PostResult[]> {
     const results: PostResult[] = [];
-    let lastMessageId: string | undefined = undefined;
 
     for (const item of content) {
       try {
-        const messageId = await this.postContent(item, lastMessageId);
-        lastMessageId = messageId;
+        const messageId = await this.postContent(item);
 
         results.push({
           id: messageId,

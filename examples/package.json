@@ -10,7 +10,11 @@
     "x:video": "tsx x/postVideo.ts",
     "youtube:video": "tsx youtube/postVideo.ts",
     "youtube:video:full": "tsx youtube/postVideoFull.ts",
-    "youtube:short": "tsx youtube/postShort.ts"
+    "youtube:short": "tsx youtube/postShort.ts",
+    "telegram:single": "tsx telegram/postSingle.ts",
+    "telegram:thread": "tsx telegram/postThread.ts",
+    "telegram:images": "tsx telegram/postImages.ts",
+    "telegram:video": "tsx telegram/postVideo.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

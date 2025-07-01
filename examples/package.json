@@ -12,8 +12,14 @@
     "youtube:video:full": "tsx youtube/postVideoFull.ts",
     "youtube:short": "tsx youtube/postShort.ts",
     "telegram:single": "tsx telegram/postSingle.ts",
-    "telegram:images": "tsx telegram/postImages.ts",
-    "telegram:video": "tsx telegram/postVideo.ts"
+    "telegram:image": "tsx telegram/postImage.ts",
+    "telegram:video": "tsx telegram/postVideo.ts",
+    "facebook:single": "tsx facebook/postSingle.ts",
+    "facebook:images": "tsx facebook/postImages.ts",
+    "facebook:video": "tsx facebook/postVideo.ts",
+    "instagram:single": "tsx instagram/postSingle.ts",
+    "instagram:images": "tsx instagram/postImages.ts",
+    "instagram:video": "tsx instagram/postVideo.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -11,7 +11,7 @@ async function main() {
       media: [
         {
           type: "video",
-          path: "./data/video.mp4",
+          path: "./assets/video_2.mp4",
           title: "Amazing Video",
           description: "This is an amazing video to share on Facebook",
         },
@@ -20,7 +20,7 @@ async function main() {
     platforms: ["facebook"],
   });
 
-  console.log(results);
+  console.log(results, results.get("facebook")?.[0]?.details);
 }
 
 main();

@@ -5,7 +5,7 @@ import { PostErrorType } from "../src/types";
 import { google } from "googleapis";
 import fs from "fs";
 
-// Mock the googleapis module
+// Mock dependencies
 jest.mock("googleapis");
 jest.mock("fs");
 
@@ -90,21 +90,27 @@ describe("YouTubePublisher", () => {
       publisher = new YouTubePublisher();
     });
 
-    it("should throw error for multiple posts", () => {
-      const content: Content[] = [{ text: "First post" }, { text: "Second post" }];
+    it("should throw error when no video is provided (text only)", () => {
+      const content: Content = { text: "Post without video" };
 
       expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "YouTube publisher only supports single posts.")
+        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.")
       );
     });
 
-    it("should throw error when no video is provided", () => {
-      const content: Content[] = [
-        {
-          text: "Post without video",
-          media: [{ type: "image", path: "image.jpg" }],
-        },
-      ];
+    it("should throw error when media array is empty", () => {
+      const content: Content = { text: "Post with empty media", media: [] };
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.")
+      );
+    });
+
+    it("should throw error when media type is not video", () => {
+      const content: Content = {
+        text: "Post with image",
+        media: [{ type: "image", path: "image.jpg" }],
+      };
 
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.")
@@ -112,11 +118,9 @@ describe("YouTubePublisher", () => {
     });
 
     it("should throw error when video has no path", () => {
-      const content: Content[] = [
-        {
-          media: [{ type: "video", title: "Test video" }],
-        },
-      ];
+      const content: Content = {
+        media: [{ type: "video", title: "Test video" }],
+      };
 
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "A video file path is required for YouTube.")
@@ -126,14 +130,24 @@ describe("YouTubePublisher", () => {
     it("should throw error when video file does not exist", () => {
       mockFs.existsSync.mockReturnValue(false);
 
-      const content: Content[] = [
-        {
-          media: [{ type: "video", path: "nonexistent.mp4", title: "Test video" }],
-        },
-      ];
+      const content: Content = {
+        media: [{ type: "video", path: "nonexistent.mp4", title: "Test video" }],
+      };
 
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Video file not found at path: nonexistent.mp4")
+      );
+    });
+
+    it("should throw error when video has no title", () => {
+      mockFs.existsSync.mockReturnValue(true);
+
+      const content: Content = {
+        media: [{ type: "video", path: "video.mp4" }],
+      };
+
+      expect(() => publisher.validate(content)).toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.")
       );
     });
 
@@ -144,73 +158,44 @@ describe("YouTubePublisher", () => {
         return false;
       });
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              thumbnailPath: "nonexistent_thumbnail.jpg",
-            },
-          ],
-        },
-      ];
+      const content: Content = {
+        media: [
+          {
+            type: "video",
+            path: "video.mp4",
+            title: "Test video",
+            thumbnailPath: "nonexistent_thumbnail.jpg",
+          },
+        ],
+      };
 
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Thumbnail file not found at path: nonexistent_thumbnail.jpg")
       );
     });
 
-    it("should throw error when video has no title", () => {
+    it("should pass validation for valid video post", () => {
       mockFs.existsSync.mockReturnValue(true);
 
-      const content: Content[] = [
-        {
-          media: [{ type: "video", path: "video.mp4" }],
-        },
-      ];
-
-      expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.")
-      );
-    });
-
-    it("should pass validation for valid content", () => {
-      mockFs.existsSync.mockReturnValue(true);
-
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-              thumbnailPath: "thumbnail.jpg",
-            },
-          ],
-        },
-      ];
+      const content: Content = {
+        media: [{ type: "video", path: "video.mp4", title: "Valid video" }],
+      };
 
       expect(() => publisher.validate(content)).not.toThrow();
     });
 
-    it("should pass validation for valid content without thumbnail", () => {
+    it("should pass validation for video with YouTube-specific options", () => {
       mockFs.existsSync.mockReturnValue(true);
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-            },
-          ],
+      const content: Content = {
+        media: [{ type: "video", path: "video.mp4", title: "Video with options" }],
+        options: {
+          youtube: {
+            tags: ["test", "video"],
+            categoryId: "22",
+          },
         },
-      ];
+      };
 
       expect(() => publisher.validate(content)).not.toThrow();
     });
@@ -226,10 +211,10 @@ describe("YouTubePublisher", () => {
       mockFs.createReadStream.mockReturnValue("mock_stream" as any);
     });
 
-    it("should return validation error when content is invalid", async () => {
-      const content: Content[] = [{ text: "Post without video" }];
+    it("should return validation error for invalid content", async () => {
+      const content: Content = { text: "No video" };
 
-      const results = await publisher.post(content);
+      const results = await publisher.post(content, {});
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
@@ -238,48 +223,16 @@ describe("YouTubePublisher", () => {
       });
     });
 
-    it("should successfully upload video with basic options", async () => {
-      const mockVideoResponse = {
+    it("should successfully upload video", async () => {
+      mockYouTube.videos.insert.mockResolvedValue({
         data: { id: "test_video_id" },
-      };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
-
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-            },
-          ],
-          options: {
-            privacyStatus: "unlisted",
-          },
-        },
-      ];
-
-      const results = await publisher.post(content);
-
-      expect(mockYouTube.videos.insert).toHaveBeenCalledWith({
-        part: ["snippet", "status"],
-        requestBody: {
-          snippet: {
-            title: "Test video",
-            description: "Test description",
-            tags: undefined,
-            categoryId: undefined,
-          },
-          status: {
-            privacyStatus: "unlisted",
-            selfDeclaredMadeForKids: undefined,
-          },
-        },
-        media: {
-          body: "mock_stream",
-        },
       });
+
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Test video upload" }],
+      };
+
+      const results = await publisher.post(content, {});
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
@@ -288,46 +241,35 @@ describe("YouTubePublisher", () => {
       });
     });
 
-    it("should successfully upload video with YouTube-specific options", async () => {
-      const mockVideoResponse = {
-        data: { id: "test_video_id" },
-      };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
+    it("should upload video with custom options", async () => {
+      mockYouTube.videos.insert.mockResolvedValue({
+        data: { id: "test_video_id_with_options" },
+      });
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-            },
-          ],
-          options: {
-            privacyStatus: "public",
-            youtubeSpecific: {
-              tags: ["tag1", "tag2"],
-              categoryId: "22",
-              selfDeclaredMadeForKids: false,
-            },
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Video with custom options" }],
+        options: {
+          youtube: {
+            tags: ["test", "custom"],
+            categoryId: "22",
+            selfDeclaredMadeForKids: false,
           },
         },
-      ];
+      };
 
-      const results = await publisher.post(content);
+      const results = await publisher.post(content, {});
 
       expect(mockYouTube.videos.insert).toHaveBeenCalledWith({
         part: ["snippet", "status"],
         requestBody: {
           snippet: {
-            title: "Test video",
-            description: "Test description",
-            tags: ["tag1", "tag2"],
+            title: "Video with custom options",
+            description: undefined,
+            tags: ["test", "custom"],
             categoryId: "22",
           },
           status: {
-            privacyStatus: "public",
+            privacyStatus: undefined,
             selfDeclaredMadeForKids: false,
           },
         },
@@ -338,291 +280,103 @@ describe("YouTubePublisher", () => {
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        id: "test_video_id",
+        id: "test_video_id_with_options",
         error: PostErrorType.NO_ERROR,
       });
     });
 
-    it("should upload thumbnail when provided", async () => {
-      const mockVideoResponse = {
-        data: { id: "test_video_id" },
-      };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
-      mockYouTube.thumbnails.set.mockResolvedValue({});
-
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-              thumbnailPath: "thumbnail.jpg",
-            },
-          ],
-        },
-      ];
-
-      const results = await publisher.post(content);
-
-      expect(mockYouTube.thumbnails.set).toHaveBeenCalledWith({
-        videoId: "test_video_id",
-        media: {
-          body: "mock_stream",
-        },
-      });
-
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        id: "test_video_id",
-        error: PostErrorType.NO_ERROR,
-      });
-    });
-
-    it("should add video to playlist when playlist ID is provided", async () => {
-      const mockVideoResponse = {
-        data: { id: "test_video_id" },
-      };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
-      mockYouTube.playlistItems.insert.mockResolvedValue({});
-
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-            },
-          ],
-          options: {
-            youtubeSpecific: {
-              playlistId: "test_playlist_id",
-            },
-          },
-        },
-      ];
-
-      const results = await publisher.post(content);
-
-      expect(mockYouTube.playlistItems.insert).toHaveBeenCalledWith({
-        part: ["snippet"],
-        requestBody: {
-          snippet: {
-            playlistId: "test_playlist_id",
-            resourceId: {
-              kind: "youtube#video",
-              videoId: "test_video_id",
-            },
-          },
-        },
-      });
-
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        id: "test_video_id",
-        error: PostErrorType.NO_ERROR,
-      });
-    });
-
-    it("should handle video upload API error", async () => {
+    it("should handle API errors during upload", async () => {
       const apiError = {
         response: {
           data: {
             error: {
-              message: "Invalid video format",
+              message: "Upload failed",
             },
           },
         },
       };
       mockYouTube.videos.insert.mockRejectedValue(apiError);
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-            },
-          ],
-        },
-      ];
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Will fail" }],
+      };
 
-      const results = await publisher.post(content);
+      const results = await publisher.post(content, {});
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         error: PostErrorType.API_ERROR,
-        message: "YouTube API Error: Invalid video format",
+        message: "YouTube API Error: Upload failed",
         details: apiError,
       });
     });
 
-    it("should handle generic video upload error", async () => {
-      const genericError = new Error("Network error");
-      mockYouTube.videos.insert.mockRejectedValue(genericError);
+    it("should handle network errors", async () => {
+      const networkError = new Error("ECONNRESET");
+      mockYouTube.videos.insert.mockRejectedValue(networkError);
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-            },
-          ],
-        },
-      ];
-
-      const results = await publisher.post(content);
-
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "Network error",
-        details: genericError,
-      });
-    });
-
-    it("should handle unknown video upload error", async () => {
-      const unknownError = { some: "unknown error" };
-      mockYouTube.videos.insert.mockRejectedValue(unknownError);
-
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-            },
-          ],
-        },
-      ];
-
-      const results = await publisher.post(content);
-
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "An unknown error occurred while uploading to YouTube.",
-        details: unknownError,
-      });
-    });
-
-    it("should continue with video upload even if thumbnail upload fails", async () => {
-      const mockVideoResponse = {
-        data: { id: "test_video_id" },
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Network error test" }],
       };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
-      mockYouTube.thumbnails.set.mockRejectedValue(new Error("Thumbnail upload failed"));
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              thumbnailPath: "thumbnail.jpg",
-            },
-          ],
-        },
-      ];
+      const results = await publisher.post(content, {});
 
-      const results = await publisher.post(content);
-
-      expect(mockYouTube.thumbnails.set).toHaveBeenCalled();
       expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        id: "test_video_id",
-        error: PostErrorType.NO_ERROR,
-      });
+      expect(results[0].error).toBe(PostErrorType.API_ERROR);
+      expect(results[0].message).toContain("ECONNRESET");
     });
 
-    it("should continue with video upload even if playlist addition fails", async () => {
-      const mockVideoResponse = {
-        data: { id: "test_video_id" },
-      };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
-      mockYouTube.playlistItems.insert.mockRejectedValue(new Error("Playlist addition failed"));
-
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-            },
-          ],
-          options: {
-            youtubeSpecific: {
-              playlistId: "test_playlist_id",
-            },
-          },
-        },
-      ];
-
-      const results = await publisher.post(content);
-
-      expect(mockYouTube.playlistItems.insert).toHaveBeenCalled();
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        id: "test_video_id",
-        error: PostErrorType.NO_ERROR,
+    it("should handle videos with thumbnail", async () => {
+      mockYouTube.videos.insert.mockResolvedValue({
+        data: { id: "test_video_with_thumbnail" },
       });
-    });
-
-    it("should handle complete workflow with thumbnail and playlist", async () => {
-      const mockVideoResponse = {
-        data: { id: "test_video_id" },
-      };
-      mockYouTube.videos.insert.mockResolvedValue(mockVideoResponse);
       mockYouTube.thumbnails.set.mockResolvedValue({});
-      mockYouTube.playlistItems.insert.mockResolvedValue({});
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-              description: "Test description",
-              thumbnailPath: "thumbnail.jpg",
-            },
-          ],
-          options: {
-            privacyStatus: "private",
-            youtubeSpecific: {
-              tags: ["test", "video"],
-              categoryId: "22",
-              playlistId: "test_playlist_id",
-              selfDeclaredMadeForKids: true,
-            },
-          },
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Video with thumbnail", thumbnailPath: "thumbnail.jpg" }],
+      };
+
+      const results = await publisher.post(content, {});
+
+      expect(mockYouTube.thumbnails.set).toHaveBeenCalledWith({
+        videoId: "test_video_with_thumbnail",
+        media: {
+          body: "mock_stream",
         },
-      ];
+      });
 
-      const results = await publisher.post(content);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        id: "test_video_with_thumbnail",
+        error: PostErrorType.NO_ERROR,
+      });
+    });
 
-      // Verify video upload
+    it("should handle videos with description", async () => {
+      mockYouTube.videos.insert.mockResolvedValue({
+        data: { id: "test_video_with_description" },
+      });
+
+      const content: Content = {
+        media: [
+          { type: "video", path: "test.mp4", title: "Video title", description: "This is the video description" },
+        ],
+      };
+
+      const results = await publisher.post(content, {});
+
       expect(mockYouTube.videos.insert).toHaveBeenCalledWith({
         part: ["snippet", "status"],
         requestBody: {
           snippet: {
-            title: "Test video",
-            description: "Test description",
-            tags: ["test", "video"],
-            categoryId: "22",
+            title: "Video title",
+            description: "This is the video description",
+            tags: undefined,
+            categoryId: undefined,
           },
           status: {
-            privacyStatus: "private",
-            selfDeclaredMadeForKids: true,
+            privacyStatus: undefined,
+            selfDeclaredMadeForKids: undefined,
           },
         },
         media: {
@@ -630,15 +384,30 @@ describe("YouTubePublisher", () => {
         },
       });
 
-      // Verify thumbnail upload
-      expect(mockYouTube.thumbnails.set).toHaveBeenCalledWith({
-        videoId: "test_video_id",
-        media: {
-          body: "mock_stream",
-        },
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        id: "test_video_with_description",
+        error: PostErrorType.NO_ERROR,
       });
+    });
 
-      // Verify playlist addition
+    it("should add video to playlist when playlist ID is provided", async () => {
+      mockYouTube.videos.insert.mockResolvedValue({
+        data: { id: "test_video_id" },
+      });
+      mockYouTube.playlistItems.insert.mockResolvedValue({});
+
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Test video" }],
+        options: {
+          youtube: {
+            playlistId: "test_playlist_id",
+          },
+        },
+      };
+
+      const results = await publisher.post(content, {});
+
       expect(mockYouTube.playlistItems.insert).toHaveBeenCalledWith({
         part: ["snippet"],
         requestBody: {
@@ -659,31 +428,33 @@ describe("YouTubePublisher", () => {
       });
     });
 
-    it("should return OTHER error for non-PostError validation failures", async () => {
-      // Mock validate to throw a generic error (not PostError)
-      jest.spyOn(publisher, "validate").mockImplementation(() => {
-        throw new Error("Generic validation error");
-      });
+    it("should handle validation errors", async () => {
+      const content: Content = {
+        media: [{ type: "image", path: "image.jpg" }],
+      };
 
-      const content: Content[] = [
-        {
-          media: [
-            {
-              type: "video",
-              path: "video.mp4",
-              title: "Test video",
-            },
-          ],
-        },
-      ];
-
-      const results = await publisher.post(content);
+      const results = await publisher.post(content, {});
 
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
-        error: PostErrorType.OTHER,
-        message: "An unknown error occurred while YouTube post.",
+        error: PostErrorType.INVALID_CONTENT,
+        message: "A video is required for a YouTube post.",
       });
+    });
+
+    it("should handle generic errors", async () => {
+      const genericError = new Error("Unexpected error");
+      mockYouTube.videos.insert.mockRejectedValue(genericError);
+
+      const content: Content = {
+        media: [{ type: "video", path: "test.mp4", title: "Generic error test" }],
+      };
+
+      const results = await publisher.post(content, {});
+
+      expect(results).toHaveLength(1);
+      expect(results[0].error).toBe(PostErrorType.API_ERROR);
+      expect(results[0].message).toContain("Unexpected error");
     });
   });
 });

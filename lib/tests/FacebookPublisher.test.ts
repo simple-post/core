@@ -124,7 +124,7 @@ describe("FacebookPublisher", () => {
         ],
       };
       expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Multi-media posts only support images")
+        new PostError(PostErrorType.INVALID_CONTENT, "Video posts can only contain a single video, no other media")
       );
     });
 
@@ -293,8 +293,8 @@ describe("FacebookPublisher", () => {
     });
 
     it("should post content with single video", async () => {
-      // Mock uploadMedia
-      jest.spyOn(publisher, "uploadMedia").mockResolvedValue("video_id_789");
+      // Spy on uploadMedia to track if it's called
+      const uploadMediaSpy = jest.spyOn(publisher, "uploadMedia");
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_789" } });
 
       const content: Content = {
@@ -303,12 +303,18 @@ describe("FacebookPublisher", () => {
       };
       const results = await publisher.post(content, {});
 
-      expect(publisher.uploadMedia).toHaveBeenCalledWith({ type: "video", path: "test.mp4" });
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
-        access_token: "test_page_access_token",
-        message: "Check out this video!",
-        object_attachment: "video_id_789",
-      });
+      // Verify uploadMedia is NOT called for single video posts
+      expect(uploadMediaSpy).not.toHaveBeenCalled();
+      // Verify the direct video upload to /videos endpoint
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_page_id/videos",
+        expect.any(Object), // FormData object
+        expect.objectContaining({
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        })
+      );
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         id: "post_id_789",
@@ -417,7 +423,7 @@ describe("FacebookPublisher", () => {
       expect(results).toEqual([
         {
           error: PostErrorType.INVALID_CONTENT,
-          message: "Multi-media posts only support images",
+          message: "Video posts can only contain a single video, no other media",
           details: undefined,
         },
       ]);

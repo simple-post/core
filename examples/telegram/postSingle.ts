@@ -7,10 +7,14 @@ dotenv.config();
 async function main() {
   const results = await post({
     content: {
-      text: "Hey, posting video",
-      media: [{ type: "video", path: "./x/data/1.mp4" }],
+      text: "Hey, this is a test message sent to Telegram!",
     },
-    platforms: ["x"],
+    platforms: ["telegram"],
+    options: {
+      telegram: {
+        chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
+      },
+    },
   });
 
   console.log(results);

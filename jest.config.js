@@ -1,8 +1,8 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  roots: ["<rootDir>/lib/src"],
-  testMatch: ["**/__tests__/**/*.test.ts"],
+  roots: ["<rootDir>/lib/src", "<rootDir>/lib/tests"],
+  testMatch: ["**/__tests__/**/*.test.ts", "<rootDir>/lib/tests/**/*.test.ts"],
   transform: {
     "^.+\\.ts$": "ts-jest",
   },
@@ -10,5 +10,5 @@ module.exports = {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   collectCoverageFrom: ["lib/src/**/*.ts", "!lib/src/**/*.d.ts"],
-  setupFilesAfterEnv: ["<rootDir>/lib/src/__tests__/setup.ts"],
+  setupFilesAfterEnv: ["<rootDir>/lib/tests/setup.ts"],
 };

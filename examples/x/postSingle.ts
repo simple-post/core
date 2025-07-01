@@ -5,10 +5,12 @@ import { post } from "unsubpost";
 dotenv.config();
 
 async function main() {
-  await post({
+  const results = await post({
     content: { text: "Hey, this is a test tweet" },
     platforms: ["x"],
   });
+
+  console.log(results);
 }
 
 main();

@@ -8,13 +8,23 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "compile": "tsc --noEmit"
+    "compile": "tsc --noEmit",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/node": "^24.0.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@types/axios": "^0.14.4",
+    "@types/form-data": "^2.5.2",
+    "axios": "^1.10.0",
+    "form-data": "^4.0.3",
     "twitter-api-v2": "^1.23.2",
     "zod": "^3.25.63"
   }

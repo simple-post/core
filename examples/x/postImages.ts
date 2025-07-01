@@ -5,7 +5,7 @@ import { post } from "unsubpost";
 dotenv.config();
 
 async function main() {
-  await post({
+  const results = await post({
     content: {
       text: "Hey, posting images",
       media: [
@@ -17,6 +17,8 @@ async function main() {
     },
     platforms: ["x"],
   });
+
+  console.log(results);
 }
 
 main();

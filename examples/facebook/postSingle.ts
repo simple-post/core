@@ -6,11 +6,8 @@ dotenv.config();
 
 async function main() {
   const results = await post({
-    content: {
-      text: "Hey, posting video",
-      media: [{ type: "video", path: "./x/data/1.mp4" }],
-    },
-    platforms: ["x"],
+    content: { text: "Hey, this is a test Facebook post!" },
+    platforms: ["facebook"],
   });
 
   console.log(results);

@@ -26,12 +26,16 @@ export const VideoSchema = z.object({
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);
 
-export const TelegramSpecificOptionsSchema = z.object({
+export const XOptionsSchema = z.object({
+  replyToId: z.string().optional(),
+});
+
+export const TelegramOptionsSchema = z.object({
   chatId: z.string(),
   parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
 });
 
-export const YouTubeSpecificOptionsSchema = z.object({
+export const YouTubeContentOptionsSchema = z.object({
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
@@ -40,8 +44,7 @@ export const YouTubeSpecificOptionsSchema = z.object({
 
 export const ContentOptionsSchema = z.object({
   privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
-  youtubeSpecific: YouTubeSpecificOptionsSchema.optional(),
-  telegramSpecific: TelegramSpecificOptionsSchema.optional(),
+  youtube: YouTubeContentOptionsSchema.optional(),
 });
 
 export const ContentSchema = z.object({
@@ -50,23 +53,24 @@ export const ContentSchema = z.object({
   options: ContentOptionsSchema.optional(),
 });
 
+export const PostOptionsSchema = z.object({
+  x: XOptionsSchema.optional(),
+  telegram: TelegramOptionsSchema.optional(),
+});
+
 export const PostSchema = z.object({
   content: ContentSchema,
   platforms: z.array(PlatformSchema),
-});
-
-export const PostMultiSchema = z.object({
-  content: z.array(ContentSchema),
-  platforms: z.array(PlatformSchema),
+  options: PostOptionsSchema.optional(),
 });
 
 export type Platform = z.infer<typeof PlatformSchema>;
 export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
-export type TelegramSpecificOptions = z.infer<typeof TelegramSpecificOptionsSchema>;
-export type YouTubeSpecificOptions = z.infer<typeof YouTubeSpecificOptionsSchema>;
+export type TelegramSpecificOptions = z.infer<typeof TelegramOptionsSchema>;
+export type YouTubeSpecificOptions = z.infer<typeof YouTubeContentOptionsSchema>;
 export type ContentOptions = z.infer<typeof ContentOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
+export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
-export type PostMulti = z.infer<typeof PostMultiSchema>;

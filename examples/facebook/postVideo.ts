@@ -11,7 +11,7 @@ async function main() {
       media: [
         {
           type: "video",
-          path: "./assets/video_2.mp4",
+          path: "./assets/video_1.mp4",
           title: "Amazing Video",
           description: "This is an amazing video to share on Facebook",
         },

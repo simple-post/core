@@ -3,6 +3,8 @@ import { PostError, Publisher } from "../../types/publisher";
 import { PostErrorType, PostResult } from "../../types";
 import axios, { AxiosInstance } from "axios";
 import fs from "fs";
+import path from "path";
+import FormData from "form-data";
 
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
@@ -39,9 +41,11 @@ export class FacebookPublisher extends Publisher {
       if (media.type === "image") {
         // For images, upload to the page's photos
         const fileBuffer = fs.readFileSync(media.path!);
-        const blob = new Blob([fileBuffer]);
-        formData.append("source", blob);
-        formData.append("published", "false"); // Upload but don't publish yet
+        formData.append("source", fileBuffer, {
+          filename: path.basename(media.path!),
+        });
+
+        formData.append("published", "false");
         formData.append("access_token", this.pageAccessToken);
 
         const response = await this.client.post(`/${this.pageId}/photos`, formData, {
@@ -54,9 +58,11 @@ export class FacebookPublisher extends Publisher {
       } else if (media.type === "video") {
         // For videos, upload to the page's videos
         const fileBuffer = fs.readFileSync(media.path!);
-        const blob = new Blob([fileBuffer]);
-        formData.append("source", blob);
-        formData.append("published", "false"); // Upload but don't publish yet
+        formData.append("source", fileBuffer, {
+          filename: path.basename(media.path!),
+          contentType: "video/mp4",
+        });
+        formData.append("published", "false");
         if (media.title) {
           formData.append("title", media.title);
         }
@@ -96,6 +102,17 @@ export class FacebookPublisher extends Publisher {
 
     // Validate media if present
     if (content.media && content.media.length > 0) {
+      // Check for videos - they can only be single media posts
+      const videoMedias = content.media.filter((m) => m.type === "video");
+      if (videoMedias.length > 0) {
+        if (content.media.length > 1) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            "Video posts can only contain a single video, no other media"
+          );
+        }
+      }
+
       // Check for too many images in multi-media posts
       if (content.media.length > 10) {
         throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook supports maximum of 10 images in a single post");
@@ -144,14 +161,45 @@ export class FacebookPublisher extends Publisher {
         if (content.media.length === 1) {
           // Single media post
           const media = content.media[0];
-          const mediaId = await this.uploadMedia(media);
 
           if (media.type === "image") {
-            // For single image, use the photo endpoint with the uploaded photo ID
+            // For single image, upload unpublished and attach
+            const mediaId = await this.uploadMedia(media);
             postData.object_attachment = mediaId;
           } else if (media.type === "video") {
-            // For single video, use the video endpoint with the uploaded video ID
-            postData.object_attachment = mediaId;
+            // For single video, publish directly - create form data for direct video post
+            const formData = new FormData();
+            const fileBuffer = fs.readFileSync(media.path!);
+
+            formData.append("source", fileBuffer, {
+              filename: path.basename(media.path!),
+              contentType: "video/mp4",
+            });
+
+            if (content.text) {
+              formData.append("description", content.text);
+            }
+            if (media.title) {
+              formData.append("title", media.title);
+            }
+            if (media.description) {
+              formData.append("description", media.description);
+            }
+            formData.append("access_token", this.pageAccessToken);
+
+            // Post video directly to page videos endpoint
+            const response = await this.client.post(`/${this.pageId}/videos`, formData, {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            });
+
+            return [
+              {
+                id: response.data.id,
+                error: PostErrorType.NO_ERROR,
+              },
+            ];
           }
         } else {
           // Multiple media post (validation ensures all are images)
@@ -165,7 +213,7 @@ export class FacebookPublisher extends Publisher {
         }
       }
 
-      // Post to Facebook page feed
+      // Post to Facebook page feed (for non-video posts)
       const response = await this.client.post(`/${this.pageId}/feed`, postData);
 
       return [

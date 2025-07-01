@@ -18,7 +18,7 @@ async function main() {
       ],
       options: {
         privacyStatus: "unlisted",
-        youtubeSpecific: {
+        youtube: {
           tags: ["test", "video"],
           categoryId: "10",
           selfDeclaredMadeForKids: true,

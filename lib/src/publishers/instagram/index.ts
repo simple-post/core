@@ -1,4 +1,4 @@
-import { Content, Media } from "../../types/post";
+import { Content, Media, PostOptions } from "../../types/post";
 import { PostError, Publisher } from "../../types/publisher";
 import { PostErrorType, PostResult } from "../../types";
 import fs from "fs";
@@ -42,26 +42,20 @@ export class InstagramPublisher extends Publisher {
     });
   }
 
-  private validate(content: Content[]): void {
-    if (content.length !== 1) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Instagram publisher only supports single posts.");
-    }
-
-    const postContent = content[0];
-
-    if (!postContent.media || postContent.media.length === 0) {
+  private validate(content: Content): void {
+    if (!content.media || content.media.length === 0) {
       throw new PostError(
         PostErrorType.INVALID_CONTENT,
         "Instagram posts require at least one media item (image or video)."
       );
     }
 
-    if (postContent.media.length > 10) {
+    if (content.media.length > 10) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts support maximum 10 media items.");
     }
 
     // Validate media files
-    for (const media of postContent.media) {
+    for (const media of content.media) {
       if (!media.path) {
         throw new PostError(PostErrorType.INVALID_CONTENT, "Media file path is required for Instagram posts.");
       }
@@ -72,7 +66,7 @@ export class InstagramPublisher extends Publisher {
     }
 
     // Caption length validation (Instagram limit is 2200 characters)
-    if (postContent.text && postContent.text.length > 2200) {
+    if (content.text && content.text.length > 2200) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Instagram caption cannot exceed 2200 characters.");
     }
   }
@@ -188,7 +182,7 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
-  async post(content: Content[]): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
     try {
       this.validate(content);
     } catch (error) {
@@ -198,11 +192,9 @@ export class InstagramPublisher extends Publisher {
       return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while validating Instagram post." }];
     }
 
-    const postContent = content[0];
-
     try {
       // Step 1: Create media container (which creates media objects internally)
-      const containerId = await this.createMediaContainer(postContent);
+      const containerId = await this.createMediaContainer(content);
 
       // Step 2: Publish the media container
       const postId = await this.publishMediaContainer(containerId);

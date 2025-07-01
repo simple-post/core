@@ -8,7 +8,7 @@ async function main() {
   const results = await post({
     content: {
       text: "Hey, posting video",
-      media: [{ type: "video", path: "./x/data/1.mp4" }],
+      media: [{ type: "video", path: "./assets/video_1.mp4" }],
     },
     platforms: ["x"],
   });

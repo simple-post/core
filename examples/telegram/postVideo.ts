@@ -11,14 +11,14 @@ async function main() {
       media: [
         {
           type: "video",
-          path: "./telegram/data/1.mp4",
+          path: "./assets/video_1.mp4",
         },
       ],
     },
     platforms: ["telegram"],
     options: {
       telegram: {
-        chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
+        chatId: process.env.TELEGRAM_CHAT_ID!,
       },
     },
   });

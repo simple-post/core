@@ -10,10 +10,10 @@ async function main() {
       media: [
         {
           type: "video",
-          path: "./youtube/data/horizontal.mp4",
+          path: "./assets/video_1.mp4",
           title: "Test video full",
           description: "This is a test video with all parameters",
-          thumbnailPath: "./youtube/data/horizontal.jpg",
+          thumbnailPath: "./assets/video_1_thumbnail.jpg",
         },
       ],
       options: {

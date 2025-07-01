@@ -9,10 +9,10 @@ async function main() {
     content: {
       text: "Hey, posting images",
       media: [
-        { type: "image", path: "./x/data/1.jpg" },
-        { type: "image", path: "./x/data/2.jpg" },
-        { type: "image", path: "./x/data/3.jpg" },
-        { type: "image", path: "./x/data/4.jpg" },
+        { type: "image", path: "./assets/image_1.jpg" },
+        { type: "image", path: "./assets/image_2.jpg" },
+        { type: "image", path: "./assets/image_3.jpg" },
+        { type: "image", path: "./assets/image_4.jpg" },
       ],
     },
     platforms: ["x"],

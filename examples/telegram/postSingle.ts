@@ -8,13 +8,13 @@ async function main() {
   const results = await post({
     content: {
       text: "Hey, this is a test message sent to Telegram!",
-      options: {
-        telegramSpecific: {
-          chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
-        },
-      },
     },
     platforms: ["telegram"],
+    options: {
+      telegram: {
+        chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
+      },
+    },
   });
 
   console.log(results);

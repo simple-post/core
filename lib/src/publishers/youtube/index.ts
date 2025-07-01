@@ -1,4 +1,4 @@
-import { Content } from "../../types/post";
+import { Content, PostOptions } from "../../types/post";
 import { PostError, Publisher } from "../../types/publisher";
 import { PostErrorType, PostResult } from "../../types";
 import { google, youtube_v3 } from "googleapis";
@@ -30,12 +30,8 @@ export class YouTubePublisher extends Publisher {
     this.youtube = google.youtube({ version: "v3", auth });
   }
 
-  validate(content: Content[]): void {
-    if (content.length !== 1)
-      throw new PostError(PostErrorType.INVALID_CONTENT, "YouTube publisher only supports single posts.");
-
-    const postContent = content[0];
-    const video = postContent.media?.find((m) => m.type === "video");
+  validate(content: Content): void {
+    const video = content.media?.find((m) => m.type === "video");
 
     // Check the video
     if (!video) throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
@@ -53,7 +49,7 @@ export class YouTubePublisher extends Publisher {
     if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
   }
 
-  async post(content: Content[]): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
     // Validate the content
     try {
       this.validate(content);
@@ -64,8 +60,7 @@ export class YouTubePublisher extends Publisher {
       return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while YouTube post." }];
     }
 
-    const postContent = content[0];
-    const video = postContent.media?.find((m) => m.type === "video");
+    const video = content.media?.find((m) => m.type === "video");
 
     let videoId: string;
 
@@ -77,12 +72,12 @@ export class YouTubePublisher extends Publisher {
           snippet: {
             title: video!.title,
             description: video!.description,
-            tags: postContent.options?.youtubeSpecific?.tags,
-            categoryId: postContent.options?.youtubeSpecific?.categoryId,
+            tags: content.options?.youtube?.tags,
+            categoryId: content.options?.youtube?.categoryId,
           },
           status: {
-            privacyStatus: postContent.options?.privacyStatus,
-            selfDeclaredMadeForKids: postContent.options?.youtubeSpecific?.selfDeclaredMadeForKids,
+            privacyStatus: content.options?.privacyStatus,
+            selfDeclaredMadeForKids: content.options?.youtube?.selfDeclaredMadeForKids,
           },
         },
         media: {
@@ -124,12 +119,12 @@ export class YouTubePublisher extends Publisher {
 
     // Add to playlist if playlist ID is provided
     try {
-      if (postContent.options?.youtubeSpecific?.playlistId) {
+      if (content.options?.youtube?.playlistId) {
         await this.youtube.playlistItems.insert({
           part: ["snippet"],
           requestBody: {
             snippet: {
-              playlistId: postContent.options?.youtubeSpecific?.playlistId,
+              playlistId: content.options?.youtube?.playlistId,
               resourceId: {
                 kind: "youtube#video",
                 videoId: videoId,

@@ -1,5 +1,5 @@
 import { PostErrorType, PostResult } from ".";
-import { Content } from "./post";
+import { Content, PostOptions } from "./post";
 
 export class PostError extends Error {
   public errorType: PostErrorType;
@@ -15,5 +15,5 @@ export class PostError extends Error {
 }
 
 export abstract class Publisher {
-  abstract post(posts: Content[]): Promise<PostResult[]>;
+  abstract post(content: Content, options: PostOptions): Promise<PostResult[]>;
 }

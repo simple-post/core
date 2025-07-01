@@ -14,13 +14,13 @@ async function main() {
           path: "./telegram/data/1.jpg",
         },
       ],
-      options: {
-        telegramSpecific: {
-          chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
-        },
-      },
     },
     platforms: ["telegram"],
+    options: {
+      telegram: {
+        chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
+      },
+    },
   });
 
   console.log(results);

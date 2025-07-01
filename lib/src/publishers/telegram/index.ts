@@ -1,4 +1,4 @@
-import { Content, Media } from "../../types/post";
+import { Content, Media, PostOptions } from "../../types/post";
 import { PostError, Publisher } from "../../types/publisher";
 import { PostErrorType, PostResult } from "../../types";
 import axios, { AxiosInstance } from "axios";
@@ -117,18 +117,7 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  async postContent(content: Content): Promise<string> {
-    // Check for telegram-specific options
-    if (!content.options?.telegramSpecific?.chatId) {
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        "Telegram chatId is required in content.options.telegramSpecific.chatId"
-      );
-    }
-
-    const chatId = content.options.telegramSpecific.chatId;
-    const parseMode = content.options.telegramSpecific.parseMode;
-
+  async postContent(content: Content, chatId: string, parseMode?: string): Promise<string> {
     // Check for empty content
     if (!content.text && !content.media) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram");
@@ -155,34 +144,42 @@ export class TelegramPublisher extends Publisher {
     throw new PostError(PostErrorType.INVALID_CONTENT, "No valid content to send");
   }
 
-  async post(content: Content[]): Promise<PostResult[]> {
-    const results: PostResult[] = [];
+  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
+    try {
+      // Check for telegram-specific options
+      if (!options.telegram?.chatId) {
+        throw new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId");
+      }
 
-    for (const item of content) {
-      try {
-        const messageId = await this.postContent(item);
+      const chatId = options.telegram.chatId;
+      const parseMode = options.telegram.parseMode;
 
-        results.push({
+      const messageId = await this.postContent(content, chatId, parseMode);
+
+      return [
+        {
           id: messageId,
           error: PostErrorType.NO_ERROR,
-        });
-      } catch (error: any) {
-        if (error instanceof PostError) {
-          results.push({
+        },
+      ];
+    } catch (error: any) {
+      if (error instanceof PostError) {
+        return [
+          {
             error: error.errorType,
             message: error.message,
             details: error.details,
-          });
-        } else {
-          results.push({
+          },
+        ];
+      } else {
+        return [
+          {
             error: PostErrorType.OTHER,
             message: `Error posting to Telegram: ${error.message}`,
             details: error,
-          });
-        }
+          },
+        ];
       }
     }
-
-    return results;
   }
 }

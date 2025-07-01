@@ -174,27 +174,25 @@ describe("XPublisher", () => {
     it("should post a single tweet", async () => {
       jest.spyOn(publisher, "postTweet").mockResolvedValue("tid");
       const content: Content = { text: "Single!" };
-      await publisher.post([content]);
+      const options = {};
+      await publisher.post(content, options);
       expect(publisher.postTweet).toHaveBeenCalledWith(content, undefined);
     });
-    it("should post a thread (array of Content)", async () => {
-      const spy = jest
-        .spyOn(publisher, "postTweet")
-        .mockResolvedValueOnce("id1")
-        .mockResolvedValueOnce("id2")
-        .mockResolvedValueOnce("id3");
-      const thread: Content[] = [{ text: "First" }, { text: "Second" }, { text: "Third" }];
-      await publisher.post(thread);
-      expect(spy).toHaveBeenNthCalledWith(1, thread[0], undefined);
-      expect(spy).toHaveBeenNthCalledWith(2, thread[1], "id1");
-      expect(spy).toHaveBeenNthCalledWith(3, thread[2], "id2");
+
+    it("should post a tweet with reply", async () => {
+      jest.spyOn(publisher, "postTweet").mockResolvedValue("tid");
+      const content: Content = { text: "Reply tweet!" };
+      const options = { x: { replyToId: "parent_id" } };
+      await publisher.post(content, options);
+      expect(publisher.postTweet).toHaveBeenCalledWith(content, "parent_id");
     });
 
     it("should return error result if postTweet fails with PostError", async () => {
       const error = new PostError(PostErrorType.API_ERROR, "API Error", { code: 1 });
       jest.spyOn(publisher, "postTweet").mockRejectedValue(error);
       const content: Content = { text: "Will fail" };
-      const results = await publisher.post([content]);
+      const options = {};
+      const results = await publisher.post(content, options);
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         error: PostErrorType.API_ERROR,
@@ -207,44 +205,13 @@ describe("XPublisher", () => {
       const error = new Error("Unknown error");
       jest.spyOn(publisher, "postTweet").mockRejectedValue(error);
       const content: Content = { text: "Will fail" };
-      const results = await publisher.post([content]);
+      const options = {};
+      const results = await publisher.post(content, options);
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         error: PostErrorType.OTHER,
         message: "Error posting: Unknown error",
         details: error,
-      });
-    });
-
-    it("should handle mixed success and failure in a thread", async () => {
-      const error = new PostError(PostErrorType.INVALID_CONTENT, "Invalid content");
-      const spy = jest
-        .spyOn(publisher, "postTweet")
-        .mockResolvedValueOnce("id1")
-        .mockRejectedValueOnce(error)
-        .mockResolvedValueOnce("id3");
-
-      const thread: Content[] = [{ text: "First" }, { text: "Second" }, { text: "Third" }];
-      const results = await publisher.post(thread);
-
-      expect(spy).toHaveBeenCalledTimes(3);
-      expect(spy).toHaveBeenNthCalledWith(1, thread[0], undefined);
-      expect(spy).toHaveBeenNthCalledWith(2, thread[1], "id1");
-      expect(spy).toHaveBeenNthCalledWith(3, thread[2], "id1");
-
-      expect(results).toHaveLength(3);
-      expect(results[0]).toEqual({
-        id: "id1",
-        error: PostErrorType.NO_ERROR,
-      });
-      expect(results[1]).toEqual({
-        error: PostErrorType.INVALID_CONTENT,
-        message: "Invalid content",
-        details: undefined,
-      });
-      expect(results[2]).toEqual({
-        id: "id3",
-        error: PostErrorType.NO_ERROR,
       });
     });
   });
@@ -285,7 +252,7 @@ describe("XPublisher", () => {
       mockTweet.mockResolvedValue({ data: { id: "1234567890", text: "Complete content test" } });
 
       // Act
-      await publisher.post([content]);
+      await publisher.post(content, {});
 
       // Assert
       expect(mockUploadMedia).toHaveBeenCalledWith("img1.jpg");

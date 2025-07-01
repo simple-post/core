@@ -12,7 +12,6 @@
     "youtube:video:full": "tsx youtube/postVideoFull.ts",
     "youtube:short": "tsx youtube/postShort.ts",
     "telegram:single": "tsx telegram/postSingle.ts",
-    "telegram:thread": "tsx telegram/postThread.ts",
     "telegram:images": "tsx telegram/postImages.ts",
     "telegram:video": "tsx telegram/postVideo.ts"
   },

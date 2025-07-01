@@ -45,7 +45,7 @@ describe("FacebookPublisher", () => {
   describe("constructor", () => {
     it("should initialize with correct credentials", () => {
       expect(mockAxios.create).toHaveBeenCalledWith({
-        baseURL: 'https://graph.facebook.com/v23.0',
+        baseURL: "https://graph.facebook.com/v23.0",
         timeout: 30000,
       });
     });
@@ -66,113 +66,90 @@ describe("FacebookPublisher", () => {
   });
 
   describe("validate", () => {
-    beforeEach(() => {
-      process.env.FACEBOOK_PAGE_ACCESS_TOKEN = "test_page_access_token";
-      process.env.FACEBOOK_PAGE_ID = "test_page_id";
-      publisher = new FacebookPublisher();
+    it("should validate successfully with text", () => {
+      const content: Content = { text: "Hello World!" };
+      expect(() => publisher.validate(content)).not.toThrow();
     });
 
-    it("should throw error for multiple posts", () => {
-      const content: Content[] = [{ text: "First post" }, { text: "Second post" }];
-
-      expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Facebook publisher only supports single posts.")
-      );
+    it("should validate successfully with text and image", () => {
+      const content: Content = {
+        text: "Hello with image",
+        media: [{ type: "image", path: "/test/image.jpg" }],
+      };
+      expect(() => publisher.validate(content)).not.toThrow();
     });
 
-    it("should throw error for empty post", () => {
-      const content: Content[] = [{}];
-
+    it("should throw error for empty content", () => {
+      const content: Content = {};
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook")
       );
     });
 
-    it("should throw error for too many images", () => {
-      const content: Content[] = [{
-        text: "Too many images",
-        media: Array(11).fill({ type: "image", path: "test.jpg" })
-      }];
+    it("should validate video media successfully", () => {
+      const content: Content = {
+        text: "Video content",
+        media: [{ type: "video", path: "/test/video.mp4" }],
+      };
+      expect(() => publisher.validate(content)).not.toThrow();
+    });
 
+    it("should validate multiple image media successfully", () => {
+      const content: Content = {
+        text: "Multiple images",
+        media: [
+          { type: "image", path: "/test/image1.jpg" },
+          { type: "image", path: "/test/image2.jpg" },
+        ],
+      };
+      expect(() => publisher.validate(content)).not.toThrow();
+    });
+
+    it("should throw error for too many media items", () => {
+      const content: Content = {
+        text: "Too many images",
+        media: Array(11).fill({ type: "image", path: "/test/image.jpg" }),
+      };
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Facebook supports maximum of 10 images in a single post")
       );
     });
 
-    it("should throw error for multi-media posts with mixed types", () => {
-      const content: Content[] = [{
+    it("should throw error for mixed media types in multi-media post", () => {
+      const content: Content = {
         text: "Mixed media",
         media: [
-          { type: "image", path: "test.jpg" },
-          { type: "video", path: "test.mp4" }
-        ]
-      }];
-
+          { type: "image", path: "/test/image.jpg" },
+          { type: "video", path: "/test/video.mp4" },
+        ],
+      };
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Multi-media posts only support images")
       );
     });
 
-    it("should throw error when media has no path", () => {
-      const content: Content[] = [{
-        text: "Post with media without path",
-        media: [{ type: "image" }]
-      }];
-
+    it("should throw error for missing media path", () => {
+      const content: Content = {
+        text: "Media without path",
+        media: [{ type: "image" }],
+      };
       expect(() => publisher.validate(content)).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Media path is required")
       );
-    });
-
-    it("should pass validation for valid single text post", () => {
-      const content: Content[] = [{ text: "Valid post" }];
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should pass validation for valid single image post", () => {
-      const content: Content[] = [{
-        text: "Post with image",
-        media: [{ type: "image", path: "test.jpg" }]
-      }];
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should pass validation for valid multiple images post", () => {
-      const content: Content[] = [{
-        text: "Post with multiple images",
-        media: [
-          { type: "image", path: "test1.jpg" },
-          { type: "image", path: "test2.jpg" },
-          { type: "image", path: "test3.jpg" }
-        ]
-      }];
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should pass validation for valid video post", () => {
-      const content: Content[] = [{
-        text: "Post with video",
-        media: [{ type: "video", path: "test.mp4" }]
-      }];
-
-      expect(() => publisher.validate(content)).not.toThrow();
     });
   });
 
   describe("uploadMedia", () => {
     beforeEach(() => {
       // Mock fs readFileSync
-      mockFs.readFileSync.mockReturnValue(Buffer.from('test file content'));
-      
+      mockFs.readFileSync.mockReturnValue(Buffer.from("test file content"));
+
       // Mock Blob constructor
       global.Blob = jest.fn().mockImplementation((content) => ({
         content,
-        type: 'application/octet-stream'
+        type: "application/octet-stream",
       })) as any;
-      
+
       // Mock FormData
       global.FormData = jest.fn().mockImplementation(() => ({
         append: jest.fn(),
@@ -181,16 +158,16 @@ describe("FacebookPublisher", () => {
 
     it("should upload image media", async () => {
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "photo_id_123" } });
-      
+
       const media: Media = { type: "image", path: "test.jpg" };
       const result = await publisher.uploadMedia(media);
-      
+
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/test_page_id/photos",
         expect.any(Object),
         expect.objectContaining({
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         })
       );
@@ -199,21 +176,21 @@ describe("FacebookPublisher", () => {
 
     it("should upload video media with title and description", async () => {
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "video_id_456" } });
-      
-      const media: Media = { 
-        type: "video", 
+
+      const media: Media = {
+        type: "video",
         path: "test.mp4",
         title: "Test Video",
-        description: "Test Description"
+        description: "Test Description",
       };
       const result = await publisher.uploadMedia(media);
-      
+
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/test_page_id/videos",
         expect.any(Object),
         expect.objectContaining({
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         })
       );
@@ -232,27 +209,54 @@ describe("FacebookPublisher", () => {
         response: {
           data: {
             error: {
-              message: "Upload failed"
-            }
-          }
-        }
+              message: "Upload failed",
+            },
+          },
+        },
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
-      
+
       const media: Media = { type: "image", path: "test.jpg" };
       await expect(publisher.uploadMedia(media)).rejects.toThrow(PostError);
     });
   });
 
-
-
   describe("post", () => {
+    it("should post successfully", async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: { id: "mock_post_id" } });
+
+      const validateSpy = jest.spyOn(publisher, "validate");
+      const content: Content = { text: "Test post" };
+
+      const results = await publisher.post(content, {});
+
+      expect(validateSpy).toHaveBeenCalledWith(content);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        id: "mock_post_id",
+        error: PostErrorType.NO_ERROR,
+      });
+    });
+
+    it("should return error for validation failure", async () => {
+      const content: Content = {}; // Invalid content
+
+      const results = await publisher.post(content, {});
+
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Empty posts are not supported by Facebook",
+        details: undefined,
+      });
+    });
+
     it("should post text-only content", async () => {
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_123" } });
-      
-      const content: Content[] = [{ text: "Hello Facebook!" }];
-      const results = await publisher.post(content);
-      
+
+      const content: Content = { text: "Hello Facebook!" };
+      const results = await publisher.post(content, {});
+
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
         access_token: "test_page_access_token",
         message: "Hello Facebook!",
@@ -266,15 +270,15 @@ describe("FacebookPublisher", () => {
 
     it("should post content with single image", async () => {
       // Mock uploadMedia
-      jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("photo_id_123");
+      jest.spyOn(publisher, "uploadMedia").mockResolvedValue("photo_id_123");
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_456" } });
-      
-      const content: Content[] = [{
+
+      const content: Content = {
         text: "Check out this image!",
-        media: [{ type: "image", path: "test.jpg" }]
-      }];
-      const results = await publisher.post(content);
-      
+        media: [{ type: "image", path: "test.jpg" }],
+      };
+      const results = await publisher.post(content, {});
+
       expect(publisher.uploadMedia).toHaveBeenCalledWith({ type: "image", path: "test.jpg" });
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
         access_token: "test_page_access_token",
@@ -290,15 +294,15 @@ describe("FacebookPublisher", () => {
 
     it("should post content with single video", async () => {
       // Mock uploadMedia
-      jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("video_id_789");
+      jest.spyOn(publisher, "uploadMedia").mockResolvedValue("video_id_789");
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_789" } });
-      
-      const content: Content[] = [{
+
+      const content: Content = {
         text: "Check out this video!",
-        media: [{ type: "video", path: "test.mp4" }]
-      }];
-      const results = await publisher.post(content);
-      
+        media: [{ type: "video", path: "test.mp4" }],
+      };
+      const results = await publisher.post(content, {});
+
       expect(publisher.uploadMedia).toHaveBeenCalledWith({ type: "video", path: "test.mp4" });
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
         access_token: "test_page_access_token",
@@ -314,23 +318,24 @@ describe("FacebookPublisher", () => {
 
     it("should post content with multiple images", async () => {
       // Mock uploadMedia
-      jest.spyOn(publisher, 'uploadMedia')
+      jest
+        .spyOn(publisher, "uploadMedia")
         .mockResolvedValueOnce("photo_id_1")
         .mockResolvedValueOnce("photo_id_2")
         .mockResolvedValueOnce("photo_id_3");
-      
+
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_multi" } });
-      
-      const content: Content[] = [{
+
+      const content: Content = {
         text: "Multiple images!",
         media: [
           { type: "image", path: "test1.jpg" },
           { type: "image", path: "test2.jpg" },
-          { type: "image", path: "test3.jpg" }
-        ]
-      }];
-      const results = await publisher.post(content);
-      
+          { type: "image", path: "test3.jpg" },
+        ],
+      };
+      const results = await publisher.post(content, {});
+
       expect(publisher.uploadMedia).toHaveBeenCalledTimes(3);
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
         access_token: "test_page_access_token",
@@ -338,7 +343,7 @@ describe("FacebookPublisher", () => {
         attached_media: JSON.stringify([
           { media_fbid: "photo_id_1" },
           { media_fbid: "photo_id_2" },
-          { media_fbid: "photo_id_3" }
+          { media_fbid: "photo_id_3" },
         ]),
       });
       expect(results).toHaveLength(1);
@@ -348,50 +353,21 @@ describe("FacebookPublisher", () => {
       });
     });
 
-    it("should return validation error for multiple posts", async () => {
-      const contents: Content[] = [
-        { text: "First post" },
-        { text: "Second post" }
-      ];
-      
-      const results = await publisher.post(contents);
-      
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        error: PostErrorType.INVALID_CONTENT,
-        message: "Facebook publisher only supports single posts.",
-        details: undefined,
-      });
-    });
-
-    it("should return validation error for empty post", async () => {
-      const content: Content[] = [{}];
-      
-      const results = await publisher.post(content);
-      
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
-        error: PostErrorType.INVALID_CONTENT,
-        message: "Empty posts are not supported by Facebook",
-        details: undefined,
-      });
-    });
-
     it("should handle API errors during posting", async () => {
       const apiError = {
         response: {
           data: {
             error: {
-              message: "Post failed"
-            }
-          }
-        }
+              message: "Post failed",
+            },
+          },
+        },
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
-      
-      const content: Content[] = [{ text: "Will fail" }];
-      const results = await publisher.post(content);
-      
+
+      const content: Content = { text: "Will fail" };
+      const results = await publisher.post(content, {});
+
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         error: PostErrorType.API_ERROR,
@@ -404,10 +380,10 @@ describe("FacebookPublisher", () => {
       jest.spyOn(publisher, "validate").mockImplementation(() => {
         throw new Error("Generic validation error");
       });
-      
-      const content: Content[] = [{ text: "Will fail validation" }];
-      const results = await publisher.post(content);
-      
+
+      const content: Content = { text: "Will fail validation" };
+      const results = await publisher.post(content, {});
+
       expect(results).toHaveLength(1);
       expect(results[0]).toEqual({
         error: PostErrorType.OTHER,
@@ -418,7 +394,7 @@ describe("FacebookPublisher", () => {
 
   describe("integration with Content types", () => {
     it("should return validation error for mixed media types", async () => {
-      const content: Content[] = [{
+      const content: Content = {
         text: "Complete content test",
         media: [
           {
@@ -433,39 +409,41 @@ describe("FacebookPublisher", () => {
             thumbnailPath: "thumb1.jpg",
           },
         ],
-      }];
+      };
 
       // This should fail due to mixed media types
-      const results = await publisher.post(content);
-      
+      const results = await publisher.post(content, {});
+
       expect(results).toEqual([
         {
           error: PostErrorType.INVALID_CONTENT,
           message: "Multi-media posts only support images",
           details: undefined,
-        }
+        },
       ]);
     });
 
     it("should successfully post valid single image content", async () => {
-      jest.spyOn(publisher, 'uploadMedia').mockResolvedValue("photo_id_1");
+      jest.spyOn(publisher, "uploadMedia").mockResolvedValue("photo_id_1");
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_123" } });
-      
-      const content: Content[] = [{
-        text: "Single image post",
-        media: [{
-          type: "image",
-          path: "img1.jpg",
-        }],
-      }];
 
-      const results = await publisher.post(content);
-      
+      const content: Content = {
+        text: "Single image post",
+        media: [
+          {
+            type: "image",
+            path: "img1.jpg",
+          },
+        ],
+      };
+
+      const results = await publisher.post(content, {});
+
       expect(results).toEqual([
         {
           id: "post_id_123",
           error: PostErrorType.NO_ERROR,
-        }
+        },
       ]);
     });
   });

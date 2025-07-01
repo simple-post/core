@@ -1,4 +1,4 @@
-import { Content, Media } from "../../types/post";
+import { Content, Media, PostOptions } from "../../types/post";
 import { PostError, Publisher } from "../../types/publisher";
 import { PostErrorType, PostResult } from "../../types";
 import axios, { AxiosInstance } from "axios";
@@ -16,7 +16,10 @@ export class FacebookPublisher extends Publisher {
     this.pageId = process.env.FACEBOOK_PAGE_ID!;
 
     if (!this.pageAccessToken) {
-      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "FACEBOOK_PAGE_ACCESS_TOKEN environment variable is required");
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "FACEBOOK_PAGE_ACCESS_TOKEN environment variable is required"
+      );
     }
 
     if (!this.pageId) {
@@ -24,7 +27,7 @@ export class FacebookPublisher extends Publisher {
     }
 
     this.client = axios.create({
-      baseURL: 'https://graph.facebook.com/v23.0',
+      baseURL: "https://graph.facebook.com/v23.0",
       timeout: 30000,
     });
   }
@@ -32,18 +35,18 @@ export class FacebookPublisher extends Publisher {
   async uploadMedia(media: Media): Promise<string> {
     try {
       const formData = new FormData();
-      
+
       if (media.type === "image") {
         // For images, upload to the page's photos
         const fileBuffer = fs.readFileSync(media.path!);
         const blob = new Blob([fileBuffer]);
-        formData.append('source', blob);
-        formData.append('published', 'false'); // Upload but don't publish yet
-        formData.append('access_token', this.pageAccessToken);
+        formData.append("source", blob);
+        formData.append("published", "false"); // Upload but don't publish yet
+        formData.append("access_token", this.pageAccessToken);
 
         const response = await this.client.post(`/${this.pageId}/photos`, formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         });
 
@@ -52,19 +55,19 @@ export class FacebookPublisher extends Publisher {
         // For videos, upload to the page's videos
         const fileBuffer = fs.readFileSync(media.path!);
         const blob = new Blob([fileBuffer]);
-        formData.append('source', blob);
-        formData.append('published', 'false'); // Upload but don't publish yet
+        formData.append("source", blob);
+        formData.append("published", "false"); // Upload but don't publish yet
         if (media.title) {
-          formData.append('title', media.title);
+          formData.append("title", media.title);
         }
         if (media.description) {
-          formData.append('description', media.description);
+          formData.append("description", media.description);
         }
-        formData.append('access_token', this.pageAccessToken);
+        formData.append("access_token", this.pageAccessToken);
 
         const response = await this.client.post(`/${this.pageId}/videos`, formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         });
 
@@ -76,7 +79,7 @@ export class FacebookPublisher extends Publisher {
       if (error instanceof PostError) {
         throw error;
       }
-      
+
       throw new PostError(
         PostErrorType.API_ERROR,
         `Error uploading media: ${error.response?.data?.error?.message || error.message}`,
@@ -85,42 +88,29 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-    validate(content: Content[]): void {
-    // Facebook doesn't support threading, only single posts
-    if (content.length !== 1) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook publisher only supports single posts.");
-    }
-
-    const postContent = content[0];
-
+  validate(content: Content): void {
     // Check for empty post
-    if (!postContent.text && !postContent.media) {
+    if (!content.text && !content.media) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook");
     }
 
     // Validate media if present
-    if (postContent.media && postContent.media.length > 0) {
+    if (content.media && content.media.length > 0) {
       // Check for too many images in multi-media posts
-      if (postContent.media.length > 10) {
-        throw new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Facebook supports maximum of 10 images in a single post"
-        );
+      if (content.media.length > 10) {
+        throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook supports maximum of 10 images in a single post");
       }
 
       // For multiple media, only images are supported
-      if (postContent.media.length > 1) {
-        const imageMedias = postContent.media.filter(m => m.type === "image");
-        if (imageMedias.length !== postContent.media.length) {
-          throw new PostError(
-            PostErrorType.INVALID_CONTENT,
-            "Multi-media posts only support images"
-          );
+      if (content.media.length > 1) {
+        const imageMedias = content.media.filter((m) => m.type === "image");
+        if (imageMedias.length !== content.media.length) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, "Multi-media posts only support images");
         }
       }
 
       // Validate each media item has a path
-      for (const media of postContent.media) {
+      for (const media of content.media) {
         if (!media.path) {
           throw new PostError(PostErrorType.INVALID_CONTENT, "Media path is required");
         }
@@ -128,7 +118,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async post(content: Content[]): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
     // Validate the content
     try {
       this.validate(content);
@@ -139,26 +129,23 @@ export class FacebookPublisher extends Publisher {
       return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while validating Facebook post." }];
     }
 
-    // Since validation passed, we know there's exactly one content item
-    const postContent = content[0];
-
     try {
       const postData: any = {
         access_token: this.pageAccessToken,
       };
 
       // Add text message
-      if (postContent.text) {
-        postData.message = postContent.text;
+      if (content.text) {
+        postData.message = content.text;
       }
 
       // Handle media
-      if (postContent.media && postContent.media.length > 0) {
-        if (postContent.media.length === 1) {
+      if (content.media && content.media.length > 0) {
+        if (content.media.length === 1) {
           // Single media post
-          const media = postContent.media[0];
+          const media = content.media[0];
           const mediaId = await this.uploadMedia(media);
-          
+
           if (media.type === "image") {
             // For single image, use the photo endpoint with the uploaded photo ID
             postData.object_attachment = mediaId;
@@ -169,36 +156,42 @@ export class FacebookPublisher extends Publisher {
         } else {
           // Multiple media post (validation ensures all are images)
           const attachedMedia = [];
-          for (const media of postContent.media as Media[]) {
+          for (const media of content.media as Media[]) {
             const mediaId = await this.uploadMedia(media);
             attachedMedia.push({ media_fbid: mediaId });
           }
-          
+
           postData.attached_media = JSON.stringify(attachedMedia);
         }
       }
 
       // Post to Facebook page feed
       const response = await this.client.post(`/${this.pageId}/feed`, postData);
-      
-      return [{
-        id: response.data.id,
-        error: PostErrorType.NO_ERROR,
-      }];
+
+      return [
+        {
+          id: response.data.id,
+          error: PostErrorType.NO_ERROR,
+        },
+      ];
     } catch (error: any) {
       if (error instanceof PostError) {
-        return [{
-          error: error.errorType,
-          message: error.message,
-          details: error.details,
-        }];
+        return [
+          {
+            error: error.errorType,
+            message: error.message,
+            details: error.details,
+          },
+        ];
       }
-      
-      return [{
-        error: PostErrorType.API_ERROR,
-        message: `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
-        details: error.response?.data,
-      }];
+
+      return [
+        {
+          error: PostErrorType.API_ERROR,
+          message: `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
+          details: error.response?.data,
+        },
+      ];
     }
   }
 }

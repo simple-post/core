@@ -1,4 +1,4 @@
-import { Content, Media } from "../../types/post";
+import { Content, Media, PostOptions } from "../../types/post";
 import { PostError, Publisher } from "../../types/publisher";
 import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
 import { PostErrorType, PostResult } from "../../types";
@@ -62,36 +62,35 @@ export class XPublisher extends Publisher {
     }
   }
 
-  async post(content: Content[]): Promise<PostResult[]> {
-    const results: PostResult[] = [];
-    let lastTweetId: string | undefined = undefined;
+  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
+    try {
+      const replyToId = options.x?.replyToId;
+      const tweetId = await this.postTweet(content, replyToId);
 
-    for (const item of content) {
-      try {
-        const tweetId = await this.postTweet(item, lastTweetId);
-        lastTweetId = tweetId;
-
-        results.push({
+      return [
+        {
           id: tweetId,
           error: PostErrorType.NO_ERROR,
-        });
-      } catch (error: any) {
-        if (error instanceof PostError) {
-          results.push({
+        },
+      ];
+    } catch (error: any) {
+      if (error instanceof PostError) {
+        return [
+          {
             error: error.errorType,
             message: error.message,
             details: error.details,
-          });
-        } else {
-          results.push({
+          },
+        ];
+      } else {
+        return [
+          {
             error: PostErrorType.OTHER,
             message: `Error posting: ${error.message}`,
             details: error,
-          });
-        }
+          },
+        ];
       }
     }
-
-    return results;
   }
 }

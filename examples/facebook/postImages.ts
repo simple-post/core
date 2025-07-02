@@ -9,9 +9,9 @@ async function main() {
     content: {
       text: "Check out these amazing images! 📸",
       media: [
-        { type: "image", path: "./data/image1.jpg" },
-        { type: "image", path: "./data/image2.jpg" },
-        { type: "image", path: "./data/image3.jpg" },
+        { type: "image", path: "./assets/image_1.jpg" },
+        { type: "image", path: "./assets/image_2.jpg" },
+        { type: "image", path: "./assets/image_3.jpg" },
       ],
     },
     platforms: ["facebook"],

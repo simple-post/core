@@ -11,14 +11,14 @@ async function main() {
       media: [
         {
           type: "image",
-          path: "./telegram/data/1.jpg",
+          path: "./assets/image_1.jpg",
         },
       ],
     },
     platforms: ["telegram"],
     options: {
       telegram: {
-        chatId: "YOUR_CHAT_ID", // Replace with your actual chat ID
+        chatId: process.env.TELEGRAM_CHAT_ID!,
       },
     },
   });

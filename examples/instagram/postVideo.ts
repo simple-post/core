@@ -7,20 +7,18 @@ dotenv.config();
 async function main() {
   const results = await post({
     content: {
-      text: "Check out this awesome video! 🎥",
+      text: "Amazing video content! 🎥 Hope you enjoy this moment! #video #content #instagram",
       media: [
         {
           type: "video",
           path: "./assets/video_1.mp4",
-          title: "Amazing Video",
-          description: "This is an amazing video to share on Facebook",
         },
       ],
     },
-    platforms: ["facebook"],
+    platforms: ["instagram"],
   });
 
-  console.log(results, results.get("facebook")?.[0]?.details);
+  console.log(results);
 }
 
 main();

@@ -7,10 +7,10 @@ dotenv.config();
 async function main() {
   const results = await post({
     content: {
-      text: "Hey, posting video",
-      media: [{ type: "video", path: "./assets/video_1.mp4" }],
+      text: "Beautiful sunset vibes! 🌅 #sunset #photography",
+      media: [{ type: "image", path: "./assets/image_1.jpg" }],
     },
-    platforms: ["x"],
+    platforms: ["instagram"],
   });
 
   console.log(results);

@@ -7,15 +7,14 @@ dotenv.config();
 async function main() {
   const results = await post({
     content: {
-      text: "Hey, posting images",
+      text: "Check out these amazing moments! 📸✨ #memories #photography #carousel",
       media: [
         { type: "image", path: "./assets/image_1.jpg" },
         { type: "image", path: "./assets/image_2.jpg" },
         { type: "image", path: "./assets/image_3.jpg" },
-        { type: "image", path: "./assets/image_4.jpg" },
       ],
     },
-    platforms: ["x"],
+    platforms: ["instagram"],
   });
 
   console.log(results);

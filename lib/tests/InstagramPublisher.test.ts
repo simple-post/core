@@ -6,6 +6,21 @@ import axios from "axios";
 
 // Mock dependencies
 jest.mock("axios");
+jest.mock("@aws-sdk/client-s3", () => ({
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: jest.fn().mockResolvedValue({}),
+  })),
+  PutObjectCommand: jest.fn(),
+  DeleteObjectCommand: jest.fn(),
+}));
+jest.mock("fs", () => ({
+  existsSync: jest.fn(),
+  readFileSync: jest.fn(),
+  createReadStream: jest.fn().mockReturnValue({
+    pipe: jest.fn(),
+    on: jest.fn(),
+  }),
+}));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
@@ -19,6 +34,14 @@ describe("InstagramPublisher", () => {
 
     // Set up environment variables for each test
     process.env.INSTAGRAM_ACCESS_TOKEN = "test_access_token";
+    process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID = "test_business_account_id";
+
+    // S3 environment variables
+    process.env.INSTAGRAM_S3_STORAGE_ACCESS_KEY_ID = "test_s3_access_key";
+    process.env.INSTAGRAM_S3_STORAGE_SECRET_ACCESS_KEY = "test_s3_secret_key";
+    process.env.INSTAGRAM_S3_STORAGE_REGION = "us-east-1";
+    process.env.INSTAGRAM_S3_STORAGE_BUCKET = "test-bucket";
+    process.env.INSTAGRAM_S3_STORAGE_BASE_URL = "https://test-bucket.s3.amazonaws.com";
 
     // Create mock axios instance
     mockAxiosInstance = {

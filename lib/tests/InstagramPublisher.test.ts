@@ -21,6 +21,11 @@ jest.mock("fs", () => ({
     on: jest.fn(),
   }),
 }));
+jest.mock("@aws-sdk/lib-storage", () => ({
+  Upload: jest.fn().mockImplementation(() => ({
+    done: jest.fn().mockResolvedValue({}),
+  })),
+}));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
@@ -46,6 +51,7 @@ describe("InstagramPublisher", () => {
     // Create mock axios instance
     mockAxiosInstance = {
       post: jest.fn(),
+      get: jest.fn().mockResolvedValue({ data: { status_code: "FINISHED", status: "FINISHED" } }),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
 
@@ -60,6 +66,10 @@ describe("InstagramPublisher", () => {
         timeout: 30000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test_access_token",
+        },
       });
     });
 
@@ -214,7 +224,6 @@ describe("InstagramPublisher", () => {
       // Mock the media container creation and publishing
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "media_object_id" } }) // createMediaObject
-        .mockResolvedValueOnce({ data: { id: "container_id" } }) // createMediaContainer
         .mockResolvedValueOnce({ data: { id: "published_post_id" } }); // publishMediaContainer
 
       const content: Content = {
@@ -237,7 +246,6 @@ describe("InstagramPublisher", () => {
 
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "video_object_id" } })
-        .mockResolvedValueOnce({ data: { id: "video_container_id" } })
         .mockResolvedValueOnce({ data: { id: "published_video_id" } });
 
       const content: Content = {
@@ -260,7 +268,6 @@ describe("InstagramPublisher", () => {
 
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "media_object_id" } })
-        .mockResolvedValueOnce({ data: { id: "container_id" } })
         .mockResolvedValueOnce({ data: { id: "published_post_id" } });
 
       const content: Content = {

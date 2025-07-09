@@ -135,15 +135,15 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult> {
     // Validate the content
     try {
       this.validate(content);
     } catch (error) {
       if (error instanceof PostError) {
-        return [{ error: error.errorType, message: error.message, details: error.details }];
+        return { error: error.errorType, message: error.message, details: error.details };
       }
-      return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while validating Facebook post." }];
+      return { error: PostErrorType.OTHER, message: "An unknown error occurred while validating Facebook post." };
     }
 
     try {
@@ -194,12 +194,10 @@ export class FacebookPublisher extends Publisher {
               },
             });
 
-            return [
-              {
-                id: response.data.id,
-                error: PostErrorType.NO_ERROR,
-              },
-            ];
+            return {
+              id: response.data.id,
+              error: PostErrorType.NO_ERROR,
+            };
           }
         } else {
           // Multiple media post (validation ensures all are images)
@@ -216,30 +214,24 @@ export class FacebookPublisher extends Publisher {
       // Post to Facebook page feed (for non-video posts)
       const response = await this.client.post(`/${this.pageId}/feed`, postData);
 
-      return [
-        {
-          id: response.data.id,
-          error: PostErrorType.NO_ERROR,
-        },
-      ];
+      return {
+        id: response.data.id,
+        error: PostErrorType.NO_ERROR,
+      };
     } catch (error: any) {
       if (error instanceof PostError) {
-        return [
-          {
-            error: error.errorType,
-            message: error.message,
-            details: error.details,
-          },
-        ];
+        return {
+          error: error.errorType,
+          message: error.message,
+          details: error.details,
+        };
       }
 
-      return [
-        {
-          error: PostErrorType.API_ERROR,
-          message: `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
-          details: error.response?.data,
-        },
-      ];
+      return {
+        error: PostErrorType.API_ERROR,
+        message: `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
+        details: error.response?.data,
+      };
     }
   }
 }

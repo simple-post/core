@@ -269,14 +269,14 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
-  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult> {
     try {
       this.validate(content);
     } catch (error) {
       if (error instanceof PostError) {
-        return [{ error: error.errorType, message: error.message, details: error.details }];
+        return { error: error.errorType, message: error.message, details: error.details };
       }
-      return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while validating Instagram post." }];
+      return { error: PostErrorType.OTHER, message: "An unknown error occurred while validating Instagram post." };
     }
 
     let s3Keys: string[] = [];
@@ -292,12 +292,7 @@ export class InstagramPublisher extends Publisher {
       // Step 3: Cleanup S3 files after successful posting
       await Promise.all(s3Keys.map((key) => this.cleanupS3File(key)));
 
-      return [
-        {
-          id: postId,
-          error: PostErrorType.NO_ERROR,
-        },
-      ];
+      return { id: postId, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
       // Cleanup S3 files on error too
       if (s3Keys.length > 0) {
@@ -305,21 +300,9 @@ export class InstagramPublisher extends Publisher {
       }
 
       if (error instanceof PostError) {
-        return [
-          {
-            error: error.errorType,
-            message: error.message,
-            details: error.details,
-          },
-        ];
+        return { error: error.errorType, message: error.message, details: error.details };
       } else {
-        return [
-          {
-            error: PostErrorType.OTHER,
-            message: `Error posting to Instagram: ${error.message}`,
-            details: error,
-          },
-        ];
+        return { error: PostErrorType.OTHER, message: `Error posting to Instagram: ${error.message}`, details: error };
       }
     }
   }

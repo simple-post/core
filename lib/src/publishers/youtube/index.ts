@@ -49,15 +49,15 @@ export class YouTubePublisher extends Publisher {
     if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
   }
 
-  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult> {
     // Validate the content
     try {
       this.validate(content);
     } catch (error) {
       if (error instanceof PostError) {
-        return [{ error: error.errorType, message: error.message }];
+        return { error: error.errorType, message: error.message };
       }
-      return [{ error: PostErrorType.OTHER, message: "An unknown error occurred while YouTube post." }];
+      return { error: PostErrorType.OTHER, message: "An unknown error occurred while YouTube post." };
     }
 
     const video = content.media?.find((m) => m.type === "video");
@@ -94,13 +94,7 @@ export class YouTubePublisher extends Publisher {
         errorMessage = error.message;
       }
 
-      return [
-        {
-          error: PostErrorType.API_ERROR,
-          message: errorMessage,
-          details: error,
-        },
-      ];
+      return { error: PostErrorType.API_ERROR, message: errorMessage, details: error };
     }
 
     // Upload the thumbnail if provided
@@ -137,11 +131,9 @@ export class YouTubePublisher extends Publisher {
       // TODO: log error
     }
 
-    return [
-      {
-        id: videoId,
-        error: PostErrorType.NO_ERROR,
-      },
-    ];
+    return {
+      id: videoId,
+      error: PostErrorType.NO_ERROR,
+    };
   }
 }

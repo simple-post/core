@@ -15,5 +15,5 @@ export class PostError extends Error {
 }
 
 export abstract class Publisher {
-  abstract post(content: Content, options: PostOptions): Promise<PostResult[]>;
+  abstract post(content: Content, options: PostOptions): Promise<PostResult>;
 }

@@ -62,34 +62,17 @@ export class XPublisher extends Publisher {
     }
   }
 
-  async post(content: Content, options: PostOptions): Promise<PostResult[]> {
+  async post(content: Content, options: PostOptions): Promise<PostResult> {
     try {
       const replyToId = options.x?.replyToId;
       const tweetId = await this.postTweet(content, replyToId);
 
-      return [
-        {
-          id: tweetId,
-          error: PostErrorType.NO_ERROR,
-        },
-      ];
+      return { id: tweetId, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
       if (error instanceof PostError) {
-        return [
-          {
-            error: error.errorType,
-            message: error.message,
-            details: error.details,
-          },
-        ];
+        return { error: error.errorType, message: error.message, details: error.details };
       } else {
-        return [
-          {
-            error: PostErrorType.OTHER,
-            message: `Error posting: ${error.message}`,
-            details: error,
-          },
-        ];
+        return { error: PostErrorType.OTHER, message: `Error posting: ${error.message}`, details: error };
       }
     }
   }

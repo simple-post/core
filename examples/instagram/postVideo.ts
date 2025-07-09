@@ -11,14 +11,14 @@ async function main() {
       media: [
         {
           type: "video",
-          path: "./assets/video_1.mp4",
+          path: "./assets/video_vertical.mp4",
         },
       ],
     },
     platforms: ["instagram"],
   });
 
-  console.log(results);
+  console.log(results, results.get("instagram")?.[0]?.details);
 }
 
 main();

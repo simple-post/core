@@ -6,6 +6,26 @@ import axios from "axios";
 
 // Mock dependencies
 jest.mock("axios");
+jest.mock("@aws-sdk/client-s3", () => ({
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: jest.fn().mockResolvedValue({}),
+  })),
+  PutObjectCommand: jest.fn(),
+  DeleteObjectCommand: jest.fn(),
+}));
+jest.mock("fs", () => ({
+  existsSync: jest.fn(),
+  readFileSync: jest.fn(),
+  createReadStream: jest.fn().mockReturnValue({
+    pipe: jest.fn(),
+    on: jest.fn(),
+  }),
+}));
+jest.mock("@aws-sdk/lib-storage", () => ({
+  Upload: jest.fn().mockImplementation(() => ({
+    done: jest.fn().mockResolvedValue({}),
+  })),
+}));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
@@ -19,10 +39,19 @@ describe("InstagramPublisher", () => {
 
     // Set up environment variables for each test
     process.env.INSTAGRAM_ACCESS_TOKEN = "test_access_token";
+    process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID = "test_business_account_id";
+
+    // S3 environment variables
+    process.env.INSTAGRAM_S3_STORAGE_ACCESS_KEY_ID = "test_s3_access_key";
+    process.env.INSTAGRAM_S3_STORAGE_SECRET_ACCESS_KEY = "test_s3_secret_key";
+    process.env.INSTAGRAM_S3_STORAGE_REGION = "us-east-1";
+    process.env.INSTAGRAM_S3_STORAGE_BUCKET = "test-bucket";
+    process.env.INSTAGRAM_S3_STORAGE_BASE_URL = "https://test-bucket.s3.amazonaws.com";
 
     // Create mock axios instance
     mockAxiosInstance = {
       post: jest.fn(),
+      get: jest.fn().mockResolvedValue({ data: { status_code: "FINISHED", status: "FINISHED" } }),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
 
@@ -37,6 +66,10 @@ describe("InstagramPublisher", () => {
         timeout: 30000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test_access_token",
+        },
       });
     });
 
@@ -191,7 +224,6 @@ describe("InstagramPublisher", () => {
       // Mock the media container creation and publishing
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "media_object_id" } }) // createMediaObject
-        .mockResolvedValueOnce({ data: { id: "container_id" } }) // createMediaContainer
         .mockResolvedValueOnce({ data: { id: "published_post_id" } }); // publishMediaContainer
 
       const content: Content = {
@@ -214,7 +246,6 @@ describe("InstagramPublisher", () => {
 
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "video_object_id" } })
-        .mockResolvedValueOnce({ data: { id: "video_container_id" } })
         .mockResolvedValueOnce({ data: { id: "published_video_id" } });
 
       const content: Content = {
@@ -237,7 +268,6 @@ describe("InstagramPublisher", () => {
 
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "media_object_id" } })
-        .mockResolvedValueOnce({ data: { id: "container_id" } })
         .mockResolvedValueOnce({ data: { id: "published_post_id" } });
 
       const content: Content = {

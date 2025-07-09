@@ -134,9 +134,6 @@ export class InstagramPublisher extends Publisher {
       await upload.done();
 
       // Return the public URL and key for cleanup
-
-      console.log(`Uploaded: ${this.s3BaseUrl}/${key}`);
-
       return {
         url: `${this.s3BaseUrl}/${key}`,
         key: key,
@@ -195,7 +192,7 @@ export class InstagramPublisher extends Publisher {
       // Create media object using the S3 URL
       const response = await this.client.post(`/${this.businessAccountId}/media`, {
         media_type: mediaType,
-        caption,
+        caption: isCarousel ? undefined : caption,
         is_carousel_item: isCarousel,
         ...(media.type === "video" ? { video_url: mediaUrl } : { image_url: mediaUrl }),
       });
@@ -293,7 +290,7 @@ export class InstagramPublisher extends Publisher {
       const postId = await this.publishMediaContainer(containerId);
 
       // Step 3: Cleanup S3 files after successful posting
-      // await Promise.all(s3Keys.map((key) => this.cleanupS3File(key)));
+      await Promise.all(s3Keys.map((key) => this.cleanupS3File(key)));
 
       return [
         {
@@ -304,7 +301,7 @@ export class InstagramPublisher extends Publisher {
     } catch (error: any) {
       // Cleanup S3 files on error too
       if (s3Keys.length > 0) {
-        // await Promise.all(s3Keys.map((key) => this.cleanupS3File(key)));
+        await Promise.all(s3Keys.map((key) => this.cleanupS3File(key)));
       }
 
       if (error instanceof PostError) {

@@ -192,9 +192,8 @@ describe("XPublisher", () => {
       jest.spyOn(publisher, "postTweet").mockRejectedValue(error);
       const content: Content = { text: "Will fail" };
       const options = {};
-      const results = await publisher.post(content, options);
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      const result = await publisher.post(content, options);
+      expect(result).toEqual({
         error: PostErrorType.API_ERROR,
         message: "API Error",
         details: { code: 1 },
@@ -206,9 +205,8 @@ describe("XPublisher", () => {
       jest.spyOn(publisher, "postTweet").mockRejectedValue(error);
       const content: Content = { text: "Will fail" };
       const options = {};
-      const results = await publisher.post(content, options);
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      const result = await publisher.post(content, options);
+      expect(result).toEqual({
         error: PostErrorType.OTHER,
         message: "Error posting: Unknown error",
         details: error,

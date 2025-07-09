@@ -228,11 +228,10 @@ describe("FacebookPublisher", () => {
       const validateSpy = jest.spyOn(publisher, "validate");
       const content: Content = { text: "Test post" };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(validateSpy).toHaveBeenCalledWith(content);
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "mock_post_id",
         error: PostErrorType.NO_ERROR,
       });
@@ -241,10 +240,9 @@ describe("FacebookPublisher", () => {
     it("should return error for validation failure", async () => {
       const content: Content = {}; // Invalid content
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "Empty posts are not supported by Facebook",
         details: undefined,
@@ -255,14 +253,13 @@ describe("FacebookPublisher", () => {
       mockAxiosInstance.post.mockResolvedValue({ data: { id: "post_id_123" } });
 
       const content: Content = { text: "Hello Facebook!" };
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
         access_token: "test_page_access_token",
         message: "Hello Facebook!",
       });
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "post_id_123",
         error: PostErrorType.NO_ERROR,
       });
@@ -277,7 +274,7 @@ describe("FacebookPublisher", () => {
         text: "Check out this image!",
         media: [{ type: "image", path: "test.jpg" }],
       };
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(publisher.uploadMedia).toHaveBeenCalledWith({ type: "image", path: "test.jpg" });
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
@@ -285,8 +282,7 @@ describe("FacebookPublisher", () => {
         message: "Check out this image!",
         object_attachment: "photo_id_123",
       });
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "post_id_456",
         error: PostErrorType.NO_ERROR,
       });
@@ -301,7 +297,7 @@ describe("FacebookPublisher", () => {
         text: "Check out this video!",
         media: [{ type: "video", path: "test.mp4" }],
       };
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       // Verify uploadMedia is NOT called for single video posts
       expect(uploadMediaSpy).not.toHaveBeenCalled();
@@ -315,8 +311,7 @@ describe("FacebookPublisher", () => {
           },
         })
       );
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "post_id_789",
         error: PostErrorType.NO_ERROR,
       });
@@ -340,7 +335,7 @@ describe("FacebookPublisher", () => {
           { type: "image", path: "test3.jpg" },
         ],
       };
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(publisher.uploadMedia).toHaveBeenCalledTimes(3);
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/feed", {
@@ -352,8 +347,7 @@ describe("FacebookPublisher", () => {
           { media_fbid: "photo_id_3" },
         ]),
       });
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "post_id_multi",
         error: PostErrorType.NO_ERROR,
       });
@@ -372,10 +366,9 @@ describe("FacebookPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       const content: Content = { text: "Will fail" };
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.API_ERROR,
         message: "Error posting to Facebook: Post failed",
         details: apiError.response.data,
@@ -388,10 +381,9 @@ describe("FacebookPublisher", () => {
       });
 
       const content: Content = { text: "Will fail validation" };
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.OTHER,
         message: "An unknown error occurred while validating Facebook post.",
       });
@@ -418,15 +410,13 @@ describe("FacebookPublisher", () => {
       };
 
       // This should fail due to mixed media types
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toEqual([
-        {
-          error: PostErrorType.INVALID_CONTENT,
-          message: "Video posts can only contain a single video, no other media",
-          details: undefined,
-        },
-      ]);
+      expect(result).toEqual({
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Video posts can only contain a single video, no other media",
+        details: undefined,
+      });
     });
 
     it("should successfully post valid single image content", async () => {
@@ -443,14 +433,12 @@ describe("FacebookPublisher", () => {
         ],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toEqual([
-        {
-          id: "post_id_123",
-          error: PostErrorType.NO_ERROR,
-        },
-      ]);
+      expect(result).toEqual({
+        id: "post_id_123",
+        error: PostErrorType.NO_ERROR,
+      });
     });
   });
 });

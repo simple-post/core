@@ -207,10 +207,9 @@ describe("InstagramPublisher", () => {
     it("should return validation error when content is invalid", async () => {
       const content: Content = { text: "Post without media" };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "Instagram posts require at least one media item (image or video).",
         details: undefined,
@@ -231,10 +230,9 @@ describe("InstagramPublisher", () => {
         media: [{ type: "image", path: "test.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "published_post_id",
         error: PostErrorType.NO_ERROR,
       });
@@ -253,10 +251,9 @@ describe("InstagramPublisher", () => {
         media: [{ type: "video", path: "test.mp4" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "published_video_id",
         error: PostErrorType.NO_ERROR,
       });
@@ -274,10 +271,9 @@ describe("InstagramPublisher", () => {
         media: [{ type: "image", path: "test.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "published_post_id",
         error: PostErrorType.NO_ERROR,
       });
@@ -303,10 +299,9 @@ describe("InstagramPublisher", () => {
         media: [{ type: "image", path: "invalid.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.API_ERROR,
         message: "Error creating Instagram media container: Error creating media object: Invalid media URL",
         details: expect.any(Object),
@@ -318,10 +313,9 @@ describe("InstagramPublisher", () => {
         text: "Will fail validation - no media",
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "Instagram posts require at least one media item (image or video).",
         details: undefined,
@@ -342,11 +336,10 @@ describe("InstagramPublisher", () => {
         media: [{ type: "image", path: "test.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0].error).toBe(PostErrorType.API_ERROR);
-      expect(results[0].message).toContain("ECONNRESET");
+      expect(result.error).toBe(PostErrorType.API_ERROR);
+      expect(result.message).toContain("ECONNRESET");
     });
 
     it("should handle malformed API responses", async () => {
@@ -360,10 +353,9 @@ describe("InstagramPublisher", () => {
         media: [{ type: "image", path: "test.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0].error).toBe(PostErrorType.API_ERROR);
+      expect(result.error).toBe(PostErrorType.API_ERROR);
     });
   });
 });

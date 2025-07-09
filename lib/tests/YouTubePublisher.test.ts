@@ -214,10 +214,9 @@ describe("YouTubePublisher", () => {
     it("should return validation error for invalid content", async () => {
       const content: Content = { text: "No video" };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "A video is required for a YouTube post.",
       });
@@ -232,10 +231,9 @@ describe("YouTubePublisher", () => {
         media: [{ type: "video", path: "test.mp4", title: "Test video upload" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "test_video_id",
         error: PostErrorType.NO_ERROR,
       });
@@ -257,7 +255,7 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(mockYouTube.videos.insert).toHaveBeenCalledWith({
         part: ["snippet", "status"],
@@ -278,8 +276,7 @@ describe("YouTubePublisher", () => {
         },
       });
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "test_video_id_with_options",
         error: PostErrorType.NO_ERROR,
       });
@@ -301,10 +298,9 @@ describe("YouTubePublisher", () => {
         media: [{ type: "video", path: "test.mp4", title: "Will fail" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.API_ERROR,
         message: "YouTube API Error: Upload failed",
         details: apiError,
@@ -319,11 +315,10 @@ describe("YouTubePublisher", () => {
         media: [{ type: "video", path: "test.mp4", title: "Network error test" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0].error).toBe(PostErrorType.API_ERROR);
-      expect(results[0].message).toContain("ECONNRESET");
+      expect(result.error).toBe(PostErrorType.API_ERROR);
+      expect(result.message).toContain("ECONNRESET");
     });
 
     it("should handle videos with thumbnail", async () => {
@@ -336,7 +331,7 @@ describe("YouTubePublisher", () => {
         media: [{ type: "video", path: "test.mp4", title: "Video with thumbnail", thumbnailPath: "thumbnail.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(mockYouTube.thumbnails.set).toHaveBeenCalledWith({
         videoId: "test_video_with_thumbnail",
@@ -345,8 +340,7 @@ describe("YouTubePublisher", () => {
         },
       });
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "test_video_with_thumbnail",
         error: PostErrorType.NO_ERROR,
       });
@@ -363,7 +357,7 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(mockYouTube.videos.insert).toHaveBeenCalledWith({
         part: ["snippet", "status"],
@@ -384,8 +378,7 @@ describe("YouTubePublisher", () => {
         },
       });
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "test_video_with_description",
         error: PostErrorType.NO_ERROR,
       });
@@ -406,7 +399,7 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
       expect(mockYouTube.playlistItems.insert).toHaveBeenCalledWith({
         part: ["snippet"],
@@ -421,8 +414,7 @@ describe("YouTubePublisher", () => {
         },
       });
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "test_video_id",
         error: PostErrorType.NO_ERROR,
       });
@@ -433,10 +425,9 @@ describe("YouTubePublisher", () => {
         media: [{ type: "image", path: "image.jpg" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "A video is required for a YouTube post.",
       });
@@ -450,11 +441,10 @@ describe("YouTubePublisher", () => {
         media: [{ type: "video", path: "test.mp4", title: "Generic error test" }],
       };
 
-      const results = await publisher.post(content, {});
+      const result = await publisher.post(content, {});
 
-      expect(results).toHaveLength(1);
-      expect(results[0].error).toBe(PostErrorType.API_ERROR);
-      expect(results[0].message).toContain("Unexpected error");
+      expect(result.error).toBe(PostErrorType.API_ERROR);
+      expect(result.message).toContain("Unexpected error");
     });
   });
 });

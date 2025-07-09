@@ -362,11 +362,10 @@ describe("TelegramPublisher", () => {
       };
       const options = { telegram: { chatId } };
 
-      const results = await publisher.post(content, options);
+      const result = await publisher.post(content, options);
 
       expect(postContentSpy).toHaveBeenCalledWith(content, chatId, undefined);
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         id: "msg123",
         error: PostErrorType.NO_ERROR,
       });
@@ -378,10 +377,9 @@ describe("TelegramPublisher", () => {
       };
       const options = {};
 
-      const results = await publisher.post(content, options);
+      const result = await publisher.post(content, options);
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "Telegram chatId is required in options.telegram.chatId",
         details: undefined,
@@ -397,10 +395,9 @@ describe("TelegramPublisher", () => {
       };
       const options = { telegram: { chatId } };
 
-      const results = await publisher.post(content, options);
+      const result = await publisher.post(content, options);
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.API_ERROR,
         message: "API Error",
         details: { code: 400 },
@@ -416,10 +413,9 @@ describe("TelegramPublisher", () => {
       };
       const options = { telegram: { chatId } };
 
-      const results = await publisher.post(content, options);
+      const result = await publisher.post(content, options);
 
-      expect(results).toHaveLength(1);
-      expect(results[0]).toEqual({
+      expect(result).toEqual({
         error: PostErrorType.OTHER,
         message: "Error posting to Telegram: Network timeout",
         details: error,
@@ -448,11 +444,10 @@ describe("TelegramPublisher", () => {
       };
       const options = { telegram: { chatId: "test_chat" } };
 
-      const results = await publisher.post(content, options);
+      const result = await publisher.post(content, options);
 
-      expect(results).toHaveLength(1);
-      expect(results[0].error).toBe(PostErrorType.OTHER);
-      expect(results[0].message).toContain("ECONNRESET");
+      expect(result.error).toBe(PostErrorType.OTHER);
+      expect(result.message).toContain("ECONNRESET");
     });
 
     it("should handle invalid chat ID", async () => {
@@ -478,11 +473,10 @@ describe("TelegramPublisher", () => {
       };
       const options = { telegram: { chatId: "invalid_chat_id" } };
 
-      const results = await publisher.post(content, options);
+      const result = await publisher.post(content, options);
 
-      expect(results).toHaveLength(1);
-      expect(results[0].error).toBe(PostErrorType.API_ERROR);
-      expect(results[0].message).toContain("chat not found");
+      expect(result.error).toBe(PostErrorType.API_ERROR);
+      expect(result.message).toContain("chat not found");
     });
   });
 });

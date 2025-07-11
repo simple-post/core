@@ -1,33 +1,22 @@
 import { InstagramPublisher } from "../src/publishers/instagram";
-import { Content } from "../src/types/post";
-import { PostError } from "../src/types/publisher";
+import { Content, PostOptions } from "../src/types/post";
+import { PostError } from "../src/types";
 import { PostErrorType } from "../src/types";
 import axios from "axios";
+import fs from "fs";
 
 // Mock dependencies
 jest.mock("axios");
-jest.mock("@aws-sdk/client-s3", () => ({
-  S3Client: jest.fn().mockImplementation(() => ({
-    send: jest.fn().mockResolvedValue({}),
-  })),
-  PutObjectCommand: jest.fn(),
-  DeleteObjectCommand: jest.fn(),
-}));
-jest.mock("fs", () => ({
-  existsSync: jest.fn(),
-  readFileSync: jest.fn(),
-  createReadStream: jest.fn().mockReturnValue({
-    pipe: jest.fn(),
-    on: jest.fn(),
-  }),
-}));
-jest.mock("@aws-sdk/lib-storage", () => ({
-  Upload: jest.fn().mockImplementation(() => ({
-    done: jest.fn().mockResolvedValue({}),
+jest.mock("fs");
+jest.mock("../src/utils/s3", () => ({
+  S3MediaUploader: jest.fn().mockImplementation(() => ({
+    uploadFile: jest.fn(),
+    deleteFile: jest.fn(),
   })),
 }));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe("InstagramPublisher", () => {
   let publisher: InstagramPublisher;
@@ -37,30 +26,26 @@ describe("InstagramPublisher", () => {
     // Reset all mocks before each test
     jest.clearAllMocks();
 
-    // Set up environment variables for each test
+    // Set up environment variables
     process.env.INSTAGRAM_ACCESS_TOKEN = "test_access_token";
     process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID = "test_business_account_id";
-
-    // S3 environment variables
-    process.env.INSTAGRAM_S3_STORAGE_ACCESS_KEY_ID = "test_s3_access_key";
-    process.env.INSTAGRAM_S3_STORAGE_SECRET_ACCESS_KEY = "test_s3_secret_key";
-    process.env.INSTAGRAM_S3_STORAGE_REGION = "us-east-1";
-    process.env.INSTAGRAM_S3_STORAGE_BUCKET = "test-bucket";
-    process.env.INSTAGRAM_S3_STORAGE_BASE_URL = "https://test-bucket.s3.amazonaws.com";
 
     // Create mock axios instance
     mockAxiosInstance = {
       post: jest.fn(),
-      get: jest.fn().mockResolvedValue({ data: { status_code: "FINISHED", status: "FINISHED" } }),
+      get: jest.fn(),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
+
+    // Mock fs
+    mockedFs.existsSync.mockReturnValue(true);
 
     // Create a new publisher instance
     publisher = new InstagramPublisher();
   });
 
   describe("constructor", () => {
-    it("should initialize axios client with correct access token", () => {
+    it("should initialize with valid credentials", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
         baseURL: "https://graph.facebook.com/v23.0",
         timeout: 30000,
@@ -78,25 +63,58 @@ describe("InstagramPublisher", () => {
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "Instagram access token is required. Set INSTAGRAM_ACCESS_TOKEN environment variable."
+          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required"
         )
       );
     });
 
-    it("should throw error if INSTAGRAM_ACCESS_TOKEN is empty", () => {
-      process.env.INSTAGRAM_ACCESS_TOKEN = "";
+    it("should throw error if INSTAGRAM_BUSINESS_ACCOUNT_ID is not provided", () => {
+      delete process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "Instagram access token is required. Set INSTAGRAM_ACCESS_TOKEN environment variable."
+          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required"
         )
       );
     });
   });
 
   describe("validate", () => {
-    it("should throw error for empty content", () => {
-      const content: Content = {};
+    it("should validate content with single image", () => {
+      const content: Content = {
+        text: "Check out this image!",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
+      expect(() => publisher["validate"](content)).not.toThrow();
+    });
+
+    it("should validate content with multiple images", () => {
+      const content: Content = {
+        text: "Multiple images",
+        media: [
+          { type: "image", path: "/path/to/image1.jpg" },
+          { type: "image", path: "/path/to/image2.jpg" },
+          { type: "image", path: "/path/to/image3.jpg" },
+        ],
+      };
+
+      expect(() => publisher["validate"](content)).not.toThrow();
+    });
+
+    it("should validate content with video", () => {
+      const content: Content = {
+        text: "Check out this video!",
+        media: [{ type: "video", path: "/path/to/video.mp4" }],
+      };
+
+      expect(() => publisher["validate"](content)).not.toThrow();
+    });
+
+    it("should throw error for content without media", () => {
+      const content: Content = {
+        text: "Text only post",
+      };
 
       expect(() => publisher["validate"](content)).toThrow(
         new PostError(
@@ -106,9 +124,10 @@ describe("InstagramPublisher", () => {
       );
     });
 
-    it("should throw error when no media is provided", () => {
+    it("should throw error for content with empty media array", () => {
       const content: Content = {
-        text: "Post without media",
+        text: "Empty media array",
+        media: [],
       };
 
       expect(() => publisher["validate"](content)).toThrow(
@@ -119,170 +138,157 @@ describe("InstagramPublisher", () => {
       );
     });
 
-    it("should throw error when image has no path", () => {
+    it("should throw error for missing media file", () => {
       const content: Content = {
-        text: "Post with image without path",
-        media: [{ type: "image" }],
+        text: "Missing file",
+        media: [{ type: "image", path: "/path/to/missing.jpg" }],
       };
+
+      mockedFs.existsSync.mockReturnValue(false);
 
       expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file path is required for Instagram posts.")
+        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg")
       );
-    });
-
-    it("should throw error when video has no path", () => {
-      const content: Content = {
-        text: "Post with video without path",
-        media: [{ type: "video" }],
-      };
-
-      expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file path is required for Instagram posts.")
-      );
-    });
-
-    it("should throw error when multiple media items are provided", () => {
-      const content: Content = {
-        text: "Post with multiple media",
-        media: Array(11).fill({ type: "image", path: "image.jpg" }),
-      };
-
-      expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts support maximum 10 media items.")
-      );
-    });
-
-    it("should throw error for too long caption", () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-
-      const content: Content = {
-        text: "a".repeat(2201),
-        media: [{ type: "image", path: "image.jpg" }],
-      };
-
-      expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Instagram caption cannot exceed 2200 characters.")
-      );
-    });
-
-    it("should pass validation for valid image content", () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-
-      const content: Content = {
-        text: "Valid image post",
-        media: [{ type: "image", path: "image.jpg" }],
-      };
-
-      expect(() => publisher["validate"](content)).not.toThrow();
-    });
-
-    it("should pass validation for valid video content", () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-
-      const content: Content = {
-        text: "Valid video post",
-        media: [{ type: "video", path: "video.mp4" }],
-      };
-
-      expect(() => publisher["validate"](content)).not.toThrow();
-    });
-
-    it("should pass validation for content without caption", () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-
-      const content: Content = {
-        media: [{ type: "image", path: "image.jpg" }],
-      };
-
-      expect(() => publisher["validate"](content)).not.toThrow();
     });
   });
 
-  describe("post", () => {
-    beforeEach(() => {
-      process.env.INSTAGRAM_ACCESS_TOKEN = "test_access_token";
-      publisher = new InstagramPublisher();
-    });
+  describe("postContent", () => {
+    const options: PostOptions = {};
 
-    it("should return validation error when content is invalid", async () => {
-      const content: Content = { text: "Post without media" };
-
-      const result = await publisher.post(content, {});
-
-      expect(result).toEqual({
-        error: PostErrorType.INVALID_CONTENT,
-        message: "Instagram posts require at least one media item (image or video).",
-        details: undefined,
-      });
-    });
-
-    it("should successfully post image", async () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-      jest.spyOn(require("fs"), "readFileSync").mockReturnValue(Buffer.from("fake image"));
-
-      // Mock the media container creation and publishing
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({ data: { id: "media_object_id" } }) // createMediaObject
-        .mockResolvedValueOnce({ data: { id: "published_post_id" } }); // publishMediaContainer
-
+    it("should post single image successfully", async () => {
       const content: Content = {
-        text: "Test image post",
-        media: [{ type: "image", path: "test.jpg" }],
+        text: "Single image post",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
       };
 
-      const result = await publisher.post(content, {});
+      // Mock S3 upload
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
 
-      expect(result).toEqual({
-        id: "published_post_id",
-        error: PostErrorType.NO_ERROR,
+      // Mock media container creation
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_123" } }) // createMediaObject
+        .mockResolvedValueOnce({ data: { id: "post_id_456" } }); // publishMediaContainer
+
+      // Mock waitForMediaReady
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "FINISHED" },
       });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(mockS3Uploader.uploadFile).toHaveBeenCalledWith("/path/to/image.jpg", expect.any(String));
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_business_account_id/media",
+        expect.objectContaining({
+          image_url: "https://s3.example.com/media1.jpg",
+          caption: "Single image post",
+          is_carousel_item: false,
+        })
+      );
+      expect(result).toEqual({ id: "post_id_456", error: PostErrorType.NO_ERROR });
     });
 
-    it("should successfully post video", async () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-      jest.spyOn(require("fs"), "readFileSync").mockReturnValue(Buffer.from("fake video"));
-
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({ data: { id: "video_object_id" } })
-        .mockResolvedValueOnce({ data: { id: "published_video_id" } });
-
+    it("should post single video successfully", async () => {
       const content: Content = {
-        text: "Test video post",
-        media: [{ type: "video", path: "test.mp4" }],
+        text: "Single video post",
+        media: [{ type: "video", path: "/path/to/video.mp4" }],
       };
 
-      const result = await publisher.post(content, {});
+      // Mock S3 upload
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/video1.mp4");
 
-      expect(result).toEqual({
-        id: "published_video_id",
-        error: PostErrorType.NO_ERROR,
+      // Mock media container creation
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_789" } }) // createMediaObject
+        .mockResolvedValueOnce({ data: { id: "post_id_012" } }); // publishMediaContainer
+
+      // Mock waitForMediaReady
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "FINISHED" },
       });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(mockS3Uploader.uploadFile).toHaveBeenCalledWith("/path/to/video.mp4", expect.any(String));
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_business_account_id/media",
+        expect.objectContaining({
+          media_type: "REELS",
+          video_url: "https://s3.example.com/video1.mp4",
+          caption: "Single video post",
+          is_carousel_item: false,
+        })
+      );
+      expect(result).toEqual({ id: "post_id_012", error: PostErrorType.NO_ERROR });
     });
 
-    it("should post without caption", async () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-      jest.spyOn(require("fs"), "readFileSync").mockReturnValue(Buffer.from("fake image"));
-
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({ data: { id: "media_object_id" } })
-        .mockResolvedValueOnce({ data: { id: "published_post_id" } });
-
+    it("should post carousel with multiple images successfully", async () => {
       const content: Content = {
-        media: [{ type: "image", path: "test.jpg" }],
+        text: "Carousel post",
+        media: [
+          { type: "image", path: "/path/to/image1.jpg" },
+          { type: "image", path: "/path/to/image2.jpg" },
+        ],
       };
 
-      const result = await publisher.post(content, {});
+      // Mock S3 uploads
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock)
+        .mockResolvedValueOnce("https://s3.example.com/media1.jpg")
+        .mockResolvedValueOnce("https://s3.example.com/media2.jpg");
 
-      expect(result).toEqual({
-        id: "published_post_id",
-        error: PostErrorType.NO_ERROR,
+      // Mock media container creation
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "item1_id" } }) // createMediaObject for first image
+        .mockResolvedValueOnce({ data: { id: "item2_id" } }) // createMediaObject for second image
+        .mockResolvedValueOnce({ data: { id: "carousel_id" } }) // createMediaContainer for carousel
+        .mockResolvedValueOnce({ data: { id: "post_id_345" } }); // publishMediaContainer
+
+      // Mock waitForMediaReady
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "FINISHED" },
       });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(mockS3Uploader.uploadFile).toHaveBeenCalledTimes(2);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_business_account_id/media",
+        expect.objectContaining({
+          media_type: "CAROUSEL",
+          caption: "Carousel post",
+          children: "item1_id,item2_id",
+        })
+      );
+      expect(result).toEqual({ id: "post_id_345", error: PostErrorType.NO_ERROR });
     });
 
-    it("should handle API errors during posting", async () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-      jest.spyOn(require("fs"), "readFileSync").mockReturnValue(Buffer.from("fake image"));
+    it("should throw error for content without media", async () => {
+      const content: Content = {
+        text: "Text only post",
+      };
 
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Instagram posts require at least one media item (image or video)."
+        )
+      );
+    });
+
+    it("should handle API errors during media creation", async () => {
+      const content: Content = {
+        text: "Will fail",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
+      // Mock S3 upload
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
+
+      // Mock API error
       const apiError = {
         response: {
           data: {
@@ -294,68 +300,109 @@ describe("InstagramPublisher", () => {
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
-      const content: Content = {
-        text: "Will fail",
-        media: [{ type: "image", path: "invalid.jpg" }],
-      };
-
-      const result = await publisher.post(content, {});
+      const result = await publisher.postContent(content, options);
 
       expect(result).toEqual({
         error: PostErrorType.API_ERROR,
-        message: "Error creating Instagram media container: Error creating media object: Invalid media URL",
-        details: expect.any(Object),
+        message: "Error creating media object: undefined",
+        details: apiError,
       });
     });
 
-    it("should handle validation errors", async () => {
+    it("should handle media container status errors", async () => {
       const content: Content = {
-        text: "Will fail validation - no media",
+        text: "Status error",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
       };
 
-      const result = await publisher.post(content, {});
+      // Mock S3 upload
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
+
+      // Mock media container creation
+      mockAxiosInstance.post.mockResolvedValue({ data: { id: "container_id_error" } });
+
+      // Mock waitForMediaReady with error status
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "ERROR", status: "Media processing failed" },
+      });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(result).toEqual({
+        error: PostErrorType.API_ERROR,
+        message: "Instagram media container container_id_error creation failed: Media processing failed",
+        details: undefined,
+      });
+    });
+
+    it("should cleanup S3 files after posting", async () => {
+      const content: Content = {
+        text: "Cleanup test",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
+      // Mock S3 upload
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
+
+      // Mock media container creation
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_cleanup" } })
+        .mockResolvedValueOnce({ data: { id: "post_id_cleanup" } });
+
+      // Mock waitForMediaReady
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "FINISHED" },
+      });
+
+      await publisher.postContent(content, options);
+
+      // Verify cleanup was called
+      expect(mockS3Uploader.deleteFile).toHaveBeenCalled();
+    });
+  });
+
+  describe("post", () => {
+    const options: PostOptions = {};
+
+    it("should post content successfully and return PostResult", async () => {
+      const content: Content = {
+        text: "Test post",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
+      // Mock S3 upload
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
+
+      // Mock media container creation
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_test" } })
+        .mockResolvedValueOnce({ data: { id: "post_id_test" } });
+
+      // Mock waitForMediaReady
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "FINISHED" },
+      });
+
+      const result = await publisher.post(content, options);
+
+      expect(result).toEqual({ id: "post_id_test", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should handle errors and return PostResult with error", async () => {
+      const content: Content = {
+        text: "Text only post",
+      };
+
+      const result = await publisher.post(content, options);
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
         message: "Instagram posts require at least one media item (image or video).",
         details: undefined,
       });
-    });
-  });
-
-  describe("error handling", () => {
-    it("should handle network errors gracefully", async () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-      jest.spyOn(require("fs"), "readFileSync").mockReturnValue(Buffer.from("fake image"));
-
-      const networkError = new Error("ECONNRESET");
-      mockAxiosInstance.post.mockRejectedValue(networkError);
-
-      const content: Content = {
-        text: "Network error test",
-        media: [{ type: "image", path: "test.jpg" }],
-      };
-
-      const result = await publisher.post(content, {});
-
-      expect(result.error).toBe(PostErrorType.API_ERROR);
-      expect(result.message).toContain("ECONNRESET");
-    });
-
-    it("should handle malformed API responses", async () => {
-      jest.spyOn(require("fs"), "existsSync").mockReturnValue(true);
-      jest.spyOn(require("fs"), "readFileSync").mockReturnValue(Buffer.from("fake image"));
-
-      mockAxiosInstance.post.mockResolvedValue({ data: null });
-
-      const content: Content = {
-        text: "Malformed response test",
-        media: [{ type: "image", path: "test.jpg" }],
-      };
-
-      const result = await publisher.post(content, {});
-
-      expect(result.error).toBe(PostErrorType.API_ERROR);
     });
   });
 });

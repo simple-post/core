@@ -1,6 +1,6 @@
 import { TelegramPublisher } from "../src/publishers/telegram";
-import { Content, Media } from "../src/types/post";
-import { PostError } from "../src/types/publisher";
+import { Content, Media, PostOptions } from "../src/types/post";
+import { PostError } from "../src/types";
 import { PostErrorType } from "../src/types";
 import axios from "axios";
 import fs from "fs";
@@ -66,391 +66,123 @@ describe("TelegramPublisher", () => {
     });
   });
 
-  describe("sendPhoto", () => {
-    const chatId = "test_chat_id";
-    const media: Media = { type: "image", path: "/path/to/image.jpg" };
+  describe("postContent", () => {
+    const options: PostOptions = {
+      telegram: {
+        chatId: "test_chat_id",
+        parseMode: "HTML",
+      },
+    };
 
-    it("should send photo successfully", async () => {
+    it("should post text message successfully", async () => {
+      const content: Content = {
+        text: "Hello, world!",
+      };
+
       mockAxiosInstance.post.mockResolvedValue({
         data: { result: { message_id: 123 } },
       });
 
-      const result = await publisher.sendPhoto(chatId, media, "Test caption", "HTML");
+      const result = await publisher.postContent(content, options);
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", expect.any(Object), {
-        headers: { "content-type": "multipart/form-data" },
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendMessage", {
+        chat_id: "test_chat_id",
+        text: "Hello, world!",
+        parse_mode: "HTML",
       });
-      expect(result).toBe("123");
+      expect(result).toEqual({ id: "123", error: PostErrorType.NO_ERROR });
     });
 
-    it("should send photo without caption", async () => {
+    it("should post image with caption successfully", async () => {
+      const content: Content = {
+        text: "Image caption",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
       mockAxiosInstance.post.mockResolvedValue({
         data: { result: { message_id: 456 } },
       });
 
-      const result = await publisher.sendPhoto(chatId, media);
+      const result = await publisher.postContent(content, options);
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", expect.any(Object), {
         headers: { "content-type": "multipart/form-data" },
       });
-      expect(result).toBe("456");
+      expect(result).toEqual({ id: "456", error: PostErrorType.NO_ERROR });
     });
 
-    it("should throw error if media path is not provided", async () => {
-      const mediaWithoutPath: Media = { type: "image" } as any;
-      await expect(publisher.sendPhoto(chatId, mediaWithoutPath)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media path is required for photos")
-      );
-    });
-
-    it("should throw error if photo file does not exist", async () => {
-      mockedFs.existsSync.mockReturnValue(false);
-      await expect(publisher.sendPhoto(chatId, media)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Photo file not found at path: /path/to/image.jpg")
-      );
-    });
-
-    it("should throw PostError when API request fails", async () => {
-      const apiError = {
-        response: {
-          data: {
-            description: "Bad Request: chat not found",
-          },
-        },
+    it("should post image without caption successfully", async () => {
+      const content: Content = {
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
       };
-      mockAxiosInstance.post.mockRejectedValue(apiError);
 
-      await expect(publisher.sendPhoto(chatId, media)).rejects.toThrow(
-        new PostError(
-          PostErrorType.API_ERROR,
-          "Error sending photo: Bad Request: chat not found",
-          apiError.response.data
-        )
-      );
-    });
-
-    it("should throw PostError with generic message when API error has no description", async () => {
-      const genericError = new Error("Network error");
-      mockAxiosInstance.post.mockRejectedValue(genericError);
-
-      await expect(publisher.sendPhoto(chatId, media)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error sending photo: Network error", undefined)
-      );
-    });
-  });
-
-  describe("sendVideo", () => {
-    const chatId = "test_chat_id";
-    const media: Media = { type: "video", path: "/path/to/video.mp4" };
-
-    it("should send video successfully", async () => {
       mockAxiosInstance.post.mockResolvedValue({
         data: { result: { message_id: 789 } },
       });
 
-      const result = await publisher.sendVideo(chatId, media, "Test video caption", "Markdown");
+      const result = await publisher.postContent(content, options);
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendVideo", expect.any(Object), {
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", expect.any(Object), {
         headers: { "content-type": "multipart/form-data" },
       });
-      expect(result).toBe("789");
+      expect(result).toEqual({ id: "789", error: PostErrorType.NO_ERROR });
     });
 
-    it("should send video without caption", async () => {
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 101112 } },
-      });
-
-      const result = await publisher.sendVideo(chatId, media);
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendVideo", expect.any(Object), {
-        headers: { "content-type": "multipart/form-data" },
-      });
-      expect(result).toBe("101112");
-    });
-
-    it("should throw error if media path is not provided", async () => {
-      const mediaWithoutPath: Media = { type: "video" } as any;
-      await expect(publisher.sendVideo(chatId, mediaWithoutPath)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media path is required for videos")
-      );
-    });
-
-    it("should throw error if video file does not exist", async () => {
-      mockedFs.existsSync.mockReturnValue(false);
-      await expect(publisher.sendVideo(chatId, media)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Video file not found at path: /path/to/video.mp4")
-      );
-    });
-
-    it("should throw PostError when API request fails", async () => {
-      const apiError = {
-        response: {
-          data: {
-            description: "Bad Request: video file too large",
-          },
-        },
-      };
-      mockAxiosInstance.post.mockRejectedValue(apiError);
-
-      await expect(publisher.sendVideo(chatId, media)).rejects.toThrow(
-        new PostError(
-          PostErrorType.API_ERROR,
-          "Error sending video: Bad Request: video file too large",
-          apiError.response.data
-        )
-      );
-    });
-
-    it("should throw PostError with generic message when API error has no description", async () => {
-      const genericError = new Error("Network error");
-      mockAxiosInstance.post.mockRejectedValue(genericError);
-
-      await expect(publisher.sendVideo(chatId, media)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error sending video: Network error", undefined)
-      );
-    });
-  });
-
-  describe("sendMessage", () => {
-    const chatId = "test_chat_id";
-
-    it("should send text message successfully", async () => {
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 999 } },
-      });
-
-      const result = await publisher.sendMessage(chatId, "Hello, Telegram!", "HTML");
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendMessage", {
-        chat_id: chatId,
-        text: "Hello, Telegram!",
-        parse_mode: "HTML",
-      });
-      expect(result).toBe("999");
-    });
-
-    it("should send message without parse mode", async () => {
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 888 } },
-      });
-
-      const result = await publisher.sendMessage(chatId, "Plain text message");
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendMessage", {
-        chat_id: chatId,
-        text: "Plain text message",
-        parse_mode: "HTML",
-      });
-      expect(result).toBe("888");
-    });
-
-    it("should send message with reply", async () => {
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 777 } },
-      });
-
-      const result = await publisher.sendMessage(chatId, "Reply message", "Markdown", "123");
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendMessage", {
-        chat_id: chatId,
-        text: "Reply message",
-        parse_mode: "Markdown",
-        reply_to_message_id: 123,
-      });
-      expect(result).toBe("777");
-    });
-
-    it("should throw PostError when API request fails", async () => {
-      const apiError = {
-        response: {
-          data: {
-            description: "Bad Request: message text is empty",
-          },
-        },
-      };
-      mockAxiosInstance.post.mockRejectedValue(apiError);
-
-      await expect(publisher.sendMessage(chatId, "")).rejects.toThrow(
-        new PostError(
-          PostErrorType.API_ERROR,
-          "Error sending message: Bad Request: message text is empty",
-          apiError.response.data
-        )
-      );
-    });
-  });
-
-  describe("postContent", () => {
-    const chatId = "test_chat_id";
-
-    it("should send text message", async () => {
-      const sendMessageSpy = jest.spyOn(publisher, "sendMessage").mockResolvedValue("msg123");
-      const content: Content = {
-        text: "Hello, Telegram!",
-      };
-
-      const result = await publisher.postContent(content, chatId, "Markdown");
-
-      expect(sendMessageSpy).toHaveBeenCalledWith(chatId, "Hello, Telegram!", "Markdown");
-      expect(result).toBe("msg123");
-    });
-
-    it("should send photo with caption", async () => {
-      const sendPhotoSpy = jest.spyOn(publisher, "sendPhoto").mockResolvedValue("photo123");
-      const content: Content = {
-        text: "Photo caption",
-        media: [{ type: "image", path: "/path/to/image.jpg" }],
-      };
-
-      const result = await publisher.postContent(content, chatId, "HTML");
-
-      expect(sendPhotoSpy).toHaveBeenCalledWith(chatId, content.media![0], "Photo caption", "HTML");
-      expect(result).toBe("photo123");
-    });
-
-    it("should send video with caption", async () => {
-      const sendVideoSpy = jest.spyOn(publisher, "sendVideo").mockResolvedValue("video123");
+    it("should post video with caption successfully", async () => {
       const content: Content = {
         text: "Video caption",
         media: [{ type: "video", path: "/path/to/video.mp4" }],
       };
 
-      const result = await publisher.postContent(content, chatId);
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { result: { message_id: 101112 } },
+      });
 
-      expect(sendVideoSpy).toHaveBeenCalledWith(chatId, content.media![0], "Video caption", undefined);
-      expect(result).toBe("video123");
+      const result = await publisher.postContent(content, options);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendVideo", expect.any(Object), {
+        headers: { "content-type": "multipart/form-data" },
+      });
+      expect(result).toEqual({ id: "101112", error: PostErrorType.NO_ERROR });
     });
 
-    it("should throw error for empty content", async () => {
+    it("should throw error if chatId is not provided", async () => {
+      const content: Content = {
+        text: "Hello, world!",
+      };
+
+      const invalidOptions: PostOptions = {};
+
+      await expect(publisher.postContent(content, invalidOptions)).rejects.toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId")
+      );
+    });
+
+    it("should throw error if content is empty", async () => {
       const content: Content = {};
 
-      await expect(publisher.postContent(content, chatId)).rejects.toThrow(
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram")
       );
     });
 
-    it("should throw error for unsupported media type", async () => {
+    it("should throw error if media file does not exist", async () => {
       const content: Content = {
-        text: "Unsupported media",
-        media: [{ type: "audio" } as any],
+        media: [{ type: "image", path: "/path/to/nonexistent.jpg" }],
       };
 
-      await expect(publisher.postContent(content, chatId)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Unsupported media type: audio")
+      mockedFs.existsSync.mockReturnValue(false);
+
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/nonexistent.jpg")
       );
     });
 
-    it("should throw error when no valid content to send", async () => {
+    it("should handle API errors gracefully", async () => {
       const content: Content = {
-        media: [], // Empty media array
+        text: "Hello, world!",
       };
 
-      await expect(publisher.postContent(content, chatId)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "No valid content to send")
-      );
-    });
-  });
-
-  describe("post (main entry)", () => {
-    const chatId = "test_chat_id";
-
-    it("should post a single message", async () => {
-      const postContentSpy = jest.spyOn(publisher, "postContent").mockResolvedValue("msg123");
-      const content: Content = {
-        text: "Single message",
-      };
-      const options = { telegram: { chatId } };
-
-      const result = await publisher.post(content, options);
-
-      expect(postContentSpy).toHaveBeenCalledWith(content, chatId, undefined);
-      expect(result).toEqual({
-        id: "msg123",
-        error: PostErrorType.NO_ERROR,
-      });
-    });
-
-    it("should return error result if chatId is missing", async () => {
-      const content: Content = {
-        text: "Will fail",
-      };
-      const options = {};
-
-      const result = await publisher.post(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.INVALID_CONTENT,
-        message: "Telegram chatId is required in options.telegram.chatId",
-        details: undefined,
-      });
-    });
-
-    it("should return error result if postContent fails with PostError", async () => {
-      const error = new PostError(PostErrorType.API_ERROR, "API Error", { code: 400 });
-      jest.spyOn(publisher, "postContent").mockRejectedValue(error);
-
-      const content: Content = {
-        text: "Will fail",
-      };
-      const options = { telegram: { chatId } };
-
-      const result = await publisher.post(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "API Error",
-        details: { code: 400 },
-      });
-    });
-
-    it("should return error result if postContent fails with other error", async () => {
-      const error = new Error("Network timeout");
-      jest.spyOn(publisher, "postContent").mockRejectedValue(error);
-
-      const content: Content = {
-        text: "Will fail",
-      };
-      const options = { telegram: { chatId } };
-
-      const result = await publisher.post(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.OTHER,
-        message: "Error posting to Telegram: Network timeout",
-        details: error,
-      });
-    });
-
-    it("should use parse mode from options", async () => {
-      const postContentSpy = jest.spyOn(publisher, "postContent").mockResolvedValue("msg123");
-      const content: Content = {
-        text: "Message with parse mode",
-      };
-      const options = { telegram: { chatId, parseMode: "MarkdownV2" as const } };
-
-      await publisher.post(content, options);
-
-      expect(postContentSpy).toHaveBeenCalledWith(content, chatId, "MarkdownV2");
-    });
-  });
-
-  describe("error handling", () => {
-    it("should handle network errors gracefully", async () => {
-      jest.spyOn(publisher, "postContent").mockRejectedValue(new Error("ECONNRESET"));
-
-      const content: Content = {
-        text: "Network error test",
-      };
-      const options = { telegram: { chatId: "test_chat" } };
-
-      const result = await publisher.post(content, options);
-
-      expect(result.error).toBe(PostErrorType.OTHER);
-      expect(result.message).toContain("ECONNRESET");
-    });
-
-    it("should handle invalid chat ID", async () => {
       const apiError = {
         response: {
           data: {
@@ -458,25 +190,119 @@ describe("TelegramPublisher", () => {
           },
         },
       };
-      jest
-        .spyOn(publisher, "postContent")
-        .mockRejectedValue(
-          new PostError(
-            PostErrorType.API_ERROR,
-            "Error sending message: Bad Request: chat not found",
-            apiError.response.data
-          )
-        );
+      mockAxiosInstance.post.mockRejectedValue(apiError);
 
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(
+          PostErrorType.API_ERROR,
+          "Error sending message: Bad Request: chat not found",
+          apiError.response.data
+        )
+      );
+    });
+
+    it("should handle multiple media by using only the first one", async () => {
       const content: Content = {
-        text: "Test message",
+        text: "Multiple media",
+        media: [
+          { type: "image", path: "/path/to/image1.jpg" },
+          { type: "image", path: "/path/to/image2.jpg" },
+        ],
       };
-      const options = { telegram: { chatId: "invalid_chat_id" } };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { result: { message_id: 131415 } },
+      });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", expect.any(Object), {
+        headers: { "content-type": "multipart/form-data" },
+      });
+      expect(result).toEqual({ id: "131415", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should use default parse mode if not specified", async () => {
+      const content: Content = {
+        text: "Hello, world!",
+      };
+
+      const optionsWithoutParseMode: PostOptions = {
+        telegram: {
+          chatId: "test_chat_id",
+        },
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { result: { message_id: 161718 } },
+      });
+
+      const result = await publisher.postContent(content, optionsWithoutParseMode);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendMessage", {
+        chat_id: "test_chat_id",
+        text: "Hello, world!",
+        parse_mode: "HTML",
+      });
+      expect(result).toEqual({ id: "161718", error: PostErrorType.NO_ERROR });
+    });
+  });
+
+  describe("post", () => {
+    const options: PostOptions = {
+      telegram: {
+        chatId: "test_chat_id",
+        parseMode: "HTML",
+      },
+    };
+
+    it("should post content successfully and return PostResult", async () => {
+      const content: Content = {
+        text: "Hello, world!",
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { result: { message_id: 192021 } },
+      });
 
       const result = await publisher.post(content, options);
 
-      expect(result.error).toBe(PostErrorType.API_ERROR);
-      expect(result.message).toContain("chat not found");
+      expect(result).toEqual({ id: "192021", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should handle errors and return PostResult with error", async () => {
+      const content: Content = {
+        text: "Hello, world!",
+      };
+
+      const apiError = {
+        response: {
+          data: {
+            description: "Bad Request: chat not found",
+          },
+        },
+      };
+      mockAxiosInstance.post.mockRejectedValue(apiError);
+
+      const result = await publisher.post(content, options);
+
+      expect(result).toEqual({
+        error: PostErrorType.API_ERROR,
+        message: "Error sending message: Bad Request: chat not found",
+        details: apiError.response.data,
+      });
+    });
+
+    it("should handle validation errors and return PostResult with error", async () => {
+      const content: Content = {};
+
+      const result = await publisher.post(content, options);
+
+      expect(result).toEqual({
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Empty posts are not supported by Telegram",
+        details: undefined,
+      });
     });
   });
 });

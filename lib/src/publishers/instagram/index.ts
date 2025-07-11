@@ -172,7 +172,7 @@ export class InstagramPublisher extends Publisher {
 
       return {
         error: PostErrorType.API_ERROR,
-        message: `Error publishing Instagram post: ${error.message}`,
+        message: `Error publishing Instagram post: ${error.response?.data?.error?.message || error.message}`,
         details: error,
       };
     } finally {

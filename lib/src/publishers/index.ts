@@ -1,6 +1,6 @@
 import { Platform } from "../types/post";
 import { XPublisher } from "./x";
-import { Publisher } from "../types/publisher";
+import { Publisher } from "./base";
 import { YouTubePublisher } from "./youtube";
 import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";

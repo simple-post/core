@@ -1,0 +1,40 @@
+import { PostError, PostErrorType, PostResult } from "../../types";
+import { Content, PostOptions } from "../../types/post";
+import { Logger } from "../../utils/logger";
+
+export abstract class Publisher {
+  readonly logger: Logger;
+  readonly strictMode: boolean;
+
+  constructor(name: string, options?: PostOptions) {
+    this.logger = new Logger(name, options?.common?.logLevel);
+    this.strictMode = options?.common?.strictMode ?? false;
+  }
+
+  abstract postContent(content: Content, options?: PostOptions): Promise<PostResult>;
+
+  strictCheck(condition: boolean | undefined, message: string): asserts condition {
+    if (condition) {
+      if (this.strictMode) {
+        throw new PostError(PostErrorType.INVALID_CONTENT, message);
+      } else {
+        this.logger.warn(message);
+      }
+    }
+  }
+
+  async post(content: Content, options?: PostOptions): Promise<PostResult> {
+    try {
+      // Try to post the content
+      return this.postContent(content, options);
+    } catch (error: any) {
+      // Handle PostErrors and generic errors
+      if (error instanceof PostError) {
+        return { error: error.errorType, message: error.message, details: error.details };
+      } else {
+        this.logger.error(error);
+        return { error: PostErrorType.OTHER, message: `Error posting: ${error.message}`, details: error.data };
+      }
+    }
+  }
+}

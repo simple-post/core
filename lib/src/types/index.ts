@@ -6,6 +6,19 @@ export enum PostErrorType {
   OTHER = "OTHER",
 }
 
+export class PostError extends Error {
+  public errorType: PostErrorType;
+  public details?: any;
+
+  constructor(errorType: PostErrorType, message: string, details?: any) {
+    super(message);
+    this.name = "PostError";
+    this.errorType = errorType;
+    this.message = message;
+    this.details = details;
+  }
+}
+
 export interface PostResult {
   id?: string;
   error: PostErrorType;

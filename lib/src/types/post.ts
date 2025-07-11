@@ -1,5 +1,12 @@
 import { z } from "zod/v4";
 
+export enum LogLevel {
+  NONE = "none",
+  ERROR = "error",
+  WARN = "warn",
+  INFO = "info",
+}
+
 export const PlatformSchema = z.enum([
   "x",
   "youtube",
@@ -13,18 +20,24 @@ export const PlatformSchema = z.enum([
 
 export const ImageSchema = z.object({
   type: z.literal("image"),
-  path: z.string().optional(),
+  path: z.string(),
+  caption: z.string().optional(),
 });
 
 export const VideoSchema = z.object({
   type: z.literal("video"),
-  path: z.string().optional(),
+  path: z.string(),
   title: z.string().optional(),
   description: z.string().optional(),
   thumbnailPath: z.string().optional(),
 });
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);
+
+export const CommonOptionsSchema = z.object({
+  logLevel: z.enum(LogLevel).optional(),
+  strictMode: z.boolean().optional(),
+});
 
 export const XOptionsSchema = z.object({
   replyToId: z.string().optional(),
@@ -54,6 +67,7 @@ export const ContentSchema = z.object({
 });
 
 export const PostOptionsSchema = z.object({
+  common: CommonOptionsSchema.optional(),
   x: XOptionsSchema.optional(),
   telegram: TelegramOptionsSchema.optional(),
 });
@@ -72,5 +86,9 @@ export type TelegramSpecificOptions = z.infer<typeof TelegramOptionsSchema>;
 export type YouTubeSpecificOptions = z.infer<typeof YouTubeContentOptionsSchema>;
 export type ContentOptions = z.infer<typeof ContentOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
+export type CommonOptions = z.infer<typeof CommonOptionsSchema>;
+export type XOptions = z.infer<typeof XOptionsSchema>;
+export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;
+export type YouTubeOptions = z.infer<typeof YouTubeContentOptionsSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;

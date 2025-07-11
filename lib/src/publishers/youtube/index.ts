@@ -1,43 +1,38 @@
-import { Content, PostOptions } from "../../types/post";
-import { PostError, Publisher } from "../../types/publisher";
-import { PostErrorType, PostResult } from "../../types";
+import { Content, PostOptions, Video } from "../../types/post";
+import { Publisher } from "../base";
+import { PostError, PostErrorType, PostResult } from "../../types";
 import { google, youtube_v3 } from "googleapis";
 import fs from "fs";
 
 export class YouTubePublisher extends Publisher {
   private youtube: youtube_v3.Youtube;
 
-  constructor() {
-    super();
+  constructor(options?: PostOptions) {
+    super("YouTube", options);
 
-    let auth: any;
-
+    // Check if the credentials are valid
     const clientId = process.env.YOUTUBE_CLIENT_ID;
     const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
     const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
 
-    if (clientId && clientSecret && refreshToken) {
-      // Try to use the credentials from the environment variables
-      auth = new google.auth.OAuth2(clientId, clientSecret);
-      auth.setCredentials({ refresh_token: refreshToken });
-    } else {
-      // Try to use Application Default Credentials
-      auth = new google.auth.GoogleAuth({
-        scopes: ["https://www.googleapis.com/auth/youtube.upload"],
-      });
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "YouTube clientId, clientSecret and refreshToken are required"
+      );
     }
 
+    // Authenticate with the YouTube API
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
+    auth.setCredentials({ refresh_token: refreshToken });
     this.youtube = google.youtube({ version: "v3", auth });
   }
 
-  validate(content: Content): void {
-    const video = content.media?.find((m) => m.type === "video");
-
+  validate(video?: Video): asserts video is Video {
     // Check the video
     if (!video) throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
 
-    if (!video.path) throw new PostError(PostErrorType.INVALID_CONTENT, "A video file path is required for YouTube.");
-
+    // Check if the video file exists
     if (!fs.existsSync(video.path))
       throw new PostError(PostErrorType.INVALID_CONTENT, `Video file not found at path: ${video.path}`);
 
@@ -49,29 +44,21 @@ export class YouTubePublisher extends Publisher {
     if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
   }
 
-  async post(content: Content, options: PostOptions): Promise<PostResult> {
-    // Validate the content
-    try {
-      this.validate(content);
-    } catch (error) {
-      if (error instanceof PostError) {
-        return { error: error.errorType, message: error.message };
-      }
-      return { error: PostErrorType.OTHER, message: "An unknown error occurred while YouTube post." };
-    }
-
+  async postContent(content: Content, options: PostOptions): Promise<PostResult> {
     const video = content.media?.find((m) => m.type === "video");
 
-    let videoId: string;
+    // Validate the video
+    this.validate(video);
 
     // Upload the video
+    let videoId: string;
     try {
       const response = await this.youtube.videos.insert({
         part: ["snippet", "status"],
         requestBody: {
           snippet: {
-            title: video!.title,
-            description: video!.description,
+            title: video.title,
+            description: video.description,
             tags: content.options?.youtube?.tags,
             categoryId: content.options?.youtube?.categoryId,
           },
@@ -81,13 +68,16 @@ export class YouTubePublisher extends Publisher {
           },
         },
         media: {
-          body: fs.createReadStream(video!.path!),
+          body: fs.createReadStream(video.path),
         },
       });
 
       videoId = response.data.id!;
     } catch (error: any) {
+      this.logger.error(error);
+
       let errorMessage = "An unknown error occurred while uploading to YouTube.";
+
       if (error.response && error.response.data && error.response.data.error) {
         errorMessage = `YouTube API Error: ${error.response.data.error.message}`;
       } else if (error.message) {
@@ -99,16 +89,16 @@ export class YouTubePublisher extends Publisher {
 
     // Upload the thumbnail if provided
     try {
-      if (video!.thumbnailPath) {
+      if (video.thumbnailPath) {
         await this.youtube.thumbnails.set({
           videoId: videoId,
           media: {
-            body: fs.createReadStream(video!.thumbnailPath),
+            body: fs.createReadStream(video.thumbnailPath),
           },
         });
       }
     } catch (error: any) {
-      // TODO: log error
+      this.logger.warn(`Failed to upload thumbnail for video ${videoId}: ${error}`);
     }
 
     // Add to playlist if playlist ID is provided
@@ -128,7 +118,7 @@ export class YouTubePublisher extends Publisher {
         });
       }
     } catch (error: any) {
-      // TODO: log error
+      this.logger.warn(`Failed to add video ${videoId} to playlist ${content.options?.youtube?.playlistId}: ${error}`);
     }
 
     return {

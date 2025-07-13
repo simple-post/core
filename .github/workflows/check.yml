@@ -1,4 +1,4 @@
-name: Run Tests
+name: Run Checks and Tests
 
 on:
   pull_request:
@@ -28,6 +28,11 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Run checks
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+        run: yarn check
 
       - name: Run tests
         env:

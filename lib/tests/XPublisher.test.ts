@@ -1,9 +1,11 @@
-import { XPublisher } from "../src/publishers/x";
-import { Content, Media, PostOptions } from "../src/types/post";
+import fs from "node:fs";
+
 import { TwitterApi } from "twitter-api-v2";
-import { PostError } from "../src/types";
-import { PostErrorType } from "../src/types";
-import fs from "fs";
+
+import { XPublisher } from "../src/publishers/x";
+import { PostError, PostErrorType } from "../src/types";
+
+import type { Content, Media, PostOptions } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("twitter-api-v2");

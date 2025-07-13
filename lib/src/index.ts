@@ -1,6 +1,7 @@
 import { getPublisher } from "./publishers";
-import { PostResult } from "./types";
-import { Platform, Post } from "./types/post";
+
+import type { PostResult } from "./types";
+import type { Platform, Post } from "./types/post";
 
 export async function post(post: Post): Promise<Map<Platform, PostResult>> {
   const results = new Map<Platform, PostResult>();

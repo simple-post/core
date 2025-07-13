@@ -1,8 +1,13 @@
-import fs from "fs";
-import { Content, Media, PostOptions } from "../../types/post";
+import fs from "node:fs";
+
+import { TwitterApi } from "twitter-api-v2";
+
+import { PostError, PostErrorType } from "../../types";
 import { Publisher } from "../base";
-import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
-import { PostError, PostErrorType, PostResult } from "../../types";
+
+import type { PostResult } from "../../types";
+import type { Content, Media, PostOptions } from "../../types/post";
+import type { TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
 
 export class XPublisher extends Publisher {
   private client: TwitterApi;
@@ -69,7 +74,7 @@ export class XPublisher extends Publisher {
     this.validate(content);
 
     // Upload all media files if any
-    let mediaIds: string[] = [];
+    const mediaIds: string[] = [];
     if (content.media) {
       for (const media of content.media.slice(0, 4)) {
         const mediaId = await this.uploadMedia(media);

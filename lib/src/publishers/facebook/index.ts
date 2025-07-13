@@ -1,11 +1,16 @@
-import { Content, Image, Media, PostOptions, Video } from "../../types/post";
-import { Publisher } from "../base";
-import { PostError, PostErrorType, PostResult } from "../../types";
-import axios, { AxiosInstance } from "axios";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+
+import axios from "axios";
 import FormData from "form-data";
+
+import { PostError, PostErrorType } from "../../types";
 import { getContentType } from "../../utils";
+import { Publisher } from "../base";
+
+import type { PostResult } from "../../types";
+import type { Content, Image, Media, PostOptions, Video } from "../../types/post";
+import type { AxiosInstance } from "axios";
 
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
@@ -28,7 +33,7 @@ export class FacebookPublisher extends Publisher {
     // Create the Facebook API client
     this.client = axios.create({
       baseURL: "https://graph.facebook.com/v23.0",
-      timeout: 30000,
+      timeout: 30_000,
     });
   }
 
@@ -134,7 +139,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postContent(content: Content, options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, _options: PostOptions): Promise<PostResult> {
     // Validate the content
     this.validate(content);
 

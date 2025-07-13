@@ -4,22 +4,27 @@ export const getContentType = (filePath: string): string => {
 
   switch (fileExtension) {
     case "mp4":
-    case "mov":
+    case "mov": {
       contentType = "video/mp4";
       break;
+    }
     case "jpg":
-    case "jpeg":
+    case "jpeg": {
       contentType = "image/jpeg";
       break;
-    case "png":
+    }
+    case "png": {
       contentType = "image/png";
       break;
-    case "gif":
+    }
+    case "gif": {
       contentType = "image/gif";
       break;
-    case "webp":
+    }
+    case "webp": {
       contentType = "image/webp";
       break;
+    }
   }
 
   return contentType;

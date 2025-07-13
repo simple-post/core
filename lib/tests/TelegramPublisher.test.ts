@@ -1,9 +1,11 @@
-import { TelegramPublisher } from "../src/publishers/telegram";
-import { Content, Media, PostOptions } from "../src/types/post";
-import { PostError } from "../src/types";
-import { PostErrorType } from "../src/types";
+import fs from "node:fs";
+
 import axios from "axios";
-import fs from "fs";
+
+import { TelegramPublisher } from "../src/publishers/telegram";
+import { PostError, PostErrorType } from "../src/types";
+
+import type { Content, PostOptions } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -47,7 +49,7 @@ describe("TelegramPublisher", () => {
     it("should initialize axios client with correct bot token", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
         baseURL: "https://api.telegram.org/bottest_bot_token",
-        timeout: 30000,
+        timeout: 30_000,
       });
     });
 
@@ -135,7 +137,7 @@ describe("TelegramPublisher", () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 101112 } },
+        data: { result: { message_id: 101_112 } },
       });
 
       const result = await publisher.postContent(content, options);
@@ -207,7 +209,7 @@ describe("TelegramPublisher", () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 131415 } },
+        data: { result: { message_id: 131_415 } },
       });
 
       const result = await publisher.postContent(content, options);
@@ -230,7 +232,7 @@ describe("TelegramPublisher", () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 161718 } },
+        data: { result: { message_id: 161_718 } },
       });
 
       const result = await publisher.postContent(content, optionsWithoutParseMode);
@@ -258,7 +260,7 @@ describe("TelegramPublisher", () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 192021 } },
+        data: { result: { message_id: 192_021 } },
       });
 
       const result = await publisher.post(content, options);

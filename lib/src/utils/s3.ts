@@ -1,9 +1,11 @@
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { createReadStream } from "node:fs";
+
+import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import { createReadStream } from "fs";
-import { S3Client } from "@aws-sdk/client-s3";
-import { PostError, PostErrorType } from "../types";
+
 import { getContentType } from ".";
+
+import { PostError, PostErrorType } from "../types";
 
 export class S3MediaUploader {
   private s3Client: S3Client;

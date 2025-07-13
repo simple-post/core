@@ -1,11 +1,16 @@
-import { Content, Media, PostOptions } from "../../types/post";
-import { Publisher } from "../base";
-import { PostError, PostErrorType, PostResult } from "../../types";
-import fs from "fs";
-import axios, { AxiosInstance } from "axios";
-import { basename } from "path";
+import fs from "node:fs";
+import path from "node:path";
+
+import axios from "axios";
 import { v7 as uuidv7 } from "uuid";
+
+import { PostError, PostErrorType } from "../../types";
 import { S3MediaUploader } from "../../utils/s3";
+import { Publisher } from "../base";
+
+import type { PostResult } from "../../types";
+import type { Content, Media, PostOptions } from "../../types/post";
+import type { AxiosInstance } from "axios";
 
 export class InstagramPublisher extends Publisher {
   private client: AxiosInstance;
@@ -33,7 +38,7 @@ export class InstagramPublisher extends Publisher {
     // Create axios client with base configuration
     this.client = axios.create({
       baseURL: `https://graph.facebook.com/v23.0`,
-      timeout: 30000, // 30 seconds timeout
+      timeout: 30_000, // 30 seconds timeout
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
       headers: {
@@ -70,7 +75,7 @@ export class InstagramPublisher extends Publisher {
     const mediaType = media.type === "video" ? "REELS" : undefined;
 
     // Upload file temporarily to S3
-    const key = `${uuidv7()}_${basename(media.path)}`;
+    const key = `${uuidv7()}_${path.basename(media.path)}`;
     const mediaUrl = await this.s3MediaUploader.uploadFile(media.path, key);
     this.s3TempFileKeys.push(key);
     this.logger.info(`Uploaded media file to S3: ${mediaUrl}`);
@@ -147,7 +152,7 @@ export class InstagramPublisher extends Publisher {
     );
   }
 
-  async postContent(content: Content, options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, _options: PostOptions): Promise<PostResult> {
     // Validate the content
     this.validate(content);
 

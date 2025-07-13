@@ -1,9 +1,11 @@
-import { InstagramPublisher } from "../src/publishers/instagram";
-import { Content, PostOptions } from "../src/types/post";
-import { PostError } from "../src/types";
-import { PostErrorType } from "../src/types";
+import fs from "node:fs";
+
 import axios from "axios";
-import fs from "fs";
+
+import { InstagramPublisher } from "../src/publishers/instagram";
+import { PostError, PostErrorType } from "../src/types";
+
+import type { Content, PostOptions } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -48,7 +50,7 @@ describe("InstagramPublisher", () => {
     it("should initialize with valid credentials", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
         baseURL: "https://graph.facebook.com/v23.0",
-        timeout: 30000,
+        timeout: 30_000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
         headers: {

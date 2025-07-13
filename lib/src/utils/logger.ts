@@ -1,4 +1,4 @@
-import { LogLevel } from "../types/post";
+import type { LogLevel } from "../types/post";
 
 export class Logger {
   private readonly prefix: string;

@@ -1,9 +1,14 @@
-import fs from "fs";
+import fs from "node:fs";
+
+import axios from "axios";
 import FormData from "form-data";
-import axios, { AxiosInstance } from "axios";
-import { Content, Media, PostOptions } from "../../types/post";
+
+import { PostError, PostErrorType } from "../../types";
 import { Publisher } from "../base";
-import { PostError, PostErrorType, PostResult } from "../../types";
+
+import type { PostResult } from "../../types";
+import type { Content, Media, PostOptions } from "../../types/post";
+import type { AxiosInstance } from "axios";
 
 export class TelegramPublisher extends Publisher {
   private client: AxiosInstance;
@@ -20,7 +25,7 @@ export class TelegramPublisher extends Publisher {
 
     this.client = axios.create({
       baseURL: `https://api.telegram.org/bot${this.botToken}`,
-      timeout: 30000,
+      timeout: 30_000,
     });
   }
 
@@ -73,7 +78,7 @@ export class TelegramPublisher extends Publisher {
       };
 
       if (replyTo) {
-        payload.reply_to_message_id = parseInt(replyTo);
+        payload.reply_to_message_id = Number.parseInt(replyTo);
       }
 
       const response = await this.client.post("/sendMessage", payload);

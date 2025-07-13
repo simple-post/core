@@ -1,6 +1,8 @@
-import { PostError, PostErrorType, PostResult } from "../../types";
-import { Content, PostOptions } from "../../types/post";
+import { PostError, PostErrorType } from "../../types";
 import { Logger } from "../../utils/logger";
+
+import type { PostResult } from "../../types";
+import type { Content, PostOptions } from "../../types/post";
 
 export abstract class Publisher {
   readonly logger: Logger;

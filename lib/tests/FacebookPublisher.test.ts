@@ -1,10 +1,12 @@
-import { FacebookPublisher } from "../src/publishers/facebook";
-import { Content, Media, PostOptions } from "../src/types/post";
-import { PostError } from "../src/types";
-import { PostErrorType } from "../src/types";
+import fs from "node:fs";
+
 import axios from "axios";
-import fs from "fs";
 import FormData from "form-data";
+
+import { FacebookPublisher } from "../src/publishers/facebook";
+import { PostError, PostErrorType } from "../src/types";
+
+import type { Content, Media, PostOptions } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -56,7 +58,7 @@ describe("FacebookPublisher", () => {
     it("should initialize with valid credentials", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
         baseURL: "https://graph.facebook.com/v23.0",
-        timeout: 30000,
+        timeout: 30_000,
       });
     });
 

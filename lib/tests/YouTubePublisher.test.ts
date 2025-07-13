@@ -1,8 +1,11 @@
+import fs from "node:fs";
+
+import { google } from "googleapis";
+
 import { YouTubePublisher } from "../src/publishers/youtube";
-import { Content, PostOptions, Video } from "../src/types/post";
-import { PostError } from "../src/types";
-import { PostErrorType } from "../src/types";
-import fs from "fs";
+import { PostError, PostErrorType } from "../src/types";
+
+import type { Content, PostOptions, Video } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("googleapis", () => ({
@@ -19,7 +22,6 @@ jest.mock("fs", () => ({
   createReadStream: jest.fn(),
 }));
 
-const { google } = require("googleapis");
 const mockedGoogle = google as jest.Mocked<typeof google>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
@@ -114,7 +116,7 @@ describe("YouTubePublisher", () => {
     });
 
     it("should throw error if video is undefined", () => {
-      expect(() => publisher.validate(undefined)).toThrow(
+      expect(() => publisher.validate()).toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
       );
     });

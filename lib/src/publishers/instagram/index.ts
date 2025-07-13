@@ -24,7 +24,7 @@ export class InstagramPublisher extends Publisher {
     if (!accessToken || !businessAccountId) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required"
+        "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
       );
     }
 
@@ -59,10 +59,7 @@ export class InstagramPublisher extends Publisher {
       if (statusCode === "FINISHED") return;
 
       if (statusCode === "ERROR")
-        throw new PostError(
-          PostErrorType.API_ERROR,
-          `Instagram media container ${containerId} creation failed: ${status}`
-        );
+        throw new PostError(PostErrorType.API_ERROR, `Instagram media container ${containerId} creation failed: ${status}`);
 
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
@@ -130,7 +127,7 @@ export class InstagramPublisher extends Publisher {
     if (!content.media || content.media.length === 0)
       throw new PostError(
         PostErrorType.INVALID_CONTENT,
-        "Instagram posts require at least one media item (image or video)."
+        "Instagram posts require at least one media item (image or video).",
       );
 
     // Validate the number of media files
@@ -146,7 +143,7 @@ export class InstagramPublisher extends Publisher {
     // Caption length validation (Instagram limit is 2200 characters)
     this.strictCheck(
       Boolean(content.text && content.text.length > 2200),
-      "Instagram caption cannot exceed 2200 characters."
+      "Instagram caption cannot exceed 2200 characters.",
     );
   }
 

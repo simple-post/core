@@ -66,8 +66,8 @@ describe("XPublisher", () => {
       expect(() => new XPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET environment variables are required"
-        )
+          "TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET environment variables are required",
+        ),
       );
     });
   });
@@ -91,7 +91,7 @@ describe("XPublisher", () => {
       mockedFs.existsSync.mockReturnValue(false);
 
       await expect(publisher.uploadMedia(media)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found: /path/to/missing.jpg")
+        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found: /path/to/missing.jpg"),
       );
     });
 
@@ -102,7 +102,7 @@ describe("XPublisher", () => {
       mockV1Client.uploadMedia.mockRejectedValue(apiError);
 
       await expect(publisher.uploadMedia(media)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error uploading media: Error: Upload failed", undefined)
+        new PostError(PostErrorType.API_ERROR, "Error uploading media: Error: Upload failed", undefined),
       );
     });
   });
@@ -128,7 +128,7 @@ describe("XPublisher", () => {
       const content: Content = {};
 
       expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported")
+        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported"),
       );
     });
 
@@ -246,7 +246,7 @@ describe("XPublisher", () => {
       const content: Content = {};
 
       await expect(publisher.postContent(content)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported")
+        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported"),
       );
     });
 
@@ -259,7 +259,7 @@ describe("XPublisher", () => {
       mockV2Client.tweet.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error posting: Error: API Error", undefined)
+        new PostError(PostErrorType.API_ERROR, "Error posting: Error: API Error", undefined),
       );
     });
   });

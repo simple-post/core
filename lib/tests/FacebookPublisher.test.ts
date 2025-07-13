@@ -65,8 +65,8 @@ describe("FacebookPublisher", () => {
       expect(() => new FacebookPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required"
-        )
+          "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required",
+        ),
       );
     });
 
@@ -75,8 +75,8 @@ describe("FacebookPublisher", () => {
       expect(() => new FacebookPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required"
-        )
+          "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required",
+        ),
       );
     });
   });
@@ -102,7 +102,7 @@ describe("FacebookPublisher", () => {
       const content: Content = {};
 
       expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook")
+        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook"),
       );
     });
 
@@ -115,7 +115,7 @@ describe("FacebookPublisher", () => {
       };
 
       expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Video posts can only contain a single video, no other media")
+        new PostError(PostErrorType.INVALID_CONTENT, "Video posts can only contain a single video, no other media"),
       );
     });
 
@@ -127,7 +127,7 @@ describe("FacebookPublisher", () => {
       mockedFs.existsSync.mockReturnValue(false);
 
       expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg")
+        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg"),
       );
     });
   });
@@ -165,7 +165,7 @@ describe("FacebookPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.uploadImage(image)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error uploading image: Invalid access token", apiError.response.data)
+        new PostError(PostErrorType.API_ERROR, "Error uploading image: Invalid access token", apiError.response.data),
       );
     });
   });
@@ -297,7 +297,7 @@ describe("FacebookPublisher", () => {
       const content: Content = {};
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook")
+        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook"),
       );
     });
 

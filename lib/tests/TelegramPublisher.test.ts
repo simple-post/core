@@ -54,14 +54,14 @@ describe("TelegramPublisher", () => {
     it("should throw error if TELEGRAM_BOT_TOKEN is not provided", () => {
       delete process.env.TELEGRAM_BOT_TOKEN;
       expect(() => new TelegramPublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required")
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required"),
       );
     });
 
     it("should throw error if TELEGRAM_BOT_TOKEN is empty", () => {
       process.env.TELEGRAM_BOT_TOKEN = "";
       expect(() => new TelegramPublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required")
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required"),
       );
     });
   });
@@ -154,7 +154,7 @@ describe("TelegramPublisher", () => {
       const invalidOptions: PostOptions = {};
 
       await expect(publisher.postContent(content, invalidOptions)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId")
+        new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId"),
       );
     });
 
@@ -162,7 +162,7 @@ describe("TelegramPublisher", () => {
       const content: Content = {};
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram")
+        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram"),
       );
     });
 
@@ -174,7 +174,7 @@ describe("TelegramPublisher", () => {
       mockedFs.existsSync.mockReturnValue(false);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/nonexistent.jpg")
+        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/nonexistent.jpg"),
       );
     });
 
@@ -193,11 +193,7 @@ describe("TelegramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(
-          PostErrorType.API_ERROR,
-          "Error sending message: Bad Request: chat not found",
-          apiError.response.data
-        )
+        new PostError(PostErrorType.API_ERROR, "Error sending message: Bad Request: chat not found", apiError.response.data),
       );
     });
 

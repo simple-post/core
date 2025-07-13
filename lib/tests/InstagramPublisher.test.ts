@@ -63,8 +63,8 @@ describe("InstagramPublisher", () => {
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required"
-        )
+          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
+        ),
       );
     });
 
@@ -73,8 +73,8 @@ describe("InstagramPublisher", () => {
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required"
-        )
+          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
+        ),
       );
     });
   });
@@ -117,10 +117,7 @@ describe("InstagramPublisher", () => {
       };
 
       expect(() => publisher["validate"](content)).toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video)."
-        )
+        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts require at least one media item (image or video)."),
       );
     });
 
@@ -131,10 +128,7 @@ describe("InstagramPublisher", () => {
       };
 
       expect(() => publisher["validate"](content)).toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video)."
-        )
+        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts require at least one media item (image or video)."),
       );
     });
 
@@ -147,7 +141,7 @@ describe("InstagramPublisher", () => {
       mockedFs.existsSync.mockReturnValue(false);
 
       expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg")
+        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg"),
       );
     });
   });
@@ -184,7 +178,7 @@ describe("InstagramPublisher", () => {
           image_url: "https://s3.example.com/media1.jpg",
           caption: "Single image post",
           is_carousel_item: false,
-        })
+        }),
       );
       expect(result).toEqual({ id: "post_id_456", error: PostErrorType.NO_ERROR });
     });
@@ -219,7 +213,7 @@ describe("InstagramPublisher", () => {
           video_url: "https://s3.example.com/video1.mp4",
           caption: "Single video post",
           is_carousel_item: false,
-        })
+        }),
       );
       expect(result).toEqual({ id: "post_id_012", error: PostErrorType.NO_ERROR });
     });
@@ -260,7 +254,7 @@ describe("InstagramPublisher", () => {
           media_type: "CAROUSEL",
           caption: "Carousel post",
           children: "item1_id,item2_id",
-        })
+        }),
       );
       expect(result).toEqual({ id: "post_id_345", error: PostErrorType.NO_ERROR });
     });
@@ -271,10 +265,7 @@ describe("InstagramPublisher", () => {
       };
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video)."
-        )
+        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts require at least one media item (image or video)."),
       );
     });
 

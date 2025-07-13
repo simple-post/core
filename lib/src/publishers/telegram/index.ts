@@ -59,7 +59,7 @@ export class TelegramPublisher extends Publisher {
       throw new PostError(
         PostErrorType.API_ERROR,
         `Error sending ${media.type}: ${error.response?.data?.description || error.message}`,
-        error.response?.data
+        error.response?.data,
       );
     }
   }
@@ -84,7 +84,7 @@ export class TelegramPublisher extends Publisher {
       throw new PostError(
         PostErrorType.API_ERROR,
         `Error sending message: ${error.response?.data?.description || error.message}`,
-        error.response?.data
+        error.response?.data,
       );
     }
   }
@@ -102,7 +102,7 @@ export class TelegramPublisher extends Publisher {
 
     this.strictCheck(
       content.media && content.media.length > 1,
-      "Telegram supports only one media per message, only the first media will be sent"
+      "Telegram supports only one media per message, only the first media will be sent",
     );
   }
 

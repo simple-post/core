@@ -86,7 +86,7 @@ describe("YouTubePublisher", () => {
     it("should throw error if credentials are missing", () => {
       delete process.env.YOUTUBE_CLIENT_ID;
       expect(() => new YouTubePublisher()).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "YouTube clientId, clientSecret and refreshToken are required")
+        new PostError(PostErrorType.INVALID_CONTENT, "YouTube clientId, clientSecret and refreshToken are required"),
       );
     });
   });
@@ -115,7 +115,7 @@ describe("YouTubePublisher", () => {
 
     it("should throw error if video is undefined", () => {
       expect(() => publisher.validate(undefined)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.")
+        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
       );
     });
 
@@ -129,7 +129,7 @@ describe("YouTubePublisher", () => {
       mockedFs.existsSync.mockReturnValue(false);
 
       expect(() => publisher.validate(video)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Video file not found at path: /path/to/missing.mp4")
+        new PostError(PostErrorType.INVALID_CONTENT, "Video file not found at path: /path/to/missing.mp4"),
       );
     });
 
@@ -144,7 +144,7 @@ describe("YouTubePublisher", () => {
       mockedFs.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(false);
 
       expect(() => publisher.validate(video)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Thumbnail file not found at path: /path/to/missing_thumbnail.jpg")
+        new PostError(PostErrorType.INVALID_CONTENT, "Thumbnail file not found at path: /path/to/missing_thumbnail.jpg"),
       );
     });
 
@@ -155,7 +155,7 @@ describe("YouTubePublisher", () => {
       };
 
       expect(() => publisher.validate(video)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.")
+        new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post."),
       );
     });
   });
@@ -299,7 +299,7 @@ describe("YouTubePublisher", () => {
       };
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.")
+        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
       );
     });
 
@@ -315,7 +315,7 @@ describe("YouTubePublisher", () => {
       };
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.")
+        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
       );
     });
 

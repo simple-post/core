@@ -19,7 +19,7 @@ export class XPublisher extends Publisher {
     if (!clientId || !clientSecret || !accessToken || !accessSecret) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET environment variables are required"
+        "TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET environment variables are required",
       );
     }
 
@@ -58,7 +58,7 @@ export class XPublisher extends Publisher {
 
     this.strictCheck(
       content.media && content.media.length > 4,
-      "X supports up to 4 media files, only the first 4 will be uploaded"
+      "X supports up to 4 media files, only the first 4 will be uploaded",
     );
   }
 

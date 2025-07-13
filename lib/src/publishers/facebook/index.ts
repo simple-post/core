@@ -22,7 +22,7 @@ export class FacebookPublisher extends Publisher {
     if (!this.pageAccessToken || !this.pageId)
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required"
+        "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required",
       );
 
     // Create the Facebook API client
@@ -62,7 +62,7 @@ export class FacebookPublisher extends Publisher {
       throw new PostError(
         PostErrorType.API_ERROR,
         `Error uploading image: ${error.response?.data?.error?.message || error.message}`,
-        error.response?.data
+        error.response?.data,
       );
     }
   }
@@ -78,10 +78,7 @@ export class FacebookPublisher extends Publisher {
       // Check for videos - they can only be single media posts
       const videos = content.media.filter((m) => m.type === "video");
       if (videos.length > 0 && content.media.length > 1) {
-        throw new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Video posts can only contain a single video, no other media"
-        );
+        throw new PostError(PostErrorType.INVALID_CONTENT, "Video posts can only contain a single video, no other media");
       }
 
       // Check for too many images in multi-media posts

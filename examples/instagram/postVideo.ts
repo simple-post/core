@@ -18,7 +18,7 @@ async function main() {
     platforms: ["instagram"],
   });
 
-  console.log(results, results.get("instagram")?.[0]?.details);
+  console.log(results);
 }
 
 main();

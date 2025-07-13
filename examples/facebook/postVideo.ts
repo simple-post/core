@@ -20,7 +20,7 @@ async function main() {
     platforms: ["facebook"],
   });
 
-  console.log(results, results.get("facebook")?.[0]?.details);
+  console.log(results);
 }
 
 main();

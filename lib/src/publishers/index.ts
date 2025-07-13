@@ -1,23 +1,29 @@
-import { Platform } from "../types/post";
-import { XPublisher } from "./x";
-import { Publisher } from "../types/publisher";
-import { YouTubePublisher } from "./youtube";
 import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";
 import { TelegramPublisher } from "./telegram";
+import { XPublisher } from "./x";
+import { YouTubePublisher } from "./youtube";
 
-export const getPublisher = (platform: Platform): Publisher => {
+import type { Publisher } from "./base";
+import type { Platform, PostOptions } from "../types/post";
+
+export const getPublisher = (platform: Platform, options?: PostOptions): Publisher => {
   switch (platform) {
-    case "x":
-      return new XPublisher();
-    case "youtube":
-      return new YouTubePublisher();
-    case "facebook":
-      return new FacebookPublisher();
-    case "instagram":
-      return new InstagramPublisher();
-    case "telegram":
-      return new TelegramPublisher();
+    case "x": {
+      return new XPublisher(options);
+    }
+    case "youtube": {
+      return new YouTubePublisher(options);
+    }
+    case "facebook": {
+      return new FacebookPublisher(options);
+    }
+    case "instagram": {
+      return new InstagramPublisher(options);
+    }
+    case "telegram": {
+      return new TelegramPublisher(options);
+    }
   }
 
   throw new Error(`Publisher for platform ${platform} not found`);

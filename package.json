@@ -10,6 +10,7 @@
     ]
   },
   "scripts": {
+    "check": "yarn workspaces foreach --all run check",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch"

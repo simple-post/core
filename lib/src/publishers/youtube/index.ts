@@ -17,7 +17,7 @@ export class YouTubePublisher extends Publisher {
 
     if (!clientId || !clientSecret || !refreshToken) {
       throw new PostError(
-        PostErrorType.INVALID_CONTENT,
+        PostErrorType.CREDENTIALS_ERROR,
         "YouTube clientId, clientSecret and refreshToken are required"
       );
     }

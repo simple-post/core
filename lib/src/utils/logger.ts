@@ -9,23 +9,23 @@ export class Logger {
     this.logLevel = logLevel;
   }
 
-  private getMessageWithPrefix(message: string) {
-    return `[${this.prefix}] ${message}`;
+  private getMessageWithPrefix(message: string | Error) {
+    return `[${this.prefix}] ${message instanceof Error ? message.message : message}`;
   }
 
-  info(message: string) {
+  info(message: string | Error) {
     if (this.logLevel === LogLevel.INFO) {
       console.log(this.getMessageWithPrefix(message));
     }
   }
 
-  warn(message: string) {
-    if (this.logLevel === LogLevel.ERROR || this.logLevel === LogLevel.WARN) {
+  warn(message: string | Error) {
+    if (this.logLevel === LogLevel.INFO || this.logLevel === LogLevel.WARN) {
       console.warn(this.getMessageWithPrefix(message));
     }
   }
 
-  error(message: string) {
+  error(message: string | Error) {
     if (this.logLevel !== LogLevel.NONE) {
       console.error(this.getMessageWithPrefix(message));
     }

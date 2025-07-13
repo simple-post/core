@@ -85,7 +85,7 @@ export class FacebookPublisher extends Publisher {
       }
 
       // Check for too many images in multi-media posts
-      this.strictCheck(content.media.length <= 10, "Facebook supports maximum of 10 images in a single post");
+      this.strictCheck(content.media.length > 10, "Facebook supports maximum of 10 images in a single post");
 
       // Validate each media item exists
       for (const media of content.media) {
@@ -158,6 +158,7 @@ export class FacebookPublisher extends Publisher {
       if (content.media && content.media.length > 0) {
         const attachedMedia = [];
         for (const media of content.media.slice(0, 10)) {
+          // If we are here we know that the media is an Image. If the user is posting video, only 1 media is allowed and this case is handled above.
           const mediaId = await this.uploadImage(media as Image);
 
           this.logger.info(`Uploaded image ${mediaId} to Facebook`);

@@ -1,11 +1,6 @@
 import { z } from "zod/v4";
 
-export enum LogLevel {
-  NONE = "none",
-  ERROR = "error",
-  WARN = "warn",
-  INFO = "info",
-}
+export type LogLevel = "none" | "error" | "warn" | "info";
 
 export const PlatformSchema = z.enum([
   "x",
@@ -35,7 +30,7 @@ export const VideoSchema = z.object({
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);
 
 export const CommonOptionsSchema = z.object({
-  logLevel: z.enum(LogLevel).optional(),
+  logLevel: z.enum(["none", "error", "warn", "info"]).optional(),
   strictMode: z.boolean().optional(),
 });
 

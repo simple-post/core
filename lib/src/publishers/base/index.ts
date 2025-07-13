@@ -26,9 +26,22 @@ export abstract class Publisher {
   async post(content: Content, options?: PostOptions): Promise<PostResult> {
     try {
       // Try to post the content
-      return await this.postContent(content, options);
+      this.logger.info(`Posting content...`);
+
+      const result = await this.postContent(content, options);
+
+      if (result.error === PostErrorType.NO_ERROR) {
+        this.logger.info(`Post successful: ${result.id}`);
+      } else {
+        this.logger.info(`Post failed: ${result.error} - ${result.message}`);
+      }
+
+      return result;
     } catch (error: any) {
       // Handle PostErrors and generic errors
+
+      this.logger.info(`Post failed: ${error.message}`);
+
       if (error instanceof PostError) {
         return { error: error.errorType, message: error.message, details: error.details };
       } else {

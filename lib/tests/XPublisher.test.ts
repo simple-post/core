@@ -1,18 +1,15 @@
 import { XPublisher } from "../src/publishers/x";
 import { Content, Media, PostOptions } from "../src/types/post";
-import { TwitterApi, TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
-import logger from "../src/logger";
+import { TwitterApi } from "twitter-api-v2";
 import { PostError } from "../src/types";
 import { PostErrorType } from "../src/types";
 import fs from "fs";
 
 // Mock dependencies
 jest.mock("twitter-api-v2");
-jest.mock("../src/logger");
 jest.mock("fs");
 
 const MockedTwitterApi = TwitterApi as jest.MockedClass<typeof TwitterApi>;
-const mockedLogger = logger as jest.Mocked<typeof logger>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe("XPublisher", () => {

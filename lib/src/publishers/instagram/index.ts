@@ -64,7 +64,10 @@ export class InstagramPublisher extends Publisher {
       if (statusCode === "FINISHED") return;
 
       if (statusCode === "ERROR")
-        throw new PostError(PostErrorType.API_ERROR, `Instagram media container ${containerId} creation failed: ${status}`);
+        throw new PostError(
+          PostErrorType.API_ERROR,
+          `Instagram media container ${containerId} creation failed: ${status}`,
+        );
 
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }

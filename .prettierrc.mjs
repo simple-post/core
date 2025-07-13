@@ -4,7 +4,7 @@
  */
 const config = {
   semi: true,
-  printWidth: 120,
+  printWidth: 125,
   tabWidth: 2,
   useTabs: false,
   singleQuote: false,

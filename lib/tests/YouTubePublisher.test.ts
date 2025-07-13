@@ -88,7 +88,7 @@ describe("YouTubePublisher", () => {
     it("should throw error if credentials are missing", () => {
       delete process.env.YOUTUBE_CLIENT_ID;
       expect(() => new YouTubePublisher()).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "YouTube clientId, clientSecret and refreshToken are required"),
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "YouTube clientId, clientSecret and refreshToken are required"),
       );
     });
   });
@@ -146,7 +146,10 @@ describe("YouTubePublisher", () => {
       mockedFs.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(false);
 
       expect(() => publisher.validate(video)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Thumbnail file not found at path: /path/to/missing_thumbnail.jpg"),
+        new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Thumbnail file not found at path: /path/to/missing_thumbnail.jpg",
+        ),
       );
     });
 

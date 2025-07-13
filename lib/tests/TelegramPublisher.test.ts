@@ -195,7 +195,11 @@ describe("TelegramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error sending message: Bad Request: chat not found", apiError.response.data),
+        new PostError(
+          PostErrorType.API_ERROR,
+          "Error sending message: Bad Request: chat not found",
+          apiError.response.data,
+        ),
       );
     });
 

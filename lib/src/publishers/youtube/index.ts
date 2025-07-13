@@ -21,7 +21,10 @@ export class YouTubePublisher extends Publisher {
     const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
 
     if (!clientId || !clientSecret || !refreshToken) {
-      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "YouTube clientId, clientSecret and refreshToken are required");
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "YouTube clientId, clientSecret and refreshToken are required",
+      );
     }
 
     // Authenticate with the YouTube API

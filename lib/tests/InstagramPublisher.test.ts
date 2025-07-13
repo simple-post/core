@@ -119,7 +119,10 @@ describe("InstagramPublisher", () => {
       };
 
       expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts require at least one media item (image or video)."),
+        new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Instagram posts require at least one media item (image or video).",
+        ),
       );
     });
 
@@ -130,7 +133,10 @@ describe("InstagramPublisher", () => {
       };
 
       expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts require at least one media item (image or video)."),
+        new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Instagram posts require at least one media item (image or video).",
+        ),
       );
     });
 
@@ -267,7 +273,10 @@ describe("InstagramPublisher", () => {
       };
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Instagram posts require at least one media item (image or video)."),
+        new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Instagram posts require at least one media item (image or video).",
+        ),
       );
     });
 

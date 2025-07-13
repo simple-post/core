@@ -83,7 +83,10 @@ export class FacebookPublisher extends Publisher {
       // Check for videos - they can only be single media posts
       const videos = content.media.filter((m) => m.type === "video");
       if (videos.length > 0 && content.media.length > 1) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, "Video posts can only contain a single video, no other media");
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Video posts can only contain a single video, no other media",
+        );
       }
 
       // Check for too many images in multi-media posts

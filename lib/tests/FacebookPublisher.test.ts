@@ -204,13 +204,9 @@ describe("FacebookPublisher", () => {
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
-      const result = await publisher.postVideo(video);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "Facebook API Error: Video too large",
-        details: apiError,
-      });
+      await expect(publisher.postVideo(video)).rejects.toThrow(
+        new PostError(PostErrorType.API_ERROR, "Facebook API Error: Video too large", apiError),
+      );
     });
   });
 
@@ -319,13 +315,13 @@ describe("FacebookPublisher", () => {
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
-      const result = await publisher.postContent(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "Error posting to Facebook: Invalid access token",
-        details: apiError.response.data,
-      });
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(
+          PostErrorType.API_ERROR,
+          "Error posting to Facebook: Invalid access token",
+          apiError.response.data,
+        ),
+      );
     });
   });
 

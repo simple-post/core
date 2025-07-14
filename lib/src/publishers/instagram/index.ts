@@ -171,15 +171,15 @@ export class InstagramPublisher extends Publisher {
 
       return { id: response.data.id, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
-      if (error instanceof PostError) return { error: error.errorType, message: error.message, details: error.details };
+      if (error instanceof PostError) throw error;
 
       this.logger.error(error);
 
-      return {
-        error: PostErrorType.API_ERROR,
-        message: `Error publishing Instagram post: ${error.response?.data?.error?.message || error.message}`,
-        details: error,
-      };
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Error publishing Instagram post: ${error.response?.data?.error?.message || error.message}`,
+        error,
+      );
     } finally {
       await this.cleanupS3Files();
     }

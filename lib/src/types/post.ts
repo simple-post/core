@@ -62,6 +62,7 @@ export const YouTubeOptionsSchema = z.object({
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
+  publishAt: z.date().optional(), // For scheduling videos
   credentials: z
     .object({
       clientId: z.string(),
@@ -72,6 +73,7 @@ export const YouTubeOptionsSchema = z.object({
 });
 
 export const FacebookOptionsSchema = z.object({
+  scheduledPublishTime: z.date().optional(), // For scheduling posts
   credentials: z
     .object({
       pageAccessToken: z.string(),

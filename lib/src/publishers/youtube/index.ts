@@ -49,7 +49,7 @@ export class YouTubePublisher extends Publisher {
     if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
   }
 
-  async postContent(content: Content, _options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, options?: PostOptions): Promise<PostResult> {
     const video = content.media?.find((m) => m.type === "video");
 
     // Validate the video
@@ -64,12 +64,12 @@ export class YouTubePublisher extends Publisher {
           snippet: {
             title: video.title,
             description: video.description,
-            tags: content.options?.youtube?.tags,
-            categoryId: content.options?.youtube?.categoryId,
+            tags: options?.youtube?.tags,
+            categoryId: options?.youtube?.categoryId,
           },
           status: {
-            privacyStatus: content.options?.privacyStatus,
-            selfDeclaredMadeForKids: content.options?.youtube?.selfDeclaredMadeForKids,
+            privacyStatus: options?.common?.privacyStatus,
+            selfDeclaredMadeForKids: options?.youtube?.selfDeclaredMadeForKids,
           },
         },
         media: {
@@ -108,12 +108,12 @@ export class YouTubePublisher extends Publisher {
 
     // Add to playlist if playlist ID is provided
     try {
-      if (content.options?.youtube?.playlistId) {
+      if (options?.youtube?.playlistId) {
         await this.youtube.playlistItems.insert({
           part: ["snippet"],
           requestBody: {
             snippet: {
-              playlistId: content.options?.youtube?.playlistId,
+              playlistId: options?.youtube?.playlistId,
               resourceId: {
                 kind: "youtube#video",
                 videoId: videoId,
@@ -123,7 +123,7 @@ export class YouTubePublisher extends Publisher {
         });
       }
     } catch (error: any) {
-      this.logger.warn(`Failed to add video ${videoId} to playlist ${content.options?.youtube?.playlistId}: ${error}`);
+      this.logger.warn(`Failed to add video ${videoId} to playlist ${options?.youtube?.playlistId}: ${error}`);
     }
 
     return {

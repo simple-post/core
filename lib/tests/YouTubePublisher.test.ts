@@ -248,13 +248,16 @@ describe("YouTubePublisher", () => {
             title: "Test Video",
           },
         ],
-        options: {
-          youtube: {
-            tags: ["tag1", "tag2"],
-            categoryId: "22",
-            playlistId: "playlist_123",
-          },
+      };
+
+      const optionsWithYouTube: PostOptions = {
+        common: {
           privacyStatus: "private",
+        },
+        youtube: {
+          tags: ["tag1", "tag2"],
+          categoryId: "22",
+          playlistId: "playlist_123",
         },
       };
 
@@ -263,7 +266,7 @@ describe("YouTubePublisher", () => {
       });
       mockYouTubeClient.playlistItems.insert.mockResolvedValue({});
 
-      const result = await publisher.postContent(content, options);
+      const result = await publisher.postContent(content, optionsWithYouTube);
 
       expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
         part: ["snippet", "status"],
@@ -414,10 +417,11 @@ describe("YouTubePublisher", () => {
             title: "Test Video",
           },
         ],
-        options: {
-          youtube: {
-            playlistId: "invalid_playlist",
-          },
+      };
+
+      const optionsWithPlaylist: PostOptions = {
+        youtube: {
+          playlistId: "invalid_playlist",
         },
       };
 
@@ -426,7 +430,7 @@ describe("YouTubePublisher", () => {
       });
       mockYouTubeClient.playlistItems.insert.mockRejectedValue(new Error("Playlist not found"));
 
-      const result = await publisher.postContent(content, options);
+      const result = await publisher.postContent(content, optionsWithPlaylist);
 
       // Should still succeed even if playlist addition fails
       expect(result).toEqual({ id: "video_id_playlist_warn", error: PostErrorType.NO_ERROR });

@@ -32,6 +32,7 @@ export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchem
 export const CommonOptionsSchema = z.object({
   logLevel: z.enum(["none", "error", "warn", "info"]).optional(),
   strictMode: z.boolean().optional(),
+  privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
 });
 
 export const XOptionsSchema = z.object({
@@ -43,28 +44,48 @@ export const TelegramOptionsSchema = z.object({
   parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
 });
 
-export const YouTubeContentOptionsSchema = z.object({
+export const YouTubeOptionsSchema = z.object({
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
 });
 
-export const ContentOptionsSchema = z.object({
-  privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
-  youtube: YouTubeContentOptionsSchema.optional(),
+export const FacebookOptionsSchema = z.object({
+  // Add Facebook-specific options here as needed
+});
+
+export const InstagramOptionsSchema = z.object({
+  // Add Instagram-specific options here as needed
+});
+
+export const TikTokOptionsSchema = z.object({
+  // Add TikTok-specific options here as needed
+});
+
+export const LinkedInOptionsSchema = z.object({
+  // Add LinkedIn-specific options here as needed
+});
+
+export const PinterestOptionsSchema = z.object({
+  // Add Pinterest-specific options here as needed
 });
 
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
-  options: ContentOptionsSchema.optional(),
 });
 
 export const PostOptionsSchema = z.object({
   common: CommonOptionsSchema.optional(),
   x: XOptionsSchema.optional(),
   telegram: TelegramOptionsSchema.optional(),
+  youtube: YouTubeOptionsSchema.optional(),
+  facebook: FacebookOptionsSchema.optional(),
+  instagram: InstagramOptionsSchema.optional(),
+  tiktok: TikTokOptionsSchema.optional(),
+  linkedin: LinkedInOptionsSchema.optional(),
+  pinterest: PinterestOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -77,13 +98,15 @@ export type Platform = z.infer<typeof PlatformSchema>;
 export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
-export type TelegramSpecificOptions = z.infer<typeof TelegramOptionsSchema>;
-export type YouTubeSpecificOptions = z.infer<typeof YouTubeContentOptionsSchema>;
-export type ContentOptions = z.infer<typeof ContentOptionsSchema>;
-export type Content = z.infer<typeof ContentSchema>;
 export type CommonOptions = z.infer<typeof CommonOptionsSchema>;
 export type XOptions = z.infer<typeof XOptionsSchema>;
 export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;
-export type YouTubeOptions = z.infer<typeof YouTubeContentOptionsSchema>;
+export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
+export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
+export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
+export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
+export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
+export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
+export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;

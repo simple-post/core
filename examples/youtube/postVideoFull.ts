@@ -16,16 +16,18 @@ async function main() {
           thumbnailPath: "./assets/video_1_thumbnail.jpg",
         },
       ],
-      options: {
-        privacyStatus: "unlisted",
-        youtube: {
-          tags: ["test", "video"],
-          categoryId: "10",
-          selfDeclaredMadeForKids: true,
-        },
-      },
     },
     platforms: ["youtube"],
+    options: {
+      common: {
+        privacyStatus: "unlisted",
+      },
+      youtube: {
+        tags: ["test", "video"],
+        categoryId: "10",
+        selfDeclaredMadeForKids: true,
+      },
+    },
   });
 
   console.log(results);

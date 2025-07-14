@@ -303,7 +303,7 @@ describe("InstagramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error creating media object: undefined", apiError)
+        new PostError(PostErrorType.API_ERROR, "Error creating media object: undefined", apiError),
       );
     });
 
@@ -326,7 +326,10 @@ describe("InstagramPublisher", () => {
       });
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Instagram media container container_id_error creation failed: Media processing failed")
+        new PostError(
+          PostErrorType.API_ERROR,
+          "Instagram media container container_id_error creation failed: Media processing failed",
+        ),
       );
     });
 

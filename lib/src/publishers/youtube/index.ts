@@ -31,7 +31,7 @@ export class YouTubePublisher extends Publisher {
     this.youtube = google.youtube({ version: "v3", auth });
   }
 
-  validate(video?: Video): asserts video is Video {
+  private validate(video?: Video): asserts video is Video {
     // Check the video
     if (!video) throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
 

@@ -13,9 +13,9 @@ export abstract class Publisher {
     this.strictMode = options?.common?.strictMode ?? false;
   }
 
-  abstract postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult>;
+  protected abstract postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult>;
 
-  strictCheck(condition: boolean | undefined, message: string): asserts condition {
+  protected strictCheck(condition: boolean | undefined, message: string): asserts condition {
     if (condition) {
       if (this.strictMode) {
         throw new PostError(PostErrorType.INVALID_CONTENT, message);

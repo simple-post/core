@@ -42,7 +42,7 @@ export class FacebookPublisher extends Publisher {
     });
   }
 
-  async uploadImage(image: Image): Promise<string> {
+  private async uploadImage(image: Image): Promise<string> {
     try {
       const formData = new FormData();
 
@@ -77,7 +77,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  validate(content: Content): asserts content is (Content & { media: Media[] }) | (Content & { text: string }) {
+  private validate(content: Content): asserts content is (Content & { media: Media[] }) | (Content & { text: string }) {
     // Check for empty post
     if (!content.text && !content.media) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook");
@@ -109,7 +109,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postVideo(video: Video): Promise<PostResult> {
+  private async postVideo(video: Video): Promise<PostResult> {
     try {
       const formData = new FormData();
 

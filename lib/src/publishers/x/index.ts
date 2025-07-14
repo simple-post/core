@@ -35,7 +35,7 @@ export class XPublisher extends Publisher {
     this.clientV1 = this.client.v1;
   }
 
-  async uploadMedia(media: Media): Promise<string> {
+  private async uploadMedia(media: Media): Promise<string> {
     // Check if the media file exists
     if (!fs.existsSync(media.path)) {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${media.path}`);
@@ -54,7 +54,7 @@ export class XPublisher extends Publisher {
     }
   }
 
-  validate(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
+  private validate(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
     if (!content.text && (!content.media || content.media.length === 0))
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported");
 

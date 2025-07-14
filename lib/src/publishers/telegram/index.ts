@@ -33,7 +33,7 @@ export class TelegramPublisher extends Publisher {
     });
   }
 
-  async sendMedia(chatId: string, media: Media, caption?: string, parseMode?: string): Promise<string> {
+  private async sendMedia(chatId: string, media: Media, caption?: string, parseMode?: string): Promise<string> {
     if (!fs.existsSync(media.path)) {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
     }
@@ -73,7 +73,7 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  async sendMessage(chatId: string, text: string, parseMode?: string, replyTo?: string): Promise<string> {
+  private async sendMessage(chatId: string, text: string, parseMode?: string, replyTo?: string): Promise<string> {
     try {
       const payload: any = {
         chat_id: chatId,
@@ -98,7 +98,7 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  validateOptions(
+  private validateOptions(
     options: PostOptionsWithCredentials,
   ): asserts options is PostOptionsWithCredentials & { telegram: { chatId: string } } {
     if (!options.telegram?.chatId) {
@@ -106,7 +106,9 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  validateContent(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
+  private validateContent(
+    content: Content,
+  ): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
     if (!content.text && (!content.media || content.media.length === 0)) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram");
     }

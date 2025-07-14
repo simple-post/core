@@ -16,11 +16,13 @@ async function main() {
           thumbnailPath: "./assets/video_1_thumbnail.jpg",
         },
       ],
-      options: {
+    },
+    platforms: ["youtube"],
+    options: {
+      common: {
         privacyStatus: "unlisted",
       },
     },
-    platforms: ["youtube"],
   });
 
   console.log(results);

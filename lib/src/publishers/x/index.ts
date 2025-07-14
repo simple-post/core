@@ -9,6 +9,8 @@ import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
 
+const MAX_MEDIA_COUNT = 4;
+
 export class XPublisher extends Publisher {
   private client: TwitterApi;
   private clientV1: TwitterApiv1;
@@ -33,7 +35,7 @@ export class XPublisher extends Publisher {
     this.clientV1 = this.client.v1;
   }
 
-  async uploadMedia(media: Media): Promise<string> {
+  private async uploadMedia(media: Media): Promise<string> {
     // Check if the media file exists
     if (!fs.existsSync(media.path)) {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${media.path}`);
@@ -48,17 +50,17 @@ export class XPublisher extends Publisher {
       return mediaId;
     } catch (error: any) {
       this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Error uploading media: ${error}`, error.data);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, error.data);
     }
   }
 
-  validate(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
+  private validate(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
     if (!content.text && (!content.media || content.media.length === 0))
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported");
 
     this.strictCheck(
-      content.media && content.media.length > 4,
-      "X supports up to 4 media files, only the first 4 will be uploaded",
+      content.media && content.media.length > MAX_MEDIA_COUNT,
+      `X supports up to ${MAX_MEDIA_COUNT} media files, only the first ${MAX_MEDIA_COUNT} will be uploaded`,
     );
   }
 
@@ -71,7 +73,7 @@ export class XPublisher extends Publisher {
     // Upload all media files if any
     const mediaIds: string[] = [];
     if (content.media) {
-      for (const media of content.media.slice(0, 4)) {
+      for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
         const mediaId = await this.uploadMedia(media);
         mediaIds.push(mediaId);
       }
@@ -86,7 +88,7 @@ export class XPublisher extends Publisher {
 
       return { id: createdTweet.id, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
-      throw new PostError(PostErrorType.API_ERROR, `Error posting: ${error}`, error.data);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, error.data);
     }
   }
 }

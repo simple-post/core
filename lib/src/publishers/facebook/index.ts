@@ -12,6 +12,10 @@ import type { PostResult } from "../../types";
 import type { Content, Image, Media, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
+const FACEBOOK_API_VERSION = "v23.0";
+
+const MAX_MEDIA_COUNT = 10;
+
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
   private pageAccessToken: string;
@@ -33,12 +37,12 @@ export class FacebookPublisher extends Publisher {
 
     // Create the Facebook API client
     this.client = axios.create({
-      baseURL: "https://graph.facebook.com/v23.0",
+      baseURL: `https://graph.facebook.com/${FACEBOOK_API_VERSION}`,
       timeout: 30_000,
     });
   }
 
-  async uploadImage(image: Image): Promise<string> {
+  private async uploadImage(image: Image): Promise<string> {
     try {
       const formData = new FormData();
 
@@ -67,13 +71,13 @@ export class FacebookPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error uploading image: ${error.response?.data?.error?.message || error.message}`,
+        `Failed to upload image: ${error.response?.data?.error?.message || error.message}`,
         error.response?.data,
       );
     }
   }
 
-  validate(content: Content): asserts content is (Content & { media: Media[] }) | (Content & { text: string }) {
+  private validate(content: Content): asserts content is (Content & { media: Media[] }) | (Content & { text: string }) {
     // Check for empty post
     if (!content.text && !content.media) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook");
@@ -91,7 +95,10 @@ export class FacebookPublisher extends Publisher {
       }
 
       // Check for too many images in multi-media posts
-      this.strictCheck(content.media.length > 10, "Facebook supports maximum of 10 images in a single post");
+      this.strictCheck(
+        content.media.length > MAX_MEDIA_COUNT,
+        `Facebook supports maximum of ${MAX_MEDIA_COUNT} images in a single post`,
+      );
 
       // Validate each media item exists
       for (const media of content.media) {
@@ -102,7 +109,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postVideo(video: Video, options?: PostOptionsWithCredentials): Promise<PostResult> {
+  private async postVideo(video: Video, options?: PostOptionsWithCredentials): Promise<PostResult> {
     try {
       const formData = new FormData();
 
@@ -141,7 +148,7 @@ export class FacebookPublisher extends Publisher {
       let errorMessage = "An unknown error occurred while posting video.";
 
       if (error.response && error.response.data && error.response.data.error) {
-        errorMessage = `Facebook API Error: ${error.response.data.error.message}`;
+        errorMessage = error.response.data.error.message;
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -177,11 +184,11 @@ export class FacebookPublisher extends Publisher {
       // Add the media
       if (content.media && content.media.length > 0) {
         const attachedMedia = [];
-        for (const media of content.media.slice(0, 10)) {
+        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
           // If we are here we know that the media is an Image. If the user is posting video, only 1 media is allowed and this case is handled above.
           const mediaId = await this.uploadImage(media as Image);
 
-          this.logger.info(`Uploaded image ${mediaId} to Facebook`);
+          this.logger.info(`Media uploaded: ${mediaId}`);
 
           attachedMedia.push({ media_fbid: mediaId });
         }
@@ -201,7 +208,7 @@ export class FacebookPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
+        `Failed to post content: ${error.response?.data?.error?.message || error.message}`,
         error.response?.data,
       );
     }

@@ -12,6 +12,11 @@ import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
+const FACEBOOK_API_VERSION = "v23.0";
+const MAX_MEDIA_COUNT = 10;
+const MAX_CAPTION_LENGTH = 2200;
+const PROCESSING_POLL_INTERVAL = 3000;
+
 export class InstagramPublisher extends Publisher {
   private client: AxiosInstance;
   private businessAccountId: string;
@@ -34,7 +39,7 @@ export class InstagramPublisher extends Publisher {
 
     // Create axios client with base configuration
     this.client = axios.create({
-      baseURL: `https://graph.facebook.com/v23.0`,
+      baseURL: `https://graph.facebook.com/${FACEBOOK_API_VERSION}`,
       timeout: 30_000, // 30 seconds timeout
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
@@ -66,7 +71,7 @@ export class InstagramPublisher extends Publisher {
           `Instagram media container ${containerId} creation failed: ${status}`,
         );
 
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL));
     }
   }
 
@@ -78,7 +83,7 @@ export class InstagramPublisher extends Publisher {
     const key = `${uuidv7()}_${path.basename(media.path)}`;
     const mediaUrl = await this.s3MediaUploader.uploadFile(media.path, key);
     this.s3TempFileKeys.push(key);
-    this.logger.info(`Uploaded media file to S3: ${mediaUrl}`);
+    this.logger.info(`Media uploaded to S3: ${mediaUrl}`);
 
     try {
       // Create media object using the S3 URL
@@ -93,7 +98,7 @@ export class InstagramPublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
 
-      throw new PostError(PostErrorType.API_ERROR, `Error creating media object: ${error.message}`, error);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${error.message}`, error);
     }
   }
 
@@ -124,7 +129,7 @@ export class InstagramPublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
 
-      throw new PostError(PostErrorType.API_ERROR, `Error creating Instagram media container: ${error.message}`, error);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to create media container: ${error.message}`, error);
     }
   }
 
@@ -136,7 +141,10 @@ export class InstagramPublisher extends Publisher {
       );
 
     // Validate the number of media files
-    this.strictCheck(content.media.length > 10, "Instagram posts support maximum 10 media items.");
+    this.strictCheck(
+      content.media.length > MAX_MEDIA_COUNT,
+      `Instagram posts support maximum ${MAX_MEDIA_COUNT} media items.`,
+    );
 
     // Validate each media file
     for (const media of content.media) {
@@ -147,8 +155,8 @@ export class InstagramPublisher extends Publisher {
 
     // Caption length validation (Instagram limit is 2200 characters)
     this.strictCheck(
-      Boolean(content.text && content.text.length > 2200),
-      "Instagram caption cannot exceed 2200 characters.",
+      Boolean(content.text && content.text.length > MAX_CAPTION_LENGTH),
+      `Instagram caption cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
     );
   }
 
@@ -174,7 +182,7 @@ export class InstagramPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error publishing Instagram post: ${error.response?.data?.error?.message || error.message}`,
+        `Failed to publish post: ${error.response?.data?.error?.message || error.message}`,
         error,
       );
     } finally {

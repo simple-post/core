@@ -5,7 +5,7 @@ import { TwitterApi } from "twitter-api-v2";
 import { XPublisher } from "../src/publishers/x";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, Media, PostOptionsWithCredentials } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("twitter-api-v2");
@@ -76,83 +76,6 @@ describe("XPublisher", () => {
       expect(() => new XPublisher()).toThrow(
         new PostError(PostErrorType.CREDENTIALS_ERROR, "X credentials are required in options.x.credentials"),
       );
-    });
-  });
-
-  describe("uploadMedia", () => {
-    it("should upload media successfully", async () => {
-      const media: Media = { type: "image", path: "/path/to/image.jpg" };
-      const expectedMediaId = "media_id_123";
-
-      mockV1Client.uploadMedia.mockResolvedValue(expectedMediaId);
-
-      const result = await publisher.uploadMedia(media);
-
-      expect(mockV1Client.uploadMedia).toHaveBeenCalledWith("/path/to/image.jpg");
-      expect(result).toBe(expectedMediaId);
-    });
-
-    it("should throw error if media file does not exist", async () => {
-      const media: Media = { type: "image", path: "/path/to/missing.jpg" };
-
-      mockedFs.existsSync.mockReturnValue(false);
-
-      await expect(publisher.uploadMedia(media)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found: /path/to/missing.jpg"),
-      );
-    });
-
-    it("should handle API errors during upload", async () => {
-      const media: Media = { type: "image", path: "/path/to/image.jpg" };
-
-      const apiError = new Error("Upload failed");
-      mockV1Client.uploadMedia.mockRejectedValue(apiError);
-
-      await expect(publisher.uploadMedia(media)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error uploading media: Error: Upload failed", undefined),
-      );
-    });
-  });
-
-  describe("validate", () => {
-    it("should validate content with text", () => {
-      const content: Content = {
-        text: "Hello, X!",
-      };
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should validate content with media", () => {
-      const content: Content = {
-        media: [{ type: "image", path: "/path/to/image.jpg" }],
-      };
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should throw error for empty content", () => {
-      const content: Content = {};
-
-      expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported"),
-      );
-    });
-
-    it("should warn about too many media files", () => {
-      const content: Content = {
-        text: "Too many media files",
-        media: [
-          { type: "image", path: "/path/to/image1.jpg" },
-          { type: "image", path: "/path/to/image2.jpg" },
-          { type: "image", path: "/path/to/image3.jpg" },
-          { type: "image", path: "/path/to/image4.jpg" },
-          { type: "image", path: "/path/to/image5.jpg" },
-        ],
-      };
-
-      // This should not throw in non-strict mode, but should warn
-      expect(() => publisher.validate(content)).not.toThrow();
     });
   });
 
@@ -283,7 +206,7 @@ describe("XPublisher", () => {
       mockV2Client.tweet.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error posting: Error: API Error", undefined),
+        new PostError(PostErrorType.API_ERROR, "Failed to post content: Error: API Error", undefined),
       );
     });
   });
@@ -327,7 +250,7 @@ describe("XPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.API_ERROR,
-        message: "Error posting: Error: API Error",
+        message: "Failed to post content: Error: API Error",
         details: undefined,
       });
     });

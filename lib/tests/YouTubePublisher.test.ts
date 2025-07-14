@@ -347,13 +347,9 @@ describe("YouTubePublisher", () => {
       };
       mockYouTubeClient.videos.insert.mockRejectedValue(apiError);
 
-      const result = await publisher.postContent(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "YouTube API Error: Video upload failed",
-        details: apiError,
-      });
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(PostErrorType.API_ERROR, "YouTube API Error: Video upload failed", apiError)
+      );
     });
 
     it("should handle generic errors during video upload", async () => {
@@ -371,13 +367,9 @@ describe("YouTubePublisher", () => {
       const genericError = new Error("Generic error");
       mockYouTubeClient.videos.insert.mockRejectedValue(genericError);
 
-      const result = await publisher.postContent(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "Generic error",
-        details: genericError,
-      });
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(PostErrorType.API_ERROR, "Generic error", genericError)
+      );
     });
 
     it("should warn if thumbnail upload fails", async () => {

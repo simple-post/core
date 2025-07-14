@@ -302,13 +302,9 @@ describe("InstagramPublisher", () => {
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
-      const result = await publisher.postContent(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "Error creating media object: undefined",
-        details: apiError,
-      });
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(PostErrorType.API_ERROR, "Error creating media object: undefined", apiError)
+      );
     });
 
     it("should handle media container status errors", async () => {
@@ -329,13 +325,9 @@ describe("InstagramPublisher", () => {
         data: { status_code: "ERROR", status: "Media processing failed" },
       });
 
-      const result = await publisher.postContent(content, options);
-
-      expect(result).toEqual({
-        error: PostErrorType.API_ERROR,
-        message: "Instagram media container container_id_error creation failed: Media processing failed",
-        details: undefined,
-      });
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(PostErrorType.API_ERROR, "Instagram media container container_id_error creation failed: Media processing failed")
+      );
     });
 
     it("should cleanup S3 files after posting", async () => {

@@ -89,7 +89,7 @@ export class YouTubePublisher extends Publisher {
         errorMessage = error.message;
       }
 
-      return { error: PostErrorType.API_ERROR, message: errorMessage, details: error };
+      throw new PostError(PostErrorType.API_ERROR, errorMessage, error);
     }
 
     // Upload the thumbnail if provided

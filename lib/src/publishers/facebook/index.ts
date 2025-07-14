@@ -138,7 +138,7 @@ export class FacebookPublisher extends Publisher {
         errorMessage = error.message;
       }
 
-      return { error: PostErrorType.API_ERROR, message: errorMessage, details: error };
+      throw new PostError(PostErrorType.API_ERROR, errorMessage, error);
     }
   }
 
@@ -184,11 +184,11 @@ export class FacebookPublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
 
-      return {
-        error: PostErrorType.API_ERROR,
-        message: `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
-        details: error.response?.data,
-      };
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
+        error.response?.data,
+      );
     }
   }
 }

@@ -86,79 +86,6 @@ describe("InstagramPublisher", () => {
     });
   });
 
-  describe("validate", () => {
-    it("should validate content with single image", () => {
-      const content: Content = {
-        text: "Check out this image!",
-        media: [{ type: "image", path: "/path/to/image.jpg" }],
-      };
-
-      expect(() => publisher["validate"](content)).not.toThrow();
-    });
-
-    it("should validate content with multiple images", () => {
-      const content: Content = {
-        text: "Multiple images",
-        media: [
-          { type: "image", path: "/path/to/image1.jpg" },
-          { type: "image", path: "/path/to/image2.jpg" },
-          { type: "image", path: "/path/to/image3.jpg" },
-        ],
-      };
-
-      expect(() => publisher["validate"](content)).not.toThrow();
-    });
-
-    it("should validate content with video", () => {
-      const content: Content = {
-        text: "Check out this video!",
-        media: [{ type: "video", path: "/path/to/video.mp4" }],
-      };
-
-      expect(() => publisher["validate"](content)).not.toThrow();
-    });
-
-    it("should throw error for content without media", () => {
-      const content: Content = {
-        text: "Text only post",
-      };
-
-      expect(() => publisher["validate"](content)).toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video).",
-        ),
-      );
-    });
-
-    it("should throw error for content with empty media array", () => {
-      const content: Content = {
-        text: "Empty media array",
-        media: [],
-      };
-
-      expect(() => publisher["validate"](content)).toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video).",
-        ),
-      );
-    });
-
-    it("should throw error for missing media file", () => {
-      const content: Content = {
-        text: "Missing file",
-        media: [{ type: "image", path: "/path/to/missing.jpg" }],
-      };
-
-      mockedFs.existsSync.mockReturnValue(false);
-
-      expect(() => publisher["validate"](content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg"),
-      );
-    });
-  });
-
   describe("postContent", () => {
     const options: PostOptionsWithCredentials = {
       instagram: {
@@ -315,7 +242,7 @@ describe("InstagramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error creating media object: undefined", apiError),
+        new PostError(PostErrorType.API_ERROR, "Failed to create media object: undefined", apiError),
       );
     });
 

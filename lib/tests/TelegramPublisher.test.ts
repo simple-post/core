@@ -208,7 +208,7 @@ describe("TelegramPublisher", () => {
       await expect(publisher.postContent(content, options)).rejects.toThrow(
         new PostError(
           PostErrorType.API_ERROR,
-          "Error sending message: Bad Request: chat not found",
+          "Failed to send message: Bad Request: chat not found",
           apiError.response.data,
         ),
       );
@@ -307,7 +307,7 @@ describe("TelegramPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.API_ERROR,
-        message: "Error sending message: Bad Request: chat not found",
+        message: "Failed to send message: Bad Request: chat not found",
         details: apiError.response.data,
       });
     });

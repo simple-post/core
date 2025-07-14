@@ -5,12 +5,12 @@ import { post } from "unsubpost";
 dotenv.config();
 
 async function main() {
-  // Schedule a post for Christmas Day 2024 at 12:00 PM UTC
-  const scheduledTime = new Date("2024-12-25T12:00:00Z");
+  // Schedule a post for New Year's Day 2030 at 12:00 PM UTC
+  const scheduledTime = new Date("2030-01-01T12:00:00Z");
 
   const results = await post({
     content: {
-      text: "🎄 Merry Christmas! This post was scheduled in advance. 🎅",
+      text: "🎊 Happy New Year 2030! This post was scheduled in advance. 🎉",
     },
     platforms: ["facebook"],
     options: {

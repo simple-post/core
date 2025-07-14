@@ -5,8 +5,8 @@ import { post } from "unsubpost";
 dotenv.config();
 
 async function main() {
-  // Schedule a video for New Year's Day 2025 at 12:00 PM UTC
-  const scheduledTime = new Date("2025-01-01T12:00:00Z");
+  // Schedule a video for New Year's Day 2030 at 12:00 PM UTC
+  const scheduledTime = new Date("2030-01-01T12:00:00Z");
 
   const results = await post({
     content: {
@@ -14,8 +14,8 @@ async function main() {
         {
           type: "video",
           path: "./assets/video_1.mp4",
-          title: "🎊 Happy New Year 2025! 🎊",
-          description: "Welcome to 2025! This video was scheduled in advance to celebrate the new year.",
+          title: "🎊 Happy New Year 2030! 🎊",
+          description: "Welcome to 2030! This video was scheduled in advance to celebrate the new year.",
           thumbnailPath: "./assets/video_1_thumbnail.jpg",
         },
       ],
@@ -24,7 +24,7 @@ async function main() {
     options: {
       youtube: {
         publishAt: scheduledTime,
-        tags: ["new year", "2025", "celebration", "scheduled"],
+        tags: ["new year", "2030", "celebration", "scheduled"],
         categoryId: "22", // People & Blogs
       },
     },

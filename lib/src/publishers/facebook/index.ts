@@ -118,8 +118,8 @@ export class FacebookPublisher extends Publisher {
       if (video.description) formData.append("description", video.description);
 
       // Add scheduling if specified
-      if (options?.facebook?.scheduledPublishTime) {
-        const unixTimestamp = Math.floor(options.facebook.scheduledPublishTime.getTime() / 1000);
+      if (options?.facebook?.publishAt) {
+        const unixTimestamp = Math.floor(options.facebook.publishAt.getTime() / 1000);
         formData.append("scheduled_publish_time", unixTimestamp.toString());
         formData.append("published", "false");
       }
@@ -168,8 +168,8 @@ export class FacebookPublisher extends Publisher {
       if (content.text) postData.message = content.text;
 
       // Add scheduling if specified
-      if (options?.facebook?.scheduledPublishTime) {
-        const unixTimestamp = Math.floor(options.facebook.scheduledPublishTime.getTime() / 1000);
+      if (options?.facebook?.publishAt) {
+        const unixTimestamp = Math.floor(options.facebook.publishAt.getTime() / 1000);
         postData.scheduled_publish_time = unixTimestamp.toString();
         postData.published = false;
       }

@@ -21,7 +21,7 @@ async function main() {
     platforms: ["facebook"],
     options: {
       facebook: {
-        scheduledPublishTime: facebookScheduleTime,
+        publishAt: facebookScheduleTime,
       },
     },
   });

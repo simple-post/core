@@ -344,7 +344,7 @@ describe("FacebookPublisher", () => {
 
       const optionsWithSchedule: PostOptionsWithCredentials = {
         facebook: {
-          scheduledPublishTime: scheduledTime,
+          publishAt: scheduledTime,
           credentials: {
             pageAccessToken: "test_access_token",
             pageId: "test_page_id",
@@ -384,7 +384,7 @@ describe("FacebookPublisher", () => {
 
       const optionsWithSchedule: PostOptionsWithCredentials = {
         facebook: {
-          scheduledPublishTime: scheduledTime,
+          publishAt: scheduledTime,
           credentials: {
             pageAccessToken: "test_access_token",
             pageId: "test_page_id",

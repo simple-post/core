@@ -73,7 +73,7 @@ export const YouTubeOptionsSchema = z.object({
 });
 
 export const FacebookOptionsSchema = z.object({
-  scheduledPublishTime: z.date().optional(), // For scheduling posts
+  publishAt: z.date().optional(), // For scheduling posts
   credentials: z
     .object({
       pageAccessToken: z.string(),

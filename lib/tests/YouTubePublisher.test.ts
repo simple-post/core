@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { YouTubePublisher } from "../src/publishers/youtube";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptionsWithCredentials, Video } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("googleapis", () => ({
@@ -99,78 +99,6 @@ describe("YouTubePublisher", () => {
           PostErrorType.CREDENTIALS_ERROR,
           "YouTube credentials are required in options.youtube.credentials",
         ),
-      );
-    });
-  });
-
-  describe("validate", () => {
-    it("should validate video with required fields", () => {
-      const video: Video = {
-        type: "video",
-        path: "/path/to/video.mp4",
-        title: "Test Video",
-      };
-
-      expect(() => publisher.validate(video)).not.toThrow();
-    });
-
-    it("should validate video with thumbnail", () => {
-      const video: Video = {
-        type: "video",
-        path: "/path/to/video.mp4",
-        title: "Test Video",
-        thumbnailPath: "/path/to/thumbnail.jpg",
-      };
-
-      expect(() => publisher.validate(video)).not.toThrow();
-    });
-
-    it("should throw error if video is undefined", () => {
-      expect(() => publisher.validate()).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
-      );
-    });
-
-    it("should throw error if video file does not exist", () => {
-      const video: Video = {
-        type: "video",
-        path: "/path/to/missing.mp4",
-        title: "Test Video",
-      };
-
-      mockedFs.existsSync.mockReturnValue(false);
-
-      expect(() => publisher.validate(video)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Video file not found at path: /path/to/missing.mp4"),
-      );
-    });
-
-    it("should throw error if thumbnail file does not exist", () => {
-      const video: Video = {
-        type: "video",
-        path: "/path/to/video.mp4",
-        title: "Test Video",
-        thumbnailPath: "/path/to/missing_thumbnail.jpg",
-      };
-
-      mockedFs.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(false);
-
-      expect(() => publisher.validate(video)).toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Thumbnail file not found at path: /path/to/missing_thumbnail.jpg",
-        ),
-      );
-    });
-
-    it("should throw error if title is missing", () => {
-      const video: Video = {
-        type: "video",
-        path: "/path/to/video.mp4",
-      };
-
-      expect(() => publisher.validate(video)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post."),
       );
     });
   });

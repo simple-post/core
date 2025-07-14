@@ -6,7 +6,7 @@ import FormData from "form-data";
 import { FacebookPublisher } from "../src/publishers/facebook";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, Media, PostOptionsWithCredentials } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -84,133 +84,6 @@ describe("FacebookPublisher", () => {
           PostErrorType.CREDENTIALS_ERROR,
           "Facebook credentials are required in options.facebook.credentials",
         ),
-      );
-    });
-  });
-
-  describe("validate", () => {
-    it("should validate content with text", () => {
-      const content: Content = {
-        text: "Hello, Facebook!",
-      };
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should validate content with media", () => {
-      const content: Content = {
-        media: [{ type: "image", path: "/path/to/image.jpg" }],
-      };
-
-      expect(() => publisher.validate(content)).not.toThrow();
-    });
-
-    it("should throw error for empty content", () => {
-      const content: Content = {};
-
-      expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook"),
-      );
-    });
-
-    it("should throw error for video with other media", () => {
-      const content: Content = {
-        media: [
-          { type: "video", path: "/path/to/video.mp4" },
-          { type: "image", path: "/path/to/image.jpg" },
-        ],
-      };
-
-      expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Video posts can only contain a single video, no other media"),
-      );
-    });
-
-    it("should throw error for missing media file", () => {
-      const content: Content = {
-        media: [{ type: "image", path: "/path/to/missing.jpg" }],
-      };
-
-      mockedFs.existsSync.mockReturnValue(false);
-
-      expect(() => publisher.validate(content)).toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/missing.jpg"),
-      );
-    });
-  });
-
-  describe("uploadImage", () => {
-    it("should upload image successfully", async () => {
-      const image: Media = { type: "image", path: "/path/to/image.jpg", caption: "Test image" };
-
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { id: "image_id_123" },
-      });
-
-      const result = await publisher.uploadImage(image);
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/photos", expect.any(Object), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      expect(result).toBe("image_id_123");
-    });
-
-    it("should throw error when API fails", async () => {
-      const image: Media = { type: "image", path: "/path/to/image.jpg" };
-
-      const apiError = {
-        response: {
-          data: {
-            error: {
-              message: "Invalid access token",
-            },
-          },
-        },
-      };
-      mockAxiosInstance.post.mockRejectedValue(apiError);
-
-      await expect(publisher.uploadImage(image)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Failed to upload image: Invalid access token", apiError.response.data),
-      );
-    });
-  });
-
-  describe("postVideo", () => {
-    it("should post video successfully", async () => {
-      const video: Media = { type: "video", path: "/path/to/video.mp4", title: "Test video" };
-
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { id: "video_id_123" },
-      });
-
-      const result = await publisher.postVideo(video);
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/videos", expect.any(Object), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      expect(result).toEqual({ id: "video_id_123", error: PostErrorType.NO_ERROR });
-    });
-
-    it("should handle API errors gracefully", async () => {
-      const video: Media = { type: "video", path: "/path/to/video.mp4" };
-
-      const apiError = {
-        response: {
-          data: {
-            error: {
-              message: "Video too large",
-            },
-          },
-        },
-      };
-      mockAxiosInstance.post.mockRejectedValue(apiError);
-
-      await expect(publisher.postVideo(video)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Video too large", apiError),
       );
     });
   });

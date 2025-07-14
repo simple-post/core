@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { YouTubePublisher } from "../src/publishers/youtube";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptions, Video } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials, Video } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("googleapis", () => ({
@@ -70,7 +70,15 @@ describe("YouTubePublisher", () => {
     mockedGoogle.youtube.mockReturnValue(mockYouTubeClient);
 
     // Create a new publisher instance
-    publisher = new YouTubePublisher();
+    publisher = new YouTubePublisher({
+      youtube: {
+        credentials: {
+          clientId: "test_client_id",
+          clientSecret: "test_client_secret",
+          refreshToken: "test_refresh_token",
+        },
+      },
+    });
   });
 
   describe("constructor", () => {
@@ -86,9 +94,11 @@ describe("YouTubePublisher", () => {
     });
 
     it("should throw error if credentials are missing", () => {
-      delete process.env.YOUTUBE_CLIENT_ID;
       expect(() => new YouTubePublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "YouTube clientId, clientSecret and refreshToken are required"),
+        new PostError(
+          PostErrorType.CREDENTIALS_ERROR,
+          "YouTube credentials are required in options.youtube.credentials",
+        ),
       );
     });
   });
@@ -166,7 +176,15 @@ describe("YouTubePublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {};
+    const options: PostOptionsWithCredentials = {
+      youtube: {
+        credentials: {
+          clientId: "test_client_id",
+          clientSecret: "test_client_secret",
+          refreshToken: "test_refresh_token",
+        },
+      },
+    };
 
     it("should post video successfully", async () => {
       const content: Content = {
@@ -250,7 +268,7 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      const optionsWithYouTube: PostOptions = {
+      const optionsWithYouTube: PostOptionsWithCredentials = {
         common: {
           privacyStatus: "private",
         },
@@ -258,6 +276,11 @@ describe("YouTubePublisher", () => {
           tags: ["tag1", "tag2"],
           categoryId: "22",
           playlistId: "playlist_123",
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            refreshToken: "test_refresh_token",
+          },
         },
       };
 
@@ -411,9 +434,14 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      const optionsWithPlaylist: PostOptions = {
+      const optionsWithPlaylist: PostOptionsWithCredentials = {
         youtube: {
           playlistId: "invalid_playlist",
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            refreshToken: "test_refresh_token",
+          },
         },
       };
 
@@ -430,7 +458,15 @@ describe("YouTubePublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {};
+    const options: PostOptionsWithCredentials = {
+      youtube: {
+        credentials: {
+          clientId: "test_client_id",
+          clientSecret: "test_client_secret",
+          refreshToken: "test_refresh_token",
+        },
+      },
+    };
 
     it("should post content successfully and return PostResult", async () => {
       const content: Content = {

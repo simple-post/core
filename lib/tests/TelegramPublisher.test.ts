@@ -5,7 +5,7 @@ import axios from "axios";
 import { TelegramPublisher } from "../src/publishers/telegram";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptions } from "../src/types/post";
+import type { Content, PostOptions, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -42,7 +42,14 @@ describe("TelegramPublisher", () => {
     mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
 
     // Create a new publisher instance
-    publisher = new TelegramPublisher();
+    publisher = new TelegramPublisher({
+      telegram: {
+        chatId: "dummy_chat_id",
+        credentials: {
+          botToken: "test_bot_token",
+        },
+      },
+    });
   });
 
   describe("constructor", () => {
@@ -54,25 +61,29 @@ describe("TelegramPublisher", () => {
     });
 
     it("should throw error if TELEGRAM_BOT_TOKEN is not provided", () => {
-      delete process.env.TELEGRAM_BOT_TOKEN;
       expect(() => new TelegramPublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required"),
+        new PostError(
+          PostErrorType.CREDENTIALS_ERROR,
+          "Telegram credentials are required in options.telegram.credentials",
+        ),
       );
     });
 
-    it("should throw error if TELEGRAM_BOT_TOKEN is empty", () => {
-      process.env.TELEGRAM_BOT_TOKEN = "";
-      expect(() => new TelegramPublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required"),
-      );
+    it("should accept empty bot token", () => {
+      expect(
+        () => new TelegramPublisher({ telegram: { chatId: "dummy", credentials: { botToken: "" } } }),
+      ).not.toThrow();
     });
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       telegram: {
         chatId: "test_chat_id",
         parseMode: "HTML",
+        credentials: {
+          botToken: "test_bot_token",
+        },
       },
     };
 
@@ -155,7 +166,7 @@ describe("TelegramPublisher", () => {
 
       const invalidOptions: PostOptions = {};
 
-      await expect(publisher.postContent(content, invalidOptions)).rejects.toThrow(
+      await expect(publisher.postContent(content, invalidOptions as PostOptionsWithCredentials)).rejects.toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId"),
       );
     });
@@ -229,9 +240,12 @@ describe("TelegramPublisher", () => {
         text: "Hello, world!",
       };
 
-      const optionsWithoutParseMode: PostOptions = {
+      const optionsWithoutParseMode: PostOptionsWithCredentials = {
         telegram: {
           chatId: "test_chat_id",
+          credentials: {
+            botToken: "test_bot_token",
+          },
         },
       };
 
@@ -251,10 +265,13 @@ describe("TelegramPublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       telegram: {
         chatId: "test_chat_id",
         parseMode: "HTML",
+        credentials: {
+          botToken: "test_bot_token",
+        },
       },
     };
 

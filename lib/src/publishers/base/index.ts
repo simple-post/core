@@ -2,7 +2,7 @@ import { PostError, PostErrorType } from "../../types";
 import { Logger } from "../../utils/logger";
 
 import type { PostResult } from "../../types";
-import type { Content, PostOptions } from "../../types/post";
+import type { Content, PostOptions, PostOptionsWithCredentials } from "../../types/post";
 
 export abstract class Publisher {
   readonly logger: Logger;
@@ -13,7 +13,7 @@ export abstract class Publisher {
     this.strictMode = options?.common?.strictMode ?? false;
   }
 
-  abstract postContent(content: Content, options?: PostOptions): Promise<PostResult>;
+  abstract postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult>;
 
   strictCheck(condition: boolean | undefined, message: string): asserts condition {
     if (condition) {
@@ -25,7 +25,7 @@ export abstract class Publisher {
     }
   }
 
-  async post(content: Content, options?: PostOptions): Promise<PostResult> {
+  async post(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     try {
       // Try to post the content
       this.logger.info(`Posting content...`);

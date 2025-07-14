@@ -6,26 +6,24 @@ import { PostError, PostErrorType } from "../../types";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, PostOptions, Video } from "../../types/post";
+import type { Content, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { youtube_v3 } from "googleapis";
 
 export class YouTubePublisher extends Publisher {
   private youtube: youtube_v3.Youtube;
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("YouTube", options);
 
-    // Check if the credentials are valid
-    const clientId = process.env.YOUTUBE_CLIENT_ID;
-    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-    const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
-
-    if (!clientId || !clientSecret || !refreshToken) {
+    // Validate the credentials
+    if (!options?.youtube?.credentials) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "YouTube clientId, clientSecret and refreshToken are required",
+        "YouTube credentials are required in options.youtube.credentials",
       );
     }
+
+    const { clientId, clientSecret, refreshToken } = options.youtube.credentials;
 
     // Authenticate with the YouTube API
     const auth = new google.auth.OAuth2(clientId, clientSecret);
@@ -49,7 +47,7 @@ export class YouTubePublisher extends Publisher {
     if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
   }
 
-  async postContent(content: Content, options?: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const video = content.media?.find((m) => m.type === "video");
 
     // Validate the video

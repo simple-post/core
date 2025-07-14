@@ -5,7 +5,7 @@ import axios from "axios";
 import { InstagramPublisher } from "../src/publishers/instagram";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptions } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -43,7 +43,14 @@ describe("InstagramPublisher", () => {
     mockedFs.existsSync.mockReturnValue(true);
 
     // Create a new publisher instance
-    publisher = new InstagramPublisher();
+    publisher = new InstagramPublisher({
+      instagram: {
+        credentials: {
+          accessToken: "test_access_token",
+          businessAccountId: "test_business_account_id",
+        },
+      },
+    });
   });
 
   describe("constructor", () => {
@@ -61,21 +68,19 @@ describe("InstagramPublisher", () => {
     });
 
     it("should throw error if INSTAGRAM_ACCESS_TOKEN is not provided", () => {
-      delete process.env.INSTAGRAM_ACCESS_TOKEN;
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
+          "Instagram credentials are required in options.instagram.credentials",
         ),
       );
     });
 
     it("should throw error if INSTAGRAM_BUSINESS_ACCOUNT_ID is not provided", () => {
-      delete process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
+          "Instagram credentials are required in options.instagram.credentials",
         ),
       );
     });
@@ -155,7 +160,14 @@ describe("InstagramPublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {};
+    const options: PostOptionsWithCredentials = {
+      instagram: {
+        credentials: {
+          accessToken: "test_access_token",
+          businessAccountId: "test_business_account_id",
+        },
+      },
+    };
 
     it("should post single image successfully", async () => {
       const content: Content = {
@@ -361,7 +373,14 @@ describe("InstagramPublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {};
+    const options: PostOptionsWithCredentials = {
+      instagram: {
+        credentials: {
+          accessToken: "test_access_token",
+          businessAccountId: "test_business_account_id",
+        },
+      },
+    };
 
     it("should post content successfully and return PostResult", async () => {
       const content: Content = {

@@ -7,21 +7,25 @@ import { PostError, PostErrorType } from "../../types";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptions } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
 export class TelegramPublisher extends Publisher {
   private client: AxiosInstance;
   private botToken: string;
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("Telegram", options);
 
-    this.botToken = process.env.TELEGRAM_BOT_TOKEN || "";
-
-    if (!this.botToken) {
-      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required");
+    // Validate the credentials
+    if (!options?.telegram?.credentials) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Telegram credentials are required in options.telegram.credentials",
+      );
     }
+
+    this.botToken = options.telegram.credentials.botToken;
 
     this.client = axios.create({
       baseURL: `https://api.telegram.org/bot${this.botToken}`,
@@ -94,7 +98,9 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  validateOptions(options: PostOptions): asserts options is PostOptions & { telegram: { chatId: string } } {
+  validateOptions(
+    options: PostOptionsWithCredentials,
+  ): asserts options is PostOptionsWithCredentials & { telegram: { chatId: string } } {
     if (!options.telegram?.chatId) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId");
     }
@@ -111,7 +117,7 @@ export class TelegramPublisher extends Publisher {
     );
   }
 
-  async postContent(content: Content, options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content and the options
     this.validateContent(content);
     this.validateOptions(options);

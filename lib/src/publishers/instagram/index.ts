@@ -9,7 +9,7 @@ import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptions } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
 export class InstagramPublisher extends Publisher {
@@ -19,20 +19,17 @@ export class InstagramPublisher extends Publisher {
   private s3MediaUploader: S3MediaUploader;
   private s3TempFileKeys: string[] = [];
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("Instagram", options);
 
     // Validate the credentials
-    const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
-    const businessAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
-
-    if (!accessToken || !businessAccountId) {
+    if (!options?.instagram?.credentials) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
+        "Instagram credentials are required in options.instagram.credentials",
       );
     }
-
+    const { accessToken, businessAccountId } = options.instagram.credentials;
     this.businessAccountId = businessAccountId;
 
     // Create axios client with base configuration
@@ -155,7 +152,7 @@ export class InstagramPublisher extends Publisher {
     );
   }
 
-  async postContent(content: Content, _options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
     this.validate(content);
 

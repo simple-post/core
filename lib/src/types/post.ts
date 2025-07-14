@@ -37,11 +37,24 @@ export const CommonOptionsSchema = z.object({
 
 export const XOptionsSchema = z.object({
   replyToId: z.string().optional(),
+  credentials: z
+    .object({
+      apiKey: z.string(),
+      apiSecret: z.string(),
+      accessToken: z.string(),
+      accessSecret: z.string(),
+    })
+    .optional(),
 });
 
 export const TelegramOptionsSchema = z.object({
   chatId: z.string(),
   parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
+  credentials: z
+    .object({
+      botToken: z.string(),
+    })
+    .optional(),
 });
 
 export const YouTubeOptionsSchema = z.object({
@@ -49,11 +62,32 @@ export const YouTubeOptionsSchema = z.object({
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
+  credentials: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      refreshToken: z.string(),
+    })
+    .optional(),
 });
 
-export const FacebookOptionsSchema = z.object({});
+export const FacebookOptionsSchema = z.object({
+  credentials: z
+    .object({
+      pageAccessToken: z.string(),
+      pageId: z.string(),
+    })
+    .optional(),
+});
 
-export const InstagramOptionsSchema = z.object({});
+export const InstagramOptionsSchema = z.object({
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      businessAccountId: z.string(),
+    })
+    .optional(),
+});
 
 export const ContentSchema = z.object({
   text: z.string().optional(),
@@ -88,3 +122,26 @@ export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
+
+// Internal types for publishers that require credentials
+export type XOptionsWithCredentials = XOptions & { credentials: NonNullable<XOptions["credentials"]> };
+export type TelegramOptionsWithCredentials = TelegramOptions & {
+  credentials: NonNullable<TelegramOptions["credentials"]>;
+};
+export type YouTubeOptionsWithCredentials = YouTubeOptions & {
+  credentials: NonNullable<YouTubeOptions["credentials"]>;
+};
+export type FacebookOptionsWithCredentials = FacebookOptions & {
+  credentials: NonNullable<FacebookOptions["credentials"]>;
+};
+export type InstagramOptionsWithCredentials = InstagramOptions & {
+  credentials: NonNullable<InstagramOptions["credentials"]>;
+};
+
+export type PostOptionsWithCredentials = PostOptions & {
+  x?: XOptionsWithCredentials;
+  telegram?: TelegramOptionsWithCredentials;
+  youtube?: YouTubeOptionsWithCredentials;
+  facebook?: FacebookOptionsWithCredentials;
+  instagram?: InstagramOptionsWithCredentials;
+};

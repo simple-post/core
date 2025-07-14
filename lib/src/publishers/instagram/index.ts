@@ -13,6 +13,9 @@ import type { Content, Media, PostOptionsWithCredentials } from "../../types/pos
 import type { AxiosInstance } from "axios";
 
 const FACEBOOK_API_VERSION = "v23.0";
+const MAX_MEDIA_COUNT = 10;
+const MAX_CAPTION_LENGTH = 2200;
+const PROCESSING_POLL_INTERVAL = 3000;
 
 export class InstagramPublisher extends Publisher {
   private client: AxiosInstance;
@@ -68,7 +71,7 @@ export class InstagramPublisher extends Publisher {
           `Instagram media container ${containerId} creation failed: ${status}`,
         );
 
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL));
     }
   }
 
@@ -138,7 +141,10 @@ export class InstagramPublisher extends Publisher {
       );
 
     // Validate the number of media files
-    this.strictCheck(content.media.length > 10, "Instagram posts support maximum 10 media items.");
+    this.strictCheck(
+      content.media.length > MAX_MEDIA_COUNT,
+      `Instagram posts support maximum ${MAX_MEDIA_COUNT} media items.`,
+    );
 
     // Validate each media file
     for (const media of content.media) {
@@ -149,8 +155,8 @@ export class InstagramPublisher extends Publisher {
 
     // Caption length validation (Instagram limit is 2200 characters)
     this.strictCheck(
-      Boolean(content.text && content.text.length > 2200),
-      "Instagram caption cannot exceed 2200 characters.",
+      Boolean(content.text && content.text.length > MAX_CAPTION_LENGTH),
+      `Instagram caption cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
     );
   }
 

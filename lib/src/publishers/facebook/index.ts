@@ -14,6 +14,8 @@ import type { AxiosInstance } from "axios";
 
 const FACEBOOK_API_VERSION = "v23.0";
 
+const MAX_MEDIA_COUNT = 10;
+
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
   private pageAccessToken: string;
@@ -93,7 +95,10 @@ export class FacebookPublisher extends Publisher {
       }
 
       // Check for too many images in multi-media posts
-      this.strictCheck(content.media.length > 10, "Facebook supports maximum of 10 images in a single post");
+      this.strictCheck(
+        content.media.length > MAX_MEDIA_COUNT,
+        `Facebook supports maximum of ${MAX_MEDIA_COUNT} images in a single post`,
+      );
 
       // Validate each media item exists
       for (const media of content.media) {
@@ -165,7 +170,7 @@ export class FacebookPublisher extends Publisher {
       // Add the media
       if (content.media && content.media.length > 0) {
         const attachedMedia = [];
-        for (const media of content.media.slice(0, 10)) {
+        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
           // If we are here we know that the media is an Image. If the user is posting video, only 1 media is allowed and this case is handled above.
           const mediaId = await this.uploadImage(media as Image);
 

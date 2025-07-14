@@ -23,16 +23,13 @@ export class InstagramPublisher extends Publisher {
     super("Instagram", options);
 
     // Validate the credentials
-    const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
-    const businessAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
-
-    if (!accessToken || !businessAccountId) {
+    if (!options?.instagram?.credentials) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID environment variables are required",
+        "Instagram credentials are required in options.instagram.credentials",
       );
     }
-
+    const { accessToken, businessAccountId } = options.instagram.credentials;
     this.businessAccountId = businessAccountId;
 
     // Create axios client with base configuration

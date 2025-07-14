@@ -15,17 +15,15 @@ export class YouTubePublisher extends Publisher {
   constructor(options?: PostOptions) {
     super("YouTube", options);
 
-    // Check if the credentials are valid
-    const clientId = process.env.YOUTUBE_CLIENT_ID;
-    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-    const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
-
-    if (!clientId || !clientSecret || !refreshToken) {
+    // Validate the credentials
+    if (!options?.youtube?.credentials) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "YouTube clientId, clientSecret and refreshToken are required",
+        "YouTube credentials are required in options.youtube.credentials",
       );
     }
+
+    const { clientId, clientSecret, refreshToken } = options.youtube.credentials;
 
     // Authenticate with the YouTube API
     const auth = new google.auth.OAuth2(clientId, clientSecret);

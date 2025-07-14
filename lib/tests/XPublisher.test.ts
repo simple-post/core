@@ -50,7 +50,16 @@ describe("XPublisher", () => {
     MockedTwitterApi.mockImplementation(() => mockTwitterClient);
 
     // Create a new publisher instance
-    publisher = new XPublisher();
+    publisher = new XPublisher({
+      x: {
+        credentials: {
+          apiKey: "test_api_key",
+          apiSecret: "test_api_secret",
+          accessToken: "test_access_token",
+          accessSecret: "test_access_secret",
+        },
+      },
+    });
   });
 
   describe("constructor", () => {
@@ -64,12 +73,8 @@ describe("XPublisher", () => {
     });
 
     it("should throw error if credentials are missing", () => {
-      delete process.env.TWITTER_API_KEY;
       expect(() => new XPublisher()).toThrow(
-        new PostError(
-          PostErrorType.CREDENTIALS_ERROR,
-          "TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET environment variables are required",
-        ),
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "X credentials are required in options.x.credentials"),
       );
     });
   });
@@ -199,6 +204,12 @@ describe("XPublisher", () => {
       const options: PostOptions = {
         x: {
           replyToId: "original_tweet_id",
+          credentials: {
+            apiKey: "test_api_key",
+            apiSecret: "test_api_secret",
+            accessToken: "test_access_token",
+            accessSecret: "test_access_secret",
+          },
         },
       };
 

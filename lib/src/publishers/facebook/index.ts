@@ -21,14 +21,15 @@ export class FacebookPublisher extends Publisher {
     super("Facebook", options);
 
     // Validate the credentials
-    this.pageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN!;
-    this.pageId = process.env.FACEBOOK_PAGE_ID!;
-
-    if (!this.pageAccessToken || !this.pageId)
+    if (!options?.facebook?.credentials) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required",
+        "Facebook credentials are required in options.facebook.credentials",
       );
+    }
+
+    this.pageAccessToken = options.facebook.credentials.pageAccessToken;
+    this.pageId = options.facebook.credentials.pageId;
 
     // Create the Facebook API client
     this.client = axios.create({

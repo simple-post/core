@@ -51,7 +51,14 @@ describe("FacebookPublisher", () => {
     mockedFormData.mockImplementation(() => mockFormDataInstance as any);
 
     // Create a new publisher instance
-    publisher = new FacebookPublisher();
+    publisher = new FacebookPublisher({
+      facebook: {
+        credentials: {
+          pageAccessToken: "test_access_token",
+          pageId: "test_page_id",
+        },
+      },
+    });
   });
 
   describe("constructor", () => {
@@ -63,21 +70,19 @@ describe("FacebookPublisher", () => {
     });
 
     it("should throw error if FACEBOOK_PAGE_ACCESS_TOKEN is not provided", () => {
-      delete process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
       expect(() => new FacebookPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required",
+          "Facebook credentials are required in options.facebook.credentials",
         ),
       );
     });
 
     it("should throw error if FACEBOOK_PAGE_ID is not provided", () => {
-      delete process.env.FACEBOOK_PAGE_ID;
       expect(() => new FacebookPublisher()).toThrow(
         new PostError(
           PostErrorType.CREDENTIALS_ERROR,
-          "FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_PAGE_ID environment variables are required",
+          "Facebook credentials are required in options.facebook.credentials",
         ),
       );
     });
@@ -211,7 +216,14 @@ describe("FacebookPublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {};
+    const options: PostOptions = {
+      facebook: {
+        credentials: {
+          pageAccessToken: "test_access_token",
+          pageId: "test_page_id",
+        },
+      },
+    };
 
     it("should post text-only content successfully", async () => {
       const content: Content = {
@@ -326,7 +338,14 @@ describe("FacebookPublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {};
+    const options: PostOptions = {
+      facebook: {
+        credentials: {
+          pageAccessToken: "test_access_token",
+          pageId: "test_page_id",
+        },
+      },
+    };
 
     it("should post content successfully and return PostResult", async () => {
       const content: Content = {

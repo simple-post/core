@@ -42,7 +42,14 @@ describe("TelegramPublisher", () => {
     mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
 
     // Create a new publisher instance
-    publisher = new TelegramPublisher();
+    publisher = new TelegramPublisher({
+      telegram: {
+        chatId: "dummy_chat_id",
+        credentials: {
+          botToken: "test_bot_token",
+        },
+      },
+    });
   });
 
   describe("constructor", () => {
@@ -54,17 +61,18 @@ describe("TelegramPublisher", () => {
     });
 
     it("should throw error if TELEGRAM_BOT_TOKEN is not provided", () => {
-      delete process.env.TELEGRAM_BOT_TOKEN;
       expect(() => new TelegramPublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required"),
+        new PostError(
+          PostErrorType.CREDENTIALS_ERROR,
+          "Telegram credentials are required in options.telegram.credentials",
+        ),
       );
     });
 
-    it("should throw error if TELEGRAM_BOT_TOKEN is empty", () => {
-      process.env.TELEGRAM_BOT_TOKEN = "";
-      expect(() => new TelegramPublisher()).toThrow(
-        new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required"),
-      );
+    it("should accept empty bot token", () => {
+      expect(
+        () => new TelegramPublisher({ telegram: { chatId: "dummy", credentials: { botToken: "" } } }),
+      ).not.toThrow();
     });
   });
 
@@ -73,6 +81,9 @@ describe("TelegramPublisher", () => {
       telegram: {
         chatId: "test_chat_id",
         parseMode: "HTML",
+        credentials: {
+          botToken: "test_bot_token",
+        },
       },
     };
 
@@ -232,6 +243,9 @@ describe("TelegramPublisher", () => {
       const optionsWithoutParseMode: PostOptions = {
         telegram: {
           chatId: "test_chat_id",
+          credentials: {
+            botToken: "test_bot_token",
+          },
         },
       };
 
@@ -255,6 +269,9 @@ describe("TelegramPublisher", () => {
       telegram: {
         chatId: "test_chat_id",
         parseMode: "HTML",
+        credentials: {
+          botToken: "test_bot_token",
+        },
       },
     };
 

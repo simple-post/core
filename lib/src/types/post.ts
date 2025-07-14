@@ -37,11 +37,20 @@ export const CommonOptionsSchema = z.object({
 
 export const XOptionsSchema = z.object({
   replyToId: z.string().optional(),
+  credentials: z.object({
+    apiKey: z.string(),
+    apiSecret: z.string(),
+    accessToken: z.string(),
+    accessSecret: z.string(),
+  }),
 });
 
 export const TelegramOptionsSchema = z.object({
   chatId: z.string(),
   parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
+  credentials: z.object({
+    botToken: z.string(),
+  }),
 });
 
 export const YouTubeOptionsSchema = z.object({
@@ -49,11 +58,26 @@ export const YouTubeOptionsSchema = z.object({
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
+  credentials: z.object({
+    clientId: z.string(),
+    clientSecret: z.string(),
+    refreshToken: z.string(),
+  }),
 });
 
-export const FacebookOptionsSchema = z.object({});
+export const FacebookOptionsSchema = z.object({
+  credentials: z.object({
+    pageAccessToken: z.string(),
+    pageId: z.string(),
+  }),
+});
 
-export const InstagramOptionsSchema = z.object({});
+export const InstagramOptionsSchema = z.object({
+  credentials: z.object({
+    accessToken: z.string(),
+    businessAccountId: z.string(),
+  }),
+});
 
 export const ContentSchema = z.object({
   text: z.string().optional(),

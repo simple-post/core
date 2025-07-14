@@ -16,21 +16,16 @@ export class XPublisher extends Publisher {
   constructor(options?: PostOptions) {
     super("X", options);
 
-    const clientId = process.env.TWITTER_API_KEY;
-    const clientSecret = process.env.TWITTER_API_SECRET;
-    const accessToken = process.env.TWITTER_ACCESS_TOKEN;
-    const accessSecret = process.env.TWITTER_ACCESS_SECRET;
-
-    if (!clientId || !clientSecret || !accessToken || !accessSecret) {
-      throw new PostError(
-        PostErrorType.CREDENTIALS_ERROR,
-        "TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET environment variables are required",
-      );
+    // Validate the credentials
+    if (!options?.x?.credentials) {
+      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "X credentials are required in options.x.credentials");
     }
 
+    const { apiKey, apiSecret, accessToken, accessSecret } = options.x.credentials;
+
     this.client = new TwitterApi({
-      appKey: clientId,
-      appSecret: clientSecret,
+      appKey: apiKey,
+      appSecret: apiSecret,
       accessToken: accessToken,
       accessSecret: accessSecret,
     } as TwitterApiTokens);

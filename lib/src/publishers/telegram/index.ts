@@ -17,11 +17,15 @@ export class TelegramPublisher extends Publisher {
   constructor(options?: PostOptions) {
     super("Telegram", options);
 
-    this.botToken = process.env.TELEGRAM_BOT_TOKEN || "";
-
-    if (!this.botToken) {
-      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "TELEGRAM_BOT_TOKEN environment variable is required");
+    // Validate the credentials
+    if (!options?.telegram?.credentials) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Telegram credentials are required in options.telegram.credentials",
+      );
     }
+
+    this.botToken = options.telegram.credentials.botToken;
 
     this.client = axios.create({
       baseURL: `https://api.telegram.org/bot${this.botToken}`,

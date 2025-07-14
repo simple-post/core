@@ -51,25 +51,9 @@ export const YouTubeOptionsSchema = z.object({
   selfDeclaredMadeForKids: z.boolean().optional(),
 });
 
-export const FacebookOptionsSchema = z.object({
-  // Add Facebook-specific options here as needed
-});
+export const FacebookOptionsSchema = z.object({});
 
-export const InstagramOptionsSchema = z.object({
-  // Add Instagram-specific options here as needed
-});
-
-export const TikTokOptionsSchema = z.object({
-  // Add TikTok-specific options here as needed
-});
-
-export const LinkedInOptionsSchema = z.object({
-  // Add LinkedIn-specific options here as needed
-});
-
-export const PinterestOptionsSchema = z.object({
-  // Add Pinterest-specific options here as needed
-});
+export const InstagramOptionsSchema = z.object({});
 
 export const ContentSchema = z.object({
   text: z.string().optional(),
@@ -83,9 +67,6 @@ export const PostOptionsSchema = z.object({
   youtube: YouTubeOptionsSchema.optional(),
   facebook: FacebookOptionsSchema.optional(),
   instagram: InstagramOptionsSchema.optional(),
-  tiktok: TikTokOptionsSchema.optional(),
-  linkedin: LinkedInOptionsSchema.optional(),
-  pinterest: PinterestOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -104,9 +85,6 @@ export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;
 export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
-export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
-export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
-export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;

@@ -9,7 +9,7 @@ import { getContentType } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Image, Media, PostOptions, Video } from "../../types/post";
+import type { Content, Image, Media, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
 export class FacebookPublisher extends Publisher {
@@ -17,7 +17,7 @@ export class FacebookPublisher extends Publisher {
   private pageAccessToken: string;
   private pageId: string;
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("Facebook", options);
 
     // Validate the credentials
@@ -143,7 +143,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postContent(content: Content, _options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
     this.validate(content);
 

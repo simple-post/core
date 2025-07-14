@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { YouTubePublisher } from "../src/publishers/youtube";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptions, Video } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials, Video } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("googleapis", () => ({
@@ -176,7 +176,7 @@ describe("YouTubePublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       youtube: {
         credentials: {
           clientId: "test_client_id",
@@ -268,7 +268,7 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      const optionsWithYouTube: PostOptions = {
+      const optionsWithYouTube: PostOptionsWithCredentials = {
         common: {
           privacyStatus: "private",
         },
@@ -434,7 +434,7 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      const optionsWithPlaylist: PostOptions = {
+      const optionsWithPlaylist: PostOptionsWithCredentials = {
         youtube: {
           playlistId: "invalid_playlist",
           credentials: {
@@ -458,7 +458,7 @@ describe("YouTubePublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       youtube: {
         credentials: {
           clientId: "test_client_id",

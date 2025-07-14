@@ -1,4 +1,4 @@
-import type { PostOptions } from "../types/post";
+import type { PostOptions, PostOptionsWithCredentials } from "../types/post";
 
 export const getCredentialsFromEnv = (): PostOptions => {
   const options: PostOptions = {};
@@ -75,10 +75,10 @@ export const getCredentialsFromEnv = (): PostOptions => {
   return options;
 };
 
-export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions): PostOptions => {
-  if (!userOptions) return envOptions;
+export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions): PostOptionsWithCredentials => {
+  if (!userOptions) return envOptions as PostOptionsWithCredentials;
 
-  return {
+  const merged = {
     ...userOptions,
     x: userOptions.x
       ? { ...userOptions.x, credentials: userOptions.x.credentials || envOptions.x?.credentials }
@@ -99,4 +99,6 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
         }
       : envOptions.instagram,
   };
+
+  return merged as PostOptionsWithCredentials;
 };

@@ -9,7 +9,7 @@ import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptions } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
 export class InstagramPublisher extends Publisher {
@@ -19,7 +19,7 @@ export class InstagramPublisher extends Publisher {
   private s3MediaUploader: S3MediaUploader;
   private s3TempFileKeys: string[] = [];
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("Instagram", options);
 
     // Validate the credentials
@@ -152,7 +152,7 @@ export class InstagramPublisher extends Publisher {
     );
   }
 
-  async postContent(content: Content, _options: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
     this.validate(content);
 

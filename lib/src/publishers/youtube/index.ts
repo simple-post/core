@@ -6,13 +6,13 @@ import { PostError, PostErrorType } from "../../types";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, PostOptions, Video } from "../../types/post";
+import type { Content, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { youtube_v3 } from "googleapis";
 
 export class YouTubePublisher extends Publisher {
   private youtube: youtube_v3.Youtube;
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("YouTube", options);
 
     // Validate the credentials
@@ -47,7 +47,7 @@ export class YouTubePublisher extends Publisher {
     if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
   }
 
-  async postContent(content: Content, options?: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const video = content.media?.find((m) => m.type === "video");
 
     // Validate the video

@@ -6,14 +6,14 @@ import { PostError, PostErrorType } from "../../types";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptions } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { TwitterApiTokens, TwitterApiv1 } from "twitter-api-v2";
 
 export class XPublisher extends Publisher {
   private client: TwitterApi;
   private clientV1: TwitterApiv1;
 
-  constructor(options?: PostOptions) {
+  constructor(options?: PostOptionsWithCredentials) {
     super("X", options);
 
     // Validate the credentials
@@ -62,7 +62,7 @@ export class XPublisher extends Publisher {
     );
   }
 
-  async postContent(content: Content, options?: PostOptions): Promise<PostResult> {
+  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const replyToId = options?.x?.replyToId;
 
     // Validate the content

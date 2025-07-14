@@ -6,7 +6,7 @@ import FormData from "form-data";
 import { FacebookPublisher } from "../src/publishers/facebook";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, Media, PostOptions } from "../src/types/post";
+import type { Content, Media, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -216,7 +216,7 @@ describe("FacebookPublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       facebook: {
         credentials: {
           pageAccessToken: "test_access_token",
@@ -338,7 +338,7 @@ describe("FacebookPublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       facebook: {
         credentials: {
           pageAccessToken: "test_access_token",

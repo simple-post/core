@@ -5,9 +5,9 @@ import { XPublisher } from "./x";
 import { YouTubePublisher } from "./youtube";
 
 import type { Publisher } from "./base";
-import type { Platform, PostOptions } from "../types/post";
+import type { Platform, PostOptionsWithCredentials } from "../types/post";
 
-export const getPublisher = (platform: Platform, options?: PostOptions): Publisher => {
+export const getPublisher = (platform: Platform, options?: PostOptionsWithCredentials): Publisher => {
   switch (platform) {
     case "x": {
       return new XPublisher(options);

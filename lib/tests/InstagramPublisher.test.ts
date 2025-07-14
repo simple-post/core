@@ -5,7 +5,7 @@ import axios from "axios";
 import { InstagramPublisher } from "../src/publishers/instagram";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptions } from "../src/types/post";
+import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -160,7 +160,7 @@ describe("InstagramPublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       instagram: {
         credentials: {
           accessToken: "test_access_token",
@@ -373,7 +373,7 @@ describe("InstagramPublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       instagram: {
         credentials: {
           accessToken: "test_access_token",

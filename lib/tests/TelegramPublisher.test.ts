@@ -5,7 +5,7 @@ import axios from "axios";
 import { TelegramPublisher } from "../src/publishers/telegram";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, PostOptions } from "../src/types/post";
+import type { Content, PostOptions, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
@@ -77,7 +77,7 @@ describe("TelegramPublisher", () => {
   });
 
   describe("postContent", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       telegram: {
         chatId: "test_chat_id",
         parseMode: "HTML",
@@ -166,7 +166,7 @@ describe("TelegramPublisher", () => {
 
       const invalidOptions: PostOptions = {};
 
-      await expect(publisher.postContent(content, invalidOptions)).rejects.toThrow(
+      await expect(publisher.postContent(content, invalidOptions as PostOptionsWithCredentials)).rejects.toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Telegram chatId is required in options.telegram.chatId"),
       );
     });
@@ -240,7 +240,7 @@ describe("TelegramPublisher", () => {
         text: "Hello, world!",
       };
 
-      const optionsWithoutParseMode: PostOptions = {
+      const optionsWithoutParseMode: PostOptionsWithCredentials = {
         telegram: {
           chatId: "test_chat_id",
           credentials: {
@@ -265,7 +265,7 @@ describe("TelegramPublisher", () => {
   });
 
   describe("post", () => {
-    const options: PostOptions = {
+    const options: PostOptionsWithCredentials = {
       telegram: {
         chatId: "test_chat_id",
         parseMode: "HTML",

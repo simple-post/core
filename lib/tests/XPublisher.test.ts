@@ -5,7 +5,7 @@ import { TwitterApi } from "twitter-api-v2";
 import { XPublisher } from "../src/publishers/x";
 import { PostError, PostErrorType } from "../src/types";
 
-import type { Content, Media, PostOptions } from "../src/types/post";
+import type { Content, Media, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("twitter-api-v2");
@@ -157,6 +157,17 @@ describe("XPublisher", () => {
   });
 
   describe("postContent", () => {
+    const options: PostOptionsWithCredentials = {
+      x: {
+        credentials: {
+          apiKey: "test_api_key",
+          apiSecret: "test_api_secret",
+          accessToken: "test_access_token",
+          accessSecret: "test_access_secret",
+        },
+      },
+    };
+
     it("should post text-only content successfully", async () => {
       const content: Content = {
         text: "Hello, X!",
@@ -166,7 +177,7 @@ describe("XPublisher", () => {
         data: { id: "tweet_id_123" },
       });
 
-      const result = await publisher.postContent(content);
+      const result = await publisher.postContent(content, options);
 
       expect(mockV2Client.tweet).toHaveBeenCalledWith("Hello, X!", {
         media: undefined,
@@ -186,7 +197,7 @@ describe("XPublisher", () => {
         data: { id: "tweet_id_456" },
       });
 
-      const result = await publisher.postContent(content);
+      const result = await publisher.postContent(content, options);
 
       expect(mockV1Client.uploadMedia).toHaveBeenCalledWith("/path/to/image.jpg");
       expect(mockV2Client.tweet).toHaveBeenCalledWith("Check out this image!", {
@@ -201,7 +212,7 @@ describe("XPublisher", () => {
         text: "This is a reply",
       };
 
-      const options: PostOptions = {
+      const replyOptions: PostOptionsWithCredentials = {
         x: {
           replyToId: "original_tweet_id",
           credentials: {
@@ -217,7 +228,7 @@ describe("XPublisher", () => {
         data: { id: "reply_tweet_id_789" },
       });
 
-      const result = await publisher.postContent(content, options);
+      const result = await publisher.postContent(content, replyOptions);
 
       expect(mockV2Client.tweet).toHaveBeenCalledWith("This is a reply", {
         media: undefined,
@@ -245,7 +256,7 @@ describe("XPublisher", () => {
         data: { id: "tweet_id_multi" },
       });
 
-      const result = await publisher.postContent(content);
+      const result = await publisher.postContent(content, options);
 
       expect(mockV1Client.uploadMedia).toHaveBeenCalledTimes(3);
       expect(mockV2Client.tweet).toHaveBeenCalledWith("Multiple images", {
@@ -258,7 +269,7 @@ describe("XPublisher", () => {
     it("should throw error for empty content", async () => {
       const content: Content = {};
 
-      await expect(publisher.postContent(content)).rejects.toThrow(
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
         new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported"),
       );
     });
@@ -271,7 +282,7 @@ describe("XPublisher", () => {
       const apiError = new Error("API Error");
       mockV2Client.tweet.mockRejectedValue(apiError);
 
-      await expect(publisher.postContent(content)).rejects.toThrow(
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
         new PostError(PostErrorType.API_ERROR, "Error posting: Error: API Error", undefined),
       );
     });

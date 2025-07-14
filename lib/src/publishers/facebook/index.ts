@@ -109,7 +109,7 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  private async postVideo(video: Video): Promise<PostResult> {
+  private async postVideo(video: Video, options?: PostOptionsWithCredentials): Promise<PostResult> {
     try {
       const formData = new FormData();
 
@@ -123,6 +123,13 @@ export class FacebookPublisher extends Publisher {
 
       if (video.title) formData.append("title", video.title);
       if (video.description) formData.append("description", video.description);
+
+      // Add scheduling if specified
+      if (options?.facebook?.publishAt) {
+        const unixTimestamp = Math.floor(options.facebook.publishAt.getTime() / 1000);
+        formData.append("scheduled_publish_time", unixTimestamp.toString());
+        formData.append("published", "false");
+      }
 
       // Post the video
       const response = await this.client.post(`/${this.pageId}/videos`, formData, {
@@ -150,13 +157,13 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
+  async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
     this.validate(content);
 
     // If the post is a video, publish it directly to the page videos endpoint
     if (content.media && content.media.length === 1 && content.media[0].type === "video") {
-      return this.postVideo(content.media[0]);
+      return this.postVideo(content.media[0], options);
     }
 
     try {
@@ -166,6 +173,13 @@ export class FacebookPublisher extends Publisher {
 
       // Add text message
       if (content.text) postData.message = content.text;
+
+      // Add scheduling if specified
+      if (options?.facebook?.publishAt) {
+        const unixTimestamp = Math.floor(options.facebook.publishAt.getTime() / 1000);
+        postData.scheduled_publish_time = unixTimestamp.toString();
+        postData.published = false;
+      }
 
       // Add the media
       if (content.media && content.media.length > 0) {

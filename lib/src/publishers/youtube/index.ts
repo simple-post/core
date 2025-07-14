@@ -66,7 +66,8 @@ export class YouTubePublisher extends Publisher {
             categoryId: options?.youtube?.categoryId,
           },
           status: {
-            privacyStatus: options?.common?.privacyStatus,
+            privacyStatus: options?.youtube?.publishAt ? "private" : options?.common?.privacyStatus,
+            publishAt: options?.youtube?.publishAt?.toISOString(),
             selfDeclaredMadeForKids: options?.youtube?.selfDeclaredMadeForKids,
           },
         },

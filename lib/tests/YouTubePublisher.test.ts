@@ -383,6 +383,112 @@ describe("YouTubePublisher", () => {
       // Should still succeed even if playlist addition fails
       expect(result).toEqual({ id: "video_id_playlist_warn", error: PostErrorType.NO_ERROR });
     });
+
+    it("should schedule a video correctly", async () => {
+      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const content: Content = {
+        text: "Scheduled video",
+        media: [
+          {
+            type: "video",
+            path: "/path/to/video.mp4",
+            title: "Scheduled Video",
+            description: "This video is scheduled",
+          },
+        ],
+      };
+
+      const optionsWithSchedule: PostOptionsWithCredentials = {
+        youtube: {
+          publishAt: scheduledTime,
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            refreshToken: "test_refresh_token",
+          },
+        },
+      };
+
+      mockYouTubeClient.videos.insert.mockResolvedValue({
+        data: { id: "scheduled_video_123" },
+      });
+
+      const result = await publisher.postContent(content, optionsWithSchedule);
+
+      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
+        part: ["snippet", "status"],
+        requestBody: {
+          snippet: {
+            title: "Scheduled Video",
+            description: "This video is scheduled",
+            tags: undefined,
+            categoryId: undefined,
+          },
+          status: {
+            privacyStatus: "private",
+            publishAt: "2024-12-25T12:00:00.000Z",
+            selfDeclaredMadeForKids: undefined,
+          },
+        },
+        media: {
+          body: "mock-stream",
+        },
+      });
+      expect(result).toEqual({ id: "scheduled_video_123", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should use normal privacy status when not scheduling", async () => {
+      const content: Content = {
+        text: "Regular video",
+        media: [
+          {
+            type: "video",
+            path: "/path/to/video.mp4",
+            title: "Regular Video",
+          },
+        ],
+      };
+
+      const optionsWithPrivacy: PostOptionsWithCredentials = {
+        common: {
+          privacyStatus: "public",
+        },
+        youtube: {
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            refreshToken: "test_refresh_token",
+          },
+        },
+      };
+
+      mockYouTubeClient.videos.insert.mockResolvedValue({
+        data: { id: "regular_video_123" },
+      });
+
+      const result = await publisher.postContent(content, optionsWithPrivacy);
+
+      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
+        part: ["snippet", "status"],
+        requestBody: {
+          snippet: {
+            title: "Regular Video",
+            description: undefined,
+            tags: undefined,
+            categoryId: undefined,
+          },
+          status: {
+            privacyStatus: "public",
+            publishAt: undefined,
+            selfDeclaredMadeForKids: undefined,
+          },
+        },
+        media: {
+          body: "mock-stream",
+        },
+      });
+      expect(result).toEqual({ id: "regular_video_123", error: PostErrorType.NO_ERROR });
+    });
   });
 
   describe("post", () => {

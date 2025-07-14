@@ -204,6 +204,80 @@ describe("FacebookPublisher", () => {
         new PostError(PostErrorType.API_ERROR, "Failed to post content: Invalid access token", apiError.response.data),
       );
     });
+
+    it("should schedule a text post correctly", async () => {
+      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const content: Content = {
+        text: "This is a scheduled post",
+      };
+
+      const optionsWithSchedule: PostOptionsWithCredentials = {
+        facebook: {
+          publishAt: scheduledTime,
+          credentials: {
+            pageAccessToken: "test_access_token",
+            pageId: "test_page_id",
+          },
+        },
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { id: "scheduled_post_123" },
+      });
+
+      const result = await publisher.postContent(content, optionsWithSchedule);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_page_id/feed",
+        expect.objectContaining({
+          access_token: "test_access_token",
+          message: "This is a scheduled post",
+          scheduled_publish_time: "1735128000",
+          published: false,
+        }),
+      );
+      expect(result).toEqual({ id: "scheduled_post_123", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should schedule a video post correctly", async () => {
+      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const content: Content = {
+        media: [
+          {
+            type: "video",
+            path: "/path/to/video.mp4",
+            title: "Scheduled Video",
+          },
+        ],
+      };
+
+      const optionsWithSchedule: PostOptionsWithCredentials = {
+        facebook: {
+          publishAt: scheduledTime,
+          credentials: {
+            pageAccessToken: "test_access_token",
+            pageId: "test_page_id",
+          },
+        },
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { id: "scheduled_video_123" },
+      });
+
+      const result = await publisher.postContent(content, optionsWithSchedule);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/videos", expect.any(Object), {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // Verify that the FormData constructor was called (indicating video upload)
+      expect(mockedFormData).toHaveBeenCalled();
+
+      expect(result).toEqual({ id: "scheduled_video_123", error: PostErrorType.NO_ERROR });
+    });
   });
 
   describe("post", () => {

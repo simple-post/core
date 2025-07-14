@@ -315,7 +315,7 @@ describe("InstagramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error creating media object: undefined", apiError),
+        new PostError(PostErrorType.API_ERROR, "Failed to create media object: undefined", apiError),
       );
     });
 

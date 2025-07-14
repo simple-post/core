@@ -67,7 +67,7 @@ export class TelegramPublisher extends Publisher {
       this.logger.error(error);
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error sending ${media.type}: ${error.response?.data?.description || error.message}`,
+        `Failed to send ${media.type}: ${error.response?.data?.description || error.message}`,
         error.response?.data,
       );
     }
@@ -92,7 +92,7 @@ export class TelegramPublisher extends Publisher {
       this.logger.error(error);
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error sending message: ${error.response?.data?.description || error.message}`,
+        `Failed to send message: ${error.response?.data?.description || error.message}`,
         error.response?.data,
       );
     }

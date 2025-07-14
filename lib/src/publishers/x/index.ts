@@ -50,7 +50,7 @@ export class XPublisher extends Publisher {
       return mediaId;
     } catch (error: any) {
       this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Error uploading media: ${error}`, error.data);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, error.data);
     }
   }
 
@@ -88,7 +88,7 @@ export class XPublisher extends Publisher {
 
       return { id: createdTweet.id, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
-      throw new PostError(PostErrorType.API_ERROR, `Error posting: ${error}`, error.data);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, error.data);
     }
   }
 }

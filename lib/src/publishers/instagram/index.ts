@@ -83,7 +83,7 @@ export class InstagramPublisher extends Publisher {
     const key = `${uuidv7()}_${path.basename(media.path)}`;
     const mediaUrl = await this.s3MediaUploader.uploadFile(media.path, key);
     this.s3TempFileKeys.push(key);
-    this.logger.info(`Uploaded media file to S3: ${mediaUrl}`);
+    this.logger.info(`Media uploaded to S3: ${mediaUrl}`);
 
     try {
       // Create media object using the S3 URL
@@ -98,7 +98,7 @@ export class InstagramPublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
 
-      throw new PostError(PostErrorType.API_ERROR, `Error creating media object: ${error.message}`, error);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${error.message}`, error);
     }
   }
 
@@ -129,7 +129,7 @@ export class InstagramPublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
 
-      throw new PostError(PostErrorType.API_ERROR, `Error creating Instagram media container: ${error.message}`, error);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to create media container: ${error.message}`, error);
     }
   }
 
@@ -182,7 +182,7 @@ export class InstagramPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error publishing Instagram post: ${error.response?.data?.error?.message || error.message}`,
+        `Failed to publish post: ${error.response?.data?.error?.message || error.message}`,
         error,
       );
     } finally {

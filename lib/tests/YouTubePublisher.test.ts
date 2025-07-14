@@ -374,7 +374,7 @@ describe("YouTubePublisher", () => {
       mockYouTubeClient.videos.insert.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "YouTube API Error: Video upload failed", apiError),
+        new PostError(PostErrorType.API_ERROR, "Video upload failed", apiError),
       );
     });
 

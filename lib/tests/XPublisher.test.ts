@@ -109,7 +109,7 @@ describe("XPublisher", () => {
       mockV1Client.uploadMedia.mockRejectedValue(apiError);
 
       await expect(publisher.uploadMedia(media)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error uploading media: Error: Upload failed", undefined),
+        new PostError(PostErrorType.API_ERROR, "Failed to upload media: Error: Upload failed", undefined),
       );
     });
   });
@@ -283,7 +283,7 @@ describe("XPublisher", () => {
       mockV2Client.tweet.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Error posting: Error: API Error", undefined),
+        new PostError(PostErrorType.API_ERROR, "Failed to post content: Error: API Error", undefined),
       );
     });
   });
@@ -327,7 +327,7 @@ describe("XPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.API_ERROR,
-        message: "Error posting: Error: API Error",
+        message: "Failed to post content: Error: API Error",
         details: undefined,
       });
     });

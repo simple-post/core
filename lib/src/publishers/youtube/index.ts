@@ -79,10 +79,10 @@ export class YouTubePublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
 
-      let errorMessage = "An unknown error occurred while uploading to YouTube.";
+      let errorMessage = "Failed to upload video";
 
       if (error.response && error.response.data && error.response.data.error) {
-        errorMessage = `YouTube API Error: ${error.response.data.error.message}`;
+        errorMessage = error.response.data.error.message;
       } else if (error.message) {
         errorMessage = error.message;
       }

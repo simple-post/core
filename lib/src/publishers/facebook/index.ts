@@ -71,7 +71,7 @@ export class FacebookPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error uploading image: ${error.response?.data?.error?.message || error.message}`,
+        `Failed to upload image: ${error.response?.data?.error?.message || error.message}`,
         error.response?.data,
       );
     }
@@ -141,7 +141,7 @@ export class FacebookPublisher extends Publisher {
       let errorMessage = "An unknown error occurred while posting video.";
 
       if (error.response && error.response.data && error.response.data.error) {
-        errorMessage = `Facebook API Error: ${error.response.data.error.message}`;
+        errorMessage = error.response.data.error.message;
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -174,7 +174,7 @@ export class FacebookPublisher extends Publisher {
           // If we are here we know that the media is an Image. If the user is posting video, only 1 media is allowed and this case is handled above.
           const mediaId = await this.uploadImage(media as Image);
 
-          this.logger.info(`Uploaded image ${mediaId} to Facebook`);
+          this.logger.info(`Media uploaded: ${mediaId}`);
 
           attachedMedia.push({ media_fbid: mediaId });
         }
@@ -194,7 +194,7 @@ export class FacebookPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error posting to Facebook: ${error.response?.data?.error?.message || error.message}`,
+        `Failed to post content: ${error.response?.data?.error?.message || error.message}`,
         error.response?.data,
       );
     }

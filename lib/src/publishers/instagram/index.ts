@@ -12,6 +12,8 @@ import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
+const FACEBOOK_API_VERSION = "v23.0";
+
 export class InstagramPublisher extends Publisher {
   private client: AxiosInstance;
   private businessAccountId: string;
@@ -34,7 +36,7 @@ export class InstagramPublisher extends Publisher {
 
     // Create axios client with base configuration
     this.client = axios.create({
-      baseURL: `https://graph.facebook.com/v23.0`,
+      baseURL: `https://graph.facebook.com/${FACEBOOK_API_VERSION}`,
       timeout: 30_000, // 30 seconds timeout
       maxContentLength: Infinity,
       maxBodyLength: Infinity,

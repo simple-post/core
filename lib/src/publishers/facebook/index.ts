@@ -12,6 +12,8 @@ import type { PostResult } from "../../types";
 import type { Content, Image, Media, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { AxiosInstance } from "axios";
 
+const FACEBOOK_API_VERSION = "v23.0";
+
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
   private pageAccessToken: string;
@@ -33,7 +35,7 @@ export class FacebookPublisher extends Publisher {
 
     // Create the Facebook API client
     this.client = axios.create({
-      baseURL: "https://graph.facebook.com/v23.0",
+      baseURL: `https://graph.facebook.com/${FACEBOOK_API_VERSION}`,
       timeout: 30_000,
     });
   }

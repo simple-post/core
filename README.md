@@ -1,12 +1,12 @@
 # Unsubpost
 
-Welcome to the Unsubpost repository and thank you for your support! This is a monorepo that contains all the code for the Unsubpost library and related tools. It is a private repository and you got access to it because you purchased it on [unsubpost.dev](https://unsubpost.dev).
+Welcome to Unsubpost! This is a monorepo containing all the code for the Unsubpost library and related tools. You have access because you purchased it on [unsubpost.dev](https://unsubpost.dev).
 
-This repository contains the code and the documentation for how to use the Unsubpost library. You also have access to another interactive tool that guides you thorugh the process of obtaining credentials for the APIs of the platforms you want to use: [docs.unsubpost.dev](https://docs.unsubpost.dev).
+This repository contains the code and documentation for the Unsubpost library. You also have access to an interactive tool that guides you through obtaining credentials for platform APIs: [docs.unsubpost.dev](https://docs.unsubpost.dev).
 
 ## What is Unsubpost?
 
-Unsubpost is a cross-platform social media posting library that lets you post to all major social platforms with one unified TypeScript library. No subscriptions, no SaaS, just clean code that you own forever.
+Unsubpost is a cross-platform social media posting library that lets you post to all major social platforms with one TypeScript library. No subscriptions, no SaaS, just clean code that you own forever.
 
 ### Why Unsubpost?
 
@@ -24,19 +24,19 @@ Unsubpost solves the common pain points developers face when building social med
 - **Full Source Code** - No black boxes, modify and extend as needed
 - **Multiple Integration Options** - Use as a library, HTTP API, or N8N nodes
 
-## Getting Started with Unsubpost
+## Getting Started
 
-Unsubpost supports you in automating publishing on social media and messenger platforms in whatever way you want. Therefore, there are multiple ways to use it:
+Unsubpost supports multiple integration methods to fit your workflow:
 
-- [TypeScript SDK](docs/typescript-sdk/README.md) - integrate the Unsubpost SDK in your TypeScript project and use it directly to post content
-- [HTTP API](docs/http-api/README.md) (coming soon) - you can self-host Unsubpost as an HTTP server and post through the API
-- [N8N](docs/n8n/README.md) (coming soon) - you can use the Unsubpost N8N node to post from your N8N workflows
+- **[TypeScript SDK](docs/typescript-sdk/README.md)** - Integrate directly into your TypeScript project
+- **[HTTP API](docs/http-server/README.md)** (coming soon) - Self-host as an HTTP server
+- **[N8N Node](docs/n8n-node/README.md)** (coming soon) - Use in N8N workflows
 
-You can find detailed documentattion on how to use Unsubpost in the [Documentation](./docs) section.
+Find detailed documentation in the [Documentation](./docs) section.
 
 ## Roadmap
 
-This project is still under active development and new features are added regularly. The following roadmap give you an idea of what features are coming next. Please get in touch if you need some platform/feature to be added or prioitized higher.
+This project is under active development with new features added regularly. The roadmap below shows what's coming next. Get in touch if you need a platform or feature prioritized.
 
 ### Platforms
 

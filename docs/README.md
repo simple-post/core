@@ -1,11 +1,11 @@
 # Documentation
 
-Here you can find the documentation on how to use Unsubpost. For setting up your credentials, please refer to the [docs.unsubpost.dev](https://docs.unsubpost.dev) interactive tool.
+Documentation for using Unsubpost. For credential setup, use the [docs.unsubpost.dev](https://docs.unsubpost.dev) interactive tool.
 
-## How to use Unsubpost?
+## Integration Options
 
-Unsubpost is designed to fit into your existing workflow and so it can be used in a number of different ways:
+Unsubpost fits into your existing workflow with multiple integration methods:
 
-- [TypeScript SDK](typescript-sdk/README.md) - integrate the Unsubpost SDK in your TypeScript project and use it directly to post content
-- [HTTP API](http-api/README.md) (coming soon) - you can self-host Unsubpost as an HTTP server and post through the API
-- [N8N](n8n/README.md) (coming soon) - you can use the Unsubpost N8N node to post from your N8N workflows
+- **[TypeScript SDK](typescript-sdk/README.md)** - Integrate directly into your TypeScript project
+- **[HTTP API](http-server/README.md)** (coming soon) - Self-host as an HTTP server
+- **[N8N Node](n8n-node/README.md)** (coming soon) - Use in N8N workflows

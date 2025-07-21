@@ -11,8 +11,8 @@ You can install the Unsubpost SDK using the npm package. Since this is a private
 To create a Personal Access Token (PAT) for the Unsubpost NPM package, go to your [GitHub settings](https://github.com/settings/tokens) and create a new classic token.
 
 1. Click "Generate new token" and choose classic.
-2. Give the token a name, like for exmaple "Unsubpost NPM Access".
-3. Set the expiration date to "No expiration". This is fine in this case as the repository doesn't contain any sensitive information.
+2. Give the token a name, like for example "Unsubpost NPM Access".
+3. Set the expiration date to "No expiration". This is fine since the repository doesn't contain sensitive information.
 4. Select the `read:packages` permission only.
 5. Generate the token and save it - you will need it in the next step.
 
@@ -124,7 +124,7 @@ You can also pass multiple media files as long as the platform supports it:
 ```typescript
 const results = await post({
   content: {
-    text: "Hey, look at my awseome photos",
+    text: "Hey, look at my awesome photos",
     media: [
       { type: "image", path: "path/to/image_1.jpg" },
       { type: "image", path: "path/to/image_2.jpg" },
@@ -193,7 +193,7 @@ const results = await post({
 });
 ```
 
-#### Stric mode
+#### Strict mode
 
 Sometimes, the types of content you can post on different platforms is not the same. For example, X allows you to post up to 4 images, while Instagram allows you to post up to 10. In this case, the library will try to post as much as possible on each platform and give you a warning.
 
@@ -233,4 +233,4 @@ const results = await post({
 
 #### More examples
 
-For more examples covering all features of each platform, you can check the [examples](../..//examples) directory.
+For more examples covering all features of each platform, check the [examples](../../examples) directory.

@@ -138,4 +138,9 @@ dist
 # .DS_Store
 .DS_Store
 
+# Temp storage
 temp
+
+# VS Code
+.vscode
+

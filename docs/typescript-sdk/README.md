@@ -6,44 +6,48 @@ The simplest way to use Unsubpost is to integrate it directly into your TypeScri
 
 You can install the Unsubpost SDK using the npm package. Since this is a private package, you need to setup access to it first. The setup is slightly different depending on the package manager you are using.
 
-### Create a GitHub personal access token
+### Create a GitHub Personal Access Token (PAT)
 
-You need to create a GitHub personal access token. You can do this by going to your [GitHub settings](https://github.com/settings/personal-access-tokens) and creating a new fine-grained token. Classic Personal Access Tokens are not recommended.
+To create a Personal Access Token (PAT) for the Unsubpost NPM package, go to your [GitHub settings](https://github.com/settings/tokens) and create a new classic token.
 
-1. Click "Generate new token".
+1. Click "Generate new token" and choose classic.
 2. Give the token a name, like for exmaple "Unsubpost NPM Access".
-3. Set the resource owner to the "UnsubPost" organization.
-4. Set the expiration date to "No expiration". This is fine in this case as the repository doesn't contain any sensitive information.
-5. Limit the access of the token to the `unsubpost` repository. This is not strictly necessary, but it's a good practice to limit the scope of the token.
-6. Under "Permissions", "Repository permissions", select "Contents" and chosse the "Read-only" permission.
-7. Note down the token. You will need it in the next step.
+3. Set the expiration date to "No expiration". This is fine in this case as the repository doesn't contain any sensitive information.
+4. Select the `read:packages` permission only.
+5. Generate the token and save it - you will need it in the next step.
 
-### Using `npm`
+### Using `npm`, `yarn` or `pnpm`
 
-If you are using `npm` as a package manager, you can setup the access to the Unsubpost NPM package by running the following command:
+If you are using `npm`, `yarn` or `pnpm` as a package manager, you can setup the access to the Unsubpost NPM package by adding the following to your `.npmrc` file:
 
 ```bash
-npm config set //npm.pkg.github.com/:_authToken <your-token>
+@unsubpost:registry=https://npm.pkg.github.com/
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-### Using `yarn`
+You can put your token in the `GITHUB_TOKEN` environment variable in your `.env` file or in your shell environment.
 
-If you are using `yarn` as a package manager, you can setup the access to the Unsubpost NPM package by running the following command:
+### Using `yarn 2`
+
+For newer versions of `yarn` (version 2 and above), you can setup the access to the Unsubpost NPM package by adding the following to your `.yarnrc.yml` file:
 
 ```bash
-yarn config set //npm.pkg.github.com/:_authToken <your-token>
+npmScopes:
+  unsubpost:
+    npmRegistryServer: "https://npm.pkg.github.com"
+    npmAuthToken: "${GITHUB_TOKEN}"
 ```
 
-### Using `pnpm`
-
-If you are using `pnpm` as a package manager, you can setup the access to the Unsubpost NPM package by running the following command:
-
-```bash
-pnpm config set //npm.pkg.github.com/:_authToken <your-token>
-```
+Again, you can put your token in the `GITHUB_TOKEN` environment variable in your `.env` file or in your shell environment.
 
 ### Install the package
 
+You can install the package using your package manager of choice.
+
 ```bash
-npm install unsubpost
+npm install @unsubpost/unsubpost
+
+yarn add @unsubpost/unsubpost
+
+pnpm add @unsubpost/unsubpost
 ```

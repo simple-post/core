@@ -24,10 +24,5 @@
     "jest": "^30.0.0",
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "googleapis": "^150.0.1",
-    "pino": "^9.7.0",
-    "pino-pretty": "^13.0.0"
   }
 }

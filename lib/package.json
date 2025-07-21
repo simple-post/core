@@ -1,13 +1,32 @@
 {
-  "name": "unsubpost",
-  "version": "1.0.0",
+  "name": "@unsubpost/unsubpost",
+  "version": "0.0.3",
   "description": "Post to all social platforms with one TypeScript library.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UnsubPost/unsubpost.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc",
     "compile": "tsc --noEmit",
     "check": "tsc --noEmit && eslint . && prettier --check .",
     "lint": "eslint .",
@@ -16,7 +35,8 @@
     "format:fix": "prettier --write .",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "prepack": "yarn build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.842.0",
@@ -26,6 +46,7 @@
     "@types/uuid": "^10.0.0",
     "axios": "^1.10.0",
     "form-data": "^4.0.3",
+    "googleapis": "^150.0.1",
     "twitter-api-v2": "^1.23.2",
     "uuid": "^11.1.0",
     "zod": "^3.25.63"

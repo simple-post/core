@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { post } from "unsubpost";
+import { post } from "@unsubpost/unsubpost";
 
 // Load environment variables from .env file
 dotenv.config();

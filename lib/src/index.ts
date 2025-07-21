@@ -16,3 +16,41 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
 
   return results;
 }
+
+// Export all types for TypeScript and JavaScript users
+export type {
+  Platform,
+  Post,
+  Content,
+  Media,
+  Image,
+  Video,
+  PostOptions,
+  CommonOptions,
+  XOptions,
+  TelegramOptions,
+  YouTubeOptions,
+  FacebookOptions,
+  InstagramOptions,
+  LogLevel,
+} from "./types/post";
+
+export type { PostResult } from "./types";
+export { PostError, PostErrorType } from "./types";
+
+// Export schemas for runtime validation
+export {
+  PlatformSchema,
+  PostSchema,
+  ContentSchema,
+  MediaSchema,
+  ImageSchema,
+  VideoSchema,
+  PostOptionsSchema,
+  CommonOptionsSchema,
+  XOptionsSchema,
+  TelegramOptionsSchema,
+  YouTubeOptionsSchema,
+  FacebookOptionsSchema,
+  InstagramOptionsSchema,
+} from "./types/post";

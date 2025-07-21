@@ -28,9 +28,9 @@ Unsubpost solves the common pain points developers face when building social med
 
 Unsubpost supports you in automating publishing on social media and messenger platforms in whatever way you want. Therefore, there are multiple ways to use it:
 
-- TypeScript SDK - integrate the Unsubpost SDK in your TypeScript project and use it directly to post content
-- HTTP API (coming soon) - you can self-host Unsubpost as an HTTP server and post through the API
-- N8N (coming soon) - you can use the Unsubpost N8N node to post from your N8N workflows
+- [TypeScript SDK](docs/typescript-sdk/README.md) - integrate the Unsubpost SDK in your TypeScript project and use it directly to post content
+- [HTTP API](docs/http-api/README.md) (coming soon) - you can self-host Unsubpost as an HTTP server and post through the API
+- [N8N](docs/n8n/README.md) (coming soon) - you can use the Unsubpost N8N node to post from your N8N workflows
 
 You can find detailed documentattion on how to use Unsubpost in the [Documentation](./docs) section.
 

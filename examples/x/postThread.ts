@@ -20,7 +20,7 @@ async function main() {
       },
     });
 
-    const tweetId = results.get("x")?.[0]?.id;
+    const tweetId = results.get("x")?.id;
     if (!tweetId) {
       console.error(`Failed to post tweet ${i + 1}`);
       return;

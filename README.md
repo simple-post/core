@@ -24,6 +24,23 @@ Unsubpost solves the common pain points developers face when building social med
 - **Full Source Code** - No black boxes, modify and extend as needed
 - **Multiple Integration Options** - Use as a library, HTTP API, or N8N nodes
 
+## 🚀 Quick Start
+
+```bash
+npm install @unsubpost/unsubpost
+```
+
+```typescript
+import { post } from "@unsubpost/unsubpost";
+
+const results = await post({
+  content: { text: "Hello world!" },
+  platforms: ["x", "telegram"],
+});
+```
+
+Set up credentials at [docs.unsubpost.dev](https://docs.unsubpost.dev) and you're ready to go!
+
 ## Getting Started
 
 Unsubpost supports multiple integration methods to fit your workflow:

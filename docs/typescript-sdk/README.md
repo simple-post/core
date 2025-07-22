@@ -1,68 +1,93 @@
-# Using Unsubpost through the TypeScript SDK
+# TypeScript SDK
 
-The simplest way to use Unsubpost is to integrate it directly into your TypeScript project as an NPM package. It exposes a simple, unified interface for all major social platforms.
+The simplest way to use Unsubpost - integrate directly into your TypeScript project with a unified interface for all social platforms.
+
+## Quick Start
+
+**Already have credentials?** Jump straight to posting:
+
+```typescript
+import { post } from "@unsubpost/unsubpost";
+
+// Single platform
+await post({
+  content: { text: "Hello world!" },
+  platforms: ["x"],
+});
+
+// Multiple platforms
+await post({
+  content: { text: "Cross-platform posting!" },
+  platforms: ["x", "facebook"],
+});
+
+// With media
+await post({
+  content: {
+    text: "Check out this video!",
+    media: [{ type: "video", path: "./video.mp4" }],
+  },
+  platforms: ["x", "youtube"],
+});
+```
+
+**Need credentials?** Get them at [docs.unsubpost.dev](https://docs.unsubpost.dev), then continue below.
 
 ## Installation
 
-You can install the Unsubpost SDK using the npm package. Since this is a private package, you need to setup access to it first. The setup is slightly different depending on the package manager you are using.
+Since this is a private package, you need to set up GitHub access first.
 
-### Create a GitHub Personal Access Token (PAT)
+### 1. Create GitHub Personal Access Token
 
-To create a Personal Access Token (PAT) for the Unsubpost NPM package, go to your [GitHub settings](https://github.com/settings/tokens) and create a new classic token.
+Go to [GitHub settings](https://github.com/settings/tokens) → Generate new token (classic):
 
-1. Click "Generate new token" and choose classic.
-2. Give the token a name, like for example "Unsubpost NPM Access".
-3. Set the expiration date to "No expiration". This is fine since the repository doesn't contain sensitive information.
-4. Select the `read:packages` permission only.
-5. Generate the token and save it - you will need it in the next step.
+- **Name:** "Unsubpost NPM Access"
+- **Expiration:** No expiration
+- **Permissions:** `read:packages` only
 
-### Using `npm`, `yarn` or `pnpm`
+Store the token in an environment variable called `GITHUB_TOKEN` in your `.env` file or shell environment.
 
-If you are using `npm`, `yarn` or `pnpm` as a package manager, you can setup the access to the Unsubpost NPM package by adding the following to your `.npmrc` file:
+### 2. Configure Package Manager
+
+#### npm / yarn v1 / pnpm
+
+Add to `.npmrc`:
 
 ```bash
 @unsubpost:registry=https://npm.pkg.github.com/
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-You can put your token in the `GITHUB_TOKEN` environment variable in your `.env` file or in your shell environment.
+#### yarn v2+
 
-### Using `yarn 2`
+Add to `.yarnrc.yml`:
 
-For newer versions of `yarn` (version 2 and above), you can setup the access to the Unsubpost NPM package by adding the following to your `.yarnrc.yml` file:
-
-```bash
+```yaml
 npmScopes:
   unsubpost:
     npmRegistryServer: "https://npm.pkg.github.com"
     npmAuthToken: "${GITHUB_TOKEN}"
 ```
 
-Again, you can put your token in the `GITHUB_TOKEN` environment variable in your `.env` file or in your shell environment.
-
-### Install the package
-
-You can install the package using your package manager of choice.
+### 3. Install
 
 ```bash
 npm install @unsubpost/unsubpost
-
+# or
 yarn add @unsubpost/unsubpost
-
+# or
 pnpm add @unsubpost/unsubpost
 ```
 
 ## Usage
 
-The Unsubpost SDK offers a unified interface for all major social platforms.
+### Credentials Setup
 
-### Setting up credentials
+Set up credentials using environment variables. Get platform-specific tokens at [docs.unsubpost.dev](https://docs.unsubpost.dev).
 
-Before you can post on a platform, you need to set up the credentials for that that platform. The default way to define the credentials is to use environment variables. You can find details about how to set up the credentials on each platform and the corresponding environment variables in the [interactive UnsubPost Documentation tool](https://docs.unsubpost.dev).
+### Basic Posting
 
-### Posting
-
-After your credentials are set up, you can post with a single call to the `post` function. It takes as input the content you want to post and the platforms you want to post it to.
+The `post()` function takes content and target platforms:
 
 #### Simple post
 
@@ -105,132 +130,141 @@ Map(1) {
 }
 ```
 
-#### Posting meida
+#### Media Posts
 
-Some platforms, like YouTube and Instagram, require posting an image or a video. You can do that by passing a `media` object to the `content` object.
+Post images and videos by adding a `media` array:
 
 ```typescript
+// Single video
 const results = await post({
   content: {
-    text: "Hey, this is my awesome video",
-    media: [{ type: "video", path: "path/to/my/video.mp4", title: "Awesome video" }],
+    text: "Check out my awesome video!",
+    media: [{ type: "video", path: "./video.mp4", title: "My Video" }],
   },
-  platforms: ["x", "facebook", "youtube", "instagram"],
+  platforms: ["x", "youtube", "instagram"],
 });
-```
 
-You can also pass multiple media files as long as the platform supports it:
-
-```typescript
+// Multiple images (carousel)
 const results = await post({
   content: {
-    text: "Hey, look at my awesome photos",
+    text: "Here are some great photos!",
     media: [
-      { type: "image", path: "path/to/image_1.jpg" },
-      { type: "image", path: "path/to/image_2.jpg" },
-      { type: "image", path: "path/to/image_3.jpg" },
+      { type: "image", path: "./image1.jpg" },
+      { type: "image", path: "./image2.jpg" },
+      { type: "image", path: "./image3.jpg" },
     ],
   },
-  platforms: ["x", "facebook", "instagram"],
+  platforms: ["x", "instagram"],
 });
 ```
 
-#### Posting replies
+#### Replies
 
-On some platforms, like for example X, you can reply to posts. You can pass the ID of the post you want to reply to:
+Reply to an X post:
 
 ```typescript
-const results = await post({
-  content: {
-    text: "Hey, this is a reply",
-  },
+await post({
+  content: { text: "Great point!" },
   platforms: ["x"],
   options: {
-    x: {
-      replyToId: "1234567890",
-    },
+    x: { replyToId: "1234567890" },
   },
 });
 ```
 
-The post function returns the IDs of the posts that were created on each platform. You can use them to create threads:
+#### Threads
+
+Create a thread on X:
 
 ```typescript
-const threadContent = ["Hey, this is a test thread. 1/3", "This is post 2/3", "This is post 3/3"];
+const threadPosts = [
+  "This is a thread about TypeScript! 🧵 1/3",
+  "TypeScript gives you better developer experience 2/3",
+  "And helps catch bugs early! 3/3",
+];
 
-let previousTweetId: string | undefined;
+let previousId: string | undefined;
 
-threadContent.forEach(async (content) => {
+for (const text of threadPosts) {
   const results = await post({
-    content: {
-      text: content,
-    },
+    content: { text },
     platforms: ["x"],
     options: {
-      x: previousTweetId ? { replyToId: previousTweetId } : undefined,
+      x: previousId ? { replyToId: previousId } : undefined,
     },
   });
 
-  const tweetId = results.get("x")?.[0]?.id;
-});
+  previousId = results.get("x")?.id;
+}
 ```
 
-#### Posting to on Telegram
+#### Channels and DMs
 
-When posting to Telegram, you can specify the Chat ID to post to.
+Specify which chat to post to:
 
 ```typescript
-const results = await post({
-  content: {
-    text: "Hey, this is a post to Telegram",
-  },
+await post({
+  content: { text: "Hello Telegram!" },
   platforms: ["telegram"],
   options: {
-    telegram: {
-      chatId: "1234567890",
-    },
+    telegram: { chatId: "1234567890" },
   },
 });
 ```
 
-#### Strict mode
+## Configuration Options
 
-Sometimes, the types of content you can post on different platforms is not the same. For example, X allows you to post up to 4 images, while Instagram allows you to post up to 10. In this case, the library will try to post as much as possible on each platform and give you a warning.
+### Strict Mode
 
-If you prefer for the posting to fail if the content is not compatible with the platform, you can set the `strictMode` option to `true`.
+By default, Unsubpost adapts content to platform limits (e.g., X allows 4 images, Instagram allows 10). Enable strict mode to fail instead of adapting:
 
 ```typescript
-const results = await post({
-  content: {
-    text: "Hey, this is a post to Telegram",
-  },
-  platforms: ["x", "facebook", "youtube", "instagram"],
+await post({
+  content: { text: "Cross-platform post" },
+  platforms: ["x", "instagram"],
   options: {
-    common: {
-      strictMode: true,
-    },
+    common: { strictMode: true },
   },
 });
 ```
 
-#### Logging
+### Logging
 
-By default, the library will not output any logs on the console. You will receive any errors in the result of the `post` function. Sometimes though, you might want to see what is happening under the hood. You can do that by setting the `logLevel` option to `info`, `warning` or `error`.
+Control what gets logged to the console:
 
 ```typescript
-const results = await post({
-  content: {
-    text: "Hey, this is a post to Telegram",
-  },
-  platforms: ["x", "facebook", "youtube", "instagram"],
+await post({
+  content: { text: "Debug this post" },
+  platforms: ["x"],
   options: {
-    common: {
-      logLevel: "info",
-    },
+    common: { logLevel: "info" }, // "error" | "warning" | "info"
   },
 });
 ```
 
-#### More examples
+**Log levels:**
 
-For more examples covering all features of each platform, check the [examples](../../examples) directory.
+- `error` - Only errors (default)
+- `warning` - Errors and warnings
+- `info` - Everything
+
+## Plarform Specifics
+
+For detailed platform specific documentation check out the platform specific docs:
+
+- [X](../platforms/X.md)
+- [Facebook](../platforms/Facebook.md)
+- [Instagram](../platforms/Instagram.md)
+- [YouTube](../platforms/YouTube.md)
+- [Telegram](../platforms/Telegram.md)
+
+## Examples
+
+For more examples check out the [`/examples`](../../examples) directory.
+
+## What's Next?
+
+- **Need help with credentials?** → [docs.unsubpost.dev](https://docs.unsubpost.dev)
+- **Want an HTTP API?** → [HTTP Server docs](../http-server/README.md) (coming soon)
+- **Using N8N?** → [N8N Node docs](../n8n-node/README.md) (coming soon)
+- **Found a bug?** → [Open an issue](https://github.com/unsubpost/unsubpost/issues)

@@ -32,7 +32,6 @@ export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchem
 export const CommonOptionsSchema = z.object({
   logLevel: z.enum(["none", "error", "warn", "info"]).optional(),
   strictMode: z.boolean().optional(),
-  privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
 });
 
 export const XOptionsSchema = z.object({
@@ -63,6 +62,7 @@ export const YouTubeOptionsSchema = z.object({
   playlistId: z.string().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
   publishAt: z.date().optional(),
+  privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
   credentials: z
     .object({
       clientId: z.string(),

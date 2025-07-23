@@ -19,10 +19,8 @@ async function main() {
     },
     platforms: ["youtube"],
     options: {
-      common: {
-        privacyStatus: "unlisted",
-      },
       youtube: {
+        privacyStatus: "unlisted",
         tags: ["test", "video"],
         categoryId: "10",
         selfDeclaredMadeForKids: true,

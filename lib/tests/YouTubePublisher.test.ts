@@ -197,10 +197,8 @@ describe("YouTubePublisher", () => {
       };
 
       const optionsWithYouTube: PostOptionsWithCredentials = {
-        common: {
-          privacyStatus: "private",
-        },
         youtube: {
+          privacyStatus: "private",
           tags: ["tag1", "tag2"],
           categoryId: "22",
           playlistId: "playlist_123",
@@ -450,10 +448,8 @@ describe("YouTubePublisher", () => {
       };
 
       const optionsWithPrivacy: PostOptionsWithCredentials = {
-        common: {
-          privacyStatus: "public",
-        },
         youtube: {
+          privacyStatus: "public",
           credentials: {
             clientId: "test_client_id",
             clientSecret: "test_client_secret",

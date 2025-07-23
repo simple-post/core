@@ -19,7 +19,7 @@ async function main() {
     },
     platforms: ["youtube"],
     options: {
-      common: {
+      youtube: {
         privacyStatus: "unlisted",
       },
     },

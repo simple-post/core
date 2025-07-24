@@ -16,7 +16,7 @@
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/UnsubPost/unsubpost.git"
+    "url": "git+https://github.com/UnsubPost/core.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

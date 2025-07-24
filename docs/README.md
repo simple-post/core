@@ -61,6 +61,6 @@ Check out the examples in the [`examples/`](../examples/) directory.
 
 ## Support
 
-- **Issues & Bugs:** [GitHub Issues](https://github.com/unsubpost/unsubpost/issues)
-- **Questions & Discussions:** [GitHub Discussions](https://github.com/unsubpost/unsubpost/discussions)
+- **Issues & Bugs:** [GitHub Issues](https://github.com/unsubpost/core/issues)
+- **Questions & Discussions:** [GitHub Discussions](https://github.com/unsubpost/core/discussions)
 - **Credentials Setup:** [docs.unsubpost.dev](https://docs.unsubpost.dev)

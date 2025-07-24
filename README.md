@@ -83,4 +83,4 @@ This project is under active development with new features added regularly. The 
 
 ## Bugs and Feature Requests
 
-Found a bug or have a feature request? Open an [issue](https://github.com/unsubpost/unsubpost/issues) in this repository. For general discussions, start a thread in the [Discussions](https://github.com/unsubpost/unsubpost/discussions) section.
+Found a bug or have a feature request? Open an [issue](https://github.com/unsubpost/core/issues) in this repository. For general discussions, start a thread in the [Discussions](https://github.com/unsubpost/core/discussions) section.

@@ -267,4 +267,4 @@ For more examples, check out the [`/examples`](../../examples) directory.
 - **Need help with credentials?** → [docs.unsubpost.dev](https://docs.unsubpost.dev)
 - **Want an HTTP API?** → [HTTP Server docs](../http-server/README.md) (coming soon)
 - **Using N8N?** → [N8N Node docs](../n8n-node/README.md) (coming soon)
-- **Found a bug?** → [Open an issue](https://github.com/unsubpost/unsubpost/issues)
+- **Found a bug?** → [Open an issue](https://github.com/unsubpost/core/issues)

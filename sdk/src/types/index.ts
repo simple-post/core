@@ -24,4 +24,11 @@ export interface PostResult {
   error: PostErrorType;
   message?: string;
   details?: any;
+  extraData?: {
+    refreshedCredentials?: {
+      accessToken?: string;
+      refreshToken?: string;
+      expiresAt?: number;
+    };
+  };
 }

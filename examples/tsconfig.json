@@ -1,4 +1,11 @@
 {
   "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@unsubpost/sdk": ["../sdk/src/index.ts"],
+      "@unsubpost/sdk/*": ["../sdk/src/*"]
+    }
+  },
   "include": ["**/*"]
 }

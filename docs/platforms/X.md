@@ -72,4 +72,4 @@ TWITTER_ACCESS_TOKEN=
 TWITTER_ACCESS_SECRET=
 ```
 
-Follow the [X credentials guide](https://docs.unsubpost.dev/dashboard/x) to get your API keys.
+Follow the [X credentials guide](https://docs.unsubpost.dev/x) to get your API keys.

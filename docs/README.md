@@ -27,7 +27,7 @@ const results = await post({
 });
 ```
 
-Follow the interactive [X credentials guide](https://docs.unsubpost.dev/dashboard/x) to get your API keys, and that's it! Check the results to see your post IDs.
+Follow the interactive [X credentials guide](https://docs.unsubpost.dev/x) to get your API keys, and that's it! Check the results to see your post IDs.
 
 ## Integration Options
 

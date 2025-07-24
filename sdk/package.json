@@ -1,6 +1,6 @@
 {
   "name": "@unsubpost/sdk",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Post to all social platforms with one TypeScript library.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
   "type": "module",

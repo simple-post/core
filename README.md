@@ -27,11 +27,11 @@ Unsubpost solves the common pain points developers face when building social med
 ## 🚀 Quick Start
 
 ```bash
-npm install @unsubpost/unsubpost
+npm install @unsubpost/sdk
 ```
 
 ```typescript
-import { post } from "@unsubpost/unsubpost";
+import { post } from "@unsubpost/sdk";
 
 const results = await post({
   content: { text: "Hello world!" },

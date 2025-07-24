@@ -7,7 +7,7 @@ The simplest way to use Unsubpost - integrate directly into your TypeScript proj
 **Already have credentials?** Jump straight to posting:
 
 ```typescript
-import { post } from "@unsubpost/unsubpost";
+import { post } from "@unsubpost/sdk";
 
 // Single platform
 await post({
@@ -72,11 +72,11 @@ npmScopes:
 ### 3. Install
 
 ```bash
-npm install @unsubpost/unsubpost
+npm install @unsubpost/sdk
 # or
-yarn add @unsubpost/unsubpost
+yarn add @unsubpost/sdk
 # or
-pnpm add @unsubpost/unsubpost
+pnpm add @unsubpost/sdk
 ```
 
 ## Usage
@@ -94,7 +94,7 @@ The `post()` function takes content and target platforms:
 Posting text is straightforward:
 
 ```typescript
-import { post } from "@unsubpost/unsubpost";
+import { post } from "@unsubpost/sdk";
 
 post({
   content: {

@@ -3272,9 +3272,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@unsubpost/unsubpost@npm:*, @unsubpost/unsubpost@workspace:lib":
+"@unsubpost/sdk@npm:*, @unsubpost/sdk@workspace:sdk":
   version: 0.0.0-use.local
-  resolution: "@unsubpost/unsubpost@workspace:lib"
+  resolution: "@unsubpost/sdk@workspace:sdk"
   dependencies:
     "@aws-sdk/client-s3": "npm:^3.842.0"
     "@aws-sdk/lib-storage": "npm:^3.842.0"
@@ -8812,7 +8812,7 @@ __metadata:
   resolution: "unsubpost-examples@workspace:examples"
   dependencies:
     "@types/node": "npm:^24.0.0"
-    "@unsubpost/unsubpost": "npm:*"
+    "@unsubpost/sdk": "npm:*"
     dotenv: "npm:^16.5.0"
     tsx: "npm:^4.20.3"
     typescript: "npm:^5.8.3"

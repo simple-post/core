@@ -8,7 +8,7 @@ Get posting in under 5 minutes:
 
 ```bash
 # Install the package
-npm install @unsubpost/unsubpost
+npm install @unsubpost/sdk
 
 # Set your credentials (get them at docs.unsubpost.dev)
 export TWITTER_API_KEY="your_api_key_here"
@@ -18,7 +18,7 @@ export TWITTER_ACCESS_SECRET="your_access_secret_here"
 ```
 
 ```typescript
-import { post } from "@unsubpost/unsubpost";
+import { post } from "@unsubpost/sdk";
 
 // Post to multiple platforms with one call
 const results = await post({

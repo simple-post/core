@@ -1,4 +1,4 @@
-# YouTube Platform Specific Options
+# YouTube Platform-Specific Options
 
 ## Content Support
 
@@ -6,18 +6,18 @@
 - **Required**: Video file + title
 - **Optional**: Description, custom thumbnail (JPG/PNG)
 
-## Posting videos or Shorts
+## Posting Videos or Shorts
 
-You can use the library to post both regular YouTube videos and YouTube Shorts. In fact, the YouTube API doesn't differentiate between the two, so you can use the same code to post both. After uploading the video, YouTube will automatically classify it as a video or a short based on its parameters. To have the video classified as a short, it needs to be:
+You can post both regular YouTube videos and YouTube Shorts using the same code. The YouTube API doesn't differentiate between them — after uploading, YouTube automatically classifies videos based on their parameters. To have a video classified as a Short, it needs to be:
 
-- vertical with resolution of 1080x1920
-- shorter than 60 seconds
+- Vertical with 1080x1920 resolution
+- Shorter than 60 seconds
 
-See the [Shorts example](../../examples//youtube/postShort.ts) for more details.
+See the [Shorts example](../../examples/youtube/postShort.ts) for more details.
 
-## Platform Specific Options
+## Platform-Specific Options
 
-Posting on YouTube supports multiple platform specific options.
+Posting on YouTube supports multiple platform-specific options.
 
 ```typescript
 await post({
@@ -40,15 +40,15 @@ await post({
 
 ### `privacyStatus`
 
-The privacy status of the video. Possible values are `public`, `private` and `unlisted`. Default is `private`.
+The privacy status of the video. Possible values are `public`, `private`, and `unlisted`. Defaults to `private`.
 
 ### `tags`
 
-A list of string tags to add to the video.
+An array of string tags to add to the video.
 
 ### `categoryId`
 
-The category ID to add to the video. There is no fixed category ID list and it needs to be fetched from the YouTube API. The [interactive guide for YouTube](https://docs.unsubpost.dev/dashboard/youtube) will help you get the category ID. Here is a snapshot of the category ID list:
+The category ID for the video. Category IDs vary and must be fetched from the YouTube API. The [interactive YouTube guide](https://docs.unsubpost.dev/dashboard/youtube) will help you get the category ID. Here's a snapshot of common category IDs:
 
 | Category ID | Category Name         |
 | ----------- | --------------------- |
@@ -87,15 +87,15 @@ The category ID to add to the video. There is no fixed category ID list and it n
 
 ### `playlistId`
 
-The playlist ID to add the video to. You can find your playlist ID by going to [YouTube Studio](https://studio.youtube.com/) and clicking on the playlist you want to add the video to. The playlist ID will be in the URL: `https://studio.youtube.com/playlist/<PLAYLIST_ID>/edit`.
+The playlist ID to add the video to. Find your playlist ID by going to [YouTube Studio](https://studio.youtube.com/), clicking on your playlist, and checking the URL: `https://studio.youtube.com/playlist/<PLAYLIST_ID>/edit`.
 
 ### `selfDeclaredMadeForKids`
 
-You can manually set the flag to `true` if the video is made for kids. Default is `false`.
+Set to `true` if the video is made for kids. Defaults to `false`.
 
 ### `publishAt`
 
-You can use this to schedule a video for publication at a specific date and time. You will be able to see the video in YouTube Studio. You can use the JavaScript `Date` type to define the timstamp: `new Date("2030-01-01T12:00:00Z")`
+Schedule a video for publication at a specific date and time. The video will appear in YouTube Studio as scheduled. Use the JavaScript `Date` type to define the timestamp: `new Date("2030-01-01T12:00:00Z")`
 
 ## Examples
 
@@ -141,7 +141,7 @@ const options = {
 
 ## Authentication
 
-To post on YouTube you need to set the following environment variables:
+To post on YouTube, set the following environment variables:
 
 ```bash
 YOUTUBE_CLIENT_ID=

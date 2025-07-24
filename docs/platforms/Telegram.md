@@ -1,4 +1,4 @@
-# Telegram Platform Specific Options
+# Telegram Platform-Specific Options
 
 ## Content Support
 
@@ -7,13 +7,13 @@
 - **Limit**: One media file per message
 - **Requirements**: Must have text OR media
 
-## Platform Specific Options
+## Platform-Specific Options
 
-Posting on Telegram supports the following platform specific options;
+Posting on Telegram supports the following platform-specific options:
 
 ### `chatId`
 
-The ID of the chat you want to post to. Can be used to post to channels, groups or private chats.
+The ID of the chat you want to post to. Use this to post to channels, groups, or private chats.
 
 ```typescript
 await post({
@@ -25,7 +25,7 @@ await post({
 
 ### `parseMode`
 
-The parse mode to use for the message. Can be used to format the message with HTML or Markdown. Possible values are `HTML`, `Markdown` and `MarkdownV2`. Defaults to `HTML`.
+The parse mode for message formatting. Use this to format messages with HTML or Markdown. Possible values are `HTML`, `Markdown`, and `MarkdownV2`. Defaults to `HTML`.
 
 ```typescript
 await post({
@@ -67,7 +67,7 @@ const options = {
 
 ## Authentication
 
-To post on Telegram you need to set the following environment variables:
+To post on Telegram, set the following environment variables:
 
 ```bash
 TELEGRAM_BOT_TOKEN=

@@ -1,11 +1,11 @@
-# Facebook Platform Specific Options
+# Facebook Platform-Specific Options
 
 ## Content Support
 
 - **Text**: Plain text posts with up to 63,206 characters
 - **Images**: Up to 10 per post (JPG, PNG)
 - **Videos**: Single video only (MP4, MOV) with title/description
-- **Restriction**: Videos cannot mix with other media
+- **Restriction**: Videos cannot be mixed with other media
 
 ## Platform Options
 
@@ -19,7 +19,7 @@ facebook: {
 
 ### `publishAt`
 
-You can use this to schedule a post for publication at a specific date and time. You can use the JavaScript `Date` type to define the timstamp: `new Date("2030-01-01T12:00:00Z")`
+Schedule a post for publication at a specific date and time. Use the JavaScript `Date` type to define the timestamp: `new Date("2030-01-01T12:00:00Z")`
 
 ## Examples
 
@@ -68,11 +68,11 @@ const options = {
 
 ## Authentication
 
-To post on a Facebook Page you need to set the following environment variables:
+To post on a Facebook Page, set the following environment variables:
 
 ```bash
 FACEBOOK_PAGE_ACCESS_TOKEN=
 FACEBOOK_PAGE_ID=
 ```
 
-Follow the [Facebook credentials guide](https://docs.unsubpost.dev/dashboard/youtube) to get your API keys.
+Follow the [Facebook credentials guide](https://docs.unsubpost.dev/dashboard/facebook) to get your API keys.

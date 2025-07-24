@@ -35,7 +35,7 @@ await post({
 
 ## Installation
 
-Since this is a private package, you need to set up GitHub access first.
+Since this is a private package, you'll need to set up GitHub access first.
 
 ### 1. Create GitHub Personal Access Token
 
@@ -45,7 +45,7 @@ Go to [GitHub settings](https://github.com/settings/tokens) → Generate new tok
 - **Expiration:** No expiration
 - **Permissions:** `read:packages` only
 
-Store the token in an environment variable called `GITHUB_TOKEN` in your `.env` file or shell environment.
+Store the token as `GITHUB_TOKEN` in your `.env` file or shell environment.
 
 ### 2. Configure Package Manager
 
@@ -104,7 +104,7 @@ post({
 });
 ```
 
-The function returns a `Map` of the results of the posting on each platform, the post ID and the error message if the posting failed.
+The function returns a `Map` of results for each platform, including the post ID and error message if posting failed.
 
 ```typescript
 Map(2) {
@@ -113,7 +113,7 @@ Map(2) {
 }
 ```
 
-In case of an error, the result will contain the error message and the details of the error.
+When errors occur, the result contains the error message and detailed information.
 
 ```typescript
 Map(1) {
@@ -248,9 +248,9 @@ await post({
 - `warning` - Errors and warnings
 - `info` - Everything
 
-## Plarform Specifics
+## Platform Specifics
 
-For detailed platform specific documentation check out the platform specific docs:
+For detailed platform-specific documentation, check out the platform guides:
 
 - [X](../platforms/X.md)
 - [Facebook](../platforms/Facebook.md)
@@ -260,7 +260,7 @@ For detailed platform specific documentation check out the platform specific doc
 
 ## Examples
 
-For more examples check out the [`/examples`](../../examples) directory.
+For more examples, check out the [`/examples`](../../examples) directory.
 
 ## What's Next?
 

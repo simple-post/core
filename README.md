@@ -6,22 +6,22 @@ This repository contains the code and documentation for the Unsubpost library. Y
 
 ## What is Unsubpost?
 
-Unsubpost is a cross-platform social media posting library that lets you post to all major social platforms with one TypeScript library. No subscriptions, no SaaS, just clean code that you own forever.
+Unsubpost is a cross-platform social media posting library that lets you post to all major social platforms with one clean TypeScript library. No subscriptions, no SaaS - just clean code that you own forever.
 
 ### Why Unsubpost?
 
 Unsubpost solves the common pain points developers face when building social media automation:
 
-- **No more monthly subscriptions** - You own the code, no recurring fees
-- **No more poorly documented APIs** - Clean, unified interface across all platforms
-- **No more OAuth headaches** - Built-in helper tools that actually work
+- **No monthly subscriptions** - You own the code, no recurring fees
+- **No poorly documented APIs** - Clean, unified interface across all platforms
+- **No OAuth headaches** - Built-in helper tools that actually work
 - **No vendor lock-in** - Full source code access and control
 
 ### Key Features
 
 - **Unified TypeScript SDK** - One clean, modern interface for all major social platforms
 - **OAuth Helper Tool** - Simple UI and docs to generate all your API tokens in minutes
-- **Full Source Code** - No black boxes, modify and extend as needed
+- **Full Source Code** - No black boxes - modify and extend as needed
 - **Multiple Integration Options** - Use as a library, HTTP API, or N8N nodes
 
 ## 🚀 Quick Start
@@ -83,4 +83,4 @@ This project is under active development with new features added regularly. The 
 
 ## Bugs and Feature Requests
 
-If you encounter any bug or have a specific feature request, feel free to open an [issue](https://github.com/unsubpost/unsubpost/issues) in this repository. If you want to have a more general discussion about something, please start a thread in the [Discussions](https://github.com/unsubpost/unsubpost/discussions) section.
+Found a bug or have a feature request? Open an [issue](https://github.com/unsubpost/unsubpost/issues) in this repository. For general discussions, start a thread in the [Discussions](https://github.com/unsubpost/unsubpost/discussions) section.

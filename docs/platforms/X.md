@@ -7,13 +7,13 @@
 - **Limit**: Maximum 4 media files per post
 - **Requirements**: Must have text OR media (no empty posts)
 
-## Platform Specific Options
+## Platform-Specific Options
 
-Posting on X supports the followind platform specific options;
+Posting on X supports the following platform-specific options:
 
 ### `replyToId`
 
-The ID of the post you want to reply to. Can be used to reply to posts or create threads.
+The ID of the post you want to reply to. Use this to reply to posts or create threads.
 
 ```typescript
 await post({

@@ -184,6 +184,50 @@ describe("FacebookPublisher", () => {
       );
     });
 
+    it("should accept text at the character limit (63,206 characters)", async () => {
+      const textAtLimit = "a".repeat(63_206);
+      const content: Content = {
+        text: textAtLimit,
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { id: "post_at_limit_123" },
+      });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(result).toEqual({ id: "post_at_limit_123", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should throw error for text exceeding character limit", async () => {
+      const textOverLimit = "a".repeat(63_207); // One character over the limit
+      const content: Content = {
+        text: textOverLimit,
+      };
+
+      await expect(publisher.postContent(content, options)).rejects.toThrow(
+        new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Facebook text posts cannot exceed 63,206 characters. Current length: 63207",
+        ),
+      );
+    });
+
+    it("should accept text within character limit", async () => {
+      const textWithinLimit = "a".repeat(1000);
+      const content: Content = {
+        text: textWithinLimit,
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { id: "post_within_limit_123" },
+      });
+
+      const result = await publisher.postContent(content, options);
+
+      expect(result).toEqual({ id: "post_within_limit_123", error: PostErrorType.NO_ERROR });
+    });
+
     it("should handle API errors gracefully", async () => {
       const content: Content = {
         text: "This will fail",

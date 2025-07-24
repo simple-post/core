@@ -15,6 +15,7 @@ import type { AxiosInstance } from "axios";
 const FACEBOOK_API_VERSION = "v23.0";
 
 const MAX_MEDIA_COUNT = 10;
+const MAX_TEXT_LENGTH = 63_206;
 
 export class FacebookPublisher extends Publisher {
   private client: AxiosInstance;
@@ -106,6 +107,14 @@ export class FacebookPublisher extends Publisher {
           throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
         }
       }
+    }
+
+    // Validate text length
+    if (content.text && content.text.length > MAX_TEXT_LENGTH) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        `Facebook text posts cannot exceed ${MAX_TEXT_LENGTH.toLocaleString()} characters. Current length: ${content.text.length}`,
+      );
     }
   }
 

@@ -4,6 +4,8 @@ import { join } from "path";
 
 async function runAllExamples() {
   const examplesDir = join(import.meta.dirname, "..");
+  const excludeFiles = ["postUser.ts"];
+
   const folders = readdirSync(examplesDir).filter((item) => {
     const itemPath = join(examplesDir, item);
     return statSync(itemPath).isDirectory() && item !== "all" && item !== "assets";
@@ -11,7 +13,7 @@ async function runAllExamples() {
 
   for (const folder of folders) {
     const folderPath = join(examplesDir, folder);
-    const tsFiles = readdirSync(folderPath).filter((file) => file.endsWith(".ts"));
+    const tsFiles = readdirSync(folderPath).filter((file) => file.endsWith(".ts") && !excludeFiles.includes(file));
 
     console.log(`\n${"=".repeat(50)}`);
     console.log(`${folder.toUpperCase()} (${tsFiles.length} files)`);

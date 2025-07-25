@@ -41,7 +41,7 @@ export const XAppCredentialsSchema = z.object({
   accessSecret: z.string(),
 });
 
-export const XOAuthCredentialsSchema = z.object({
+export const XUserCredentialsSchema = z.object({
   clientId: z.string(),
   clientSecret: z.string(),
   accessToken: z.string(),
@@ -50,7 +50,7 @@ export const XOAuthCredentialsSchema = z.object({
 });
 
 // Union of the two credential types
-export const XCredentialsSchema = z.union([XAppCredentialsSchema, XOAuthCredentialsSchema]);
+export const XCredentialsSchema = z.union([XAppCredentialsSchema, XUserCredentialsSchema]);
 
 export const XOptionsSchema = z.object({
   replyToId: z.string().optional(),
@@ -128,7 +128,7 @@ export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
 export type CommonOptions = z.infer<typeof CommonOptionsSchema>;
 export type XAppCredentials = z.infer<typeof XAppCredentialsSchema>;
-export type XOAuthCredentials = z.infer<typeof XOAuthCredentialsSchema>;
+export type XUserCredentials = z.infer<typeof XUserCredentialsSchema>;
 export type XCredentials = z.infer<typeof XCredentialsSchema>;
 export type XOptions = z.infer<typeof XOptionsSchema>;
 export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;

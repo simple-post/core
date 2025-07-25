@@ -13,7 +13,7 @@ import type {
   PostOptionsWithCredentials,
   XAppCredentials,
   XCredentials,
-  XOAuthCredentials,
+  XUserCredentials,
 } from "../../types/post";
 import type { TwitterApiv1 } from "twitter-api-v2";
 
@@ -71,7 +71,7 @@ export class XPublisher extends Publisher {
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const expiresAt = this.refreshedCredentials?.expiresAt || (this.credentials as XOAuthCredentials).expiresAt;
+    const expiresAt = this.refreshedCredentials?.expiresAt || (this.credentials as XUserCredentials).expiresAt;
 
     // Consider token expired if it expires within the next 1 minute
     return now >= expiresAt - 60;
@@ -89,7 +89,7 @@ export class XPublisher extends Publisher {
       return;
     }
 
-    const { clientId, clientSecret, refreshToken } = this.credentials as XOAuthCredentials;
+    const { clientId, clientSecret, refreshToken } = this.credentials as XUserCredentials;
     const currentRefreshToken = this.refreshedCredentials?.refreshToken || refreshToken;
 
     try {

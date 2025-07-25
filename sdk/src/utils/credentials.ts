@@ -5,10 +5,10 @@ export const getCredentialsFromEnv = (): PostOptions => {
 
   const envVars = {
     x: {
-      apiKey: process.env.TWITTER_API_KEY,
-      apiSecret: process.env.TWITTER_API_SECRET,
-      accessToken: process.env.TWITTER_ACCESS_TOKEN,
-      accessSecret: process.env.TWITTER_ACCESS_SECRET,
+      apiKey: process.env.X_API_KEY,
+      apiSecret: process.env.X_API_SECRET,
+      accessToken: process.env.X_ACCESS_TOKEN,
+      accessSecret: process.env.X_ACCESS_SECRET,
     },
     telegram: {
       botToken: process.env.TELEGRAM_BOT_TOKEN,

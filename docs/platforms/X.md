@@ -66,10 +66,10 @@ await post({
 To post on X you need to set the following environment variables:
 
 ```bash
-TWITTER_API_KEY=
-TWITTER_API_SECRET=
-TWITTER_ACCESS_TOKEN=
-TWITTER_ACCESS_SECRET=
+X_API_KEY=
+X_API_SECRET=
+X_ACCESS_TOKEN=
+X_ACCESS_SECRET=
 ```
 
 Follow the [X credentials guide](https://docs.unsubpost.dev/x) to get your API keys.

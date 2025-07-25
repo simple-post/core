@@ -1,5 +1,6 @@
 import fs from "node:fs";
 
+import axios from "axios";
 import { TwitterApi } from "twitter-api-v2";
 
 import { XPublisher } from "../src/publishers/x";
@@ -10,9 +11,11 @@ import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 // Mock dependencies
 jest.mock("twitter-api-v2");
 jest.mock("fs");
+jest.mock("axios");
 
 const MockedTwitterApi = TwitterApi as jest.MockedClass<typeof TwitterApi>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe("XPublisher", () => {
   let publisher: XPublisher;
@@ -24,10 +27,10 @@ describe("XPublisher", () => {
     jest.clearAllMocks();
 
     // Set up environment variables
-    process.env.TWITTER_API_KEY = "test_api_key";
-    process.env.TWITTER_API_SECRET = "test_api_secret";
-    process.env.TWITTER_ACCESS_TOKEN = "test_access_token";
-    process.env.TWITTER_ACCESS_SECRET = "test_access_secret";
+    process.env.X_API_KEY = "test_api_key";
+    process.env.X_API_SECRET = "test_api_secret";
+    process.env.X_ACCESS_TOKEN = "test_access_token";
+    process.env.X_ACCESS_SECRET = "test_access_secret";
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
@@ -48,22 +51,24 @@ describe("XPublisher", () => {
 
     // Mock TwitterApi constructor
     MockedTwitterApi.mockImplementation(() => mockTwitterClient);
-
-    // Create a new publisher instance
-    publisher = new XPublisher({
-      x: {
-        credentials: {
-          apiKey: "test_api_key",
-          apiSecret: "test_api_secret",
-          accessToken: "test_access_token",
-          accessSecret: "test_access_secret",
-        },
-      },
-    });
   });
 
-  describe("constructor", () => {
-    it("should initialize with valid credentials", () => {
+  describe("constructor - App Credentials", () => {
+    beforeEach(() => {
+      // Create a new publisher instance with app credentials
+      publisher = new XPublisher({
+        x: {
+          credentials: {
+            apiKey: "test_api_key",
+            apiSecret: "test_api_secret",
+            accessToken: "test_access_token",
+            accessSecret: "test_access_secret",
+          },
+        },
+      });
+    });
+
+    it("should initialize with valid app credentials", () => {
       expect(MockedTwitterApi).toHaveBeenCalledWith({
         appKey: "test_api_key",
         appSecret: "test_api_secret",
@@ -79,7 +84,30 @@ describe("XPublisher", () => {
     });
   });
 
-  describe("postContent", () => {
+  describe("constructor - OAuth User Credentials", () => {
+    const futureTimestamp = Math.floor(Date.now() / 1000) + 7200; // 2 hours from now
+
+    beforeEach(() => {
+      // Create a new publisher instance with OAuth user credentials
+      publisher = new XPublisher({
+        x: {
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            accessToken: "test_oauth_access_token",
+            refreshToken: "test_refresh_token",
+            expiresAt: futureTimestamp,
+          },
+        },
+      });
+    });
+
+    it("should initialize with valid OAuth user credentials", () => {
+      expect(MockedTwitterApi).toHaveBeenCalledWith("test_oauth_access_token");
+    });
+  });
+
+  describe("postContent - App Credentials", () => {
     const options: PostOptionsWithCredentials = {
       x: {
         credentials: {
@@ -90,6 +118,10 @@ describe("XPublisher", () => {
         },
       },
     };
+
+    beforeEach(() => {
+      publisher = new XPublisher(options);
+    });
 
     it("should post text-only content successfully", async () => {
       const content: Content = {
@@ -211,7 +243,235 @@ describe("XPublisher", () => {
     });
   });
 
+  describe("postContent - OAuth User Credentials", () => {
+    const futureTimestamp = Math.floor(Date.now() / 1000) + 7200; // 2 hours from now
+    const nearExpiredTimestamp = Math.floor(Date.now() / 1000) + 30; // 30 seconds from now (within 1 minute buffer)
+
+    const validOAuthOptions: PostOptionsWithCredentials = {
+      x: {
+        credentials: {
+          clientId: "test_client_id",
+          clientSecret: "test_client_secret",
+          accessToken: "test_oauth_access_token",
+          refreshToken: "test_refresh_token",
+          expiresAt: futureTimestamp,
+        },
+      },
+    };
+
+    const expiredOAuthOptions: PostOptionsWithCredentials = {
+      x: {
+        credentials: {
+          clientId: "test_client_id",
+          clientSecret: "test_client_secret",
+          accessToken: "expired_access_token",
+          refreshToken: "test_refresh_token",
+          expiresAt: nearExpiredTimestamp,
+        },
+      },
+    };
+
+    it("should post with valid OAuth credentials without refresh", async () => {
+      publisher = new XPublisher(validOAuthOptions);
+
+      const content: Content = {
+        text: "Hello from OAuth!",
+      };
+
+      mockV2Client.tweet.mockResolvedValue({
+        data: { id: "oauth_tweet_123" },
+      });
+
+      const result = await publisher.postContent(content);
+
+      expect(mockV2Client.tweet).toHaveBeenCalledWith("Hello from OAuth!", {
+        media: undefined,
+        reply: undefined,
+      });
+      expect(result).toEqual({ id: "oauth_tweet_123", error: PostErrorType.NO_ERROR });
+      expect(mockedAxios.post).not.toHaveBeenCalled(); // No refresh needed
+    });
+
+    it("should refresh token when expired and post successfully", async () => {
+      publisher = new XPublisher(expiredOAuthOptions);
+
+      const content: Content = {
+        text: "Hello after refresh!",
+      };
+
+      // Mock the token refresh response
+      const refreshResponse = {
+        data: {
+          access_token: "new_access_token",
+          refresh_token: "new_refresh_token",
+          expires_in: 7200,
+        },
+      };
+      mockedAxios.post.mockResolvedValue(refreshResponse);
+
+      // Mock successful tweet after refresh
+      mockV2Client.tweet.mockResolvedValue({
+        data: { id: "refreshed_tweet_123" },
+      });
+
+      const result = await publisher.postContent(content);
+
+      // Verify token refresh was called
+      expect(mockedAxios.post).toHaveBeenCalledWith("https://api.x.com/2/oauth2/token", expect.any(URLSearchParams), {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from("test_client_id:test_client_secret").toString("base64")}`,
+        },
+      });
+
+      // Verify new TwitterApi instance was created with new token
+      expect(MockedTwitterApi).toHaveBeenCalledWith("new_access_token");
+
+      // Verify tweet was posted
+      expect(mockV2Client.tweet).toHaveBeenCalledWith("Hello after refresh!", {
+        media: undefined,
+        reply: undefined,
+      });
+
+      // Verify result includes refreshed credentials
+      expect(result).toEqual({
+        id: "refreshed_tweet_123",
+        error: PostErrorType.NO_ERROR,
+        extraData: {
+          refreshedCredentials: {
+            accessToken: "new_access_token",
+            refreshToken: "new_refresh_token",
+            expiresAt: expect.any(Number),
+          },
+        },
+      });
+    });
+
+    it("should handle token refresh failure", async () => {
+      publisher = new XPublisher(expiredOAuthOptions);
+
+      const content: Content = {
+        text: "This should fail",
+      };
+
+      // Mock token refresh failure
+      const refreshError = {
+        response: {
+          data: { error: "invalid_grant" },
+        },
+        message: "Request failed",
+      };
+      mockedAxios.post.mockRejectedValue(refreshError);
+
+      await expect(publisher.postContent(content)).rejects.toThrow(
+        new PostError(PostErrorType.CREDENTIALS_ERROR, "Failed to refresh X access token", { error: "invalid_grant" }),
+      );
+    });
+
+    it("should use refreshed token for subsequent requests", async () => {
+      publisher = new XPublisher(expiredOAuthOptions);
+
+      const content: Content = {
+        text: "First post with refresh",
+      };
+
+      // Mock the token refresh response
+      const refreshResponse = {
+        data: {
+          access_token: "new_access_token",
+          refresh_token: "new_refresh_token",
+          expires_in: 7200,
+        },
+      };
+      mockedAxios.post.mockResolvedValue(refreshResponse);
+
+      mockV2Client.tweet.mockResolvedValue({
+        data: { id: "first_tweet" },
+      });
+
+      // First post - should trigger refresh
+      await publisher.postContent(content);
+
+      // Reset mocks for second call
+      jest.clearAllMocks();
+      MockedTwitterApi.mockImplementation(() => mockTwitterClient);
+
+      mockV2Client.tweet.mockResolvedValue({
+        data: { id: "second_tweet" },
+      });
+
+      // Second post - should not trigger refresh (token is still valid)
+      const secondContent: Content = {
+        text: "Second post without refresh",
+      };
+
+      const result = await publisher.postContent(secondContent);
+
+      // Verify no refresh was called
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+
+      // Verify result includes refreshed credentials (from previous refresh)
+      expect(result).toEqual({
+        id: "second_tweet",
+        error: PostErrorType.NO_ERROR,
+        extraData: {
+          refreshedCredentials: {
+            accessToken: "new_access_token",
+            refreshToken: "new_refresh_token",
+            expiresAt: expect.any(Number),
+          },
+        },
+      });
+    });
+
+    it("should post OAuth content with reply successfully", async () => {
+      publisher = new XPublisher(validOAuthOptions);
+
+      const content: Content = {
+        text: "OAuth reply",
+      };
+
+      const replyOptions: PostOptionsWithCredentials = {
+        x: {
+          replyToId: "original_tweet_id",
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            accessToken: "test_oauth_access_token",
+            refreshToken: "test_refresh_token",
+            expiresAt: futureTimestamp,
+          },
+        },
+      };
+
+      mockV2Client.tweet.mockResolvedValue({
+        data: { id: "oauth_reply_tweet" },
+      });
+
+      const result = await publisher.postContent(content, replyOptions);
+
+      expect(mockV2Client.tweet).toHaveBeenCalledWith("OAuth reply", {
+        media: undefined,
+        reply: { in_reply_to_tweet_id: "original_tweet_id" },
+      });
+      expect(result).toEqual({ id: "oauth_reply_tweet", error: PostErrorType.NO_ERROR });
+    });
+  });
+
   describe("post", () => {
+    beforeEach(() => {
+      publisher = new XPublisher({
+        x: {
+          credentials: {
+            apiKey: "test_api_key",
+            apiSecret: "test_api_secret",
+            accessToken: "test_access_token",
+            accessSecret: "test_access_secret",
+          },
+        },
+      });
+    });
+
     it("should post content successfully and return PostResult", async () => {
       const content: Content = {
         text: "Hello, X!",
@@ -252,6 +512,43 @@ describe("XPublisher", () => {
         error: PostErrorType.API_ERROR,
         message: "Failed to post content: Error: API Error",
         details: undefined,
+      });
+    });
+
+    it("should handle OAuth token refresh errors in post method", async () => {
+      const expiredTimestamp = Math.floor(Date.now() / 1000) + 30; // 30 seconds from now
+
+      publisher = new XPublisher({
+        x: {
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            accessToken: "expired_access_token",
+            refreshToken: "test_refresh_token",
+            expiresAt: expiredTimestamp,
+          },
+        },
+      });
+
+      const content: Content = {
+        text: "This should fail due to refresh error",
+      };
+
+      // Mock token refresh failure
+      const refreshError = {
+        response: {
+          data: { error: "invalid_grant" },
+        },
+        message: "Request failed",
+      };
+      mockedAxios.post.mockRejectedValue(refreshError);
+
+      const result = await publisher.post(content);
+
+      expect(result).toEqual({
+        error: PostErrorType.CREDENTIALS_ERROR,
+        message: "Failed to refresh X access token",
+        details: { error: "invalid_grant" },
       });
     });
   });

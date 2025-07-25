@@ -8,6 +8,7 @@
     "x:thread": "tsx x/postThread.ts",
     "x:images": "tsx x/postImages.ts",
     "x:video": "tsx x/postVideo.ts",
+    "x:user": "tsx x/postUser.ts",
     "youtube:video": "tsx youtube/postVideo.ts",
     "youtube:video:full": "tsx youtube/postVideoFull.ts",
     "youtube:short": "tsx youtube/postShort.ts",

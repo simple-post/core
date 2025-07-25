@@ -10,7 +10,7 @@ export class Logger {
   }
 
   private getMessageWithPrefix(message: string | Error) {
-    return `[${this.prefix}] ${message instanceof Error ? message.message : message}`;
+    return `[${this.prefix}] ${message instanceof Error ? message.stack : message}`;
   }
 
   info(message: string | Error) {

@@ -3,8 +3,8 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@unsubpost/sdk": ["../sdk/src/index.ts"],
-      "@unsubpost/sdk/*": ["../sdk/src/*"]
+      "@simple-post/sdk": ["../sdk/src/index.ts"],
+      "@simple-post/sdk/*": ["../sdk/src/*"]
     }
   },
   "include": ["**/*"]

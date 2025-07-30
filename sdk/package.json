@@ -1,5 +1,5 @@
 {
-  "name": "@unsubpost/sdk",
+  "name": "@simple-post/sdk",
   "version": "0.5.1",
   "description": "Post to all social platforms with one TypeScript library.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
@@ -16,7 +16,7 @@
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/UnsubPost/core.git"
+    "url": "git+https://github.com/simple-post/core.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

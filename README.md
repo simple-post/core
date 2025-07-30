@@ -1,16 +1,16 @@
-# Unsubpost
+# SimplePost
 
-Welcome to Unsubpost! This is a monorepo containing all the code for the Unsubpost library and related tools. You have access because you purchased it on [unsubpost.dev](https://unsubpost.dev).
+Welcome to SimplePost! This is a monorepo containing all the code for the SimplePost library and related tools. You have access because you purchased it on [simplepost.dev](https://simplepost.dev).
 
-This repository contains the code and documentation for the Unsubpost library. You also have access to an interactive tool that guides you through obtaining credentials for platform APIs: [docs.unsubpost.dev](https://docs.unsubpost.dev).
+This repository contains the code and documentation for the SimplePost library. You also have access to an interactive tool that guides you through obtaining credentials for platform APIs: [docs.simplepost.dev](https://docs.simplepost.dev).
 
-## What is Unsubpost?
+## What is SimplePost?
 
-Unsubpost is a cross-platform social media posting library that lets you post to all major social platforms with one clean TypeScript library. No subscriptions, no SaaS - just clean code that you own forever.
+SimplePost is a cross-platform social media posting library that lets you post to all major social platforms with one clean TypeScript library. No subscriptions, no SaaS - just clean code that you own forever.
 
-### Why Unsubpost?
+### Why SimplePost?
 
-Unsubpost solves the common pain points developers face when building social media automation:
+SimplePost solves the common pain points developers face when building social media automation:
 
 - **No monthly subscriptions** - You own the code, no recurring fees
 - **No poorly documented APIs** - Clean, unified interface across all platforms
@@ -27,11 +27,11 @@ Unsubpost solves the common pain points developers face when building social med
 ## 🚀 Quick Start
 
 ```bash
-npm install @unsubpost/sdk
+npm install @simple-post/sdk
 ```
 
 ```typescript
-import { post } from "@unsubpost/sdk";
+import { post } from "@simple-post/sdk";
 
 const results = await post({
   content: { text: "Hello world!" },
@@ -39,11 +39,11 @@ const results = await post({
 });
 ```
 
-Set up credentials at [docs.unsubpost.dev](https://docs.unsubpost.dev) and you're ready to go!
+Set up credentials at [docs.simplepost.dev](https://docs.simplepost.dev) and you're ready to go!
 
 ## Getting Started
 
-Unsubpost supports multiple integration methods to fit your workflow:
+SimplePost supports multiple integration methods to fit your workflow:
 
 - **[TypeScript SDK](docs/typescript-sdk/README.md)** - Integrate directly into your TypeScript project
 - **[HTTP API](docs/http-server/README.md)** (coming soon) - Self-host as an HTTP server
@@ -83,4 +83,4 @@ This project is under active development with new features added regularly. The 
 
 ## Bugs and Feature Requests
 
-Found a bug or have a feature request? Open an [issue](https://github.com/unsubpost/core/issues) in this repository. For general discussions, start a thread in the [Discussions](https://github.com/unsubpost/core/discussions) section.
+Found a bug or have a feature request? Open an [issue](https://github.com/simple-post/core/issues) in this repository. For general discussions, start a thread in the [Discussions](https://github.com/simple-post/core/discussions) section.

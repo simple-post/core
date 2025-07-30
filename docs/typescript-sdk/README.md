@@ -1,13 +1,13 @@
 # TypeScript SDK
 
-The simplest way to use Unsubpost - integrate directly into your TypeScript project with a unified interface for all social platforms.
+The simplest way to use SimplePost - integrate directly into your TypeScript project with a unified interface for all social platforms.
 
 ## Quick Start
 
 **Already have credentials?** Jump straight to posting:
 
 ```typescript
-import { post } from "@unsubpost/sdk";
+import { post } from "@simple-post/sdk";
 
 // Single platform
 await post({
@@ -31,7 +31,7 @@ await post({
 });
 ```
 
-**Need credentials?** Get them at [docs.unsubpost.dev](https://docs.unsubpost.dev), then continue below.
+**Need credentials?** Get them at [docs.simplepost.dev](https://docs.simplepost.dev), then continue below.
 
 ## Installation
 
@@ -41,7 +41,7 @@ Since this is a private package, you'll need to set up GitHub access first.
 
 Go to [GitHub settings](https://github.com/settings/tokens) → Generate new token (classic):
 
-- **Name:** "Unsubpost NPM Access"
+- **Name:** "SimplePost NPM Access"
 - **Expiration:** No expiration
 - **Permissions:** `read:packages` only
 
@@ -54,7 +54,7 @@ Store the token as `GITHUB_TOKEN` in your `.env` file or shell environment.
 Add to `.npmrc`:
 
 ```bash
-@unsubpost:registry=https://npm.pkg.github.com/
+@simple-post:registry=https://npm.pkg.github.com/
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
@@ -64,7 +64,7 @@ Add to `.yarnrc.yml`:
 
 ```yaml
 npmScopes:
-  unsubpost:
+  simple-post:
     npmRegistryServer: "https://npm.pkg.github.com"
     npmAuthToken: "${GITHUB_TOKEN}"
 ```
@@ -72,18 +72,18 @@ npmScopes:
 ### 3. Install
 
 ```bash
-npm install @unsubpost/sdk
+npm install @simple-post/sdk
 # or
-yarn add @unsubpost/sdk
+yarn add @simple-post/sdk
 # or
-pnpm add @unsubpost/sdk
+pnpm add @simple-post/sdk
 ```
 
 ## Usage
 
 ### Credentials Setup
 
-Set up credentials using environment variables. Get platform-specific tokens at [docs.unsubpost.dev](https://docs.unsubpost.dev).
+Set up credentials using environment variables. Get platform-specific tokens at [docs.simplepost.dev](https://docs.simplepost.dev).
 
 ### Basic Posting
 
@@ -94,7 +94,7 @@ The `post()` function takes content and target platforms:
 Posting text is straightforward:
 
 ```typescript
-import { post } from "@unsubpost/sdk";
+import { post } from "@simple-post/sdk";
 
 post({
   content: {
@@ -216,7 +216,7 @@ await post({
 
 ### Strict Mode
 
-By default, Unsubpost adapts content to platform limits (e.g., X allows 4 images, Instagram allows 10). Enable strict mode to fail instead of adapting:
+By default, SimplePost adapts content to platform limits (e.g., X allows 4 images, Instagram allows 10). Enable strict mode to fail instead of adapting:
 
 ```typescript
 await post({
@@ -264,7 +264,7 @@ For more examples, check out the [`/examples`](../../examples) directory.
 
 ## What's Next?
 
-- **Need help with credentials?** → [docs.unsubpost.dev](https://docs.unsubpost.dev)
+- **Need help with credentials?** → [docs.simplepost.dev](https://docs.simplepost.dev)
 - **Want an HTTP API?** → [HTTP Server docs](../http-server/README.md) (coming soon)
 - **Using N8N?** → [N8N Node docs](../n8n-node/README.md) (coming soon)
-- **Found a bug?** → [Open an issue](https://github.com/unsubpost/core/issues)
+- **Found a bug?** → [Open an issue](https://github.com/simple-post/core/issues)

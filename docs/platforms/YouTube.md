@@ -48,7 +48,7 @@ An array of string tags to add to the video.
 
 ### `categoryId`
 
-The category ID for the video. Category IDs vary and must be fetched from the YouTube API. The [interactive YouTube guide](https://docs.unsubpost.dev/youtube) will help you get the category ID. Here's a snapshot of common category IDs:
+The category ID for the video. Category IDs vary and must be fetched from the YouTube API. The [interactive YouTube guide](https://docs.simplepost.dev/youtube) will help you get the category ID. Here's a snapshot of common category IDs:
 
 | Category ID | Category Name         |
 | ----------- | --------------------- |
@@ -149,4 +149,4 @@ YOUTUBE_CLIENT_SECRET=
 YOUTUBE_REFRESH_TOKEN=
 ```
 
-Follow the [YouTube credentials guide](https://docs.unsubpost.dev/youtube) to get your API keys.
+Follow the [YouTube credentials guide](https://docs.simplepost.dev/youtube) to get your API keys.

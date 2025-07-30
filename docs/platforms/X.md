@@ -72,7 +72,7 @@ X_ACCESS_TOKEN=
 X_ACCESS_SECRET=
 ```
 
-Follow the [X credentials guide](https://docs.unsubpost.dev/x) to get your API keys.
+Follow the [X credentials guide](https://docs.simplepost.dev/x) to get your API keys.
 
 ## Posting on behalf of a user
 

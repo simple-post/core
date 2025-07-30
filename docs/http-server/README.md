@@ -1,3 +1,3 @@
-# Using Unsubpost through the HTTP API
+# Using SimplePost through the HTTP API
 
 Coming soon...

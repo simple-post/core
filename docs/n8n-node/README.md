@@ -1,3 +1,3 @@
-# Using Unsubpost through the N8N node
+# Using SimplePost through the N8N node
 
 Coming soon...

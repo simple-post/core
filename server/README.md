@@ -14,6 +14,8 @@ The SimplePost server provides a REST API endpoint that allows you to post conte
 - **Long timeouts** - Configured for long-running social media operations (10 minutes)
 - **Validation** - Uses the same Zod schemas as the SDK for consistent validation
 - **Temporary file handling** - Automatically manages uploaded files and cleanup
+- **Process management** - PM2 integration for production deployments
+- **Docker support** - Containerized deployment with health checks
 
 ## Installation
 
@@ -38,17 +40,50 @@ All social media platform credentials should be configured as environment variab
 
 ### Starting the Server
 
-Development mode (with auto-reload):
+#### Development Mode
 
 ```bash
 yarn dev
 ```
 
-Production build and start:
+#### Production (Local)
 
 ```bash
 yarn build
 yarn start
+```
+
+#### Production with PM2
+
+```bash
+yarn build
+yarn start:pm2
+```
+
+#### Docker Deployment
+
+Build and run with Docker:
+
+```bash
+# Build the Docker image
+yarn docker:build
+
+# Run with environment file
+yarn docker:run
+```
+
+Or manually:
+
+```bash
+# Build the image
+docker build -t simple-post-server .
+
+# Run the container
+docker run -p 3000:3000 \
+  -e SIMPLE_POST_API_KEY=your-secret-api-key \
+  -e X_API_KEY=your-x-api-key \
+  -e TELEGRAM_BOT_TOKEN=your-telegram-token \
+  simple-post-server
 ```
 
 ### API Endpoints
@@ -240,9 +275,74 @@ Example error response:
 - File size limits: 100MB per file, maximum 20 files per request
 - Request timeouts prevent long-running requests from consuming resources
 
+## Deployment
+
+### PM2 Production Deployment
+
+The server includes PM2 configuration for production deployments with:
+
+- **Process clustering** - Automatic load balancing
+- **Auto-restart** - Automatic recovery from crashes
+- **Memory management** - Restart if memory usage exceeds 1GB
+- **Log management** - Structured logging with rotation
+- **Health monitoring** - Built-in health checks
+
+PM2 configuration is in `ecosystem.config.js`:
+
+```javascript
+{
+  name: "simple-post-server",
+  script: "./dist/index.js",
+  instances: 1,
+  exec_mode: "cluster",
+  max_memory_restart: "1G",
+  // ... additional configuration
+}
+```
+
+### Docker Deployment
+
+The included Dockerfile provides:
+
+- **Multi-stage build** - Optimized image size
+- **Security** - Non-root user execution
+- **Health checks** - Built-in container health monitoring
+- **PM2 runtime** - Process management in containers
+
+Docker features:
+
+- Based on Node.js 20 Alpine for minimal size
+- PM2 for process management and monitoring
+- Automatic health checks every 30 seconds
+- Proper signal handling for graceful shutdowns
+
+### Docker Compose Deployment
+
+For simplified container orchestration, use the included `docker-compose.yml`:
+
+```bash
+# Start the service
+yarn docker:compose
+
+# View logs
+yarn docker:compose:logs
+
+# Stop the service
+yarn docker:compose:down
+```
+
+The Docker Compose setup includes:
+
+- Automatic container restart policies
+- Health check configuration
+- Network isolation
+- Optional persistent log volume mounting
+
 ## Development
 
 ### Scripts
+
+#### Development & Build
 
 - `yarn dev` - Start development server with auto-reload
 - `yarn build` - Build for production
@@ -250,6 +350,27 @@ Example error response:
 - `yarn check` - Run TypeScript and linting checks
 - `yarn lint` - Run ESLint
 - `yarn format` - Check code formatting
+
+#### PM2 Process Management
+
+- `yarn start:pm2` - Start server with PM2
+- `yarn stop:pm2` - Stop PM2 processes
+- `yarn restart:pm2` - Restart PM2 processes
+- `yarn logs:pm2` - View PM2 logs
+- `yarn monit:pm2` - Open PM2 monitoring dashboard
+
+#### Docker Commands
+
+- `yarn docker:build` - Build Docker image
+- `yarn docker:run` - Run Docker container with env file
+- `yarn docker:dev` - Run Docker container in development mode
+
+#### Docker Compose Commands
+
+- `yarn docker:compose` - Start services with Docker Compose
+- `yarn docker:compose:build` - Build and start services
+- `yarn docker:compose:logs` - View container logs
+- `yarn docker:compose:down` - Stop and remove containers
 
 ### Project Structure
 

@@ -61,9 +61,9 @@ This project is under active development with new features added regularly. The 
 | --------- | --------- | ---- | -------------------------- |
 | X         | ✅        | ✅   | Available                  |
 | Telegram  | ✅        | ✅   | Available                  |
-| YouTube   | ✅        | ⚠️   | Coming next                |
-| Facebook  | ✅        | ⚠️   | Coming next                |
-| Instagram | ✅        | ⚠️   | Coming next                |
+| Facebook  | ✅        | ✅   | Available                  |
+| Instagram | ✅        | ✅   | Available                  |
+| YouTube   | ✅        | ⚠️   | Coming soon...             |
 | TikTok    | ❌        | ❌   | Planned for the next batch |
 | BlueSky   | ❌        | ❌   | Planned for the next batch |
 | Threads   | ❌        | ❌   | Planned for the next batch |

@@ -28,7 +28,7 @@
     "prepack": "yarn build"
   },
   "dependencies": {
-    "@simple-post/sdk": "workspace:*",
+    "@simple-post/sdk": "*",
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
     "pm2": "^5.4.3",

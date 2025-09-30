@@ -2293,7 +2293,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@simple-post/sdk@npm:*, @simple-post/sdk@workspace:*, @simple-post/sdk@workspace:sdk":
+"@simple-post/sdk@npm:*, @simple-post/sdk@workspace:sdk":
   version: 0.0.0-use.local
   resolution: "@simple-post/sdk@workspace:sdk"
   dependencies:
@@ -2334,7 +2334,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@simple-post/server@workspace:server"
   dependencies:
-    "@simple-post/sdk": "workspace:*"
+    "@simple-post/sdk": "npm:*"
     "@types/express": "npm:^5.0.0"
     "@types/multer": "npm:^1.4.12"
     "@types/node": "npm:^22.10.7"

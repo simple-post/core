@@ -7,6 +7,10 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@simple-post/sdk": ["./sdk/src/index.ts"]
+    }
   }
 }

@@ -8,4 +8,5 @@ export default defineConfig({
   sourcemap: true,
   outDir: "dist",
   target: "node20",
+  tsconfig: "tsconfig.json",
 });

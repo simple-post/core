@@ -6,7 +6,7 @@
     "packages": [
       "sdk",
       "examples",
-      "server/*"
+      "server"
     ]
   },
   "scripts": {

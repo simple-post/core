@@ -102,6 +102,19 @@ export const InstagramOptionsSchema = z.object({
     .optional(),
 });
 
+export const TikTokOptionsSchema = z.object({
+  publishMode: z.enum(["draft", "public"]).optional(),
+  visibility: z.enum(["public", "friends", "private"]).optional(),
+  allowComment: z.boolean().optional(),
+  allowDuet: z.boolean().optional(),
+  allowStitch: z.boolean().optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+    })
+    .optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -114,6 +127,7 @@ export const PostOptionsSchema = z.object({
   youtube: YouTubeOptionsSchema.optional(),
   facebook: FacebookOptionsSchema.optional(),
   instagram: InstagramOptionsSchema.optional(),
+  tiktok: TikTokOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -135,6 +149,7 @@ export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;
 export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
+export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -153,6 +168,9 @@ export type FacebookOptionsWithCredentials = FacebookOptions & {
 export type InstagramOptionsWithCredentials = InstagramOptions & {
   credentials: NonNullable<InstagramOptions["credentials"]>;
 };
+export type TikTokOptionsWithCredentials = TikTokOptions & {
+  credentials: NonNullable<TikTokOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -160,4 +178,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   youtube?: YouTubeOptionsWithCredentials;
   facebook?: FacebookOptionsWithCredentials;
   instagram?: InstagramOptionsWithCredentials;
+  tiktok?: TikTokOptionsWithCredentials;
 };

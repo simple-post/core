@@ -32,6 +32,7 @@ export type {
   YouTubeOptions,
   FacebookOptions,
   InstagramOptions,
+  TikTokOptions,
   LogLevel,
 } from "./types/post";
 
@@ -53,4 +54,5 @@ export {
   YouTubeOptionsSchema,
   FacebookOptionsSchema,
   InstagramOptionsSchema,
+  TikTokOptionsSchema,
 } from "./types/post";

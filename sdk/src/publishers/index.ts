@@ -1,6 +1,7 @@
 import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";
 import { TelegramPublisher } from "./telegram";
+import { TikTokPublisher } from "./tiktok";
 import { XPublisher } from "./x";
 import { YouTubePublisher } from "./youtube";
 
@@ -23,6 +24,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "telegram": {
       return new TelegramPublisher(options);
+    }
+    case "tiktok": {
+      return new TikTokPublisher(options);
     }
   }
 

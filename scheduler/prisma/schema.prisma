@@ -55,6 +55,8 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  // Store account profile information (username, display name, email, etc.)
+  profile               String?
 
   @@map("account")
 }

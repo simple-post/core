@@ -29,12 +29,16 @@ async function main() {
     platforms: ["tiktok"],
     options: {
       tiktok: {
-        // Save as draft for review before publishing
-        publishMode: "draft", // or "public" to publish immediately
-        visibility: "public", // "public", "friends", or "private"
+        // Choose publish mode:
+        // "public" - publishes immediately to TikTok
+        // "draft" - uploads to inbox for later review
+        publishMode: "draft", // or "public" for immediate publishing
+
+        // The following options only apply when publishMode is "public":
+        // NOTE: For unaudited apps, use visibility: "private"
+        visibility: "private", // "public", "friends", or "private"
         allowComment: true, // Allow users to comment
-        allowDuet: false, // Disable duets for photo posts
-        allowStitch: false, // Disable stitching for photo posts
+        // Note: TikTok only uses the first image for photo posts
       },
     },
   });

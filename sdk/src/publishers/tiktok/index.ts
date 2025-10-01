@@ -18,14 +18,14 @@ const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 
 interface TikTokUploadInitResponse {
   data: {
+    publish_id: string;
     upload_url: string;
-    upload_id: string;
   };
 }
 
-interface TikTokUploadCompleteResponse {
+interface TikTokInboxUploadInitResponse {
   data: {
-    publish_id: string;
+    upload_url: string;
   };
 }
 
@@ -79,12 +79,26 @@ export class TikTokPublisher extends Publisher {
     return { chunkSize, totalChunks };
   }
 
-  private async initVideoUpload(media: Media): Promise<TikTokUploadInitResponse> {
+  private async initVideoUploadDirect(
+    media: Media,
+    content: Content,
+    options?: PostOptionsWithCredentials,
+  ): Promise<TikTokUploadInitResponse> {
     const fileSize = this.getFileSize(media.path);
     const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
 
     try {
-      const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/inbox/video/init/", {
+      // Use Direct Post API - includes post_info in the init request for immediate publishing
+      const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/video/init/", {
+        post_info: {
+          title: content.text || "",
+          privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
+          disable_comment: !(options?.tiktok?.allowComment ?? true),
+          disable_duet: !(options?.tiktok?.allowDuet ?? true),
+          disable_stitch: !(options?.tiktok?.allowStitch ?? true),
+          brand_content_toggle: false,
+          brand_organic_toggle: false,
+        },
         source_info: {
           source: "FILE_UPLOAD",
           video_size: fileSize,
@@ -96,16 +110,73 @@ export class TikTokPublisher extends Publisher {
       return response.data;
     } catch (error: any) {
       this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to initialize video upload: ${error.message}`, error);
+      const errorCode = error.response?.data?.error?.code;
+      const errorMessage = error.response?.data?.error?.message || error.message;
+
+      // Provide helpful context for common errors
+      if (errorCode === "unaudited_client_can_only_post_to_private_accounts") {
+        throw new PostError(
+          PostErrorType.API_ERROR,
+          `TikTok API Error: Unaudited apps can only post to private accounts. Please set your TikTok account to private in the TikTok app settings (Settings → Privacy → Private Account), or get your app audited at https://developers.tiktok.com/doc/content-sharing-guidelines/`,
+          error,
+        );
+      }
+
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to initialize video upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
+        error,
+      );
     }
   }
 
-  private async initPhotoUpload(media: Media): Promise<TikTokUploadInitResponse> {
+  private async initVideoUploadDraft(media: Media): Promise<TikTokInboxUploadInitResponse> {
     const fileSize = this.getFileSize(media.path);
     const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
 
     try {
-      const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/inbox/photo/init/", {
+      // Use Upload Video API (inbox) - for draft uploads
+      const response = await this.client.post<TikTokInboxUploadInitResponse>("/v2/post/publish/inbox/video/init/", {
+        source_info: {
+          source: "FILE_UPLOAD",
+          video_size: fileSize,
+          chunk_size: chunkSize,
+          total_chunk_count: totalChunks,
+        },
+      });
+
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(error);
+      const errorCode = error.response?.data?.error?.code;
+      const errorMessage = error.response?.data?.error?.message || error.message;
+
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to initialize draft video upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
+        error,
+      );
+    }
+  }
+
+  private async initPhotoUploadDirect(
+    media: Media,
+    content: Content,
+    options?: PostOptionsWithCredentials,
+  ): Promise<TikTokUploadInitResponse> {
+    const fileSize = this.getFileSize(media.path);
+    const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
+
+    try {
+      // Use Direct Post API for photos - includes post_info in the init request for immediate publishing
+      const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/photo/init/", {
+        post_info: {
+          title: content.text || "",
+          privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
+          disable_comment: !(options?.tiktok?.allowComment ?? true),
+          brand_content_toggle: false,
+          brand_organic_toggle: false,
+        },
         source_info: {
           source: "FILE_UPLOAD",
           photo_size: fileSize,
@@ -117,7 +188,52 @@ export class TikTokPublisher extends Publisher {
       return response.data;
     } catch (error: any) {
       this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to initialize photo upload: ${error.message}`, error);
+      const errorCode = error.response?.data?.error?.code;
+      const errorMessage = error.response?.data?.error?.message || error.message;
+
+      // Provide helpful context for common errors
+      if (errorCode === "unaudited_client_can_only_post_to_private_accounts") {
+        throw new PostError(
+          PostErrorType.API_ERROR,
+          `TikTok API Error: Unaudited apps can only post to private accounts. Please set your TikTok account to private in the TikTok app settings (Settings → Privacy → Private Account), or get your app audited at https://developers.tiktok.com/doc/content-sharing-guidelines/`,
+          error,
+        );
+      }
+
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to initialize photo upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
+        error,
+      );
+    }
+  }
+
+  private async initPhotoUploadDraft(media: Media): Promise<TikTokInboxUploadInitResponse> {
+    const fileSize = this.getFileSize(media.path);
+    const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
+
+    try {
+      // Use Upload Photo API (inbox) - for draft uploads
+      const response = await this.client.post<TikTokInboxUploadInitResponse>("/v2/post/publish/inbox/photo/init/", {
+        source_info: {
+          source: "FILE_UPLOAD",
+          photo_size: fileSize,
+          chunk_size: chunkSize,
+          total_chunk_count: totalChunks,
+        },
+      });
+
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(error);
+      const errorCode = error.response?.data?.error?.code;
+      const errorMessage = error.response?.data?.error?.message || error.message;
+
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to initialize draft photo upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
+        error,
+      );
     }
   }
 
@@ -159,61 +275,6 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private async completeVideoUpload(uploadId: string): Promise<TikTokUploadCompleteResponse> {
-    try {
-      const response = await this.client.post<TikTokUploadCompleteResponse>("/v2/post/publish/inbox/video/complete/", {
-        upload_id: uploadId,
-      });
-
-      return response.data;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to complete video upload: ${error.message}`, error);
-    }
-  }
-
-  private async completePhotoUpload(uploadId: string): Promise<TikTokUploadCompleteResponse> {
-    try {
-      const response = await this.client.post<TikTokUploadCompleteResponse>("/v2/post/publish/inbox/photo/complete/", {
-        upload_id: uploadId,
-      });
-
-      return response.data;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to complete photo upload: ${error.message}`, error);
-    }
-  }
-
-  private async publishContent(
-    publishId: string,
-    content: Content,
-    options?: PostOptionsWithCredentials,
-  ): Promise<string> {
-    try {
-      const publishPayload = {
-        publish_id: publishId,
-        text: content.text || "",
-        privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
-        disable_comment: !(options?.tiktok?.allowComment ?? true),
-        disable_duet: !(options?.tiktok?.allowDuet ?? true),
-        disable_stitch: !(options?.tiktok?.allowStitch ?? true),
-        brand_content_toggle: false,
-        brand_organic_toggle: false,
-      };
-
-      const endpoint =
-        options?.tiktok?.publishMode === "draft" ? "/v2/post/publish/content/draft/" : "/v2/post/publish/content/";
-
-      const response = await this.client.post(endpoint, publishPayload);
-
-      return response.data.share_id || response.data.id || publishId;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to publish content: ${error.message}`, error);
-    }
-  }
-
   private mapVisibilityToPrivacyLevel(visibility?: string): string {
     switch (visibility) {
       case "public": {
@@ -231,19 +292,34 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private async uploadMedia(media: Media): Promise<string> {
-    // Initialize upload based on media type
-    const initResponse = await (media.type === "video" ? this.initVideoUpload(media) : this.initPhotoUpload(media));
+  private async uploadMedia(media: Media, content: Content, options?: PostOptionsWithCredentials): Promise<string> {
+    const isDraft = options?.tiktok?.publishMode === "draft";
 
-    // Upload the file
-    await this.uploadFileChunks(initResponse.data.upload_url, media.path);
+    if (isDraft) {
+      // Use Upload Video/Photo API (inbox) for draft mode
+      const initResponse = await (media.type === "video"
+        ? this.initVideoUploadDraft(media)
+        : this.initPhotoUploadDraft(media));
 
-    // Complete upload based on media type
-    const completeResponse = await (media.type === "video"
-      ? this.completeVideoUpload(initResponse.data.upload_id)
-      : this.completePhotoUpload(initResponse.data.upload_id));
+      // Upload the file to TikTok servers
+      await this.uploadFileChunks(initResponse.data.upload_url, media.path);
 
-    return completeResponse.data.publish_id;
+      // For draft mode, the content goes to inbox - return a placeholder ID
+      // Note: TikTok doesn't provide a publish_id for draft uploads
+      return "draft_uploaded";
+    } else {
+      // Use Direct Post API for immediate publishing
+      const initResponse = await (media.type === "video"
+        ? this.initVideoUploadDirect(media, content, options)
+        : this.initPhotoUploadDirect(media, content, options));
+
+      // Upload the file to TikTok servers
+      await this.uploadFileChunks(initResponse.data.upload_url, media.path);
+
+      // With Direct Post API, the content is automatically published after upload
+      // Return the publish_id for status tracking
+      return initResponse.data.publish_id;
+    }
   }
 
   private validate(content: Content): void {
@@ -296,13 +372,11 @@ export class TikTokPublisher extends Publisher {
       // Get the first media item (TikTok only supports single media)
       const media = content.media![0];
 
-      // Upload the media
-      const publishId = await this.uploadMedia(media);
+      // Upload the media - uses Direct Post API for immediate publishing or Upload API for drafts
+      // Based on options.tiktok.publishMode: "draft" goes to inbox, otherwise publishes immediately
+      const publishId = await this.uploadMedia(media, content, options);
 
-      // Publish or save as draft
-      const finalId = await this.publishContent(publishId, content, options);
-
-      return { id: finalId, error: PostErrorType.NO_ERROR };
+      return { id: publishId, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
       if (error instanceof PostError) throw error;
 

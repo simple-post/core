@@ -20,9 +20,14 @@ async function main() {
     platforms: ["tiktok"],
     options: {
       tiktok: {
-        // Publish immediately to public (default behavior)
-        publishMode: "public", // or "draft" to save as draft
-        visibility: "public", // "public", "friends", or "private"
+        // Choose publish mode:
+        // "public" - publishes immediately to TikTok (Direct Post API)
+        // "draft" - uploads to inbox for later review (Upload Video API)
+        publishMode: "draft", // or "public" for immediate publishing
+
+        // The following options only apply when publishMode is "public":
+        // NOTE: For unaudited apps, use visibility: "private" and ensure your TikTok account is set to private
+        visibility: "private", // "public", "friends", or "private"
         allowComment: true, // Allow users to comment
         allowDuet: true, // Allow users to duet with this video
         allowStitch: true, // Allow users to stitch this video

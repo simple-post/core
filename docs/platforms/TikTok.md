@@ -6,7 +6,9 @@ The TikTok publisher allows you to post videos and photos to TikTok using the Ti
 
 - **Video Upload**: Upload MP4 videos up to 4GB
 - **Photo Upload**: Upload JPEG/PNG images up to 50MB
-- **Draft Mode**: Save content as draft or publish immediately
+- **Dual Publishing Modes**:
+  - **Direct Post**: Automatically publishes content immediately
+  - **Draft Upload**: Uploads content to your TikTok inbox for later review and publishing
 - **Privacy Controls**: Set visibility to public, friends only, or private
 - **Interaction Settings**: Control comments, duets, and stitching
 - **Chunked Upload**: Handles large files with efficient chunked uploading
@@ -15,13 +17,22 @@ The TikTok publisher allows you to post videos and photos to TikTok using the Ti
 
 ### TikTok-Specific Options
 
-| Option         | Type                                 | Default    | Description                                     |
-| -------------- | ------------------------------------ | ---------- | ----------------------------------------------- |
-| `publishMode`  | `"draft" \| "public"`                | `"public"` | Whether to save as draft or publish immediately |
-| `visibility`   | `"public" \| "friends" \| "private"` | `"public"` | Who can view the content                        |
-| `allowComment` | `boolean`                            | `true`     | Allow users to comment                          |
-| `allowDuet`    | `boolean`                            | `true`     | Allow users to create duets                     |
-| `allowStitch`  | `boolean`                            | `true`     | Allow users to stitch the video                 |
+| Option         | Type                                 | Default    | Description                                                        |
+| -------------- | ------------------------------------ | ---------- | ------------------------------------------------------------------ |
+| `publishMode`  | `"draft" \| "public"`                | `"public"` | `"public"` for immediate publishing, `"draft"` for inbox upload    |
+| `visibility`   | `"public" \| "friends" \| "private"` | `"public"` | Who can view the content (only for `publishMode: "public"`)        |
+| `allowComment` | `boolean`                            | `true`     | Allow users to comment (only for `publishMode: "public"`)          |
+| `allowDuet`    | `boolean`                            | `true`     | Allow users to create duets (only for `publishMode: "public"`)     |
+| `allowStitch`  | `boolean`                            | `true`     | Allow users to stitch the video (only for `publishMode: "public"`) |
+
+## Important Notes for Unaudited Apps
+
+⚠️ **Unaudited TikTok apps have restrictions:**
+
+- Your TikTok account **must be set to private** to use this API
+- To set your account to private: Open TikTok app → Settings → Privacy → Private Account
+- Once your app is audited by TikTok, you can post publicly
+- [Learn more about app review](https://developers.tiktok.com/doc/content-sharing-guidelines/)
 
 ## Content Requirements
 
@@ -46,10 +57,13 @@ The TikTok publisher allows you to post videos and photos to TikTok using the Ti
 
 ## Examples
 
-### Video Upload
+### Video Upload (Direct Post)
+
+Publish video immediately to TikTok:
 
 ```typescript
-const content = {
+const result = await post({
+  content: {
     text: "Check out this awesome video! 🎥✨ #viral #fyp #trending",
     media: [
       {
@@ -63,19 +77,49 @@ const content = {
   platforms: ["tiktok"],
   options: {
     tiktok: {
-      publishMode: "public"; // or "draft"
-      visibility: "public"; // "public", "friends", or "private"
-      allowComment: true;
-      allowDuet: true;
-      allowStitch: true;
-    };
-  };
+      publishMode: "public", // Publish immediately
+      // Note: Use "private" for unaudited apps
+      visibility: "private", // "public", "friends", or "private"
+      allowComment: true,
+      allowDuet: true,
+      allowStitch: true,
+    },
+  },
+});
 ```
 
-### Photo Upload
+### Video Upload to Draft
+
+Upload video to your TikTok inbox for later review and publishing in the app:
 
 ```typescript
-const content = {
+const result = await post({
+  content: {
+    text: "Check out this awesome video! 🎥✨ #viral #fyp #trending",
+    media: [
+      {
+        type: "video",
+        path: "./video.mp4",
+        title: "My Amazing TikTok Video",
+        description: "A fun and engaging video for TikTok!",
+      },
+    ],
+  },
+  platforms: ["tiktok"],
+  options: {
+    tiktok: {
+      publishMode: "draft", // Upload to inbox (drafts)
+      // Note: Privacy settings are set when you publish from the TikTok app
+    },
+  },
+});
+```
+
+### Photo Upload (Direct Post)
+
+```typescript
+const result = await post({
+  content: {
     text: "Amazing memories captured! 📸 #memories #photooftheday #aesthetic",
     media: [
       {
@@ -88,13 +132,35 @@ const content = {
   platforms: ["tiktok"],
   options: {
     tiktok: {
-      publishMode: "draft"; // Save as draft for review
-      visibility: "public";
-      allowComment: true;
-      allowDuet: false; // Typically disabled for photos
-      allowStitch: false; // Typically disabled for photos
-    };
-  };
+      publishMode: "public", // Publish immediately
+      visibility: "private", // Use "private" for unaudited apps
+      allowComment: true,
+    },
+  },
+});
+```
+
+### Photo Upload to Draft
+
+```typescript
+const result = await post({
+  content: {
+    text: "Amazing memories captured! 📸 #memories #photooftheday #aesthetic",
+    media: [
+      {
+        type: "image",
+        path: "./photo.jpg",
+        caption: "Beautiful moment captured in time",
+      },
+    ],
+  },
+  platforms: ["tiktok"],
+  options: {
+    tiktok: {
+      publishMode: "draft", // Upload to inbox
+    },
+  },
+});
 ```
 
 ## Authentication

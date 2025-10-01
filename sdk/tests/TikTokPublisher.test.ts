@@ -76,28 +76,15 @@ describe("TikTokPublisher", () => {
     };
 
     it("should successfully post a video", async () => {
-      // Mock the upload init response
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({
+      // Mock the Direct Post API init response (includes publish_id directly)
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: {
           data: {
-            data: {
-              upload_url: "https://upload.tiktok.com/video?upload_id=123",
-              upload_id: "123",
-            },
+            publish_id: "publish_123",
+            upload_url: "https://upload.tiktok.com/video?upload_id=123",
           },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            data: {
-              publish_id: "publish_123",
-            },
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            share_id: "final_123",
-          },
-        });
+        },
+      });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -114,33 +101,32 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(videoContent);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("final_123");
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      expect(result.id).toBe("publish_123");
+      // Direct Post API only requires 1 POST (init) - no complete or publish steps
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      // Verify the init call includes post_info
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/v2/post/publish/video/init/",
+        expect.objectContaining({
+          post_info: expect.objectContaining({
+            title: "Test TikTok video!",
+            privacy_level: "PUBLIC_TO_EVERYONE",
+          }),
+          source_info: expect.any(Object),
+        }),
+      );
     });
 
     it("should successfully post a photo", async () => {
-      // Mock the upload init response
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({
+      // Mock the Direct Post API init response for photos
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: {
           data: {
-            data: {
-              upload_url: "https://upload.tiktok.com/photo?upload_id=456",
-              upload_id: "456",
-            },
+            publish_id: "publish_456",
+            upload_url: "https://upload.tiktok.com/photo?upload_id=456",
           },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            data: {
-              publish_id: "publish_456",
-            },
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            share_id: "final_456",
-          },
-        });
+        },
+      });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -156,33 +142,82 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(photoContent);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("final_456");
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      expect(result.id).toBe("publish_456");
+      // Direct Post API only requires 1 POST (init)
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      // Verify photo endpoint is used
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/v2/post/publish/photo/init/",
+        expect.objectContaining({
+          post_info: expect.any(Object),
+          source_info: expect.any(Object),
+        }),
+      );
     });
 
-    it("should handle draft mode", async () => {
-      // Mock the upload responses
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({
+    it("should handle different visibility settings", async () => {
+      // Mock the Direct Post API response
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: {
           data: {
-            data: {
-              upload_url: "https://upload.tiktok.com/video?upload_id=789",
-              upload_id: "789",
-            },
+            publish_id: "publish_789",
+            upload_url: "https://upload.tiktok.com/video?upload_id=789",
           },
-        })
-        .mockResolvedValueOnce({
+        },
+      });
+
+      // Mock axios PUT for file upload
+      mockedAxios.put.mockResolvedValue({ status: 200 });
+
+      // Mock fs.createReadStream
+      const mockStream = {
+        [Symbol.asyncIterator]: async function* () {
+          yield Buffer.from("chunk1");
+        },
+      };
+      jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
+
+      const options: PostOptionsWithCredentials = {
+        tiktok: {
+          visibility: "private",
+          allowComment: false,
+          allowDuet: false,
+          allowStitch: false,
+          credentials: {
+            accessToken: "test_access_token",
+          },
+        },
+      };
+
+      const result = await publisher.postContent(videoContent, options);
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(result.id).toBe("publish_789");
+
+      // Verify the init call includes the privacy settings
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/v2/post/publish/video/init/",
+        expect.objectContaining({
+          post_info: expect.objectContaining({
+            title: "Test TikTok video!",
+            privacy_level: "SELF_ONLY",
+            disable_comment: true,
+            disable_duet: true,
+            disable_stitch: true,
+          }),
+        }),
+      );
+    });
+
+    it("should upload to draft (inbox) when publishMode is 'draft'", async () => {
+      // Mock the Upload Video API (inbox) response
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: {
           data: {
-            data: {
-              publish_id: "publish_789",
-            },
+            upload_url: "https://upload.tiktok.com/video?upload_id=draft_123",
           },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: "draft_789",
-          },
-        });
+        },
+      });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -198,10 +233,6 @@ describe("TikTokPublisher", () => {
       const options: PostOptionsWithCredentials = {
         tiktok: {
           publishMode: "draft",
-          visibility: "private",
-          allowComment: false,
-          allowDuet: false,
-          allowStitch: false,
           credentials: {
             accessToken: "test_access_token",
           },
@@ -211,18 +242,21 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(videoContent, options);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("draft_789");
+      expect(result.id).toBe("draft_uploaded");
 
-      // Verify draft endpoint was called
+      // Verify the inbox init endpoint was called (without post_info)
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        "/v2/post/publish/content/draft/",
+        "/v2/post/publish/inbox/video/init/",
         expect.objectContaining({
-          publish_id: "publish_789",
-          text: "Test TikTok video!",
-          privacy_level: "SELF_ONLY",
-          disable_comment: true,
-          disable_duet: true,
-          disable_stitch: true,
+          source_info: expect.any(Object),
+        }),
+      );
+
+      // Verify post_info was NOT included for draft mode
+      expect(mockAxiosInstance.post).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          post_info: expect.anything(),
         }),
       );
     });
@@ -260,28 +294,15 @@ describe("TikTokPublisher", () => {
         },
       });
 
-      // Mock successful upload for the first image
-      mockAxiosInstance.post
-        .mockResolvedValueOnce({
+      // Mock successful upload for the first image using Direct Post API
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: {
           data: {
-            data: {
-              upload_url: "https://upload.tiktok.com/photo?upload_id=multi",
-              upload_id: "multi",
-            },
+            publish_id: "publish_multi",
+            upload_url: "https://upload.tiktok.com/photo?upload_id=multi",
           },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            data: {
-              publish_id: "publish_multi",
-            },
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            share_id: "final_multi",
-          },
-        });
+        },
+      });
 
       mockedAxios.put.mockResolvedValue({ status: 200 });
 
@@ -295,8 +316,8 @@ describe("TikTokPublisher", () => {
       const result = await strictPublisher.postContent(contentWithMultipleMedia);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      // Should only process the first media item
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      // Direct Post API - should only have 1 POST call (init)
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
     });
 
     it("should handle API errors gracefully", async () => {
@@ -334,28 +355,15 @@ describe("TikTokPublisher", () => {
 
       // Should not throw but may warn
       await expect(async () => {
-        // Mock successful responses for the test
-        mockAxiosInstance.post
-          .mockResolvedValueOnce({
+        // Mock successful response using Direct Post API
+        mockAxiosInstance.post.mockResolvedValueOnce({
+          data: {
             data: {
-              data: {
-                upload_url: "https://upload.tiktok.com/video?upload_id=long",
-                upload_id: "long",
-              },
+              publish_id: "publish_long",
+              upload_url: "https://upload.tiktok.com/video?upload_id=long",
             },
-          })
-          .mockResolvedValueOnce({
-            data: {
-              data: {
-                publish_id: "publish_long",
-              },
-            },
-          })
-          .mockResolvedValueOnce({
-            data: {
-              share_id: "final_long",
-            },
-          });
+          },
+        });
 
         mockedAxios.put.mockResolvedValue({ status: 200 });
 

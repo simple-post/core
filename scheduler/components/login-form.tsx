@@ -3,22 +3,44 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState } from "react";
+import { authClient } from "@/lib/auth-client";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    // TODO: Once OAuth credentials are configured, implement actual sign-in
-    alert("Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your environment variables");
-    setIsLoading(false);
+    setError(null);
+
+    try {
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/",
+      });
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+      setError("Failed to sign in with Google. Please ensure your credentials are configured correctly.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleTikTokSignIn = async () => {
     setIsLoading(true);
-    // TODO: Once OAuth credentials are configured, implement actual sign-in
-    alert("Please configure TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET in your environment variables");
-    setIsLoading(false);
+    setError(null);
+
+    try {
+      await authClient.signIn.social({
+        provider: "tiktok",
+        callbackURL: "/",
+      });
+    } catch (err) {
+      console.error("TikTok sign-in error:", err);
+      setError("Failed to sign in with TikTok. Please ensure your credentials are configured correctly.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -39,6 +61,12 @@ export function LoginForm() {
           <CardDescription className="text-base">Sign in to schedule your social media posts</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded">
+              {error}
+            </div>
+          )}
+
           <Button onClick={handleGoogleSignIn} disabled={isLoading} variant="outline" className="w-full h-12">
             <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
               <path
@@ -72,4 +100,3 @@ export function LoginForm() {
     </div>
   );
 }
-

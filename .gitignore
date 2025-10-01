@@ -144,3 +144,10 @@ temp
 # VS Code
 .vscode
 
+# Auth database files
+scheduler/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+

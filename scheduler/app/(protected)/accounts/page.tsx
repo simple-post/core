@@ -5,25 +5,17 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useSession, authClient } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Platform configuration
+// Note: These connect to social accounts for POSTING, not for authentication
 const PLATFORMS = [
-  // Note: X/Twitter requires custom OAuth implementation (not natively supported by better-auth)
-  // {
-  //   id: "x",
-  //   name: "X (Twitter)",
-  //   providerId: "twitter",
-  //   icon: "𝕏",
-  //   description: "Connect your X account to post tweets and threads",
-  //   color: "bg-black",
-  // },
   {
     id: "youtube",
     name: "YouTube",
-    providerId: "google",
+    platform: "youtube", // matches ConnectedAccount.platform
     icon: "▶",
     description: "Connect your YouTube account to upload videos and shorts",
     color: "bg-red-600",
@@ -31,7 +23,7 @@ const PLATFORMS = [
   {
     id: "instagram",
     name: "Instagram",
-    providerId: "facebook",
+    platform: "instagram",
     icon: "📷",
     description: "Connect your Instagram account to post photos and reels",
     color: "bg-gradient-to-r from-purple-600 to-pink-600",
@@ -39,7 +31,7 @@ const PLATFORMS = [
   {
     id: "facebook",
     name: "Facebook",
-    providerId: "facebook",
+    platform: "facebook",
     icon: "f",
     description: "Connect your Facebook page to publish posts",
     color: "bg-blue-600",
@@ -47,38 +39,37 @@ const PLATFORMS = [
   {
     id: "tiktok",
     name: "TikTok",
-    providerId: "tiktok",
+    platform: "tiktok",
     icon: "🎵",
     description: "Connect your TikTok account to share videos",
     color: "bg-black",
   },
 ];
 
-interface AccountProfile {
-  name?: string;
-  email?: string;
-  username?: string;
-  picture?: string;
-  displayName?: string;
-}
-
-interface Account {
+// ConnectedAccount model from database
+interface ConnectedAccount {
   id: string;
-  providerId: string;
-  accountId: string;
-  accessToken?: string;
-  refreshToken?: string;
-  scope?: string;
-  accessTokenExpiresAt?: string;
-  createdAt: string;
-  profile?: AccountProfile | null;
+  userId: string;
+  platform: string;
+  platformAccountId: string;
+  accessToken: string;
+  refreshToken: string | null;
+  tokenType: string | null;
+  expiresAt: Date | null;
+  scope: string | null;
+  username: string | null;
+  displayName: string | null;
+  email: string | null;
+  profilePicture: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export default function AccountsPage() {
   const { data: session } = useSession();
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<ConnectedAccount | null>(null);
   const [showTokenDialog, setShowTokenDialog] = useState(false);
 
   useEffect(() => {
@@ -92,16 +83,6 @@ export default function AccountsPage() {
       if (response.ok) {
         const data = await response.json();
         setAccounts(data.accounts || []);
-
-        // Auto-refresh profile data for accounts that don't have it
-        const accountsWithoutProfile = data.accounts.filter((acc: Account) => !acc.profile && acc.accessToken);
-
-        if (accountsWithoutProfile.length > 0) {
-          // Refresh profiles in the background
-          accountsWithoutProfile.forEach((acc: Account) => {
-            refreshAccountProfile(acc.id);
-          });
-        }
       }
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
@@ -110,63 +91,35 @@ export default function AccountsPage() {
     }
   };
 
-  const refreshAccountProfile = async (accountId: string) => {
-    try {
-      const response = await fetch("/api/accounts/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId }),
-      });
-
-      if (response.ok) {
-        // Refresh the accounts list to show updated profile
-        fetchAccounts();
-      }
-    } catch (error) {
-      console.error("Failed to refresh profile:", error);
-    }
+  const handleConnect = (platform: string) => {
+    // Redirect to custom OAuth flow
+    window.location.href = `/api/connect/${platform}`;
   };
 
-  const handleConnect = async (providerId: string) => {
-    try {
-      await authClient.signIn.social({
-        provider: providerId,
-        callbackURL: "/accounts",
-      });
-    } catch (error) {
-      console.error("Failed to connect:", error);
-    }
+  const isConnected = (platform: string) => {
+    return accounts.some((acc) => acc.platform === platform);
   };
 
-  const isConnected = (providerId: string) => {
-    return accounts.some((acc) => acc.providerId === providerId);
+  const getAccountInfo = (platform: string) => {
+    return accounts.find((acc) => acc.platform === platform);
   };
 
-  const getAccountInfo = (providerId: string) => {
-    return accounts.find((acc) => acc.providerId === providerId);
-  };
-
-  const getAccountDisplayName = (account: Account) => {
-    if (!account.profile) {
-      return account.accountId;
-    }
-
+  const getAccountDisplayName = (account: ConnectedAccount) => {
     // For TikTok, prefer showing @username
-    if (account.providerId === "tiktok" && account.profile.username) {
-      return `@${account.profile.username}`;
+    if (account.platform === "tiktok" && account.username) {
+      return `@${account.username}`;
     }
 
     // For other platforms, try to get the most user-friendly name
     return (
-      account.profile.displayName ||
-      account.profile.name ||
-      (account.profile.username ? `@${account.profile.username}` : null) ||
-      account.profile.email ||
-      account.accountId
+      account.displayName ||
+      (account.username ? `@${account.username}` : null) ||
+      account.email ||
+      account.platformAccountId
     );
   };
 
-  const showTokens = (account: Account) => {
+  const showTokens = (account: ConnectedAccount) => {
     setSelectedAccount(account);
     setShowTokenDialog(true);
   };
@@ -199,7 +152,7 @@ export default function AccountsPage() {
       <main className="max-w-5xl mx-auto px-8 py-12">
         {loading ? (
           <div className="grid gap-6 md:grid-cols-2">
-            {[1, 2, 3, 4, 5].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <Card key={i} className="animate-pulse">
                 <CardHeader>
                   <div className="h-6 bg-muted rounded w-1/2" />
@@ -213,29 +166,29 @@ export default function AccountsPage() {
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {PLATFORMS.map((platform) => {
-              const connected = isConnected(platform.providerId);
-              const accountInfo = getAccountInfo(platform.providerId);
+            {PLATFORMS.map((platformConfig) => {
+              const connected = isConnected(platformConfig.platform);
+              const accountInfo = getAccountInfo(platformConfig.platform);
 
               return (
-                <Card key={platform.id} className="relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${platform.color}`} />
+                <Card key={platformConfig.id} className="relative overflow-hidden">
+                  <div className={`absolute top-0 left-0 w-1 h-full ${platformConfig.color}`} />
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       <div
-                        className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white text-xl font-bold`}>
-                        {platform.icon}
+                        className={`flex items-center justify-center w-12 h-12 rounded-xl ${platformConfig.color} text-white text-xl font-bold`}>
+                        {platformConfig.icon}
                       </div>
                       <div>
                         <CardTitle className="flex items-center gap-2">
-                          {platform.name}
+                          {platformConfig.name}
                           {connected && (
                             <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
                               Connected
                             </Badge>
                           )}
                         </CardTitle>
-                        <CardDescription className="mt-1">{platform.description}</CardDescription>
+                        <CardDescription className="mt-1">{platformConfig.description}</CardDescription>
                       </div>
                     </div>
                   </CardHeader>
@@ -259,14 +212,14 @@ export default function AccountsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleConnect(platform.providerId)}
+                            onClick={() => handleConnect(platformConfig.platform)}
                             className="flex-1">
                             Reconnect
                           </Button>
                         </div>
                       </>
                     ) : (
-                      <Button onClick={() => handleConnect(platform.providerId)} className="w-full">
+                      <Button onClick={() => handleConnect(platformConfig.platform)} className="w-full">
                         <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
                             strokeLinecap="round"
@@ -275,7 +228,7 @@ export default function AccountsPage() {
                             d="M13 10V3L4 14h7v7l9-11h-7z"
                           />
                         </svg>
-                        Connect {platform.name}
+                        Connect {platformConfig.name}
                       </Button>
                     )}
                   </CardContent>
@@ -306,15 +259,15 @@ export default function AccountsPage() {
           {selectedAccount && (
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium">Account ID</label>
+                <label className="text-sm font-medium">Platform Account ID</label>
                 <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs break-all">
-                  {selectedAccount.accountId}
+                  {selectedAccount.platformAccountId}
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Access Token</label>
                 <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs break-all">
-                  {selectedAccount.accessToken || "N/A"}
+                  {selectedAccount.accessToken}
                 </div>
               </div>
               {selectedAccount.refreshToken && (
@@ -331,11 +284,11 @@ export default function AccountsPage() {
                   <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs">{selectedAccount.scope}</div>
                 </div>
               )}
-              {selectedAccount.accessTokenExpiresAt && (
+              {selectedAccount.expiresAt && (
                 <div>
                   <label className="text-sm font-medium">Expires At</label>
                   <div className="mt-1 p-3 bg-muted rounded-md text-sm">
-                    {new Date(selectedAccount.accessTokenExpiresAt).toLocaleString()}
+                    {new Date(selectedAccount.expiresAt).toLocaleString()}
                   </div>
                 </div>
               )}

@@ -13,34 +13,17 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch user's connected accounts
-    const accounts = await prisma.account.findMany({
+    // Fetch user's connected social media accounts (for posting)
+    const connectedAccounts = await prisma.connectedAccount.findMany({
       where: {
         userId: session.user.id,
-      },
-      select: {
-        id: true,
-        providerId: true,
-        accountId: true,
-        accessToken: true,
-        refreshToken: true,
-        scope: true,
-        accessTokenExpiresAt: true,
-        createdAt: true,
-        profile: true,
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    // Parse profile JSON for each account
-    const accountsWithProfile = accounts.map((account) => ({
-      ...account,
-      profile: account.profile ? JSON.parse(account.profile) : null,
-    }));
-
-    return NextResponse.json({ accounts: accountsWithProfile });
+    return NextResponse.json({ accounts: connectedAccounts });
   } catch (error) {
     console.error("Error fetching accounts:", error);
     return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 });

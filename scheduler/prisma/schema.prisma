@@ -11,15 +11,16 @@ datasource db {
 }
 
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @default(now()) @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  id                String             @id
+  name              String
+  email             String
+  emailVerified     Boolean            @default(false)
+  image             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  sessions          Session[]
+  accounts          Account[] // For authentication
+  connectedAccounts ConnectedAccount[] // For social media posting
 
   @@unique([email])
   @@map("user")
@@ -70,4 +71,37 @@ model Verification {
   updatedAt  DateTime @default(now()) @updatedAt
 
   @@map("verification")
+}
+
+// Separate model for connected social media accounts (for posting)
+// This is different from the Account model which is used for authentication
+model ConnectedAccount {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Platform information
+  platform          String // "facebook", "instagram", "tiktok", "youtube", "twitter"
+  platformAccountId String // The user's ID on that platform
+
+  // OAuth tokens for API access
+  accessToken  String
+  refreshToken String?
+  tokenType    String?   @default("Bearer")
+  expiresAt    DateTime?
+  scope        String?
+
+  // Account profile information
+  username       String? // @handle or username
+  displayName    String? // Full name or display name
+  email          String?
+  profilePicture String?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, platform, platformAccountId])
+  @@index([userId])
+  @@map("connected_account")
 }

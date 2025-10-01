@@ -6,7 +6,8 @@
     "packages": [
       "sdk",
       "examples",
-      "server"
+      "server",
+      "scheduler"
     ]
   },
   "scripts": {

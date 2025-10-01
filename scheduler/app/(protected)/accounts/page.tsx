@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useSession } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -71,6 +71,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<ConnectedAccount | null>(null);
   const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -124,12 +125,29 @@ export default function AccountsPage() {
     setShowTokenDialog(true);
   };
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            window.location.href = "/";
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border/50">
         <div className="max-w-5xl mx-auto px-8 py-8">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-4">
             <Link href="/">
               <Button variant="ghost" size="sm" className="gap-2">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,6 +156,17 @@ export default function AccountsPage() {
                 Back to Dashboard
               </Button>
             </Link>
+            <Button variant="outline" size="sm" onClick={handleLogout} disabled={isLoggingOut} className="gap-2">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </Button>
           </div>
           <div className="mt-6">
             <h1 className="text-4xl font-semibold text-foreground">Connected Accounts</h1>

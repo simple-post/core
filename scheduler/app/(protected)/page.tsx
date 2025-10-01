@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PostsList } from "@/components/posts-list";
-import { UserMenu } from "@/components/user-menu";
 
 export default function Dashboard() {
   return (
@@ -38,7 +37,6 @@ export default function Dashboard() {
                   Create Post
                 </Button>
               </Link>
-              <UserMenu />
             </div>
           </div>
         </div>

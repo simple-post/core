@@ -23,7 +23,7 @@ export const auth = betterAuth({
     tiktok: {
       clientKey: process.env.TIKTOK_CLIENT_KEY || "",
       clientSecret: process.env.TIKTOK_CLIENT_SECRET || "",
-      scope: ["user.info.basic"],
+      scope: ["user.info.basic", "video.upload", "video.publish"],
       enabled: !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET),
     },
   },

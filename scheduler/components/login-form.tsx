@@ -4,17 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState } from "react";
 
-export default function LoginPage() {
+export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    // TODO: Once OAuth credentials are configured, implement actual sign-in
     alert("Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your environment variables");
     setIsLoading(false);
   };
 
   const handleTikTokSignIn = async () => {
     setIsLoading(true);
+    // TODO: Once OAuth credentials are configured, implement actual sign-in
     alert("Please configure TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET in your environment variables");
     setIsLoading(false);
   };
@@ -33,15 +35,11 @@ export default function LoginPage() {
               />
             </svg>
           </div>
-          <CardTitle className="text-3xl font-bold">Simple Post Scheduler</CardTitle>
+          <CardTitle className="text-3xl">Simple Post Scheduler</CardTitle>
           <CardDescription className="text-base">Sign in to schedule your social media posts</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            variant="outline"
-            className="w-full h-12 text-base font-medium hover:bg-accent/50 transition-colors bg-transparent">
+          <Button onClick={handleGoogleSignIn} disabled={isLoading} variant="outline" className="w-full h-12">
             <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -63,11 +61,7 @@ export default function LoginPage() {
             Continue with Google
           </Button>
 
-          <Button
-            onClick={handleTikTokSignIn}
-            disabled={isLoading}
-            variant="outline"
-            className="w-full h-12 text-base font-medium hover:bg-accent/50 transition-colors bg-transparent">
+          <Button onClick={handleTikTokSignIn} disabled={isLoading} variant="outline" className="w-full h-12">
             <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
             </svg>
@@ -78,3 +72,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

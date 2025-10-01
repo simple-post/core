@@ -13,14 +13,12 @@ export default function Dashboard() {
         <div className="max-w-5xl mx-auto px-8 py-12">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
-              <h1 className="text-4xl font-light text-foreground tracking-tight">Simple Post Scheduler</h1>
-              <p className="text-muted-foreground text-lg font-light">Manage your content across platforms</p>
+              <h1 className="text-4xl font-semibold text-foreground">Simple Post Scheduler</h1>
+              <p className="text-muted-foreground text-lg">Manage your content across platforms</p>
             </div>
             <div className="flex items-center gap-4">
               <Link href="/schedule">
-                <Button
-                  size="lg"
-                  className="gap-3 text-base font-medium px-8 py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200">
+                <Button size="lg" className="gap-3">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
@@ -38,8 +36,8 @@ export default function Dashboard() {
           {/* Upcoming Posts */}
           <section>
             <div className="mb-10">
-              <h2 className="text-3xl font-serif font-light text-foreground mb-3 tracking-tight">Upcoming Posts</h2>
-              <p className="text-muted-foreground text-lg font-light">Content scheduled for publication</p>
+              <h2 className="text-3xl font-semibold text-foreground mb-3">Upcoming Posts</h2>
+              <p className="text-muted-foreground text-lg">Content scheduled for publication</p>
             </div>
             <Suspense fallback={<PostsListSkeleton />}>
               <PostsList type="scheduled" />
@@ -49,8 +47,8 @@ export default function Dashboard() {
           {/* Past Posts */}
           <section>
             <div className="mb-10">
-              <h2 className="text-3xl font-serif font-light text-foreground mb-3 tracking-tight">Published Content</h2>
-              <p className="text-muted-foreground text-lg font-light">Your content history and performance</p>
+              <h2 className="text-3xl font-semibold text-foreground mb-3">Published Content</h2>
+              <p className="text-muted-foreground text-lg">Your content history and performance</p>
             </div>
             <Suspense fallback={<PostsListSkeleton />}>
               <PostsList type="past" />
@@ -59,7 +57,6 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
-    // </CHANGE>
   );
 }
 

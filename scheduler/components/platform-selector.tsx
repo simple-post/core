@@ -1,16 +1,16 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Check } from "lucide-react"
-import { SOCIAL_PLATFORMS } from "@/lib/config"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Check } from "lucide-react";
+import { SOCIAL_PLATFORMS } from "@/lib/config";
 
 interface PlatformSelectorProps {
-  selectedPlatforms: string[]
-  onSelectionChange: (platforms: string[]) => void
-  title?: string
-  description?: string
-  maxSelections?: number
+  selectedPlatforms: string[];
+  onSelectionChange: (platforms: string[]) => void;
+  title?: string;
+  description?: string;
+  maxSelections?: number;
 }
 
 export function PlatformSelector({
@@ -20,31 +20,31 @@ export function PlatformSelector({
   description = "Choose where to publish your content",
   maxSelections,
 }: PlatformSelectorProps) {
-  const [showAll, setShowAll] = useState(false)
-  const displayPlatforms = showAll ? SOCIAL_PLATFORMS : SOCIAL_PLATFORMS.slice(0, 6)
+  const [showAll, setShowAll] = useState(false);
+  const displayPlatforms = showAll ? SOCIAL_PLATFORMS : SOCIAL_PLATFORMS.slice(0, 6);
 
   const handlePlatformToggle = (platformId: string) => {
-    const isSelected = selectedPlatforms.includes(platformId)
+    const isSelected = selectedPlatforms.includes(platformId);
 
     if (isSelected) {
-      onSelectionChange(selectedPlatforms.filter((id) => id !== platformId))
+      onSelectionChange(selectedPlatforms.filter((id) => id !== platformId));
     } else {
       if (maxSelections && selectedPlatforms.length >= maxSelections) {
-        return // Don't allow more selections than the limit
+        return; // Don't allow more selections than the limit
       }
-      onSelectionChange([...selectedPlatforms, platformId])
+      onSelectionChange([...selectedPlatforms, platformId]);
     }
-  }
+  };
 
   const selectAll = () => {
-    const allIds = SOCIAL_PLATFORMS.map((p) => p.id)
-    const toSelect = maxSelections ? allIds.slice(0, maxSelections) : allIds
-    onSelectionChange(toSelect)
-  }
+    const allIds = SOCIAL_PLATFORMS.map((p) => p.id);
+    const toSelect = maxSelections ? allIds.slice(0, maxSelections) : allIds;
+    onSelectionChange(toSelect);
+  };
 
   const clearAll = () => {
-    onSelectionChange([])
-  }
+    onSelectionChange([]);
+  };
 
   return (
     <div className="space-y-4">
@@ -64,8 +64,7 @@ export function PlatformSelector({
           size="sm"
           onClick={selectAll}
           disabled={maxSelections ? selectedPlatforms.length >= maxSelections : false}
-          className="text-xs"
-        >
+          className="text-xs">
           Select All
         </Button>
         <Button
@@ -74,8 +73,7 @@ export function PlatformSelector({
           size="sm"
           onClick={clearAll}
           disabled={selectedPlatforms.length === 0}
-          className="text-xs bg-transparent"
-        >
+          className="text-xs bg-transparent">
           Clear
         </Button>
       </div>
@@ -83,8 +81,8 @@ export function PlatformSelector({
       {/* Platform Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {displayPlatforms.map((platform) => {
-          const isSelected = selectedPlatforms.includes(platform.id)
-          const isDisabled = maxSelections && !isSelected && selectedPlatforms.length >= maxSelections
+          const isSelected = selectedPlatforms.includes(platform.id);
+          const isDisabled = !!(maxSelections && !isSelected && selectedPlatforms.length >= maxSelections);
 
           return (
             <button
@@ -98,8 +96,7 @@ export function PlatformSelector({
                   : isDisabled
                     ? "border-border/50 bg-muted/50 opacity-50 cursor-not-allowed"
                     : "border-border/50 hover:border-border"
-              }`}
-            >
+              }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${platform.color} flex-shrink-0`} />
@@ -109,7 +106,7 @@ export function PlatformSelector({
                 {isSelected && <Check className="h-3 w-3" />}
               </div>
             </button>
-          )
+          );
         })}
       </div>
 
@@ -128,15 +125,15 @@ export function PlatformSelector({
           <p className="text-muted-foreground mb-1">Publishing to:</p>
           <div className="text-foreground">
             {selectedPlatforms.map((platformId, index) => {
-              const platform = SOCIAL_PLATFORMS.find((p) => p.id === platformId)
-              if (!platform) return null
+              const platform = SOCIAL_PLATFORMS.find((p) => p.id === platformId);
+              if (!platform) return null;
 
               return (
                 <span key={platformId}>
                   {platform.name}
                   {index < selectedPlatforms.length - 1 && ", "}
                 </span>
-              )
+              );
             })}
           </div>
         </div>
@@ -147,5 +144,5 @@ export function PlatformSelector({
         <p className="text-xs text-muted-foreground">Select at least one platform to publish your content</p>
       )}
     </div>
-  )
+  );
 }

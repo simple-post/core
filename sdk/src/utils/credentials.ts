@@ -26,6 +26,9 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.INSTAGRAM_ACCESS_TOKEN,
       businessAccountId: process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID,
     },
+    tiktok: {
+      accessToken: process.env.TIKTOK_ACCESS_TOKEN,
+    },
   };
 
   // Only add credentials if all required env vars are present
@@ -72,6 +75,14 @@ export const getCredentialsFromEnv = (): PostOptions => {
     };
   }
 
+  if (Object.values(envVars.tiktok).every(Boolean)) {
+    options.tiktok = {
+      credentials: {
+        accessToken: envVars.tiktok.accessToken!,
+      },
+    };
+  }
+
   return options;
 };
 
@@ -98,6 +109,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.instagram.credentials || envOptions.instagram?.credentials,
         }
       : envOptions.instagram,
+    tiktok: userOptions.tiktok
+      ? { ...userOptions.tiktok, credentials: userOptions.tiktok.credentials || envOptions.tiktok?.credentials }
+      : envOptions.tiktok,
   };
 
   return merged as PostOptionsWithCredentials;

@@ -23,8 +23,8 @@ module.exports = {
       // Health monitoring
       health_check_grace_period: 3000,
       // Resource limits
-      kill_timeout: 30000,
-      listen_timeout: 10000,
+      kill_timeout: 30_000,
+      listen_timeout: 10_000,
     },
   ],
 };

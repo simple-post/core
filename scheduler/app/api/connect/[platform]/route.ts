@@ -83,6 +83,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Platform-specific parameters
     if (platform === "tiktok") {
       authUrl.searchParams.set("client_key", config.clientId);
+    } else if (platform === "youtube") {
+      // Request offline access to get a refresh token
+      authUrl.searchParams.set("access_type", "offline");
+      // Force consent screen to get a new refresh token
+      authUrl.searchParams.set("prompt", "consent");
     }
 
     return NextResponse.redirect(authUrl.toString());

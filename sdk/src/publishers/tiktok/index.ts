@@ -14,7 +14,8 @@ import type { AxiosInstance } from "axios";
 const MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
 const MAX_PHOTO_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_CAPTION_LENGTH = 150;
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+const MIN_FILE_SIZE_FOR_CHUNKING = 10 * 1024 * 1024; // Only chunk files larger than 10MB
 
 interface TikTokUploadInitResponse {
   data: {
@@ -74,7 +75,13 @@ export class TikTokPublisher extends Publisher {
   }
 
   private calculateChunks(fileSize: number): { chunkSize: number; totalChunks: number } {
-    const chunkSize = Math.min(CHUNK_SIZE, fileSize);
+    // For files smaller than the chunking threshold, upload as a single chunk
+    if (fileSize <= MIN_FILE_SIZE_FOR_CHUNKING) {
+      return { chunkSize: fileSize, totalChunks: 1 };
+    }
+
+    // For larger files, use fixed chunk size
+    const chunkSize = CHUNK_SIZE;
     const totalChunks = Math.ceil(fileSize / chunkSize);
     return { chunkSize, totalChunks };
   }

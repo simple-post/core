@@ -20,7 +20,7 @@ COPY sdk/tsup.config.ts ./sdk/tsup.config.ts
 COPY server/package.json ./server/package.json
 COPY server/tsconfig.json ./server/tsconfig.json
 COPY server/tsup.config.ts ./server/tsup.config.ts
-COPY server/pm2.config.js ./server/pm2.config.js
+COPY server/pm2.config.cjs ./server/pm2.config.cjs
 
 # Install all workspace dependencies
 RUN yarn install
@@ -52,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Start application with PM2
-CMD ["pm2-runtime", "start", "pm2.config.js"]
+CMD ["pm2-runtime", "start", "pm2.config.cjs"]

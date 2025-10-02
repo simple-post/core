@@ -18,7 +18,7 @@
 !server/package.json
 !server/tsconfig.json
 !server/tsup.config.ts
-!server/pm2.config.js
+!server/pm2.config.cjs
 !server/src
 
 # Explicitly exclude these even if matched above

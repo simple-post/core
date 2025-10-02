@@ -158,7 +158,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         profilePicture = profile.avatar_url;
         break;
       case "youtube":
-        platformAccountId = profile.id;
+        platformAccountId = profile.id || profile.sub;
         displayName = profile.name;
         email = profile.email;
         profilePicture = profile.picture;
@@ -208,6 +208,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=${platform}`);
   } catch (error) {
     console.error("OAuth callback error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error details:", errorMessage);
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=callback_failed`);
   }
 }

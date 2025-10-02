@@ -9,7 +9,7 @@ export async function GET() {
       headers: await headers(),
     });
 
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -26,6 +26,8 @@ export async function GET() {
     return NextResponse.json({ accounts: connectedAccounts });
   } catch (error) {
     console.error("Error fetching accounts:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error details:", errorMessage);
     return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 });
   }
 }

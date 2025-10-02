@@ -144,7 +144,7 @@ describe("YouTubePublisher", () => {
           },
           status: {
             privacyStatus: undefined,
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {
@@ -228,7 +228,7 @@ describe("YouTubePublisher", () => {
           },
           status: {
             privacyStatus: "private",
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {
@@ -425,7 +425,7 @@ describe("YouTubePublisher", () => {
           status: {
             privacyStatus: "private",
             publishAt: "2024-12-25T12:00:00.000Z",
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {
@@ -476,7 +476,7 @@ describe("YouTubePublisher", () => {
           status: {
             privacyStatus: "public",
             publishAt: undefined,
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {

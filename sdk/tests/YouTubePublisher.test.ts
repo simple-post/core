@@ -383,7 +383,7 @@ describe("YouTubePublisher", () => {
     });
 
     it("should schedule a video correctly", async () => {
-      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const scheduledTime = "2024-12-25T12:00:00Z";
       const content: Content = {
         text: "Scheduled video",
         media: [

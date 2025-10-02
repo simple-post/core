@@ -32,7 +32,7 @@ await post({
       categoryId: "27",
       playlistId: "PL1234567890",
       selfDeclaredMadeForKids: true,
-      publishAt: new Date("2024-12-31T12:00:00Z"),
+      publishAt: "2024-12-31T12:00:00Z",
     },
   },
 });
@@ -95,7 +95,7 @@ Set to `true` if the video is made for kids. Defaults to `false`.
 
 ### `publishAt`
 
-Schedule a video for publication at a specific date and time. The video will appear in YouTube Studio as scheduled. Use the JavaScript `Date` type to define the timestamp: `new Date("2030-01-01T12:00:00Z")`
+Schedule a video for publication at a specific date and time. The video will appear in YouTube Studio as scheduled. Use the JavaScript ISO string format: `"2030-01-01T12:00:00Z"`
 
 ## Examples
 
@@ -134,7 +134,7 @@ const options = {
     privacyStatus: "unlisted",
     tags: ["tutorial", "education"],
     categoryId: "27",
-    publishAt: new Date("2024-12-31T12:00:00Z"),
+    publishAt: "2024-12-31T12:00:00Z",
   },
 };
 ```

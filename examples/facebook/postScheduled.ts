@@ -6,8 +6,6 @@ dotenv.config();
 
 async function main() {
   // Schedule a post for New Year's Day 2030 at 12:00 PM UTC
-  const scheduledTime = new Date("2030-01-01T12:00:00Z");
-
   const results = await post({
     content: {
       text: "🎊 Happy New Year 2030! This post was scheduled in advance. 🎉",
@@ -15,7 +13,7 @@ async function main() {
     platforms: ["facebook"],
     options: {
       facebook: {
-        publishAt: scheduledTime,
+        publishAt: "2030-01-01T12:00:00Z",
       },
     },
   });

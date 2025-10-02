@@ -135,7 +135,7 @@ export class FacebookPublisher extends Publisher {
 
       // Add scheduling if specified
       if (options?.facebook?.publishAt) {
-        const unixTimestamp = Math.floor(options.facebook.publishAt.getTime() / 1000);
+        const unixTimestamp = Math.floor(new Date(options.facebook.publishAt).getTime() / 1000);
         formData.append("scheduled_publish_time", unixTimestamp.toString());
         formData.append("published", "false");
       }
@@ -185,7 +185,7 @@ export class FacebookPublisher extends Publisher {
 
       // Add scheduling if specified
       if (options?.facebook?.publishAt) {
-        const unixTimestamp = Math.floor(options.facebook.publishAt.getTime() / 1000);
+        const unixTimestamp = Math.floor(new Date(options.facebook.publishAt).getTime() / 1000);
         postData.scheduled_publish_time = unixTimestamp.toString();
         postData.published = false;
       }

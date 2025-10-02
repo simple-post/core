@@ -13,13 +13,13 @@ Posting on Facebook supports the `publishAt` option to schedule posts.
 
 ```typescript
 facebook: {
-  publishAt?: Date;  // Schedule post
+  publishAt?: string;  // Schedule post
 }
 ```
 
 ### `publishAt`
 
-Schedule a post for publication at a specific date and time. Use the JavaScript `Date` type to define the timestamp: `new Date("2030-01-01T12:00:00Z")`
+Schedule a post for publication at a specific date and time. Use ISO string format: `"2030-01-01T12:00:00Z"`
 
 ## Examples
 
@@ -61,7 +61,7 @@ const content = {
 ```typescript
 const options = {
   facebook: {
-    publishAt: new Date("2024-12-31T12:00:00Z"),
+    publishAt: "2024-12-31T12:00:00Z",
   },
 };
 ```

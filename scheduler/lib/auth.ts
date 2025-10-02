@@ -1,6 +1,8 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { PrismaClient } from "@prisma/client";
+import { magicLink } from "better-auth/plugins";
+import { sendEmail } from "./resend";
 
 // Create a single Prisma client instance
 const prisma = new PrismaClient();
@@ -14,8 +16,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: false,
   },
-  // Only use Google for user authentication (login)
-  // Social account connections for posting are handled separately via custom OAuth flows
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -24,7 +24,15 @@ export const auth = betterAuth({
       enabled: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     },
   },
+  plugins: [
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        await sendEmail(
+          email,
+          "Sign in to Simple Post Scheduler",
+          `Click here to sign in: <a href="${url}">${url}</a>`,
+        );
+      },
+    }),
+  ],
 });
-
-// Export Prisma client for potential use elsewhere
-export { prisma };

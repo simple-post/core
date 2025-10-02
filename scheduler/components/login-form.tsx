@@ -2,16 +2,21 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
       await authClient.signIn.social({
@@ -26,18 +31,28 @@ export function LoginForm() {
     }
   };
 
-  const handleTikTokSignIn = async () => {
+  const handleMagicLinkSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setSuccess(null);
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address");
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      await authClient.signIn.social({
-        provider: "tiktok",
+      await authClient.signIn.magicLink({
+        email,
         callbackURL: "/",
       });
+      setSuccess("Magic link sent! Check your email to sign in.");
+      setEmail("");
     } catch (err) {
-      console.error("TikTok sign-in error:", err);
-      setError("Failed to sign in with TikTok. Please ensure your credentials are configured correctly.");
+      console.error("Magic link error:", err);
+      setError("Failed to send magic link. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -60,10 +75,16 @@ export function LoginForm() {
           <CardTitle className="text-3xl">Simple Post Scheduler</CardTitle>
           <CardDescription className="text-base">Sign in to schedule your social media posts</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded">
+            <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg">
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="p-3 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg">
+              {success}
             </div>
           )}
 
@@ -89,12 +110,41 @@ export function LoginForm() {
             Continue with Google
           </Button>
 
-          <Button onClick={handleTikTokSignIn} disabled={isLoading} variant="outline" className="w-full h-12">
-            <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
-            </svg>
-            Continue with TikTok
-          </Button>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or sign in with email</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleMagicLinkSignIn} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                className="h-12"
+                required
+              />
+            </div>
+            <Button type="submit" disabled={isLoading} className="w-full h-12">
+              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              {isLoading ? "Sending..." : "Send Magic Link"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

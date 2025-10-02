@@ -4250,6 +4250,7 @@ __metadata:
     react-hook-form: "npm:^7.60.0"
     react-resizable-panels: "npm:^2.1.7"
     recharts: "npm:2.15.4"
+    resend: "npm:^6.1.2"
     sonner: "npm:^1.7.4"
     tailwind-merge: "npm:^2.5.5"
     tailwindcss: "npm:^4.1.9"
@@ -12553,6 +12554,18 @@ __metadata:
     module-details-from-path: "npm:^1.0.3"
     resolve: "npm:^1.22.1"
   checksum: 10c0/6721975872907c11a7bbda676c970b4fcc4b9e939321934920c86aa2d371514cd31bf06947737e8ac0cb41ae5cca24ce257f33b49ed5a5dd6fec14272db3907e
+  languageName: node
+  linkType: hard
+
+"resend@npm:^6.1.2":
+  version: 6.1.2
+  resolution: "resend@npm:6.1.2"
+  peerDependencies:
+    "@react-email/render": "*"
+  peerDependenciesMeta:
+    "@react-email/render":
+      optional: true
+  checksum: 10c0/7a7a6099f82470d7fb8526bf18ea8563dca9bf93b245dfa4dcf12257e3e903a8b1cf73b7a1b7a7a77573837d67a9fba13a13ed2deb88f11c38e143a55ba45f99
   languageName: node
   linkType: hard
 

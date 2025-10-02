@@ -96,9 +96,26 @@ export class TikTokPublisher extends Publisher {
 
     try {
       // Use Direct Post API - includes post_info in the init request for immediate publishing
+      // Priority: media.title > content.text for title
+      // TikTok doesn't support separate description field, so combine title + description if both exist
+      let title = "";
+      if (media.type === "video") {
+        if (media.title) {
+          title = media.title;
+          // If description is also provided, append it to the title (TikTok only has one text field)
+          if (media.description) {
+            title = `${media.title}\n\n${media.description}`;
+          }
+        } else {
+          title = content.text || "";
+        }
+      } else {
+        title = content.text || "";
+      }
+
       const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/video/init/", {
         post_info: {
-          title: content.text || "",
+          title,
           privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
           disable_comment: !(options?.tiktok?.allowComment ?? true),
           disable_duet: !(options?.tiktok?.allowDuet ?? true),
@@ -176,9 +193,12 @@ export class TikTokPublisher extends Publisher {
 
     try {
       // Use Direct Post API for photos - includes post_info in the init request for immediate publishing
+      // Priority: media.caption > content.text for title
+      const title = (media.type === "image" ? media.caption : undefined) || content.text || "";
+
       const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/photo/init/", {
         post_info: {
-          title: content.text || "",
+          title,
           privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
           disable_comment: !(options?.tiktok?.allowComment ?? true),
           brand_content_toggle: false,

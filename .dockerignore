@@ -1,0 +1,40 @@
+# Ignore everything by default
+*
+
+# Include only what we need
+!package.json
+!yarn.lock
+!.yarnrc.yml
+!.yarn
+!tsconfig.json
+
+# Include SDK
+!sdk/package.json
+!sdk/tsconfig.json
+!sdk/tsup.config.ts
+!sdk/src
+
+# Include server
+!server/package.json
+!server/tsconfig.json
+!server/tsup.config.ts
+!server/pm2.config.js
+!server/src
+
+# Explicitly exclude these even if matched above
+**/.git
+**/node_modules
+**/dist
+**/.env*
+**/coverage
+**/tests
+**/test
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+**/.vscode
+**/.idea
+**/*.log
+**/.DS_Store
+

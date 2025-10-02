@@ -22,7 +22,7 @@
     "restart:pm2": "pm2 restart ecosystem.config.js",
     "logs:pm2": "pm2 logs simple-post-server",
     "monit:pm2": "pm2 monit",
-    "docker:build": "docker build -t simple-post-server .",
+    "docker:build": "cd .. && docker build -t simple-post-server -f server/Dockerfile .",
     "docker:run": "docker run -p 3000:3000 --env-file .env simple-post-server",
     "docker:dev": "docker run -p 3000:3000 --env-file .env -v $(pwd):/app simple-post-server",
     "prepack": "yarn build"

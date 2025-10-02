@@ -7,17 +7,31 @@ RUN yarn global add pm2
 # Set working directory
 WORKDIR /app
 
-# Copy package files for better Docker layer caching
-COPY package.json yarn.lock* ./
+# Copy root package.json and yarn.lock for workspace setup
+COPY package.json yarn.lock .yarnrc.yml* tsconfig.json ./
+COPY .yarn ./.yarn
 
-# Install dependencies
-RUN yarn install --production && yarn cache clean
+# Copy SDK package files
+COPY sdk/package.json ./sdk/package.json
+COPY sdk/tsconfig.json ./sdk/tsconfig.json
+COPY sdk/tsup.config.ts ./sdk/tsup.config.ts
 
-# Copy source code and build files
-COPY . .
+# Copy server package files
+COPY server/package.json ./server/package.json
+COPY server/tsconfig.json ./server/tsconfig.json
+COPY server/tsup.config.ts ./server/tsup.config.ts
+COPY server/pm2.config.js ./server/pm2.config.js
 
-# Build the application
-RUN yarn build
+# Install all workspace dependencies
+RUN yarn install
+
+# Copy SDK source code and build it
+COPY sdk/src ./sdk/src
+RUN yarn workspace @simple-post/sdk build
+
+# Copy server source code and build it
+COPY server/src ./server/src
+RUN yarn workspace @simple-post/server build
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
@@ -26,6 +40,9 @@ RUN adduser -S simplepost -u 1001
 # Change ownership of the app directory
 RUN chown -R simplepost:nodejs /app
 USER simplepost
+
+# Set working directory to server
+WORKDIR /app/server
 
 # Expose port
 EXPOSE 3000

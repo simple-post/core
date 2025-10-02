@@ -144,7 +144,7 @@ describe("YouTubePublisher", () => {
           },
           status: {
             privacyStatus: undefined,
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {
@@ -228,7 +228,7 @@ describe("YouTubePublisher", () => {
           },
           status: {
             privacyStatus: "private",
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {
@@ -383,7 +383,7 @@ describe("YouTubePublisher", () => {
     });
 
     it("should schedule a video correctly", async () => {
-      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const scheduledTime = "2024-12-25T12:00:00Z";
       const content: Content = {
         text: "Scheduled video",
         media: [
@@ -425,7 +425,7 @@ describe("YouTubePublisher", () => {
           status: {
             privacyStatus: "private",
             publishAt: "2024-12-25T12:00:00.000Z",
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {
@@ -476,7 +476,7 @@ describe("YouTubePublisher", () => {
           status: {
             privacyStatus: "public",
             publishAt: undefined,
-            selfDeclaredMadeForKids: undefined,
+            selfDeclaredMadeForKids: false,
           },
         },
         media: {

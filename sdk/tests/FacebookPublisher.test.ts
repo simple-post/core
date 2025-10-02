@@ -250,7 +250,7 @@ describe("FacebookPublisher", () => {
     });
 
     it("should schedule a text post correctly", async () => {
-      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const scheduledTime = "2024-12-25T12:00:00Z";
       const content: Content = {
         text: "This is a scheduled post",
       };
@@ -284,7 +284,7 @@ describe("FacebookPublisher", () => {
     });
 
     it("should schedule a video post correctly", async () => {
-      const scheduledTime = new Date("2024-12-25T12:00:00Z");
+      const scheduledTime = "2024-12-25T12:00:00Z";
       const content: Content = {
         media: [
           {

@@ -72,7 +72,7 @@ export const YouTubeOptionsSchema = z.object({
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
-  publishAt: z.date().optional(),
+  publishAt: z.string().optional(),
   privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
   credentials: z
     .object({
@@ -84,7 +84,7 @@ export const YouTubeOptionsSchema = z.object({
 });
 
 export const FacebookOptionsSchema = z.object({
-  publishAt: z.date().optional(),
+  publishAt: z.string().optional(),
   credentials: z
     .object({
       pageAccessToken: z.string(),

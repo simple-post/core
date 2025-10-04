@@ -12,6 +12,7 @@
     "youtube:video": "tsx youtube/postVideo.ts",
     "youtube:video:full": "tsx youtube/postVideoFull.ts",
     "youtube:short": "tsx youtube/postShort.ts",
+    "youtube:scheduled": "tsx youtube/postScheduled.ts",
     "telegram:single": "tsx telegram/postSingle.ts",
     "telegram:image": "tsx telegram/postImage.ts",
     "telegram:video": "tsx telegram/postVideo.ts",

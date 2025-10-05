@@ -1,17 +1,17 @@
 import type { PostsRepository } from "./types";
 import { LocalStorageRepository } from "./repositories/local-storage";
+import { PrismaPostsRepository } from "./repositories/prisma";
 
-type RepositoryType = "localStorage" | "vercelKV";
+type RepositoryType = "localStorage" | "database";
 
-const REPOSITORY_TYPE: RepositoryType = "localStorage";
+const REPOSITORY_TYPE: RepositoryType = "database";
 
 export function createPostsRepository(): PostsRepository {
   switch (REPOSITORY_TYPE) {
     case "localStorage":
       return new LocalStorageRepository();
-    case "vercelKV":
-      // Future implementation when KV is available
-      throw new Error("VercelKV repository not implemented yet");
+    case "database":
+      return new PrismaPostsRepository();
     default:
       throw new Error(`Unknown repository type: ${REPOSITORY_TYPE}`);
   }

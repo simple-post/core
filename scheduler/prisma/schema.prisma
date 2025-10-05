@@ -21,6 +21,7 @@ model User {
   sessions          Session[]
   accounts          Account[] // For authentication
   connectedAccounts ConnectedAccount[] // For social media posting
+  posts             Post[]
 
   @@unique([email])
   @@map("user")
@@ -101,7 +102,50 @@ model ConnectedAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  posts Post[]
+
   @@unique([userId, platform, platformAccountId])
   @@index([userId])
   @@map("connected_account")
+}
+
+// Scheduled posts
+model Post {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message      String
+  scheduledFor DateTime
+  status       String    @default("scheduled") // "scheduled", "published", "failed"
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Account-specific options stored as JSON
+  accountOptions Json?
+
+  // Relations
+  accounts ConnectedAccount[]
+  media    MediaFile[]
+
+  @@index([userId, status])
+  @@index([userId, scheduledFor])
+  @@map("post")
+}
+
+// Media files stored in Cloudflare R2
+model MediaFile {
+  id           String   @id @default(cuid())
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url          String // R2 URL
+  thumbnailUrl String? // R2 thumbnail URL
+  type         String // "image" or "video"
+  filename     String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  @@index([postId])
+  @@map("media_file")
 }

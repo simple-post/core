@@ -3,11 +3,29 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { createPostsRepository, SOCIAL_PLATFORMS } from "@/lib/config";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
+import { SOCIAL_PLATFORMS } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/lib/types";
 
 interface PostsListProps {
   type: "scheduled" | "past";
+  onPostDeleted?: () => void;
 }
 
 function formatDate(date: Date): string {
@@ -35,23 +53,39 @@ function formatTimeAgo(date: Date): string {
   return formatDate(date);
 }
 
-export function PostsList({ type }: PostsListProps) {
+export function PostsList({ type, onPostDeleted }: PostsListProps) {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts(posts.filter((p) => p.id !== postId));
+    if (onPostDeleted) {
+      onPostDeleted();
+    }
+  };
+
   useEffect(() => {
     async function loadData() {
       try {
-        // Load posts
-        const repository = createPostsRepository();
-        const data = type === "scheduled" ? await repository.getScheduledPosts() : await repository.getPastPosts();
-        setPosts(data);
+        // Load posts from API
+        const postsResponse = await fetch(`/api/posts?type=${type}`);
+        if (postsResponse.ok) {
+          const postsData = await postsResponse.json();
+          // Parse date strings to Date objects
+          const posts = (postsData.posts || []).map((post: any) => ({
+            ...post,
+            scheduledFor: new Date(post.scheduledFor),
+            createdAt: new Date(post.createdAt),
+            publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
+          }));
+          setPosts(posts);
+        }
 
         // Load accounts
-        const response = await fetch("/api/accounts");
-        if (response.ok) {
-          const accountsData = await response.json();
+        const accountsResponse = await fetch("/api/accounts");
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
           setAccounts(accountsData.accounts || []);
         }
       } catch (error) {
@@ -81,13 +115,23 @@ export function PostsList({ type }: PostsListProps) {
   return (
     <div className="space-y-3">
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} accounts={accounts} />
+        <PostCard key={post.id} post={post} accounts={accounts} onDeleted={handlePostDeleted} />
       ))}
     </div>
   );
 }
 
-function PostCard({ post, accounts }: { post: SocialPost; accounts: ConnectedAccount[] }) {
+function PostCard({
+  post,
+  accounts,
+  onDeleted,
+}: {
+  post: SocialPost;
+  accounts: ConnectedAccount[];
+  onDeleted: (postId: string) => void;
+}) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   // Get accounts for this post
   const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
 
@@ -99,6 +143,27 @@ function PostCard({ post, accounts }: { post: SocialPost; accounts: ConnectedAcc
 
   const hasMedia = post.media.length > 0;
   const isScheduled = post.status === "scheduled";
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/posts/${post.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete post");
+      }
+
+      onDeleted(post.id);
+    } catch (error) {
+      console.error("Failed to delete post:", error);
+      alert("Failed to delete post. Please try again.");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
 
   const getAccountDisplayName = (account: ConnectedAccount) => {
     if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
@@ -113,95 +178,152 @@ function PostCard({ post, accounts }: { post: SocialPost; accounts: ConnectedAcc
   };
 
   return (
-    <div className="border border-border/50 rounded p-4 hover:border-border transition-colors">
-      <div className="flex gap-3">
-        <div className="flex-shrink-0">
-          {hasMedia ? (
-            <div className="w-12 h-12 bg-muted rounded flex items-center justify-center relative overflow-hidden">
-              {post.media[0].type === "image" ? (
-                <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+    <>
+      <div className="border border-border/50 rounded p-4 hover:border-border transition-colors">
+        <div className="flex gap-3">
+          <div className="flex-shrink-0">
+            {hasMedia ? (
+              <div className="w-12 h-12 bg-muted rounded relative overflow-hidden">
+                {post.media[0].thumbnailUrl || post.media[0].type === "image" ? (
+                  <img
+                    src={post.media[0].thumbnailUrl || post.media[0].url}
+                    alt={post.media[0].filename}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = `
+                        <div class="w-full h-full flex items-center justify-center">
+                          <svg class="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      `;
+                      }
+                    }}
                   />
-                </svg>
-              ) : (
-                <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  />
-                </svg>
-              )}
-              {post.media.length > 1 && (
-                <div className="absolute -top-1 -right-1 h-4 w-4 bg-foreground text-background rounded-full text-xs flex items-center justify-center">
-                  {post.media.length}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-              <div className="text-sm font-mono text-muted-foreground">T</div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-foreground line-clamp-2 mb-2">{post.message || "No message"}</p>
-
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                {isScheduled ? (
-                  <span>{formatDate(post.scheduledFor)}</span>
                 ) : (
-                  <span>{formatTimeAgo(post.publishedAt || post.createdAt)}</span>
+                  <div className="w-full h-full flex items-center justify-center">
+                    <svg
+                      className="h-4 w-4 text-muted-foreground"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
                 )}
+                {post.media.length > 1 && (
+                  <div className="absolute -top-1 -right-1 h-4 w-4 bg-foreground text-background rounded-full text-xs flex items-center justify-center shadow-sm">
+                    {post.media.length}
+                  </div>
+                )}
+                {post.media[0].type === "video" && (
+                  <div className="absolute bottom-0.5 right-0.5 bg-black/70 text-white rounded px-1 py-0.5 text-[8px] font-medium">
+                    VIDEO
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                <div className="text-sm font-mono text-muted-foreground">T</div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground line-clamp-2 mb-2">{post.message || "No message"}</p>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  {isScheduled ? (
+                    <span>{formatDate(post.scheduledFor)}</span>
+                  ) : (
+                    <span>{formatTimeAgo(post.publishedAt || post.createdAt)}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  {postAccounts.slice(0, 2).map((account, idx) => {
+                    const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === account.platform);
+                    return (
+                      <div key={account.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                        {platformConfig && <div className={`w-1 h-1 rounded-full ${platformConfig.color}`} />}
+                        <span>{getAccountDisplayName(account)}</span>
+                        {idx < Math.min(postAccounts.length - 1, 1) && <span>,</span>}
+                      </div>
+                    );
+                  })}
+                  {postAccounts.length > 2 && (
+                    <div className="text-xs text-muted-foreground">+{postAccounts.length - 2} more</div>
+                  )}
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-1">
-                {postAccounts.slice(0, 2).map((account, idx) => {
-                  const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === account.platform);
-                  return (
-                    <div key={account.id} className="flex items-center gap-1 text-xs text-muted-foreground">
-                      {platformConfig && <div className={`w-1 h-1 rounded-full ${platformConfig.color}`} />}
-                      <span>{getAccountDisplayName(account)}</span>
-                      {idx < Math.min(postAccounts.length - 1, 1) && <span>,</span>}
-                    </div>
-                  );
-                })}
-                {postAccounts.length > 2 && (
-                  <div className="text-xs text-muted-foreground">+{postAccounts.length - 2} more</div>
-                )}
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="flex-shrink-0 h-8 w-8 p-0">
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                      />
+                    </svg>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-destructive focus:text-destructive cursor-pointer">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-
-            <Button variant="ghost" size="sm" className="flex-shrink-0 h-8 w-8 p-0">
-              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                />
-              </svg>
-            </Button>
           </div>
         </div>
       </div>
-    </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this scheduled post{hasMedia ? " and all associated media files" : ""}. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

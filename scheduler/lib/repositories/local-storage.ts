@@ -46,7 +46,7 @@ export class LocalStorageRepository implements PostsRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async createPost(postData: Omit<SocialPost, "id" | "createdAt">): Promise<SocialPost> {
+  async createPost(postData: Omit<SocialPost, "id" | "createdAt">, userId: string): Promise<SocialPost> {
     const posts = this.getPosts();
     const newPost: SocialPost = {
       ...postData,

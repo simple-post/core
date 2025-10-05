@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { createPostsRepository } from "@/lib/config";
 import type { MediaFile, AccountOptionsMap } from "@/lib/types";
 import { format } from "date-fns";
 import { MediaUpload } from "./media-upload";
@@ -33,17 +32,35 @@ export function SchedulePostForm() {
 
     setIsSubmitting(true);
     try {
-      const repository = createPostsRepository();
       const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
 
-      await repository.createPost({
-        message: message.trim(),
-        accountIds: selectedAccountIds,
-        media,
-        scheduledFor,
-        status: "scheduled",
-        accountOptions,
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append("message", message.trim());
+      formData.append("accountIds", JSON.stringify(selectedAccountIds));
+      formData.append("scheduledFor", scheduledFor.toISOString());
+      if (Object.keys(accountOptions).length > 0) {
+        formData.append("accountOptions", JSON.stringify(accountOptions));
+      }
+
+      // Add media files
+      for (const mediaFile of media) {
+        // Fetch the blob URL and convert to File
+        const response = await fetch(mediaFile.url);
+        const blob = await response.blob();
+        const file = new File([blob], mediaFile.filename, { type: blob.type });
+        formData.append("media", file);
+      }
+
+      // Submit to API
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        body: formData,
       });
+
+      if (!res.ok) {
+        throw new Error("Failed to create post");
+      }
 
       router.push("/");
     } catch (error) {

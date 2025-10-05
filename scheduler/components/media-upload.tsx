@@ -1,18 +1,18 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useCallback, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Upload, X, Video, ImageIcon, AlertCircle } from "lucide-react"
-import type { MediaFile } from "@/lib/types"
+import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Upload, X, Video, ImageIcon, AlertCircle } from "lucide-react";
+import type { MediaFile } from "@/lib/types";
 
 interface MediaUploadProps {
-  media: MediaFile[]
-  onMediaChange: (media: MediaFile[]) => void
-  maxFiles?: number
-  maxFileSize?: number // in bytes
-  acceptedTypes?: string[]
+  media: MediaFile[];
+  onMediaChange: (media: MediaFile[]) => void;
+  maxFiles?: number;
+  maxFileSize?: number; // in bytes
+  acceptedTypes?: string[];
 }
 
 export function MediaUpload({
@@ -22,43 +22,43 @@ export function MediaUpload({
   maxFileSize = 50 * 1024 * 1024, // 50MB
   acceptedTypes = ["image/*", "video/*"],
 }: MediaUploadProps) {
-  const [dragActive, setDragActive] = useState(false)
-  const [errors, setErrors] = useState<string[]>([])
+  const [dragActive, setDragActive] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const validateFile = (file: File): string | null => {
     if (file.size > maxFileSize) {
-      return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))}MB.`
+      return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))}MB.`;
     }
 
     const isValidType = acceptedTypes.some((type) => {
       if (type.endsWith("/*")) {
-        return file.type.startsWith(type.slice(0, -1))
+        return file.type.startsWith(type.slice(0, -1));
       }
-      return file.type === type
-    })
+      return file.type === type;
+    });
 
     if (!isValidType) {
-      return `${file.name} is not a supported file type.`
+      return `${file.name} is not a supported file type.`;
     }
 
-    return null
-  }
+    return null;
+  };
 
   const processFiles = useCallback(
     (files: FileList | File[]) => {
-      const newErrors: string[] = []
-      const validFiles: MediaFile[] = []
+      const newErrors: string[] = [];
+      const validFiles: MediaFile[] = [];
 
       Array.from(files).forEach((file) => {
         if (media.length + validFiles.length >= maxFiles) {
-          newErrors.push(`Maximum ${maxFiles} files allowed.`)
-          return
+          newErrors.push(`Maximum ${maxFiles} files allowed.`);
+          return;
         }
 
-        const error = validateFile(file)
+        const error = validateFile(file);
         if (error) {
-          newErrors.push(error)
-          return
+          newErrors.push(error);
+          return;
         }
 
         const mediaFile: MediaFile = {
@@ -67,63 +67,63 @@ export function MediaUpload({
           type: file.type.startsWith("video/") ? "video" : "image",
           filename: file.name,
           size: file.size,
-        }
-        validFiles.push(mediaFile)
-      })
+        };
+        validFiles.push(mediaFile);
+      });
 
-      setErrors(newErrors)
+      setErrors(newErrors);
       if (validFiles.length > 0) {
-        onMediaChange([...media, ...validFiles])
+        onMediaChange([...media, ...validFiles]);
       }
     },
     [media, maxFiles, maxFileSize, onMediaChange],
-  )
+  );
 
   const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
+    const files = event.target.files;
     if (files) {
-      processFiles(files)
+      processFiles(files);
     }
     // Reset input value to allow selecting the same file again
-    event.target.value = ""
-  }
+    event.target.value = "";
+  };
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true)
+      setDragActive(true);
     } else if (e.type === "dragleave") {
-      setDragActive(false)
+      setDragActive(false);
     }
-  }
+  };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
 
     if (e.dataTransfer.files) {
-      processFiles(e.dataTransfer.files)
+      processFiles(e.dataTransfer.files);
     }
-  }
+  };
 
   const removeMedia = (id: string) => {
-    const mediaToRemove = media.find((m) => m.id === id)
+    const mediaToRemove = media.find((m) => m.id === id);
     if (mediaToRemove) {
-      URL.revokeObjectURL(mediaToRemove.url)
+      URL.revokeObjectURL(mediaToRemove.url);
     }
-    onMediaChange(media.filter((m) => m.id !== id))
-    setErrors([]) // Clear errors when removing files
-  }
+    onMediaChange(media.filter((m) => m.id !== id));
+    setErrors([]); // Clear errors when removing files
+  };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   return (
     <div className="space-y-4">
@@ -135,8 +135,7 @@ export function MediaUpload({
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
-        onDrop={handleDrop}
-      >
+        onDrop={handleDrop}>
         <input
           type="file"
           id="media-upload"
@@ -179,22 +178,24 @@ export function MediaUpload({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {media.map((file) => (
             <div key={file.id} className="relative group overflow-hidden border border-border/50 rounded">
-              <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+              <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
                 {file.type === "image" ? (
                   <img
                     src={file.url || "/placeholder.svg"}
                     alt={file.filename}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.src = "/broken-image.png"
+                      const target = e.target as HTMLImageElement;
+                      target.src = "/broken-image.png";
                     }}
                   />
                 ) : (
-                  <div className="flex flex-col items-center p-3">
-                    <Video className="h-6 w-6 text-muted-foreground mb-2" />
-                    <p className="text-xs text-center text-muted-foreground line-clamp-2">{file.filename}</p>
-                  </div>
+                  <>
+                    <video src={file.url} className="w-full h-full object-cover" muted playsInline onError={() => {}} />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <Video className="h-8 w-8 text-white drop-shadow-lg" />
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -210,8 +211,7 @@ export function MediaUpload({
                 variant="destructive"
                 size="sm"
                 className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => removeMedia(file.id)}
-              >
+                onClick={() => removeMedia(file.id)}>
                 <X className="h-3 w-3" />
               </Button>
 
@@ -228,5 +228,5 @@ export function MediaUpload({
         </div>
       )}
     </div>
-  )
+  );
 }

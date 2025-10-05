@@ -67,6 +67,7 @@ export interface PlatformOptions {
 export interface MediaFile {
   id: string;
   url: string;
+  thumbnailUrl?: string;
   type: "image" | "video";
   filename: string;
   size: number;
@@ -93,7 +94,7 @@ export interface ConnectedAccount {
 export interface PostsRepository {
   getScheduledPosts(): Promise<SocialPost[]>;
   getPastPosts(): Promise<SocialPost[]>;
-  createPost(post: Omit<SocialPost, "id" | "createdAt">): Promise<SocialPost>;
+  createPost(post: Omit<SocialPost, "id" | "createdAt">, userId: string): Promise<SocialPost>;
   updatePost(id: string, updates: Partial<SocialPost>): Promise<SocialPost>;
   deletePost(id: string): Promise<void>;
 }

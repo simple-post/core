@@ -1,62 +1,71 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { createPostsRepository, SOCIAL_PLATFORMS } from "@/lib/config"
-import type { SocialPost } from "@/lib/types"
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { createPostsRepository, SOCIAL_PLATFORMS } from "@/lib/config";
+import type { SocialPost, ConnectedAccount } from "@/lib/types";
 
 interface PostsListProps {
-  type: "scheduled" | "past"
+  type: "scheduled" | "past";
 }
 
 function formatDate(date: Date): string {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  const hours = date.getHours()
-  const minutes = date.getMinutes()
-  const ampm = hours >= 12 ? "pm" : "am"
-  const displayHours = hours % 12 || 12
-  const displayMinutes = minutes.toString().padStart(2, "0")
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? "pm" : "am";
+  const displayHours = hours % 12 || 12;
+  const displayMinutes = minutes.toString().padStart(2, "0");
 
-  return `${months[date.getMonth()]} ${date.getDate()}, ${displayHours}:${displayMinutes} ${ampm}`
+  return `${months[date.getMonth()]} ${date.getDate()}, ${displayHours}:${displayMinutes} ${ampm}`;
 }
 
 function formatTimeAgo(date: Date): string {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "just now"
-  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
-  if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`
-  return formatDate(date)
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  return formatDate(date);
 }
 
 export function PostsList({ type }: PostsListProps) {
-  const [posts, setPosts] = useState<SocialPost[]>([])
-  const [loading, setLoading] = useState(true)
+  const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadPosts() {
+    async function loadData() {
       try {
-        const repository = createPostsRepository()
-        const data = type === "scheduled" ? await repository.getScheduledPosts() : await repository.getPastPosts()
-        setPosts(data)
+        // Load posts
+        const repository = createPostsRepository();
+        const data = type === "scheduled" ? await repository.getScheduledPosts() : await repository.getPastPosts();
+        setPosts(data);
+
+        // Load accounts
+        const response = await fetch("/api/accounts");
+        if (response.ok) {
+          const accountsData = await response.json();
+          setAccounts(accountsData.accounts || []);
+        }
       } catch (error) {
-        console.error("Failed to load posts:", error)
+        console.error("Failed to load posts:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    loadPosts()
-  }, [type])
+    loadData();
+  }, [type]);
 
   if (loading) {
-    return <PostsListSkeleton />
+    return <PostsListSkeleton />;
   }
 
   if (posts.length === 0) {
@@ -66,22 +75,42 @@ export function PostsList({ type }: PostsListProps) {
           <p className="text-sm">{type === "scheduled" ? "No scheduled posts" : "No published posts"}</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="space-y-3">
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} />
+        <PostCard key={post.id} post={post} accounts={accounts} />
       ))}
     </div>
-  )
+  );
 }
 
-function PostCard({ post }: { post: SocialPost }) {
-  const selectedPlatforms = SOCIAL_PLATFORMS.filter((p) => post.platforms.includes(p.id))
-  const hasMedia = post.media.length > 0
-  const isScheduled = post.status === "scheduled"
+function PostCard({ post, accounts }: { post: SocialPost; accounts: ConnectedAccount[] }) {
+  // Get accounts for this post
+  const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
+
+  // Get unique platforms from the accounts
+  const uniquePlatforms = Array.from(new Set(postAccounts.map((acc) => acc.platform)));
+  const platformsWithNames = uniquePlatforms
+    .map((platform) => SOCIAL_PLATFORMS.find((p) => p.id === platform))
+    .filter(Boolean);
+
+  const hasMedia = post.media.length > 0;
+  const isScheduled = post.status === "scheduled";
+
+  const getAccountDisplayName = (account: ConnectedAccount) => {
+    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
+      return `@${account.username}`;
+    }
+    return (
+      account.displayName ||
+      (account.username ? `@${account.username}` : null) ||
+      account.email ||
+      account.platformAccountId
+    );
+  };
 
   return (
     <div className="border border-border/50 rounded p-4 hover:border-border transition-colors">
@@ -142,15 +171,19 @@ function PostCard({ post }: { post: SocialPost }) {
                 )}
               </div>
 
-              <div className="flex gap-1">
-                {selectedPlatforms.slice(0, 3).map((platform) => (
-                  <div key={platform.id} className="text-xs text-muted-foreground">
-                    {platform.name}
-                    {selectedPlatforms.indexOf(platform) < Math.min(selectedPlatforms.length - 1, 2) && ","}
-                  </div>
-                ))}
-                {selectedPlatforms.length > 3 && (
-                  <div className="text-xs text-muted-foreground">+{selectedPlatforms.length - 3} more</div>
+              <div className="flex flex-wrap gap-1">
+                {postAccounts.slice(0, 2).map((account, idx) => {
+                  const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === account.platform);
+                  return (
+                    <div key={account.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {platformConfig && <div className={`w-1 h-1 rounded-full ${platformConfig.color}`} />}
+                      <span>{getAccountDisplayName(account)}</span>
+                      {idx < Math.min(postAccounts.length - 1, 1) && <span>,</span>}
+                    </div>
+                  );
+                })}
+                {postAccounts.length > 2 && (
+                  <div className="text-xs text-muted-foreground">+{postAccounts.length - 2} more</div>
                 )}
               </div>
             </div>
@@ -169,7 +202,7 @@ function PostCard({ post }: { post: SocialPost }) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function PostsListSkeleton() {
@@ -193,5 +226,5 @@ function PostsListSkeleton() {
         </Card>
       ))}
     </div>
-  )
+  );
 }

@@ -16,7 +16,9 @@ export class LocalStorageRepository implements PostsRepository {
         scheduledFor: new Date(post.scheduledFor),
         createdAt: new Date(post.createdAt),
         publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
-        platformOptions: post.platformOptions || undefined,
+        // Support both old and new format for backward compatibility
+        accountIds: post.accountIds || post.platforms || [],
+        accountOptions: post.accountOptions || post.platformOptions || undefined,
       }));
     } catch {
       return [];

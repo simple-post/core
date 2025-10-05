@@ -9,25 +9,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { createPostsRepository } from "@/lib/config";
-import type { MediaFile, PlatformOptions } from "@/lib/types";
+import type { MediaFile, AccountOptionsMap } from "@/lib/types";
 import { format } from "date-fns";
 import { MediaUpload } from "./media-upload";
-import { PlatformSelector } from "./platform-selector";
-import { PlatformOptionsComponent } from "./platform-options";
+import { AccountSelector } from "./account-selector";
+import { AccountOptionsComponent } from "./account-options";
 
 export function SchedulePostForm() {
   const router = useRouter();
   const [message, setMessage] = useState("");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [media, setMedia] = useState<MediaFile[]>([]);
-  const [platformOptions, setPlatformOptions] = useState<PlatformOptions>({});
+  const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || selectedPlatforms.length === 0 || !scheduledDate || !scheduledTime) {
+    if (!message.trim() || selectedAccountIds.length === 0 || !scheduledDate || !scheduledTime) {
       return;
     }
 
@@ -38,11 +38,11 @@ export function SchedulePostForm() {
 
       await repository.createPost({
         message: message.trim(),
-        platforms: selectedPlatforms,
+        accountIds: selectedAccountIds,
         media,
         scheduledFor,
         status: "scheduled",
-        platformOptions,
+        accountOptions,
       });
 
       router.push("/");
@@ -53,7 +53,7 @@ export function SchedulePostForm() {
     }
   };
 
-  const isFormValid = message.trim() && selectedPlatforms.length > 0 && scheduledDate && scheduledTime;
+  const isFormValid = message.trim() && selectedAccountIds.length > 0 && scheduledDate && scheduledTime;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -86,19 +86,19 @@ export function SchedulePostForm() {
         </div>
       </div>
 
-      {/* Platform Selection */}
-      <PlatformSelector
-        selectedPlatforms={selectedPlatforms}
-        onSelectionChange={setSelectedPlatforms}
-        title="Platforms"
-        description="Choose where to publish your content"
+      {/* Account Selection */}
+      <AccountSelector
+        selectedAccountIds={selectedAccountIds}
+        onSelectionChange={setSelectedAccountIds}
+        title="Accounts"
+        description="Choose which accounts to publish your content to"
       />
 
-      {/* Platform-Specific Options */}
-      <PlatformOptionsComponent
-        selectedPlatforms={selectedPlatforms}
-        options={platformOptions}
-        onOptionsChange={setPlatformOptions}
+      {/* Account-Specific Options */}
+      <AccountOptionsComponent
+        selectedAccountIds={selectedAccountIds}
+        options={accountOptions}
+        onOptionsChange={setAccountOptions}
       />
 
       {/* Schedule Settings */}

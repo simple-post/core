@@ -10,46 +10,40 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Platform configuration
-// Note: These connect to social accounts for POSTING, not for authentication
 const PLATFORMS = [
   {
     id: "x",
     name: "X (Twitter)",
-    platform: "x", // matches ConnectedAccount.platform
     icon: "𝕏",
-    description: "Connect your X (Twitter) account to post tweets and threads",
+    description: "Post tweets and threads",
     color: "bg-black",
   },
   {
     id: "youtube",
     name: "YouTube",
-    platform: "youtube", // matches ConnectedAccount.platform
     icon: "▶",
-    description: "Connect your YouTube account to upload videos and shorts",
+    description: "Upload videos and shorts",
     color: "bg-red-600",
   },
   {
     id: "instagram",
     name: "Instagram",
-    platform: "instagram",
     icon: "📷",
-    description: "Connect your Instagram account to post photos and reels",
+    description: "Post photos and reels",
     color: "bg-gradient-to-r from-purple-600 to-pink-600",
   },
   {
     id: "facebook",
     name: "Facebook",
-    platform: "facebook",
     icon: "f",
-    description: "Connect your Facebook page to publish posts",
+    description: "Publish posts and updates",
     color: "bg-blue-600",
   },
   {
     id: "tiktok",
     name: "TikTok",
-    platform: "tiktok",
     icon: "🎵",
-    description: "Connect your TikTok account to share videos",
+    description: "Share videos",
     color: "bg-black",
   },
 ];
@@ -79,6 +73,10 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<ConnectedAccount | null>(null);
   const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+  const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -101,16 +99,13 @@ export default function AccountsPage() {
   };
 
   const handleConnect = (platform: string) => {
-    // Redirect to custom OAuth flow
+    // Close dialog and redirect to custom OAuth flow
+    setShowConnectDialog(false);
     window.location.href = `/api/connect/${platform}`;
   };
 
-  const isConnected = (platform: string) => {
-    return accounts.some((acc) => acc.platform === platform);
-  };
-
-  const getAccountInfo = (platform: string) => {
-    return accounts.find((acc) => acc.platform === platform);
+  const getPlatformConfig = (platform: string) => {
+    return PLATFORMS.find((p) => p.id === platform);
   };
 
   const getAccountDisplayName = (account: ConnectedAccount) => {
@@ -131,6 +126,37 @@ export default function AccountsPage() {
   const showTokens = (account: ConnectedAccount) => {
     setSelectedAccount(account);
     setShowTokenDialog(true);
+  };
+
+  const handleDisconnectClick = (account: ConnectedAccount) => {
+    setAccountToDisconnect(account);
+    setShowDisconnectDialog(true);
+  };
+
+  const handleDisconnectConfirm = async () => {
+    if (!accountToDisconnect) return;
+
+    setIsDisconnecting(true);
+    try {
+      const response = await fetch(`/api/accounts/${accountToDisconnect.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Remove the account from the list
+        setAccounts(accounts.filter((acc) => acc.id !== accountToDisconnect.id));
+        setShowDisconnectDialog(false);
+        setAccountToDisconnect(null);
+      } else {
+        console.error("Failed to disconnect account");
+        alert("Failed to disconnect account. Please try again.");
+      }
+    } catch (error) {
+      console.error("Disconnect error:", error);
+      alert("An error occurred while disconnecting the account.");
+    } finally {
+      setIsDisconnecting(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -187,102 +213,208 @@ export default function AccountsPage() {
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-8 py-12">
+        <div className="flex justify-end mb-6">
+          <Button onClick={() => setShowConnectDialog(true)} size="lg" className="gap-2">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Connect Account
+          </Button>
+        </div>
+
         {loading ? (
-          <div className="grid gap-6 md:grid-cols-2">
-            {[1, 2, 3, 4, 5].map((i) => (
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
               <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-6 bg-muted rounded w-1/2" />
-                  <div className="h-4 bg-muted rounded w-3/4 mt-2" />
-                </CardHeader>
-                <CardContent>
-                  <div className="h-10 bg-muted rounded" />
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 bg-muted rounded-xl" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-5 bg-muted rounded w-1/3" />
+                      <div className="h-4 bg-muted rounded w-1/2" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+        ) : accounts.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <svg className="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium mb-2">No accounts connected</h3>
+              <p className="text-muted-foreground text-center mb-6 max-w-md">
+                Connect your social media accounts to start scheduling and publishing posts across multiple platforms.
+              </p>
+              <Button onClick={() => setShowConnectDialog(true)} className="gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Connect Your First Account
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {PLATFORMS.map((platformConfig) => {
-              const connected = isConnected(platformConfig.platform);
-              const accountInfo = getAccountInfo(platformConfig.platform);
+          <div className="space-y-4">
+            {accounts.map((account) => {
+              const platformConfig = getPlatformConfig(account.platform);
+              if (!platformConfig) return null;
 
               return (
-                <Card key={platformConfig.id} className="relative overflow-hidden">
+                <Card key={account.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
                   <div className={`absolute top-0 left-0 w-1 h-full ${platformConfig.color}`} />
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex items-center justify-center w-12 h-12 rounded-xl ${platformConfig.color} text-white text-xl font-bold`}>
-                        {platformConfig.icon}
-                      </div>
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          {platformConfig.name}
-                          {connected && (
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`flex items-center justify-center w-12 h-12 rounded-xl ${platformConfig.color} text-white text-xl font-bold flex-shrink-0`}>
+                          {platformConfig.icon}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-lg">{getAccountDisplayName(account)}</h3>
                             <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-                              Connected
+                              Active
                             </Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="mt-1">{platformConfig.description}</CardDescription>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{platformConfig.name}</span>
+                            <span>•</span>
+                            <span>Connected {new Date(account.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {account.email && <p className="text-xs text-muted-foreground mt-1">{account.email}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => showTokens(account)}>
+                          View Tokens
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleConnect(account.platform)}
+                          className="gap-1">
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                            />
+                          </svg>
+                          Reconnect
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDisconnectClick(account)}
+                          className="gap-1 text-destructive hover:text-destructive">
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                          Disconnect
+                        </Button>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {connected && accountInfo ? (
-                      <>
-                        <div className="text-sm">
-                          <p className="font-medium text-foreground text-base">{getAccountDisplayName(accountInfo)}</p>
-                          <p className="mt-1 text-muted-foreground">
-                            Connected {new Date(accountInfo.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => showTokens(accountInfo)}
-                            className="flex-1">
-                            View Tokens
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleConnect(platformConfig.platform)}
-                            className="flex-1">
-                            Reconnect
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <Button onClick={() => handleConnect(platformConfig.platform)} className="w-full">
-                        <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 10V3L4 14h7v7l9-11h-7z"
-                          />
-                        </svg>
-                        Connect {platformConfig.name}
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               );
             })}
           </div>
         )}
-
-        {!loading && accounts.length === 0 && (
-          <Alert className="mt-6">
-            <AlertDescription>
-              No accounts connected yet. Connect your social media accounts to start scheduling posts.
-            </AlertDescription>
-          </Alert>
-        )}
       </main>
+
+      {/* Platform Selector Dialog */}
+      <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Connect New Account</DialogTitle>
+            <DialogDescription>
+              Select a platform to connect a new account. You can connect multiple accounts from the same platform.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2 mt-4">
+            {PLATFORMS.map((platform) => (
+              <button
+                key={platform.id}
+                onClick={() => handleConnect(platform.id)}
+                className="flex items-center gap-4 p-4 rounded-lg border border-border/50 hover:border-foreground hover:bg-accent transition-colors text-left">
+                <div
+                  className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white text-xl font-bold flex-shrink-0`}>
+                  {platform.icon}
+                </div>
+                <div>
+                  <h4 className="font-medium text-base">{platform.name}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">{platform.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disconnect Confirmation Dialog */}
+      <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disconnect Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to disconnect this account? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {accountToDisconnect && (
+            <div className="py-4">
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                {(() => {
+                  const platformConfig = getPlatformConfig(accountToDisconnect.platform);
+                  return platformConfig ? (
+                    <>
+                      <div
+                        className={`flex items-center justify-center w-10 h-10 rounded-lg ${platformConfig.color} text-white text-lg font-bold flex-shrink-0`}>
+                        {platformConfig.icon}
+                      </div>
+                      <div>
+                        <p className="font-medium">{getAccountDisplayName(accountToDisconnect)}</p>
+                        <p className="text-sm text-muted-foreground">{platformConfig.name}</p>
+                      </div>
+                    </>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowDisconnectDialog(false)}
+              disabled={isDisconnecting}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDisconnectConfirm}
+              disabled={isDisconnecting}
+              className="flex-1">
+              {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Token Dialog */}
       <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>

@@ -1,38 +1,40 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { createPostsRepository } from "@/lib/config"
-import type { MediaFile } from "@/lib/types"
-import { format } from "date-fns"
-import { MediaUpload } from "./media-upload"
-import { PlatformSelector } from "./platform-selector"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { createPostsRepository } from "@/lib/config";
+import type { MediaFile, PlatformOptions } from "@/lib/types";
+import { format } from "date-fns";
+import { MediaUpload } from "./media-upload";
+import { PlatformSelector } from "./platform-selector";
+import { PlatformOptionsComponent } from "./platform-options";
 
 export function SchedulePostForm() {
-  const router = useRouter()
-  const [message, setMessage] = useState("")
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
-  const [scheduledDate, setScheduledDate] = useState("")
-  const [scheduledTime, setScheduledTime] = useState("")
-  const [media, setMedia] = useState<MediaFile[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
+  const [media, setMedia] = useState<MediaFile[]>([]);
+  const [platformOptions, setPlatformOptions] = useState<PlatformOptions>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!message.trim() || selectedPlatforms.length === 0 || !scheduledDate || !scheduledTime) {
-      return
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      const repository = createPostsRepository()
-      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`)
+      const repository = createPostsRepository();
+      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
 
       await repository.createPost({
         message: message.trim(),
@@ -40,17 +42,18 @@ export function SchedulePostForm() {
         media,
         scheduledFor,
         status: "scheduled",
-      })
+        platformOptions,
+      });
 
-      router.push("/")
+      router.push("/");
     } catch (error) {
-      console.error("Failed to create post:", error)
+      console.error("Failed to create post:", error);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
-  const isFormValid = message.trim() && selectedPlatforms.length > 0 && scheduledDate && scheduledTime
+  const isFormValid = message.trim() && selectedPlatforms.length > 0 && scheduledDate && scheduledTime;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -89,6 +92,13 @@ export function SchedulePostForm() {
         onSelectionChange={setSelectedPlatforms}
         title="Platforms"
         description="Choose where to publish your content"
+      />
+
+      {/* Platform-Specific Options */}
+      <PlatformOptionsComponent
+        selectedPlatforms={selectedPlatforms}
+        options={platformOptions}
+        onOptionsChange={setPlatformOptions}
       />
 
       {/* Schedule Settings */}
@@ -144,5 +154,5 @@ export function SchedulePostForm() {
         </Button>
       </div>
     </form>
-  )
+  );
 }

@@ -11,6 +11,12 @@ const TOKEN_CONFIG: Record<
     userInfoUrl: string;
   }
 > = {
+  x: {
+    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    clientId: process.env.X_CLIENT_ID || "",
+    clientSecret: process.env.X_CLIENT_SECRET || "",
+    userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,name",
+  },
   facebook: {
     tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
     clientId: process.env.FACEBOOK_CLIENT_ID || "",
@@ -31,27 +37,43 @@ const TOKEN_CONFIG: Record<
   },
 };
 
-async function exchangeCodeForToken(platform: string, code: string, redirectUri: string) {
+async function exchangeCodeForToken(platform: string, code: string, redirectUri: string, codeVerifier?: string) {
   const config = TOKEN_CONFIG[platform];
 
   const body: Record<string, string> = {
     client_id: config.clientId,
-    client_secret: config.clientSecret,
     code,
     redirect_uri: redirectUri,
     grant_type: "authorization_code",
   };
 
   // Platform-specific adjustments
-  if (platform === "tiktok") {
+  if (platform === "x") {
+    // X requires PKCE code_verifier
+    if (codeVerifier) {
+      body.code_verifier = codeVerifier;
+    }
+    // X requires Basic Auth with client credentials
+  } else if (platform === "tiktok") {
     body.client_key = config.clientId;
+    body.client_secret = config.clientSecret;
+  } else {
+    body.client_secret = config.clientSecret;
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+
+  // X requires Basic Auth
+  if (platform === "x") {
+    const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+    headers.Authorization = `Basic ${credentials}`;
   }
 
   const response = await fetch(config.tokenUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers,
     body: new URLSearchParams(body),
   });
 
@@ -112,7 +134,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=invalid_state`);
     }
 
-    const { userId, platform: statePlatform } = stateData;
+    const { userId, platform: statePlatform, codeVerifier } = stateData;
 
     if (statePlatform !== platform) {
       return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=platform_mismatch`);
@@ -122,7 +144,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
-    const tokenData = await exchangeCodeForToken(platform, code, redirectUri);
+    const tokenData = await exchangeCodeForToken(platform, code, redirectUri, codeVerifier);
 
     // Extract tokens based on platform response format
     const accessToken = tokenData.access_token;
@@ -145,6 +167,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     let profilePicture: string | null = null;
 
     switch (platform) {
+      case "x":
+        platformAccountId = profile.data?.id || profile.id;
+        username = profile.data?.username || profile.username;
+        displayName = profile.data?.name || profile.name;
+        profilePicture = profile.data?.profile_image_url || profile.profile_image_url || null;
+        break;
       case "facebook":
         platformAccountId = profile.id;
         displayName = profile.name;

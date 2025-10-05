@@ -12,6 +12,12 @@ const OAUTH_CONFIG: Record<
     responseType?: string;
   }
 > = {
+  x: {
+    authUrl: "https://twitter.com/i/oauth2/authorize",
+    clientId: process.env.X_CLIENT_ID || "",
+    scope: "tweet.read tweet.write users.read offline.access",
+    responseType: "code",
+  },
   facebook: {
     authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
     clientId: process.env.FACEBOOK_CLIENT_ID || "",
@@ -71,7 +77,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     authUrl.searchParams.set("response_type", config.responseType || "code");
 
     // Platform-specific parameters
-    if (platform === "tiktok") {
+    if (platform === "x") {
+      // X requires PKCE
+      // Generate code_challenge for PKCE
+      const codeVerifier = Buffer.from(crypto.randomUUID() + crypto.randomUUID()).toString("base64url");
+      const codeChallenge = Buffer.from(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier)),
+      ).toString("base64url");
+
+      authUrl.searchParams.set("code_challenge", codeChallenge);
+      authUrl.searchParams.set("code_challenge_method", "S256");
+
+      // Store code_verifier in state for callback
+      const xState = Buffer.from(
+        JSON.stringify({
+          userId: session.user.id,
+          platform,
+          timestamp: Date.now(),
+          codeVerifier,
+        }),
+      ).toString("base64");
+      authUrl.searchParams.set("state", xState);
+    } else if (platform === "tiktok") {
       authUrl.searchParams.set("client_key", config.clientId);
     } else if (platform === "youtube") {
       // Request offline access to get a refresh token

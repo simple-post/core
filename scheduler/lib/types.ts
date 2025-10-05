@@ -1,4 +1,7 @@
 export interface PlatformOptions {
+  x?: {
+    replyToId?: string;
+  };
   youtube?: {
     tags?: string[];
     categoryId?: string;

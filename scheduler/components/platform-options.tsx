@@ -35,6 +35,32 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
         <p className="text-xs text-muted-foreground mt-1">Configure additional settings for each platform</p>
       </div>
 
+      {/* X (Twitter) Options */}
+      {selectedPlatforms.includes("x") && (
+        <Card className="p-4 space-y-4 border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
+            <h4 className="text-sm font-medium">X (Twitter) Options</h4>
+          </div>
+
+          <div>
+            <Label htmlFor="x-replyToId" className="text-sm text-muted-foreground">
+              Reply To ID (optional)
+            </Label>
+            <Input
+              id="x-replyToId"
+              placeholder="Tweet ID to reply to"
+              value={options.x?.replyToId || ""}
+              onChange={(e) => updateOption("x", "replyToId", e.target.value || undefined)}
+              className="mt-1 border-border/50"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Create a reply or thread by providing a tweet ID to reply to
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* YouTube Options */}
       {selectedPlatforms.includes("youtube") && (
         <Card className="p-4 space-y-4 border-border/50">

@@ -13,6 +13,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // Note: These connect to social accounts for POSTING, not for authentication
 const PLATFORMS = [
   {
+    id: "x",
+    name: "X (Twitter)",
+    platform: "x", // matches ConnectedAccount.platform
+    icon: "𝕏",
+    description: "Connect your X (Twitter) account to post tweets and threads",
+    color: "bg-black",
+  },
+  {
     id: "youtube",
     name: "YouTube",
     platform: "youtube", // matches ConnectedAccount.platform
@@ -106,8 +114,8 @@ export default function AccountsPage() {
   };
 
   const getAccountDisplayName = (account: ConnectedAccount) => {
-    // For TikTok, prefer showing @username
-    if (account.platform === "tiktok" && account.username) {
+    // For X (Twitter) and TikTok, prefer showing @username
+    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
       return `@${account.username}`;
     }
 
@@ -181,7 +189,7 @@ export default function AccountsPage() {
       <main className="max-w-5xl mx-auto px-8 py-12">
         {loading ? (
           <div className="grid gap-6 md:grid-cols-2">
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <Card key={i} className="animate-pulse">
                 <CardHeader>
                   <div className="h-6 bg-muted rounded w-1/2" />

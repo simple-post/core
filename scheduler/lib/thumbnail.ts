@@ -71,27 +71,33 @@ export async function generateImageThumbnail(buffer: Buffer, filename: string): 
  * @returns Thumbnail buffer and filename
  */
 export async function generateVideoThumbnail(buffer: Buffer, filename: string): Promise<ThumbnailResult> {
-  return new Promise((resolve, reject) => {
-    try {
-      const stream = Readable.from(buffer);
-      const tempFilename = `temp-thumbnail-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-      const tempPath = `/tmp/${tempFilename}`;
+  return new Promise(async (resolve, reject) => {
+    const fs = await import("fs/promises");
+    const tempVideoFilename = `temp-video-${Date.now()}-${Math.random().toString(36).substring(7)}.mp4`;
+    const tempVideoPath = `/tmp/${tempVideoFilename}`;
+    const tempThumbnailFilename = `temp-thumbnail-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+    const tempThumbnailPath = `/tmp/${tempThumbnailFilename}`;
 
-      ffmpeg(stream)
+    try {
+      // Write video buffer to a temporary file (ffmpeg needs a file, not a stream)
+      await fs.writeFile(tempVideoPath, buffer);
+
+      ffmpeg(tempVideoPath)
         .screenshots({
           count: 1,
           folder: "/tmp",
-          filename: tempFilename,
+          filename: tempThumbnailFilename,
           size: "400x?",
+          timestamps: ["00:00:01"], // Extract frame at 1 second
         })
         .on("end", async () => {
           try {
             // Read the generated thumbnail
-            const fs = await import("fs/promises");
-            const thumbnailBuffer = await fs.readFile(tempPath);
+            const thumbnailBuffer = await fs.readFile(tempThumbnailPath);
 
-            // Clean up temp file
-            await fs.unlink(tempPath).catch(() => {});
+            // Clean up temp files
+            await fs.unlink(tempVideoPath).catch(() => {});
+            await fs.unlink(tempThumbnailPath).catch(() => {});
 
             const nameWithoutExt = filename.substring(0, filename.lastIndexOf("."));
             const thumbnailFilename = `${nameWithoutExt}_thumb.jpg`;
@@ -101,15 +107,23 @@ export async function generateVideoThumbnail(buffer: Buffer, filename: string): 
               filename: thumbnailFilename,
             });
           } catch (error) {
+            // Clean up on error
+            await fs.unlink(tempVideoPath).catch(() => {});
+            await fs.unlink(tempThumbnailPath).catch(() => {});
             reject(error);
           }
         })
-        .on("error", (error) => {
+        .on("error", async (error) => {
           console.error("FFmpeg error:", error);
+          // Clean up on error
+          await fs.unlink(tempVideoPath).catch(() => {});
+          await fs.unlink(tempThumbnailPath).catch(() => {});
           reject(error);
         });
     } catch (error) {
       console.error("Video thumbnail generation error:", error);
+      // Clean up on error
+      await fs.unlink(tempVideoPath).catch(() => {});
       reject(error);
     }
   });

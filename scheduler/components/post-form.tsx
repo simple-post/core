@@ -1,0 +1,246 @@
+"use client";
+
+import type React from "react";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import type { MediaFile, AccountOptionsMap, SocialPost } from "@/lib/types";
+import { format } from "date-fns";
+import { MediaUpload } from "./media-upload";
+import { AccountSelector } from "./account-selector";
+import { AccountOptionsComponent } from "./account-options";
+import { PostPreview } from "./post-preview";
+
+interface PostFormProps {
+  mode: "create" | "edit";
+  existingPost?: SocialPost;
+}
+
+export function PostForm({ mode, existingPost }: PostFormProps) {
+  const router = useRouter();
+  const [message, setMessage] = useState(existingPost?.message || "");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(existingPost?.accountIds || []);
+  const [scheduledDate, setScheduledDate] = useState(
+    existingPost?.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
+  );
+  const [scheduledTime, setScheduledTime] = useState(
+    existingPost?.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
+  );
+  const [media, setMedia] = useState<MediaFile[]>(existingPost?.media || []);
+  const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost?.accountOptions || {});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Track which media files were originally present (for edit mode)
+  const [originalMediaIds] = useState<Set<string>>(new Set(existingPost?.media.map((m) => m.id) || []));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || selectedAccountIds.length === 0 || !scheduledDate || !scheduledTime) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
+
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append("message", message.trim());
+      formData.append("accountIds", JSON.stringify(selectedAccountIds));
+      formData.append("scheduledFor", scheduledFor.toISOString());
+      if (Object.keys(accountOptions).length > 0) {
+        formData.append("accountOptions", JSON.stringify(accountOptions));
+      }
+
+      // For edit mode, track which media to keep and which are new
+      if (mode === "edit") {
+        const currentMediaIds = new Set(media.map((m) => m.id));
+
+        // IDs of media files to keep (existing ones that are still in the list)
+        const keepMediaIds = Array.from(currentMediaIds).filter((id) => originalMediaIds.has(id));
+        formData.append("keepMediaIds", JSON.stringify(keepMediaIds));
+
+        // Add new media files (ones not in original)
+        for (const mediaFile of media) {
+          if (!originalMediaIds.has(mediaFile.id)) {
+            // This is a new file, fetch and upload it
+            const response = await fetch(mediaFile.url);
+            const blob = await response.blob();
+            const file = new File([blob], mediaFile.filename, { type: blob.type });
+            formData.append("media", file);
+          }
+        }
+      } else {
+        // Create mode: add all media files
+        for (const mediaFile of media) {
+          // Fetch the blob URL and convert to File
+          const response = await fetch(mediaFile.url);
+          const blob = await response.blob();
+          const file = new File([blob], mediaFile.filename, { type: blob.type });
+          formData.append("media", file);
+        }
+      }
+
+      // Submit to API
+      const url = mode === "edit" ? `/api/posts/${existingPost?.id}` : "/api/posts";
+      const method = mode === "edit" ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to ${mode} post`);
+      }
+
+      // Navigate to either the post detail page or home
+      if (mode === "edit") {
+        router.push(`/posts/${existingPost?.id}`);
+      } else {
+        router.push("/");
+      }
+    } catch (error) {
+      console.error(`Failed to ${mode} post:`, error);
+      alert(`Failed to ${mode} post. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isFormValid = message.trim() && selectedAccountIds.length > 0 && scheduledDate && scheduledTime;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Message Input */}
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="message" className="text-sm font-medium">
+              Message
+            </Label>
+            <Textarea
+              id="message"
+              placeholder="What's on your mind?"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="min-h-32 resize-none mt-2 border-border/50"
+              maxLength={2000}
+            />
+            <div className="flex justify-between items-center mt-2">
+              <p className="text-xs text-muted-foreground">Share your thoughts, updates, or announcements</p>
+              <p className="text-xs text-muted-foreground">{message.length}/2000</p>
+            </div>
+          </div>
+
+          {/* Media Upload */}
+          <div>
+            <Label className="text-sm font-medium">Media</Label>
+            <div className="mt-2">
+              <MediaUpload media={media} onMediaChange={setMedia} />
+            </div>
+          </div>
+        </div>
+
+        {/* Account Selection */}
+        <AccountSelector
+          selectedAccountIds={selectedAccountIds}
+          onSelectionChange={setSelectedAccountIds}
+          title="Accounts"
+          description="Choose which accounts to publish your content to"
+        />
+
+        {/* Account-Specific Options */}
+        <AccountOptionsComponent
+          selectedAccountIds={selectedAccountIds}
+          options={accountOptions}
+          onOptionsChange={setAccountOptions}
+        />
+
+        {/* Schedule Settings */}
+        <div className="space-y-4">
+          <div>
+            <Label className="text-sm font-medium">Schedule</Label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="date" className="text-sm text-muted-foreground">
+                Date
+              </Label>
+              <Input
+                id="date"
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                min={format(new Date(), "yyyy-MM-dd")}
+                className="mt-1 border-border/50"
+              />
+            </div>
+            <div>
+              <Label htmlFor="time" className="text-sm text-muted-foreground">
+                Time
+              </Label>
+              <Input
+                id="time"
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="mt-1 border-border/50"
+              />
+            </div>
+          </div>
+
+          {scheduledDate && scheduledTime && (
+            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+              Publishing on{" "}
+              <span className="font-medium text-foreground">
+                {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex gap-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (mode === "edit") {
+                router.push(`/posts/${existingPost?.id}`);
+              } else {
+                router.push("/");
+              }
+            }}
+            className="flex-1">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!isFormValid || isSubmitting} className="flex-1">
+            {isSubmitting
+              ? mode === "edit"
+                ? "Updating..."
+                : "Scheduling..."
+              : mode === "edit"
+                ? "Update Post"
+                : "Schedule Post"}
+          </Button>
+        </div>
+      </form>
+
+      {/* Preview */}
+      <div className="lg:sticky lg:top-8 self-start">
+        <PostPreview
+          message={message}
+          media={media}
+          scheduledDate={scheduledDate}
+          scheduledTime={scheduledTime}
+          selectedPlatforms={selectedAccountIds}
+        />
+      </div>
+    </div>
+  );
+}

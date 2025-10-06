@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/lib/types";
 import { format } from "date-fns";
-import { Play, ArrowLeft, Trash2, Calendar, Clock } from "lucide-react";
+import { Play, ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -131,10 +131,20 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                   Back
                 </Button>
               </Link>
-              <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
+              <div className="flex items-center gap-2">
+                {isScheduled && (
+                  <Link href={`/posts/${params.id}/edit`}>
+                    <Button variant="outline" size="sm">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  </Link>
+                )}
+                <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
             </div>
           </div>
         </header>

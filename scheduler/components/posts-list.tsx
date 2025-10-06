@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { Trash2, Edit } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/lib/types";
 import Link from "next/link";
@@ -182,34 +182,27 @@ function PostCard({
     <>
       <Link href={`/posts/${post.id}`}>
         <div className="border border-border/50 rounded p-4 hover:border-border hover:bg-muted/30 transition-colors cursor-pointer">
-          <div className="flex gap-3">
-            <div className="flex-shrink-0">
+          <div className="flex gap-4">
+            <div className="flex-shrink-0 relative">
               {hasMedia ? (
-                <div className="w-12 h-12 bg-muted rounded relative overflow-hidden">
+                <div className="w-24 h-24 bg-muted rounded-lg relative overflow-hidden shadow-sm">
                   {post.media[0].thumbnailUrl || post.media[0].type === "image" ? (
                     <img
                       src={post.media[0].thumbnailUrl || post.media[0].url}
                       alt={post.media[0].filename}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.style.display = "none";
-                        const parent = target.parentElement;
-                        if (parent) {
-                          parent.innerHTML = `
-                        <div class="w-full h-full flex items-center justify-center">
-                          <svg class="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                      `;
-                        }
+                        // Use placeholder image
+                        target.src = "/placeholder.jpg";
+                        target.onerror = null; // Prevent infinite loop if placeholder also fails
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-muted to-muted/50 gap-1">
                       <svg
-                        className="h-4 w-4 text-muted-foreground"
+                        className="h-10 w-10 text-muted-foreground"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24">
@@ -220,23 +213,46 @@ function PostCard({
                           d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                         />
                       </svg>
+                      <span className="text-[10px] text-muted-foreground">Video</span>
                     </div>
                   )}
                   {post.media.length > 1 && (
-                    <div className="absolute -top-1 -right-1 h-4 w-4 bg-foreground text-background rounded-full text-xs flex items-center justify-center shadow-sm">
+                    <div className="absolute top-1.5 right-1.5 h-5 w-5 bg-foreground/90 backdrop-blur-sm text-background rounded-full text-xs flex items-center justify-center shadow-md font-medium">
                       {post.media.length}
                     </div>
                   )}
-                  {post.media[0].type === "video" && (
-                    <div className="absolute bottom-0.5 right-0.5 bg-black/70 text-white rounded px-1 py-0.5 text-[8px] font-medium">
-                      VIDEO
+                  {post.media[0].type === "video" && post.media[0].thumbnailUrl && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                        <svg className="h-4 w-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                  <div className="text-sm font-mono text-muted-foreground">T</div>
+                <div className="w-24 h-24 bg-gradient-to-br from-muted to-muted/50 rounded-lg flex items-center justify-center shadow-sm">
+                  <svg
+                    className="h-10 w-10 text-muted-foreground"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
                 </div>
+              )}
+              {/* Platform indicator */}
+              {platformsWithNames.length > 0 && (
+                <div
+                  className={`absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full border-2 border-background ${platformsWithNames[0]!.color} shadow-sm`}
+                  title={platformsWithNames[0]!.name}
+                />
               )}
             </div>
 
@@ -299,6 +315,18 @@ function PostCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {isScheduled && (
+                      <Link href={`/posts/${post.id}/edit`}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className="cursor-pointer">
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                      </Link>
+                    )}
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.preventDefault();

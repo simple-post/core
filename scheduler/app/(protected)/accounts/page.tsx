@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Platform configuration
 const PLATFORMS = [
@@ -17,6 +19,7 @@ const PLATFORMS = [
     icon: "𝕏",
     description: "Post tweets and threads",
     color: "bg-black",
+    connectionType: "oauth" as const,
   },
   {
     id: "youtube",
@@ -24,6 +27,7 @@ const PLATFORMS = [
     icon: "▶",
     description: "Upload videos and shorts",
     color: "bg-red-600",
+    connectionType: "oauth" as const,
   },
   {
     id: "instagram",
@@ -31,6 +35,7 @@ const PLATFORMS = [
     icon: "📷",
     description: "Post photos and reels",
     color: "bg-gradient-to-r from-purple-600 to-pink-600",
+    connectionType: "oauth" as const,
   },
   {
     id: "facebook",
@@ -38,6 +43,7 @@ const PLATFORMS = [
     icon: "f",
     description: "Publish posts and updates",
     color: "bg-blue-600",
+    connectionType: "oauth" as const,
   },
   {
     id: "tiktok",
@@ -45,6 +51,15 @@ const PLATFORMS = [
     icon: "🎵",
     description: "Share videos",
     color: "bg-black",
+    connectionType: "oauth" as const,
+  },
+  {
+    id: "telegram",
+    name: "Telegram",
+    icon: "✈",
+    description: "Send messages to channels",
+    color: "bg-blue-500",
+    connectionType: "manual" as const,
   },
 ];
 
@@ -78,6 +93,12 @@ export default function AccountsPage() {
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showTelegramDialog, setShowTelegramDialog] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [telegramChannelName, setTelegramChannelName] = useState("");
+  const [isConnectingTelegram, setIsConnectingTelegram] = useState(false);
+  const [telegramError, setTelegramError] = useState("");
 
   useEffect(() => {
     fetchAccounts();
@@ -99,9 +120,60 @@ export default function AccountsPage() {
   };
 
   const handleConnect = (platform: string) => {
-    // Close dialog and redirect to custom OAuth flow
-    setShowConnectDialog(false);
-    window.location.href = `/api/connect/${platform}`;
+    const platformConfig = PLATFORMS.find((p) => p.id === platform);
+
+    if (platformConfig?.connectionType === "manual") {
+      // Open manual connection dialog for Telegram
+      setShowConnectDialog(false);
+      setShowTelegramDialog(true);
+      setTelegramError("");
+    } else {
+      // Redirect to OAuth flow for other platforms
+      setShowConnectDialog(false);
+      window.location.href = `/api/connect/${platform}`;
+    }
+  };
+
+  const handleTelegramConnect = async () => {
+    if (!telegramBotToken.trim() || !telegramChatId.trim()) {
+      setTelegramError("Please provide both bot token and chat ID");
+      return;
+    }
+
+    setIsConnectingTelegram(true);
+    setTelegramError("");
+
+    try {
+      const response = await fetch("/api/connect/telegram", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          botToken: telegramBotToken.trim(),
+          chatId: telegramChatId.trim(),
+          channelName: telegramChannelName.trim() || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to connect Telegram account");
+      }
+
+      // Success - refresh accounts and close dialog
+      await fetchAccounts();
+      setShowTelegramDialog(false);
+      setTelegramBotToken("");
+      setTelegramChatId("");
+      setTelegramChannelName("");
+    } catch (error) {
+      console.error("Telegram connection error:", error);
+      setTelegramError(error instanceof Error ? error.message : "Failed to connect Telegram account");
+    } finally {
+      setIsConnectingTelegram(false);
+    }
   };
 
   const getPlatformConfig = (platform: string) => {
@@ -463,6 +535,98 @@ export default function AccountsPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Telegram Connection Dialog */}
+      <Dialog open={showTelegramDialog} onOpenChange={setShowTelegramDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Telegram</DialogTitle>
+            <DialogDescription>
+              Enter your Telegram bot token and chat ID to connect your channel or group.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {telegramError && (
+              <Alert variant="destructive">
+                <AlertDescription>{telegramError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="botToken">Bot Token</Label>
+              <Input
+                id="botToken"
+                type="text"
+                placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+                value={telegramBotToken}
+                onChange={(e) => setTelegramBotToken(e.target.value)}
+                className="mt-1.5"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Get this from{" "}
+                <a
+                  href="https://t.me/botfather"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground">
+                  @BotFather
+                </a>
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="chatId">Chat ID</Label>
+              <Input
+                id="chatId"
+                type="text"
+                placeholder="-1001234567890 or @channelname"
+                value={telegramChatId}
+                onChange={(e) => setTelegramChatId(e.target.value)}
+                className="mt-1.5"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Channel/group ID or @username. Use{" "}
+                <a
+                  href="https://t.me/userinfobot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground">
+                  @userinfobot
+                </a>{" "}
+                to find it
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="channelName">Channel Name (Optional)</Label>
+              <Input
+                id="channelName"
+                type="text"
+                placeholder="My Channel"
+                value={telegramChannelName}
+                onChange={(e) => setTelegramChannelName(e.target.value)}
+                className="mt-1.5"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">Friendly name to identify this channel</p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowTelegramDialog(false);
+                setTelegramBotToken("");
+                setTelegramChatId("");
+                setTelegramChannelName("");
+                setTelegramError("");
+              }}
+              disabled={isConnectingTelegram}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleTelegramConnect} disabled={isConnectingTelegram} className="flex-1">
+              {isConnectingTelegram ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

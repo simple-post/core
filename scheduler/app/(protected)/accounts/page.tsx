@@ -10,13 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PlatformIcon } from "@/lib/platform-icons";
 
 // Platform configuration
 const PLATFORMS = [
   {
     id: "x",
     name: "X (Twitter)",
-    icon: "𝕏",
     description: "Post tweets and threads",
     color: "bg-black",
     connectionType: "oauth" as const,
@@ -24,7 +24,6 @@ const PLATFORMS = [
   {
     id: "youtube",
     name: "YouTube",
-    icon: "▶",
     description: "Upload videos and shorts",
     color: "bg-red-600",
     connectionType: "oauth" as const,
@@ -32,7 +31,6 @@ const PLATFORMS = [
   {
     id: "instagram",
     name: "Instagram",
-    icon: "📷",
     description: "Post photos and reels",
     color: "bg-gradient-to-r from-purple-600 to-pink-600",
     connectionType: "oauth" as const,
@@ -40,7 +38,6 @@ const PLATFORMS = [
   {
     id: "facebook",
     name: "Facebook",
-    icon: "f",
     description: "Publish posts and updates",
     color: "bg-blue-600",
     connectionType: "oauth" as const,
@@ -48,7 +45,6 @@ const PLATFORMS = [
   {
     id: "tiktok",
     name: "TikTok",
-    icon: "🎵",
     description: "Share videos",
     color: "bg-black",
     connectionType: "oauth" as const,
@@ -56,7 +52,6 @@ const PLATFORMS = [
   {
     id: "telegram",
     name: "Telegram",
-    icon: "✈",
     description: "Send messages to channels",
     color: "bg-blue-500",
     connectionType: "manual" as const,
@@ -348,8 +343,8 @@ export default function AccountsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div
-                          className={`flex items-center justify-center w-12 h-12 rounded-xl ${platformConfig.color} text-white text-xl font-bold flex-shrink-0`}>
-                          {platformConfig.icon}
+                          className={`flex items-center justify-center w-12 h-12 rounded-xl ${platformConfig.color} text-white flex-shrink-0`}>
+                          <PlatformIcon platform={platformConfig.id} className="text-2xl" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -426,8 +421,8 @@ export default function AccountsPage() {
                 onClick={() => handleConnect(platform.id)}
                 className="flex items-center gap-4 p-4 rounded-lg border border-border/50 hover:border-foreground hover:bg-accent transition-colors text-left">
                 <div
-                  className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white text-xl font-bold flex-shrink-0`}>
-                  {platform.icon}
+                  className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white flex-shrink-0`}>
+                  <PlatformIcon platform={platform.id} className="text-2xl" />
                 </div>
                 <div>
                   <h4 className="font-medium text-base">{platform.name}</h4>
@@ -456,8 +451,8 @@ export default function AccountsPage() {
                   return platformConfig ? (
                     <>
                       <div
-                        className={`flex items-center justify-center w-10 h-10 rounded-lg ${platformConfig.color} text-white text-lg font-bold flex-shrink-0`}>
-                        {platformConfig.icon}
+                        className={`flex items-center justify-center w-10 h-10 rounded-lg ${platformConfig.color} text-white flex-shrink-0`}>
+                        <PlatformIcon platform={platformConfig.id} className="text-lg" />
                       </div>
                       <div>
                         <p className="font-medium">{getAccountDisplayName(accountToDisconnect)}</p>

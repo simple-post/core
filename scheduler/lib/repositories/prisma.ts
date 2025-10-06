@@ -76,7 +76,7 @@ export class PrismaPostsRepository implements PostsRepository {
         scheduledFor: postData.scheduledFor,
         status: postData.status,
         publishedAt: postData.publishedAt,
-        accountOptions: postData.accountOptions || null,
+        accountOptions: postData.accountOptions || undefined,
         accounts: {
           connect: postData.accountIds.map((id) => ({ id })),
         },

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { PlatformIcon } from "@/lib/platform-icons";
 import type { ConnectedAccount } from "@/lib/types";
 
 interface AccountSelectorProps {
@@ -205,8 +206,8 @@ export function AccountSelector({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white text-sm font-bold flex-shrink-0`}>
-                            {platformConfig.icon}
+                            className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white flex-shrink-0`}>
+                            <PlatformIcon platform={platformConfig.id} className="text-sm" />
                           </div>
                           <div>
                             <div className="font-medium">{getAccountDisplayName(account)}</div>

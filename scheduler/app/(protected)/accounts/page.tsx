@@ -246,17 +246,23 @@ export default function AccountsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/50">
-        <div className="max-w-5xl mx-auto px-8 py-8">
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between gap-4">
-            <Link href="/">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Dashboard
-              </Button>
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link href="/">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Dashboard
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-7 h-7 drop-shadow-lg" />
+                <h1 className="text-xl font-bold text-foreground">Accounts</h1>
+              </div>
+            </div>
             <Button variant="outline" size="sm" onClick={handleLogout} disabled={isLoggingOut} className="gap-2">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -269,20 +275,18 @@ export default function AccountsPage() {
               {isLoggingOut ? "Logging out..." : "Logout"}
             </Button>
           </div>
-          <div className="mt-6">
-            <h1 className="text-4xl font-semibold text-foreground">Connected Accounts</h1>
-            <p className="text-muted-foreground text-lg mt-2">
-              Connect your social media accounts to schedule and publish posts
-            </p>
-          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-8 py-12">
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Connected Accounts</h2>
+          <p className="text-muted-foreground">Connect your social media accounts to schedule and publish posts</p>
+        </div>
         <div className="flex justify-end mb-6">
-          <Button onClick={() => setShowConnectDialog(true)} size="lg" className="gap-2">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <Button onClick={() => setShowConnectDialog(true)} size="default" className="gap-2 shadow-sm">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Connect Account
@@ -292,10 +296,10 @@ export default function AccountsPage() {
         {loading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse">
-                <CardContent className="p-6">
+              <Card key={i} className="animate-pulse border-border bg-card">
+                <CardContent className="p-5">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-muted rounded-xl" />
+                    <div className="h-12 w-12 bg-muted rounded-lg" />
                     <div className="flex-1 space-y-2">
                       <div className="h-5 bg-muted rounded w-1/3" />
                       <div className="h-4 bg-muted rounded w-1/2" />
@@ -306,10 +310,10 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : accounts.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <svg className="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <Card className="border-dashed border-border">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                <svg className="h-7 w-7 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -318,11 +322,11 @@ export default function AccountsPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium mb-2">No accounts connected</h3>
-              <p className="text-muted-foreground text-center mb-6 max-w-md">
+              <h3 className="text-lg font-semibold mb-2">No accounts connected</h3>
+              <p className="text-muted-foreground text-center mb-6 max-w-md text-sm">
                 Connect your social media accounts to start scheduling and publishing posts across multiple platforms.
               </p>
-              <Button onClick={() => setShowConnectDialog(true)} className="gap-2">
+              <Button onClick={() => setShowConnectDialog(true)} className="gap-2 shadow-sm">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
@@ -337,9 +341,10 @@ export default function AccountsPage() {
               if (!platformConfig) return null;
 
               return (
-                <Card key={account.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${platformConfig.color}`} />
-                  <CardContent className="p-6">
+                <Card
+                  key={account.id}
+                  className="hover:shadow-lg hover:shadow-primary/20 transition-all border-border bg-card">
+                  <CardContent className="p-5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div
@@ -419,14 +424,16 @@ export default function AccountsPage() {
               <button
                 key={platform.id}
                 onClick={() => handleConnect(platform.id)}
-                className="flex items-center gap-4 p-4 rounded-lg border border-border/50 hover:border-foreground hover:bg-accent transition-colors text-left">
+                className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-muted transition-colors text-left group">
                 <div
                   className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white flex-shrink-0`}>
                   <PlatformIcon platform={platform.id} className="text-2xl" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-base">{platform.name}</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">{platform.description}</p>
+                  <h4 className="font-medium text-base text-foreground">{platform.name}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 group-hover:text-muted-foreground">
+                    {platform.description}
+                  </p>
                 </div>
               </button>
             ))}

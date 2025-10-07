@@ -4,83 +4,84 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Refined color palette inspired by design references */
-  --background: oklch(0.98 0.005 85);
-  --foreground: oklch(0.15 0.01 85);
-  --card: oklch(0.99 0.003 85);
-  --card-foreground: oklch(0.15 0.01 85);
-  --popover: oklch(0.99 0.003 85);
-  --popover-foreground: oklch(0.15 0.01 85);
-  --primary: oklch(0.25 0.02 140);
-  --primary-foreground: oklch(0.98 0.005 85);
-  --secondary: oklch(0.92 0.01 85);
-  --secondary-foreground: oklch(0.25 0.02 85);
-  --muted: oklch(0.94 0.008 85);
-  --muted-foreground: oklch(0.55 0.015 85);
-  --accent: oklch(0.88 0.02 45);
-  --accent-foreground: oklch(0.15 0.01 85);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.98 0.005 85);
-  --border: oklch(0.88 0.01 85);
-  --input: oklch(0.96 0.005 85);
-  --ring: oklch(0.25 0.02 140);
-  --chart-1: oklch(0.25 0.02 140);
-  --chart-2: oklch(0.55 0.015 85);
-  --chart-3: oklch(0.75 0.01 85);
-  --chart-4: oklch(0.85 0.008 85);
-  --chart-5: oklch(0.92 0.01 85);
-  /* Increased border radius for softer, more refined look */
-  --radius: 0.75rem;
-  --sidebar: oklch(0.98 0.005 85);
-  --sidebar-foreground: oklch(0.15 0.01 85);
-  --sidebar-primary: oklch(0.25 0.02 140);
-  --sidebar-primary-foreground: oklch(0.98 0.005 85);
-  --sidebar-accent: oklch(0.92 0.01 85);
-  --sidebar-accent-foreground: oklch(0.25 0.02 85);
-  --sidebar-border: oklch(0.88 0.01 85);
-  --sidebar-ring: oklch(0.25 0.02 140);
+  /* SimplePost.dev exact brand colors - Dark theme #1A1A1A background, #8B5CF6 purple */
+  --background: #1a1a1a;
+  --foreground: #e5e5e5;
+  --card: #252525;
+  --card-foreground: #e5e5e5;
+  --popover: #252525;
+  --popover-foreground: #e5e5e5;
+  /* Primary: Exact brand purple #8B5CF6 */
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e5e5e5;
+  --muted: #2a2a2a;
+  --muted-foreground: #a3a3a3;
+  --accent: #8b5cf6;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #404040;
+  --input: #2a2a2a;
+  --ring: #8b5cf6;
+  --chart-1: #8b5cf6;
+  --chart-2: #a855f7;
+  --chart-3: #c084fc;
+  --chart-4: #d8b4fe;
+  --chart-5: #e9d5ff;
+  /* Rounded corners like modern SaaS */
+  --radius: 0.5rem;
+  --sidebar: #252525;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #8b5cf6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a2a;
+  --sidebar-accent-foreground: #e5e5e5;
+  --sidebar-border: #404040;
+  --sidebar-ring: #8b5cf6;
 }
 
 .dark {
-  /* Sophisticated dark mode with warm undertones */
-  --background: oklch(0.08 0.01 85);
-  --foreground: oklch(0.92 0.005 85);
-  --card: oklch(0.12 0.01 85);
-  --card-foreground: oklch(0.92 0.005 85);
-  --popover: oklch(0.08 0.01 85);
-  --popover-foreground: oklch(0.92 0.005 85);
-  --primary: oklch(0.75 0.02 140);
-  --primary-foreground: oklch(0.08 0.01 85);
-  --secondary: oklch(0.18 0.01 85);
-  --secondary-foreground: oklch(0.92 0.005 85);
-  --muted: oklch(0.15 0.01 85);
-  --muted-foreground: oklch(0.65 0.01 85);
-  --accent: oklch(0.35 0.02 45);
-  --accent-foreground: oklch(0.92 0.005 85);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.92 0.005 85);
-  --border: oklch(0.22 0.01 85);
-  --input: oklch(0.15 0.01 85);
-  --ring: oklch(0.75 0.02 140);
-  --chart-1: oklch(0.75 0.02 140);
-  --chart-2: oklch(0.65 0.01 85);
-  --chart-3: oklch(0.45 0.01 85);
-  --chart-4: oklch(0.25 0.01 85);
-  --chart-5: oklch(0.18 0.01 85);
-  --sidebar: oklch(0.12 0.01 85);
-  --sidebar-foreground: oklch(0.92 0.005 85);
-  --sidebar-primary: oklch(0.75 0.02 140);
-  --sidebar-primary-foreground: oklch(0.08 0.01 85);
-  --sidebar-accent: oklch(0.18 0.01 85);
-  --sidebar-accent-foreground: oklch(0.92 0.005 85);
-  --sidebar-border: oklch(0.22 0.01 85);
-  --sidebar-ring: oklch(0.75 0.02 140);
+  /* True black background option */
+  --background: #0a0a0a;
+  --foreground: #f5f5f5;
+  --card: #1a1a1a;
+  --card-foreground: #f5f5f5;
+  --popover: #1a1a1a;
+  --popover-foreground: #f5f5f5;
+  --primary: #9333ea;
+  --primary-foreground: #ffffff;
+  --secondary: #262626;
+  --secondary-foreground: #f5f5f5;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --accent: #9333ea;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #3f3f46;
+  --input: #1a1a1a;
+  --ring: #9333ea;
+  --chart-1: #9333ea;
+  --chart-2: #a855f7;
+  --chart-3: #c084fc;
+  --chart-4: #d8b4fe;
+  --chart-5: #e9d5ff;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #9333ea;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: #3f3f46;
+  --sidebar-ring: #9333ea;
 }
 
 @theme inline {
   /* Using Inter as the single modern sans-serif font */
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-family-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

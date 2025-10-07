@@ -10,8 +10,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Social Scheduler",
-  description: "Modern social media scheduling app",
+  title: "SimplePost Scheduler - Schedule Posts Across All Platforms",
+  description:
+    "Schedule and publish content across X, Instagram, YouTube, TikTok, Facebook, and more. Part of the SimplePost ecosystem.",
 };
 
 export default function RootLayout({

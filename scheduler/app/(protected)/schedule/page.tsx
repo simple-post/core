@@ -8,8 +8,8 @@ export default function SchedulePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/50">
-        <div className="max-w-4xl mx-auto px-6 py-8">
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 py-6">
           <div className="flex items-center gap-4">
             <Link href="/">
               <Button variant="ghost" size="sm" className="gap-2">
@@ -19,8 +19,9 @@ export default function SchedulePage() {
                 Back
               </Button>
             </Link>
-            <div>
-              <h1 className="text-2xl text-foreground">New Post</h1>
+            <div className="flex items-center gap-2">
+              <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-7 h-7 drop-shadow-lg" />
+              <h1 className="text-xl font-bold text-foreground">Create Post</h1>
             </div>
           </div>
         </div>

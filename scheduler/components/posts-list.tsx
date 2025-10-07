@@ -105,7 +105,7 @@ export function PostsList({ type, onPostDeleted }: PostsListProps) {
 
   if (posts.length === 0) {
     return (
-      <div className="border border-border/50 rounded p-8 text-center">
+      <div className="border border-border rounded-xl p-8 text-center bg-card">
         <div className="text-muted-foreground">
           <p className="text-sm">{type === "scheduled" ? "No scheduled posts" : "No published posts"}</p>
         </div>
@@ -181,11 +181,11 @@ function PostCard({
   return (
     <>
       <Link href={`/posts/${post.id}`}>
-        <div className="border border-border/50 rounded p-4 hover:border-border hover:bg-muted/30 transition-colors cursor-pointer">
+        <div className="border border-border rounded-xl p-4 hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer bg-card backdrop-blur-sm">
           <div className="flex gap-4">
             <div className="flex-shrink-0 relative">
               {hasMedia ? (
-                <div className="w-24 h-24 bg-muted rounded-lg relative overflow-hidden shadow-sm">
+                <div className="w-20 h-20 bg-muted rounded-lg relative overflow-hidden shadow-sm">
                   {post.media[0].thumbnailUrl || post.media[0].type === "image" ? (
                     <img
                       src={post.media[0].thumbnailUrl || post.media[0].url}
@@ -232,7 +232,7 @@ function PostCard({
                   )}
                 </div>
               ) : (
-                <div className="w-24 h-24 bg-gradient-to-br from-muted to-muted/50 rounded-lg flex items-center justify-center shadow-sm">
+                <div className="w-20 h-20 bg-gradient-to-br from-muted to-muted/50 rounded-lg flex items-center justify-center shadow-sm">
                   <svg
                     className="h-10 w-10 text-muted-foreground"
                     fill="none"
@@ -371,23 +371,21 @@ function PostCard({
 
 function PostsListSkeleton() {
   return (
-    <div className="grid gap-4">
+    <div className="space-y-4">
       {[1, 2, 3].map((i) => (
-        <Card key={i} className="animate-pulse">
-          <CardContent className="p-6">
-            <div className="flex gap-4">
-              <div className="w-16 h-16 bg-muted rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-muted rounded w-3/4" />
-                <div className="h-3 bg-muted rounded w-1/2" />
-                <div className="flex gap-2">
-                  <div className="h-6 bg-muted rounded w-16" />
-                  <div className="h-6 bg-muted rounded w-16" />
-                </div>
+        <div key={i} className="animate-pulse border border-border rounded-xl p-4 bg-card">
+          <div className="flex gap-4">
+            <div className="w-20 h-20 bg-muted rounded-lg" />
+            <div className="flex-1 space-y-3">
+              <div className="h-4 bg-muted rounded w-3/4" />
+              <div className="h-3 bg-muted rounded w-1/2" />
+              <div className="flex gap-2">
+                <div className="h-5 bg-muted rounded w-14" />
+                <div className="h-5 bg-muted rounded w-14" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
     </div>
   );

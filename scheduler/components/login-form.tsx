@@ -61,59 +61,60 @@ export function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-4xl">
         {/* Title Section */}
-        <div className="text-center mb-10">
-          <h1 className="text-5xl font-bold text-foreground mb-4">Simple Post Scheduler</h1>
-          <p className="text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-            Schedule and publish content across social media platforms.
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-12 h-12 drop-shadow-2xl" />
+            <h1 className="text-4xl font-bold text-foreground">SimplePost</h1>
+          </div>
+          <h2 className="text-2xl font-semibold text-foreground mb-3">Scheduler</h2>
+          <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+            One Line of Code. 12 Platforms.
           </p>
-          <p className="text-lg text-muted-foreground mt-2 mb-6">
+          <p className="text-base text-muted-foreground mt-2 mb-8">
             Part of the{" "}
             <a
               href="https://simplepost.dev"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline font-medium">
+              className="text-primary hover:underline font-semibold">
               simplepost.dev
             </a>{" "}
-            bundle.
+            ecosystem.
           </p>
 
           {/* Platform Icons */}
-          <div className="flex items-center justify-center gap-6 mt-8">
+          <div className="flex items-center justify-center gap-5 mt-8">
             <PlatformIcon
               platform="facebook"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
+              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
             />
             <PlatformIcon
               platform="instagram"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
+              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
             />
-            <PlatformIcon
-              platform="x"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
-            />
+            <PlatformIcon platform="x" className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors" />
             <PlatformIcon
               platform="youtube"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
+              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
             />
             <PlatformIcon
               platform="tiktok"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
+              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
             />
             <PlatformIcon
               platform="telegram"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
+              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
             />
           </div>
         </div>
 
         {/* Login Form Card */}
-        <Card className="max-w-md mx-auto border-border/50 shadow-xl">
+        <Card className="max-w-md mx-auto border-border shadow-2xl bg-card backdrop-blur-sm">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl">Sign In</CardTitle>
+            <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {error && (
@@ -128,8 +129,12 @@ export function LoginForm() {
               </div>
             )}
 
-            <Button onClick={handleGoogleSignIn} disabled={isLoading} variant="outline" className="w-full h-12">
-              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+            <Button
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full h-11 font-medium">
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -169,12 +174,12 @@ export function LoginForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
-                  className="h-12"
+                  className="h-11"
                   required
                 />
               </div>
-              <Button type="submit" disabled={isLoading} className="w-full h-12">
-                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <Button type="submit" disabled={isLoading} className="w-full h-11 font-medium shadow-sm">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"

@@ -69,6 +69,8 @@ See `POSTING.md` for detailed documentation on how posting works.
 - Cloudflare R2 bucket (for media storage)
 - Social media platform OAuth credentials
 
+> **Note**: For Instagram connection, see [INSTAGRAM_SETUP.md](./INSTAGRAM_SETUP.md) for detailed setup instructions.
+
 ### Installation
 
 1. **Install dependencies**:

@@ -23,6 +23,12 @@ const TOKEN_CONFIG: Record<
     clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
     userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
   },
+  instagram: {
+    tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
+    clientId: process.env.FACEBOOK_CLIENT_ID || "",
+    clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
+    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
+  },
   tiktok: {
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
     clientId: process.env.TIKTOK_CLIENT_KEY || "",
@@ -109,6 +115,57 @@ async function fetchUserProfile(platform: string, accessToken: string) {
   return data;
 }
 
+async function fetchInstagramAccounts(accessToken: string) {
+  // Fetch user's Facebook Pages
+  const pagesResponse = await fetch(
+    `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+
+  if (!pagesResponse.ok) {
+    throw new Error(`Failed to fetch Facebook pages: ${pagesResponse.statusText}`);
+  }
+
+  const pagesData = await pagesResponse.json();
+  const instagramAccounts: Array<{
+    businessAccountId: string;
+    username: string;
+    name: string;
+    profilePicture: string;
+    pageAccessToken: string;
+  }> = [];
+
+  // For each page, check if it has an Instagram Business account
+  for (const page of pagesData.data || []) {
+    if (page.instagram_business_account) {
+      const igAccountId = page.instagram_business_account.id;
+
+      // Fetch Instagram account details
+      const igResponse = await fetch(
+        `https://graph.facebook.com/v18.0/${igAccountId}?fields=id,username,name,profile_picture_url`,
+        {
+          headers: { Authorization: `Bearer ${page.access_token}` },
+        },
+      );
+
+      if (igResponse.ok) {
+        const igData = await igResponse.json();
+        instagramAccounts.push({
+          businessAccountId: igData.id,
+          username: igData.username,
+          name: igData.name || igData.username,
+          profilePicture: igData.profile_picture_url || "",
+          pageAccessToken: page.access_token,
+        });
+      }
+    }
+  }
+
+  return instagramAccounts;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   try {
     const { platform } = await params;
@@ -156,7 +213,58 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error("No access token received");
     }
 
-    // Fetch user profile
+    // Special handling for Instagram - fetch Instagram Business accounts
+    if (platform === "instagram") {
+      const instagramAccounts = await fetchInstagramAccounts(accessToken);
+
+      if (instagramAccounts.length === 0) {
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=no_instagram_accounts&message=${encodeURIComponent("No Instagram Business accounts found. Make sure you have an Instagram Business account connected to a Facebook Page.")}`,
+        );
+      }
+
+      // Store each Instagram Business account
+      for (const igAccount of instagramAccounts) {
+        await prisma.connectedAccount.upsert({
+          where: {
+            userId_platform_platformAccountId: {
+              userId,
+              platform: "instagram",
+              platformAccountId: igAccount.businessAccountId,
+            },
+          },
+          create: {
+            userId,
+            platform: "instagram",
+            platformAccountId: igAccount.businessAccountId,
+            accessToken: igAccount.pageAccessToken,
+            refreshToken,
+            expiresAt: null, // Page access tokens don't expire if properly set up
+            scope,
+            username: igAccount.username,
+            displayName: igAccount.name,
+            email: null,
+            profilePicture: igAccount.profilePicture,
+          },
+          update: {
+            accessToken: igAccount.pageAccessToken,
+            refreshToken,
+            scope,
+            username: igAccount.username,
+            displayName: igAccount.name,
+            profilePicture: igAccount.profilePicture,
+            updatedAt: new Date(),
+          },
+        });
+      }
+
+      // Redirect back to accounts page with success
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=instagram&count=${instagramAccounts.length}`,
+      );
+    }
+
+    // Fetch user profile for other platforms
     const profile = await fetchUserProfile(platform, accessToken);
 
     // Extract profile data based on platform

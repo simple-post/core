@@ -176,8 +176,11 @@ export default function AccountsPage() {
   };
 
   const getAccountDisplayName = (account: ConnectedAccount) => {
-    // For X (Twitter) and TikTok, prefer showing @username
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
+    // For X (Twitter), Instagram, and TikTok, prefer showing @username
+    if (
+      (account.platform === "x" || account.platform === "instagram" || account.platform === "tiktok") &&
+      account.username
+    ) {
       return `@${account.username}`;
     }
 

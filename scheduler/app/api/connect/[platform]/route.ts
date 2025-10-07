@@ -24,6 +24,12 @@ const OAUTH_CONFIG: Record<
     scope:
       "public_profile email pages_show_list pages_read_engagement pages_manage_posts instagram_basic instagram_content_publish",
   },
+  instagram: {
+    authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
+    clientId: process.env.FACEBOOK_CLIENT_ID || "",
+    scope:
+      "public_profile instagram_basic instagram_content_publish pages_show_list pages_read_engagement business_management",
+  },
   tiktok: {
     authUrl: "https://www.tiktok.com/v2/auth/authorize",
     clientId: process.env.TIKTOK_CLIENT_KEY || "",

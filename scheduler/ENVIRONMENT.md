@@ -47,19 +47,15 @@ R2_PUBLIC_URL="https://your-public-domain.com"
 Add your platform-specific OAuth credentials as needed:
 
 ```env
-# Facebook
+# Facebook (also used for Instagram connection)
 FACEBOOK_CLIENT_ID="your-facebook-client-id"
 FACEBOOK_CLIENT_SECRET="your-facebook-client-secret"
-
-# Instagram (uses Facebook)
-INSTAGRAM_CLIENT_ID="your-instagram-client-id"
-INSTAGRAM_CLIENT_SECRET="your-instagram-client-secret"
 
 # X (Twitter)
 X_CLIENT_ID="your-x-client-id"
 X_CLIENT_SECRET="your-x-client-secret"
 
-# YouTube
+# YouTube (Google OAuth)
 YOUTUBE_CLIENT_ID="your-youtube-client-id"
 YOUTUBE_CLIENT_SECRET="your-youtube-client-secret"
 
@@ -67,3 +63,5 @@ YOUTUBE_CLIENT_SECRET="your-youtube-client-secret"
 TIKTOK_CLIENT_KEY="your-tiktok-client-key"
 TIKTOK_CLIENT_SECRET="your-tiktok-client-secret"
 ```
+
+> **Note for Instagram**: Instagram authentication uses Facebook OAuth credentials. When you connect Instagram, the app will automatically discover Instagram Business accounts linked to your Facebook Pages. See [INSTAGRAM_SETUP.md](./INSTAGRAM_SETUP.md) for detailed setup instructions.

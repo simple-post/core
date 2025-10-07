@@ -4,13 +4,15 @@ A modern, full-featured social media scheduling application built with Next.js 1
 
 ## Features
 
+- 🚀 **Post Now**: Instantly publish content to all selected social media platforms
 - 🗓️ **Schedule Posts**: Plan and schedule content across multiple social media platforms
-- 📱 **Multi-Platform Support**: Facebook, Instagram, X (Twitter), YouTube, TikTok
+- 📱 **Multi-Platform Support**: Facebook, Instagram, X (Twitter), YouTube, TikTok, Telegram
 - 🖼️ **Media Upload**: Support for images and videos with Cloudflare R2 storage
 - 👥 **Multi-Account**: Connect and manage multiple accounts per platform
 - ⚙️ **Platform-Specific Options**: Configure platform-specific settings for each post
 - 🔐 **Authentication**: Secure authentication with Better Auth
 - 💾 **Database-Backed**: All posts stored in PostgreSQL with Prisma ORM
+- 🔄 **Real-Time Posting**: Uses the SimplePost SDK to post to all platforms
 
 ## Architecture
 
@@ -34,11 +36,29 @@ Media files (images and videos) are uploaded to Cloudflare R2, providing:
 ### API Routes
 
 - `GET /api/posts?type={scheduled|past|all}` - Fetch posts
-- `POST /api/posts` - Create a new scheduled post (with media upload)
+- `POST /api/posts` - Create and optionally post immediately (with media upload)
 - `PATCH /api/posts/[id]` - Update a post
 - `DELETE /api/posts/[id]` - Delete a post (and its media)
 - `GET /api/accounts` - Fetch connected accounts
 - `POST /api/connect/[platform]` - Connect a new social account
+
+## Posting Functionality
+
+The scheduler supports two posting modes:
+
+1. **Post Now** - Immediately publishes to all selected social media accounts using the SimplePost SDK
+2. **Schedule for Later** - Saves the post for future publishing
+
+When posting immediately:
+
+- The app creates a post record in the database
+- Uses the SimplePost SDK to publish to all selected platforms
+- Updates the post status to "published" or "failed" based on results
+- Media files are automatically downloaded from R2 and uploaded to each platform
+
+See `POSTING.md` for detailed documentation on how posting works.
+
+> **Note:** Scheduled posts require a background job to process them at the scheduled time. This is not yet implemented.
 
 ## Getting Started
 
@@ -121,6 +141,7 @@ Media files (images and videos) are uploaded to Cloudflare R2, providing:
 
 ### Libraries
 
+- **@simple-post/sdk** - Social media posting SDK
 - **date-fns** - Date formatting
 - **AWS SDK** - S3-compatible R2 client
 - **Zod** - Schema validation
@@ -150,8 +171,11 @@ scheduler/
 │   ├── repositories/      # Data access layer
 │   │   ├── local-storage.ts  # Legacy localStorage repo
 │   │   └── prisma.ts         # Database repository
+│   ├── utils/            # Utility functions
+│   │   └── file-download.ts # File download utility
 │   ├── auth.ts           # Auth configuration
 │   ├── config.ts         # App configuration
+│   ├── posting-service.ts # Social media posting service
 │   ├── r2.ts             # Cloudflare R2 utilities
 │   └── types.ts          # TypeScript types
 ├── prisma/               # Database schema and migrations

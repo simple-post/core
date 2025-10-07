@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { PrismaPostsRepository } from "@/lib/repositories/prisma";
 import { uploadToR2, generateFileKey } from "@/lib/r2";
 import { generateThumbnail } from "@/lib/thumbnail";
+import { postToAccounts, getPostingSummary } from "@/lib/posting-service";
 
 // GET /api/posts - Get all posts (scheduled and past)
 export async function GET(req: NextRequest) {
@@ -47,10 +48,18 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const message = formData.get("message") as string;
     const accountIds = JSON.parse(formData.get("accountIds") as string);
-    const scheduledFor = new Date(formData.get("scheduledFor") as string);
+    const postingMode = (formData.get("postingMode") as string) || "schedule";
     const accountOptions = formData.get("accountOptions")
       ? JSON.parse(formData.get("accountOptions") as string)
       : undefined;
+
+    // Get scheduledFor based on posting mode
+    let scheduledFor: Date;
+    if (postingMode === "now") {
+      scheduledFor = new Date(); // Post immediately
+    } else {
+      scheduledFor = new Date(formData.get("scheduledFor") as string);
+    }
 
     // Handle media uploads
     const mediaFiles = [];
@@ -82,17 +91,61 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Create the post first
     const post = await repository.createPost(
       {
         message,
         accountIds,
         media: mediaFiles,
         scheduledFor,
-        status: "scheduled",
+        status: postingMode === "now" ? "published" : "scheduled",
         accountOptions,
       },
       session.user.id,
     );
+
+    // If posting now, actually post to the platforms
+    if (postingMode === "now") {
+      try {
+        const results = await postToAccounts(message, mediaFiles, accountIds, accountOptions);
+        const summary = getPostingSummary(results);
+
+        // Update post status based on results
+        if (summary.overallSuccess) {
+          await repository.updatePost(post.id, {
+            status: "published",
+            publishedAt: new Date(),
+          });
+        } else {
+          await repository.updatePost(post.id, {
+            status: "failed",
+          });
+        }
+
+        return NextResponse.json(
+          {
+            post: await repository.getPastPosts().then((posts) => posts.find((p) => p.id === post.id)),
+            postingResults: results,
+            summary,
+          },
+          { status: 201 },
+        );
+      } catch (postingError) {
+        console.error("Error posting to platforms:", postingError);
+        // Update post status to failed
+        await repository.updatePost(post.id, {
+          status: "failed",
+        });
+
+        return NextResponse.json(
+          {
+            error: "Failed to post to platforms",
+            post: await repository.getPastPosts().then((posts) => posts.find((p) => p.id === post.id)),
+          },
+          { status: 500 },
+        );
+      }
+    }
 
     return NextResponse.json({ post }, { status: 201 });
   } catch (error) {

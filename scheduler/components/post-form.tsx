@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { MediaFile, AccountOptionsMap, SocialPost } from "@/lib/types";
 import { format } from "date-fns";
 import { MediaUpload } from "./media-upload";
@@ -24,6 +25,9 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   const router = useRouter();
   const [message, setMessage] = useState(existingPost?.message || "");
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(existingPost?.accountIds || []);
+  const [postingMode, setPostingMode] = useState<"now" | "schedule">(
+    existingPost?.status === "scheduled" ? "schedule" : "now",
+  );
   const [scheduledDate, setScheduledDate] = useState(
     existingPost?.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
   );
@@ -39,19 +43,30 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || selectedAccountIds.length === 0 || !scheduledDate || !scheduledTime) {
+
+    // Validate based on posting mode
+    if (!message.trim() || selectedAccountIds.length === 0) {
+      return;
+    }
+
+    if (postingMode === "schedule" && (!scheduledDate || !scheduledTime)) {
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
-
       // Create FormData for file upload
       const formData = new FormData();
       formData.append("message", message.trim());
       formData.append("accountIds", JSON.stringify(selectedAccountIds));
-      formData.append("scheduledFor", scheduledFor.toISOString());
+      formData.append("postingMode", postingMode);
+
+      // Only add schedule info if scheduling
+      if (postingMode === "schedule") {
+        const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
+        formData.append("scheduledFor", scheduledFor.toISOString());
+      }
+
       if (Object.keys(accountOptions).length > 0) {
         formData.append("accountOptions", JSON.stringify(accountOptions));
       }
@@ -111,7 +126,8 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     }
   };
 
-  const isFormValid = message.trim() && selectedAccountIds.length > 0 && scheduledDate && scheduledTime;
+  const isFormValid =
+    message.trim() && selectedAccountIds.length > 0 && (postingMode === "now" || (scheduledDate && scheduledTime));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -161,48 +177,71 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
           onOptionsChange={setAccountOptions}
         />
 
-        {/* Schedule Settings */}
+        {/* Posting Mode Selection */}
         <div className="space-y-4">
           <div>
-            <Label className="text-sm font-medium">Schedule</Label>
+            <Label className="text-sm font-medium">When to Post</Label>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="date" className="text-sm text-muted-foreground">
-                Date
+          <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as "now" | "schedule")}>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="now" id="post-now" />
+              <Label htmlFor="post-now" className="font-normal cursor-pointer">
+                Post Now
               </Label>
-              <Input
-                id="date"
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                min={format(new Date(), "yyyy-MM-dd")}
-                className="mt-1 border-border/50"
-              />
             </div>
-            <div>
-              <Label htmlFor="time" className="text-sm text-muted-foreground">
-                Time
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="schedule" id="post-schedule" />
+              <Label htmlFor="post-schedule" className="font-normal cursor-pointer">
+                Schedule for Later
               </Label>
-              <Input
-                id="time"
-                type="time"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-                className="mt-1 border-border/50"
-              />
             </div>
-          </div>
-
-          {scheduledDate && scheduledTime && (
-            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
-              Publishing on{" "}
-              <span className="font-medium text-foreground">
-                {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-              </span>
-            </div>
-          )}
+          </RadioGroup>
         </div>
+
+        {/* Schedule Settings - Only show when scheduling */}
+        {postingMode === "schedule" && (
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Schedule</Label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="date" className="text-sm text-muted-foreground">
+                  Date
+                </Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  min={format(new Date(), "yyyy-MM-dd")}
+                  className="mt-1 border-border/50"
+                />
+              </div>
+              <div>
+                <Label htmlFor="time" className="text-sm text-muted-foreground">
+                  Time
+                </Label>
+                <Input
+                  id="time"
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="mt-1 border-border/50"
+                />
+              </div>
+            </div>
+
+            {scheduledDate && scheduledTime && (
+              <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+                Publishing on{" "}
+                <span className="font-medium text-foreground">
+                  {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Submit Button */}
         <div className="flex gap-4 pt-4">
@@ -221,12 +260,16 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
           </Button>
           <Button type="submit" disabled={!isFormValid || isSubmitting} className="flex-1">
             {isSubmitting
-              ? mode === "edit"
-                ? "Updating..."
-                : "Scheduling..."
-              : mode === "edit"
-                ? "Update Post"
-                : "Schedule Post"}
+              ? postingMode === "now"
+                ? "Posting..."
+                : mode === "edit"
+                  ? "Updating..."
+                  : "Scheduling..."
+              : postingMode === "now"
+                ? "Post Now"
+                : mode === "edit"
+                  ? "Update Post"
+                  : "Schedule Post"}
           </Button>
         </div>
       </form>

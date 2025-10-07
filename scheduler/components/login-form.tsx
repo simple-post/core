@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import Link from "next/link";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -145,6 +146,20 @@ export function LoginForm() {
               {isLoading ? "Sending..." : "Send Magic Link"}
             </Button>
           </form>
+
+          <div className="pt-6 border-t border-border/50 text-center text-sm text-muted-foreground">
+            <p>
+              By signing in, you agree to our{" "}
+              <Link href="/terms" className="underline hover:text-foreground transition-colors">
+                Terms and Conditions
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="underline hover:text-foreground transition-colors">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

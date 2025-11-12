@@ -19,6 +19,7 @@
     "facebook:single": "tsx facebook/postSingle.ts",
     "facebook:images": "tsx facebook/postImages.ts",
     "facebook:video": "tsx facebook/postVideo.ts",
+    "facebook:tag": "tsx facebook/postWithTag.ts",
     "instagram:image": "tsx instagram/postImage.ts",
     "instagram:carousel": "tsx instagram/postCarousel.ts",
     "instagram:video": "tsx instagram/postVideo.ts",

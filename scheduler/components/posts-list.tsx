@@ -19,13 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit } from "lucide-react";
+import { Trash2, Edit, AlertCircle } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 
 interface PostsListProps {
-  type: "scheduled" | "past";
+  type: "scheduled" | "past" | "failed";
   onPostDeleted?: () => void;
 }
 
@@ -107,7 +108,13 @@ export function PostsList({ type, onPostDeleted }: PostsListProps) {
     return (
       <div className="border border-border rounded-xl p-8 text-center bg-card">
         <div className="text-muted-foreground">
-          <p className="text-sm">{type === "scheduled" ? "No scheduled posts" : "No published posts"}</p>
+          <p className="text-sm">
+            {type === "scheduled"
+              ? "No scheduled posts"
+              : type === "failed"
+                ? "No failed posts"
+                : "No published posts"}
+          </p>
         </div>
       </div>
     );
@@ -144,6 +151,7 @@ function PostCard({
 
   const hasMedia = post.media.length > 0;
   const isScheduled = post.status === "scheduled";
+  const isFailed = post.status === "failed";
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -181,7 +189,7 @@ function PostCard({
   return (
     <>
       <Link href={`/posts/${post.id}`}>
-        <div className="border border-border rounded-xl p-4 hover:border-primary hover:shadow-lg hover:shadow-primary/20 transition-all cursor-pointer bg-card backdrop-blur-sm">
+        <div className="border border-border rounded-xl p-4 transition-all cursor-pointer backdrop-blur-sm bg-card hover:border-primary hover:shadow-lg hover:shadow-primary/20">
           <div className="flex gap-4">
             <div className="flex-shrink-0 relative">
               {hasMedia ? (
@@ -259,7 +267,17 @@ function PostCard({
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground line-clamp-2 mb-2">{post.message || "No message"}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-sm text-foreground line-clamp-2 flex-1">
+                      {post.message || "No message"}
+                    </p>
+                    {isFailed && (
+                      <Badge variant="destructive" className="flex-shrink-0 text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Failed
+                      </Badge>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                     <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

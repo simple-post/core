@@ -57,6 +57,24 @@ export class PostsModel {
     return posts.map(this.mapPostToSocialPost);
   }
 
+  async getFailedPosts(): Promise<SocialPost[]> {
+    const posts = await prisma.post.findMany({
+      where: {
+        ...(this.userId && { userId: this.userId }),
+        status: "failed",
+      },
+      include: {
+        media: true,
+        accounts: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return posts.map(this.mapPostToSocialPost);
+  }
+
   async createPost(postData: Omit<SocialPost, "id" | "createdAt">, userId: string): Promise<SocialPost> {
     const post = await prisma.post.create({
       data: {

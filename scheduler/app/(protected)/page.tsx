@@ -60,6 +60,17 @@ export default function Dashboard() {
             </Suspense>
           </section>
 
+          {/* Failed Posts */}
+          <section>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-foreground mb-2">Failed Posts</h2>
+              <p className="text-muted-foreground">Posts that failed to publish - review and retry if needed</p>
+            </div>
+            <Suspense fallback={<PostsListSkeleton />}>
+              <PostsList type="failed" />
+            </Suspense>
+          </section>
+
           {/* Past Posts */}
           <section>
             <div className="mb-8">

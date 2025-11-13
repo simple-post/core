@@ -15,6 +15,7 @@ import { MediaUpload } from "./media-upload";
 import { AccountSelector } from "./account-selector";
 import { AccountOptionsComponent } from "./account-options";
 import { PostPreview } from "./post-preview";
+import { PostLinksModal } from "./post-links-modal";
 
 interface PostFormProps {
   mode: "create" | "edit";
@@ -37,6 +38,16 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   const [media, setMedia] = useState<MediaFile[]>(existingPost?.media || []);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost?.accountOptions || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPostLinksModal, setShowPostLinksModal] = useState(false);
+  const [postingResults, setPostingResults] = useState<
+    Array<{
+      accountId: string;
+      platform: string;
+      success: boolean;
+      error?: string;
+      postUrl?: string;
+    }>
+  >([]);
 
   // Track which media files were originally present (for edit mode)
   const [originalMediaIds] = useState<Set<string>>(new Set(existingPost?.media.map((m) => m.id) || []));
@@ -112,11 +123,21 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
         throw new Error(`Failed to ${mode} post`);
       }
 
-      // Navigate to either the post detail page or home
-      if (mode === "edit") {
-        router.push(`/posts/${existingPost?.id}`);
+      const data = await res.json();
+
+      // If posting now and we have posting results, show the modal
+      if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
+        setPostingResults(data.postingResults);
+        setShowPostLinksModal(true);
+        // Don't navigate immediately - let user see the results first
+        // They can close the modal to navigate
       } else {
-        router.push("/");
+        // Navigate to either the post detail page or home
+        if (mode === "edit") {
+          router.push(`/posts/${existingPost?.id}`);
+        } else {
+          router.push("/");
+        }
       }
     } catch (error) {
       console.error(`Failed to ${mode} post:`, error);
@@ -284,6 +305,23 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
           selectedPlatforms={selectedAccountIds}
         />
       </div>
+
+      {/* Post Links Modal */}
+      <PostLinksModal
+        open={showPostLinksModal}
+        onOpenChange={(open) => {
+          setShowPostLinksModal(open);
+          // Navigate when modal is closed
+          if (!open) {
+            if (mode === "edit") {
+              router.push(`/posts/${existingPost?.id}`);
+            } else {
+              router.push("/");
+            }
+          }
+        }}
+        results={postingResults}
+      />
     </div>
   );
 }

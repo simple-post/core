@@ -6,10 +6,7 @@ type Credentials = Record<string, unknown>;
 /**
  * Platform-specific credential builders
  */
-const credentialBuilders: Record<
-  string,
-  (account: ConnectedAccount) => Credentials
-> = {
+const credentialBuilders: Record<string, (account: ConnectedAccount) => Credentials> = {
   x: (account: ConnectedAccount) => ({
     clientId: process.env.X_CLIENT_ID || "",
     clientSecret: process.env.X_CLIENT_SECRET || "",
@@ -18,11 +15,19 @@ const credentialBuilders: Record<
     expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0,
   }),
   twitter: (account: ConnectedAccount) => credentialBuilders.x(account),
-  youtube: (account: ConnectedAccount) => ({
-    clientId: process.env.YOUTUBE_CLIENT_ID || "",
-    clientSecret: process.env.YOUTUBE_CLIENT_SECRET || "",
-    refreshToken: account.refreshToken || "",
-  }),
+  youtube: (account: ConnectedAccount) => {
+    // Prefer accessToken if available, otherwise fall back to OAuth2 credentials
+    if (account.accessToken) {
+      return {
+        accessToken: account.accessToken,
+      };
+    }
+    return {
+      clientId: process.env.YOUTUBE_CLIENT_ID || "",
+      clientSecret: process.env.YOUTUBE_CLIENT_SECRET || "",
+      refreshToken: account.refreshToken || "",
+    };
+  },
   telegram: () => ({
     botToken: process.env.TELEGRAM_BOT_TOKEN || "",
   }),
@@ -58,40 +63,51 @@ const postOptionBuilders: Record<
   x: (account, credentials, accountSpecificOptions) => ({
     x: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials,
+      credentials: credentials as any,
     },
   }),
   twitter: (account, credentials, accountSpecificOptions) =>
     postOptionBuilders.x(account, credentials, accountSpecificOptions),
-  youtube: (account, credentials, accountSpecificOptions) => ({
-    youtube: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials,
-    },
-  }),
+  youtube: (account, credentials, accountSpecificOptions) => {
+    // Ensure credentials match the expected YouTube credentials type
+    const youtubeCredentials = account.accessToken
+      ? { accessToken: account.accessToken }
+      : {
+          clientId: process.env.YOUTUBE_CLIENT_ID || "",
+          clientSecret: process.env.YOUTUBE_CLIENT_SECRET || "",
+          refreshToken: account.refreshToken || "",
+        };
+
+    return {
+      youtube: {
+        ...(accountSpecificOptions as Record<string, unknown>),
+        credentials: youtubeCredentials as any,
+      },
+    };
+  },
   telegram: (account, credentials, accountSpecificOptions) => ({
     telegram: {
       chatId: account.platformAccountId,
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials,
+      credentials: credentials as any,
     },
   }),
   facebook: (account, credentials, accountSpecificOptions) => ({
     facebook: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials,
+      credentials: credentials as any,
     },
   }),
   instagram: (account, credentials, accountSpecificOptions) => ({
     instagram: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials,
+      credentials: credentials as any,
     },
   }),
   tiktok: (account, credentials, accountSpecificOptions) => ({
     tiktok: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials,
+      credentials: credentials as any,
     },
   }),
 };
@@ -99,10 +115,7 @@ const postOptionBuilders: Record<
 /**
  * Merges account-specific options with credentials
  */
-export function buildPostOptions(
-  account: ConnectedAccount,
-  accountOptions?: AccountOptionsMap,
-): PostOptions {
+export function buildPostOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): PostOptions {
   const platform = account.platform.toLowerCase();
   const credentials = buildCredentials(account);
   const accountSpecificOptions = accountOptions?.[account.id] || {};
@@ -112,6 +125,7 @@ export function buildPostOptions(
     return {};
   }
 
+  console.log("DBG:", { credentials });
+
   return builder(account, credentials, accountSpecificOptions) as PostOptions;
 }
-

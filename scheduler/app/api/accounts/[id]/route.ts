@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, prisma } from "@/lib/auth/auth";
-import { headers } from "next/headers";
+import { requireAuth } from "@/lib/middleware/auth";
+import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
+import { prisma } from "@/lib/prisma";
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-
-    // Get session from better-auth
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireAuth(request);
 
     // Check if the account exists and belongs to the user
     const account = await prisma.connectedAccount.findUnique({
@@ -21,11 +14,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     });
 
     if (!account) {
-      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      throw new NotFoundError("Account not found");
     }
 
     if (account.userId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      throw new ForbiddenError("You don't have permission to delete this account");
     }
 
     // Delete the account
@@ -35,9 +28,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ success: true, message: "Account disconnected successfully" });
   } catch (error) {
-    console.error("Error deleting account:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error details:", errorMessage);
-    return NextResponse.json({ error: "Failed to disconnect account" }, { status: 500 });
+    return handleApiError(error);
   }
 }

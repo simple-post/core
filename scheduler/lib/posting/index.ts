@@ -1,8 +1,9 @@
 import { PostErrorType, post as sdkPost } from "@simple-post/sdk";
-import type { Post, Platform, PostOptions, Media } from "@simple-post/sdk";
+import type { Post, Platform, Media } from "@simple-post/sdk";
 import { prisma } from "@/lib/prisma";
 import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
 import { downloadFile } from "@/lib/utils/file-download";
+import { buildPostOptions } from "./credentials";
 
 interface PostingResult {
   accountId: string;
@@ -64,117 +65,6 @@ async function convertMedia(mediaFiles: MediaFile[]): Promise<Media[]> {
   }
 
   return media;
-}
-
-/**
- * Builds credentials for a connected account
- */
-function buildCredentials(account: ConnectedAccount): any {
-  const platform = account.platform.toLowerCase();
-
-  switch (platform) {
-    case "x":
-    case "twitter":
-      return {
-        clientId: process.env.X_CLIENT_ID || "",
-        clientSecret: process.env.X_CLIENT_SECRET || "",
-        accessToken: account.accessToken,
-        refreshToken: account.refreshToken || "",
-        expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0,
-      };
-
-    case "youtube":
-      return {
-        clientId: process.env.YOUTUBE_CLIENT_ID || "",
-        clientSecret: process.env.YOUTUBE_CLIENT_SECRET || "",
-        refreshToken: account.refreshToken || "",
-      };
-
-    case "telegram":
-      return {
-        botToken: process.env.TELEGRAM_BOT_TOKEN || "",
-      };
-
-    case "facebook":
-      return {
-        pageAccessToken: account.accessToken,
-        pageId: account.platformAccountId,
-      };
-
-    case "instagram":
-      return {
-        accessToken: account.accessToken,
-        businessAccountId: account.platformAccountId,
-      };
-
-    case "tiktok":
-      return {
-        accessToken: account.accessToken,
-      };
-
-    default:
-      return {};
-  }
-}
-
-/**
- * Merges account-specific options with credentials
- */
-function buildPostOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): PostOptions {
-  const platform = account.platform.toLowerCase();
-  const credentials = buildCredentials(account);
-  const options: PostOptions = {};
-
-  // Get account-specific options if provided
-  const accountSpecificOptions = accountOptions?.[account.id] || {};
-
-  switch (platform) {
-    case "x":
-    case "twitter":
-      options.x = {
-        ...accountSpecificOptions,
-        credentials,
-      };
-      break;
-
-    case "youtube":
-      options.youtube = {
-        ...accountSpecificOptions,
-        credentials,
-      };
-      break;
-
-    case "telegram":
-      options.telegram = {
-        chatId: account.platformAccountId,
-        ...accountSpecificOptions,
-        credentials,
-      };
-      break;
-
-    case "facebook":
-      options.facebook = {
-        ...accountSpecificOptions,
-        credentials,
-      };
-      break;
-
-    case "instagram":
-      options.instagram = {
-        ...accountSpecificOptions,
-        credentials,
-      };
-      break;
-
-    case "tiktok":
-      options.tiktok = {
-        ...accountSpecificOptions,
-        credentials,
-      };
-      break;
-  }
-
-  return options;
 }
 
 /**

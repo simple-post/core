@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/middleware/auth";
+import { handleApiError } from "@/lib/utils/errors";
 import { PostsModel } from "@/lib/db";
-import { uploadToR2, generateFileKey } from "@/lib/r2";
-import { generateThumbnail } from "@/lib/utils/thumbnail";
+import { processMediaFiles } from "@/lib/utils/media-upload";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { createPostSchema } from "@/lib/validations/posts";
+import { BadRequestError } from "@/lib/utils/errors";
 
 // GET /api/posts - Get all posts (scheduled and past)
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const session = await requireAuth(req);
     const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";
@@ -30,84 +27,85 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ posts });
   } catch (error) {
-    console.error("Error fetching posts:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // POST /api/posts - Create a new post
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const session = await requireAuth(req);
     const repository = new PostsModel(session.user.id);
     const formData = await req.formData();
+
+    // Parse and validate form data
     const message = formData.get("message") as string;
-    const accountIds = JSON.parse(formData.get("accountIds") as string);
+    const accountIdsStr = formData.get("accountIds") as string;
     const postingMode = (formData.get("postingMode") as string) || "schedule";
-    const accountOptions = formData.get("accountOptions")
-      ? JSON.parse(formData.get("accountOptions") as string)
-      : undefined;
+    const accountOptionsStr = formData.get("accountOptions") as string | null;
+
+    if (!message || !accountIdsStr) {
+      throw new BadRequestError("Message and accountIds are required");
+    }
+
+    let accountIds: string[];
+    try {
+      accountIds = JSON.parse(accountIdsStr);
+    } catch {
+      throw new BadRequestError("Invalid accountIds format");
+    }
+
+    const accountOptions = accountOptionsStr ? JSON.parse(accountOptionsStr) : undefined;
+
+    // Validate with schema
+    const scheduledForStr = formData.get("scheduledFor") as string | null;
+    const validationData = {
+      message,
+      accountIds,
+      postingMode: postingMode as "now" | "schedule",
+      scheduledFor: scheduledForStr || undefined,
+      accountOptions,
+    };
+
+    const validated = createPostSchema.parse(validationData);
 
     // Get scheduledFor based on posting mode
     let scheduledFor: Date;
-    if (postingMode === "now") {
+    if (validated.postingMode === "now") {
       scheduledFor = new Date(); // Post immediately
     } else {
-      scheduledFor = new Date(formData.get("scheduledFor") as string);
+      if (!validated.scheduledFor) {
+        throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
+      }
+      scheduledFor = new Date(validated.scheduledFor);
     }
 
     // Handle media uploads
-    const mediaFiles = [];
-    const files = formData.getAll("media");
-
-    for (const file of files) {
-      if (file instanceof File) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const key = generateFileKey(session.user.id, file.name);
-        const url = await uploadToR2(buffer, key, file.type);
-
-        // Generate and upload thumbnail
-        let thumbnailUrl: string | undefined;
-        const thumbnail = await generateThumbnail(buffer, file.name, file.type);
-        if (thumbnail) {
-          const thumbnailKey = generateFileKey(session.user.id, thumbnail.filename);
-          thumbnailUrl = await uploadToR2(thumbnail.buffer, thumbnailKey, "image/jpeg");
-        }
-
-        const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
-        mediaFiles.push({
-          id: crypto.randomUUID(),
-          url,
-          thumbnailUrl,
-          type: mediaType,
-          filename: file.name,
-          size: file.size,
-        });
-      }
-    }
+    const files = formData.getAll("media").filter((f): f is File => f instanceof File);
+    const mediaFiles = await processMediaFiles(files, session.user.id);
 
     // Create the post first
     const post = await repository.createPost(
       {
-        message,
-        accountIds,
+        message: validated.message,
+        accountIds: validated.accountIds,
         media: mediaFiles,
         scheduledFor,
-        status: postingMode === "now" ? "published" : "scheduled",
-        accountOptions,
+        status: validated.postingMode === "now" ? "published" : "scheduled",
+        accountOptions: validated.accountOptions,
       },
       session.user.id,
     );
 
     // If posting now, actually post to the platforms
-    if (postingMode === "now") {
+    if (validated.postingMode === "now") {
       try {
-        const results = await postToAccounts(message, mediaFiles, accountIds, accountOptions);
+        const results = await postToAccounts(
+          validated.message,
+          mediaFiles,
+          validated.accountIds,
+          validated.accountOptions,
+        );
         const summary = getPostingSummary(results);
 
         // Update post status based on results
@@ -122,34 +120,30 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        const updatedPost = await repository.getPostById(post.id);
         return NextResponse.json(
           {
-            post: await repository.getPastPosts().then((posts) => posts.find((p) => p.id === post.id)),
+            post: updatedPost,
             postingResults: results,
             summary,
           },
           { status: 201 },
         );
       } catch (postingError) {
-        console.error("Error posting to platforms:", postingError);
         // Update post status to failed
         await repository.updatePost(post.id, {
           status: "failed",
         });
 
-        return NextResponse.json(
-          {
-            error: "Failed to post to platforms",
-            post: await repository.getPastPosts().then((posts) => posts.find((p) => p.id === post.id)),
-          },
-          { status: 500 },
-        );
+        const updatedPost = await repository.getPostById(post.id);
+        // Log the error but return a user-friendly message
+        console.error("Failed to post to platforms:", postingError);
+        throw new BadRequestError("Failed to post to platforms");
       }
     }
 
     return NextResponse.json({ post }, { status: 201 });
   } catch (error) {
-    console.error("Error creating post:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(error);
   }
 }

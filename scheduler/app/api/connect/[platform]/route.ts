@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth/auth";
-import { headers } from "next/headers";
+import { requireAuth } from "@/lib/middleware/auth";
+import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 // OAuth configuration for each platform
 const OAUTH_CONFIG: Record<
@@ -47,19 +47,11 @@ const OAUTH_CONFIG: Record<
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   try {
     const { platform } = await params;
-
-    // Verify user is authenticated
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireAuth(request);
 
     const config = OAUTH_CONFIG[platform];
     if (!config || !config.clientId) {
-      return NextResponse.json({ error: "Platform not supported or not configured" }, { status: 400 });
+      throw new BadRequestError("Platform not supported or not configured");
     }
 
     const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -115,7 +107,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {
-    console.error("OAuth initiation error:", error);
-    return NextResponse.json({ error: "Failed to initiate OAuth" }, { status: 500 });
+    return handleApiError(error);
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/auth/auth";
+import { prisma } from "@/lib/prisma";
 
 // Token exchange configuration for each platform
 const TOKEN_CONFIG: Record<
@@ -343,9 +343,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Redirect back to accounts page
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=${platform}`);
   } catch (error) {
-    console.error("OAuth callback error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error details:", errorMessage);
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=callback_failed`);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(errorMessage)}`,
+    );
   }
 }

@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/middleware/auth";
+import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const session = await requireAuth(req);
     const body = await req.json();
     const { botToken, chatId, channelName } = body;
 
     if (!botToken || !chatId) {
-      return NextResponse.json({ error: "Bot token and chat ID are required" }, { status: 400 });
+      throw new BadRequestError("Bot token and chat ID are required");
     }
 
     // Validate the bot token and chat ID by making a test API call to Telegram
@@ -23,7 +19,7 @@ export async function POST(req: NextRequest) {
       const botInfo = await botInfoResponse.json();
 
       if (!botInfoResponse.ok || !botInfo.ok) {
-        return NextResponse.json({ error: "Invalid bot token" }, { status: 400 });
+        throw new BadRequestError("Invalid bot token");
       }
 
       const botUsername = botInfo.result.username;
@@ -82,14 +78,9 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (error) {
-      console.error("Telegram API error:", error);
-      return NextResponse.json(
-        { error: "Failed to validate Telegram credentials. Please check your bot token and chat ID." },
-        { status: 400 },
-      );
+      throw new BadRequestError("Failed to validate Telegram credentials. Please check your bot token and chat ID.");
     }
   } catch (error) {
-    console.error("Error connecting Telegram account:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(error);
   }
 }

@@ -1,155 +1,112 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/middleware/auth";
+import { handleApiError, NotFoundError, BadRequestError } from "@/lib/utils/errors";
 import { PostsModel } from "@/lib/db";
-import { deleteFromR2, getKeyFromUrl, uploadToR2, generateFileKey } from "@/lib/r2";
-import { generateThumbnail } from "@/lib/utils/thumbnail";
+import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
+import { processMediaFiles } from "@/lib/utils/media-upload";
+import { updatePostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
 
 // PATCH /api/posts/[id] - Update a post
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { id } = await params;
+    const session = await requireAuth(req);
     const repository = new PostsModel(session.user.id);
 
-    // Get the current post to know what media exists
-    const allPosts = await repository.getScheduledPosts();
-    const pastPosts = await repository.getPastPosts();
-    const currentPost = [...allPosts, ...pastPosts].find((p) => p.id === params.id);
-
+    // Get the current post
+    const currentPost = await repository.getPostById(id);
     if (!currentPost) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+      throw new NotFoundError("Post not found");
     }
 
     // Parse form data
     const formData = await req.formData();
     const message = formData.get("message") as string;
-    const accountIds = JSON.parse(formData.get("accountIds") as string);
-    const scheduledFor = new Date(formData.get("scheduledFor") as string);
-    const accountOptions = formData.get("accountOptions")
-      ? JSON.parse(formData.get("accountOptions") as string)
-      : undefined;
+    const accountIdsStr = formData.get("accountIds") as string;
+    const scheduledForStr = formData.get("scheduledFor") as string;
+    const accountOptionsStr = formData.get("accountOptions") as string | null;
+    const keepMediaIdsStr = formData.get("keepMediaIds") as string | null;
+
+    if (!message || !accountIdsStr || !scheduledForStr) {
+      throw new BadRequestError("Message, accountIds, and scheduledFor are required");
+    }
+
+    let accountIds: string[];
+    try {
+      accountIds = JSON.parse(accountIdsStr);
+    } catch {
+      throw new BadRequestError("Invalid accountIds format");
+    }
+
+    const accountOptions = accountOptionsStr ? JSON.parse(accountOptionsStr) : undefined;
+    const keepMediaIds = keepMediaIdsStr ? JSON.parse(keepMediaIdsStr) : [];
+
+    // Validate with schema
+    const validated = updatePostSchema.parse({
+      message,
+      accountIds,
+      scheduledFor: scheduledForStr,
+      accountOptions,
+      keepMediaIds,
+    });
 
     // Handle media updates
-    const keepMediaIds = formData.get("keepMediaIds") ? JSON.parse(formData.get("keepMediaIds") as string) : [];
-    const keepMediaIdsSet = new Set(keepMediaIds);
-
-    // Determine which media files to delete
+    const keepMediaIdsSet = new Set(validated.keepMediaIds || []);
     const mediaToDelete = currentPost.media.filter((m) => !keepMediaIdsSet.has(m.id));
 
     // Delete removed media files from R2
-    for (const media of mediaToDelete) {
-      const key = getKeyFromUrl(media.url);
-      if (key) {
-        try {
-          await deleteFromR2(key);
-        } catch (error) {
-          console.error(`Failed to delete media from R2: ${key}`, error);
-        }
-      }
-
-      // Also delete thumbnail if it exists
-      if (media.thumbnailUrl) {
-        const thumbnailKey = getKeyFromUrl(media.thumbnailUrl);
-        if (thumbnailKey) {
-          try {
-            await deleteFromR2(thumbnailKey);
-          } catch (error) {
-            console.error(`Failed to delete thumbnail from R2: ${thumbnailKey}`, error);
-          }
-        }
-      }
+    if (mediaToDelete.length > 0) {
+      await deleteMediaFiles(mediaToDelete);
     }
 
     // Keep existing media that should be kept
     const finalMedia: MediaFile[] = currentPost.media.filter((m) => keepMediaIdsSet.has(m.id));
 
     // Upload new media files
-    const newFiles = formData.getAll("media");
-    for (const file of newFiles) {
-      if (file instanceof File) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const key = generateFileKey(session.user.id, file.name);
-        const url = await uploadToR2(buffer, key, file.type);
-
-        // Generate and upload thumbnail
-        let thumbnailUrl: string | undefined;
-        const thumbnail = await generateThumbnail(buffer, file.name, file.type);
-        if (thumbnail) {
-          const thumbnailKey = generateFileKey(session.user.id, thumbnail.filename);
-          thumbnailUrl = await uploadToR2(thumbnail.buffer, thumbnailKey, "image/jpeg");
-        }
-
-        const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
-        finalMedia.push({
-          id: crypto.randomUUID(),
-          url,
-          thumbnailUrl,
-          type: mediaType,
-          filename: file.name,
-          size: file.size,
-        });
-      }
+    const newFiles = formData.getAll("media").filter((f): f is File => f instanceof File);
+    if (newFiles.length > 0) {
+      const newMediaFiles = await processMediaFiles(newFiles, session.user.id);
+      finalMedia.push(...newMediaFiles);
     }
 
     // Update the post
-    const post = await repository.updatePost(params.id, {
-      message,
-      accountIds,
-      scheduledFor,
-      accountOptions,
+    const post = await repository.updatePost(id, {
+      message: validated.message,
+      accountIds: validated.accountIds,
+      scheduledFor: new Date(validated.scheduledFor),
+      accountOptions: validated.accountOptions,
       media: finalMedia,
     });
 
     return NextResponse.json({ post });
   } catch (error) {
-    console.error("Error updating post:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // DELETE /api/posts/[id] - Delete a post
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { id } = await params;
+    const session = await requireAuth(req);
     const repository = new PostsModel(session.user.id);
 
     // Get the post to delete its media from R2
-    const posts = await repository.getScheduledPosts();
-    const pastPosts = await repository.getPastPosts();
-    const allPosts = [...posts, ...pastPosts];
-    const post = allPosts.find((p) => p.id === params.id);
-
-    // Delete media files from R2
-    if (post && post.media.length > 0) {
-      await Promise.all(
-        post.media.map(async (media) => {
-          const key = getKeyFromUrl(media.url);
-          if (key) {
-            try {
-              await deleteFromR2(key);
-            } catch (error) {
-              console.error(`Failed to delete media from R2: ${key}`, error);
-            }
-          }
-        }),
-      );
+    const post = await repository.getPostById(id);
+    if (!post) {
+      throw new NotFoundError("Post not found");
     }
 
-    await repository.deletePost(params.id);
+    // Delete media files from R2
+    if (post.media.length > 0) {
+      await deleteMediaFiles(post.media);
+    }
+
+    await repository.deletePost(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting post:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(error);
   }
 }

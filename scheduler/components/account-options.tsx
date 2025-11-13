@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
-import type { AccountOptionsMap, ConnectedAccount } from "@/lib/types";
+import type { AccountOptionsMap, ConnectedAccount } from "@/types";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
 
 interface AccountOptionsProps {

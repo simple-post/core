@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { PrismaPostsRepository } from "@/lib/repositories/prisma";
+import { auth } from "@/lib/auth/auth";
+import { PostsModel } from "@/lib/db";
 import { deleteFromR2, getKeyFromUrl, uploadToR2, generateFileKey } from "@/lib/r2";
-import { generateThumbnail } from "@/lib/thumbnail";
-import type { MediaFile } from "@/lib/types";
+import { generateThumbnail } from "@/lib/utils/thumbnail";
+import type { MediaFile } from "@/types";
 
 // PATCH /api/posts/[id] - Update a post
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const repository = new PrismaPostsRepository(session.user.id);
+    const repository = new PostsModel(session.user.id);
 
     // Get the current post to know what media exists
     const allPosts = await repository.getScheduledPosts();
@@ -121,7 +121,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const repository = new PrismaPostsRepository(session.user.id);
+    const repository = new PostsModel(session.user.id);
 
     // Get the post to delete its media from R2
     const posts = await repository.getScheduledPosts();

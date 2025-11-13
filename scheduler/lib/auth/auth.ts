@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { PrismaClient } from "@prisma/client";
 import { magicLink } from "better-auth/plugins";
-import { sendEmail } from "./resend";
+import { sendEmail } from "../resend";
 
 // Create a single Prisma client instance
 export const prisma = new PrismaClient();

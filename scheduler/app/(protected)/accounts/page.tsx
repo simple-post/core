@@ -5,12 +5,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useSession, authClient } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PlatformIcon } from "@/lib/platform-icons";
+import { PlatformIcon } from "@/components/platform-icons";
 
 // Platform configuration
 const PLATFORMS = [

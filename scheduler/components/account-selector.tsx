@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
-import { PlatformIcon } from "@/lib/platform-icons";
-import type { ConnectedAccount } from "@/lib/types";
+import { PlatformIcon } from "@/components/platform-icons";
+import type { ConnectedAccount } from "@/types";
 
 interface AccountSelectorProps {
   selectedAccountIds: string[];

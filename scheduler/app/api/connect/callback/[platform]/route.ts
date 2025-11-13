@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/auth";
+import { prisma } from "@/lib/auth/auth";
 
 // Token exchange configuration for each platform
 const TOKEN_CONFIG: Record<

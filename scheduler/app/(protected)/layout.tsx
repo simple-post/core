@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useSession } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth/auth-client";
 import { LoginForm } from "@/components/login-form";
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {

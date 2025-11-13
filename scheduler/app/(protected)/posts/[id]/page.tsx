@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
-import type { SocialPost, ConnectedAccount } from "@/lib/types";
+import type { SocialPost, ConnectedAccount } from "@/types";
 import { format } from "date-fns";
 import { Play, ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
 import {

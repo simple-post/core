@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import type { SocialPost } from "@/lib/types";
+import type { SocialPost } from "@/types";
 import { PostForm } from "@/components/post-form";
 
 export default function EditPostPage({ params }: { params: { id: string } }) {

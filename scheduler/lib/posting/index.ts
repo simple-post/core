@@ -1,8 +1,8 @@
-import { post as sdkPost } from "@simple-post/sdk";
+import { PostErrorType, post as sdkPost } from "@simple-post/sdk";
 import type { Post, Platform, PostOptions, Media } from "@simple-post/sdk";
-import { prisma } from "./repositories/prisma";
-import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "./types";
-import { downloadFile } from "./utils/file-download";
+import { prisma } from "@/lib/prisma";
+import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
+import { downloadFile } from "@/lib/utils/file-download";
 
 interface PostingResult {
   accountId: string;
@@ -202,12 +202,11 @@ async function postToAccount(
     const results = await sdkPost(postData);
     const result = results.get(platform);
 
-    if (result?.success) {
+    if (result?.error === PostErrorType.NO_ERROR) {
       return {
         accountId: account.id,
         platform: account.platform,
         success: true,
-        postUrl: result.url,
       };
     } else {
       return {

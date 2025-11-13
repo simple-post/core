@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { PrismaPostsRepository } from "@/lib/repositories/prisma";
+import { auth } from "@/lib/auth/auth";
+import { PostsModel } from "@/lib/db";
 import { uploadToR2, generateFileKey } from "@/lib/r2";
-import { generateThumbnail } from "@/lib/thumbnail";
-import { postToAccounts, getPostingSummary } from "@/lib/posting-service";
+import { generateThumbnail } from "@/lib/utils/thumbnail";
+import { postToAccounts, getPostingSummary } from "@/lib/posting";
 
 // GET /api/posts - Get all posts (scheduled and past)
 export async function GET(req: NextRequest) {
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const repository = new PrismaPostsRepository(session.user.id);
+    const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const repository = new PrismaPostsRepository(session.user.id);
+    const repository = new PostsModel(session.user.id);
     const formData = await req.formData();
     const message = formData.get("message") as string;
     const accountIds = JSON.parse(formData.get("accountIds") as string);

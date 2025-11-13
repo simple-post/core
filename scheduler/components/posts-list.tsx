@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Trash2, Edit } from "lucide-react";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
-import type { SocialPost, ConnectedAccount } from "@/lib/types";
+import type { SocialPost, ConnectedAccount } from "@/types";
 import Link from "next/link";
 
 interface PostsListProps {

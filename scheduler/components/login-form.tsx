@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/auth-client";
 import Link from "next/link";
-import { PlatformIcon } from "@/lib/platform-icons";
+import { PlatformIcon } from "@/components/platform-icons";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);

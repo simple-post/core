@@ -9,8 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSession } from "@/lib/auth-client";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth/auth-client";
+import { authClient } from "@/lib/auth/auth-client";
 import { useState } from "react";
 
 export function UserMenu() {

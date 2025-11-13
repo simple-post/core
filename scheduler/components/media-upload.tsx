@@ -5,7 +5,7 @@ import type React from "react";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, X, Video, ImageIcon, AlertCircle } from "lucide-react";
-import type { MediaFile } from "@/lib/types";
+import type { MediaFile } from "@/types";
 
 interface MediaUploadProps {
   media: MediaFile[];

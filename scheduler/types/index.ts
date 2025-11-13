@@ -90,11 +90,3 @@ export interface ConnectedAccount {
   createdAt: Date;
   updatedAt: Date;
 }
-
-export interface PostsRepository {
-  getScheduledPosts(): Promise<SocialPost[]>;
-  getPastPosts(): Promise<SocialPost[]>;
-  createPost(post: Omit<SocialPost, "id" | "createdAt">, userId: string): Promise<SocialPost>;
-  updatePost(id: string, updates: Partial<SocialPost>): Promise<SocialPost>;
-  deletePost(id: string): Promise<void>;
-}

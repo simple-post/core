@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { MediaFile, ConnectedAccount } from "@/lib/types";
+import type { MediaFile, ConnectedAccount } from "@/types";
 import {
   XPreview,
   InstagramPreview,

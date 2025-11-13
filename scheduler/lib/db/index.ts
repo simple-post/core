@@ -1,18 +1,7 @@
-import { PrismaClient } from "@prisma/client";
-import type { PostsRepository, SocialPost, MediaFile } from "../types";
+import { SocialPost } from "@/types";
+import { prisma } from "@/lib/prisma";
 
-// Create a singleton Prisma client instance
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
-
-export class PrismaPostsRepository implements PostsRepository {
+export class PostsModel {
   private userId?: string;
 
   constructor(userId?: string) {

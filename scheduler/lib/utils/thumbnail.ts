@@ -1,6 +1,5 @@
 import sharp from "sharp";
 import ffmpeg from "fluent-ffmpeg";
-import { Readable } from "stream";
 import { execSync } from "child_process";
 
 // Try to find ffmpeg on the system PATH

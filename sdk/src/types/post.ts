@@ -75,11 +75,18 @@ export const YouTubeOptionsSchema = z.object({
   publishAt: z.string().optional(),
   privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
   credentials: z
-    .object({
-      clientId: z.string(),
-      clientSecret: z.string(),
-      refreshToken: z.string(),
-    })
+    .union([
+      // Option 1: OAuth2 with refresh token (for long-term access)
+      z.object({
+        clientId: z.string(),
+        clientSecret: z.string(),
+        refreshToken: z.string(),
+      }),
+      // Option 2: Direct access token (for short-term access)
+      z.object({
+        accessToken: z.string(),
+      }),
+    ])
     .optional(),
 });
 

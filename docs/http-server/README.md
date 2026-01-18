@@ -130,6 +130,9 @@ For requests with file uploads, use multipart form data:
 - `data` - JSON string containing the post data (same structure as above)
 - `files` - File uploads (use field name "files" for multiple files)
 
+
+If you are posting without media files or if you are using the `url` field instead of the `path` field, you can use JSON directly in the body.
+
 **Note:** When uploading files, use only the filename in the `path` field of media objects. The server will automatically map these to the uploaded files.
 
 **Response:**
@@ -204,6 +207,27 @@ const response = await fetch("http://localhost:3000/post", {
   body: JSON.stringify({
     content: {
       text: "Hello from SimplePost server!",
+    },
+    platforms: ["x"],
+  }),
+});
+
+// With URLs to files
+const response = await fetch("http://localhost:3000/post", {
+  method: "POST",
+  headers: {
+    "x-api-key": "your-api-key",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    content: {
+      text: "Hello from SimplePost server!",
+      media: [
+        {
+          type: "image",
+          url: "https://cdn.example.com/image.jpg",
+        },
+      ],
     },
     platforms: ["x"],
   }),

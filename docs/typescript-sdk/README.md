@@ -21,7 +21,7 @@ await post({
   platforms: ["x", "facebook"],
 });
 
-// With media
+// With media as flles
 await post({
   content: {
     text: "Check out this video!",
@@ -29,7 +29,19 @@ await post({
   },
   platforms: ["x", "youtube"],
 });
+
+// With media as URLs
+await post({
+  content: {
+    text: "Check out this video!",
+    media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }],
+  },
+  platforms: ["x", "youtube"],
+});
+
 ```
+
+
 
 **Need credentials?** Get them at [docs.simplepost.dev](https://docs.simplepost.dev), then continue below.
 
@@ -132,6 +144,8 @@ Map(1) {
 
 #### Media Posts
 
+Media items accept either a local `path` or a public `url`. The SDK downloads or uploads as needed.
+
 Post images and videos by adding a `media` array:
 
 ```typescript
@@ -140,6 +154,15 @@ const results = await post({
   content: {
     text: "Check out my awesome video!",
     media: [{ type: "video", path: "./video.mp4", title: "My Video" }],
+  },
+  platforms: ["x", "youtube", "instagram"],
+});
+
+// Single video with URL
+const results = await post({
+  content: {
+    text: "Check out my awesome video!",
+    media: [{ type: "video", url: "https://cdn.example.com/video.mp4", title: "My Video" }],
   },
   platforms: ["x", "youtube", "instagram"],
 });

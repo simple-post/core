@@ -1,29 +1,28 @@
 import { post, PostSchema, type Post, type PostResult, type Platform } from "@simple-post/sdk";
 import { Router, type Request, type Response } from "express";
-import multer from "multer";
 
-import { createTempDir, saveTempFiles, cleanupTempDir, transformMediaPaths, type TempFile } from "../utils/files.js";
+import { resolveStoredMediaPaths } from "../utils/files.js";
 
 const router = Router();
 
-// Configure multer for file uploads (in-memory storage)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 500 * 1024 * 1024, // 100MB limit per file
-    files: 20, // Maximum 20 files
-  },
-});
-
-router.post("/", upload.array("files"), async (req: Request, res: Response): Promise<void> => {
-  let tempDir: string | null = null;
-  let tempFiles: TempFile[] = [];
-
+router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
     // Parse JSON body
     let postData: Post;
     try {
-      postData = typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body;
+      const rawBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      let normalizedBody = rawBody;
+
+      if (rawBody && typeof rawBody === "object" && "data" in rawBody) {
+        const dataField = (rawBody as { data?: unknown }).data;
+        if (typeof dataField === "string") {
+          normalizedBody = JSON.parse(dataField);
+        } else if (dataField) {
+          normalizedBody = dataField;
+        }
+      }
+
+      postData = normalizedBody as Post;
     } catch (error) {
       res.status(400).json({
         error: "Invalid JSON",
@@ -46,14 +45,28 @@ router.post("/", upload.array("files"), async (req: Request, res: Response): Pro
 
     const validatedPost = validationResult.data;
 
-    // Handle file uploads if present
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      tempDir = await createTempDir();
-      tempFiles = await saveTempFiles(req.files, tempDir);
+    if (validatedPost.content.media) {
+      const resolved = await resolveStoredMediaPaths(validatedPost.content.media);
+      if (resolved.invalid.length > 0) {
+        res.status(400).json({
+          error: "Invalid file reference",
+          message: "File references must be plain filenames without path separators",
+          details: resolved.invalid,
+        });
+        return;
+      }
 
-      // Transform media paths in the post content
-      if (validatedPost.content.media) {
-        validatedPost.content.media = transformMediaPaths(validatedPost.content.media, tempFiles);
+      if (resolved.missing.length > 0) {
+        res.status(404).json({
+          error: "File not found",
+          message: "One or more referenced files are missing from storage",
+          details: resolved.missing,
+        });
+        return;
+      }
+
+      if (resolved.resolved) {
+        validatedPost.content.media = resolved.resolved;
       }
     }
 
@@ -78,11 +91,6 @@ router.post("/", upload.array("files"), async (req: Request, res: Response): Pro
       message: error instanceof Error ? error.message : "Unknown error occurred",
       details: error instanceof Error ? error.stack : undefined,
     });
-  } finally {
-    // Clean up temporary files
-    if (tempDir) {
-      await cleanupTempDir(tempDir);
-    }
   }
 });
 

@@ -1,6 +1,7 @@
 import express from "express";
 
 import { createAuthMiddleware } from "./middleware/auth.js";
+import fileRoutes from "./routes/files.js";
 import postRoutes from "./routes/post.js";
 
 const API_KEY = process.env.SIMPLE_POST_API_KEY;
@@ -40,6 +41,7 @@ app.use(createAuthMiddleware(API_KEY));
 
 // API routes
 app.use("/post", postRoutes);
+app.use("/files", fileRoutes);
 
 // 404 handler
 app.use("*", (req, res) => {
@@ -64,6 +66,7 @@ const server = app.listen(PORT, () => {
   console.log(`SimplePost server running on port ${PORT}`);
   console.log(`Health check available at: http://localhost:${PORT}/health`);
   console.log(`API endpoint available at: http://localhost:${PORT}/post`);
+  console.log(`File upload endpoint available at: http://localhost:${PORT}/files`);
 });
 
 // Configure server timeout

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
-import type { AccountOptionsMap, ConnectedAccount } from "@/types";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import type { AccountOptionsMap } from "@/types";
+import { useAccounts } from "@/hooks/use-accounts";
+import { getAccountDisplayName } from "@/lib/utils/accounts";
+import { getPlatformConfig } from "@/lib/utils/platforms";
 
 interface AccountOptionsProps {
   selectedAccountIds: string[];
@@ -16,27 +17,7 @@ interface AccountOptionsProps {
 }
 
 export function AccountOptionsComponent({ selectedAccountIds, options, onOptionsChange }: AccountOptionsProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/accounts");
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { accounts, loading } = useAccounts();
 
   if (selectedAccountIds.length === 0) {
     return null;
@@ -58,21 +39,6 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     });
   };
 
-  const getPlatformConfig = (platform: string) => {
-    return SOCIAL_PLATFORMS.find((p) => p.id === platform);
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
-      return `@${account.username}`;
-    }
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
-  };
 
   return (
     <div className="space-y-6">

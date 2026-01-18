@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
-import type { SocialPost, ConnectedAccount } from "@/types";
 import { format } from "date-fns";
-import { Play, ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
+import { ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,48 +17,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useAccounts } from "@/hooks/use-accounts";
+import { usePost } from "@/hooks/use-post";
+import { getAccountDisplayName } from "@/lib/utils/accounts";
+import { getPlatformConfig } from "@/lib/utils/platforms";
 
 export default function PostDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [post, setPost] = useState<SocialPost | null>(null);
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        // Load posts
-        const postsResponse = await fetch("/api/posts");
-        if (postsResponse.ok) {
-          const postsData = await postsResponse.json();
-          const foundPost = (postsData.posts || []).find((p: any) => p.id === params.id);
-          if (foundPost) {
-            setPost({
-              ...foundPost,
-              scheduledFor: new Date(foundPost.scheduledFor),
-              createdAt: new Date(foundPost.createdAt),
-              publishedAt: foundPost.publishedAt ? new Date(foundPost.publishedAt) : undefined,
-            });
-          }
-        }
-
-        // Load accounts
-        const accountsResponse = await fetch("/api/accounts");
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          setAccounts(accountsData.accounts || []);
-        }
-      } catch (error) {
-        console.error("Failed to load post:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
-  }, [params.id]);
+  const { post, loading: loadingPost } = usePost(params.id);
+  const { accounts, loading: loadingAccounts } = useAccounts();
+  const loading = loadingPost || loadingAccounts;
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -222,15 +190,13 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
               <h3 className="text-sm font-medium mb-4">Publishing to</h3>
               <div className="space-y-3">
                 {postAccounts.map((account) => {
-                  const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === account.platform);
+                  const platformConfig = getPlatformConfig(account.platform);
                   return (
                     <div key={account.id} className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${platformConfig?.color}`} />
+                      <div className={`w-2 h-2 rounded-full ${platformConfig?.color || "bg-muted"}`} />
                       <div className="flex-1">
-                        <div className="text-sm font-medium">
-                          {account.displayName || account.username || account.email}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{platformConfig?.name}</div>
+                        <div className="text-sm font-medium">{getAccountDisplayName(account)}</div>
+                        <div className="text-xs text-muted-foreground">{platformConfig?.name || account.platform}</div>
                       </div>
                     </div>
                   );

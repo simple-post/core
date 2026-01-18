@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useSession, authClient } from "@/lib/auth/auth-client";
+import { authClient } from "@/lib/auth/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlatformIcon } from "@/components/platform-icons";
+import { useAccounts } from "@/hooks/use-accounts";
+import { getAccountDisplayName } from "@/lib/utils/accounts";
+import { getPlatformConfig } from "@/lib/utils/platforms";
+import type { ConnectedAccount } from "@/types";
 
 // Platform configuration
 const PLATFORMS = [
@@ -58,29 +62,8 @@ const PLATFORMS = [
   },
 ];
 
-// ConnectedAccount model from database
-interface ConnectedAccount {
-  id: string;
-  userId: string;
-  platform: string;
-  platformAccountId: string;
-  accessToken: string;
-  refreshToken: string | null;
-  tokenType: string | null;
-  expiresAt: Date | null;
-  scope: string | null;
-  username: string | null;
-  displayName: string | null;
-  email: string | null;
-  profilePicture: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export default function AccountsPage() {
-  const { data: session } = useSession();
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { accounts, loading, refresh } = useAccounts();
   const [selectedAccount, setSelectedAccount] = useState<ConnectedAccount | null>(null);
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
@@ -94,25 +77,6 @@ export default function AccountsPage() {
   const [telegramChannelName, setTelegramChannelName] = useState("");
   const [isConnectingTelegram, setIsConnectingTelegram] = useState(false);
   const [telegramError, setTelegramError] = useState("");
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/accounts");
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleConnect = (platform: string) => {
     const platformConfig = PLATFORMS.find((p) => p.id === platform);
@@ -158,7 +122,7 @@ export default function AccountsPage() {
       }
 
       // Success - refresh accounts and close dialog
-      await fetchAccounts();
+      await refresh();
       setShowTelegramDialog(false);
       setTelegramBotToken("");
       setTelegramChatId("");
@@ -169,28 +133,6 @@ export default function AccountsPage() {
     } finally {
       setIsConnectingTelegram(false);
     }
-  };
-
-  const getPlatformConfig = (platform: string) => {
-    return PLATFORMS.find((p) => p.id === platform);
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    // For X (Twitter), Instagram, and TikTok, prefer showing @username
-    if (
-      (account.platform === "x" || account.platform === "instagram" || account.platform === "tiktok") &&
-      account.username
-    ) {
-      return `@${account.username}`;
-    }
-
-    // For other platforms, try to get the most user-friendly name
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
   };
 
   const showTokens = (account: ConnectedAccount) => {
@@ -213,8 +155,7 @@ export default function AccountsPage() {
       });
 
       if (response.ok) {
-        // Remove the account from the list
-        setAccounts(accounts.filter((acc) => acc.id !== accountToDisconnect.id));
+        await refresh();
         setShowDisconnectDialog(false);
         setAccountToDisconnect(null);
       } else {

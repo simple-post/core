@@ -6,6 +6,28 @@ import Link from "next/link";
 import { PostsList } from "@/components/posts-list";
 
 export default function Dashboard() {
+  const sections: Array<{
+    id: "scheduled" | "failed" | "past";
+    title: string;
+    description: string;
+  }> = [
+    {
+      id: "scheduled",
+      title: "Upcoming Posts",
+      description: "Content scheduled for publication",
+    },
+    {
+      id: "failed",
+      title: "Failed Posts",
+      description: "Posts that failed to publish - review and retry if needed",
+    },
+    {
+      id: "past",
+      title: "Published Content",
+      description: "Your content history and performance",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
@@ -49,48 +71,21 @@ export default function Dashboard() {
 
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="space-y-16">
-          {/* Upcoming Posts */}
-          <section>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Upcoming Posts</h2>
-              <p className="text-muted-foreground">Content scheduled for publication</p>
-            </div>
-            <Suspense fallback={<PostsListSkeleton />}>
-              <PostsList type="scheduled" />
-            </Suspense>
-          </section>
-
-          {/* Failed Posts */}
-          <section>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Failed Posts</h2>
-              <p className="text-muted-foreground">Posts that failed to publish - review and retry if needed</p>
-            </div>
-            <Suspense fallback={<PostsListSkeleton />}>
-              <PostsList type="failed" />
-            </Suspense>
-          </section>
-
-          {/* Past Posts */}
-          <section>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Published Content</h2>
-              <p className="text-muted-foreground">Your content history and performance</p>
-            </div>
-            <Suspense fallback={<PostsListSkeleton />}>
-              <PostsList type="past" />
-            </Suspense>
-          </section>
+          {sections.map((section) => (
+            <section key={section.id}>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-foreground mb-2">{section.title}</h2>
+                <p className="text-muted-foreground">{section.description}</p>
+              </div>
+              <Suspense fallback={<PostsListSkeleton />}>
+                <PostsList type={section.id} />
+              </Suspense>
+            </section>
+          ))}
         </div>
       </main>
     </div>
   );
-}
-
-async function PostsCount({ type }: { type: "scheduled" | "published-today" | "total" }) {
-  // This will be implemented with actual data fetching
-  const count = type === "scheduled" ? 3 : type === "published-today" ? 1 : 12;
-  return <div className="text-2xl font-bold">{count}</div>;
 }
 
 function PostsListSkeleton() {

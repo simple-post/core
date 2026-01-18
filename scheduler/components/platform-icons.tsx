@@ -8,6 +8,7 @@ import {
   faTelegram,
 } from "@fortawesome/free-brands-svg-icons";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { normalizePlatformId } from "@/lib/utils/platforms";
 
 export const platformIcons: Record<string, IconDefinition> = {
   x: faXTwitter,
@@ -19,7 +20,7 @@ export const platformIcons: Record<string, IconDefinition> = {
 };
 
 export function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
-  const icon = platformIcons[platform];
+  const icon = platformIcons[normalizePlatformId(platform)];
   if (!icon) return null;
 
   return <FontAwesomeIcon icon={icon} className={className} />;

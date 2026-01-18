@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SchedulePostForm } from "@/components/schedule-post-form";
+import { ArrowLeft } from "lucide-react";
 
 export default function SchedulePage() {
   return (
@@ -13,9 +14,7 @@ export default function SchedulePage() {
           <div className="flex items-center gap-4">
             <Link href="/">
               <Button variant="ghost" size="sm" className="gap-2">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+                <ArrowLeft className="h-4 w-4" />
                 Back
               </Button>
             </Link>

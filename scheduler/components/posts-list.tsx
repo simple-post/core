@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,10 +19,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Trash2, Edit, AlertCircle } from "lucide-react";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { useAccounts } from "@/hooks/use-accounts";
+import { getAccountDisplayName } from "@/lib/utils/accounts";
+import { getPlatformConfig } from "@/lib/utils/platforms";
+import { hydratePosts } from "@/lib/utils/posts";
 
 interface PostsListProps {
   type: "scheduled" | "past" | "failed";
@@ -57,8 +59,8 @@ function formatTimeAgo(date: Date): string {
 
 export function PostsList({ type, onPostDeleted }: PostsListProps) {
   const [posts, setPosts] = useState<SocialPost[]>([]);
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+  const { accounts, loading: loadingAccounts } = useAccounts();
 
   const handlePostDeleted = (postId: string) => {
     setPosts(posts.filter((p) => p.id !== postId));
@@ -74,33 +76,19 @@ export function PostsList({ type, onPostDeleted }: PostsListProps) {
         const postsResponse = await fetch(`/api/posts?type=${type}`);
         if (postsResponse.ok) {
           const postsData = await postsResponse.json();
-          // Parse date strings to Date objects
-          const posts = (postsData.posts || []).map((post: any) => ({
-            ...post,
-            scheduledFor: new Date(post.scheduledFor),
-            createdAt: new Date(post.createdAt),
-            publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
-          }));
-          setPosts(posts);
-        }
-
-        // Load accounts
-        const accountsResponse = await fetch("/api/accounts");
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          setAccounts(accountsData.accounts || []);
+          setPosts(hydratePosts(postsData.posts || []));
         }
       } catch (error) {
         console.error("Failed to load posts:", error);
       } finally {
-        setLoading(false);
+        setLoadingPosts(false);
       }
     }
 
     loadData();
   }, [type]);
 
-  if (loading) {
+  if (loadingPosts || loadingAccounts) {
     return <PostsListSkeleton />;
   }
 
@@ -143,11 +131,12 @@ function PostCard({
   // Get accounts for this post
   const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
 
-  // Get unique platforms from the accounts
-  const uniquePlatforms = Array.from(new Set(postAccounts.map((acc) => acc.platform)));
-  const platformsWithNames = uniquePlatforms
-    .map((platform) => SOCIAL_PLATFORMS.find((p) => p.id === platform))
-    .filter(Boolean);
+  const platformsWithNames = useMemo(() => {
+    const uniquePlatforms = Array.from(new Set(postAccounts.map((account) => account.platform)));
+    return uniquePlatforms
+      .map((platform) => getPlatformConfig(platform))
+      .filter((platform): platform is NonNullable<typeof platform> => Boolean(platform));
+  }, [postAccounts]);
 
   const hasMedia = post.media.length > 0;
   const isScheduled = post.status === "scheduled";
@@ -172,18 +161,6 @@ function PostCard({
       setIsDeleting(false);
       setShowDeleteDialog(false);
     }
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
-      return `@${account.username}`;
-    }
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
   };
 
   return (

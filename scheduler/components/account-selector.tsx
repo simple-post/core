@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
 import { PlatformIcon } from "@/components/platform-icons";
+import { useAccounts } from "@/hooks/use-accounts";
+import { getAccountDisplayName } from "@/lib/utils/accounts";
+import { getPlatformConfig } from "@/lib/utils/platforms";
 import type { ConnectedAccount } from "@/types";
 
 interface AccountSelectorProps {
@@ -22,27 +23,7 @@ export function AccountSelector({
   description = "Choose which accounts to publish your content to",
   maxSelections,
 }: AccountSelectorProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/accounts");
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { accounts, loading } = useAccounts();
 
   const handleAccountToggle = (accountId: string) => {
     const isSelected = selectedAccountIds.includes(accountId);
@@ -67,24 +48,6 @@ export function AccountSelector({
     onSelectionChange([]);
   };
 
-  const getPlatformConfig = (platform: string) => {
-    return SOCIAL_PLATFORMS.find((p) => p.id === platform);
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    // For X (Twitter) and TikTok, prefer showing @username
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
-      return `@${account.username}`;
-    }
-
-    // For other platforms, try to get the most user-friendly name
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
-  };
 
   if (loading) {
     return (

@@ -1,16 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { MediaFile, ConnectedAccount } from "@/types";
-import {
-  XPreview,
-  InstagramPreview,
-  FacebookPreview,
-  TikTokPreview,
-  YouTubePreview,
-  TelegramPreview,
-} from "./platform-previews";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { useMemo } from "react";
+import { format } from "date-fns";
+import type { MediaFile } from "@/types";
+import { useAccounts } from "@/hooks/use-accounts";
+import { getPlatformLabel } from "@/lib/utils/platforms";
 
 interface PostPreviewProps {
   message: string;
@@ -20,80 +14,69 @@ interface PostPreviewProps {
   selectedPlatforms?: string[];
 }
 
-const platformComponents: Record<string, React.ComponentType<any>> = {
-  x: XPreview,
-  instagram: InstagramPreview,
-  facebook: FacebookPreview,
-  tiktok: TikTokPreview,
-  youtube: YouTubePreview,
-  telegram: TelegramPreview,
-};
-
 export function PostPreview({ message, media, scheduledDate, scheduledTime, selectedPlatforms }: PostPreviewProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadAccounts() {
-      try {
-        const response = await fetch("/api/accounts");
-        if (response.ok) {
-          const data = await response.json();
-          setAccounts(data.accounts || []);
-        }
-      } catch (error) {
-        console.error("Failed to load accounts:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadAccounts();
-  }, []);
-
-  // Get unique platforms from selected accounts
-  const selectedAccounts = accounts.filter((acc) => selectedPlatforms?.includes(acc.id));
-  const uniquePlatforms = Array.from(new Set(selectedAccounts.map((acc) => acc.platform)));
+  const { accounts, loading } = useAccounts();
+  const selectedAccounts = useMemo(
+    () => accounts.filter((account) => selectedPlatforms?.includes(account.id)),
+    [accounts, selectedPlatforms],
+  );
+  const platformLabels = useMemo(() => {
+    const uniquePlatforms = Array.from(new Set(selectedAccounts.map((account) => account.platform)));
+    return uniquePlatforms.map(getPlatformLabel);
+  }, [selectedAccounts]);
+  const scheduledFor =
+    scheduledDate && scheduledTime ? new Date(`${scheduledDate}T${scheduledTime}`) : undefined;
+  const primaryMedia = media[0];
+  const extraMediaCount = media.length > 1 ? media.length - 1 : 0;
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 bg-muted rounded animate-pulse" />
-        <div className="h-64 bg-muted rounded animate-pulse" />
+      <div className="space-y-3">
+        <div className="h-6 bg-muted rounded animate-pulse" />
+        <div className="h-40 bg-muted rounded animate-pulse" />
       </div>
     );
   }
 
-  if (uniquePlatforms.length === 0) {
+  if (platformLabels.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <h3 className="text-sm font-medium text-muted-foreground">Preview</h3>
-        <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm">
-          Select accounts to see platform previews
+        <div className="border border-dashed border-border rounded-lg p-6 text-center text-muted-foreground text-sm">
+          Select accounts to preview your post
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-sm font-medium text-muted-foreground">Platform Previews</h3>
-
-      {uniquePlatforms.map((platformId) => {
-        const PlatformComponent = platformComponents[platformId];
-        const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === platformId);
-
-        if (!PlatformComponent || !platformConfig) return null;
-
-        return (
-          <div key={platformId} className="space-y-2">
-            <div className="flex items-center gap-2 px-1">
-              <div className={`w-2 h-2 rounded-full ${platformConfig.color}`} />
-              <span className="text-xs font-medium text-muted-foreground">{platformConfig.name}</span>
-            </div>
-            <PlatformComponent message={message} media={media} platform={platformId} />
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-muted-foreground">Preview</h3>
+      <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
+        <div className="text-xs text-muted-foreground">Posting to {platformLabels.join(", ")}</div>
+        <p className="text-sm whitespace-pre-wrap break-words">
+          {message || <span className="text-muted-foreground italic">Your message will appear here.</span>}
+        </p>
+        {primaryMedia && (
+          <div className="relative rounded-md overflow-hidden border border-border/50 bg-muted">
+            {primaryMedia.type === "image" ? (
+              <img src={primaryMedia.url} alt={primaryMedia.filename} className="w-full max-h-56 object-cover" />
+            ) : (
+              <video src={primaryMedia.url} className="w-full max-h-56 object-cover" muted />
+            )}
+            {extraMediaCount > 0 && (
+              <div className="absolute bottom-2 right-2 rounded-full bg-foreground/80 text-background px-2 py-0.5 text-xs">
+                +{extraMediaCount} more
+              </div>
+            )}
           </div>
-        );
-      })}
+        )}
+        {scheduledFor && (
+          <div className="text-xs text-muted-foreground">
+            Scheduled for {format(scheduledFor, "MMM d, yyyy 'at' h:mm a")}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

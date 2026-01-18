@@ -3,6 +3,7 @@ import express from "express";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import fileRoutes from "./routes/files.js";
 import postRoutes from "./routes/post.js";
+import { ensureStorageDir, getStorageDir } from "./utils/files.js";
 
 const API_KEY = process.env.SIMPLE_POST_API_KEY;
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,19 @@ const PORT = process.env.PORT || 3000;
 if (!API_KEY) {
   console.error("Error: SIMPLE_POST_API_KEY environment variable is required");
   throw new Error("SIMPLE_POST_API_KEY environment variable is required");
+}
+
+// Ensure storage directory exists at startup (fail fast on configuration issues)
+try {
+  const storageDir = await ensureStorageDir();
+  console.log(`Storage directory initialized: ${storageDir}`);
+} catch (error) {
+  console.error("Error: Failed to initialize storage directory:", error);
+  console.error(`Configured storage path: ${getStorageDir()}`);
+  throw new Error(
+    `Failed to initialize storage directory at '${getStorageDir()}'. ` +
+      "Check permissions and disk space, or configure SIMPLE_POST_STORAGE_DIR environment variable."
+  );
 }
 
 const app = express();
@@ -64,6 +78,7 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`SimplePost server running on port ${PORT}`);
+  console.log(`Storage directory: ${getStorageDir()}`);
   console.log(`Health check available at: http://localhost:${PORT}/health`);
   console.log(`API endpoint available at: http://localhost:${PORT}/post`);
   console.log(`File upload endpoint available at: http://localhost:${PORT}/files`);

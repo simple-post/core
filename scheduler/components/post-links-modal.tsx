@@ -30,7 +30,6 @@ interface PostLinksModalProps {
   results: PostingResult[];
 }
 
-function getPlatformDisplayName(platform: string): string {
 export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalProps) {
   const successCount = results.filter((r) => r.success).length;
   const failureCount = results.length - successCount;

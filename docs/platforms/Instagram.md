@@ -57,6 +57,17 @@ const content = {
 };
 ```
 
+### Using URLs
+
+Instead of local file paths, you can use publicly accessible URLs:
+
+```typescript
+const content = {
+  text: "Photo from the cloud! #instagram",
+  media: [{ type: "image", url: "https://cdn.example.com/photo.jpg" }],
+};
+```
+
 ## Authentication
 
 Posting on Instagram requires an Instagram Business Account Access Token and Business Account ID.

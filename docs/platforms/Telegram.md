@@ -65,6 +65,17 @@ const options = {
 };
 ```
 
+### Using URLs
+
+Instead of local file paths, you can use publicly accessible URLs:
+
+```typescript
+const content = {
+  text: "Photo from the cloud!",
+  media: [{ type: "image", url: "https://cdn.example.com/photo.jpg" }],
+};
+```
+
 ## Authentication
 
 To post on Telegram, set the following environment variables:

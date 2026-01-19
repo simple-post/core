@@ -163,6 +163,20 @@ const result = await post({
 });
 ```
 
+### Using URLs
+
+Instead of local file paths, you can use publicly accessible URLs:
+
+```typescript
+const result = await post({
+  content: {
+    text: "Video from the cloud! #fyp",
+    media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }],
+  },
+  platforms: ["tiktok"],
+});
+```
+
 ## Authentication
 
 Set your TikTok access token as an environment variable:

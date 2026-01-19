@@ -29,3 +29,5 @@ export const getContentType = (filePath: string): string => {
 
   return contentType;
 };
+
+export * from "./media";

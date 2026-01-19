@@ -13,14 +13,18 @@ export const PlatformSchema = z.enum([
   "pinterest",
 ]);
 
-export const ImageSchema = z.object({
+const BaseImageSchema = z.object({
   type: z.literal("image"),
   path: z.string().optional(),
   url: z.url().optional(),
   caption: z.string().optional(),
 });
 
-export const VideoSchema = z.object({
+export const ImageSchema = BaseImageSchema.refine((data) => data.path || data.url, {
+  message: "Either path or url must be provided",
+});
+
+const BaseVideoSchema = z.object({
   type: z.literal("video"),
   path: z.string().optional(),
   url: z.url().optional(),
@@ -28,6 +32,10 @@ export const VideoSchema = z.object({
   description: z.string().optional(),
   thumbnailPath: z.string().optional(),
   thumbnailUrl: z.url().optional(),
+});
+
+export const VideoSchema = BaseVideoSchema.refine((data) => data.path || data.url, {
+  message: "Either path or url must be provided",
 });
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);

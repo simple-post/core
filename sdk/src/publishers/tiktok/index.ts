@@ -4,6 +4,7 @@ import path from "node:path";
 import axios from "axios";
 
 import { PostError, PostErrorType } from "../../types";
+import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
@@ -88,10 +89,11 @@ export class TikTokPublisher extends Publisher {
 
   private async initVideoUploadDirect(
     media: Media,
+    resolvedPath: string,
     content: Content,
     options?: PostOptionsWithCredentials,
   ): Promise<TikTokUploadInitResponse> {
-    const fileSize = this.getFileSize(media.path);
+    const fileSize = this.getFileSize(resolvedPath);
     const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
 
     try {
@@ -154,8 +156,8 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private async initVideoUploadDraft(media: Media): Promise<TikTokInboxUploadInitResponse> {
-    const fileSize = this.getFileSize(media.path);
+  private async initVideoUploadDraft(resolvedPath: string): Promise<TikTokInboxUploadInitResponse> {
+    const fileSize = this.getFileSize(resolvedPath);
     const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
 
     try {
@@ -185,10 +187,11 @@ export class TikTokPublisher extends Publisher {
 
   private async initPhotoUploadDirect(
     media: Media,
+    resolvedPath: string,
     content: Content,
     options?: PostOptionsWithCredentials,
   ): Promise<TikTokUploadInitResponse> {
-    const fileSize = this.getFileSize(media.path);
+    const fileSize = this.getFileSize(resolvedPath);
     const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
 
     try {
@@ -235,8 +238,8 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private async initPhotoUploadDraft(media: Media): Promise<TikTokInboxUploadInitResponse> {
-    const fileSize = this.getFileSize(media.path);
+  private async initPhotoUploadDraft(resolvedPath: string): Promise<TikTokInboxUploadInitResponse> {
+    const fileSize = this.getFileSize(resolvedPath);
     const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
 
     try {
@@ -319,17 +322,22 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private async uploadMedia(media: Media, content: Content, options?: PostOptionsWithCredentials): Promise<string> {
+  private async uploadMedia(
+    media: Media,
+    resolvedPath: string,
+    content: Content,
+    options?: PostOptionsWithCredentials,
+  ): Promise<string> {
     const isDraft = options?.tiktok?.publishMode === "draft";
 
     if (isDraft) {
       // Use Upload Video/Photo API (inbox) for draft mode
       const initResponse = await (media.type === "video"
-        ? this.initVideoUploadDraft(media)
-        : this.initPhotoUploadDraft(media));
+        ? this.initVideoUploadDraft(resolvedPath)
+        : this.initPhotoUploadDraft(resolvedPath));
 
       // Upload the file to TikTok servers
-      await this.uploadFileChunks(initResponse.data.upload_url, media.path);
+      await this.uploadFileChunks(initResponse.data.upload_url, resolvedPath);
 
       // For draft mode, the content goes to inbox - return a placeholder ID
       // Note: TikTok doesn't provide a publish_id for draft uploads
@@ -337,11 +345,11 @@ export class TikTokPublisher extends Publisher {
     } else {
       // Use Direct Post API for immediate publishing
       const initResponse = await (media.type === "video"
-        ? this.initVideoUploadDirect(media, content, options)
-        : this.initPhotoUploadDirect(media, content, options));
+        ? this.initVideoUploadDirect(media, resolvedPath, content, options)
+        : this.initPhotoUploadDirect(media, resolvedPath, content, options));
 
       // Upload the file to TikTok servers
-      await this.uploadFileChunks(initResponse.data.upload_url, media.path);
+      await this.uploadFileChunks(initResponse.data.upload_url, resolvedPath);
 
       // With Direct Post API, the content is automatically published after upload
       // Return the publish_id for status tracking
@@ -368,21 +376,32 @@ export class TikTokPublisher extends Publisher {
 
     const media = content.media[0];
 
-    // Validate each media file exists
-    if (!fs.existsSync(media.path)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
+    // Validate media has a valid source (path or url)
+    if (!hasValidSource(media)) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
     }
 
-    // Validate file size
-    const fileSize = this.getFileSize(media.path);
-    if (media.type === "video") {
-      this.strictCheck(
-        fileSize > MAX_VIDEO_SIZE,
-        `Video file size cannot exceed ${MAX_VIDEO_SIZE / (1024 * 1024 * 1024)}GB.`,
-      );
-    } else {
-      this.strictCheck(fileSize > MAX_PHOTO_SIZE, `Photo file size cannot exceed ${MAX_PHOTO_SIZE / (1024 * 1024)}MB.`);
+    // If path is provided, validate the file exists and size
+    if (media.path) {
+      if (!fs.existsSync(media.path)) {
+        throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
+      }
+
+      // Validate file size
+      const fileSize = this.getFileSize(media.path);
+      if (media.type === "video") {
+        this.strictCheck(
+          fileSize > MAX_VIDEO_SIZE,
+          `Video file size cannot exceed ${MAX_VIDEO_SIZE / (1024 * 1024 * 1024)}GB.`,
+        );
+      } else {
+        this.strictCheck(
+          fileSize > MAX_PHOTO_SIZE,
+          `Photo file size cannot exceed ${MAX_PHOTO_SIZE / (1024 * 1024)}MB.`,
+        );
+      }
     }
+    // Note: File size validation for URLs will happen after download
 
     // Caption length validation
     this.strictCheck(
@@ -395,13 +414,19 @@ export class TikTokPublisher extends Publisher {
     // Validate the content
     this.validate(content);
 
+    const tempFileManager = new TempFileManager();
+
     try {
       // Get the first media item (TikTok only supports single media)
       const media = content.media![0];
 
+      // Resolve media path (download if URL)
+      const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
+      tempFileManager.add(cleanup);
+
       // Upload the media - uses Direct Post API for immediate publishing or Upload API for drafts
       // Based on options.tiktok.publishMode: "draft" goes to inbox, otherwise publishes immediately
-      const publishId = await this.uploadMedia(media, content, options);
+      const publishId = await this.uploadMedia(media, resolvedPath, content, options);
 
       return { id: publishId, error: PostErrorType.NO_ERROR };
     } catch (error: any) {
@@ -416,6 +441,7 @@ export class TikTokPublisher extends Publisher {
       );
     } finally {
       await this.cleanupS3Files();
+      await tempFileManager.cleanup();
     }
   }
 }

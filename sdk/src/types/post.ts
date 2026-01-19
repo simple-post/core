@@ -15,16 +15,19 @@ export const PlatformSchema = z.enum([
 
 export const ImageSchema = z.object({
   type: z.literal("image"),
-  path: z.string(),
+  path: z.string().optional(),
+  url: z.url().optional(),
   caption: z.string().optional(),
 });
 
 export const VideoSchema = z.object({
   type: z.literal("video"),
-  path: z.string(),
+  path: z.string().optional(),
+  url: z.url().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   thumbnailPath: z.string().optional(),
+  thumbnailUrl: z.url().optional(),
 });
 
 export const MediaSchema = z.discriminatedUnion("type", [ImageSchema, VideoSchema]);

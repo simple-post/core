@@ -4,6 +4,7 @@ import axios from "axios";
 import { TwitterApi } from "twitter-api-v2";
 
 import { PostError, PostErrorType } from "../../types";
+import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
@@ -134,15 +135,15 @@ export class XPublisher extends Publisher {
     }
   }
 
-  private async uploadMedia(media: Media): Promise<string> {
+  private async uploadMedia(resolvedPath: string): Promise<string> {
     // Check if the media file exists
-    if (!fs.existsSync(media.path)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${media.path}`);
+    if (!fs.existsSync(resolvedPath)) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${resolvedPath}`);
     }
 
     // Upload the media using the Twitter V1 API
     try {
-      const mediaId = await this.clientV1.uploadMedia(media.path);
+      const mediaId = await this.clientV1.uploadMedia(resolvedPath);
 
       this.logger.info(`Media uploaded: ${mediaId}`);
 
@@ -161,6 +162,19 @@ export class XPublisher extends Publisher {
       content.media && content.media.length > MAX_MEDIA_COUNT,
       `X supports up to ${MAX_MEDIA_COUNT} media files, only the first ${MAX_MEDIA_COUNT} will be uploaded`,
     );
+
+    // Validate each media has a valid source (path or url)
+    if (content.media) {
+      for (const media of content.media) {
+        if (!hasValidSource(media)) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
+        }
+        // If path is provided, check it exists
+        if (media.path && !fs.existsSync(media.path)) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
+        }
+      }
+    }
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -172,17 +186,23 @@ export class XPublisher extends Publisher {
     // Ensure we have a valid token before posting
     await this.ensureValidToken();
 
-    // Upload all media files if any
-    const mediaIds: string[] = [];
-    if (content.media) {
-      for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
-        const mediaId = await this.uploadMedia(media);
-        mediaIds.push(mediaId);
-      }
-    }
+    const tempFileManager = new TempFileManager();
 
-    // Post the tweet
     try {
+      // Upload all media files if any
+      const mediaIds: string[] = [];
+      if (content.media) {
+        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
+          // Resolve media path (download if URL)
+          const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
+          tempFileManager.add(cleanup);
+
+          const mediaId = await this.uploadMedia(resolvedPath);
+          mediaIds.push(mediaId);
+        }
+      }
+
+      // Post the tweet
       const { data: createdTweet } = await this.client.v2.tweet(content.text || "", {
         media: mediaIds.length > 0 ? { media_ids: mediaIds as [string, string, string, string] } : undefined,
         reply: replyToId ? { in_reply_to_tweet_id: replyToId } : undefined,
@@ -204,6 +224,8 @@ export class XPublisher extends Publisher {
     } catch (error: any) {
       this.logger.error(error);
       throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, error.data);
+    } finally {
+      await tempFileManager.cleanup();
     }
   }
 }

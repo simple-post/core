@@ -5,7 +5,7 @@ import axios from "axios";
 import FormData from "form-data";
 
 import { PostError, PostErrorType } from "../../types";
-import { getContentType } from "../../utils";
+import { getContentType, hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
@@ -43,15 +43,15 @@ export class FacebookPublisher extends Publisher {
     });
   }
 
-  private async uploadImage(image: Image): Promise<string> {
+  private async uploadImage(image: Image, resolvedPath: string): Promise<string> {
     try {
       const formData = new FormData();
 
       // Add the media file
-      const fileBuffer = fs.readFileSync(image.path);
+      const fileBuffer = fs.readFileSync(resolvedPath);
       formData.append("source", fileBuffer, {
-        filename: path.basename(image.path),
-        contentType: getContentType(image.path),
+        filename: path.basename(resolvedPath),
+        contentType: getContentType(resolvedPath),
       });
 
       // Add common parameters
@@ -101,9 +101,13 @@ export class FacebookPublisher extends Publisher {
         `Facebook supports maximum of ${MAX_MEDIA_COUNT} images in a single post`,
       );
 
-      // Validate each media item exists
+      // Validate each media item has a valid source (path or url)
       for (const media of content.media) {
-        if (!fs.existsSync(media.path!)) {
+        if (!hasValidSource(media)) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
+        }
+        // If path is provided, check it exists
+        if (media.path && !fs.existsSync(media.path)) {
           throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
         }
       }
@@ -118,16 +122,20 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  private async postVideo(video: Video, options?: PostOptionsWithCredentials): Promise<PostResult> {
+  private async postVideo(
+    video: Video,
+    resolvedPath: string,
+    options?: PostOptionsWithCredentials,
+  ): Promise<PostResult> {
     try {
       const formData = new FormData();
 
       formData.append("access_token", this.pageAccessToken);
 
-      const fileBuffer = fs.readFileSync(video.path);
+      const fileBuffer = fs.readFileSync(resolvedPath);
       formData.append("source", fileBuffer, {
-        filename: path.basename(video.path),
-        contentType: getContentType(video.path),
+        filename: path.basename(resolvedPath),
+        contentType: getContentType(resolvedPath),
       });
 
       if (video.title) formData.append("title", video.title);
@@ -170,12 +178,18 @@ export class FacebookPublisher extends Publisher {
     // Validate the content
     this.validate(content);
 
-    // If the post is a video, publish it directly to the page videos endpoint
-    if (content.media && content.media.length === 1 && content.media[0].type === "video") {
-      return this.postVideo(content.media[0], options);
-    }
+    const tempFileManager = new TempFileManager();
 
     try {
+      // If the post is a video, publish it directly to the page videos endpoint
+      if (content.media && content.media.length === 1 && content.media[0].type === "video") {
+        const video = content.media[0];
+        const { path: resolvedPath, cleanup } = await resolveMediaPath(video);
+        tempFileManager.add(cleanup);
+
+        return await this.postVideo(video, resolvedPath, options);
+      }
+
       const postData: any = {
         access_token: this.pageAccessToken,
       };
@@ -194,8 +208,12 @@ export class FacebookPublisher extends Publisher {
       if (content.media && content.media.length > 0) {
         const attachedMedia = [];
         for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
+          // Resolve media path (download if URL)
+          const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
+          tempFileManager.add(cleanup);
+
           // If we are here we know that the media is an Image. If the user is posting video, only 1 media is allowed and this case is handled above.
-          const mediaId = await this.uploadImage(media as Image);
+          const mediaId = await this.uploadImage(media as Image, resolvedPath);
 
           this.logger.info(`Media uploaded: ${mediaId}`);
 
@@ -220,6 +238,8 @@ export class FacebookPublisher extends Publisher {
         `Failed to post content: ${error.response?.data?.error?.message || error.message}`,
         error.response?.data,
       );
+    } finally {
+      await tempFileManager.cleanup();
     }
   }
 }

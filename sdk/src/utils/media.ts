@@ -82,7 +82,7 @@ const isLocalhost = (hostname: string): boolean => {
  */
 const isPrivateIP = (ip: string): boolean => {
   // Remove IPv6 brackets if present
-  const cleanIP = ip.replaceAll(/^\[|\]$/g, "");
+  const cleanIP = ip.replace(/^\[/, "").replace(/\]$/, "");
 
   // IPv4 patterns
   const ipv4Patterns = [

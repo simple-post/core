@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
-import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 import axios from "axios";
 
@@ -21,6 +21,9 @@ import type { Image, Video } from "../src/types/post";
 jest.mock("axios");
 jest.mock("node:fs");
 jest.mock("node:os");
+jest.mock("node:stream/promises", () => ({
+  pipeline: jest.fn(),
+}));
 jest.mock("uuid", () => ({
   v7: jest.fn(() => "mock-uuid-v7"),
 }));
@@ -28,6 +31,7 @@ jest.mock("uuid", () => ({
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
 const mockedOs = os as jest.Mocked<typeof os>;
+const mockedPipeline = pipeline as jest.MockedFunction<typeof pipeline>;
 
 describe("Media Utilities", () => {
   beforeEach(() => {
@@ -61,7 +65,7 @@ describe("Media Utilities", () => {
     });
 
     it("should return false for Windows paths", () => {
-      expect(isUrl("C:\\Users\\test\\image.jpg")).toBe(false);
+      expect(isUrl(String.raw`C:\Users\test\image.jpg`)).toBe(false);
     });
 
     it("should return false for ftp URLs", () => {
@@ -139,29 +143,14 @@ describe("Media Utilities", () => {
     });
   });
 
-  // Helper function to create mock streams for testing
-  const createMockStream = (data: string = "mock data"): Readable => {
-    const readable = new Readable({
-      read() {
-        this.push(data);
-        this.push(null);
-      },
-    });
-    return readable;
+  // Helper function to create mock response data for axios
+  const createMockStreamData = (): object => {
+    return { mockStream: true };
   };
 
   describe("downloadToTempFile", () => {
-    let mockWriteStream: {
-      on: jest.Mock;
-      write: jest.Mock;
-      end: jest.Mock;
-      once: jest.Mock;
-      emit: jest.Mock;
-    };
-    let mockReadableStream: Readable;
-
     beforeEach(() => {
-      mockWriteStream = {
+      const mockWriteStream = {
         on: jest.fn(),
         write: jest.fn(),
         end: jest.fn(),
@@ -172,13 +161,13 @@ describe("Media Utilities", () => {
       mockedFs.createWriteStream.mockReturnValue(mockWriteStream as any);
       mockedFs.existsSync.mockReturnValue(false);
       mockedFs.unlinkSync.mockImplementation(() => {});
+      // Mock pipeline to resolve immediately by default
+      mockedPipeline.mockImplementation(() => Promise.resolve());
     });
 
     it("should download file and return temp path with extension from URL", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: {},
       });
 
@@ -195,10 +184,8 @@ describe("Media Utilities", () => {
     });
 
     it("should use preferred extension when provided", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: {},
       });
 
@@ -208,10 +195,8 @@ describe("Media Utilities", () => {
     });
 
     it("should detect extension from content-type when URL has no extension", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: { "content-type": "video/mp4" },
       });
 
@@ -221,10 +206,8 @@ describe("Media Utilities", () => {
     });
 
     it("should detect jpg extension from image/jpeg content-type", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: { "content-type": "image/jpeg" },
       });
 
@@ -234,10 +217,8 @@ describe("Media Utilities", () => {
     });
 
     it("should detect png extension from image/png content-type", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: { "content-type": "image/png" },
       });
 
@@ -247,10 +228,8 @@ describe("Media Utilities", () => {
     });
 
     it("should detect webm extension from video/webm content-type", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: { "content-type": "video/webm" },
       });
 
@@ -260,10 +239,8 @@ describe("Media Utilities", () => {
     });
 
     it("should handle content-type with charset", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: { "content-type": "image/gif; charset=utf-8" },
       });
 
@@ -273,10 +250,8 @@ describe("Media Utilities", () => {
     });
 
     it("should use .tmp extension when no extension can be determined", async () => {
-      mockReadableStream = createMockStream();
-
       mockedAxios.get.mockResolvedValue({
-        data: mockReadableStream,
+        data: createMockStreamData(),
         headers: { "content-type": "application/octet-stream" },
       });
 
@@ -295,21 +270,17 @@ describe("Media Utilities", () => {
     });
 
     it("should clean up temp file on stream pipeline error", async () => {
-      // Create a stream that will error
-      const errorStream = new Readable({
-        read() {
-          this.destroy(new Error("Stream error"));
-        },
-      });
-
       mockedAxios.get.mockResolvedValue({
-        data: errorStream,
+        data: {},
         headers: {},
       });
 
+      // Mock pipeline to reject
+      mockedPipeline.mockRejectedValue(new Error("Stream error"));
+
       mockedFs.existsSync.mockReturnValue(true);
 
-      await expect(downloadToTempFile("https://example.com/video.mp4")).rejects.toThrow();
+      await expect(downloadToTempFile("https://example.com/video.mp4")).rejects.toThrow("Stream error");
 
       expect(mockedFs.unlinkSync).toHaveBeenCalled();
     });
@@ -412,7 +383,7 @@ describe("Media Utilities", () => {
       });
 
       it("should allow valid public URLs", async () => {
-        const mockStream = createMockStream();
+        const mockStream = createMockStreamData();
 
         mockedAxios.get.mockResolvedValue({
           data: mockStream,
@@ -424,7 +395,7 @@ describe("Media Utilities", () => {
       });
 
       it("should allow public IP addresses", async () => {
-        const mockStream = createMockStream();
+        const mockStream = createMockStreamData();
 
         mockedAxios.get.mockResolvedValue({
           data: mockStream,
@@ -462,15 +433,8 @@ describe("Media Utilities", () => {
     });
 
     it("should download and return temp path when media has url", async () => {
-      const mockStream = new Readable({
-        read() {
-          this.push("data");
-          this.push(null);
-        },
-      });
-
       mockedAxios.get.mockResolvedValue({
-        data: mockStream,
+        data: createMockStreamData(),
         headers: { "content-type": "image/jpeg" },
       });
       mockedFs.createWriteStream.mockReturnValue({
@@ -491,15 +455,8 @@ describe("Media Utilities", () => {
     });
 
     it("should cleanup temp file when cleanup is called", async () => {
-      const mockStream = new Readable({
-        read() {
-          this.push("data");
-          this.push(null);
-        },
-      });
-
       mockedAxios.get.mockResolvedValue({
-        data: mockStream,
+        data: createMockStreamData(),
         headers: {},
       });
       mockedFs.createWriteStream.mockReturnValue({
@@ -520,15 +477,8 @@ describe("Media Utilities", () => {
     });
 
     it("should handle cleanup errors gracefully", async () => {
-      const mockStream = new Readable({
-        read() {
-          this.push("data");
-          this.push(null);
-        },
-      });
-
       mockedAxios.get.mockResolvedValue({
-        data: mockStream,
+        data: createMockStreamData(),
         headers: {},
       });
       mockedFs.createWriteStream.mockReturnValue({
@@ -591,15 +541,8 @@ describe("Media Utilities", () => {
     });
 
     it("should download and return temp path when video has thumbnailUrl", async () => {
-      const mockStream = new Readable({
-        read() {
-          this.push("data");
-          this.push(null);
-        },
-      });
-
       mockedAxios.get.mockResolvedValue({
-        data: mockStream,
+        data: createMockStreamData(),
         headers: { "content-type": "image/jpeg" },
       });
       mockedFs.createWriteStream.mockReturnValue({
@@ -635,15 +578,8 @@ describe("Media Utilities", () => {
     });
 
     it("should cleanup temp thumbnail when cleanup is called", async () => {
-      const mockStream = new Readable({
-        read() {
-          this.push("data");
-          this.push(null);
-        },
-      });
-
       mockedAxios.get.mockResolvedValue({
-        data: mockStream,
+        data: createMockStreamData(),
         headers: {},
       });
       mockedFs.createWriteStream.mockReturnValue({
@@ -686,8 +622,8 @@ describe("Media Utilities", () => {
   describe("TempFileManager", () => {
     it("should add cleanup functions", () => {
       const manager = new TempFileManager();
-      const cleanup1 = jest.fn().mockResolvedValue(undefined);
-      const cleanup2 = jest.fn().mockResolvedValue(undefined);
+      const cleanup1 = jest.fn().mockImplementation(() => Promise.resolve());
+      const cleanup2 = jest.fn().mockImplementation(() => Promise.resolve());
 
       manager.add(cleanup1);
       manager.add(cleanup2);
@@ -697,9 +633,9 @@ describe("Media Utilities", () => {
 
     it("should call all cleanup functions on cleanup", async () => {
       const manager = new TempFileManager();
-      const cleanup1 = jest.fn().mockResolvedValue(undefined);
-      const cleanup2 = jest.fn().mockResolvedValue(undefined);
-      const cleanup3 = jest.fn().mockResolvedValue(undefined);
+      const cleanup1 = jest.fn().mockImplementation(() => Promise.resolve());
+      const cleanup2 = jest.fn().mockImplementation(() => Promise.resolve());
+      const cleanup3 = jest.fn().mockImplementation(() => Promise.resolve());
 
       manager.add(cleanup1);
       manager.add(cleanup2);
@@ -735,7 +671,7 @@ describe("Media Utilities", () => {
 
     it("should clear cleanup functions after cleanup", async () => {
       const manager = new TempFileManager();
-      const cleanup = jest.fn().mockResolvedValue(undefined);
+      const cleanup = jest.fn().mockImplementation(() => Promise.resolve());
 
       manager.add(cleanup);
       await manager.cleanup();
@@ -756,7 +692,7 @@ describe("Media Utilities", () => {
     it("should handle cleanup function errors gracefully", async () => {
       const manager = new TempFileManager();
       const cleanup1 = jest.fn().mockRejectedValue(new Error("Cleanup error 1"));
-      const cleanup2 = jest.fn().mockResolvedValue(undefined);
+      const cleanup2 = jest.fn().mockImplementation(() => Promise.resolve());
       const cleanup3 = jest.fn().mockRejectedValue(new Error("Cleanup error 3"));
 
       manager.add(cleanup1);

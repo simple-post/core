@@ -401,7 +401,7 @@ export class TikTokPublisher extends Publisher {
         );
       }
     }
-    // Note: File size validation for URLs will happen after download
+    // Note: File size validation for URLs happens after download in postContent()
 
     // Caption length validation
     this.strictCheck(
@@ -421,8 +421,25 @@ export class TikTokPublisher extends Publisher {
       const media = content.media![0];
 
       // Resolve media path (download if URL)
-      const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
+      const { path: resolvedPath, cleanup, isTemp } = await resolveMediaPath(media);
       tempFileManager.add(cleanup);
+
+      // Validate file size after download (for URLs)
+      if (isTemp) {
+        const fileSize = this.getFileSize(resolvedPath);
+        if (media.type === "video" && fileSize > MAX_VIDEO_SIZE) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            `Video file size (${(fileSize / (1024 * 1024 * 1024)).toFixed(2)}GB) exceeds maximum allowed size of ${MAX_VIDEO_SIZE / (1024 * 1024 * 1024)}GB.`,
+          );
+        }
+        if (media.type === "image" && fileSize > MAX_PHOTO_SIZE) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            `Photo file size (${(fileSize / (1024 * 1024)).toFixed(2)}MB) exceeds maximum allowed size of ${MAX_PHOTO_SIZE / (1024 * 1024)}MB.`,
+          );
+        }
+      }
 
       // Upload the media - uses Direct Post API for immediate publishing or Upload API for drafts
       // Based on options.tiktok.publishMode: "draft" goes to inbox, otherwise publishes immediately

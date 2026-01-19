@@ -21,7 +21,7 @@ await post({
   platforms: ["x", "facebook"],
 });
 
-// With media as flles
+// With media as files
 await post({
   content: {
     text: "Check out this video!",

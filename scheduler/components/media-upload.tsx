@@ -3,10 +3,19 @@
 import type React from "react";
 import { useCallback, useState } from "react";
 
-import { Upload, X, Video, ImageIcon, AlertCircle } from "lucide-react";
+import { Upload, X, Video, ImageIcon, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { generateThumbnail } from "@/lib/utils/client-thumbnail";
 import type { MediaFile } from "@/types";
+
+interface UploadingFile {
+  id: string;
+  filename: string;
+  progress: number;
+  type: "image" | "video";
+}
 
 interface MediaUploadProps {
   media: MediaFile[];
@@ -14,6 +23,36 @@ interface MediaUploadProps {
   maxFiles?: number;
   maxFileSize?: number; // in bytes
   acceptedTypes?: string[];
+}
+
+async function getPresignedUrl(
+  filename: string,
+  contentType: string,
+  isThumbnail: boolean = false,
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  const response = await fetch("/api/upload/presign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename, contentType, isThumbnail }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to get presigned URL");
+  }
+
+  return response.json();
+}
+
+async function uploadToR2(uploadUrl: string, file: File | Blob, contentType: string): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: file,
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to upload file to R2");
+  }
 }
 
 export function MediaUpload({
@@ -25,6 +64,7 @@ export function MediaUpload({
 }: MediaUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [uploading, setUploading] = useState<UploadingFile[]>([]);
 
   const validateFile = (file: File): string | null => {
     if (file.size > maxFileSize) {
@@ -45,39 +85,107 @@ export function MediaUpload({
     return null;
   };
 
-  const processFiles = useCallback(
-    (files: FileList | File[]) => {
-      const newErrors: string[] = [];
-      const validFiles: MediaFile[] = [];
+  const uploadFile = async (file: File): Promise<MediaFile | null> => {
+    const id = crypto.randomUUID();
+    const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
 
-      [...files].forEach((file) => {
-        if (media.length + validFiles.length >= maxFiles) {
+    // Add to uploading state
+    setUploading((prev) => [...prev, { id, filename: file.name, progress: 0, type: mediaType }]);
+
+    try {
+      // Step 1: Get presigned URL for main file (10% progress)
+      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 10 } : u)));
+      const { uploadUrl, publicUrl } = await getPresignedUrl(file.name, file.type);
+
+      // Step 2: Upload main file to R2 (60% progress)
+      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
+      await uploadToR2(uploadUrl, file, file.type);
+      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 60 } : u)));
+
+      // Step 3: Generate and upload thumbnail (90% progress)
+      let thumbnailUrl: string | undefined;
+      try {
+        const thumbnailBlob = await generateThumbnail(file);
+        if (thumbnailBlob) {
+          setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 75 } : u)));
+          const { uploadUrl: thumbUploadUrl, publicUrl: thumbPublicUrl } = await getPresignedUrl(
+            file.name,
+            "image/jpeg",
+            true,
+          );
+          await uploadToR2(thumbUploadUrl, thumbnailBlob, "image/jpeg");
+          thumbnailUrl = thumbPublicUrl;
+        }
+      } catch {
+        // Thumbnail generation failed, continue without it
+        console.warn("Thumbnail generation failed for", file.name);
+      }
+
+      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 100 } : u)));
+
+      // Remove from uploading state
+      setUploading((prev) => prev.filter((u) => u.id !== id));
+
+      return {
+        id,
+        url: publicUrl,
+        thumbnailUrl,
+        type: mediaType,
+        filename: file.name,
+        size: file.size,
+      };
+    } catch (error) {
+      // Remove from uploading state
+      setUploading((prev) => prev.filter((u) => u.id !== id));
+      throw error;
+    }
+  };
+
+  const processFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const newErrors: string[] = [];
+      const filesToUpload: File[] = [];
+
+      // Validate all files first
+      for (const file of files) {
+        if (media.length + uploading.length + filesToUpload.length >= maxFiles) {
           newErrors.push(`Maximum ${maxFiles} files allowed.`);
-          return;
+          break;
         }
 
         const error = validateFile(file);
         if (error) {
           newErrors.push(error);
-          return;
+          continue;
         }
 
-        const mediaFile: MediaFile = {
-          id: crypto.randomUUID(),
-          url: URL.createObjectURL(file),
-          type: file.type.startsWith("video/") ? "video" : "image",
-          filename: file.name,
-          size: file.size,
-        };
-        validFiles.push(mediaFile);
-      });
+        filesToUpload.push(file);
+      }
 
       setErrors(newErrors);
-      if (validFiles.length > 0) {
-        onMediaChange([...media, ...validFiles]);
+
+      if (filesToUpload.length === 0) {
+        return;
+      }
+
+      // Upload files in parallel
+      const uploadPromises = filesToUpload.map(async (file) => {
+        try {
+          return await uploadFile(file);
+        } catch (error) {
+          setErrors((prev) => [...prev, `Failed to upload ${file.name}: ${(error as Error).message}`]);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(uploadPromises);
+      const successfulUploads = results.filter((r): r is MediaFile => r !== null);
+
+      if (successfulUploads.length > 0) {
+        onMediaChange([...media, ...successfulUploads]);
       }
     },
-    [media, maxFiles, maxFileSize, onMediaChange],
+    [media, uploading.length, maxFiles, maxFileSize, onMediaChange],
   );
 
   const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,10 +218,6 @@ export function MediaUpload({
   };
 
   const removeMedia = (id: string) => {
-    const mediaToRemove = media.find((m) => m.id === id);
-    if (mediaToRemove) {
-      URL.revokeObjectURL(mediaToRemove.url);
-    }
     onMediaChange(media.filter((m) => m.id !== id));
     setErrors([]); // Clear errors when removing files
   };
@@ -126,13 +230,16 @@ export function MediaUpload({
     return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const isUploading = uploading.length > 0;
+  const totalFiles = media.length + uploading.length;
+
   return (
     <div className="space-y-4">
       {/* Upload Area */}
       <div
         className={`relative border border-dashed rounded transition-colors ${
           dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
-        }`}
+        } ${isUploading ? "pointer-events-none opacity-75" : ""}`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -144,19 +251,45 @@ export function MediaUpload({
           accept={acceptedTypes.join(",")}
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          disabled={media.length >= maxFiles}
+          disabled={totalFiles >= maxFiles || isUploading}
         />
         <div className="flex flex-col items-center justify-center p-6 text-center">
-          <Upload className={`h-8 w-8 mb-3 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
-          <p className="text-sm mb-1">{dragActive ? "Drop files here" : "Click to upload or drag and drop"}</p>
+          {isUploading ? (
+            <Loader2 className="h-8 w-8 mb-3 text-muted-foreground animate-spin" />
+          ) : (
+            <Upload className={`h-8 w-8 mb-3 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
+          )}
+          <p className="text-sm mb-1">
+            {isUploading ? "Uploading..." : dragActive ? "Drop files here" : "Click to upload or drag and drop"}
+          </p>
           <p className="text-xs text-muted-foreground">
             Images and videos up to {Math.round(maxFileSize / (1024 * 1024))}MB each
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {media.length}/{maxFiles} files selected
+            {totalFiles}/{maxFiles} files {isUploading ? "(uploading)" : "selected"}
           </p>
         </div>
       </div>
+
+      {/* Upload Progress */}
+      {uploading.length > 0 && (
+        <div className="space-y-2">
+          {uploading.map((file) => (
+            <div key={file.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded">
+              {file.type === "image" ? (
+                <ImageIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              ) : (
+                <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs truncate">{file.filename}</p>
+                <Progress value={file.progress} className="h-1 mt-1" />
+              </div>
+              <span className="text-xs text-muted-foreground">{file.progress}%</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Error Messages */}
       {errors.length > 0 && (
@@ -182,7 +315,7 @@ export function MediaUpload({
               <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
                 {file.type === "image" ? (
                   <img
-                    src={file.url || "/placeholder.svg"}
+                    src={file.thumbnailUrl || file.url || "/placeholder.svg"}
                     alt={file.filename}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -192,7 +325,19 @@ export function MediaUpload({
                   />
                 ) : (
                   <>
-                    <video src={file.url} className="w-full h-full object-cover" muted playsInline onError={() => {}} />
+                    {file.thumbnailUrl ? (
+                      <img
+                        src={file.thumbnailUrl}
+                        alt={file.filename}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = "/broken-image.png";
+                        }}
+                      />
+                    ) : (
+                      <video src={file.url} className="w-full h-full object-cover" muted playsInline onError={() => {}} />
+                    )}
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <Video className="h-8 w-8 text-white drop-shadow-lg" />
                     </div>

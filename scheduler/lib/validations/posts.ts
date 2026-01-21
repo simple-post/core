@@ -13,7 +13,6 @@ export const updatePostSchema = z.object({
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
   scheduledFor: z.string().datetime(),
   accountOptions: z.record(z.any()).optional(),
-  keepMediaIds: z.array(z.string()).optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;

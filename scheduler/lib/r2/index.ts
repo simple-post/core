@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Initialize R2 client
 const r2Client = new S3Client({
@@ -31,6 +32,30 @@ export async function uploadToR2(file: Buffer, key: string, contentType: string)
 
   // Return the public URL
   return `${R2_PUBLIC_URL}/${key}`;
+}
+
+/**
+ * Generate a presigned URL for uploading a file directly to R2
+ * @param key - The key (path) to store the file at
+ * @param contentType - The content type of the file
+ * @param expiresIn - URL expiration time in seconds (default: 1 hour)
+ * @returns The presigned upload URL and the public URL for accessing the file after upload
+ */
+export async function getPresignedUploadUrl(
+  key: string,
+  contentType: string,
+  expiresIn: number = 3600,
+): Promise<{ uploadUrl: string; publicUrl: string }> {
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn });
+  const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+
+  return { uploadUrl, publicUrl };
 }
 
 /**

@@ -2,7 +2,6 @@ import { PostErrorType, post as sdkPost } from "@simple-post/sdk";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { downloadFile } from "@/lib/utils/file-download";
 import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
 
 import { buildPostOptions } from "./credentials";
@@ -46,33 +45,29 @@ function mapPlatformName(platform: string): Platform {
 
 /**
  * Converts scheduler media files to SDK media format
- * @param mediaFiles - Media files from the scheduler
+ * Uses URLs directly - the SDK will handle downloading as needed
+ * @param mediaFiles - Media files from the scheduler (already uploaded to R2)
  * @param message - The post message text (used as fallback title for videos)
  */
-async function convertMedia(mediaFiles: MediaFile[], message: string): Promise<Media[]> {
+function convertMedia(mediaFiles: MediaFile[], message: string): Media[] {
   const log = postingLogger.child({ fn: "convertMedia" });
   log.debug({ mediaCount: mediaFiles.length }, "Converting media files to SDK format");
 
   const media: Media[] = [];
 
   for (const file of mediaFiles) {
-    log.debug({ type: file.type, filename: file.filename }, "Processing media file");
-
-    // Download the file from R2 to a temporary location
-    log.debug({ url: file.url }, "Downloading file from R2");
-    const localPath = await downloadFile(file.url, file.filename);
-    log.debug({ localPath }, "File downloaded to temporary path");
+    log.debug({ type: file.type, filename: file.filename, url: file.url }, "Processing media file");
 
     if (file.type === "image") {
       media.push({
         type: "image",
-        path: localPath,
+        url: file.url,
       });
-      log.debug({ localPath }, "Added image media");
+      log.debug({ url: file.url }, "Added image media with URL");
     } else if (file.type === "video") {
       const videoMedia: Media = {
         type: "video",
-        path: localPath,
+        url: file.url,
         // For YouTube, title is required. Use message text as title if available
         title: message.trim() || file.filename.replace(/\.[^/.]+$/, ""),
         // Use message as description for videos
@@ -81,19 +76,14 @@ async function convertMedia(mediaFiles: MediaFile[], message: string): Promise<M
 
       log.debug({ title: videoMedia.title }, "Video title set");
 
-      // Add thumbnail if available
+      // Add thumbnail URL if available
       if (file.thumbnailUrl) {
-        log.debug({ thumbnailUrl: file.thumbnailUrl }, "Downloading thumbnail");
-        const thumbnailPath = await downloadFile(
-          file.thumbnailUrl,
-          `thumbnail_${file.filename.replace(/\.[^/.]+$/, ".jpg")}`,
-        );
-        videoMedia.thumbnailPath = thumbnailPath;
-        log.debug({ thumbnailPath }, "Thumbnail downloaded");
+        videoMedia.thumbnailUrl = file.thumbnailUrl;
+        log.debug({ thumbnailUrl: file.thumbnailUrl }, "Thumbnail URL added");
       }
 
       media.push(videoMedia);
-      log.debug({ localPath }, "Added video media");
+      log.debug({ url: file.url }, "Added video media with URL");
     }
   }
 
@@ -203,10 +193,10 @@ async function postToAccount(
         text: postData.content.text,
         media: postData.content.media?.map((m) => ({
           type: m.type,
-          path: m.path,
+          url: m.url,
           title: m.type === "video" ? (m as any).title : undefined,
           description: m.type === "video" ? (m as any).description : undefined,
-          thumbnailPath: m.type === "video" ? (m as any).thumbnailPath : undefined,
+          thumbnailUrl: m.type === "video" ? (m as any).thumbnailUrl : undefined,
           caption: m.type === "image" ? (m as any).caption : undefined,
         })),
       },
@@ -337,9 +327,9 @@ export async function postToAccounts(
       );
     });
 
-    // Convert media files to SDK format
+    // Convert media files to SDK format (uses URLs directly)
     log.debug("Converting media files to SDK format");
-    const media = await convertMedia(mediaFiles, message);
+    const media = convertMedia(mediaFiles, message);
     log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 
     // Post to all accounts in parallel

@@ -84,7 +84,21 @@ export function useConnectTelegram() {
 
 // Create/Update post mutation
 interface PostMutationParams {
-  formData: FormData;
+  body: {
+    message: string;
+    accountIds: string[];
+    postingMode: "now" | "schedule";
+    scheduledFor?: string;
+    accountOptions?: Record<string, unknown>;
+    media: Array<{
+      id: string;
+      url: string;
+      thumbnailUrl?: string;
+      type: "image" | "video";
+      filename: string;
+      size: number;
+    }>;
+  };
   mode: "create" | "edit";
   postId?: string;
 }
@@ -100,13 +114,16 @@ interface PostMutationResult {
   }>;
 }
 
-async function submitPost({ formData, mode, postId }: PostMutationParams): Promise<PostMutationResult> {
+async function submitPost({ body, mode, postId }: PostMutationParams): Promise<PostMutationResult> {
   const url = mode === "edit" ? `/api/posts/${postId}` : "/api/posts";
   const method = mode === "edit" ? "PATCH" : "POST";
 
   const response = await fetch(url, {
     method,
-    body: formData,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

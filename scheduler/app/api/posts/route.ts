@@ -5,8 +5,8 @@ import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
-import { processMediaFiles } from "@/lib/utils/media-upload";
 import { createPostSchema } from "@/lib/validations/posts";
+import type { MediaFile } from "@/types";
 
 const log = createLogger("api:posts");
 
@@ -63,38 +63,27 @@ export async function POST(req: NextRequest) {
     log.debug({ userId }, "User authenticated");
 
     const repository = new PostsModel(userId);
-    const formData = await req.formData();
 
-    // Parse and validate form data
-    log.debug("Parsing form data");
-    const message = formData.get("message") as string;
-    const accountIdsStr = formData.get("accountIds") as string;
-    const postingMode = (formData.get("postingMode") as string) || "schedule";
-    const accountOptionsStr = formData.get("accountOptions") as string | null;
+    // Parse JSON body
+    const body = await req.json();
+    log.debug("Parsing JSON body");
 
-    log.debug({ postingMode, messageLength: message?.length || 0 }, "Form data parsed");
+    const { message, accountIds, postingMode, scheduledFor: scheduledForStr, accountOptions, media } = body;
 
-    if (!message || !accountIdsStr) {
+    log.debug({ postingMode, messageLength: message?.length || 0 }, "Request body parsed");
+
+    if (!message || !accountIds) {
       log.warn("Validation failed: Message or accountIds missing");
       throw new BadRequestError("Message and accountIds are required");
     }
 
-    let accountIds: string[];
-    try {
-      accountIds = JSON.parse(accountIdsStr);
-      log.debug({ accountCount: accountIds.length, accountIds }, "Parsed account IDs");
-    } catch {
-      log.warn("Failed to parse accountIds JSON");
-      throw new BadRequestError("Invalid accountIds format");
-    }
+    log.debug({ accountCount: accountIds.length, accountIds }, "Parsed account IDs");
 
-    const accountOptions = accountOptionsStr ? JSON.parse(accountOptionsStr) : undefined;
     if (accountOptions) {
       log.debug({ accountOptionsCount: Object.keys(accountOptions).length }, "Account options provided");
     }
 
     // Validate with schema
-    const scheduledForStr = formData.get("scheduledFor") as string | null;
     const validationData = {
       message,
       accountIds,
@@ -121,15 +110,11 @@ export async function POST(req: NextRequest) {
       log.debug({ scheduledFor: scheduledFor.toISOString() }, "Scheduling for future");
     }
 
-    // Handle media uploads
-    log.debug("Processing media files");
-    const files = formData.getAll("media").filter((f): f is File => f instanceof File);
-    log.debug({ fileCount: files.length }, "Found media files");
-
-    const mediaFiles = await processMediaFiles(files, userId);
-    log.debug({ processedCount: mediaFiles.length }, "Processed media files");
-    mediaFiles.forEach((mf, idx) => {
-      log.debug({ index: idx + 1, type: mf.type, filename: mf.filename, size: mf.size }, "Media file processed");
+    // Media files are already uploaded to R2, just use the URLs
+    const mediaFiles: MediaFile[] = media || [];
+    log.debug({ mediaCount: mediaFiles.length }, "Media files from request");
+    mediaFiles.forEach((mf: MediaFile, idx: number) => {
+      log.debug({ index: idx + 1, type: mf.type, filename: mf.filename, size: mf.size }, "Media file");
     });
 
     // Create the post first

@@ -52,9 +52,6 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     }>
   >([]);
 
-  // Track which media files were originally present (for edit mode)
-  const [originalMediaIds] = useState<Set<string>>(new Set(existingPost?.media.map((m) => m.id) || []));
-
   const submitPostMutation = useSubmitPost();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,54 +67,34 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     }
 
     try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append("message", message.trim());
-      formData.append("accountIds", JSON.stringify(selectedAccountIds));
-      formData.append("postingMode", postingMode);
+      // Build the request body - media is already uploaded to R2
+      const body: {
+        message: string;
+        accountIds: string[];
+        postingMode: "now" | "schedule";
+        scheduledFor?: string;
+        accountOptions?: AccountOptionsMap;
+        media: MediaFile[];
+      } = {
+        message: message.trim(),
+        accountIds: selectedAccountIds,
+        postingMode,
+        media, // Already contains R2 URLs
+      };
 
       // Only add schedule info if scheduling
       if (postingMode === "schedule") {
         const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
-        formData.append("scheduledFor", scheduledFor.toISOString());
+        body.scheduledFor = scheduledFor.toISOString();
       }
 
       if (Object.keys(accountOptions).length > 0) {
-        formData.append("accountOptions", JSON.stringify(accountOptions));
-      }
-
-      // For edit mode, track which media to keep and which are new
-      if (mode === "edit") {
-        const currentMediaIds = new Set(media.map((m) => m.id));
-
-        // IDs of media files to keep (existing ones that are still in the list)
-        const keepMediaIds = [...currentMediaIds].filter((id) => originalMediaIds.has(id));
-        formData.append("keepMediaIds", JSON.stringify(keepMediaIds));
-
-        // Add new media files (ones not in original)
-        for (const mediaFile of media) {
-          if (!originalMediaIds.has(mediaFile.id)) {
-            // This is a new file, fetch and upload it
-            const response = await fetch(mediaFile.url);
-            const blob = await response.blob();
-            const file = new File([blob], mediaFile.filename, { type: blob.type });
-            formData.append("media", file);
-          }
-        }
-      } else {
-        // Create mode: add all media files
-        for (const mediaFile of media) {
-          // Fetch the blob URL and convert to File
-          const response = await fetch(mediaFile.url);
-          const blob = await response.blob();
-          const file = new File([blob], mediaFile.filename, { type: blob.type });
-          formData.append("media", file);
-        }
+        body.accountOptions = accountOptions;
       }
 
       // Submit using mutation
       const data = await submitPostMutation.mutateAsync({
-        formData,
+        body,
         mode,
         postId: existingPost?.id,
       });

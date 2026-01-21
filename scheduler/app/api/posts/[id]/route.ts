@@ -4,7 +4,6 @@ import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, NotFoundError, BadRequestError } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
-import { processMediaFiles } from "@/lib/utils/media-upload";
 import { updatePostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
 
@@ -21,27 +20,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new NotFoundError("Post not found");
     }
 
-    // Parse form data
-    const formData = await req.formData();
-    const message = formData.get("message") as string;
-    const accountIdsStr = formData.get("accountIds") as string;
-    const scheduledForStr = formData.get("scheduledFor") as string;
-    const accountOptionsStr = formData.get("accountOptions") as string | null;
-    const keepMediaIdsStr = formData.get("keepMediaIds") as string | null;
+    // Parse JSON body
+    const body = await req.json();
+    const { message, accountIds, scheduledFor: scheduledForStr, accountOptions, media } = body;
 
-    if (!message || !accountIdsStr || !scheduledForStr) {
+    if (!message || !accountIds || !scheduledForStr) {
       throw new BadRequestError("Message, accountIds, and scheduledFor are required");
     }
-
-    let accountIds: string[];
-    try {
-      accountIds = JSON.parse(accountIdsStr);
-    } catch {
-      throw new BadRequestError("Invalid accountIds format");
-    }
-
-    const accountOptions = accountOptionsStr ? JSON.parse(accountOptionsStr) : undefined;
-    const keepMediaIds = keepMediaIdsStr ? JSON.parse(keepMediaIdsStr) : [];
 
     // Validate with schema
     const validated = updatePostSchema.parse({
@@ -49,27 +34,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       accountIds,
       scheduledFor: scheduledForStr,
       accountOptions,
-      keepMediaIds,
     });
 
-    // Handle media updates
-    const keepMediaIdsSet = new Set(validated.keepMediaIds || []);
-    const mediaToDelete = currentPost.media.filter((m) => !keepMediaIdsSet.has(m.id));
-
-    // Delete removed media files from R2
-    if (mediaToDelete.length > 0) {
-      await deleteMediaFiles(mediaToDelete);
-    }
-
-    // Keep existing media that should be kept
-    const finalMedia: MediaFile[] = currentPost.media.filter((m) => keepMediaIdsSet.has(m.id));
-
-    // Upload new media files
-    const newFiles = formData.getAll("media").filter((f): f is File => f instanceof File);
-    if (newFiles.length > 0) {
-      const newMediaFiles = await processMediaFiles(newFiles, session.user.id);
-      finalMedia.push(...newMediaFiles);
-    }
+    // Media is already uploaded to R2, just use the provided array
+    const finalMedia: MediaFile[] = media || [];
 
     // Update the post
     const post = await repository.updatePost(id, {

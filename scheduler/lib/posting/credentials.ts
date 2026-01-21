@@ -125,7 +125,5 @@ export function buildPostOptions(account: ConnectedAccount, accountOptions?: Acc
     return {};
   }
 
-  console.log("DBG:", { credentials });
-
   return builder(account, credentials, accountSpecificOptions) as PostOptions;
 }

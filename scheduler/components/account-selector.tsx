@@ -1,11 +1,12 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+
 import { PlatformIcon } from "@/components/platform-icons";
-import type { ConnectedAccount } from "@/types";
+import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/use-accounts";
+import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import type { ConnectedAccount } from "@/types";
 
 interface AccountSelectorProps {
   selectedAccountIds: string[];

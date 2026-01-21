@@ -1,5 +1,6 @@
-import type { PostOptions } from "@simple-post/sdk";
 import type { ConnectedAccount, AccountOptionsMap } from "@/types";
+
+import type { PostOptions } from "@simple-post/sdk";
 
 type Credentials = Record<string, unknown>;
 

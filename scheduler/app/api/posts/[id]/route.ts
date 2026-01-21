@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+
+import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, NotFoundError, BadRequestError } from "@/lib/utils/errors";
-import { PostsModel } from "@/lib/db";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { processMediaFiles } from "@/lib/utils/media-upload";
 import { updatePostSchema } from "@/lib/validations/posts";

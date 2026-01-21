@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
@@ -75,34 +76,45 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     authUrl.searchParams.set("response_type", config.responseType || "code");
 
     // Platform-specific parameters
-    if (platform === "x") {
-      // X requires PKCE
-      // Generate code_challenge for PKCE
-      const codeVerifier = Buffer.from(crypto.randomUUID() + crypto.randomUUID()).toString("base64url");
-      const codeChallenge = Buffer.from(
-        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier)),
-      ).toString("base64url");
+    switch (platform) {
+      case "x": {
+        // X requires PKCE
+        // Generate code_challenge for PKCE
+        const codeVerifier = Buffer.from(crypto.randomUUID() + crypto.randomUUID()).toString("base64url");
+        const codeChallenge = Buffer.from(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier)),
+        ).toString("base64url");
 
-      authUrl.searchParams.set("code_challenge", codeChallenge);
-      authUrl.searchParams.set("code_challenge_method", "S256");
+        authUrl.searchParams.set("code_challenge", codeChallenge);
+        authUrl.searchParams.set("code_challenge_method", "S256");
 
-      // Store code_verifier in state for callback
-      const xState = Buffer.from(
-        JSON.stringify({
-          userId: session.user.id,
-          platform,
-          timestamp: Date.now(),
-          codeVerifier,
-        }),
-      ).toString("base64");
-      authUrl.searchParams.set("state", xState);
-    } else if (platform === "tiktok") {
-      authUrl.searchParams.set("client_key", config.clientId);
-    } else if (platform === "youtube") {
-      // Request offline access to get a refresh token
-      authUrl.searchParams.set("access_type", "offline");
-      // Force consent screen to get a new refresh token
-      authUrl.searchParams.set("prompt", "consent");
+        // Store code_verifier in state for callback
+        const xState = Buffer.from(
+          JSON.stringify({
+            userId: session.user.id,
+            platform,
+            timestamp: Date.now(),
+            codeVerifier,
+          }),
+        ).toString("base64");
+        authUrl.searchParams.set("state", xState);
+
+        break;
+      }
+      case "tiktok": {
+        authUrl.searchParams.set("client_key", config.clientId);
+
+        break;
+      }
+      case "youtube": {
+        // Request offline access to get a refresh token
+        authUrl.searchParams.set("access_type", "offline");
+        // Force consent screen to get a new refresh token
+        authUrl.searchParams.set("prompt", "consent");
+
+        break;
+      }
+      // No default
     }
 
     return NextResponse.redirect(authUrl.toString());

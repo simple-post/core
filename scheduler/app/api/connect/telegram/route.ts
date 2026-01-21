@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { requireAuth } from "@/lib/middleware/auth";
-import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 import { prisma } from "@/lib/prisma";
+import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
       }
 
       const botUsername = botInfo.result.username;
-      const botId = botInfo.result.id.toString();
+      const _botId = botInfo.result.id.toString();
 
       // Try to get chat info to validate chat ID
       const chatInfoResponse = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${chatId}`);
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
           chatTitle,
         },
       });
-    } catch (error) {
+    } catch {
       throw new BadRequestError("Failed to validate Telegram credentials. Please check your bot token and chat ID.");
     }
   } catch (error) {

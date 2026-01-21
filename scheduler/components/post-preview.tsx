@@ -1,6 +1,9 @@
 "use client";
 
+import { useAccounts } from "@/hooks/use-accounts";
+import { getPlatformById } from "@/lib/config";
 import type { MediaFile, ConnectedAccount } from "@/types";
+
 import {
   XPreview,
   InstagramPreview,
@@ -9,8 +12,6 @@ import {
   YouTubePreview,
   TelegramPreview,
 } from "./platform-previews";
-import { getPlatformById } from "@/lib/config";
-import { useAccounts } from "@/hooks/use-accounts";
 
 interface PostPreviewProps {
   message: string;
@@ -29,12 +30,12 @@ const platformComponents: Record<string, React.ComponentType<any>> = {
   telegram: TelegramPreview,
 };
 
-export function PostPreview({ message, media, scheduledDate, scheduledTime, selectedPlatforms }: PostPreviewProps) {
+export function PostPreview({ message, media, selectedPlatforms }: PostPreviewProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
 
   // Get unique platforms from selected accounts
   const selectedAccounts = accounts.filter((acc: ConnectedAccount) => selectedPlatforms?.includes(acc.id));
-  const uniquePlatforms: string[] = Array.from(new Set(selectedAccounts.map((acc: ConnectedAccount) => acc.platform)));
+  const uniquePlatforms: string[] = [...new Set(selectedAccounts.map((acc: ConnectedAccount) => acc.platform))];
 
   if (loading) {
     return (

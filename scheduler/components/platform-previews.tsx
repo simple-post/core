@@ -1,8 +1,9 @@
 "use client";
 
-import type { MediaFile } from "@/types";
-import { Card } from "@/components/ui/card";
 import { Play, Heart, MessageCircle, Repeat2, Share, Bookmark, MoreHorizontal } from "lucide-react";
+
+import { Card } from "@/components/ui/card";
+import type { MediaFile } from "@/types";
 
 interface PlatformPreviewProps {
   message: string;

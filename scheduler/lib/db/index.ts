@@ -1,5 +1,5 @@
-import { SocialPost, AccountOptionsMap } from "@/types";
 import { prisma } from "@/lib/prisma";
+import { type SocialPost, type AccountOptionsMap } from "@/types";
 
 export interface PaginationOptions {
   page?: number;
@@ -57,7 +57,7 @@ export class PostsModel {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      data: posts.map(this.mapPostToSocialPost),
+      data: posts.map((post) => this.mapPostToSocialPost(post)),
       pagination: {
         page,
         limit,
@@ -106,7 +106,7 @@ export class PostsModel {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      data: posts.map(this.mapPostToSocialPost),
+      data: posts.map((post) => this.mapPostToSocialPost(post)),
       pagination: {
         page,
         limit,
@@ -146,7 +146,7 @@ export class PostsModel {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      data: posts.map(this.mapPostToSocialPost),
+      data: posts.map((post) => this.mapPostToSocialPost(post)),
       pagination: {
         page,
         limit,

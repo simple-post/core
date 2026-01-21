@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { requireAuth } from "@/lib/middleware/auth";
-import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
 import { prisma } from "@/lib/prisma";
+import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

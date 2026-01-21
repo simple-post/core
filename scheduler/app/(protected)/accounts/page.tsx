@@ -1,23 +1,24 @@
 "use client";
 
 import { useState } from "react";
+
 import Link from "next/link";
+
+import { PlatformIcon } from "@/components/platform-icons";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useSession, authClient } from "@/lib/auth/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PlatformIcon } from "@/components/platform-icons";
-import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
-import type { ConnectedAccount } from "@/types";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { authClient } from "@/lib/auth/auth-client";
+import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
+import type { ConnectedAccount } from "@/types";
 
 export default function AccountsPage() {
-  const { data: session } = useSession();
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();

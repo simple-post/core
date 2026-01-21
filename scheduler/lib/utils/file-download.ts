@@ -1,7 +1,9 @@
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
+import { writeFile, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { v4 as uuidv4 } from "uuid";
+
 import { mediaLogger, serializeError } from "@/lib/logger";
 
 /**
@@ -13,12 +15,12 @@ import { mediaLogger, serializeError } from "@/lib/logger";
 export async function downloadFile(url: string, filename: string): Promise<string> {
   try {
     // Create a temporary directory for downloads
-    const tempDir = join(tmpdir(), "simplepost-uploads");
+    const tempDir = path.join(tmpdir(), "simplepost-uploads");
     await mkdir(tempDir, { recursive: true });
 
     // Generate a unique filename to avoid collisions
     const uniqueFilename = `${uuidv4()}_${filename}`;
-    const localPath = join(tempDir, uniqueFilename);
+    const localPath = path.join(tempDir, uniqueFilename);
 
     // Download the file
     const response = await fetch(url);

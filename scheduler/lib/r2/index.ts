@@ -55,7 +55,7 @@ export function getKeyFromUrl(url: string): string | null {
   try {
     const urlObj = new URL(url);
     // Remove leading slash
-    return urlObj.pathname.substring(1);
+    return urlObj.pathname.slice(1);
   } catch {
     return null;
   }
@@ -69,7 +69,7 @@ export function getKeyFromUrl(url: string): string | null {
  */
 export function generateFileKey(userId: string, filename: string): string {
   const timestamp = Date.now();
-  const randomStr = Math.random().toString(36).substring(2, 15);
+  const randomStr = Math.random().toString(36).slice(2, 15);
   const ext = filename.split(".").pop();
   return `uploads/${userId}/${timestamp}-${randomStr}.${ext}`;
 }

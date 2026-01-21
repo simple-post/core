@@ -1,10 +1,10 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PlatformOptions } from "@/types";
 
 interface PlatformOptionsProps {
@@ -22,7 +22,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
     onOptionsChange({
       ...options,
       [platform]: {
-        ...((options[platform] as any) || {}),
+        ...(options[platform] as any),
         [key]: value,
       },
     } as PlatformOptions);

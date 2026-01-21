@@ -1,10 +1,11 @@
 "use client";
 
 import type React from "react";
-
 import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
+
 import { Upload, X, Video, ImageIcon, AlertCircle } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import type { MediaFile } from "@/types";
 
 interface MediaUploadProps {
@@ -49,7 +50,7 @@ export function MediaUpload({
       const newErrors: string[] = [];
       const validFiles: MediaFile[] = [];
 
-      Array.from(files).forEach((file) => {
+      [...files].forEach((file) => {
         if (media.length + validFiles.length >= maxFiles) {
           newErrors.push(`Maximum ${maxFiles} files allowed.`);
           return;

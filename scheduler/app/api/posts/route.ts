@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/middleware/auth";
-import { handleApiError } from "@/lib/utils/errors";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { PostsModel } from "@/lib/db";
-import { processMediaFiles } from "@/lib/utils/media-upload";
-import { postToAccounts, getPostingSummary } from "@/lib/posting";
-import { createPostSchema } from "@/lib/validations/posts";
-import { BadRequestError } from "@/lib/utils/errors";
 import { createLogger, serializeError } from "@/lib/logger";
+import { requireAuth } from "@/lib/middleware/auth";
+import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { processMediaFiles } from "@/lib/utils/media-upload";
+import { createPostSchema } from "@/lib/validations/posts";
 
 const log = createLogger("api:posts");
 
@@ -17,29 +17,34 @@ export async function GET(req: NextRequest) {
     const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
+    const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, Number.parseInt(searchParams.get("limit") || "20", 10)));
 
     const paginationOptions = { page, limit };
 
-    if (type === "scheduled") {
-      const result = await repository.getScheduledPosts(paginationOptions);
-      return NextResponse.json({ posts: result.data, pagination: result.pagination });
-    } else if (type === "past") {
-      const result = await repository.getPastPosts(paginationOptions);
-      return NextResponse.json({ posts: result.data, pagination: result.pagination });
-    } else if (type === "failed") {
-      const result = await repository.getFailedPosts(paginationOptions);
-      return NextResponse.json({ posts: result.data, pagination: result.pagination });
-    } else {
-      // For "all" type, we don't support pagination - return all posts
-      const [scheduled, past, failed] = await Promise.all([
-        repository.getScheduledPosts({ page: 1, limit: 1000 }),
-        repository.getPastPosts({ page: 1, limit: 1000 }),
-        repository.getFailedPosts({ page: 1, limit: 1000 }),
-      ]);
-      const posts = [...scheduled.data, ...past.data, ...failed.data];
-      return NextResponse.json({ posts });
+    switch (type) {
+      case "scheduled": {
+        const result = await repository.getScheduledPosts(paginationOptions);
+        return NextResponse.json({ posts: result.data, pagination: result.pagination });
+      }
+      case "past": {
+        const result = await repository.getPastPosts(paginationOptions);
+        return NextResponse.json({ posts: result.data, pagination: result.pagination });
+      }
+      case "failed": {
+        const result = await repository.getFailedPosts(paginationOptions);
+        return NextResponse.json({ posts: result.data, pagination: result.pagination });
+      }
+      default: {
+        // For "all" type, we don't support pagination - return all posts
+        const [scheduled, past, failed] = await Promise.all([
+          repository.getScheduledPosts({ page: 1, limit: 1000 }),
+          repository.getPastPosts({ page: 1, limit: 1000 }),
+          repository.getFailedPosts({ page: 1, limit: 1000 }),
+        ]);
+        const posts = [...scheduled.data, ...past.data, ...failed.data];
+        return NextResponse.json({ posts });
+      }
     }
   } catch (error) {
     return handleApiError(error);
@@ -155,7 +160,11 @@ export async function POST(req: NextRequest) {
         const summary = getPostingSummary(results);
 
         log.info(
-          { successCount: summary.successCount, failureCount: summary.failureCount, overallSuccess: summary.overallSuccess },
+          {
+            successCount: summary.successCount,
+            failureCount: summary.failureCount,
+            overallSuccess: summary.overallSuccess,
+          },
           "Posting results",
         );
 

@@ -1,13 +1,13 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
-import type { AccountOptionsMap, ConnectedAccount } from "@/types";
-import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/use-accounts";
+import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import type { AccountOptionsMap, ConnectedAccount } from "@/types";
 
 interface AccountOptionsProps {
   selectedAccountIds: string[];
@@ -32,7 +32,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     onOptionsChange({
       ...options,
       [accountId]: {
-        ...((options[accountId] as any) || {}),
+        ...(options[accountId] as any),
         [key]: value,
       },
     });

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,9 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSession } from "@/lib/auth/auth-client";
-import { authClient } from "@/lib/auth/auth-client";
-import { useState } from "react";
+import { useSession, authClient } from "@/lib/auth/auth-client";
 
 export function UserMenu() {
   const { data: session } = useSession();

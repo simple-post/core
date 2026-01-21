@@ -18,4 +18,3 @@ export const updatePostSchema = z.object({
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 export type UpdatePostInput = z.infer<typeof updatePostSchema>;
-

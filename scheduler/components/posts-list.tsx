@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
+import Link from "next/link";
+
+import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,14 +16,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import { getPlatformById, getAccountDisplayName } from "@/lib/config";
-import type { SocialPost, ConnectedAccount } from "@/types";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
+import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
+import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import type { SocialPost, ConnectedAccount } from "@/types";
 
 interface PostsListProps {
   type: "scheduled" | "past" | "failed";
@@ -48,9 +51,9 @@ function formatDate(date: Date): string {
 function formatTimeAgo(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+  const diffMins = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
 
   if (diffMins < 1) return "just now";
   if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
@@ -78,11 +81,7 @@ export function PostsList({ type, page, onPageChange, onPostDeleted }: PostsList
       <div className="border border-border rounded-xl p-8 text-center bg-card">
         <div className="text-muted-foreground">
           <p className="text-sm">
-            {type === "scheduled"
-              ? "No scheduled posts"
-              : type === "failed"
-                ? "No failed posts"
-                : "No published posts"}
+            {type === "scheduled" ? "No scheduled posts" : type === "failed" ? "No failed posts" : "No published posts"}
           </p>
         </div>
       </div>
@@ -98,11 +97,7 @@ export function PostsList({ type, page, onPageChange, onPostDeleted }: PostsList
       </div>
 
       {pagination && pagination.totalPages > 1 && (
-        <Pagination
-          pagination={pagination}
-          onPageChange={onPageChange}
-          isFetching={isFetching}
-        />
+        <Pagination pagination={pagination} onPageChange={onPageChange} isFetching={isFetching} />
       )}
     </div>
   );
@@ -185,8 +180,7 @@ function Pagination({
           size="sm"
           onClick={() => onPageChange(page - 1)}
           disabled={!hasPreviousPage || isFetching}
-          className="h-8 w-8 p-0"
-        >
+          className="h-8 w-8 p-0">
           <ChevronLeft className="h-4 w-4" />
         </Button>
 
@@ -202,11 +196,10 @@ function Pagination({
               size="sm"
               onClick={() => onPageChange(pageNum)}
               disabled={isFetching}
-              className="h-8 w-8 p-0"
-            >
+              className="h-8 w-8 p-0">
               {pageNum}
             </Button>
-          )
+          ),
         )}
 
         <Button
@@ -214,8 +207,7 @@ function Pagination({
           size="sm"
           onClick={() => onPageChange(page + 1)}
           disabled={!hasNextPage || isFetching}
-          className="h-8 w-8 p-0"
-        >
+          className="h-8 w-8 p-0">
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -239,10 +231,8 @@ function PostCard({
   const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
 
   // Get unique platforms from the accounts
-  const uniquePlatforms = Array.from(new Set(postAccounts.map((acc) => acc.platform)));
-  const platformsWithNames = uniquePlatforms
-    .map((platform) => getPlatformById(platform))
-    .filter(Boolean);
+  const uniquePlatforms = [...new Set(postAccounts.map((acc) => acc.platform))];
+  const platformsWithNames = uniquePlatforms.map((platform) => getPlatformById(platform)).filter(Boolean);
 
   const hasMedia = post.media.length > 0;
   const isScheduled = post.status === "scheduled";
@@ -277,9 +267,10 @@ function PostCard({
                       loading="lazy"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        // Use placeholder image
-                        target.src = "/placeholder.jpg";
-                        target.onerror = null; // Prevent infinite loop if placeholder also fails
+                        // Use placeholder image and prevent infinite loop
+                        if (target.src !== "/placeholder.jpg") {
+                          target.src = "/placeholder.jpg";
+                        }
                       }}
                     />
                   ) : (
@@ -343,9 +334,7 @@ function PostCard({
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <p className="text-sm text-foreground line-clamp-2 flex-1">
-                      {post.message || "No message"}
-                    </p>
+                    <p className="text-sm text-foreground line-clamp-2 flex-1">{post.message || "No message"}</p>
                     {isFailed && (
                       <Badge variant="destructive" className="flex-shrink-0 text-xs">
                         <AlertCircle className="h-3 w-3 mr-1" />

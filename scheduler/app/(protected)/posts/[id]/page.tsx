@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { getPlatformById } from "@/lib/config";
+import { useRouter } from "next/navigation";
+
 import { format } from "date-fns";
 import { ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,9 +18,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { usePost } from "@/hooks/use-posts";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
+import { usePost } from "@/hooks/use-posts";
+import { getPlatformById } from "@/lib/config";
 import type { ConnectedAccount, MediaFile } from "@/types";
 
 export default function PostDetailPage({ params }: { params: { id: string } }) {

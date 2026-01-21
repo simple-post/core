@@ -39,4 +39,3 @@ export async function processMediaFiles(files: (File | string)[], userId: string
 
   return mediaFiles;
 }
-

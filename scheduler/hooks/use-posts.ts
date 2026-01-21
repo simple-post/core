@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+
 import { queryKeys } from "@/lib/query-client";
 import type { SocialPost } from "@/types";
 
@@ -35,7 +36,7 @@ function parsePost(post: any): SocialPost {
 async function fetchPaginatedPosts(
   type: "scheduled" | "past" | "failed",
   page: number,
-  limit: number
+  limit: number,
 ): Promise<PaginatedPostsResult> {
   const url = `/api/posts?type=${type}&page=${page}&limit=${limit}`;
   const response = await fetch(url);
@@ -44,7 +45,7 @@ async function fetchPaginatedPosts(
   }
   const data: PostsResponse = await response.json();
   return {
-    posts: (data.posts || []).map(parsePost),
+    posts: (data.posts || []).map((post) => parsePost(post)),
     pagination: data.pagination || {
       page,
       limit,
@@ -66,11 +67,7 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
   return foundPost ? parsePost(foundPost) : null;
 }
 
-export function usePaginatedPosts(
-  type: "scheduled" | "past" | "failed",
-  page: number = 1,
-  limit: number = 20
-) {
+export function usePaginatedPosts(type: "scheduled" | "past" | "failed", page: number = 1, limit: number = 20) {
   return useQuery({
     queryKey: queryKeys.paginatedPosts(type, page, limit),
     queryFn: () => fetchPaginatedPosts(type, page, limit),

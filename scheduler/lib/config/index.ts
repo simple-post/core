@@ -73,7 +73,10 @@ export function getAccountDisplayName(account: {
   platformAccountId: string;
 }): string {
   // For X (Twitter), Instagram, and TikTok, prefer showing @username
-  if ((account.platform === "x" || account.platform === "instagram" || account.platform === "tiktok") && account.username) {
+  if (
+    (account.platform === "x" || account.platform === "instagram" || account.platform === "tiktok") &&
+    account.username
+  ) {
     return `@${account.username}`;
   }
 

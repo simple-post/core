@@ -1,10 +1,13 @@
 import { PostErrorType, post as sdkPost } from "@simple-post/sdk";
-import type { Post, Platform, Media } from "@simple-post/sdk";
-import { prisma } from "@/lib/prisma";
-import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
-import { downloadFile } from "@/lib/utils/file-download";
-import { buildPostOptions } from "./credentials";
+
 import { postingLogger, serializeError, redact } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
+import { downloadFile } from "@/lib/utils/file-download";
+import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
+
+import { buildPostOptions } from "./credentials";
+
+import type { Post, Platform, Media } from "@simple-post/sdk";
 
 interface PostingResult {
   accountId: string;
@@ -107,33 +110,40 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
   const platformLower = platform.toLowerCase();
 
   switch (platformLower) {
-    case "youtube":
+    case "youtube": {
       return `https://www.youtube.com/watch?v=${postId}`;
+    }
     case "x":
-    case "twitter":
+    case "twitter": {
       // X/Twitter post URLs require username, but we can construct a basic URL
       const username = account?.username || account?.platformAccountId || "";
       return username ? `https://x.com/${username.replace("@", "")}/status/${postId}` : undefined;
-    case "facebook":
+    }
+    case "facebook": {
       // Facebook post URLs typically need page ID and post ID
       const pageId = account?.platformAccountId || "";
       return pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : undefined;
-    case "instagram":
+    }
+    case "instagram": {
       // Instagram post URLs use shortcodes, not IDs directly
       // The ID format is different, but we'll try to construct a URL
       return `https://www.instagram.com/p/${postId}/`;
-    case "tiktok":
+    }
+    case "tiktok": {
       return `https://www.tiktok.com/@${account?.username || "user"}/video/${postId}`;
-    case "telegram":
+    }
+    case "telegram": {
       // Telegram doesn't have public URLs for posts, but we can link to the channel
       const chatId = account?.platformAccountId || "";
       if (chatId.startsWith("@")) {
         return `https://t.me/${chatId.replace("@", "")}/${postId}`;
       }
       return undefined;
-    default:
+    }
+    default: {
       postingLogger.warn({ platform }, "Unknown platform for URL generation");
       return undefined;
+    }
   }
 }
 

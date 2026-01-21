@@ -1,6 +1,6 @@
+import { mediaLogger, serializeError } from "@/lib/logger";
 import { deleteFromR2, getKeyFromUrl } from "@/lib/r2";
 import type { MediaFile } from "@/types";
-import { mediaLogger, serializeError } from "@/lib/logger";
 
 /**
  * Deletes a single media file and its thumbnail from R2
@@ -39,4 +39,3 @@ export async function deleteMediaFile(media: MediaFile): Promise<void> {
 export async function deleteMediaFiles(mediaFiles: MediaFile[]): Promise<void> {
   await Promise.all(mediaFiles.map((media) => deleteMediaFile(media)));
 }
-

@@ -1,4 +1,4 @@
-import pino, { Logger } from "pino";
+import pino, { type Logger } from "pino";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
@@ -86,10 +86,7 @@ export function redact<T extends Record<string, unknown>>(
     if (keys.includes(key)) {
       (redacted as Record<string, unknown>)[key] = "[REDACTED]";
     } else if (typeof redacted[key] === "object" && redacted[key] !== null) {
-      (redacted as Record<string, unknown>)[key] = redact(
-        redacted[key] as Record<string, unknown>,
-        keys,
-      );
+      (redacted as Record<string, unknown>)[key] = redact(redacted[key] as Record<string, unknown>, keys);
     }
   }
   return redacted;

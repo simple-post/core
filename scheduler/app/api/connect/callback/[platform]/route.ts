@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { authLogger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 
 // Token exchange configuration for each platform
 const TOKEN_CONFIG: Record<
@@ -276,32 +277,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     let profilePicture: string | null = null;
 
     switch (platform) {
-      case "x":
+      case "x": {
         platformAccountId = profile.data?.id || profile.id;
         username = profile.data?.username || profile.username;
         displayName = profile.data?.name || profile.name;
         profilePicture = profile.data?.profile_image_url || profile.profile_image_url || null;
         break;
-      case "facebook":
+      }
+      case "facebook": {
         platformAccountId = profile.id;
         displayName = profile.name;
         email = profile.email;
         profilePicture = profile.picture?.data?.url || null;
         break;
-      case "tiktok":
+      }
+      case "tiktok": {
         platformAccountId = profile.open_id || profile.union_id;
         username = profile.username;
         displayName = profile.display_name;
         profilePicture = profile.avatar_url;
         break;
-      case "youtube":
+      }
+      case "youtube": {
         platformAccountId = profile.id || profile.sub;
         displayName = profile.name;
         email = profile.email;
         profilePicture = profile.picture;
         break;
-      default:
+      }
+      default: {
         platformAccountId = profile.id || profile.sub;
+      }
     }
 
     // Store or update connected account

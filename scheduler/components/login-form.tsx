@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
+
+import Link from "next/link";
+
+import { PlatformIcon } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
 import { authClient } from "@/lib/auth/auth-client";
-import Link from "next/link";
-import { PlatformIcon } from "@/components/platform-icons";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -25,8 +27,8 @@ export function LoginForm() {
         provider: "google",
         callbackURL: "/",
       });
-    } catch (err) {
-      console.error("Google sign-in error:", err);
+    } catch (error_) {
+      console.error("Google sign-in error:", error_);
       setError("Failed to sign in with Google. Please ensure your credentials are configured correctly.");
     } finally {
       setIsLoading(false);
@@ -52,8 +54,8 @@ export function LoginForm() {
       });
       setSuccess("Magic link sent! Check your email to sign in.");
       setEmail("");
-    } catch (err) {
-      console.error("Magic link error:", err);
+    } catch (error_) {
+      console.error("Magic link error:", error_);
       setError("Failed to send magic link. Please try again.");
     } finally {
       setIsLoading(false);

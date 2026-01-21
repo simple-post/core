@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+
 import { ArrowLeft } from "lucide-react";
+
 import { PostForm } from "@/components/post-form";
+import { Button } from "@/components/ui/button";
 import { usePost } from "@/hooks/use-posts";
 
 export default function EditPostPage({ params }: { params: { id: string } }) {

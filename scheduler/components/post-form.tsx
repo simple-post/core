@@ -1,22 +1,25 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
+
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { MediaFile, AccountOptionsMap, SocialPost } from "@/types";
+
 import { format } from "date-fns";
-import { MediaUpload } from "./media-upload";
-import { AccountSelector } from "./account-selector";
-import { AccountOptionsComponent } from "./account-options";
-import { PostPreview } from "./post-preview";
-import { PostLinksModal } from "./post-links-modal";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
+import type { MediaFile, AccountOptionsMap, SocialPost } from "@/types";
+
+import { AccountOptionsComponent } from "./account-options";
+import { AccountSelector } from "./account-selector";
+import { MediaUpload } from "./media-upload";
+import { PostLinksModal } from "./post-links-modal";
+import { PostPreview } from "./post-preview";
 
 interface PostFormProps {
   mode: "create" | "edit";
@@ -88,7 +91,7 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
         const currentMediaIds = new Set(media.map((m) => m.id));
 
         // IDs of media files to keep (existing ones that are still in the list)
-        const keepMediaIds = Array.from(currentMediaIds).filter((id) => originalMediaIds.has(id));
+        const keepMediaIds = [...currentMediaIds].filter((id) => originalMediaIds.has(id));
         formData.append("keepMediaIds", JSON.stringify(keepMediaIds));
 
         // Add new media files (ones not in original)

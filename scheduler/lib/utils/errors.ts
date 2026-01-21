@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { apiLogger, serializeError } from "@/lib/logger";
 
 /**
@@ -99,9 +100,7 @@ export function handleApiError(error: unknown): NextResponse {
 /**
  * Wraps an API route handler with error handling
  */
-export function withErrorHandling(
-  handler: (req: NextRequest, context?: any) => Promise<NextResponse>,
-) {
+export function withErrorHandling(handler: (req: NextRequest, context?: any) => Promise<NextResponse>) {
   return async (req: NextRequest, context?: any): Promise<NextResponse> => {
     try {
       return await handler(req, context);
@@ -110,4 +109,3 @@ export function withErrorHandling(
     }
   };
 }
-

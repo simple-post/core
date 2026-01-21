@@ -1,10 +1,12 @@
 "use client";
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { PlatformIcon } from "./platform-icons";
 import { ExternalLink, CheckCircle2, XCircle } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getPlatformById } from "@/lib/config";
+
+import { PlatformIcon } from "./platform-icons";
 
 interface PostingResult {
   accountId: string;
@@ -56,9 +58,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
         <div className="space-y-3">
           {/* All results in a simple list */}
           {results.map((result) => (
-            <div
-              key={result.accountId}
-              className="flex items-center justify-between gap-3 rounded-lg border p-3">
+            <div key={result.accountId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
               <div className="flex items-center gap-3 min-w-0">
                 {result.success ? (
                   <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
@@ -73,9 +73,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
                   {result.postId && (
                     <p className="text-xs text-muted-foreground font-mono mt-0.5">ID: {result.postId}</p>
                   )}
-                  {result.error && (
-                    <p className="text-xs text-red-500 mt-0.5">{result.error}</p>
-                  )}
+                  {result.error && <p className="text-xs text-red-500 mt-0.5">{result.error}</p>}
                 </div>
               </div>
               {result.postUrl && (
@@ -95,12 +93,8 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
           <div className="pt-2 border-t flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Total:</span>
             <div className="flex items-center gap-3">
-              {successfulPosts.length > 0 && (
-                <span className="text-green-500">{successfulPosts.length} success</span>
-              )}
-              {failedPosts.length > 0 && (
-                <span className="text-red-500">{failedPosts.length} failed</span>
-              )}
+              {successfulPosts.length > 0 && <span className="text-green-500">{successfulPosts.length} success</span>}
+              {failedPosts.length > 0 && <span className="text-red-500">{failedPosts.length} failed</span>}
             </div>
           </div>
         </div>
@@ -108,4 +102,3 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
     </Dialog>
   );
 }
-

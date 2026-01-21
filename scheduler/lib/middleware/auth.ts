@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
+
 import { auth } from "@/lib/auth/auth";
 import { UnauthorizedError } from "@/lib/utils/errors";
 
@@ -23,4 +24,3 @@ export async function requireAuth(req: NextRequest) {
 export async function getSession(req: NextRequest) {
   return await auth.api.getSession({ headers: req.headers });
 }
-

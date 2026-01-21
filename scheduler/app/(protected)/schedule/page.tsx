@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+
 import { SchedulePostForm } from "@/components/schedule-post-form";
+import { Button } from "@/components/ui/button";
 
 export default function SchedulePage() {
   return (

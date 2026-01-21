@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+
 import { Check } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { SOCIAL_PLATFORMS, getPlatformById } from "@/lib/config";
 
 interface PlatformSelectorProps {

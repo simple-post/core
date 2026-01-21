@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+
+import Link from "next/link";
+
+import { Calendar, CheckCircle, AlertCircle } from "lucide-react";
+
+import { PostsList } from "@/components/posts-list";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Link from "next/link";
-import { PostsList } from "@/components/posts-list";
-import { Calendar, CheckCircle, AlertCircle } from "lucide-react";
 
 type TabType = "scheduled" | "past" | "failed";
 
@@ -84,27 +87,15 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="scheduled" className="mt-0">
-            <PostsList
-              type="scheduled"
-              page={scheduledPage}
-              onPageChange={setScheduledPage}
-            />
+            <PostsList type="scheduled" page={scheduledPage} onPageChange={setScheduledPage} />
           </TabsContent>
 
           <TabsContent value="past" className="mt-0">
-            <PostsList
-              type="past"
-              page={postedPage}
-              onPageChange={setPostedPage}
-            />
+            <PostsList type="past" page={postedPage} onPageChange={setPostedPage} />
           </TabsContent>
 
           <TabsContent value="failed" className="mt-0">
-            <PostsList
-              type="failed"
-              page={failedPage}
-              onPageChange={setFailedPage}
-            />
+            <PostsList type="failed" page={failedPage} onPageChange={setFailedPage} />
           </TabsContent>
         </Tabs>
       </main>

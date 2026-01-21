@@ -43,7 +43,6 @@ function mapPlatformName(platform: string): Platform {
   return (platformMap[platform.toLowerCase()] as Platform) || (platform as Platform);
 }
 
-
 /**
  * Generates a post URL for a platform based on the post ID
  */
@@ -324,41 +323,39 @@ export async function postToAccounts(
       log.debug("Posting to all accounts in parallel");
       const preparedMedia = preparedPost.content.media || [];
       const results = await Promise.all(
-        accounts.map((account) =>
-          postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions),
-        ),
+        accounts.map((account) => postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions)),
       );
 
-    const successCount = results.filter((r) => r.success).length;
-    const failureCount = results.filter((r) => !r.success).length;
-    const durationMs = Date.now() - startTime;
+      const successCount = results.filter((r) => r.success).length;
+      const failureCount = results.filter((r) => !r.success).length;
+      const durationMs = Date.now() - startTime;
 
-    log.info({ successCount, failureCount, durationMs }, "Posting complete");
+      log.info({ successCount, failureCount, durationMs }, "Posting complete");
 
-    // Log detailed results
-    results.forEach((result) => {
-      if (result.success) {
-        log.info(
-          {
-            platform: result.platform,
-            postId: result.postId,
-            postUrl: result.postUrl || null,
-            credentialsRefreshed: !!result.extraData?.refreshedCredentials,
-          },
-          "Platform post succeeded",
-        );
-      } else {
-        log.error(
-          {
-            platform: result.platform,
-            error: result.error,
-            message: result.message,
-            details: result.details,
-          },
-          "Platform post failed",
-        );
-      }
-    });
+      // Log detailed results
+      results.forEach((result) => {
+        if (result.success) {
+          log.info(
+            {
+              platform: result.platform,
+              postId: result.postId,
+              postUrl: result.postUrl || null,
+              credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+            },
+            "Platform post succeeded",
+          );
+        } else {
+          log.error(
+            {
+              platform: result.platform,
+              error: result.error,
+              message: result.message,
+              details: result.details,
+            },
+            "Platform post failed",
+          );
+        }
+      });
 
       return results;
     } finally {

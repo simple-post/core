@@ -336,7 +336,13 @@ export function MediaUpload({
                         }}
                       />
                     ) : (
-                      <video src={file.url} className="w-full h-full object-cover" muted playsInline onError={() => {}} />
+                      <video
+                        src={file.url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        onError={() => {}}
+                      />
                     )}
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <Video className="h-8 w-8 text-white drop-shadow-lg" />

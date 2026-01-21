@@ -37,17 +37,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate a unique key for the file
-    const filename = validated.isThumbnail
-      ? `thumb_${validated.filename}`
-      : validated.filename;
+    const filename = validated.isThumbnail ? `thumb_${validated.filename}` : validated.filename;
     const key = generateFileKey(userId, filename);
 
     // Get presigned URL (valid for 1 hour)
-    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(
-      key,
-      validated.contentType,
-      3600,
-    );
+    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, validated.contentType, 3600);
 
     return NextResponse.json({
       uploadUrl,

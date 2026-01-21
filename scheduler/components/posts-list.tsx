@@ -90,7 +90,7 @@ export function PostsList({ type, page, onPageChange, onPostDeleted }: PostsList
 
   return (
     <div className="space-y-4">
-      <div className={`space-y-3 ${isFetching ? "opacity-70" : ""}`}>
+      <div className={`space-y-4 flex flex-col ${isFetching ? "opacity-70" : ""}`}>
         {posts.map((post: SocialPost) => (
           <PostCard key={post.id} post={post} accounts={accounts} onDeleted={onPostDeleted} />
         ))}
@@ -453,22 +453,11 @@ function PostCard({
 
 function PostsListSkeleton() {
   return (
-    <div className="space-y-4">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="animate-pulse border border-border rounded-xl p-4 bg-card">
-          <div className="flex gap-4">
-            <div className="w-20 h-20 bg-muted rounded-lg" />
-            <div className="flex-1 space-y-3">
-              <div className="h-4 bg-muted rounded w-3/4" />
-              <div className="h-3 bg-muted rounded w-1/2" />
-              <div className="flex gap-2">
-                <div className="h-5 bg-muted rounded w-14" />
-                <div className="h-5 bg-muted rounded w-14" />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
+    <div className="border border-border rounded-xl p-8 bg-card">
+      <div className="flex flex-col items-center justify-center gap-3">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading posts...</p>
+      </div>
     </div>
   );
 }

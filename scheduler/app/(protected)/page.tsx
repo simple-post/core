@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 
 import { Calendar, CheckCircle, AlertCircle } from "lucide-react";
 
@@ -13,10 +14,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type TabType = "scheduled" | "past" | "failed";
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabType>("scheduled");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab") as TabType | null;
+  
+  const [activeTab, setActiveTab] = useState<TabType>(
+    tabParam && ["scheduled", "past", "failed"].includes(tabParam) ? tabParam : "scheduled"
+  );
   const [scheduledPage, setScheduledPage] = useState(1);
   const [postedPage, setPostedPage] = useState(1);
   const [failedPage, setFailedPage] = useState(1);
+
+  // Update tab when URL param changes
+  useEffect(() => {
+    if (tabParam && ["scheduled", "past", "failed"].includes(tabParam)) {
+      setActiveTab(tabParam);
+      // Clean up URL by removing the tab param
+      router.replace("/", { scroll: false });
+    }
+  }, [tabParam, router]);
 
   // Reset page to 1 when switching tabs
   const handleTabChange = (value: string) => {
@@ -28,7 +44,7 @@ export default function Dashboard() {
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="flex items-center gap-2">
                 <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-8 h-8 drop-shadow-lg" />
                 <div>
@@ -36,7 +52,7 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">Scheduler</p>
                 </div>
               </div>
-            </div>
+            </Link>
             <div className="flex items-center gap-3">
               <Link href="/accounts">
                 <Button variant="outline" size="default" className="gap-2">

@@ -1,5 +1,7 @@
 "use client";
 
+import { use } from "react";
+
 import Link from "next/link";
 
 import { ArrowLeft } from "lucide-react";
@@ -8,8 +10,9 @@ import { PostForm } from "@/components/post-form";
 import { Button } from "@/components/ui/button";
 import { usePost } from "@/hooks/use-posts";
 
-export default function EditPostPage({ params }: { params: { id: string } }) {
-  const { data: post, isLoading: loading } = usePost(params.id);
+export default function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { data: post, isLoading: loading } = usePost(id);
 
   if (loading) {
     return (
@@ -50,7 +53,7 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Cannot edit published post</h1>
             <p className="text-muted-foreground">Only scheduled posts can be edited.</p>
-            <Link href={`/posts/${params.id}`}>
+            <Link href={`/posts/${id}`}>
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Post
@@ -72,7 +75,7 @@ export default function EditPostPage({ params }: { params: { id: string } }) {
               <h1 className="text-3xl font-semibold text-foreground">Edit Post</h1>
               <p className="text-muted-foreground">Make changes to your scheduled post</p>
             </div>
-            <Link href={`/posts/${params.id}`}>
+            <Link href={`/posts/${id}`}>
               <Button variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Back

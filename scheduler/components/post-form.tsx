@@ -51,6 +51,7 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
       postUrl?: string;
     }>
   >([]);
+  const [postingSucceeded, setPostingSucceeded] = useState(false);
 
   const submitPostMutation = useSubmitPost();
 
@@ -102,15 +103,20 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
       // If posting now and we have posting results, show the modal
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         setPostingResults(data.postingResults);
+        
+        // Check if all posts succeeded
+        const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
+        setPostingSucceeded(allSucceeded);
+        
         setShowPostLinksModal(true);
-        // Don't navigate immediately - let user see the results first
-        // They can close the modal to navigate
+        // Navigation will happen when modal closes (see onOpenChange below)
+        // If failed, user can close modal and retry
       } else {
-        // Navigate to either the post detail page or home
+        // Scheduled post - navigate to Scheduled tab
         if (mode === "edit") {
           router.push(`/posts/${existingPost?.id}`);
         } else {
-          router.push("/");
+          router.push("/?tab=scheduled");
         }
       }
     } catch (error) {
@@ -285,11 +291,15 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
           setShowPostLinksModal(open);
           // Navigate when modal is closed
           if (!open) {
-            if (mode === "edit") {
-              router.push(`/posts/${existingPost?.id}`);
-            } else {
-              router.push("/");
+            if (postingSucceeded) {
+              // Navigate to Posted tab on success
+              if (mode === "edit") {
+                router.push(`/posts/${existingPost?.id}`);
+              } else {
+                router.push("/?tab=past");
+              }
             }
+            // If posting failed, stay on the page to let user retry
           }
         }}
         results={postingResults}

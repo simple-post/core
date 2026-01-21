@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
+import { ArrowLeft, Trash2, Calendar, Clock, Edit, AlertCircle } from "lucide-react";
 
 import {
   AlertDialog,
@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -26,9 +27,10 @@ import { usePost } from "@/hooks/use-posts";
 import { getPlatformById } from "@/lib/config";
 import type { ConnectedAccount, MediaFile } from "@/types";
 
-export default function PostDetailPage({ params }: { params: { id: string } }) {
+export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
-  const { data: post, isLoading: postLoading } = usePost(params.id);
+  const { data: post, isLoading: postLoading } = usePost(id);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const deletePostMutation = useDeletePost();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -37,7 +39,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
 
   const handleDelete = async () => {
     try {
-      await deletePostMutation.mutateAsync(params.id);
+      await deletePostMutation.mutateAsync(id);
       router.push("/");
     } catch (error) {
       console.error("Failed to delete post:", error);
@@ -79,6 +81,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
 
   const postAccounts = accounts.filter((acc: ConnectedAccount) => post.accountIds.includes(acc.id));
   const isScheduled = post.status === "scheduled";
+  const isFailed = post.status === "failed";
 
   return (
     <>
@@ -95,7 +98,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
               </Link>
               <div className="flex items-center gap-2">
                 {isScheduled && (
-                  <Link href={`/posts/${params.id}/edit`}>
+                  <Link href={`/posts/${id}/edit`}>
                     <Button variant="outline" size="sm">
                       <Edit className="h-4 w-4 mr-2" />
                       Edit
@@ -120,12 +123,14 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                 className={`px-3 py-1 rounded-full text-sm font-medium ${
                   isScheduled
                     ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                    : "bg-green-500/10 text-green-600 dark:text-green-400"
+                    : isFailed
+                      ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                      : "bg-green-500/10 text-green-600 dark:text-green-400"
                 }`}>
-                {isScheduled ? "Scheduled" : "Published"}
+                {isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
               </span>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {isScheduled ? <Calendar className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                {isScheduled ? <Calendar className="h-4 w-4" /> : isFailed ? <AlertCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                 <span>
                   {isScheduled
                     ? format(post.scheduledFor, "EEEE, MMMM d, yyyy 'at' h:mm a")
@@ -133,6 +138,19 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                 </span>
               </div>
             </div>
+
+            {/* Error Message for Failed Posts */}
+            {isFailed && post.errorMessage && (
+              <Card className="p-4 border-red-500/20 bg-red-500/5">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-red-500">Post Failed</p>
+                    <p className="text-sm text-muted-foreground">{post.errorMessage}</p>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Post Content */}
             <Card className="p-6 space-y-6">

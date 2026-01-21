@@ -20,6 +20,14 @@ jest.mock("googleapis", () => ({
 jest.mock("fs", () => ({
   existsSync: jest.fn(),
   createReadStream: jest.fn(),
+  statSync: jest.fn(),
+}));
+
+jest.mock("../src/utils/s3", () => ({
+  S3MediaUploader: jest.fn().mockImplementation(() => ({
+    uploadFile: jest.fn(),
+    deleteFile: jest.fn(),
+  })),
 }));
 
 const mockedGoogle = google as jest.Mocked<typeof google>;
@@ -42,6 +50,7 @@ describe("YouTubePublisher", () => {
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
+    mockedFs.statSync.mockReturnValue({ size: 1024 * 1024 } as any); // 1 MB mock file
 
     // Create mock YouTube client
     mockYouTubeClient = {

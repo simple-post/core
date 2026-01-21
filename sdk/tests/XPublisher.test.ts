@@ -12,6 +12,12 @@ import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 jest.mock("twitter-api-v2");
 jest.mock("fs");
 jest.mock("axios");
+jest.mock("../src/utils/s3", () => ({
+  S3MediaUploader: jest.fn().mockImplementation(() => ({
+    uploadFile: jest.fn(),
+    deleteFile: jest.fn(),
+  })),
+}));
 
 const MockedTwitterApi = TwitterApi as jest.MockedClass<typeof TwitterApi>;
 const mockedFs = fs as jest.Mocked<typeof fs>;

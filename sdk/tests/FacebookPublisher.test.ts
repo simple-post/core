@@ -11,6 +11,12 @@ import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 // Mock dependencies
 jest.mock("axios");
 jest.mock("fs");
+jest.mock("../src/utils/s3", () => ({
+  S3MediaUploader: jest.fn().mockImplementation(() => ({
+    uploadFile: jest.fn(),
+    deleteFile: jest.fn(),
+  })),
+}));
 jest.mock("form-data", () => {
   return jest.fn().mockImplementation(() => ({
     append: jest.fn(),

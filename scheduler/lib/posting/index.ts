@@ -282,25 +282,19 @@ export async function postToAccounts(
     // Convert media files to SDK format (simple mapping - SDK will handle resolution)
     log.debug("Converting media files to SDK format");
     const media: Media[] = mediaFiles.map((file) => {
-      if (file.type === "image") {
-        return {
+      return file.type === "image" ? {
           type: "image",
           url: file.url,
-        };
-      } else {
-        return {
+        } : {
           type: "video",
           url: file.url,
           thumbnailUrl: file.thumbnailUrl,
         };
-      }
     });
     log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 
     // Get all unique platforms for efficient media resolution
-    const uniquePlatforms = Array.from(
-      new Set(accounts.map((account) => mapPlatformName(account.platform))),
-    ) as Platform[];
+    const uniquePlatforms = [...new Set(accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
 
     log.debug({ uniquePlatforms }, "Unique platforms identified");
 

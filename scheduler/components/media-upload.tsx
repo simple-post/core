@@ -44,15 +44,41 @@ async function getPresignedUrl(
 }
 
 async function uploadToR2(uploadUrl: string, file: File | Blob, contentType: string): Promise<void> {
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: file,
+  try {
+    const response = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: file,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Upload failed (${response.status}): ${text || response.statusText}`);
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      // This is likely a CORS issue - fall back to server-side upload
+      throw new Error("CORS_ERROR");
+    }
+    throw error;
+  }
+}
+
+async function uploadViaServer(file: File | Blob, filename: string): Promise<{ url: string; thumbnailUrl?: string }> {
+  const formData = new FormData();
+  formData.append("file", file, filename);
+
+  const response = await fetch("/api/upload", {
+    method: "POST",
+    body: formData,
   });
 
   if (!response.ok) {
-    throw new Error("Failed to upload file to R2");
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "Failed to upload file");
   }
+
+  return response.json();
 }
 
 export function MediaUpload({
@@ -93,32 +119,50 @@ export function MediaUpload({
     setUploading((prev) => [...prev, { id, filename: file.name, progress: 0, type: mediaType }]);
 
     try {
-      // Step 1: Get presigned URL for main file (10% progress)
-      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 10 } : u)));
-      const { uploadUrl, publicUrl } = await getPresignedUrl(file.name, file.type);
-
-      // Step 2: Upload main file to R2 (60% progress)
-      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
-      await uploadToR2(uploadUrl, file, file.type);
-      setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 60 } : u)));
-
-      // Step 3: Generate and upload thumbnail (90% progress)
+      let publicUrl: string;
       let thumbnailUrl: string | undefined;
+
+      // Try direct R2 upload first, fall back to server-side upload if CORS fails
       try {
-        const thumbnailBlob = await generateThumbnail(file);
-        if (thumbnailBlob) {
-          setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 75 } : u)));
-          const { uploadUrl: thumbUploadUrl, publicUrl: thumbPublicUrl } = await getPresignedUrl(
-            file.name,
-            "image/jpeg",
-            true,
-          );
-          await uploadToR2(thumbUploadUrl, thumbnailBlob, "image/jpeg");
-          thumbnailUrl = thumbPublicUrl;
+        // Step 1: Get presigned URL for main file (10% progress)
+        setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 10 } : u)));
+        const { uploadUrl, publicUrl: presignedPublicUrl } = await getPresignedUrl(file.name, file.type);
+
+        // Step 2: Upload main file to R2 (60% progress)
+        setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
+        await uploadToR2(uploadUrl, file, file.type);
+        setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 60 } : u)));
+        publicUrl = presignedPublicUrl;
+
+        // Step 3: Generate and upload thumbnail (90% progress)
+        try {
+          const thumbnailBlob = await generateThumbnail(file);
+          if (thumbnailBlob) {
+            setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 75 } : u)));
+            const { uploadUrl: thumbUploadUrl, publicUrl: thumbPublicUrl } = await getPresignedUrl(
+              file.name,
+              "image/jpeg",
+              true,
+            );
+            await uploadToR2(thumbUploadUrl, thumbnailBlob, "image/jpeg");
+            thumbnailUrl = thumbPublicUrl;
+          }
+        } catch {
+          // Thumbnail generation failed, continue without it
+          console.warn("Thumbnail generation failed for", file.name);
         }
-      } catch {
-        // Thumbnail generation failed, continue without it
-        console.warn("Thumbnail generation failed for", file.name);
+      } catch (error) {
+        // If CORS error, fall back to server-side upload
+        if (error instanceof Error && error.message === "CORS_ERROR") {
+          console.log("Direct upload failed due to CORS, falling back to server-side upload");
+          setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
+          const result = await uploadViaServer(file, file.name);
+          publicUrl = result.url;
+          thumbnailUrl = result.thumbnailUrl;
+          setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 90 } : u)));
+        } else {
+          throw error;
+        }
       }
 
       setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 100 } : u)));

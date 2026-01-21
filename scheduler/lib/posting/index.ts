@@ -282,14 +282,16 @@ export async function postToAccounts(
     // Convert media files to SDK format (simple mapping - SDK will handle resolution)
     log.debug("Converting media files to SDK format");
     const media: Media[] = mediaFiles.map((file) => {
-      return file.type === "image" ? {
-          type: "image",
-          url: file.url,
-        } : {
-          type: "video",
-          url: file.url,
-          thumbnailUrl: file.thumbnailUrl,
-        };
+      return file.type === "image"
+        ? {
+            type: "image",
+            url: file.url,
+          }
+        : {
+            type: "video",
+            url: file.url,
+            thumbnailUrl: file.thumbnailUrl,
+          };
     });
     log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 

@@ -5,7 +5,6 @@ import axios from "axios";
 
 import { PostError, PostErrorType } from "../../types";
 import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
-import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
@@ -36,9 +35,6 @@ export class TikTokPublisher extends Publisher {
 
   private client: AxiosInstance;
 
-  private s3MediaUploader: S3MediaUploader;
-  private s3TempFileKeys: string[] = [];
-
   constructor(options?: PostOptionsWithCredentials) {
     super("TikTok", options);
 
@@ -63,13 +59,6 @@ export class TikTokPublisher extends Publisher {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-
-    // Create S3 media uploader
-    this.s3MediaUploader = new S3MediaUploader();
-  }
-
-  private async cleanupS3Files(): Promise<void> {
-    await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader.deleteFile(key)));
   }
 
   private getFileSize(filePath: string): number {
@@ -459,7 +448,6 @@ export class TikTokPublisher extends Publisher {
         error,
       );
     } finally {
-      await this.cleanupS3Files();
       await tempFileManager.cleanup();
     }
   }

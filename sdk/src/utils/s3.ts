@@ -24,7 +24,7 @@ export class S3MediaUploader {
     if (!s3AccessKeyId || !s3SecretAccessKey || !s3Region || !s3Bucket || !s3BaseUrl) {
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
-        "S3 configuration is required for Instagram uploads. Set S3_STORAGE_ACCESS_KEY_ID, S3_STORAGE_SECRET_ACCESS_KEY, S3_STORAGE_REGION, S3_STORAGE_BUCKET, and S3_STORAGE_BASE_URL environment variables.",
+        "S3 configuration is required for media uploads. Set S3_STORAGE_ACCESS_KEY_ID, S3_STORAGE_SECRET_ACCESS_KEY, S3_STORAGE_REGION, S3_STORAGE_BUCKET, and S3_STORAGE_BASE_URL environment variables.",
       );
     }
 

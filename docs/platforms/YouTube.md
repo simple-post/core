@@ -139,6 +139,22 @@ const options = {
 };
 ```
 
+### Using URLs
+
+Instead of local file paths, you can use publicly accessible URLs:
+
+```typescript
+const content = {
+  media: [
+    {
+      type: "video",
+      url: "https://cdn.example.com/video.mp4",
+      title: "My Video",
+    },
+  ],
+};
+```
+
 ## Authentication
 
 To post on YouTube, set the following environment variables:

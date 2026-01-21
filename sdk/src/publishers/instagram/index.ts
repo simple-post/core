@@ -1,10 +1,9 @@
 import fs from "node:fs";
-import path from "node:path";
 
 import axios from "axios";
-import { v7 as uuidv7 } from "uuid";
 
 import { PostError, PostErrorType } from "../../types";
+import { hasValidSource, resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
@@ -79,14 +78,20 @@ export class InstagramPublisher extends Publisher {
     // Get the Instagram media type
     const mediaType = media.type === "video" ? "REELS" : undefined;
 
-    // Upload file temporarily to S3
-    const key = `${uuidv7()}_${path.basename(media.path)}`;
-    const mediaUrl = await this.s3MediaUploader.uploadFile(media.path, key);
-    this.s3TempFileKeys.push(key);
-    this.logger.info(`Media uploaded to S3: ${mediaUrl}`);
+    // Resolve media to a public URL (uses URL directly or uploads to S3)
+    const { url: mediaUrl, uploadedKey } = await resolveMediaUrl(media, (filePath, key) =>
+      this.s3MediaUploader.uploadFile(filePath, key),
+    );
+
+    if (uploadedKey) {
+      this.s3TempFileKeys.push(uploadedKey);
+      this.logger.info(`Media uploaded to S3: ${mediaUrl}`);
+    } else {
+      this.logger.info(`Using provided URL: ${mediaUrl}`);
+    }
 
     try {
-      // Create media object using the S3 URL
+      // Create media object using the URL
       const response = await this.client.post(`/${this.businessAccountId}/media`, {
         media_type: mediaType,
         caption: isCarousel ? undefined : caption,
@@ -146,9 +151,13 @@ export class InstagramPublisher extends Publisher {
       `Instagram posts support maximum ${MAX_MEDIA_COUNT} media items.`,
     );
 
-    // Validate each media file
+    // Validate each media has a valid source (path or url)
     for (const media of content.media) {
-      if (!fs.existsSync(media.path)) {
+      if (!hasValidSource(media)) {
+        throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
+      }
+      // If path is provided, check it exists
+      if (media.path && !fs.existsSync(media.path)) {
         throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
       }
     }

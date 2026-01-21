@@ -4,6 +4,7 @@ import axios from "axios";
 import FormData from "form-data";
 
 import { PostError, PostErrorType } from "../../types";
+import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
@@ -33,20 +34,47 @@ export class TelegramPublisher extends Publisher {
     });
   }
 
-  private async sendMedia(chatId: string, media: Media, caption?: string, parseMode?: string): Promise<string> {
-    if (!fs.existsSync(media.path)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-    }
+  private async sendMedia(
+    chatId: string,
+    media: Media,
+    caption?: string,
+    parseMode?: string,
+  ): Promise<{ messageId: string; cleanup: () => Promise<void> }> {
+    const tempFileManager = new TempFileManager();
 
     try {
+      const endpoint = media.type === "image" ? "/sendPhoto" : "/sendVideo";
+      const mediaField = media.type === "image" ? "photo" : "video";
+
+      // Telegram API can accept URLs directly - no need to download
+      if (media.url) {
+        const payload: any = {
+          chat_id: chatId,
+          [mediaField]: media.url,
+        };
+
+        if (caption) {
+          payload.caption = caption;
+          if (parseMode) {
+            payload.parse_mode = parseMode;
+          }
+        }
+
+        const response = await this.client.post(endpoint, payload);
+        return { messageId: response.data.result.message_id.toString(), cleanup: async () => {} };
+      }
+
+      // For file path, use FormData upload
+      const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
+      tempFileManager.add(cleanup);
+
+      if (!fs.existsSync(resolvedPath)) {
+        throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${resolvedPath}`);
+      }
+
       const formData = new FormData();
       formData.append("chat_id", chatId);
-
-      if (media.type === "image") {
-        formData.append("photo", fs.createReadStream(media.path));
-      } else {
-        formData.append("video", fs.createReadStream(media.path));
-      }
+      formData.append(mediaField, fs.createReadStream(resolvedPath));
 
       if (caption) {
         formData.append("caption", caption);
@@ -55,15 +83,15 @@ export class TelegramPublisher extends Publisher {
         }
       }
 
-      const endpoint = media.type === "image" ? "/sendPhoto" : "/sendVideo";
       const response = await this.client.post(endpoint, formData, {
         headers: {
           ...formData.getHeaders(),
         },
       });
 
-      return response.data.result.message_id.toString();
+      return { messageId: response.data.result.message_id.toString(), cleanup: () => tempFileManager.cleanup() };
     } catch (error: any) {
+      await tempFileManager.cleanup();
       this.logger.error(error);
       throw new PostError(
         PostErrorType.API_ERROR,
@@ -117,6 +145,19 @@ export class TelegramPublisher extends Publisher {
       content.media && content.media.length > 1,
       "Telegram supports only one media per message, only the first media will be sent",
     );
+
+    // Validate each media has a valid source (path or url)
+    if (content.media) {
+      for (const media of content.media) {
+        if (!hasValidSource(media)) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
+        }
+        // If path is provided, check it exists
+        if (media.path && !fs.existsSync(media.path)) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
+        }
+      }
+    }
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
@@ -131,7 +172,8 @@ export class TelegramPublisher extends Publisher {
     if (content.media && content.media.length > 0) {
       const media = content.media[0];
 
-      const messageId = await this.sendMedia(chatId, media, content.text, parseMode);
+      const { messageId, cleanup } = await this.sendMedia(chatId, media, content.text, parseMode);
+      await cleanup();
       return { id: messageId, error: PostErrorType.NO_ERROR };
     }
 

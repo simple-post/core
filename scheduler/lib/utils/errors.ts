@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiLogger, serializeError } from "@/lib/logger";
 
 /**
  * Base error class for API errors
@@ -64,8 +65,15 @@ export class InternalServerError extends ApiError {
  * Handles errors and returns appropriate NextResponse
  */
 export function handleApiError(error: unknown): NextResponse {
-  // Log error for debugging
-  console.error("API Error:", error);
+  // Log error with structured logging
+  if (error instanceof ApiError) {
+    apiLogger.warn(
+      { err: serializeError(error), statusCode: error.statusCode, code: error.code },
+      "API error occurred",
+    );
+  } else {
+    apiLogger.error({ err: serializeError(error) }, "Unexpected API error");
+  }
 
   if (error instanceof ApiError) {
     return NextResponse.json(

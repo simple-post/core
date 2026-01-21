@@ -6,6 +6,9 @@ import { processMediaFiles } from "@/lib/utils/media-upload";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { createPostSchema } from "@/lib/validations/posts";
 import { BadRequestError } from "@/lib/utils/errors";
+import { createLogger, serializeError } from "@/lib/logger";
+
+const log = createLogger("api:posts");
 
 // GET /api/posts - Get all posts (scheduled, past, and failed)
 export async function GET(req: NextRequest) {
@@ -40,43 +43,43 @@ export async function GET(req: NextRequest) {
 // POST /api/posts - Create a new post
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
-  console.log(`[POST /api/posts] Received post creation request`);
+  log.info("Received post creation request");
 
   try {
-    console.log(`[POST /api/posts] Authenticating user`);
+    log.debug("Authenticating user");
     const session = await requireAuth(req);
-    console.log(`[POST /api/posts] User authenticated: ${session.user.id}`);
+    const userId = session.user.id;
+    log.debug({ userId }, "User authenticated");
 
-    const repository = new PostsModel(session.user.id);
+    const repository = new PostsModel(userId);
     const formData = await req.formData();
 
     // Parse and validate form data
-    console.log(`[POST /api/posts] Parsing form data`);
+    log.debug("Parsing form data");
     const message = formData.get("message") as string;
     const accountIdsStr = formData.get("accountIds") as string;
     const postingMode = (formData.get("postingMode") as string) || "schedule";
     const accountOptionsStr = formData.get("accountOptions") as string | null;
 
-    console.log(`[POST /api/posts] Posting mode: ${postingMode}`);
-    console.log(`[POST /api/posts] Message length: ${message?.length || 0} characters`);
+    log.debug({ postingMode, messageLength: message?.length || 0 }, "Form data parsed");
 
     if (!message || !accountIdsStr) {
-      console.error(`[POST /api/posts] Validation failed: Message or accountIds missing`);
+      log.warn("Validation failed: Message or accountIds missing");
       throw new BadRequestError("Message and accountIds are required");
     }
 
     let accountIds: string[];
     try {
       accountIds = JSON.parse(accountIdsStr);
-      console.log(`[POST /api/posts] Parsed ${accountIds.length} account ID(s): ${accountIds.join(", ")}`);
+      log.debug({ accountCount: accountIds.length, accountIds }, "Parsed account IDs");
     } catch {
-      console.error(`[POST /api/posts] Failed to parse accountIds JSON`);
+      log.warn("Failed to parse accountIds JSON");
       throw new BadRequestError("Invalid accountIds format");
     }
 
     const accountOptions = accountOptionsStr ? JSON.parse(accountOptionsStr) : undefined;
     if (accountOptions) {
-      console.log(`[POST /api/posts] Account options provided for ${Object.keys(accountOptions).length} account(s)`);
+      log.debug({ accountOptionsCount: Object.keys(accountOptions).length }, "Account options provided");
     }
 
     // Validate with schema
@@ -89,37 +92,37 @@ export async function POST(req: NextRequest) {
       accountOptions,
     };
 
-    console.log(`[POST /api/posts] Validating data with schema`);
+    log.debug("Validating data with schema");
     const validated = createPostSchema.parse(validationData);
-    console.log(`[POST /api/posts] Validation successful`);
+    log.debug("Validation successful");
 
     // Get scheduledFor based on posting mode
     let scheduledFor: Date;
     if (validated.postingMode === "now") {
       scheduledFor = new Date(); // Post immediately
-      console.log(`[POST /api/posts] Posting immediately (now)`);
+      log.debug("Posting immediately (now)");
     } else {
       if (!validated.scheduledFor) {
-        console.error(`[POST /api/posts] scheduledFor required but missing for schedule mode`);
+        log.warn("scheduledFor required but missing for schedule mode");
         throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
       }
       scheduledFor = new Date(validated.scheduledFor);
-      console.log(`[POST /api/posts] Scheduling for: ${scheduledFor.toISOString()}`);
+      log.debug({ scheduledFor: scheduledFor.toISOString() }, "Scheduling for future");
     }
 
     // Handle media uploads
-    console.log(`[POST /api/posts] Processing media files`);
+    log.debug("Processing media files");
     const files = formData.getAll("media").filter((f): f is File => f instanceof File);
-    console.log(`[POST /api/posts] Found ${files.length} media file(s)`);
+    log.debug({ fileCount: files.length }, "Found media files");
 
-    const mediaFiles = await processMediaFiles(files, session.user.id);
-    console.log(`[POST /api/posts] Processed ${mediaFiles.length} media file(s)`);
+    const mediaFiles = await processMediaFiles(files, userId);
+    log.debug({ processedCount: mediaFiles.length }, "Processed media files");
     mediaFiles.forEach((mf, idx) => {
-      console.log(`[POST /api/posts] Media ${idx + 1}: ${mf.type} - ${mf.filename} (${mf.size} bytes)`);
+      log.debug({ index: idx + 1, type: mf.type, filename: mf.filename, size: mf.size }, "Media file processed");
     });
 
     // Create the post first
-    console.log(`[POST /api/posts] Creating post record in database`);
+    log.debug("Creating post record in database");
     const post = await repository.createPost(
       {
         message: validated.message,
@@ -129,13 +132,13 @@ export async function POST(req: NextRequest) {
         status: validated.postingMode === "now" ? "published" : "scheduled",
         accountOptions: validated.accountOptions,
       },
-      session.user.id,
+      userId,
     );
-    console.log(`[POST /api/posts] Post created with ID: ${post.id}`);
+    log.info({ postId: post.id }, "Post created");
 
     // If posting now, actually post to the platforms
     if (validated.postingMode === "now") {
-      console.log(`[POST /api/posts] Posting mode is "now", starting platform posting`);
+      log.info({ postId: post.id }, "Starting platform posting (immediate mode)");
       try {
         const results = await postToAccounts(
           validated.message,
@@ -145,20 +148,20 @@ export async function POST(req: NextRequest) {
         );
         const summary = getPostingSummary(results);
 
-        console.log(
-          `[POST /api/posts] Posting results: ${summary.successCount} success, ${summary.failureCount} failed`,
+        log.info(
+          { successCount: summary.successCount, failureCount: summary.failureCount, overallSuccess: summary.overallSuccess },
+          "Posting results",
         );
-        console.log(`[POST /api/posts] Overall success: ${summary.overallSuccess}`);
 
         // Update post status based on results
         if (summary.overallSuccess) {
-          console.log(`[POST /api/posts] Updating post status to "published"`);
+          log.debug({ postId: post.id }, "Updating post status to published");
           await repository.updatePost(post.id, {
             status: "published",
             publishedAt: new Date(),
           });
         } else {
-          console.log(`[POST /api/posts] Updating post status to "failed"`);
+          log.debug({ postId: post.id }, "Updating post status to failed");
           // Collect error details from failed platforms
           const failedResults = results.filter((r) => !r.success);
           const errorMessage =
@@ -183,7 +186,8 @@ export async function POST(req: NextRequest) {
         }
 
         const updatedPost = await repository.getPostById(post.id);
-        console.log(`[POST /api/posts] Request completed successfully in ${Date.now() - startTime}ms`);
+        const durationMs = Date.now() - startTime;
+        log.info({ postId: post.id, durationMs }, "Request completed successfully");
 
         return NextResponse.json(
           {
@@ -195,7 +199,7 @@ export async function POST(req: NextRequest) {
         );
       } catch (postingError) {
         // Update post status to failed
-        console.error(`[POST /api/posts] Error during platform posting:`, postingError);
+        log.error({ err: serializeError(postingError), postId: post.id }, "Error during platform posting");
         const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
         const errorDetails = {
           error: postingError instanceof Error ? postingError.message : String(postingError),
@@ -208,16 +212,18 @@ export async function POST(req: NextRequest) {
           errorDetails,
         });
 
-        // Log the error but return a user-friendly message
-        console.error(`[POST /api/posts] Failed to post to platforms after ${Date.now() - startTime}ms:`, postingError);
+        const durationMs = Date.now() - startTime;
+        log.error({ durationMs }, "Failed to post to platforms");
         throw new BadRequestError("Failed to post to platforms");
       }
     }
 
-    console.log(`[POST /api/posts] Post scheduled successfully. Request completed in ${Date.now() - startTime}ms`);
+    const durationMs = Date.now() - startTime;
+    log.info({ postId: post.id, durationMs }, "Post scheduled successfully");
     return NextResponse.json({ post }, { status: 201 });
   } catch (error) {
-    console.error(`[POST /api/posts] Request failed after ${Date.now() - startTime}ms:`, error);
+    const durationMs = Date.now() - startTime;
+    log.error({ err: serializeError(error), durationMs }, "Request failed");
     return handleApiError(error);
   }
 }

@@ -1,5 +1,6 @@
 import { deleteFromR2, getKeyFromUrl } from "@/lib/r2";
 import type { MediaFile } from "@/types";
+import { mediaLogger, serializeError } from "@/lib/logger";
 
 /**
  * Deletes a single media file and its thumbnail from R2
@@ -12,7 +13,7 @@ export async function deleteMediaFile(media: MediaFile): Promise<void> {
     try {
       await deleteFromR2(key);
     } catch (error) {
-      console.error(`Failed to delete media from R2: ${key}`, error);
+      mediaLogger.error({ err: serializeError(error), key }, "Failed to delete media from R2");
       // Don't throw - continue with thumbnail deletion
     }
   }
@@ -24,7 +25,7 @@ export async function deleteMediaFile(media: MediaFile): Promise<void> {
       try {
         await deleteFromR2(thumbnailKey);
       } catch (error) {
-        console.error(`Failed to delete thumbnail from R2: ${thumbnailKey}`, error);
+        mediaLogger.error({ err: serializeError(error), thumbnailKey }, "Failed to delete thumbnail from R2");
         // Don't throw - cleanup is best effort
       }
     }

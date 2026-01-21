@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { authLogger } from "@/lib/logger";
 
 // Token exchange configuration for each platform
 const TOKEN_CONFIG: Record<
@@ -85,7 +86,7 @@ async function exchangeCodeForToken(platform: string, code: string, redirectUri:
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`Token exchange failed for ${platform}:`, error);
+    authLogger.error({ platform, error, status: response.status }, "Token exchange failed");
     throw new Error(`Failed to exchange code for token: ${response.statusText}`);
   }
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
 import { downloadFile } from "@/lib/utils/file-download";
 import { buildPostOptions } from "./credentials";
+import { postingLogger, serializeError, redact } from "@/lib/logger";
 
 interface PostingResult {
   accountId: string;
@@ -46,24 +47,25 @@ function mapPlatformName(platform: string): Platform {
  * @param message - The post message text (used as fallback title for videos)
  */
 async function convertMedia(mediaFiles: MediaFile[], message: string): Promise<Media[]> {
-  console.log(`[convertMedia] Converting ${mediaFiles.length} media file(s) to SDK format`);
+  const log = postingLogger.child({ fn: "convertMedia" });
+  log.debug({ mediaCount: mediaFiles.length }, "Converting media files to SDK format");
 
   const media: Media[] = [];
 
   for (const file of mediaFiles) {
-    console.log(`[convertMedia] Processing ${file.type} file: ${file.filename}`);
+    log.debug({ type: file.type, filename: file.filename }, "Processing media file");
 
     // Download the file from R2 to a temporary location
-    console.log(`[convertMedia] Downloading file from R2: ${file.url}`);
+    log.debug({ url: file.url }, "Downloading file from R2");
     const localPath = await downloadFile(file.url, file.filename);
-    console.log(`[convertMedia] File downloaded to temporary path: ${localPath}`);
+    log.debug({ localPath }, "File downloaded to temporary path");
 
     if (file.type === "image") {
       media.push({
         type: "image",
         path: localPath,
       });
-      console.log(`[convertMedia] Added image media: ${localPath}`);
+      log.debug({ localPath }, "Added image media");
     } else if (file.type === "video") {
       const videoMedia: Media = {
         type: "video",
@@ -74,25 +76,25 @@ async function convertMedia(mediaFiles: MediaFile[], message: string): Promise<M
         description: message.trim() || undefined,
       };
 
-      console.log(`[convertMedia] Video title set to: "${videoMedia.title}"`);
+      log.debug({ title: videoMedia.title }, "Video title set");
 
       // Add thumbnail if available
       if (file.thumbnailUrl) {
-        console.log(`[convertMedia] Downloading thumbnail: ${file.thumbnailUrl}`);
+        log.debug({ thumbnailUrl: file.thumbnailUrl }, "Downloading thumbnail");
         const thumbnailPath = await downloadFile(
           file.thumbnailUrl,
           `thumbnail_${file.filename.replace(/\.[^/.]+$/, ".jpg")}`,
         );
         videoMedia.thumbnailPath = thumbnailPath;
-        console.log(`[convertMedia] Thumbnail downloaded to: ${thumbnailPath}`);
+        log.debug({ thumbnailPath }, "Thumbnail downloaded");
       }
 
       media.push(videoMedia);
-      console.log(`[convertMedia] Added video media: ${localPath}`);
+      log.debug({ localPath }, "Added video media");
     }
   }
 
-  console.log(`[convertMedia] Conversion complete. Total media items: ${media.length}`);
+  log.debug({ totalMediaItems: media.length }, "Conversion complete");
   return media;
 }
 
@@ -100,7 +102,7 @@ async function convertMedia(mediaFiles: MediaFile[], message: string): Promise<M
  * Generates a post URL for a platform based on the post ID
  */
 function generatePostUrl(platform: string, postId: string, account?: ConnectedAccount): string | undefined {
-  console.log(`[generatePostUrl] Generating URL for platform: ${platform}, postId: ${postId}`);
+  postingLogger.debug({ platform, postId }, "Generating URL for platform");
 
   const platformLower = platform.toLowerCase();
 
@@ -130,7 +132,7 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
       }
       return undefined;
     default:
-      console.warn(`[generatePostUrl] Unknown platform: ${platform}`);
+      postingLogger.warn({ platform }, "Unknown platform for URL generation");
       return undefined;
   }
 }
@@ -145,17 +147,21 @@ async function postToAccount(
   accountOptions?: AccountOptionsMap,
 ): Promise<PostingResult> {
   const startTime = Date.now();
-  console.log(`[postToAccount] Starting post to ${account.platform} (accountId: ${account.id})`);
-  console.log(`[postToAccount] Message length: ${message.length} characters`);
-  console.log(`[postToAccount] Media count: ${media.length}`);
+  const log = postingLogger.child({
+    fn: "postToAccount",
+    accountId: account.id,
+    platform: account.platform,
+  });
+
+  log.info({ messageLength: message.length, mediaCount: media.length }, "Starting post to platform");
 
   try {
     const platform = mapPlatformName(account.platform);
-    console.log(`[postToAccount] Mapped platform: ${platform}`);
+    log.debug({ mappedPlatform: platform }, "Platform mapped");
 
-    console.log(`[postToAccount] Building post options for ${platform}`);
+    log.debug("Building post options");
     const options = buildPostOptions(account, accountOptions);
-    console.log(`[postToAccount] Post options built successfully`);
+    log.debug("Post options built successfully");
 
     // Prepare media with proper titles for YouTube videos
     const processedMedia = media.map((m) => {
@@ -179,72 +185,54 @@ async function postToAccount(
       options,
     };
 
-    console.log(`[postToAccount] Calling SDK post function for ${platform}`);
+    log.debug("Calling SDK post function");
 
-    // Prepare sanitized options for logging (mask credentials)
-    const sanitizedOptions: Record<string, any> = {};
-    if (options) {
-      Object.keys(options).forEach((key) => {
-        const platformOptions = (options as any)[key];
-        if (platformOptions && typeof platformOptions === "object") {
-          sanitizedOptions[key] = Object.keys(platformOptions).reduce((acc: any, optKey: string) => {
-            if (optKey === "credentials") {
-              acc[optKey] = "[REDACTED]";
-            } else {
-              acc[optKey] = platformOptions[optKey];
-            }
-            return acc;
-          }, {});
-        } else {
-          sanitizedOptions[key] = platformOptions;
-        }
-      });
-    }
+    // Prepare sanitized post data for logging
+    const sanitizedPostData = {
+      content: {
+        text: postData.content.text,
+        media: postData.content.media?.map((m) => ({
+          type: m.type,
+          path: m.path,
+          title: m.type === "video" ? (m as any).title : undefined,
+          description: m.type === "video" ? (m as any).description : undefined,
+          thumbnailPath: m.type === "video" ? (m as any).thumbnailPath : undefined,
+          caption: m.type === "image" ? (m as any).caption : undefined,
+        })),
+      },
+      platforms: postData.platforms,
+      options: options ? redact(options as Record<string, unknown>) : undefined,
+    };
 
-    console.log(
-      `[postToAccount] SDK post() call with data:`,
-      JSON.stringify(
-        {
-          content: {
-            text: postData.content.text,
-            media: postData.content.media?.map((m) => ({
-              type: m.type,
-              path: m.path,
-              title: m.type === "video" ? (m as any).title : undefined,
-              description: m.type === "video" ? (m as any).description : undefined,
-              thumbnailPath: m.type === "video" ? (m as any).thumbnailPath : undefined,
-              caption: m.type === "image" ? (m as any).caption : undefined,
-            })),
-          },
-          platforms: postData.platforms,
-          options: sanitizedOptions,
-        },
-        null,
-        2,
-      ),
-    );
+    log.debug({ postData: sanitizedPostData }, "SDK post() call data");
 
     const results = await sdkPost(postData);
     const result = results.get(platform);
 
-    console.log(`[postToAccount] SDK post completed. Full result:`, {
-      id: result?.id,
-      error: result?.error,
-      message: result?.message,
-      details: result?.details,
-      extraData: result?.extraData,
-    });
+    log.debug(
+      {
+        id: result?.id,
+        error: result?.error,
+        message: result?.message,
+        hasDetails: !!result?.details,
+        hasExtraData: !!result?.extraData,
+      },
+      "SDK post completed",
+    );
 
     if (result?.error === PostErrorType.NO_ERROR && result?.id) {
       const postUrl = generatePostUrl(platform, result.id, account);
-      console.log(`[postToAccount] Post successful! Post ID: ${result.id}, URL: ${postUrl || "N/A"}`);
-      if (result.message) {
-        console.log(`[postToAccount] Success message: ${result.message}`);
-      }
-      if (result.extraData?.refreshedCredentials) {
-        console.log(`[postToAccount] Credentials were refreshed during posting`);
-      }
-      console.log(`[postToAccount] Post completed in ${Date.now() - startTime}ms`);
+      const durationMs = Date.now() - startTime;
+
+      log.info(
+        {
+          postId: result.id,
+          postUrl: postUrl || null,
+          durationMs,
+          credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+        },
+        "Post successful",
+      );
 
       return {
         accountId: account.id,
@@ -259,14 +247,17 @@ async function postToAccount(
     } else {
       const errorMsg = result?.error || "Unknown error occurred";
       const errorMessage = result?.message || errorMsg;
-      console.error(`[postToAccount] Post failed. Error: ${errorMsg}`);
-      if (result?.message) {
-        console.error(`[postToAccount] Error message: ${result.message}`);
-      }
-      if (result?.details) {
-        console.error(`[postToAccount] Error details:`, result.details);
-      }
-      console.log(`[postToAccount] Post failed after ${Date.now() - startTime}ms`);
+      const durationMs = Date.now() - startTime;
+
+      log.error(
+        {
+          error: errorMsg,
+          errorMessage: result?.message,
+          details: result?.details,
+          durationMs,
+        },
+        "Post failed",
+      );
 
       return {
         accountId: account.id,
@@ -280,12 +271,9 @@ async function postToAccount(
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-    console.error(`[postToAccount] Exception occurred while posting to ${account.platform}:`, error);
-    console.error(`[postToAccount] Error details:`, {
-      message: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    console.log(`[postToAccount] Exception occurred after ${Date.now() - startTime}ms`);
+    const durationMs = Date.now() - startTime;
+
+    log.error({ err: serializeError(error), durationMs }, "Exception occurred while posting");
 
     return {
       accountId: account.id,
@@ -306,13 +294,16 @@ export async function postToAccounts(
   accountOptions?: AccountOptionsMap,
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
-  console.log(`[postToAccounts] Starting post to ${accountIds.length} account(s)`);
-  console.log(`[postToAccounts] Account IDs: ${accountIds.join(", ")}`);
-  console.log(`[postToAccounts] Media files: ${mediaFiles.length}`);
+  const log = postingLogger.child({ fn: "postToAccounts" });
+
+  log.info(
+    { accountCount: accountIds.length, accountIds, mediaFileCount: mediaFiles.length },
+    "Starting post to accounts",
+  );
 
   try {
     // Fetch all connected accounts
-    console.log(`[postToAccounts] Fetching connected accounts from database`);
+    log.debug("Fetching connected accounts from database");
     const accounts = await prisma.connectedAccount.findMany({
       where: {
         id: {
@@ -321,63 +312,67 @@ export async function postToAccounts(
       },
     });
 
-    console.log(`[postToAccounts] Found ${accounts.length} account(s) in database`);
+    log.debug({ foundCount: accounts.length }, "Found accounts in database");
 
     if (accounts.length === 0) {
-      console.error(`[postToAccounts] No accounts found for the provided IDs`);
+      log.error({ accountIds }, "No accounts found for the provided IDs");
       throw new Error("No accounts found");
     }
 
     // Log account details
     accounts.forEach((account) => {
-      console.log(
-        `[postToAccounts] Account: ${account.platform} (${account.id}) - ${account.username || account.platformAccountId}`,
+      log.debug(
+        { platform: account.platform, accountId: account.id, username: account.username || account.platformAccountId },
+        "Account found",
       );
     });
 
     // Convert media files to SDK format
-    console.log(`[postToAccounts] Converting media files to SDK format`);
+    log.debug("Converting media files to SDK format");
     const media = await convertMedia(mediaFiles, message);
-    console.log(`[postToAccounts] Media conversion complete. ${media.length} media item(s) ready`);
+    log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 
     // Post to all accounts in parallel
-    console.log(`[postToAccounts] Posting to all accounts in parallel`);
+    log.debug("Posting to all accounts in parallel");
     const results = await Promise.all(
       accounts.map((account) => postToAccount(message, media, account, accountOptions)),
     );
 
     const successCount = results.filter((r) => r.success).length;
     const failureCount = results.filter((r) => !r.success).length;
+    const durationMs = Date.now() - startTime;
 
-    console.log(`[postToAccounts] Posting complete! Success: ${successCount}, Failed: ${failureCount}`);
-    console.log(`[postToAccounts] Total time: ${Date.now() - startTime}ms`);
+    log.info({ successCount, failureCount, durationMs }, "Posting complete");
 
     // Log detailed results
     results.forEach((result) => {
       if (result.success) {
-        console.log(`[postToAccounts] ✓ ${result.platform}:`, {
-          postId: result.postId,
-          postUrl: result.postUrl || "No URL",
-          message: result.message || "No message",
-          credentialsRefreshed: !!result.extraData?.refreshedCredentials,
-        });
+        log.info(
+          {
+            platform: result.platform,
+            postId: result.postId,
+            postUrl: result.postUrl || null,
+            credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+          },
+          "Platform post succeeded",
+        );
       } else {
-        console.error(`[postToAccounts] ✗ ${result.platform}:`, {
-          error: result.error,
-          message: result.message || "No message",
-          details: result.details || "No details",
-        });
+        log.error(
+          {
+            platform: result.platform,
+            error: result.error,
+            message: result.message,
+            details: result.details,
+          },
+          "Platform post failed",
+        );
       }
     });
 
     return results;
   } catch (error) {
-    console.error(`[postToAccounts] Fatal error in postToAccounts:`, error);
-    console.error(`[postToAccounts] Error details:`, {
-      message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    console.log(`[postToAccounts] Failed after ${Date.now() - startTime}ms`);
+    const durationMs = Date.now() - startTime;
+    log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");
     throw error;
   }
 }

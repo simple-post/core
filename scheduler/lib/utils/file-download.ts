@@ -2,6 +2,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { v4 as uuidv4 } from "uuid";
+import { mediaLogger, serializeError } from "@/lib/logger";
 
 /**
  * Downloads a file from a URL to a local temporary path
@@ -30,7 +31,7 @@ export async function downloadFile(url: string, filename: string): Promise<strin
 
     return localPath;
   } catch (error) {
-    console.error(`Error downloading file ${filename} from ${url}:`, error);
+    mediaLogger.error({ err: serializeError(error), filename, url }, "Error downloading file");
     throw error;
   }
 }

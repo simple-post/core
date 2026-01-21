@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import ffmpeg from "fluent-ffmpeg";
 import { execSync } from "child_process";
+import { mediaLogger, serializeError } from "@/lib/logger";
 
 // Try to find ffmpeg on the system PATH
 function getFFmpegPath(): string {
@@ -28,9 +29,9 @@ function getFFmpegPath(): string {
 try {
   const ffmpegPath = getFFmpegPath();
   ffmpeg.setFfmpegPath(ffmpegPath);
-  console.log(`Using FFmpeg at: ${ffmpegPath}`);
+  mediaLogger.info({ ffmpegPath }, "Using FFmpeg");
 } catch (error) {
-  console.error("FFmpeg setup error:", error);
+  mediaLogger.error({ err: serializeError(error) }, "FFmpeg setup error");
 }
 
 interface ThumbnailResult {
@@ -113,14 +114,14 @@ export async function generateVideoThumbnail(buffer: Buffer, filename: string): 
           }
         })
         .on("error", async (error) => {
-          console.error("FFmpeg error:", error);
+          mediaLogger.error({ err: serializeError(error) }, "FFmpeg error");
           // Clean up on error
           await fs.unlink(tempVideoPath).catch(() => {});
           await fs.unlink(tempThumbnailPath).catch(() => {});
           reject(error);
         });
     } catch (error) {
-      console.error("Video thumbnail generation error:", error);
+      mediaLogger.error({ err: serializeError(error) }, "Video thumbnail generation error");
       // Clean up on error
       await fs.unlink(tempVideoPath).catch(() => {});
       reject(error);
@@ -148,7 +149,7 @@ export async function generateThumbnail(
     }
     return null;
   } catch (error) {
-    console.error("Failed to generate thumbnail:", error);
+    mediaLogger.error({ err: serializeError(error), filename, mimeType }, "Failed to generate thumbnail");
     return null;
   }
 }

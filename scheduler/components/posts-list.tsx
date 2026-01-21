@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,9 @@ import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { usePosts } from "@/hooks/use-posts";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useDeletePost } from "@/hooks/use-mutations";
 
 interface PostsListProps {
   type: "scheduled" | "past" | "failed";
@@ -56,49 +59,10 @@ function formatTimeAgo(date: Date): string {
 }
 
 export function PostsList({ type, onPostDeleted }: PostsListProps) {
-  const [posts, setPosts] = useState<SocialPost[]>([]);
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: posts = [], isLoading: postsLoading } = usePosts(type);
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
-  const handlePostDeleted = (postId: string) => {
-    setPosts(posts.filter((p) => p.id !== postId));
-    if (onPostDeleted) {
-      onPostDeleted();
-    }
-  };
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        // Load posts from API
-        const postsResponse = await fetch(`/api/posts?type=${type}`);
-        if (postsResponse.ok) {
-          const postsData = await postsResponse.json();
-          // Parse date strings to Date objects
-          const posts = (postsData.posts || []).map((post: any) => ({
-            ...post,
-            scheduledFor: new Date(post.scheduledFor),
-            createdAt: new Date(post.createdAt),
-            publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
-          }));
-          setPosts(posts);
-        }
-
-        // Load accounts
-        const accountsResponse = await fetch("/api/accounts");
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          setAccounts(accountsData.accounts || []);
-        }
-      } catch (error) {
-        console.error("Failed to load posts:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
-  }, [type]);
+  const loading = postsLoading || accountsLoading;
 
   if (loading) {
     return <PostsListSkeleton />;
@@ -122,8 +86,8 @@ export function PostsList({ type, onPostDeleted }: PostsListProps) {
 
   return (
     <div className="space-y-3">
-      {posts.map((post) => (
-        <PostCard key={post.id} post={post} accounts={accounts} onDeleted={handlePostDeleted} />
+      {posts.map((post: SocialPost) => (
+        <PostCard key={post.id} post={post} accounts={accounts} onDeleted={onPostDeleted} />
       ))}
     </div>
   );
@@ -136,10 +100,11 @@ function PostCard({
 }: {
   post: SocialPost;
   accounts: ConnectedAccount[];
-  onDeleted: (postId: string) => void;
+  onDeleted?: () => void;
 }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const deletePostMutation = useDeletePost();
+
   // Get accounts for this post
   const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
 
@@ -154,23 +119,15 @@ function PostCard({
   const isFailed = post.status === "failed";
 
   const handleDelete = async () => {
-    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/posts/${post.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete post");
+      await deletePostMutation.mutateAsync(post.id);
+      setShowDeleteDialog(false);
+      if (onDeleted) {
+        onDeleted();
       }
-
-      onDeleted(post.id);
     } catch (error) {
       console.error("Failed to delete post:", error);
       alert("Failed to delete post. Please try again.");
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteDialog(false);
     }
   };
 
@@ -361,12 +318,12 @@ function PostCard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePostMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              disabled={isDeleting}
+              disabled={deletePostMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {isDeleting ? "Deleting..." : "Delete"}
+              {deletePostMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

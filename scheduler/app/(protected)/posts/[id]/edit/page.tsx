@@ -1,44 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import type { SocialPost } from "@/types";
 import { PostForm } from "@/components/post-form";
+import { usePost } from "@/hooks/use-posts";
 
 export default function EditPostPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const [post, setPost] = useState<SocialPost | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadPost() {
-      try {
-        // Load posts
-        const postsResponse = await fetch("/api/posts");
-        if (postsResponse.ok) {
-          const postsData = await postsResponse.json();
-          const foundPost = (postsData.posts || []).find((p: any) => p.id === params.id);
-          if (foundPost) {
-            setPost({
-              ...foundPost,
-              scheduledFor: new Date(foundPost.scheduledFor),
-              createdAt: new Date(foundPost.createdAt),
-              publishedAt: foundPost.publishedAt ? new Date(foundPost.publishedAt) : undefined,
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load post:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadPost();
-  }, [params.id]);
+  const { data: post, isLoading: loading } = usePost(params.id);
 
   if (loading) {
     return (

@@ -2,6 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Suspense } from "react";
+import { QueryClientProvider } from "@/lib/query-client";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,7 +24,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        <QueryClientProvider>
+          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        </QueryClientProvider>
       </body>
     </html>
   );

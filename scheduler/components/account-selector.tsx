@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { PlatformIcon } from "@/components/platform-icons";
 import type { ConnectedAccount } from "@/types";
+import { useAccounts } from "@/hooks/use-accounts";
 
 interface AccountSelectorProps {
   selectedAccountIds: string[];
@@ -22,27 +22,7 @@ export function AccountSelector({
   description = "Choose which accounts to publish your content to",
   maxSelections,
 }: AccountSelectorProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/accounts");
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: accounts = [], isLoading: loading } = useAccounts();
 
   const handleAccountToggle = (accountId: string) => {
     const isSelected = selectedAccountIds.includes(accountId);
@@ -58,7 +38,7 @@ export function AccountSelector({
   };
 
   const selectAll = () => {
-    const allIds = accounts.map((a) => a.id);
+    const allIds = accounts.map((a: ConnectedAccount) => a.id);
     const toSelect = maxSelections ? allIds.slice(0, maxSelections) : allIds;
     onSelectionChange(toSelect);
   };
@@ -109,15 +89,15 @@ export function AccountSelector({
   }
 
   // Group accounts by platform for better organization
-  const accountsByPlatform = accounts.reduce(
-    (acc, account) => {
+  const accountsByPlatform = accounts.reduce<Record<string, ConnectedAccount[]>>(
+    (acc: Record<string, ConnectedAccount[]>, account: ConnectedAccount) => {
       if (!acc[account.platform]) {
         acc[account.platform] = [];
       }
       acc[account.platform].push(account);
       return acc;
     },
-    {} as Record<string, ConnectedAccount[]>,
+    {},
   );
 
   return (
@@ -154,7 +134,7 @@ export function AccountSelector({
 
       {/* Account List grouped by platform */}
       <div className="space-y-3">
-        {Object.entries(accountsByPlatform).map(([platform, platformAccounts]) => {
+        {(Object.entries(accountsByPlatform) as [string, ConnectedAccount[]][]).map(([platform, platformAccounts]) => {
           const platformConfig = getPlatformById(platform);
           if (!platformConfig) return null;
 
@@ -167,7 +147,7 @@ export function AccountSelector({
                 </span>
               </div>
               <div className="grid gap-2">
-                {platformAccounts.map((account) => {
+                {platformAccounts.map((account: ConnectedAccount) => {
                   const isSelected = selectedAccountIds.includes(account.id);
                   const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
 
@@ -215,7 +195,7 @@ export function AccountSelector({
           <p className="text-muted-foreground mb-1">Publishing to:</p>
           <div className="text-foreground">
             {selectedAccountIds.map((accountId, index) => {
-              const account = accounts.find((a) => a.id === accountId);
+              const account = accounts.find((a: ConnectedAccount) => a.id === accountId);
               if (!account) return null;
 
               return (

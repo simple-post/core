@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,7 @@ import { AccountSelector } from "./account-selector";
 import { AccountOptionsComponent } from "./account-options";
 import { PostPreview } from "./post-preview";
 import { PostLinksModal } from "./post-links-modal";
+import { useSubmitPost } from "@/hooks/use-mutations";
 
 interface PostFormProps {
   mode: "create" | "edit";
@@ -37,7 +38,6 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   );
   const [media, setMedia] = useState<MediaFile[]>(existingPost?.media || []);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost?.accountOptions || {});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -52,6 +52,8 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   // Track which media files were originally present (for edit mode)
   const [originalMediaIds] = useState<Set<string>>(new Set(existingPost?.media.map((m) => m.id) || []));
 
+  const submitPostMutation = useSubmitPost();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -64,7 +66,6 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
       return;
     }
 
-    setIsSubmitting(true);
     try {
       // Create FormData for file upload
       const formData = new FormData();
@@ -111,19 +112,12 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
         }
       }
 
-      // Submit to API
-      const url = mode === "edit" ? `/api/posts/${existingPost?.id}` : "/api/posts";
-      const method = mode === "edit" ? "PATCH" : "POST";
-      const res = await fetch(url, {
-        method,
-        body: formData,
+      // Submit using mutation
+      const data = await submitPostMutation.mutateAsync({
+        formData,
+        mode,
+        postId: existingPost?.id,
       });
-
-      if (!res.ok) {
-        throw new Error(`Failed to ${mode} post`);
-      }
-
-      const data = await res.json();
 
       // If posting now and we have posting results, show the modal
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
@@ -142,8 +136,6 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     } catch (error) {
       console.error(`Failed to ${mode} post:`, error);
       alert(`Failed to ${mode} post. Please try again.`);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -279,8 +271,8 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
             className="flex-1">
             Cancel
           </Button>
-          <Button type="submit" disabled={!isFormValid || isSubmitting} className="flex-1">
-            {isSubmitting
+          <Button type="submit" disabled={!isFormValid || submitPostMutation.isPending} className="flex-1">
+            {submitPostMutation.isPending
               ? postingMode === "now"
                 ? "Posting..."
                 : mode === "edit"

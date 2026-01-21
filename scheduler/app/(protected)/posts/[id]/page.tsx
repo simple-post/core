@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getPlatformById } from "@/lib/config";
-import type { SocialPost, ConnectedAccount } from "@/types";
 import { format } from "date-fns";
-import { Play, ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
+import { ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,67 +18,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { usePost } from "@/hooks/use-posts";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useDeletePost } from "@/hooks/use-mutations";
+import type { ConnectedAccount, MediaFile } from "@/types";
 
 export default function PostDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [post, setPost] = useState<SocialPost | null>(null);
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: post, isLoading: postLoading } = usePost(params.id);
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+  const deletePostMutation = useDeletePost();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        // Load posts
-        const postsResponse = await fetch("/api/posts");
-        if (postsResponse.ok) {
-          const postsData = await postsResponse.json();
-          const foundPost = (postsData.posts || []).find((p: any) => p.id === params.id);
-          if (foundPost) {
-            setPost({
-              ...foundPost,
-              scheduledFor: new Date(foundPost.scheduledFor),
-              createdAt: new Date(foundPost.createdAt),
-              publishedAt: foundPost.publishedAt ? new Date(foundPost.publishedAt) : undefined,
-            });
-          }
-        }
-
-        // Load accounts
-        const accountsResponse = await fetch("/api/accounts");
-        if (accountsResponse.ok) {
-          const accountsData = await accountsResponse.json();
-          setAccounts(accountsData.accounts || []);
-        }
-      } catch (error) {
-        console.error("Failed to load post:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
-  }, [params.id]);
+  const loading = postLoading || accountsLoading;
 
   const handleDelete = async () => {
-    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/posts/${params.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete post");
-      }
-
+      await deletePostMutation.mutateAsync(params.id);
       router.push("/");
     } catch (error) {
       console.error("Failed to delete post:", error);
       alert("Failed to delete post. Please try again.");
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteDialog(false);
     }
   };
 
@@ -115,7 +74,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
+  const postAccounts = accounts.filter((acc: ConnectedAccount) => post.accountIds.includes(acc.id));
   const isScheduled = post.status === "scheduled";
 
   return (
@@ -184,7 +143,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
               {/* Media */}
               {post.media.length > 0 && (
                 <div className="space-y-4">
-                  {post.media.map((media) => (
+                  {post.media.map((media: MediaFile) => (
                     <div key={media.id} className="rounded-lg overflow-hidden bg-muted">
                       {media.type === "image" ? (
                         <img
@@ -221,7 +180,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             <Card className="p-6">
               <h3 className="text-sm font-medium mb-4">Publishing to</h3>
               <div className="space-y-3">
-                {postAccounts.map((account) => {
+                {postAccounts.map((account: ConnectedAccount) => {
                   const platformConfig = getPlatformById(account.platform);
                   return (
                     <div key={account.id} className="flex items-center gap-3">
@@ -252,12 +211,12 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePostMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              disabled={isDeleting}
+              disabled={deletePostMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {isDeleting ? "Deleting..." : "Delete"}
+              {deletePostMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

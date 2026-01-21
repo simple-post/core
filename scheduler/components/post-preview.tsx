@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import type { MediaFile, ConnectedAccount } from "@/types";
 import {
   XPreview,
@@ -11,6 +10,7 @@ import {
   TelegramPreview,
 } from "./platform-previews";
 import { getPlatformById } from "@/lib/config";
+import { useAccounts } from "@/hooks/use-accounts";
 
 interface PostPreviewProps {
   message: string;
@@ -30,29 +30,11 @@ const platformComponents: Record<string, React.ComponentType<any>> = {
 };
 
 export function PostPreview({ message, media, scheduledDate, scheduledTime, selectedPlatforms }: PostPreviewProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadAccounts() {
-      try {
-        const response = await fetch("/api/accounts");
-        if (response.ok) {
-          const data = await response.json();
-          setAccounts(data.accounts || []);
-        }
-      } catch (error) {
-        console.error("Failed to load accounts:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadAccounts();
-  }, []);
+  const { data: accounts = [], isLoading: loading } = useAccounts();
 
   // Get unique platforms from selected accounts
-  const selectedAccounts = accounts.filter((acc) => selectedPlatforms?.includes(acc.id));
-  const uniquePlatforms = Array.from(new Set(selectedAccounts.map((acc) => acc.platform)));
+  const selectedAccounts = accounts.filter((acc: ConnectedAccount) => selectedPlatforms?.includes(acc.id));
+  const uniquePlatforms: string[] = Array.from(new Set(selectedAccounts.map((acc: ConnectedAccount) => acc.platform)));
 
   if (loading) {
     return (
@@ -78,7 +60,7 @@ export function PostPreview({ message, media, scheduledDate, scheduledTime, sele
     <div className="space-y-6">
       <h3 className="text-sm font-medium text-muted-foreground">Platform Previews</h3>
 
-      {uniquePlatforms.map((platformId) => {
+      {uniquePlatforms.map((platformId: string) => {
         const PlatformComponent = platformComponents[platformId];
         const platformConfig = getPlatformById(platformId);
 

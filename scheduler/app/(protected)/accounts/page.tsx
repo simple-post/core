@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,43 +13,26 @@ import { Label } from "@/components/ui/label";
 import { PlatformIcon } from "@/components/platform-icons";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { ConnectedAccount } from "@/types";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 
 export default function AccountsPage() {
   const { data: session } = useSession();
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: accounts = [], isLoading: loading } = useAccounts();
+  const disconnectAccountMutation = useDisconnectAccount();
+  const connectTelegramMutation = useConnectTelegram();
+
   const [selectedAccount, setSelectedAccount] = useState<ConnectedAccount | null>(null);
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showTelegramDialog, setShowTelegramDialog] = useState(false);
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
-  const [isConnectingTelegram, setIsConnectingTelegram] = useState(false);
   const [telegramError, setTelegramError] = useState("");
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/accounts");
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
@@ -72,30 +55,16 @@ export default function AccountsPage() {
       return;
     }
 
-    setIsConnectingTelegram(true);
     setTelegramError("");
 
     try {
-      const response = await fetch("/api/connect/telegram", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          botToken: telegramBotToken.trim(),
-          chatId: telegramChatId.trim(),
-          channelName: telegramChannelName.trim() || undefined,
-        }),
+      await connectTelegramMutation.mutateAsync({
+        botToken: telegramBotToken.trim(),
+        chatId: telegramChatId.trim(),
+        channelName: telegramChannelName.trim() || undefined,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to connect Telegram account");
-      }
-
-      // Success - refresh accounts and close dialog
-      await fetchAccounts();
+      // Success - close dialog and reset form
       setShowTelegramDialog(false);
       setTelegramBotToken("");
       setTelegramChatId("");
@@ -103,11 +72,8 @@ export default function AccountsPage() {
     } catch (error) {
       console.error("Telegram connection error:", error);
       setTelegramError(error instanceof Error ? error.message : "Failed to connect Telegram account");
-    } finally {
-      setIsConnectingTelegram(false);
     }
   };
-
 
   const showTokens = (account: ConnectedAccount) => {
     setSelectedAccount(account);
@@ -122,26 +88,13 @@ export default function AccountsPage() {
   const handleDisconnectConfirm = async () => {
     if (!accountToDisconnect) return;
 
-    setIsDisconnecting(true);
     try {
-      const response = await fetch(`/api/accounts/${accountToDisconnect.id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        // Remove the account from the list
-        setAccounts(accounts.filter((acc) => acc.id !== accountToDisconnect.id));
-        setShowDisconnectDialog(false);
-        setAccountToDisconnect(null);
-      } else {
-        console.error("Failed to disconnect account");
-        alert("Failed to disconnect account. Please try again.");
-      }
+      await disconnectAccountMutation.mutateAsync(accountToDisconnect.id);
+      setShowDisconnectDialog(false);
+      setAccountToDisconnect(null);
     } catch (error) {
       console.error("Disconnect error:", error);
       alert("An error occurred while disconnecting the account.");
-    } finally {
-      setIsDisconnecting(false);
     }
   };
 
@@ -255,7 +208,7 @@ export default function AccountsPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {accounts.map((account) => {
+            {accounts.map((account: ConnectedAccount) => {
               const platformConfig = getPlatformById(account.platform);
               if (!platformConfig) return null;
 
@@ -394,16 +347,16 @@ export default function AccountsPage() {
             <Button
               variant="outline"
               onClick={() => setShowDisconnectDialog(false)}
-              disabled={isDisconnecting}
+              disabled={disconnectAccountMutation.isPending}
               className="flex-1">
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleDisconnectConfirm}
-              disabled={isDisconnecting}
+              disabled={disconnectAccountMutation.isPending}
               className="flex-1">
-              {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+              {disconnectAccountMutation.isPending ? "Disconnecting..." : "Disconnect"}
             </Button>
           </div>
         </DialogContent>
@@ -540,12 +493,12 @@ export default function AccountsPage() {
                 setTelegramChannelName("");
                 setTelegramError("");
               }}
-              disabled={isConnectingTelegram}
+              disabled={connectTelegramMutation.isPending}
               className="flex-1">
               Cancel
             </Button>
-            <Button onClick={handleTelegramConnect} disabled={isConnectingTelegram} className="flex-1">
-              {isConnectingTelegram ? "Connecting..." : "Connect"}
+            <Button onClick={handleTelegramConnect} disabled={connectTelegramMutation.isPending} className="flex-1">
+              {connectTelegramMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

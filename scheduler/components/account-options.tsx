@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import type { AccountOptionsMap, ConnectedAccount } from "@/types";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { useAccounts } from "@/hooks/use-accounts";
 
 interface AccountOptionsProps {
   selectedAccountIds: string[];
@@ -16,33 +16,13 @@ interface AccountOptionsProps {
 }
 
 export function AccountOptionsComponent({ selectedAccountIds, options, onOptionsChange }: AccountOptionsProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/accounts");
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: accounts = [], isLoading: loading } = useAccounts();
 
   if (selectedAccountIds.length === 0) {
     return null;
   }
 
-  const selectedAccounts = accounts.filter((acc) => selectedAccountIds.includes(acc.id));
+  const selectedAccounts = accounts.filter((acc: { id: string }) => selectedAccountIds.includes(acc.id));
 
   if (loading || selectedAccounts.length === 0) {
     return null;
@@ -65,7 +45,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
         <p className="text-xs text-muted-foreground mt-1">Configure additional settings for each account</p>
       </div>
 
-      {selectedAccounts.map((account) => {
+      {selectedAccounts.map((account: ConnectedAccount) => {
         const platformConfig = getPlatformById(account.platform);
         if (!platformConfig) return null;
 

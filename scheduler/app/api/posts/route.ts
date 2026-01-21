@@ -159,8 +159,26 @@ export async function POST(req: NextRequest) {
           });
         } else {
           console.log(`[POST /api/posts] Updating post status to "failed"`);
+          // Collect error details from failed platforms
+          const failedResults = results.filter((r) => !r.success);
+          const errorMessage =
+            failedResults.length === 1
+              ? failedResults[0].error || failedResults[0].message || "Unknown error"
+              : `Failed on ${failedResults.length} platform(s)`;
+          const errorDetails = {
+            failedPlatforms: failedResults.map((r) => ({
+              accountId: r.accountId,
+              platform: r.platform,
+              error: r.error,
+              message: r.message,
+              details: r.details,
+            })),
+          };
+
           await repository.updatePost(post.id, {
             status: "failed",
+            errorMessage,
+            errorDetails,
           });
         }
 
@@ -178,11 +196,18 @@ export async function POST(req: NextRequest) {
       } catch (postingError) {
         // Update post status to failed
         console.error(`[POST /api/posts] Error during platform posting:`, postingError);
+        const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
+        const errorDetails = {
+          error: postingError instanceof Error ? postingError.message : String(postingError),
+          stack: postingError instanceof Error ? postingError.stack : undefined,
+        };
+
         await repository.updatePost(post.id, {
           status: "failed",
+          errorMessage,
+          errorDetails,
         });
 
-        const updatedPost = await repository.getPostById(post.id);
         // Log the error but return a user-friendly message
         console.error(`[POST /api/posts] Failed to post to platforms after ${Date.now() - startTime}ms:`, postingError);
         throw new BadRequestError("Failed to post to platforms");

@@ -118,6 +118,8 @@ model Post {
   message      String
   scheduledFor DateTime
   status       String    @default("scheduled") // "scheduled", "published", "failed"
+  errorMessage String?   // Human-readable error message when status is "failed"
+  errorDetails Json?     // Detailed error info (stack trace, API response, etc.)
   publishedAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

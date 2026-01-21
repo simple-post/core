@@ -33,6 +33,8 @@ export interface SocialPost {
   media: MediaFile[];
   scheduledFor: Date;
   status: "scheduled" | "published" | "failed";
+  errorMessage?: string; // Human-readable error message when status is "failed"
+  errorDetails?: Record<string, unknown>; // Detailed error info (platform errors, stack trace, etc.)
   createdAt: Date;
   publishedAt?: Date;
   accountOptions?: AccountOptionsMap; // Changed from platformOptions to accountOptions

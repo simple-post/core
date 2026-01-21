@@ -111,6 +111,8 @@ export class PostsModel {
       message?: string;
       scheduledFor?: Date;
       status?: string;
+      errorMessage?: string | null;
+      errorDetails?: unknown | null;
       publishedAt?: Date | null;
       accountOptions?: unknown | null;
       accounts?: { set: Array<{ id: string }> };
@@ -120,6 +122,8 @@ export class PostsModel {
     if (updates.message !== undefined) updateData.message = updates.message;
     if (updates.scheduledFor !== undefined) updateData.scheduledFor = updates.scheduledFor;
     if (updates.status !== undefined) updateData.status = updates.status;
+    if (updates.errorMessage !== undefined) updateData.errorMessage = updates.errorMessage || null;
+    if (updates.errorDetails !== undefined) updateData.errorDetails = updates.errorDetails || null;
     if (updates.publishedAt !== undefined) updateData.publishedAt = updates.publishedAt;
     if (updates.accountOptions !== undefined) updateData.accountOptions = updates.accountOptions || null;
 
@@ -187,6 +191,8 @@ export class PostsModel {
     message: string;
     scheduledFor: Date;
     status: string;
+    errorMessage: string | null;
+    errorDetails: unknown;
     createdAt: Date;
     publishedAt: Date | null;
     accountOptions: unknown;
@@ -214,6 +220,8 @@ export class PostsModel {
       })),
       scheduledFor: new Date(post.scheduledFor),
       status: post.status as "scheduled" | "published" | "failed",
+      errorMessage: post.errorMessage ?? undefined,
+      errorDetails: (post.errorDetails as Record<string, unknown> | null) ?? undefined,
       createdAt: new Date(post.createdAt),
       publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
       accountOptions: (post.accountOptions as AccountOptionsMap | null) || undefined,

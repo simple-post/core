@@ -12,6 +12,8 @@ import type { Content, Media, PostOptionsWithCredentials } from "../../types/pos
 import type { AxiosInstance } from "axios";
 
 export class TelegramPublisher extends Publisher {
+  static readonly mediaRequirement = "either" as const; // prefers url but accepts path
+
   private client: AxiosInstance;
   private botToken: string;
 

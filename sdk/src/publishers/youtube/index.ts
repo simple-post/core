@@ -4,13 +4,15 @@ import { google } from "googleapis";
 
 import { PostError, PostErrorType } from "../../types";
 import { hasValidSource, resolveMediaPath, resolveThumbnailPath, TempFileManager } from "../../utils";
-import { Publisher } from "../base";
+import { Publisher, type MediaRequirement } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { youtube_v3, Auth } from "googleapis";
 
 export class YouTubePublisher extends Publisher {
+  static readonly mediaRequirement: MediaRequirement = "path";
+
   private youtube: youtube_v3.Youtube;
 
   constructor(options?: PostOptionsWithCredentials) {

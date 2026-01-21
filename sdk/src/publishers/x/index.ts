@@ -27,6 +27,8 @@ interface RefreshTokenResponse {
 }
 
 export class XPublisher extends Publisher {
+  static readonly mediaRequirement = "path" as const;
+
   private client: TwitterApi;
   private clientV1: TwitterApiv1;
 

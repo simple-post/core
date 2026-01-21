@@ -31,3 +31,5 @@ export const getContentType = (filePath: string): string => {
 };
 
 export * from "./media";
+export * from "./platform-requirements";
+export * from "./media-resolver";

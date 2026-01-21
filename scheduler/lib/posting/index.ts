@@ -1,4 +1,4 @@
-import { PostErrorType, post as sdkPost } from "@simple-post/sdk";
+import { PostErrorType, post as sdkPost, prepareMedia } from "@simple-post/sdk";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -43,53 +43,6 @@ function mapPlatformName(platform: string): Platform {
   return (platformMap[platform.toLowerCase()] as Platform) || (platform as Platform);
 }
 
-/**
- * Converts scheduler media files to SDK media format
- * Uses URLs directly - the SDK will handle downloading as needed
- * @param mediaFiles - Media files from the scheduler (already uploaded to R2)
- * @param message - The post message text (used as fallback title for videos)
- */
-function convertMedia(mediaFiles: MediaFile[], message: string): Media[] {
-  const log = postingLogger.child({ fn: "convertMedia" });
-  log.debug({ mediaCount: mediaFiles.length }, "Converting media files to SDK format");
-
-  const media: Media[] = [];
-
-  for (const file of mediaFiles) {
-    log.debug({ type: file.type, filename: file.filename, url: file.url }, "Processing media file");
-
-    if (file.type === "image") {
-      media.push({
-        type: "image",
-        url: file.url,
-      });
-      log.debug({ url: file.url }, "Added image media with URL");
-    } else if (file.type === "video") {
-      const videoMedia: Media = {
-        type: "video",
-        url: file.url,
-        // For YouTube, title is required. Use message text as title if available
-        title: message.trim() || file.filename.replace(/\.[^/.]+$/, ""),
-        // Use message as description for videos
-        description: message.trim() || undefined,
-      };
-
-      log.debug({ title: videoMedia.title }, "Video title set");
-
-      // Add thumbnail URL if available
-      if (file.thumbnailUrl) {
-        videoMedia.thumbnailUrl = file.thumbnailUrl;
-        log.debug({ thumbnailUrl: file.thumbnailUrl }, "Thumbnail URL added");
-      }
-
-      media.push(videoMedia);
-      log.debug({ url: file.url }, "Added video media with URL");
-    }
-  }
-
-  log.debug({ totalMediaItems: media.length }, "Conversion complete");
-  return media;
-}
 
 /**
  * Generates a post URL for a platform based on the post ID
@@ -138,22 +91,22 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
 }
 
 /**
- * Posts content to a single account using the SDK
+ * Posts content to a single account using the SDK with pre-prepared media
  */
-async function postToAccount(
+async function postToAccountWithPreparedMedia(
   message: string,
-  media: Media[],
+  preparedMedia: Media[],
   account: ConnectedAccount,
   accountOptions?: AccountOptionsMap,
 ): Promise<PostingResult> {
   const startTime = Date.now();
   const log = postingLogger.child({
-    fn: "postToAccount",
+    fn: "postToAccountWithPreparedMedia",
     accountId: account.id,
     platform: account.platform,
   });
 
-  log.info({ messageLength: message.length, mediaCount: media.length }, "Starting post to platform");
+  log.info({ messageLength: message.length, mediaCount: preparedMedia.length }, "Starting post to platform");
 
   try {
     const platform = mapPlatformName(account.platform);
@@ -164,7 +117,7 @@ async function postToAccount(
     log.debug("Post options built successfully");
 
     // Prepare media with proper titles for YouTube videos
-    const processedMedia = media.map((m) => {
+    const processedMedia = preparedMedia.map((m) => {
       if (m.type === "video" && platform === "youtube" && !m.title) {
         // Ensure YouTube videos have a title
         return {
@@ -327,16 +280,54 @@ export async function postToAccounts(
       );
     });
 
-    // Convert media files to SDK format (uses URLs directly)
+    // Convert media files to SDK format (simple mapping - SDK will handle resolution)
     log.debug("Converting media files to SDK format");
-    const media = convertMedia(mediaFiles, message);
+    const media: Media[] = mediaFiles.map((file) => {
+      if (file.type === "image") {
+        return {
+          type: "image",
+          url: file.url,
+        };
+      } else {
+        return {
+          type: "video",
+          url: file.url,
+          thumbnailUrl: file.thumbnailUrl,
+        };
+      }
+    });
     log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 
-    // Post to all accounts in parallel
-    log.debug("Posting to all accounts in parallel");
-    const results = await Promise.all(
-      accounts.map((account) => postToAccount(message, media, account, accountOptions)),
-    );
+    // Get all unique platforms for efficient media resolution
+    const uniquePlatforms = Array.from(
+      new Set(accounts.map((account) => mapPlatformName(account.platform))),
+    ) as Platform[];
+
+    log.debug({ uniquePlatforms }, "Unique platforms identified");
+
+    // Prepare media once for all platforms (downloads/uploads as needed)
+    log.debug("Preparing media for all platforms");
+    const tempPost: Post = {
+      content: {
+        text: message,
+        media: media.length > 0 ? media : undefined,
+      },
+      platforms: uniquePlatforms,
+      options: undefined, // Options are per-account, not needed for media resolution
+    };
+
+    const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
+    log.debug("Media preparation complete");
+
+    try {
+      // Post to all accounts in parallel using prepared media
+      log.debug("Posting to all accounts in parallel");
+      const preparedMedia = preparedPost.content.media || [];
+      const results = await Promise.all(
+        accounts.map((account) =>
+          postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions),
+        ),
+      );
 
     const successCount = results.filter((r) => r.success).length;
     const failureCount = results.filter((r) => !r.success).length;
@@ -369,7 +360,12 @@ export async function postToAccounts(
       }
     });
 
-    return results;
+      return results;
+    } finally {
+      // Cleanup temporary files and S3 uploads
+      log.debug("Cleaning up temporary media files");
+      await cleanup();
+    }
   } catch (error) {
     const durationMs = Date.now() - startTime;
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");

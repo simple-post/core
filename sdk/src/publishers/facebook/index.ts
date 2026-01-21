@@ -18,6 +18,8 @@ const MAX_MEDIA_COUNT = 10;
 const MAX_TEXT_LENGTH = 63_206;
 
 export class FacebookPublisher extends Publisher {
+  static readonly mediaRequirement = "path" as const;
+
   private client: AxiosInstance;
   private pageAccessToken: string;
   private pageId: string;

@@ -32,6 +32,8 @@ interface TikTokInboxUploadInitResponse {
 }
 
 export class TikTokPublisher extends Publisher {
+  static readonly mediaRequirement = "path" as const;
+
   private client: AxiosInstance;
 
   private s3MediaUploader: S3MediaUploader;

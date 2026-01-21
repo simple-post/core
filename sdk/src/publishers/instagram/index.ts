@@ -17,6 +17,8 @@ const MAX_CAPTION_LENGTH = 2200;
 const PROCESSING_POLL_INTERVAL = 3000;
 
 export class InstagramPublisher extends Publisher {
+  static readonly mediaRequirement = "url" as const;
+
   private client: AxiosInstance;
   private businessAccountId: string;
 

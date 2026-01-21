@@ -37,9 +37,7 @@ export async function prepareMedia(post: Post): Promise<PreparedPost> {
 
   try {
     // Resolve media based on platform requirements
-    const resolvedMedia = post.content.media
-      ? await resolver.resolve(post.content.media, post.platforms)
-      : undefined;
+    const resolvedMedia = post.content.media ? await resolver.resolve(post.content.media, post.platforms) : undefined;
 
     // Build resolved content
     const resolvedContent: Content = {

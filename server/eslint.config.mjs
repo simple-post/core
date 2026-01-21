@@ -49,7 +49,8 @@ const eslintConfig = [
           extensions: [".js", ".jsx", ".ts", ".d.ts", ".tsx"],
         },
         typescript: {
-          project: "./tsconfig.json",
+          project: path.resolve(import.meta.dirname, "./tsconfig.json"),
+          alwaysTryTypes: true,
         },
         alias: {
           map: [["@", path.resolve(import.meta.dirname, "./src")]],
@@ -59,6 +60,7 @@ const eslintConfig = [
     },
     rules: {
       "import/no-extraneous-dependencies": "off",
+      "import/no-unresolved": "off", // TypeScript handles this
       "@typescript-eslint/keyword-spacing": "off",
       "import/prefer-default-export": "off",
       "import/extensions": "off",

@@ -1,7 +1,10 @@
-import { post, PostSchema, type Post, type PostResult, type Platform } from "@simple-post/sdk";
-import { Router, type Request, type Response } from "express";
+import { post, prepareMedia, PostSchema } from "@simple-post/sdk";
+import { Router } from "express";
 
 import { resolveStoredMediaPaths } from "../utils/files.js";
+
+import type { Post, PostResult, Platform } from "@simple-post/sdk";
+import type { Request, Response } from "express";
 
 const router = Router();
 
@@ -70,19 +73,27 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    // Call the SDK post function
-    const results: Map<Platform, PostResult> = await post(validatedPost);
+    // Prepare media efficiently (downloads/uploads as needed based on platform requirements)
+    const { post: preparedPost, cleanup } = await prepareMedia(validatedPost);
 
-    // Convert Map to object for JSON response
-    const resultsObject: Record<string, PostResult> = {};
-    for (const [platform, result] of results.entries()) {
-      resultsObject[platform] = result;
+    try {
+      // Call the SDK post function with prepared media
+      const results: Map<Platform, PostResult> = await post(preparedPost);
+
+      // Convert Map to object for JSON response
+      const resultsObject: Record<string, PostResult> = {};
+      for (const [platform, result] of results.entries()) {
+        resultsObject[platform] = result;
+      }
+
+      res.json({
+        success: true,
+        results: resultsObject,
+      });
+    } finally {
+      // Cleanup temporary files and S3 uploads
+      await cleanup();
     }
-
-    res.json({
-      success: true,
-      results: resultsObject,
-    });
   } catch (error) {
     console.error("Error in /post endpoint:", error);
 

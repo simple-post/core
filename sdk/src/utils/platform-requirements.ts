@@ -4,8 +4,8 @@ import { TelegramPublisher } from "../publishers/telegram";
 import { TikTokPublisher } from "../publishers/tiktok";
 import { XPublisher } from "../publishers/x";
 import { YouTubePublisher } from "../publishers/youtube";
-import type { MediaRequirement } from "../publishers/base";
 
+import type { MediaRequirement } from "../publishers/base";
 import type { Platform } from "../types/post";
 
 /**
@@ -15,24 +15,32 @@ import type { Platform } from "../types/post";
  */
 export function getPlatformMediaRequirement(platform: Platform): MediaRequirement {
   switch (platform) {
-    case "youtube":
+    case "youtube": {
       return YouTubePublisher.mediaRequirement;
-    case "x":
+    }
+    case "x": {
       return XPublisher.mediaRequirement;
-    case "facebook":
+    }
+    case "facebook": {
       return FacebookPublisher.mediaRequirement;
-    case "tiktok":
+    }
+    case "tiktok": {
       return TikTokPublisher.mediaRequirement;
-    case "instagram":
+    }
+    case "instagram": {
       return InstagramPublisher.mediaRequirement;
-    case "telegram":
+    }
+    case "telegram": {
       return TelegramPublisher.mediaRequirement;
-    case "linkedin":
+    }
+    case "linkedin": {
       // TODO: Implement when LinkedIn publisher is added
       return "path";
-    case "pinterest":
+    }
+    case "pinterest": {
       // TODO: Implement when Pinterest publisher is added
       return "path";
+    }
   }
 }
 
@@ -52,12 +60,23 @@ export function getPlatformRequirements(platforms: Platform[]): {
 
   for (const platform of platforms) {
     const requirement = getPlatformMediaRequirement(platform);
-    if (requirement === "path") {
-      needsPath = true;
-    } else if (requirement === "url") {
-      needsUrl = true;
-    } else if (requirement === "either") {
-      needsEither = true;
+    switch (requirement) {
+      case "path": {
+        needsPath = true;
+
+        break;
+      }
+      case "url": {
+        needsUrl = true;
+
+        break;
+      }
+      case "either": {
+        needsEither = true;
+
+        break;
+      }
+      // No default
     }
   }
 

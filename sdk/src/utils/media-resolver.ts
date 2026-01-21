@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+
 import { v7 as uuidv7 } from "uuid";
 
-import { downloadToTempFile, resolveMediaUrl } from "./media";
-import { S3MediaUploader } from "./s3";
+import { downloadToTempFile } from "./media";
 import { getPlatformRequirements } from "./platform-requirements";
+import { S3MediaUploader } from "./s3";
 
-import type { Content, Media, Platform, Video } from "../types/post";
+import type { Media, Platform, Video } from "../types/post";
 
 // ResolvedMedia is Media but ensures both path and url can be present
 type ResolvedMedia = Media & {

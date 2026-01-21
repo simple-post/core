@@ -5308,6 +5308,9 @@ __metadata:
     "@types/multer": "npm:^1.4.12"
     "@types/node": "npm:^22.10.7"
     eslint: "npm:^9.17.0"
+    eslint-import-resolver-alias: "npm:^1.1.2"
+    eslint-import-resolver-typescript: "npm:^4.4.4"
+    eslint-plugin-import: "npm:^2.32.0"
     express: "npm:^4.21.2"
     multer: "npm:^1.4.5-lts.1"
     pm2: "npm:^5.4.3"
@@ -5315,6 +5318,7 @@ __metadata:
     tsup: "npm:^8.3.5"
     tsx: "npm:^4.19.3"
     typescript: "npm:^5.8.3"
+    typescript-eslint: "npm:^8.53.1"
     zod: "npm:^3.24.1"
   languageName: unknown
   linkType: soft
@@ -10058,7 +10062,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint-plugin-import@npm:^2.31.0":
+"eslint-plugin-import@npm:^2.31.0, eslint-plugin-import@npm:^2.32.0":
   version: 2.32.0
   resolution: "eslint-plugin-import@npm:2.32.0"
   dependencies:
@@ -16413,7 +16417,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript-eslint@npm:^8.33.1":
+"typescript-eslint@npm:^8.33.1, typescript-eslint@npm:^8.53.1":
   version: 8.53.1
   resolution: "typescript-eslint@npm:8.53.1"
   dependencies:

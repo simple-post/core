@@ -1,7 +1,9 @@
-import { Router, type Request, type Response, type Express } from "express";
+import { Router } from "express";
 import multer from "multer";
 
 import { deleteStoredFile, ensureStorageDir, getStoredFileInfo, sanitizeFilename } from "../utils/files.js";
+
+import type { Express, Request, Response } from "express";
 
 const router = Router();
 

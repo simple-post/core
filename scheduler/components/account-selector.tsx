@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { PlatformIcon } from "@/components/platform-icons";
 import type { ConnectedAccount } from "@/types";
 
@@ -65,25 +65,6 @@ export function AccountSelector({
 
   const clearAll = () => {
     onSelectionChange([]);
-  };
-
-  const getPlatformConfig = (platform: string) => {
-    return SOCIAL_PLATFORMS.find((p) => p.id === platform);
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    // For X (Twitter) and TikTok, prefer showing @username
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
-      return `@${account.username}`;
-    }
-
-    // For other platforms, try to get the most user-friendly name
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
   };
 
   if (loading) {
@@ -174,7 +155,7 @@ export function AccountSelector({
       {/* Account List grouped by platform */}
       <div className="space-y-3">
         {Object.entries(accountsByPlatform).map(([platform, platformAccounts]) => {
-          const platformConfig = getPlatformConfig(platform);
+          const platformConfig = getPlatformById(platform);
           if (!platformConfig) return null;
 
           return (

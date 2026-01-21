@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { SOCIAL_PLATFORMS, getPlatformById } from "@/lib/config";
 
 interface PlatformSelectorProps {
   selectedPlatforms: string[];
@@ -125,7 +125,7 @@ export function PlatformSelector({
           <p className="text-muted-foreground mb-1">Publishing to:</p>
           <div className="text-foreground">
             {selectedPlatforms.map((platformId, index) => {
-              const platform = SOCIAL_PLATFORMS.find((p) => p.id === platformId);
+              const platform = getPlatformById(platformId);
               if (!platform) return null;
 
               return (

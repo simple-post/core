@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { getPlatformById } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 import { format } from "date-fns";
 import { Play, ArrowLeft, Trash2, Calendar, Clock, Edit } from "lucide-react";
@@ -222,7 +222,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
               <h3 className="text-sm font-medium mb-4">Publishing to</h3>
               <div className="space-y-3">
                 {postAccounts.map((account) => {
-                  const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === account.platform);
+                  const platformConfig = getPlatformById(account.platform);
                   return (
                     <div key={account.id} className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${platformConfig?.color}`} />

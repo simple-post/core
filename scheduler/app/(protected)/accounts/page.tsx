@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSession, authClient } from "@/lib/auth/auth-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,71 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlatformIcon } from "@/components/platform-icons";
-
-// Platform configuration
-const PLATFORMS = [
-  {
-    id: "x",
-    name: "X (Twitter)",
-    description: "Post tweets and threads",
-    color: "bg-black",
-    connectionType: "oauth" as const,
-  },
-  {
-    id: "youtube",
-    name: "YouTube",
-    description: "Upload videos and shorts",
-    color: "bg-red-600",
-    connectionType: "oauth" as const,
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    description: "Post photos and reels",
-    color: "bg-gradient-to-r from-purple-600 to-pink-600",
-    connectionType: "oauth" as const,
-  },
-  {
-    id: "facebook",
-    name: "Facebook",
-    description: "Publish posts and updates",
-    color: "bg-blue-600",
-    connectionType: "oauth" as const,
-  },
-  {
-    id: "tiktok",
-    name: "TikTok",
-    description: "Share videos",
-    color: "bg-black",
-    connectionType: "oauth" as const,
-  },
-  {
-    id: "telegram",
-    name: "Telegram",
-    description: "Send messages to channels",
-    color: "bg-blue-500",
-    connectionType: "manual" as const,
-  },
-];
-
-// ConnectedAccount model from database
-interface ConnectedAccount {
-  id: string;
-  userId: string;
-  platform: string;
-  platformAccountId: string;
-  accessToken: string;
-  refreshToken: string | null;
-  tokenType: string | null;
-  expiresAt: Date | null;
-  scope: string | null;
-  username: string | null;
-  displayName: string | null;
-  email: string | null;
-  profilePicture: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
+import type { ConnectedAccount } from "@/types";
 
 export default function AccountsPage() {
   const { data: session } = useSession();
@@ -115,7 +52,7 @@ export default function AccountsPage() {
   };
 
   const handleConnect = (platform: string) => {
-    const platformConfig = PLATFORMS.find((p) => p.id === platform);
+    const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
       // Open manual connection dialog for Telegram
@@ -171,27 +108,6 @@ export default function AccountsPage() {
     }
   };
 
-  const getPlatformConfig = (platform: string) => {
-    return PLATFORMS.find((p) => p.id === platform);
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    // For X (Twitter), Instagram, and TikTok, prefer showing @username
-    if (
-      (account.platform === "x" || account.platform === "instagram" || account.platform === "tiktok") &&
-      account.username
-    ) {
-      return `@${account.username}`;
-    }
-
-    // For other platforms, try to get the most user-friendly name
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
-  };
 
   const showTokens = (account: ConnectedAccount) => {
     setSelectedAccount(account);
@@ -340,7 +256,7 @@ export default function AccountsPage() {
         ) : (
           <div className="space-y-4">
             {accounts.map((account) => {
-              const platformConfig = getPlatformConfig(account.platform);
+              const platformConfig = getPlatformById(account.platform);
               if (!platformConfig) return null;
 
               return (
@@ -423,7 +339,7 @@ export default function AccountsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2 mt-4">
-            {PLATFORMS.map((platform) => (
+            {SOCIAL_PLATFORMS.map((platform) => (
               <button
                 key={platform.id}
                 onClick={() => handleConnect(platform.id)}
@@ -457,7 +373,7 @@ export default function AccountsPage() {
             <div className="py-4">
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 {(() => {
-                  const platformConfig = getPlatformConfig(accountToDisconnect.platform);
+                  const platformConfig = getPlatformById(accountToDisconnect.platform);
                   return platformConfig ? (
                     <>
                       <div

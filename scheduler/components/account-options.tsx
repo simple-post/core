@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import type { AccountOptionsMap, ConnectedAccount } from "@/types";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 
 interface AccountOptionsProps {
   selectedAccountIds: string[];
@@ -58,22 +58,6 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     });
   };
 
-  const getPlatformConfig = (platform: string) => {
-    return SOCIAL_PLATFORMS.find((p) => p.id === platform);
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
-      return `@${account.username}`;
-    }
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -82,7 +66,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
       </div>
 
       {selectedAccounts.map((account) => {
-        const platformConfig = getPlatformConfig(account.platform);
+        const platformConfig = getPlatformById(account.platform);
         if (!platformConfig) return null;
 
         const accountOptions = (options[account.id] as any) || {};

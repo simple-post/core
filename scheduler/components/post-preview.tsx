@@ -10,7 +10,7 @@ import {
   YouTubePreview,
   TelegramPreview,
 } from "./platform-previews";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { getPlatformById } from "@/lib/config";
 
 interface PostPreviewProps {
   message: string;
@@ -80,7 +80,7 @@ export function PostPreview({ message, media, scheduledDate, scheduledTime, sele
 
       {uniquePlatforms.map((platformId) => {
         const PlatformComponent = platformComponents[platformId];
-        const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === platformId);
+        const platformConfig = getPlatformById(platformId);
 
         if (!PlatformComponent || !platformConfig) return null;
 

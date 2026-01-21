@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { PlatformIcon } from "./platform-icons";
 import { ExternalLink, CheckCircle2, XCircle } from "lucide-react";
+import { getPlatformById } from "@/lib/config";
 
 interface PostingResult {
   accountId: string;
@@ -30,16 +31,10 @@ interface PostLinksModalProps {
 }
 
 function getPlatformDisplayName(platform: string): string {
-  const platformMap: Record<string, string> = {
-    x: "X (Twitter)",
-    twitter: "X (Twitter)",
-    youtube: "YouTube",
-    instagram: "Instagram",
-    facebook: "Facebook",
-    tiktok: "TikTok",
-    telegram: "Telegram",
-  };
-  return platformMap[platform.toLowerCase()] || platform;
+  // Handle twitter alias
+  const normalizedPlatform = platform.toLowerCase() === "twitter" ? "x" : platform.toLowerCase();
+  const config = getPlatformById(normalizedPlatform);
+  return config?.name || platform;
 }
 
 export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalProps) {

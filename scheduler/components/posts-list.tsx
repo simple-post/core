@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Trash2, Edit, AlertCircle } from "lucide-react";
-import { SOCIAL_PLATFORMS } from "@/lib/config";
+import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -146,7 +146,7 @@ function PostCard({
   // Get unique platforms from the accounts
   const uniquePlatforms = Array.from(new Set(postAccounts.map((acc) => acc.platform)));
   const platformsWithNames = uniquePlatforms
-    .map((platform) => SOCIAL_PLATFORMS.find((p) => p.id === platform))
+    .map((platform) => getPlatformById(platform))
     .filter(Boolean);
 
   const hasMedia = post.media.length > 0;
@@ -172,18 +172,6 @@ function PostCard({
       setIsDeleting(false);
       setShowDeleteDialog(false);
     }
-  };
-
-  const getAccountDisplayName = (account: ConnectedAccount) => {
-    if ((account.platform === "x" || account.platform === "tiktok") && account.username) {
-      return `@${account.username}`;
-    }
-    return (
-      account.displayName ||
-      (account.username ? `@${account.username}` : null) ||
-      account.email ||
-      account.platformAccountId
-    );
   };
 
   return (
@@ -297,7 +285,7 @@ function PostCard({
 
                   <div className="flex flex-wrap gap-1">
                     {postAccounts.slice(0, 2).map((account, idx) => {
-                      const platformConfig = SOCIAL_PLATFORMS.find((p) => p.id === account.platform);
+                      const platformConfig = getPlatformById(account.platform);
                       return (
                         <div key={account.id} className="flex items-center gap-1 text-xs text-muted-foreground">
                           {platformConfig && <div className={`w-1 h-1 rounded-full ${platformConfig.color}`} />}

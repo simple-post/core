@@ -1,6 +1,23 @@
 import { SocialPost, AccountOptionsMap } from "@/types";
 import { prisma } from "@/lib/prisma";
 
+export interface PaginationOptions {
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
 export class PostsModel {
   private userId?: string;
 
@@ -8,71 +25,137 @@ export class PostsModel {
     this.userId = userId;
   }
 
-  async getScheduledPosts(): Promise<SocialPost[]> {
+  async getScheduledPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+    const { page = 1, limit = 20 } = options;
+    const skip = (page - 1) * limit;
     const now = new Date();
-    const posts = await prisma.post.findMany({
-      where: {
-        ...(this.userId && { userId: this.userId }),
-        status: "scheduled",
-        scheduledFor: {
-          gt: now,
+
+    const where = {
+      ...(this.userId && { userId: this.userId }),
+      status: "scheduled",
+      scheduledFor: {
+        gt: now,
+      },
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        include: {
+          media: true,
+          accounts: true,
         },
-      },
-      include: {
-        media: true,
-        accounts: true,
-      },
-      orderBy: {
-        scheduledFor: "asc",
-      },
-    });
+        orderBy: {
+          scheduledFor: "asc",
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where }),
+    ]);
 
-    return posts.map(this.mapPostToSocialPost);
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: posts.map(this.mapPostToSocialPost),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
-  async getPastPosts(): Promise<SocialPost[]> {
+  async getPastPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+    const { page = 1, limit = 20 } = options;
+    const skip = (page - 1) * limit;
     const now = new Date();
-    const posts = await prisma.post.findMany({
-      where: {
-        ...(this.userId && { userId: this.userId }),
-        OR: [
-          { status: "published" },
-          {
-            status: "scheduled",
-            scheduledFor: {
-              lte: now,
-            },
-          },
-        ],
-      },
-      include: {
-        media: true,
-        accounts: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
 
-    return posts.map(this.mapPostToSocialPost);
+    const where = {
+      ...(this.userId && { userId: this.userId }),
+      OR: [
+        { status: "published" },
+        {
+          status: "scheduled",
+          scheduledFor: {
+            lte: now,
+          },
+        },
+      ],
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        include: {
+          media: true,
+          accounts: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: posts.map(this.mapPostToSocialPost),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
-  async getFailedPosts(): Promise<SocialPost[]> {
-    const posts = await prisma.post.findMany({
-      where: {
-        ...(this.userId && { userId: this.userId }),
-        status: "failed",
-      },
-      include: {
-        media: true,
-        accounts: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+  async getFailedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+    const { page = 1, limit = 20 } = options;
+    const skip = (page - 1) * limit;
 
-    return posts.map(this.mapPostToSocialPost);
+    const where = {
+      ...(this.userId && { userId: this.userId }),
+      status: "failed",
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        include: {
+          media: true,
+          accounts: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: posts.map(this.mapPostToSocialPost),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async createPost(postData: Omit<SocialPost, "id" | "createdAt">, userId: string): Promise<SocialPost> {

@@ -10,31 +10,37 @@ import { createLogger, serializeError } from "@/lib/logger";
 
 const log = createLogger("api:posts");
 
-// GET /api/posts - Get all posts (scheduled, past, and failed)
+// GET /api/posts - Get all posts (scheduled, past, and failed) with pagination
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
 
-    let posts;
+    const paginationOptions = { page, limit };
+
     if (type === "scheduled") {
-      posts = await repository.getScheduledPosts();
+      const result = await repository.getScheduledPosts(paginationOptions);
+      return NextResponse.json({ posts: result.data, pagination: result.pagination });
     } else if (type === "past") {
-      posts = await repository.getPastPosts();
+      const result = await repository.getPastPosts(paginationOptions);
+      return NextResponse.json({ posts: result.data, pagination: result.pagination });
     } else if (type === "failed") {
-      posts = await repository.getFailedPosts();
+      const result = await repository.getFailedPosts(paginationOptions);
+      return NextResponse.json({ posts: result.data, pagination: result.pagination });
     } else {
+      // For "all" type, we don't support pagination - return all posts
       const [scheduled, past, failed] = await Promise.all([
-        repository.getScheduledPosts(),
-        repository.getPastPosts(),
-        repository.getFailedPosts(),
+        repository.getScheduledPosts({ page: 1, limit: 1000 }),
+        repository.getPastPosts({ page: 1, limit: 1000 }),
+        repository.getFailedPosts({ page: 1, limit: 1000 }),
       ]);
-      posts = [...scheduled, ...past, ...failed];
+      const posts = [...scheduled.data, ...past.data, ...failed.data];
+      return NextResponse.json({ posts });
     }
-
-    return NextResponse.json({ posts });
   } catch (error) {
     return handleApiError(error);
   }

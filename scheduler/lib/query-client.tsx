@@ -46,5 +46,6 @@ export function QueryClientProvider({ children }: { children: ReactNode }) {
 export const queryKeys = {
   accounts: ["accounts"],
   posts: (type?: string) => (type ? ["posts", type] : ["posts"]),
+  paginatedPosts: (type: string, page: number, limit: number) => ["posts", type, { page, limit }],
   post: (id: string) => ["posts", "detail", id],
 } as const;

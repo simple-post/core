@@ -1,11 +1,25 @@
 "use client";
 
-import { Suspense } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { PostsList } from "@/components/posts-list";
+import { Calendar, CheckCircle, AlertCircle } from "lucide-react";
+
+type TabType = "scheduled" | "past" | "failed";
 
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<TabType>("scheduled");
+  const [scheduledPage, setScheduledPage] = useState(1);
+  const [postedPage, setPostedPage] = useState(1);
+  const [failedPage, setFailedPage] = useState(1);
+
+  // Reset page to 1 when switching tabs
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as TabType);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
@@ -47,72 +61,53 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="space-y-16">
-          {/* Upcoming Posts */}
-          <section>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Upcoming Posts</h2>
-              <p className="text-muted-foreground">Content scheduled for publication</p>
-            </div>
-            <Suspense fallback={<PostsListSkeleton />}>
-              <PostsList type="scheduled" />
-            </Suspense>
-          </section>
-
-          {/* Failed Posts */}
-          <section>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Failed Posts</h2>
-              <p className="text-muted-foreground">Posts that failed to publish - review and retry if needed</p>
-            </div>
-            <Suspense fallback={<PostsListSkeleton />}>
-              <PostsList type="failed" />
-            </Suspense>
-          </section>
-
-          {/* Past Posts */}
-          <section>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Published Content</h2>
-              <p className="text-muted-foreground">Your content history and performance</p>
-            </div>
-            <Suspense fallback={<PostsListSkeleton />}>
-              <PostsList type="past" />
-            </Suspense>
-          </section>
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Your Posts</h2>
+          <p className="text-muted-foreground">Manage your scheduled, published, and failed posts</p>
         </div>
+
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="scheduled" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              Scheduled
+            </TabsTrigger>
+            <TabsTrigger value="past" className="gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Posted
+            </TabsTrigger>
+            <TabsTrigger value="failed" className="gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Failed
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="scheduled" className="mt-0">
+            <PostsList
+              type="scheduled"
+              page={scheduledPage}
+              onPageChange={setScheduledPage}
+            />
+          </TabsContent>
+
+          <TabsContent value="past" className="mt-0">
+            <PostsList
+              type="past"
+              page={postedPage}
+              onPageChange={setPostedPage}
+            />
+          </TabsContent>
+
+          <TabsContent value="failed" className="mt-0">
+            <PostsList
+              type="failed"
+              page={failedPage}
+              onPageChange={setFailedPage}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
-    </div>
-  );
-}
-
-async function PostsCount({ type }: { type: "scheduled" | "published-today" | "total" }) {
-  // This will be implemented with actual data fetching
-  const count = type === "scheduled" ? 3 : type === "published-today" ? 1 : 12;
-  return <div className="text-2xl font-bold">{count}</div>;
-}
-
-function PostsListSkeleton() {
-  return (
-    <div className="space-y-4">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="animate-pulse">
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex gap-4">
-              <div className="w-14 h-14 bg-muted rounded-lg" />
-              <div className="flex-1 space-y-3">
-                <div className="h-4 bg-muted rounded w-3/4" />
-                <div className="h-3 bg-muted rounded w-1/2" />
-                <div className="flex gap-2 pt-2">
-                  <div className="h-5 bg-muted rounded-full w-14" />
-                  <div className="h-5 bg-muted rounded-full w-14" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,17 +18,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit, AlertCircle } from "lucide-react";
+import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { usePosts } from "@/hooks/use-posts";
+import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 
 interface PostsListProps {
   type: "scheduled" | "past" | "failed";
+  page: number;
+  onPageChange: (page: number) => void;
   onPostDeleted?: () => void;
 }
 
@@ -58,10 +59,14 @@ function formatTimeAgo(date: Date): string {
   return formatDate(date);
 }
 
-export function PostsList({ type, onPostDeleted }: PostsListProps) {
-  const { data: posts = [], isLoading: postsLoading } = usePosts(type);
+const POSTS_PER_PAGE = 20;
+
+export function PostsList({ type, page, onPageChange, onPostDeleted }: PostsListProps) {
+  const { data, isLoading: postsLoading, isFetching } = usePaginatedPosts(type, page, POSTS_PER_PAGE);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
+  const posts = data?.posts ?? [];
+  const pagination = data?.pagination;
   const loading = postsLoading || accountsLoading;
 
   if (loading) {
@@ -85,10 +90,135 @@ export function PostsList({ type, onPostDeleted }: PostsListProps) {
   }
 
   return (
-    <div className="space-y-3">
-      {posts.map((post: SocialPost) => (
-        <PostCard key={post.id} post={post} accounts={accounts} onDeleted={onPostDeleted} />
-      ))}
+    <div className="space-y-4">
+      <div className={`space-y-3 ${isFetching ? "opacity-70" : ""}`}>
+        {posts.map((post: SocialPost) => (
+          <PostCard key={post.id} post={post} accounts={accounts} onDeleted={onPostDeleted} />
+        ))}
+      </div>
+
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          pagination={pagination}
+          onPageChange={onPageChange}
+          isFetching={isFetching}
+        />
+      )}
+    </div>
+  );
+}
+
+function Pagination({
+  pagination,
+  onPageChange,
+  isFetching,
+}: {
+  pagination: PaginationInfo;
+  onPageChange: (page: number) => void;
+  isFetching: boolean;
+}) {
+  const { page, totalPages, total, hasNextPage, hasPreviousPage } = pagination;
+
+  // Generate page numbers to show
+  const getPageNumbers = (): (number | "ellipsis")[] => {
+    const pages: (number | "ellipsis")[] = [];
+    const showPages = 5; // Number of page buttons to show
+
+    if (totalPages <= showPages + 2) {
+      // Show all pages if total is small
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show first page
+      pages.push(1);
+
+      // Calculate start and end of middle section
+      let start = Math.max(2, page - 1);
+      let end = Math.min(totalPages - 1, page + 1);
+
+      // Adjust if at the start
+      if (page <= 3) {
+        start = 2;
+        end = Math.min(showPages - 1, totalPages - 1);
+      }
+
+      // Adjust if at the end
+      if (page >= totalPages - 2) {
+        start = Math.max(2, totalPages - showPages + 2);
+        end = totalPages - 1;
+      }
+
+      // Add ellipsis before middle section if needed
+      if (start > 2) {
+        pages.push("ellipsis");
+      }
+
+      // Add middle pages
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      // Add ellipsis after middle section if needed
+      if (end < totalPages - 1) {
+        pages.push("ellipsis");
+      }
+
+      // Always show last page
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
+  const pageNumbers = getPageNumbers();
+
+  return (
+    <div className="flex items-center justify-between border-t border-border pt-4 mt-4">
+      <div className="text-sm text-muted-foreground">
+        {total} {total === 1 ? "post" : "posts"} total
+      </div>
+
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(page - 1)}
+          disabled={!hasPreviousPage || isFetching}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        {pageNumbers.map((pageNum, idx) =>
+          pageNum === "ellipsis" ? (
+            <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">
+              ...
+            </span>
+          ) : (
+            <Button
+              key={pageNum}
+              variant={pageNum === page ? "default" : "outline"}
+              size="sm"
+              onClick={() => onPageChange(pageNum)}
+              disabled={isFetching}
+              className="h-8 w-8 p-0"
+            >
+              {pageNum}
+            </Button>
+          )
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(page + 1)}
+          disabled={!hasNextPage || isFetching}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

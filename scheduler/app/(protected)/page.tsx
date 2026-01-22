@@ -17,9 +17,9 @@ export default function Dashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab") as TabType | null;
-  
+
   const [activeTab, setActiveTab] = useState<TabType>(
-    tabParam && ["scheduled", "past", "failed"].includes(tabParam) ? tabParam : "scheduled"
+    tabParam && ["scheduled", "past", "failed"].includes(tabParam) ? tabParam : "scheduled",
   );
   const [scheduledPage, setScheduledPage] = useState(1);
   const [postedPage, setPostedPage] = useState(1);

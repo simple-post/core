@@ -103,11 +103,11 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
       // If posting now and we have posting results, show the modal
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         setPostingResults(data.postingResults);
-        
+
         // Check if all posts succeeded
         const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
         setPostingSucceeded(allSucceeded);
-        
+
         setShowPostLinksModal(true);
         // Navigation will happen when modal closes (see onOpenChange below)
         // If failed, user can close modal and retry
@@ -290,17 +290,15 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           // Navigate when modal is closed
-          if (!open) {
-            if (postingSucceeded) {
-              // Navigate to Posted tab on success
-              if (mode === "edit") {
-                router.push(`/posts/${existingPost?.id}`);
-              } else {
-                router.push("/?tab=past");
-              }
+          if (!open && postingSucceeded) {
+            // Navigate to Posted tab on success
+            if (mode === "edit") {
+              router.push(`/posts/${existingPost?.id}`);
+            } else {
+              router.push("/?tab=past");
             }
-            // If posting failed, stay on the page to let user retry
           }
+          // If posting failed, stay on the page to let user retry
         }}
         results={postingResults}
       />

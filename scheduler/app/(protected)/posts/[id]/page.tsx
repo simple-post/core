@@ -18,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -130,7 +129,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                 {isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
               </span>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {isScheduled ? <Calendar className="h-4 w-4" /> : isFailed ? <AlertCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                {isScheduled ? (
+                  <Calendar className="h-4 w-4" />
+                ) : isFailed ? (
+                  <AlertCircle className="h-4 w-4" />
+                ) : (
+                  <Clock className="h-4 w-4" />
+                )}
                 <span>
                   {isScheduled
                     ? format(post.scheduledFor, "EEEE, MMMM d, yyyy 'at' h:mm a")

@@ -336,46 +336,33 @@ describe("TikTokPublisher", () => {
   });
 
   describe("validation", () => {
-    it("should validate caption length", async () => {
-      const longCaption = "a".repeat(200); // Exceeds 150 character limit
+    it("should error when caption is too long for video", () => {
+      const longCaption = "a".repeat(2300);
       const contentWithLongCaption: Content = {
         text: longCaption,
         media: [{ type: "video", path: "./test-video.mp4" }],
       };
 
-      // Create publisher in strict mode
-      const strictPublisher = new TikTokPublisher({
-        common: { strictMode: false },
-        tiktok: {
-          credentials: {
-            accessToken: "test_access_token",
-          },
-        },
-      });
+      const result = TikTokPublisher.validate(contentWithLongCaption);
 
-      // Should not throw but may warn
-      await expect(async () => {
-        // Mock successful response using Direct Post API
-        mockAxiosInstance.post.mockResolvedValueOnce({
-          data: {
-            data: {
-              publish_id: "publish_long",
-              upload_url: "https://upload.tiktok.com/video?upload_id=long",
-            },
-          },
-        });
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("caption_too_long");
+    });
 
-        mockedAxios.put.mockResolvedValue({ status: 200 });
+    it("should warn when multiple media items are provided", () => {
+      const contentWithMultipleMedia: Content = {
+        text: "Multiple media",
+        media: [
+          { type: "image", path: "./test-image-1.jpg" },
+          { type: "image", path: "./test-image-2.jpg" },
+        ],
+      };
 
-        const mockStream = {
-          [Symbol.asyncIterator]: async function* () {
-            yield Buffer.from("chunk1");
-          },
-        };
-        jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
+      const result = TikTokPublisher.validate(contentWithMultipleMedia);
 
-        await strictPublisher.postContent(contentWithLongCaption);
-      }).not.toThrow();
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_media");
     });
   });
 });

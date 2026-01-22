@@ -231,12 +231,13 @@ describe("YouTubePublisher", () => {
         requestBody: {
           snippet: {
             title: "Test Video",
-            description: undefined,
+            description: "Video with options",
             tags: ["tag1", "tag2"],
             categoryId: "22",
           },
           status: {
             privacyStatus: "private",
+            publishAt: undefined,
             selfDeclaredMadeForKids: false,
           },
         },
@@ -264,9 +265,8 @@ describe("YouTubePublisher", () => {
         text: "No video content",
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("YouTube content validation failed");
     });
 
     it("should handle content with image instead of video", async () => {
@@ -280,9 +280,8 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("YouTube content validation failed");
     });
 
     it("should handle API errors during video upload", async () => {
@@ -478,7 +477,7 @@ describe("YouTubePublisher", () => {
         requestBody: {
           snippet: {
             title: "Regular Video",
-            description: undefined,
+            description: "Regular video",
             tags: undefined,
             categoryId: undefined,
           },
@@ -493,6 +492,51 @@ describe("YouTubePublisher", () => {
         },
       });
       expect(result).toEqual({ id: "regular_video_123", error: PostErrorType.NO_ERROR });
+    });
+  });
+
+  describe("validate", () => {
+    const options: PostOptionsWithCredentials = {
+      youtube: {
+        credentials: {
+          accessToken: "test_access_token",
+        },
+      },
+    };
+
+    beforeEach(() => {
+      publisher = new YouTubePublisher(options);
+    });
+
+    it("should warn when title will be truncated", () => {
+      const content: Content = {
+        text: "a".repeat(150),
+        media: [{ type: "video", path: "/path/video.mp4" }],
+      };
+
+      const result = YouTubePublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("title_truncated");
+    });
+
+    it("should error when description is too long", () => {
+      const content: Content = {
+        media: [
+          {
+            type: "video",
+            path: "/path/video.mp4",
+            title: "Valid title",
+            description: "a".repeat(6000),
+          },
+        ],
+      };
+
+      const result = YouTubePublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("description_too_long");
     });
   });
 
@@ -537,8 +581,8 @@ describe("YouTubePublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "A video is required for a YouTube post.",
-        details: undefined,
+        message: "YouTube content validation failed",
+        details: expect.anything(),
       });
     });
   });

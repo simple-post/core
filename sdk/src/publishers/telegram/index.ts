@@ -9,10 +9,24 @@ import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
+
+const MAX_TEXT_LENGTH = 4096;
+const MAX_CAPTION_LENGTH = 1024;
+const MAX_MEDIA_COUNT = 1;
+
+const VALIDATION_RULES: PlatformValidationRules = {
+  text: { maxLength: MAX_TEXT_LENGTH, maxCaptionLength: MAX_CAPTION_LENGTH },
+  media: { maxCount: MAX_MEDIA_COUNT },
+};
 
 export class TelegramPublisher extends Publisher {
   static readonly mediaRequirement = "either" as const; // prefers url but accepts path
+
+  static getValidationRules(): PlatformValidationRules {
+    return VALIDATION_RULES;
+  }
 
   private client: AxiosInstance;
   private botToken: string;
@@ -136,35 +150,88 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  private validateContent(
-    content: Content,
-  ): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
-    if (!content.text && (!content.media || content.media.length === 0)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram");
+  static validate(content: Content): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    const text = content.text ?? "";
+    const media = content.media ?? [];
+    const mediaCount = media.length;
+
+    // Check for empty content
+    if (!text.trim() && mediaCount === 0) {
+      errors.push({
+        platform: "telegram",
+        severity: "error",
+        code: "content_required",
+        message: "Telegram posts require text or media.",
+        field: "text",
+      });
     }
 
-    this.strictCheck(
-      content.media && content.media.length > 1,
-      "Telegram supports only one media per message, only the first media will be sent",
-    );
+    // Check text/caption length based on whether media is present
+    if (mediaCount > 0) {
+      if (text.length > MAX_CAPTION_LENGTH) {
+        errors.push({
+          platform: "telegram",
+          severity: "error",
+          code: "caption_too_long",
+          message: `Telegram media captions cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
+          field: "text",
+          limit: MAX_CAPTION_LENGTH,
+          actual: text.length,
+        });
+      }
+    } else if (text.length > MAX_TEXT_LENGTH) {
+      errors.push({
+        platform: "telegram",
+        severity: "error",
+        code: "text_too_long",
+        message: `Telegram messages cannot exceed ${MAX_TEXT_LENGTH} characters.`,
+        field: "text",
+        limit: MAX_TEXT_LENGTH,
+        actual: text.length,
+      });
+    }
 
-    // Validate each media has a valid source (path or url)
-    if (content.media) {
-      for (const media of content.media) {
-        if (!hasValidSource(media)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-        }
-        // If path is provided, check it exists
-        if (media.path && !fs.existsSync(media.path)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-        }
+    // Check media sources
+    for (const item of media) {
+      if (!hasValidSource(item)) {
+        errors.push({
+          platform: "telegram",
+          severity: "error",
+          code: "media_source_missing",
+          message: "Media must have either a path or url.",
+          field: "media",
+        });
+        break;
       }
     }
+
+    // Warn about excess media
+    if (mediaCount > MAX_MEDIA_COUNT) {
+      warnings.push({
+        platform: "telegram",
+        severity: "warning",
+        code: "too_many_media",
+        message: "Telegram supports only one media item per message. Only the first media will be sent.",
+        field: "media",
+        limit: MAX_MEDIA_COUNT,
+        actual: mediaCount,
+      });
+    }
+
+    return { errors, warnings, isValid: errors.length === 0 };
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content and the options
-    this.validateContent(content);
+    const validation = TelegramPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Telegram content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
     this.validateOptions(options);
 
     const chatId = options.telegram.chatId;

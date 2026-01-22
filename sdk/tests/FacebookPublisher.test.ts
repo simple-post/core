@@ -185,9 +185,8 @@ describe("FacebookPublisher", () => {
     it("should throw error for empty content", async () => {
       const content: Content = {};
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook"),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("Facebook content validation failed");
     });
 
     it("should accept text at the character limit (63,206 characters)", async () => {
@@ -211,12 +210,8 @@ describe("FacebookPublisher", () => {
         text: textOverLimit,
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Facebook text posts cannot exceed 63,206 characters. Current length: 63207",
-        ),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("Facebook content validation failed");
     });
 
     it("should accept text within character limit", async () => {
@@ -330,6 +325,52 @@ describe("FacebookPublisher", () => {
     });
   });
 
+  describe("validate", () => {
+    const options: PostOptionsWithCredentials = {
+      facebook: {
+        credentials: {
+          pageAccessToken: "test_access_token",
+          pageId: "test_page_id",
+        },
+      },
+    };
+
+    beforeEach(() => {
+      publisher = new FacebookPublisher(options);
+    });
+
+    it("should warn when too many images are provided", () => {
+      const content: Content = {
+        text: "Too many images",
+        media: Array.from({ length: 12 }, (_, index) => ({
+          type: "image" as const,
+          path: `/path/${index}.jpg`,
+        })),
+      };
+
+      const result = FacebookPublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_images");
+    });
+
+    it("should error when video is mixed with images", () => {
+      const content: Content = {
+        text: "Mixed media",
+        media: [
+          { type: "video", path: "/path/video.mp4" },
+          { type: "image", path: "/path/image.jpg" },
+        ],
+      };
+
+      const result = FacebookPublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("video_with_other_media");
+    });
+  });
+
   describe("post", () => {
     const options: PostOptionsWithCredentials = {
       facebook: {
@@ -361,8 +402,8 @@ describe("FacebookPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "Empty posts are not supported by Facebook",
-        details: undefined,
+        message: "Facebook content validation failed",
+        details: expect.anything(),
       });
     });
   });

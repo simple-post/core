@@ -9,16 +9,32 @@ import { getContentType, hasValidSource, resolveMediaPath, TempFileManager } fro
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Image, Media, PostOptionsWithCredentials, Video } from "../../types/post";
+import type { Content, Image, PostOptionsWithCredentials, Video } from "../../types/post";
+import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 const FACEBOOK_API_VERSION = "v23.0";
 
-const MAX_MEDIA_COUNT = 10;
 const MAX_TEXT_LENGTH = 63_206;
+const MAX_MEDIA_COUNT = 10;
+const MAX_VIDEOS = 1;
+
+const VALIDATION_RULES: PlatformValidationRules = {
+  text: { maxLength: MAX_TEXT_LENGTH },
+  media: {
+    maxCount: MAX_MEDIA_COUNT,
+    maxImages: MAX_MEDIA_COUNT,
+    maxVideos: MAX_VIDEOS,
+    allowsMixed: false,
+  },
+};
 
 export class FacebookPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return VALIDATION_RULES;
+  }
 
   private client: AxiosInstance;
   private pageAccessToken: string;
@@ -80,48 +96,95 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  private validate(content: Content): asserts content is (Content & { media: Media[] }) | (Content & { text: string }) {
-    // Check for empty post
-    if (!content.text && !content.media) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook");
+  static validate(content: Content): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    const text = content.text ?? "";
+    const media = content.media ?? [];
+    const mediaCount = media.length;
+
+    let images = 0;
+    let videos = 0;
+    for (const item of media) {
+      if (item.type === "image") images += 1;
+      if (item.type === "video") videos += 1;
     }
 
-    // Validate media if present
-    if (content.media && content.media.length > 0) {
-      // Check for videos - they can only be single media posts
-      const videos = content.media.filter((m) => m.type === "video");
-      if (videos.length > 0 && content.media.length > 1) {
-        throw new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Video posts can only contain a single video, no other media",
-        );
+    // Check for empty content
+    if (!text.trim() && mediaCount === 0) {
+      errors.push({
+        platform: "facebook",
+        severity: "error",
+        code: "content_required",
+        message: "Facebook posts require text or media.",
+        field: "text",
+      });
+    }
+
+    // Check text length
+    if (text.length > MAX_TEXT_LENGTH) {
+      errors.push({
+        platform: "facebook",
+        severity: "error",
+        code: "text_too_long",
+        message: `Facebook text cannot exceed ${MAX_TEXT_LENGTH.toLocaleString()} characters.`,
+        field: "text",
+        limit: MAX_TEXT_LENGTH,
+        actual: text.length,
+      });
+    }
+
+    // Check media sources
+    for (const item of media) {
+      if (!hasValidSource(item)) {
+        errors.push({
+          platform: "facebook",
+          severity: "error",
+          code: "media_source_missing",
+          message: "Media must have either a path or url.",
+          field: "media",
+        });
+        break;
       }
-
-      // Check for too many images in multi-media posts
-      this.strictCheck(
-        content.media.length > MAX_MEDIA_COUNT,
-        `Facebook supports maximum of ${MAX_MEDIA_COUNT} images in a single post`,
-      );
-
-      // Validate each media item has a valid source (path or url)
-      for (const media of content.media) {
-        if (!hasValidSource(media)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-        }
-        // If path is provided, check it exists
-        if (media.path && !fs.existsSync(media.path)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-        }
-      }
     }
 
-    // Validate text length
-    if (content.text && content.text.length > MAX_TEXT_LENGTH) {
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        `Facebook text posts cannot exceed ${MAX_TEXT_LENGTH.toLocaleString()} characters. Current length: ${content.text.length}`,
-      );
+    // Check video restrictions
+    if (videos > 0 && mediaCount > 1) {
+      errors.push({
+        platform: "facebook",
+        severity: "error",
+        code: "video_with_other_media",
+        message: "Facebook video posts can only contain a single video.",
+        field: "media",
+      });
     }
+
+    if (videos > MAX_VIDEOS) {
+      errors.push({
+        platform: "facebook",
+        severity: "error",
+        code: "too_many_videos",
+        message: "Facebook supports only one video per post.",
+        field: "media",
+        limit: MAX_VIDEOS,
+        actual: videos,
+      });
+    }
+
+    // Warn about excess images
+    if (images > MAX_MEDIA_COUNT) {
+      warnings.push({
+        platform: "facebook",
+        severity: "warning",
+        code: "too_many_images",
+        message: `Facebook supports up to ${MAX_MEDIA_COUNT} images. Only the first ${MAX_MEDIA_COUNT} will be posted.`,
+        field: "media",
+        limit: MAX_MEDIA_COUNT,
+        actual: images,
+      });
+    }
+
+    return { errors, warnings, isValid: errors.length === 0 };
   }
 
   private async postVideo(
@@ -178,7 +241,13 @@ export class FacebookPublisher extends Publisher {
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
-    this.validate(content);
+    const validation = FacebookPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
 
     const tempFileManager = new TempFileManager();
 

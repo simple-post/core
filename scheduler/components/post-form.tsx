@@ -1,18 +1,21 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
+import { AlertCircle, Info } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
+import { getPlatformById } from "@/lib/config";
 import type { MediaFile, AccountOptionsMap, SocialPost } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
@@ -21,9 +24,27 @@ import { MediaUpload } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
 import { PostPreview } from "./post-preview";
 
+import type { PlatformValidationRules, ValidationIssue } from "@simple-post/sdk";
+
 interface PostFormProps {
   mode: "create" | "edit";
   existingPost?: SocialPost;
+}
+
+interface ValidationResponse {
+  platforms: string[];
+  results: Array<{
+    platform: string;
+    rules: PlatformValidationRules;
+    errors: ValidationIssue[];
+    warnings: ValidationIssue[];
+    isValid: boolean;
+  }>;
+  summary: {
+    errors: ValidationIssue[];
+    warnings: ValidationIssue[];
+    isValid: boolean;
+  };
 }
 
 export function PostForm({ mode, existingPost }: PostFormProps) {
@@ -52,14 +73,117 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     }>
   >([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
+  const [validation, setValidation] = useState<ValidationResponse | null>(null);
+  const [validationLoading, setValidationLoading] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const submitPostMutation = useSubmitPost();
+
+  const runValidation = async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
+    if (selectedAccountIds.length === 0) {
+      setValidation(null);
+      setValidationError(null);
+      return null;
+    }
+
+    setValidationLoading(true);
+    try {
+      const response = await fetch("/api/validation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          media,
+          accountIds: selectedAccountIds,
+        }),
+        signal,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Validation failed");
+      }
+
+      const data = (await response.json()) as ValidationResponse;
+      setValidation(data);
+      setValidationError(null);
+      return data;
+    } catch (error) {
+      if (signal?.aborted) {
+        return null;
+      }
+      setValidationError(error instanceof Error ? error.message : "Validation failed");
+      setValidation(null);
+      return null;
+    } finally {
+      setValidationLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedAccountIds.length === 0) {
+      setValidation(null);
+      setValidationError(null);
+      setValidationLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      void runValidation(controller.signal);
+    }, 250);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [message, media, selectedAccountIds]);
+
+  const maxTextLength = useMemo(() => {
+    if (!validation) return undefined;
+
+    const hasMedia = media.length > 0;
+    const hasVideo = media.some((item) => item.type === "video");
+    const hasImage = media.some((item) => item.type === "image");
+
+    const limits = validation.results
+      .map((result) => {
+        const textRules = result.rules.text;
+        if (!textRules) return undefined;
+
+        if (hasMedia) {
+          if (textRules.maxCaptionLengthByMediaType) {
+            const candidates: number[] = [];
+            if (hasVideo && textRules.maxCaptionLengthByMediaType.video) {
+              candidates.push(textRules.maxCaptionLengthByMediaType.video);
+            }
+            if (hasImage && textRules.maxCaptionLengthByMediaType.image) {
+              candidates.push(textRules.maxCaptionLengthByMediaType.image);
+            }
+            if (candidates.length > 0) {
+              return Math.min(...candidates);
+            }
+          }
+          return textRules.maxCaptionLength ?? textRules.maxLength;
+        }
+
+        return textRules.maxLength ?? textRules.maxCaptionLength;
+      })
+      .filter((limit): limit is number => typeof limit === "number");
+
+    return limits.length > 0 ? Math.min(...limits) : undefined;
+  }, [validation, media]);
+
+  const formattedIssue = (issue: ValidationIssue) => {
+    const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
+    return `${platform}: ${issue.message}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validate based on posting mode
-    if (!message.trim() || selectedAccountIds.length === 0) {
+    if (selectedAccountIds.length === 0) {
       return;
     }
 
@@ -68,6 +192,11 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     }
 
     try {
+      const latestValidation = await runValidation();
+      if (!latestValidation?.summary.isValid) {
+        return;
+      }
+
       // Build the request body - media is already uploaded to R2
       const body: {
         message: string;
@@ -126,7 +255,10 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   };
 
   const isFormValid =
-    message.trim() && selectedAccountIds.length > 0 && (postingMode === "now" || (scheduledDate && scheduledTime));
+    selectedAccountIds.length > 0 &&
+    (validation?.summary.isValid ?? false) &&
+    !validationLoading &&
+    (postingMode === "now" || (scheduledDate && scheduledTime));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -144,11 +276,14 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="min-h-32 resize-none mt-2 border-border/50"
-              maxLength={2000}
+              maxLength={maxTextLength}
             />
             <div className="flex justify-between items-center mt-2">
               <p className="text-xs text-muted-foreground">Share your thoughts, updates, or announcements</p>
-              <p className="text-xs text-muted-foreground">{message.length}/2000</p>
+              <p className="text-xs text-muted-foreground">
+                {message.length}
+                {maxTextLength ? `/${maxTextLength}` : ""}
+              </p>
             </div>
           </div>
 
@@ -159,6 +294,42 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
               <MediaUpload media={media} onMediaChange={setMedia} />
             </div>
           </div>
+
+          {/* Validation Feedback */}
+          {validationLoading && (
+            <p className="text-xs text-muted-foreground">Validating content for selected platforms...</p>
+          )}
+          {validationError && (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>Validation failed</AlertTitle>
+              <AlertDescription>
+                <p>{validationError}</p>
+              </AlertDescription>
+            </Alert>
+          )}
+          {validation?.summary.errors.length ? (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>Errors</AlertTitle>
+              <AlertDescription>
+                {validation.summary.errors.map((issue, index) => (
+                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
+                ))}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {validation?.summary.warnings.length ? (
+            <Alert>
+              <Info />
+              <AlertTitle>Warnings</AlertTitle>
+              <AlertDescription>
+                {validation.summary.warnings.map((issue, index) => (
+                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
+                ))}
+              </AlertDescription>
+            </Alert>
+          ) : null}
         </div>
 
         {/* Account Selection */}

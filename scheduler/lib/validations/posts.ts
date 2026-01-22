@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createPostSchema = z.object({
-  message: z.string().min(1, "Message is required"),
+  message: z.string().default(""),
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
   postingMode: z.enum(["now", "schedule"]).default("schedule"),
   scheduledFor: z.string().datetime().optional(),
@@ -9,7 +9,7 @@ export const createPostSchema = z.object({
 });
 
 export const updatePostSchema = z.object({
-  message: z.string().min(1, "Message is required"),
+  message: z.string().default(""),
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
   scheduledFor: z.string().datetime(),
   accountOptions: z.record(z.any()).optional(),

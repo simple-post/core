@@ -9,13 +9,25 @@ import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 const MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
 const MAX_PHOTO_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_CAPTION_LENGTH = 150;
+const MAX_VIDEO_CAPTION_LENGTH = 2200;
+const MAX_PHOTO_CAPTION_LENGTH = 90;
+const MAX_MEDIA_COUNT = 1;
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
 const MIN_FILE_SIZE_FOR_CHUNKING = 10 * 1024 * 1024; // Only chunk files larger than 10MB
+
+const VALIDATION_RULES: PlatformValidationRules = {
+  text: {
+    maxCaptionLengthByMediaType: { video: MAX_VIDEO_CAPTION_LENGTH, image: MAX_PHOTO_CAPTION_LENGTH },
+  },
+  media: { requiresMedia: true, minCount: 1, maxCount: MAX_MEDIA_COUNT },
+  video: { maxSizeBytes: MAX_VIDEO_SIZE },
+  image: { maxSizeBytes: MAX_PHOTO_SIZE },
+};
 
 interface TikTokUploadInitResponse {
   data: {
@@ -32,6 +44,10 @@ interface TikTokInboxUploadInitResponse {
 
 export class TikTokPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return VALIDATION_RULES;
+  }
 
   private client: AxiosInstance;
 
@@ -61,12 +77,12 @@ export class TikTokPublisher extends Publisher {
     });
   }
 
-  private getFileSize(filePath: string): number {
+  private static getFileSize(filePath: string): number {
     const stats = fs.statSync(filePath);
     return stats.size;
   }
 
-  private calculateChunks(fileSize: number): { chunkSize: number; totalChunks: number } {
+  private static calculateChunks(fileSize: number): { chunkSize: number; totalChunks: number } {
     // For files smaller than the chunking threshold, upload as a single chunk
     if (fileSize <= MIN_FILE_SIZE_FOR_CHUNKING) {
       return { chunkSize: fileSize, totalChunks: 1 };
@@ -84,8 +100,8 @@ export class TikTokPublisher extends Publisher {
     content: Content,
     options?: PostOptionsWithCredentials,
   ): Promise<TikTokUploadInitResponse> {
-    const fileSize = this.getFileSize(resolvedPath);
-    const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
+    const fileSize = TikTokPublisher.getFileSize(resolvedPath);
+    const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
 
     try {
       // Use Direct Post API - includes post_info in the init request for immediate publishing
@@ -148,8 +164,8 @@ export class TikTokPublisher extends Publisher {
   }
 
   private async initVideoUploadDraft(resolvedPath: string): Promise<TikTokInboxUploadInitResponse> {
-    const fileSize = this.getFileSize(resolvedPath);
-    const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
+    const fileSize = TikTokPublisher.getFileSize(resolvedPath);
+    const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
 
     try {
       // Use Upload Video API (inbox) - for draft uploads
@@ -182,8 +198,8 @@ export class TikTokPublisher extends Publisher {
     content: Content,
     options?: PostOptionsWithCredentials,
   ): Promise<TikTokUploadInitResponse> {
-    const fileSize = this.getFileSize(resolvedPath);
-    const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
+    const fileSize = TikTokPublisher.getFileSize(resolvedPath);
+    const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
 
     try {
       // Use Direct Post API for photos - includes post_info in the init request for immediate publishing
@@ -230,8 +246,8 @@ export class TikTokPublisher extends Publisher {
   }
 
   private async initPhotoUploadDraft(resolvedPath: string): Promise<TikTokInboxUploadInitResponse> {
-    const fileSize = this.getFileSize(resolvedPath);
-    const { chunkSize, totalChunks } = this.calculateChunks(fileSize);
+    const fileSize = TikTokPublisher.getFileSize(resolvedPath);
+    const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
 
     try {
       // Use Upload Photo API (inbox) - for draft uploads
@@ -259,8 +275,8 @@ export class TikTokPublisher extends Publisher {
   }
 
   private async uploadFileChunks(uploadUrl: string, filePath: string): Promise<void> {
-    const fileSize = this.getFileSize(filePath);
-    const { chunkSize } = this.calculateChunks(fileSize);
+    const fileSize = TikTokPublisher.getFileSize(filePath);
+    const { chunkSize } = TikTokPublisher.calculateChunks(fileSize);
     const fileStream = fs.createReadStream(filePath);
     const chunks: Buffer[] = [];
 
@@ -348,62 +364,89 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private validate(content: Content): void {
-    if (!content.media || content.media.length === 0) {
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        "TikTok posts require at least one media item (image or video).",
-      );
+  static validate(content: Content): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    const text = content.text ?? "";
+    const media = content.media ?? [];
+    const mediaCount = media.length;
+
+    // Check for required media
+    if (mediaCount === 0) {
+      errors.push({
+        platform: "tiktok",
+        severity: "error",
+        code: "media_required",
+        message: "TikTok posts require at least one media item.",
+        field: "media",
+      });
     }
 
-    // TikTok only supports single media per post
-    if (content.media.length > 1) {
-      // For slideshows, we'll only use the first image
-      this.strictCheck(
-        content.media.length > 1 && content.media.every((m) => m.type === "image"),
-        "TikTok only supports single media per post. For slideshows, only the first image will be used.",
-      );
-    }
-
-    const media = content.media[0];
-
-    // Validate media has a valid source (path or url)
-    if (!hasValidSource(media)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-    }
-
-    // If path is provided, validate the file exists and size
-    if (media.path) {
-      if (!fs.existsSync(media.path)) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-      }
-
-      // Validate file size
-      const fileSize = this.getFileSize(media.path);
-      if (media.type === "video") {
-        this.strictCheck(
-          fileSize > MAX_VIDEO_SIZE,
-          `Video file size cannot exceed ${MAX_VIDEO_SIZE / (1024 * 1024 * 1024)}GB.`,
-        );
-      } else {
-        this.strictCheck(
-          fileSize > MAX_PHOTO_SIZE,
-          `Photo file size cannot exceed ${MAX_PHOTO_SIZE / (1024 * 1024)}MB.`,
-        );
+    // Check media sources
+    for (const item of media) {
+      if (!hasValidSource(item)) {
+        errors.push({
+          platform: "tiktok",
+          severity: "error",
+          code: "media_source_missing",
+          message: "Media must have either a path or url.",
+          field: "media",
+        });
+        break;
       }
     }
-    // Note: File size validation for URLs happens after download in postContent()
 
-    // Caption length validation
-    this.strictCheck(
-      Boolean(content.text && content.text.length > MAX_CAPTION_LENGTH),
-      `TikTok caption cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
-    );
+    // Warn about excess media
+    if (mediaCount > MAX_MEDIA_COUNT) {
+      warnings.push({
+        platform: "tiktok",
+        severity: "warning",
+        code: "too_many_media",
+        message: "TikTok posts support only one media item in this SDK. Only the first media will be posted.",
+        field: "media",
+        limit: MAX_MEDIA_COUNT,
+        actual: mediaCount,
+      });
+    }
+
+    // Check caption length based on media type
+    const primaryMedia = media[0];
+    if (primaryMedia?.type === "video" && text.length > MAX_VIDEO_CAPTION_LENGTH) {
+      errors.push({
+        platform: "tiktok",
+        severity: "error",
+        code: "caption_too_long",
+        message: `TikTok video captions cannot exceed ${MAX_VIDEO_CAPTION_LENGTH} characters.`,
+        field: "text",
+        limit: MAX_VIDEO_CAPTION_LENGTH,
+        actual: text.length,
+      });
+    }
+
+    if (primaryMedia?.type === "image" && text.length > MAX_PHOTO_CAPTION_LENGTH) {
+      errors.push({
+        platform: "tiktok",
+        severity: "error",
+        code: "caption_too_long",
+        message: `TikTok photo captions cannot exceed ${MAX_PHOTO_CAPTION_LENGTH} characters.`,
+        field: "text",
+        limit: MAX_PHOTO_CAPTION_LENGTH,
+        actual: text.length,
+      });
+    }
+
+    return { errors, warnings, isValid: errors.length === 0 };
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
-    this.validate(content);
+    const validation = TikTokPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
 
     const tempFileManager = new TempFileManager();
 
@@ -417,7 +460,7 @@ export class TikTokPublisher extends Publisher {
 
       // Validate file size after download (for URLs)
       if (isTemp) {
-        const fileSize = this.getFileSize(resolvedPath);
+        const fileSize = TikTokPublisher.getFileSize(resolvedPath);
         if (media.type === "video" && fileSize > MAX_VIDEO_SIZE) {
           throw new PostError(
             PostErrorType.INVALID_CONTENT,

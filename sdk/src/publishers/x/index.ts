@@ -10,15 +10,22 @@ import { Publisher } from "../base";
 import type { PostResult } from "../../types";
 import type {
   Content,
-  Media,
   PostOptionsWithCredentials,
   XAppCredentials,
   XCredentials,
   XUserCredentials,
 } from "../../types/post";
+import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { TwitterApiv1 } from "twitter-api-v2";
 
+const MAX_TEXT_LENGTH = 280;
 const MAX_MEDIA_COUNT = 4;
+const MAX_VIDEOS = 1;
+
+const VALIDATION_RULES: PlatformValidationRules = {
+  text: { maxLength: MAX_TEXT_LENGTH },
+  media: { maxCount: MAX_MEDIA_COUNT, maxImages: MAX_MEDIA_COUNT, maxVideos: MAX_VIDEOS, allowsMixed: false },
+};
 
 interface RefreshTokenResponse {
   access_token: string;
@@ -28,6 +35,10 @@ interface RefreshTokenResponse {
 
 export class XPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return VALIDATION_RULES;
+  }
 
   private client: TwitterApi;
   private clientV1: TwitterApiv1;
@@ -156,34 +167,109 @@ export class XPublisher extends Publisher {
     }
   }
 
-  private validate(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
-    if (!content.text && (!content.media || content.media.length === 0))
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported");
+  static validate(content: Content): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    const text = content.text ?? "";
+    const media = content.media ?? [];
+    const mediaCount = media.length;
 
-    this.strictCheck(
-      content.media && content.media.length > MAX_MEDIA_COUNT,
-      `X supports up to ${MAX_MEDIA_COUNT} media files, only the first ${MAX_MEDIA_COUNT} will be uploaded`,
-    );
+    let images = 0;
+    let videos = 0;
+    for (const item of media) {
+      if (item.type === "image") images += 1;
+      if (item.type === "video") videos += 1;
+    }
 
-    // Validate each media has a valid source (path or url)
-    if (content.media) {
-      for (const media of content.media) {
-        if (!hasValidSource(media)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-        }
-        // If path is provided, check it exists
-        if (media.path && !fs.existsSync(media.path)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-        }
+    // Check for empty content
+    if (!text.trim() && mediaCount === 0) {
+      errors.push({
+        platform: "x",
+        severity: "error",
+        code: "content_required",
+        message: "X posts require text or media.",
+        field: "text",
+      });
+    }
+
+    // Check text length
+    if (text.length > MAX_TEXT_LENGTH) {
+      errors.push({
+        platform: "x",
+        severity: "error",
+        code: "text_too_long",
+        message: `X text cannot exceed ${MAX_TEXT_LENGTH} characters.`,
+        field: "text",
+        limit: MAX_TEXT_LENGTH,
+        actual: text.length,
+      });
+    }
+
+    // Check media sources
+    for (const item of media) {
+      if (!hasValidSource(item)) {
+        errors.push({
+          platform: "x",
+          severity: "error",
+          code: "media_source_missing",
+          message: "Media must have either a path or url.",
+          field: "media",
+        });
+        break;
       }
     }
+
+    // Check for mixed media (images + videos)
+    if (videos > 0 && images > 0) {
+      errors.push({
+        platform: "x",
+        severity: "error",
+        code: "mixed_media_not_supported",
+        message: "X posts cannot mix images and videos.",
+        field: "media",
+      });
+    }
+
+    // Check video count
+    if (videos > MAX_VIDEOS) {
+      errors.push({
+        platform: "x",
+        severity: "error",
+        code: "too_many_videos",
+        message: "X supports only one video per post.",
+        field: "media",
+        limit: MAX_VIDEOS,
+        actual: videos,
+      });
+    }
+
+    // Warn about excess images
+    if (images > MAX_MEDIA_COUNT) {
+      warnings.push({
+        platform: "x",
+        severity: "warning",
+        code: "too_many_images",
+        message: `X supports up to ${MAX_MEDIA_COUNT} images. Only the first ${MAX_MEDIA_COUNT} will be posted.`,
+        field: "media",
+        limit: MAX_MEDIA_COUNT,
+        actual: images,
+      });
+    }
+
+    return { errors, warnings, isValid: errors.length === 0 };
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const replyToId = options?.x?.replyToId;
 
     // Validate the content
-    this.validate(content);
+    const validation = XPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "X content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
 
     // Ensure we have a valid token before posting
     await this.ensureValidToken();

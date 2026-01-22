@@ -230,9 +230,8 @@ describe("XPublisher", () => {
     it("should throw error for empty content", async () => {
       const content: Content = {};
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported"),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("X content validation failed");
     });
 
     it("should handle API errors during posting", async () => {
@@ -464,6 +463,55 @@ describe("XPublisher", () => {
     });
   });
 
+  describe("validate", () => {
+    beforeEach(() => {
+      publisher = new XPublisher({
+        x: {
+          credentials: {
+            apiKey: "test_api_key",
+            apiSecret: "test_api_secret",
+            accessToken: "test_access_token",
+            accessSecret: "test_access_secret",
+          },
+        },
+      });
+    });
+
+    it("should warn when too many images are provided", () => {
+      const content: Content = {
+        text: "Too many images",
+        media: [
+          { type: "image", path: "/path/1.jpg" },
+          { type: "image", path: "/path/2.jpg" },
+          { type: "image", path: "/path/3.jpg" },
+          { type: "image", path: "/path/4.jpg" },
+          { type: "image", path: "/path/5.jpg" },
+        ],
+      };
+
+      const result = XPublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_images");
+    });
+
+    it("should error when mixing images and videos", () => {
+      const content: Content = {
+        text: "Mixed media",
+        media: [
+          { type: "image", path: "/path/1.jpg" },
+          { type: "video", path: "/path/1.mp4" },
+        ],
+      };
+
+      const result = XPublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("mixed_media_not_supported");
+    });
+  });
+
   describe("post", () => {
     beforeEach(() => {
       publisher = new XPublisher({
@@ -499,8 +547,8 @@ describe("XPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "Empty posts are not supported",
-        details: undefined,
+        message: "X content validation failed",
+        details: expect.anything(),
       });
     });
 

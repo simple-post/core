@@ -8,10 +8,28 @@ import { Publisher, type MediaRequirement } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, PostOptionsWithCredentials, Video } from "../../types/post";
+import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { youtube_v3, Auth } from "googleapis";
+
+const MAX_TITLE_LENGTH = 100;
+const MAX_DESCRIPTION_LENGTH = 5000;
+
+const VALIDATION_RULES: PlatformValidationRules = {
+  text: { maxCaptionLength: MAX_DESCRIPTION_LENGTH },
+  media: { requiresMedia: true, minCount: 1, maxVideos: 1, allowsMixed: false },
+  video: {
+    requiresVideo: true,
+    maxTitleLength: MAX_TITLE_LENGTH,
+    maxDescriptionLength: MAX_DESCRIPTION_LENGTH,
+  },
+};
 
 export class YouTubePublisher extends Publisher {
   static readonly mediaRequirement: MediaRequirement = "path";
+
+  static getValidationRules(): PlatformValidationRules {
+    return VALIDATION_RULES;
+  }
 
   private youtube: youtube_v3.Youtube;
 
@@ -54,27 +72,117 @@ export class YouTubePublisher extends Publisher {
     this.youtube = google.youtube({ version: "v3", auth: authClient });
   }
 
-  private validate(video?: Video): asserts video is Video {
-    // Check the video
-    if (!video) throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
+  private static getVideoMetadata(content: Content, video: Video): { title: string; description?: string } {
+    const fallbackTitle = content.text?.trim() || "Untitled Video";
+    const title = video.title?.trim() || fallbackTitle;
+    const description = video.description?.trim() || content.text?.trim() || undefined;
+    return { title, description };
+  }
 
-    // Check if the video has a valid source (path or url)
-    if (!hasValidSource(video)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Video must have either a path or url");
+  static validate(content: Content): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    const media = content.media ?? [];
+
+    let videos = 0;
+    let images = 0;
+    for (const item of media) {
+      if (item.type === "video") videos += 1;
+      if (item.type === "image") images += 1;
     }
 
-    // If path is provided, check if the video file exists
-    if (video.path && !fs.existsSync(video.path)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, `Video file not found at path: ${video.path}`);
+    // Check for required video
+    if (media.length === 0 || videos === 0) {
+      errors.push({
+        platform: "youtube",
+        severity: "error",
+        code: "video_required",
+        message: "YouTube posts require a video.",
+        field: "video",
+      });
     }
 
-    // Check the thumbnail if path is provided
-    if (video.thumbnailPath && !fs.existsSync(video.thumbnailPath)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, `Thumbnail file not found at path: ${video.thumbnailPath}`);
+    // Check media sources
+    for (const item of media) {
+      if (!hasValidSource(item)) {
+        errors.push({
+          platform: "youtube",
+          severity: "error",
+          code: "media_source_missing",
+          message: "Media must have either a path or url.",
+          field: "media",
+        });
+        break;
+      }
     }
 
-    // Check the title
-    if (!video.title) throw new PostError(PostErrorType.INVALID_CONTENT, "A title is required for a YouTube post.");
+    // Warn about extra videos
+    if (videos > 1) {
+      warnings.push({
+        platform: "youtube",
+        severity: "warning",
+        code: "too_many_videos",
+        message: "YouTube supports only one video per post. Only the first video will be uploaded.",
+        field: "media",
+        limit: 1,
+        actual: videos,
+      });
+    }
+
+    // Warn about images (they will be ignored)
+    if (images > 0) {
+      warnings.push({
+        platform: "youtube",
+        severity: "warning",
+        code: "images_ignored",
+        message: "YouTube posts ignore images. Only the first video will be uploaded.",
+        field: "media",
+      });
+    }
+
+    const video = media.find((item) => item.type === "video") as Video | undefined;
+
+    if (video) {
+      // Check title length
+      const metadata = YouTubePublisher.getVideoMetadata(content, video);
+      if (video.title && video.title.length > MAX_TITLE_LENGTH) {
+        errors.push({
+          platform: "youtube",
+          severity: "error",
+          code: "title_too_long",
+          message: `YouTube titles cannot exceed ${MAX_TITLE_LENGTH} characters.`,
+          field: "title",
+          limit: MAX_TITLE_LENGTH,
+          actual: video.title.length,
+        });
+      } else if (!video.title && metadata.title.length > MAX_TITLE_LENGTH) {
+        // Warn that derived title will be truncated
+        warnings.push({
+          platform: "youtube",
+          severity: "warning",
+          code: "title_truncated",
+          message: `YouTube titles cannot exceed ${MAX_TITLE_LENGTH} characters. The title will be truncated.`,
+          field: "title",
+          limit: MAX_TITLE_LENGTH,
+          actual: metadata.title.length,
+        });
+      }
+
+      // Check description length
+      if (metadata.description && metadata.description.length > MAX_DESCRIPTION_LENGTH) {
+        errors.push({
+          platform: "youtube",
+          severity: "error",
+          code: "description_too_long",
+          message: `YouTube descriptions cannot exceed ${MAX_DESCRIPTION_LENGTH} characters.`,
+          field: "description",
+          limit: MAX_DESCRIPTION_LENGTH,
+          actual: metadata.description.length,
+        });
+      }
+    }
+
+    return { errors, warnings, isValid: errors.length === 0 };
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -86,10 +194,26 @@ export class YouTubePublisher extends Publisher {
 
     // Validate the video
     this.logger.info(`[YouTubePublisher] Validating video and metadata`);
-    this.validate(video);
+    const validation = YouTubePublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "YouTube content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
     this.logger.info(`[YouTubePublisher] Video validation passed`);
+    if (!video) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
+    }
+    const metadata = YouTubePublisher.getVideoMetadata(content, video);
+    const safeTitle =
+      metadata.title.length > MAX_TITLE_LENGTH ? metadata.title.slice(0, MAX_TITLE_LENGTH) : metadata.title;
+    const safeDescription =
+      metadata.description && metadata.description.length > MAX_DESCRIPTION_LENGTH
+        ? metadata.description.slice(0, MAX_DESCRIPTION_LENGTH)
+        : metadata.description;
     this.logger.info(
-      `[YouTubePublisher] Video details: title="${video.title}", path="${video.path}", hasThumbnail=${!!video.thumbnailPath}`,
+      `[YouTubePublisher] Video details: title="${safeTitle}", path="${video.path}", hasThumbnail=${!!video.thumbnailPath}`,
     );
 
     const tempFileManager = new TempFileManager();
@@ -108,7 +232,7 @@ export class YouTubePublisher extends Publisher {
 
       this.logger.info(`[YouTubePublisher] Preparing video upload request`);
       this.logger.info(
-        `[YouTubePublisher] Upload parameters: title="${video.title}", description="${video.description ? `${video.description.slice(0, 50)}...` : "None"}", tags=${options?.youtube?.tags?.length || 0}, categoryId=${options?.youtube?.categoryId || "Not set"}, privacyStatus=${privacyStatus || "Not set"}, publishAt=${publishAt || "Not set"}, selfDeclaredMadeForKids=${options?.youtube?.selfDeclaredMadeForKids ?? false}`,
+        `[YouTubePublisher] Upload parameters: title="${safeTitle}", description="${safeDescription ? `${safeDescription.slice(0, 50)}...` : "None"}", tags=${options?.youtube?.tags?.length || 0}, categoryId=${options?.youtube?.categoryId || "Not set"}, privacyStatus=${privacyStatus || "Not set"}, publishAt=${publishAt || "Not set"}, selfDeclaredMadeForKids=${options?.youtube?.selfDeclaredMadeForKids ?? false}`,
       );
 
       this.logger.info(`[YouTubePublisher] Starting video file upload from: ${resolvedVideoPath}`);
@@ -124,8 +248,8 @@ export class YouTubePublisher extends Publisher {
           part: ["snippet", "status"],
           requestBody: {
             snippet: {
-              title: video.title,
-              description: video.description,
+              title: safeTitle,
+              description: safeDescription,
               tags: options?.youtube?.tags,
               categoryId: options?.youtube?.categoryId,
             },

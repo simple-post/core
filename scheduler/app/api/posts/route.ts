@@ -5,6 +5,7 @@ import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
 
@@ -72,9 +73,9 @@ export async function POST(req: NextRequest) {
 
     log.debug({ postingMode, messageLength: message?.length || 0 }, "Request body parsed");
 
-    if (!message || !accountIds) {
-      log.warn("Validation failed: Message or accountIds missing");
-      throw new BadRequestError("Message and accountIds are required");
+    if (!accountIds) {
+      log.warn("Validation failed: accountIds missing");
+      throw new BadRequestError("accountIds are required");
     }
 
     log.debug({ accountCount: accountIds.length, accountIds }, "Parsed account IDs");
@@ -116,6 +117,27 @@ export async function POST(req: NextRequest) {
     mediaFiles.forEach((mf: MediaFile, idx: number) => {
       log.debug({ index: idx + 1, type: mf.type, filename: mf.filename, size: mf.size }, "Media file");
     });
+
+    const validation = await validatePostForAccounts({
+      userId,
+      message: validated.message,
+      media: mediaFiles,
+      accountIds: validated.accountIds,
+    });
+
+    if (validation.accounts.length !== validated.accountIds.length) {
+      throw new BadRequestError("One or more accounts were not found");
+    }
+
+    if (!validation.summary.isValid) {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: validation,
+        },
+        { status: 400 },
+      );
+    }
 
     // Create the post first
     log.debug("Creating post record in database");

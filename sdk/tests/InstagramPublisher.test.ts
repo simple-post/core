@@ -211,12 +211,8 @@ describe("InstagramPublisher", () => {
         text: "Text only post",
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video).",
-        ),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("Instagram content validation failed");
     });
 
     it("should handle API errors during media creation", async () => {
@@ -299,6 +295,49 @@ describe("InstagramPublisher", () => {
     });
   });
 
+  describe("validate", () => {
+    const options: PostOptionsWithCredentials = {
+      instagram: {
+        credentials: {
+          accessToken: "test_access_token",
+          businessAccountId: "test_business_account_id",
+        },
+      },
+    };
+
+    beforeEach(() => {
+      publisher = new InstagramPublisher(options);
+    });
+
+    it("should warn when too many media items are provided", () => {
+      const content: Content = {
+        text: "Too many items",
+        media: Array.from({ length: 12 }, (_, index) => ({
+          type: "image" as const,
+          path: `/path/${index}.jpg`,
+        })),
+      };
+
+      const result = InstagramPublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_media");
+    });
+
+    it("should error when caption is too long", () => {
+      const content: Content = {
+        text: "a".repeat(2500),
+        media: [{ type: "image", path: "/path/1.jpg" }],
+      };
+
+      const result = InstagramPublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("caption_too_long");
+    });
+  });
+
   describe("post", () => {
     const options: PostOptionsWithCredentials = {
       instagram: {
@@ -343,8 +382,8 @@ describe("InstagramPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "Instagram posts require at least one media item (image or video).",
-        details: undefined,
+        message: "Instagram content validation failed",
+        details: expect.anything(),
       });
     });
   });

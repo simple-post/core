@@ -180,9 +180,8 @@ describe("TelegramPublisher", () => {
     it("should throw error if content is empty", async () => {
       const content: Content = {};
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram"),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("Telegram content validation failed");
     });
 
     it("should throw error if media file does not exist", async () => {
@@ -192,9 +191,8 @@ describe("TelegramPublisher", () => {
 
       mockedFs.existsSync.mockReturnValue(false);
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "Media file not found at path: /path/to/nonexistent.jpg"),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("Media file not found");
     });
 
     it("should handle API errors gracefully", async () => {
@@ -270,6 +268,49 @@ describe("TelegramPublisher", () => {
     });
   });
 
+  describe("validate", () => {
+    const options: PostOptionsWithCredentials = {
+      telegram: {
+        chatId: "@test_channel",
+        credentials: {
+          botToken: "test_bot_token",
+        },
+      },
+    };
+
+    beforeEach(() => {
+      publisher = new TelegramPublisher(options);
+    });
+
+    it("should warn when multiple media items are provided", () => {
+      const content: Content = {
+        text: "Multiple media",
+        media: [
+          { type: "image", path: "/path/1.jpg" },
+          { type: "image", path: "/path/2.jpg" },
+        ],
+      };
+
+      const result = TelegramPublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_media");
+    });
+
+    it("should error when caption is too long", () => {
+      const content: Content = {
+        text: "a".repeat(1100),
+        media: [{ type: "image", path: "/path/1.jpg" }],
+      };
+
+      const result = TelegramPublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("caption_too_long");
+    });
+  });
+
   describe("post", () => {
     const options: PostOptionsWithCredentials = {
       telegram: {
@@ -325,8 +366,8 @@ describe("TelegramPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "Empty posts are not supported by Telegram",
-        details: undefined,
+        message: "Telegram content validation failed",
+        details: expect.anything(),
       });
     });
   });

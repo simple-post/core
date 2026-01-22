@@ -78,6 +78,14 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
   return results;
 }
 
+// Export publisher classes - use static methods for validation
+export { XPublisher } from "./publishers/x";
+export { FacebookPublisher } from "./publishers/facebook";
+export { InstagramPublisher } from "./publishers/instagram";
+export { TelegramPublisher } from "./publishers/telegram";
+export { TikTokPublisher } from "./publishers/tiktok";
+export { YouTubePublisher } from "./publishers/youtube";
+
 // Export all types for TypeScript and JavaScript users
 export type {
   Platform,
@@ -99,6 +107,7 @@ export type {
 
 export type { PostResult } from "./types";
 export { PostError, PostErrorType } from "./types";
+export type { PlatformValidationRules, ValidationIssue, ValidationResult } from "./types/validation";
 
 // Export schemas for runtime validation
 export {

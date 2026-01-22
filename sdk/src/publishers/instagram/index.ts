@@ -1,5 +1,3 @@
-import fs from "node:fs";
-
 import axios from "axios";
 
 import { PostError, PostErrorType } from "../../types";
@@ -9,15 +7,25 @@ import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 const FACEBOOK_API_VERSION = "v23.0";
-const MAX_MEDIA_COUNT = 10;
 const MAX_CAPTION_LENGTH = 2200;
+const MAX_MEDIA_COUNT = 10;
 const PROCESSING_POLL_INTERVAL = 3000;
+
+const VALIDATION_RULES: PlatformValidationRules = {
+  text: { maxCaptionLength: MAX_CAPTION_LENGTH },
+  media: { requiresMedia: true, minCount: 1, maxCount: MAX_MEDIA_COUNT, allowsMixed: true },
+};
 
 export class InstagramPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return VALIDATION_RULES;
+  }
 
   private client: AxiosInstance;
   private businessAccountId: string;
@@ -140,44 +148,84 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
-  private validate(content: Content): void {
-    if (!content.media || content.media.length === 0)
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        "Instagram posts require at least one media item (image or video).",
-      );
+  static validate(content: Content): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    const text = content.text ?? "";
+    const media = content.media ?? [];
+    const mediaCount = media.length;
 
-    // Validate the number of media files
-    this.strictCheck(
-      content.media.length > MAX_MEDIA_COUNT,
-      `Instagram posts support maximum ${MAX_MEDIA_COUNT} media items.`,
-    );
+    // Check for required media
+    if (mediaCount === 0) {
+      errors.push({
+        platform: "instagram",
+        severity: "error",
+        code: "media_required",
+        message: "Instagram posts require at least one media item.",
+        field: "media",
+      });
+    }
 
-    // Validate each media has a valid source (path or url)
-    for (const media of content.media) {
-      if (!hasValidSource(media)) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-      }
-      // If path is provided, check it exists
-      if (media.path && !fs.existsSync(media.path)) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
+    // Check caption length
+    if (text.length > MAX_CAPTION_LENGTH) {
+      errors.push({
+        platform: "instagram",
+        severity: "error",
+        code: "caption_too_long",
+        message: `Instagram captions cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
+        field: "text",
+        limit: MAX_CAPTION_LENGTH,
+        actual: text.length,
+      });
+    }
+
+    // Check media sources
+    for (const item of media) {
+      if (!hasValidSource(item)) {
+        errors.push({
+          platform: "instagram",
+          severity: "error",
+          code: "media_source_missing",
+          message: "Media must have either a path or url.",
+          field: "media",
+        });
+        break;
       }
     }
 
-    // Caption length validation (Instagram limit is 2200 characters)
-    this.strictCheck(
-      Boolean(content.text && content.text.length > MAX_CAPTION_LENGTH),
-      `Instagram caption cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
-    );
+    // Warn about excess media
+    if (mediaCount > MAX_MEDIA_COUNT) {
+      warnings.push({
+        platform: "instagram",
+        severity: "warning",
+        code: "too_many_media",
+        message: `Instagram supports up to ${MAX_MEDIA_COUNT} media items. Only the first ${MAX_MEDIA_COUNT} will be posted.`,
+        field: "media",
+        limit: MAX_MEDIA_COUNT,
+        actual: mediaCount,
+      });
+    }
+
+    return { errors, warnings, isValid: errors.length === 0 };
   }
 
   async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
-    this.validate(content);
+    const validation = InstagramPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Instagram content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
+    const normalizedContent: Content = {
+      ...content,
+      media: content.media ? content.media.slice(0, MAX_MEDIA_COUNT) : undefined,
+    };
 
     try {
       // Create media container
-      const containerId = await this.createMediaContainer(content);
+      const containerId = await this.createMediaContainer(normalizedContent);
 
       // Wait for the container to be ready
       await this.waitForMediaReady(containerId);

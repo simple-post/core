@@ -142,16 +142,13 @@ export async function validatePostForAccounts(params: {
     const platform = mapPlatformName(account.platform);
     const override = overrides[account.id];
     const usesCommonContent = !override;
-    const content = buildContent(
-      override?.message ?? params.message ?? "",
-      override?.media ?? params.media ?? [],
-    );
+    const content = buildContent(override?.message ?? params.message ?? "", override?.media ?? params.media ?? []);
     const validation: ValidationResult = validateContent(platform, content);
 
     const withAccountMeta = (issue: ValidationResult["errors"][number]) => ({
       ...issue,
       meta: {
-        ...(issue.meta || {}),
+        ...issue.meta,
         accountId: account.id,
       },
     });
@@ -160,8 +157,8 @@ export async function validatePostForAccounts(params: {
       accountId: account.id,
       platform,
       rules: getValidationRules(platform),
-      errors: validation.errors.map(withAccountMeta),
-      warnings: validation.warnings.map(withAccountMeta),
+      errors: validation.errors.map((issue) => withAccountMeta(issue)),
+      warnings: validation.warnings.map((issue) => withAccountMeta(issue)),
       isValid: validation.isValid,
       usesCommonContent,
     };

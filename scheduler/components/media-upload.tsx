@@ -315,11 +315,12 @@ export function MediaUpload({
   const canAddMore = totalFiles < maxFiles && !isUploading;
 
   // Compact add button (shown in grid when there's already media)
+  const cannotAddMore = !canAddMore;
   const compactAddButton = (
     <div
       className={`relative aspect-square border border-dashed rounded transition-colors ${
         dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
-      } ${!canAddMore ? "pointer-events-none opacity-50" : ""}`}
+      } ${cannotAddMore ? "pointer-events-none opacity-50" : ""}`}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
@@ -330,7 +331,7 @@ export function MediaUpload({
         accept={acceptedTypes.join(",")}
         onChange={handleFileInput}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        disabled={!canAddMore}
+        disabled={cannotAddMore}
       />
       <div className="flex flex-col items-center justify-center h-full text-center p-2">
         <Upload className={`h-6 w-6 mb-1 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />

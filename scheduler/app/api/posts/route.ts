@@ -69,8 +69,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     log.debug("Parsing JSON body");
 
-    const { message, accountIds, postingMode, scheduledFor: scheduledForStr, accountOptions, accountOverrides, media } =
-      body;
+    const {
+      message,
+      accountIds,
+      postingMode,
+      scheduledFor: scheduledForStr,
+      accountOptions,
+      accountOverrides,
+      media,
+    } = body;
 
     log.debug({ postingMode, messageLength: message?.length || 0 }, "Request body parsed");
 

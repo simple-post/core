@@ -166,8 +166,8 @@ export class PostsModel {
         scheduledFor: postData.scheduledFor,
         status: postData.status,
         publishedAt: postData.publishedAt,
-        accountOptions: postData.accountOptions || undefined,
-        accountOverrides: postData.accountOverrides || undefined,
+        accountOptions: (postData.accountOptions as object) || undefined,
+        accountOverrides: (postData.accountOverrides as object) || undefined,
         accounts: {
           connect: postData.accountIds.map((id) => ({ id })),
         },
@@ -187,7 +187,7 @@ export class PostsModel {
       },
     });
 
-    return this.mapPostToSocialPost(post);
+    return this.mapPostToSocialPost(post as Parameters<typeof this.mapPostToSocialPost>[0]);
   }
 
   async updatePost(id: string, updates: Partial<SocialPost>): Promise<SocialPost> {
@@ -282,7 +282,7 @@ export class PostsModel {
     createdAt: Date;
     publishedAt: Date | null;
     accountOptions: unknown;
-    accountOverrides: unknown;
+    accountOverrides?: unknown;
     accounts: Array<{ id: string }>;
     media: Array<{
       id: string;

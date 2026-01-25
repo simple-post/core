@@ -117,10 +117,7 @@ export function AccountSelector({
     }
 
     return (
-      <Link
-        href={getAdvancedHref(accountId)}
-        className="shrink-0"
-        onClick={(event) => event.stopPropagation()}>
+      <Link href={getAdvancedHref(accountId)} className="shrink-0" onClick={(event) => event.stopPropagation()}>
         <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
           <Settings className="h-4 w-4" />
         </Button>

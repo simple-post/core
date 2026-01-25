@@ -201,7 +201,8 @@ export function CreatePostForm() {
 
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
-    const accountId = issue.meta && typeof issue.meta === "object" ? (issue.meta as { accountId?: string }).accountId : "";
+    const accountId =
+      issue.meta && typeof issue.meta === "object" ? (issue.meta as { accountId?: string }).accountId : "";
     const account = validation?.accounts.find((acc) => acc.id === accountId);
 
     if (account) {
@@ -469,4 +470,3 @@ export function CreatePostForm() {
     </div>
   );
 }
-

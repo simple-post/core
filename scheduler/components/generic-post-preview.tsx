@@ -16,7 +16,7 @@ export function GenericPostPreview({ message, media }: GenericPostPreviewProps) 
       <h3 className="text-sm font-medium text-muted-foreground">Preview</h3>
       <Card className="p-4 space-y-4 border-border/50">
         <div className="text-sm whitespace-pre-wrap break-words">
-          {message ? message : <span className="text-muted-foreground italic">Your post will appear here...</span>}
+          {message || <span className="text-muted-foreground italic">Your post will appear here...</span>}
         </div>
 
         {media.length > 0 ? (

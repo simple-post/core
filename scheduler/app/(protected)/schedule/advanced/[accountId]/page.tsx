@@ -193,7 +193,10 @@ export default function AdvancedAccountSettingsPage() {
                   <Label className="text-sm font-medium">Media</Label>
                   {overrideEnabled ? (
                     <div className="mt-2">
-                      <MediaUpload media={overrideMedia} onMediaChange={(items) => setAccountOverrideMedia(accountId, items)} />
+                      <MediaUpload
+                        media={overrideMedia}
+                        onMediaChange={(items) => setAccountOverrideMedia(accountId, items)}
+                      />
                     </div>
                   ) : (
                     <div

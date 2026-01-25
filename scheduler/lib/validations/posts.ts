@@ -6,6 +6,7 @@ export const createPostSchema = z.object({
   postingMode: z.enum(["now", "schedule"]).default("schedule"),
   scheduledFor: z.string().datetime().optional(),
   accountOptions: z.record(z.any()).optional(),
+  accountOverrides: z.record(z.any()).optional(),
 });
 
 export const updatePostSchema = z.object({
@@ -13,6 +14,7 @@ export const updatePostSchema = z.object({
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
   scheduledFor: z.string().datetime(),
   accountOptions: z.record(z.any()).optional(),
+  accountOverrides: z.record(z.any()).optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;

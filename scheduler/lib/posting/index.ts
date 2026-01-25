@@ -2,7 +2,7 @@ import { PostErrorType, post as sdkPost, prepareMedia } from "@simple-post/sdk";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import type { ConnectedAccount, MediaFile, AccountOptionsMap } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import { buildPostOptions } from "./credentials";
 
@@ -236,6 +236,21 @@ async function postToAccountWithPreparedMedia(
   }
 }
 
+function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
+  return mediaFiles.map((file) => {
+    return file.type === "image"
+      ? {
+          type: "image",
+          url: file.url,
+        }
+      : {
+          type: "video",
+          url: file.url,
+          thumbnailUrl: file.thumbnailUrl,
+        };
+  });
+}
+
 /**
  * Posts content to multiple accounts
  */
@@ -244,6 +259,7 @@ export async function postToAccounts(
   mediaFiles: MediaFile[],
   accountIds: string[],
   accountOptions?: AccountOptionsMap,
+  accountOverrides?: AccountOverridesMap,
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
   const log = postingLogger.child({ fn: "postToAccounts" });
@@ -279,86 +295,141 @@ export async function postToAccounts(
       );
     });
 
-    // Convert media files to SDK format (simple mapping - SDK will handle resolution)
-    log.debug("Converting media files to SDK format");
-    const media: Media[] = mediaFiles.map((file) => {
-      return file.type === "image"
-        ? {
-            type: "image",
-            url: file.url,
+    const hasOverrides = !!accountOverrides && Object.keys(accountOverrides).length > 0;
+
+    if (!hasOverrides) {
+      // Convert media files to SDK format (simple mapping - SDK will handle resolution)
+      log.debug("Converting media files to SDK format");
+      const media: Media[] = mapMediaFilesToSdk(mediaFiles);
+      log.debug({ mediaItemCount: media.length }, "Media conversion complete");
+
+      // Get all unique platforms for efficient media resolution
+      const uniquePlatforms = [...new Set(accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
+
+      log.debug({ uniquePlatforms }, "Unique platforms identified");
+
+      // Prepare media once for all platforms (downloads/uploads as needed)
+      log.debug("Preparing media for all platforms");
+      const tempPost: Post = {
+        content: {
+          text: message,
+          media: media.length > 0 ? media : undefined,
+        },
+        platforms: uniquePlatforms,
+        options: undefined, // Options are per-account, not needed for media resolution
+      };
+
+      const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
+      log.debug("Media preparation complete");
+
+      try {
+        // Post to all accounts in parallel using prepared media
+        log.debug("Posting to all accounts in parallel");
+        const preparedMedia = preparedPost.content.media || [];
+        const results = await Promise.all(
+          accounts.map((account) => postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions)),
+        );
+
+        const successCount = results.filter((r) => r.success).length;
+        const failureCount = results.filter((r) => !r.success).length;
+        const durationMs = Date.now() - startTime;
+
+        log.info({ successCount, failureCount, durationMs }, "Posting complete");
+
+        // Log detailed results
+        results.forEach((result) => {
+          if (result.success) {
+            log.info(
+              {
+                platform: result.platform,
+                postId: result.postId,
+                postUrl: result.postUrl || null,
+                credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+              },
+              "Platform post succeeded",
+            );
+          } else {
+            log.error(
+              {
+                platform: result.platform,
+                error: result.error,
+                message: result.message,
+                details: result.details,
+              },
+              "Platform post failed",
+            );
           }
-        : {
-            type: "video",
-            url: file.url,
-            thumbnailUrl: file.thumbnailUrl,
-          };
-    });
-    log.debug({ mediaItemCount: media.length }, "Media conversion complete");
+        });
 
-    // Get all unique platforms for efficient media resolution
-    const uniquePlatforms = [...new Set(accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
-
-    log.debug({ uniquePlatforms }, "Unique platforms identified");
-
-    // Prepare media once for all platforms (downloads/uploads as needed)
-    log.debug("Preparing media for all platforms");
-    const tempPost: Post = {
-      content: {
-        text: message,
-        media: media.length > 0 ? media : undefined,
-      },
-      platforms: uniquePlatforms,
-      options: undefined, // Options are per-account, not needed for media resolution
-    };
-
-    const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
-    log.debug("Media preparation complete");
-
-    try {
-      // Post to all accounts in parallel using prepared media
-      log.debug("Posting to all accounts in parallel");
-      const preparedMedia = preparedPost.content.media || [];
-      const results = await Promise.all(
-        accounts.map((account) => postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions)),
-      );
-
-      const successCount = results.filter((r) => r.success).length;
-      const failureCount = results.filter((r) => !r.success).length;
-      const durationMs = Date.now() - startTime;
-
-      log.info({ successCount, failureCount, durationMs }, "Posting complete");
-
-      // Log detailed results
-      results.forEach((result) => {
-        if (result.success) {
-          log.info(
-            {
-              platform: result.platform,
-              postId: result.postId,
-              postUrl: result.postUrl || null,
-              credentialsRefreshed: !!result.extraData?.refreshedCredentials,
-            },
-            "Platform post succeeded",
-          );
-        } else {
-          log.error(
-            {
-              platform: result.platform,
-              error: result.error,
-              message: result.message,
-              details: result.details,
-            },
-            "Platform post failed",
-          );
-        }
-      });
-
-      return results;
-    } finally {
-      // Cleanup temporary files and S3 uploads
-      log.debug("Cleaning up temporary media files");
-      await cleanup();
+        return results;
+      } finally {
+        // Cleanup temporary files and S3 uploads
+        log.debug("Cleaning up temporary media files");
+        await cleanup();
+      }
     }
+
+    log.debug("Posting with account-specific overrides");
+
+    const results = await Promise.all(
+      accounts.map(async (account) => {
+        const override = accountOverrides?.[account.id];
+        const accountMessage = override?.message ?? message;
+        const accountMediaFiles = override?.media ?? mediaFiles;
+        const media = mapMediaFilesToSdk(accountMediaFiles);
+        const platform = mapPlatformName(account.platform);
+
+        const tempPost: Post = {
+          content: {
+            text: accountMessage,
+            media: media.length > 0 ? media : undefined,
+          },
+          platforms: [platform],
+          options: undefined,
+        };
+
+        const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
+
+        try {
+          const preparedMedia = preparedPost.content.media || [];
+          return await postToAccountWithPreparedMedia(accountMessage, preparedMedia, account, accountOptions);
+        } finally {
+          await cleanup();
+        }
+      }),
+    );
+
+    const successCount = results.filter((r) => r.success).length;
+    const failureCount = results.filter((r) => !r.success).length;
+    const durationMs = Date.now() - startTime;
+
+    log.info({ successCount, failureCount, durationMs }, "Posting complete");
+
+    results.forEach((result) => {
+      if (result.success) {
+        log.info(
+          {
+            platform: result.platform,
+            postId: result.postId,
+            postUrl: result.postUrl || null,
+            credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+          },
+          "Platform post succeeded",
+        );
+      } else {
+        log.error(
+          {
+            platform: result.platform,
+            error: result.error,
+            message: result.message,
+            details: result.details,
+          },
+          "Platform post failed",
+        );
+      }
+    });
+
+    return results;
   } catch (error) {
     const durationMs = Date.now() - startTime;
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");

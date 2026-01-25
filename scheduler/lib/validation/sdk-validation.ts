@@ -8,7 +8,7 @@ import {
 } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
-import type { MediaFile, ConnectedAccount } from "@/types";
+import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type { Content, Media, Platform, ValidationResult, PlatformValidationRules } from "@simple-post/sdk";
 
@@ -99,11 +99,13 @@ function validateContent(platform: Platform, content: Content): ValidationResult
 }
 
 export interface PlatformValidationResponse {
+  accountId: string;
   platform: Platform;
   rules: PlatformValidationRules;
   errors: ValidationResult["errors"];
   warnings: ValidationResult["warnings"];
   isValid: boolean;
+  usesCommonContent: boolean;
 }
 
 export interface ValidationSummary {
@@ -124,6 +126,7 @@ export async function validatePostForAccounts(params: {
   message: string;
   media: MediaFile[];
   accountIds: string[];
+  accountOverrides?: AccountOverridesMap;
 }): Promise<ValidationResultByPlatform> {
   const accounts = await prisma.connectedAccount.findMany({
     where: {
@@ -133,16 +136,34 @@ export async function validatePostForAccounts(params: {
   });
 
   const platforms = [...new Set(accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
-  const content = buildContent(params.message ?? "", params.media ?? []);
+  const overrides = params.accountOverrides || {};
 
-  const results: PlatformValidationResponse[] = platforms.map((platform) => {
+  const results: PlatformValidationResponse[] = accounts.map((account) => {
+    const platform = mapPlatformName(account.platform);
+    const override = overrides[account.id];
+    const usesCommonContent = !override;
+    const content = buildContent(
+      override?.message ?? params.message ?? "",
+      override?.media ?? params.media ?? [],
+    );
     const validation: ValidationResult = validateContent(platform, content);
+
+    const withAccountMeta = (issue: ValidationResult["errors"][number]) => ({
+      ...issue,
+      meta: {
+        ...(issue.meta || {}),
+        accountId: account.id,
+      },
+    });
+
     return {
+      accountId: account.id,
       platform,
       rules: getValidationRules(platform),
-      errors: validation.errors,
-      warnings: validation.warnings,
+      errors: validation.errors.map(withAccountMeta),
+      warnings: validation.warnings.map(withAccountMeta),
       isValid: validation.isValid,
+      usesCommonContent,
     };
   });
 

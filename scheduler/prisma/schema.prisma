@@ -126,6 +126,7 @@ model Post {
 
   // Account-specific options stored as JSON
   accountOptions Json?
+  accountOverrides Json?
 
   // Relations
   accounts ConnectedAccount[]

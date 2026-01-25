@@ -25,6 +25,35 @@ interface MediaUploadProps {
   acceptedTypes?: string[];
 }
 
+const EXTENSION_TO_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
+const normalizeContentType = (contentType: string) => {
+  if (contentType === "image/jpg") {
+    return "image/jpeg";
+  }
+  return contentType;
+};
+
+const resolveContentType = (file: File) => {
+  const normalized = normalizeContentType(file.type || "");
+  if (normalized) {
+    return normalized;
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return EXTENSION_TO_TYPE[ext];
+};
+
 async function getPresignedUrl(
   filename: string,
   contentType: string,
@@ -37,7 +66,8 @@ async function getPresignedUrl(
   });
 
   if (!response.ok) {
-    throw new Error("Failed to get presigned URL");
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || data.message || "Failed to get presigned URL");
   }
 
   return response.json();
@@ -75,7 +105,7 @@ async function uploadViaServer(file: File | Blob, filename: string): Promise<{ u
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || "Failed to upload file");
+    throw new Error(data.error || data.message || "Failed to upload file");
   }
 
   return response.json();
@@ -97,11 +127,16 @@ export function MediaUpload({
       return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))}MB.`;
     }
 
+    const resolvedType = resolveContentType(file);
+    if (!resolvedType) {
+      return `${file.name} is not a supported file type.`;
+    }
+
     const isValidType = acceptedTypes.some((type) => {
       if (type.endsWith("/*")) {
-        return file.type.startsWith(type.slice(0, -1));
+        return resolvedType.startsWith(type.slice(0, -1));
       }
-      return file.type === type;
+      return resolvedType === type;
     });
 
     if (!isValidType) {
@@ -113,7 +148,11 @@ export function MediaUpload({
 
   const uploadFile = async (file: File): Promise<MediaFile | null> => {
     const id = crypto.randomUUID();
-    const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+    const resolvedContentType = resolveContentType(file);
+    if (!resolvedContentType) {
+      throw new Error("Unsupported file type");
+    }
+    const mediaType: "image" | "video" = resolvedContentType.startsWith("video/") ? "video" : "image";
 
     // Add to uploading state
     setUploading((prev) => [...prev, { id, filename: file.name, progress: 0, type: mediaType }]);
@@ -122,15 +161,15 @@ export function MediaUpload({
       let publicUrl: string;
       let thumbnailUrl: string | undefined;
 
-      // Try direct R2 upload first, fall back to server-side upload if CORS fails
+      // Try direct R2 upload first, fall back to server-side upload if needed
       try {
         // Step 1: Get presigned URL for main file (10% progress)
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 10 } : u)));
-        const { uploadUrl, publicUrl: presignedPublicUrl } = await getPresignedUrl(file.name, file.type);
+        const { uploadUrl, publicUrl: presignedPublicUrl } = await getPresignedUrl(file.name, resolvedContentType);
 
         // Step 2: Upload main file to R2 (60% progress)
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
-        await uploadToR2(uploadUrl, file, file.type);
+        await uploadToR2(uploadUrl, file, resolvedContentType);
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 60 } : u)));
         publicUrl = presignedPublicUrl;
 
@@ -152,17 +191,13 @@ export function MediaUpload({
           console.warn("Thumbnail generation failed for", file.name);
         }
       } catch (error) {
-        // If CORS error, fall back to server-side upload
-        if (error instanceof Error && error.message === "CORS_ERROR") {
-          console.log("Direct upload failed due to CORS, falling back to server-side upload");
-          setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
-          const result = await uploadViaServer(file, file.name);
-          publicUrl = result.url;
-          thumbnailUrl = result.thumbnailUrl;
-          setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 90 } : u)));
-        } else {
-          throw error;
-        }
+        const reason = error instanceof Error ? error.message : "Unknown error";
+        console.warn(`Direct upload failed (${reason}). Falling back to server upload.`);
+        setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
+        const result = await uploadViaServer(file, file.name);
+        publicUrl = result.url;
+        thumbnailUrl = result.thumbnailUrl;
+        setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 90 } : u)));
       }
 
       setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 100 } : u)));
@@ -277,43 +312,75 @@ export function MediaUpload({
   const isUploading = uploading.length > 0;
   const totalFiles = media.length + uploading.length;
 
+  const canAddMore = totalFiles < maxFiles && !isUploading;
+
+  // Compact add button (shown in grid when there's already media)
+  const compactAddButton = (
+    <div
+      className={`relative aspect-square border border-dashed rounded transition-colors ${
+        dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
+      } ${!canAddMore ? "pointer-events-none opacity-50" : ""}`}
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}>
+      <input
+        type="file"
+        multiple
+        accept={acceptedTypes.join(",")}
+        onChange={handleFileInput}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        disabled={!canAddMore}
+      />
+      <div className="flex flex-col items-center justify-center h-full text-center p-2">
+        <Upload className={`h-6 w-6 mb-1 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
+        <p className="text-xs text-muted-foreground">Add more</p>
+      </div>
+    </div>
+  );
+
+  // Large upload area (shown when no media)
+  const largeUploadArea = (
+    <div
+      className={`relative border border-dashed rounded transition-colors ${
+        dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
+      } ${isUploading ? "pointer-events-none opacity-75" : ""}`}
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}>
+      <input
+        type="file"
+        id="media-upload"
+        multiple
+        accept={acceptedTypes.join(",")}
+        onChange={handleFileInput}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        disabled={totalFiles >= maxFiles || isUploading}
+      />
+      <div className="flex flex-col items-center justify-center p-6 text-center">
+        {isUploading ? (
+          <Loader2 className="h-8 w-8 mb-3 text-muted-foreground animate-spin" />
+        ) : (
+          <Upload className={`h-8 w-8 mb-3 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
+        )}
+        <p className="text-sm mb-1">
+          {isUploading ? "Uploading..." : dragActive ? "Drop files here" : "Click to upload or drag and drop"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Images and videos up to {Math.round(maxFileSize / (1024 * 1024))}MB each
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          {totalFiles}/{maxFiles} files {isUploading ? "(uploading)" : "selected"}
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {/* Upload Area */}
-      <div
-        className={`relative border border-dashed rounded transition-colors ${
-          dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
-        } ${isUploading ? "pointer-events-none opacity-75" : ""}`}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}>
-        <input
-          type="file"
-          id="media-upload"
-          multiple
-          accept={acceptedTypes.join(",")}
-          onChange={handleFileInput}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          disabled={totalFiles >= maxFiles || isUploading}
-        />
-        <div className="flex flex-col items-center justify-center p-6 text-center">
-          {isUploading ? (
-            <Loader2 className="h-8 w-8 mb-3 text-muted-foreground animate-spin" />
-          ) : (
-            <Upload className={`h-8 w-8 mb-3 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
-          )}
-          <p className="text-sm mb-1">
-            {isUploading ? "Uploading..." : dragActive ? "Drop files here" : "Click to upload or drag and drop"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Images and videos up to {Math.round(maxFileSize / (1024 * 1024))}MB each
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {totalFiles}/{maxFiles} files {isUploading ? "(uploading)" : "selected"}
-          </p>
-        </div>
-      </div>
+      {/* Show large upload area only when no media */}
+      {media.length === 0 && largeUploadArea}
 
       {/* Upload Progress */}
       {uploading.length > 0 && (
@@ -351,7 +418,7 @@ export function MediaUpload({
         </div>
       )}
 
-      {/* Media Preview Grid */}
+      {/* Media Preview Grid with compact add button */}
       {media.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {media.map((file) => (
@@ -421,6 +488,9 @@ export function MediaUpload({
               </div>
             </div>
           ))}
+
+          {/* Compact add button at the end of the grid */}
+          {canAddMore && compactAddButton}
         </div>
       )}
     </div>

@@ -13,10 +13,12 @@ export async function POST(req: NextRequest) {
       message = "",
       media = [],
       accountIds = [],
+      accountOverrides = {},
     } = body as {
       message?: string;
       media?: unknown[];
       accountIds?: string[];
+      accountOverrides?: Record<string, unknown>;
     };
 
     if (!Array.isArray(accountIds) || accountIds.length === 0) {
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
       message: typeof message === "string" ? message : "",
       media: Array.isArray(media) ? (media as any[]) : [],
       accountIds,
+      accountOverrides: (accountOverrides || {}) as Record<string, unknown>,
     });
 
     return NextResponse.json(validation);

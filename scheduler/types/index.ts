@@ -26,6 +26,14 @@ export interface AccountPlatformOptions {
 // Map of accountId to account-specific options
 export type AccountOptionsMap = Record<string, AccountPlatformOptions[keyof AccountPlatformOptions]>;
 
+export interface AccountContentOverride {
+  message?: string;
+  media?: MediaFile[];
+}
+
+// Map of accountId to account-specific content overrides
+export type AccountOverridesMap = Record<string, AccountContentOverride>;
+
 export interface SocialPost {
   id: string;
   message: string;
@@ -38,6 +46,7 @@ export interface SocialPost {
   createdAt: Date;
   publishedAt?: Date;
   accountOptions?: AccountOptionsMap; // Changed from platformOptions to accountOptions
+  accountOverrides?: AccountOverridesMap;
 }
 
 // Keep old interface for backward compatibility during migration

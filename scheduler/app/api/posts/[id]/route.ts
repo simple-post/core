@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Parse JSON body
     const body = await req.json();
-    const { message, accountIds, scheduledFor: scheduledForStr, accountOptions, media } = body;
+    const { message, accountIds, scheduledFor: scheduledForStr, accountOptions, accountOverrides, media } = body;
 
     if (!accountIds || !scheduledForStr) {
       throw new BadRequestError("accountIds and scheduledFor are required");
@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       accountIds,
       scheduledFor: scheduledForStr,
       accountOptions,
+      accountOverrides,
     });
 
     // Media is already uploaded to R2, just use the provided array
@@ -45,6 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       message: validated.message,
       media: finalMedia,
       accountIds: validated.accountIds,
+      accountOverrides: validated.accountOverrides,
     });
 
     if (validation.accounts.length !== validated.accountIds.length) {
@@ -67,6 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       accountIds: validated.accountIds,
       scheduledFor: new Date(validated.scheduledFor),
       accountOptions: validated.accountOptions,
+      accountOverrides: validated.accountOverrides,
       media: finalMedia,
     });
 

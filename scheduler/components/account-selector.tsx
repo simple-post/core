@@ -1,6 +1,8 @@
 "use client";
 
-import { Check } from "lucide-react";
+import Link from "next/link";
+
+import { Check, Settings } from "lucide-react";
 
 import { PlatformIcon } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,10 @@ interface AccountSelectorProps {
   title?: string;
   description?: string;
   maxSelections?: number;
+  showAdvancedButton?: boolean;
+  getAdvancedHref?: (accountId: string) => string;
+  layout?: "list" | "grid" | "row";
+  compact?: boolean;
 }
 
 export function AccountSelector({
@@ -22,6 +28,10 @@ export function AccountSelector({
   title = "Select Accounts",
   description = "Choose which accounts to publish your content to",
   maxSelections,
+  showAdvancedButton = false,
+  getAdvancedHref,
+  layout = "list",
+  compact = false,
 }: AccountSelectorProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
 
@@ -101,6 +111,92 @@ export function AccountSelector({
     {},
   );
 
+  const renderAdvancedAction = (accountId: string, isSelected: boolean) => {
+    if (!showAdvancedButton || !getAdvancedHref || !isSelected) {
+      return null;
+    }
+
+    return (
+      <Link
+        href={getAdvancedHref(accountId)}
+        className="shrink-0"
+        onClick={(event) => event.stopPropagation()}>
+        <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+          <Settings className="h-4 w-4" />
+        </Button>
+      </Link>
+    );
+  };
+
+  // Row layout: flat list of all accounts
+  if (layout === "row") {
+    return (
+      <div className="space-y-3">
+        {!compact && (
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium">{title}</h3>
+              {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+            </div>
+            <div className="text-xs text-muted-foreground">{selectedAccountIds.length} selected</div>
+          </div>
+        )}
+
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+          {accounts.map((account: ConnectedAccount) => {
+            const platformConfig = getPlatformById(account.platform);
+            if (!platformConfig) return null;
+
+            const isSelected = selectedAccountIds.includes(account.id);
+            const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
+            const cardClass = `relative shrink-0 w-20 h-20 rounded-lg border transition-colors ${
+              isSelected
+                ? "border-foreground bg-foreground/5"
+                : isDisabled
+                  ? "border-border/50 bg-muted/50 opacity-50"
+                  : "border-border/50 hover:border-border"
+            }`;
+
+            return (
+              <div key={account.id} className={cardClass}>
+                <button
+                  type="button"
+                  onClick={() => handleAccountToggle(account.id)}
+                  disabled={isDisabled}
+                  className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
+                  {isSelected && <Check className="absolute top-1.5 left-1.5 h-3 w-3" />}
+                  <div className="flex h-full flex-col items-center justify-center gap-1">
+                    <div
+                      className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white`}>
+                      <PlatformIcon platform={platformConfig.id} className="text-sm" />
+                    </div>
+                    <div className="text-[10px] font-medium leading-tight line-clamp-2">
+                      {getAccountDisplayName(account)}
+                    </div>
+                  </div>
+                </button>
+                {showAdvancedButton && isSelected && getAdvancedHref ? (
+                  <Link
+                    href={getAdvancedHref(account.id)}
+                    className="absolute top-1 right-1 z-10"
+                    onClick={(event) => event.stopPropagation()}>
+                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5">
+                      <Settings className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        {selectedAccountIds.length === 0 && (
+          <p className="text-xs text-muted-foreground">Select at least one account to publish your content</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -147,44 +243,95 @@ export function AccountSelector({
                   {platformConfig.name}
                 </span>
               </div>
-              <div className="grid gap-2">
-                {platformAccounts.map((account: ConnectedAccount) => {
-                  const isSelected = selectedAccountIds.includes(account.id);
-                  const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
 
-                  return (
-                    <button
-                      key={account.id}
-                      type="button"
-                      onClick={() => handleAccountToggle(account.id)}
-                      disabled={isDisabled}
-                      className={`p-3 rounded border text-left transition-colors text-sm ${
-                        isSelected
-                          ? "border-foreground bg-foreground/5"
-                          : isDisabled
-                            ? "border-border/50 bg-muted/50 opacity-50 cursor-not-allowed"
-                            : "border-border/50 hover:border-border"
-                      }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white flex-shrink-0`}>
-                            <PlatformIcon platform={platformConfig.id} className="text-sm" />
-                          </div>
-                          <div>
-                            <div className="font-medium">{getAccountDisplayName(account)}</div>
-                            {account.email && (
-                              <div className="text-xs text-muted-foreground mt-0.5">{account.email}</div>
-                            )}
-                          </div>
-                        </div>
+              {layout === "grid" ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {platformAccounts.map((account: ConnectedAccount) => {
+                    const isSelected = selectedAccountIds.includes(account.id);
+                    const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
+                    const cardClass = `relative aspect-square rounded-lg border transition-colors ${
+                      isSelected
+                        ? "border-foreground bg-foreground/5"
+                        : isDisabled
+                          ? "border-border/50 bg-muted/50 opacity-50"
+                          : "border-border/50 hover:border-border"
+                    }`;
 
-                        {isSelected && <Check className="h-4 w-4" />}
+                    return (
+                      <div key={account.id} className={cardClass}>
+                        <button
+                          type="button"
+                          onClick={() => handleAccountToggle(account.id)}
+                          disabled={isDisabled}
+                          className="absolute inset-0 w-full h-full p-3 text-center disabled:cursor-not-allowed">
+                          {isSelected && <Check className="absolute top-2 left-2 h-4 w-4" />}
+                          <div className="flex h-full flex-col items-center justify-center gap-2">
+                            <div
+                              className={`flex items-center justify-center w-9 h-9 rounded-lg ${platformConfig.color} text-white`}>
+                              <PlatformIcon platform={platformConfig.id} className="text-sm" />
+                            </div>
+                            <div className="text-xs font-medium leading-tight line-clamp-2">
+                              {getAccountDisplayName(account)}
+                            </div>
+                          </div>
+                        </button>
+                        {showAdvancedButton && isSelected && getAdvancedHref ? (
+                          <Link
+                            href={getAdvancedHref(account.id)}
+                            className="absolute top-2 right-2 z-10"
+                            onClick={(event) => event.stopPropagation()}>
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7">
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        ) : null}
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {platformAccounts.map((account: ConnectedAccount) => {
+                    const isSelected = selectedAccountIds.includes(account.id);
+                    const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
+                    const containerClass = `p-3 rounded border transition-colors text-sm flex items-center gap-3 ${
+                      isSelected
+                        ? "border-foreground bg-foreground/5"
+                        : isDisabled
+                          ? "border-border/50 bg-muted/50 opacity-50"
+                          : "border-border/50 hover:border-border"
+                    }`;
+
+                    return (
+                      <div key={account.id} className={containerClass}>
+                        <button
+                          type="button"
+                          onClick={() => handleAccountToggle(account.id)}
+                          disabled={isDisabled}
+                          className="flex-1 text-left disabled:cursor-not-allowed">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white flex-shrink-0`}>
+                                <PlatformIcon platform={platformConfig.id} className="text-sm" />
+                              </div>
+                              <div>
+                                <div className="font-medium">{getAccountDisplayName(account)}</div>
+                                {account.email && (
+                                  <div className="text-xs text-muted-foreground mt-0.5">{account.email}</div>
+                                )}
+                              </div>
+                            </div>
+
+                            {isSelected && <Check className="h-4 w-4" />}
+                          </div>
+                        </button>
+                        {renderAdvancedAction(account.id, isSelected)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

@@ -12,6 +12,31 @@ const presignRequestSchema = z.object({
   isThumbnail: z.boolean().optional(),
 });
 
+const EXTENSION_TO_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
+const normalizeContentType = (contentType: string, filename: string): string | undefined => {
+  if (contentType === "image/jpg") {
+    return "image/jpeg";
+  }
+
+  if (contentType) {
+    return contentType;
+  }
+
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  return EXTENSION_TO_TYPE[ext];
+};
+
 // POST /api/upload/presign - Get a presigned URL for direct upload to R2
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +45,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const validated = presignRequestSchema.parse(body);
+
+    const resolvedContentType = normalizeContentType(validated.contentType, validated.filename);
+
+    if (!resolvedContentType) {
+      throw new BadRequestError("Invalid content type");
+    }
 
     // Validate content type
     const allowedTypes = [
@@ -32,8 +63,8 @@ export async function POST(req: NextRequest) {
       "video/webm",
     ];
 
-    if (!allowedTypes.includes(validated.contentType)) {
-      throw new BadRequestError(`Invalid content type: ${validated.contentType}`);
+    if (!allowedTypes.includes(resolvedContentType)) {
+      throw new BadRequestError(`Invalid content type: ${resolvedContentType}`);
     }
 
     // Generate a unique key for the file
@@ -41,7 +72,7 @@ export async function POST(req: NextRequest) {
     const key = generateFileKey(userId, filename);
 
     // Get presigned URL (valid for 1 hour)
-    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, validated.contentType, 3600);
+    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, resolvedContentType, 3600);
 
     return NextResponse.json({
       uploadUrl,

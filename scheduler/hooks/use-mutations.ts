@@ -90,6 +90,7 @@ interface PostMutationParams {
     postingMode: "now" | "schedule";
     scheduledFor?: string;
     accountOptions?: Record<string, unknown>;
+    accountOverrides?: Record<string, unknown>;
     media: Array<{
       id: string;
       url: string;

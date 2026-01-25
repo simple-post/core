@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     log.debug("Parsing JSON body");
 
-    const { message, accountIds, postingMode, scheduledFor: scheduledForStr, accountOptions, media } = body;
+    const { message, accountIds, postingMode, scheduledFor: scheduledForStr, accountOptions, accountOverrides, media } =
+      body;
 
     log.debug({ postingMode, messageLength: message?.length || 0 }, "Request body parsed");
 
@@ -83,6 +84,9 @@ export async function POST(req: NextRequest) {
     if (accountOptions) {
       log.debug({ accountOptionsCount: Object.keys(accountOptions).length }, "Account options provided");
     }
+    if (accountOverrides) {
+      log.debug({ accountOverridesCount: Object.keys(accountOverrides).length }, "Account overrides provided");
+    }
 
     // Validate with schema
     const validationData = {
@@ -91,6 +95,7 @@ export async function POST(req: NextRequest) {
       postingMode: postingMode as "now" | "schedule",
       scheduledFor: scheduledForStr || undefined,
       accountOptions,
+      accountOverrides,
     };
 
     log.debug("Validating data with schema");
@@ -123,6 +128,7 @@ export async function POST(req: NextRequest) {
       message: validated.message,
       media: mediaFiles,
       accountIds: validated.accountIds,
+      accountOverrides: validated.accountOverrides,
     });
 
     if (validation.accounts.length !== validated.accountIds.length) {
@@ -149,6 +155,7 @@ export async function POST(req: NextRequest) {
         scheduledFor,
         status: validated.postingMode === "now" ? "published" : "scheduled",
         accountOptions: validated.accountOptions,
+        accountOverrides: validated.accountOverrides,
       },
       userId,
     );
@@ -163,6 +170,7 @@ export async function POST(req: NextRequest) {
           mediaFiles,
           validated.accountIds,
           validated.accountOptions,
+          validated.accountOverrides,
         );
         const summary = getPostingSummary(results);
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { type SocialPost, type AccountOptionsMap } from "@/types";
+import { type AccountOptionsMap, type AccountOverridesMap, type SocialPost } from "@/types";
 
 export interface PaginationOptions {
   page?: number;
@@ -167,6 +167,7 @@ export class PostsModel {
         status: postData.status,
         publishedAt: postData.publishedAt,
         accountOptions: postData.accountOptions || undefined,
+        accountOverrides: postData.accountOverrides || undefined,
         accounts: {
           connect: postData.accountIds.map((id) => ({ id })),
         },
@@ -198,6 +199,7 @@ export class PostsModel {
       errorDetails?: unknown | null;
       publishedAt?: Date | null;
       accountOptions?: unknown | null;
+      accountOverrides?: unknown | null;
       accounts?: { set: Array<{ id: string }> };
       media?: { deleteMany: Record<string, never>; create: Array<Record<string, unknown>> };
     } = {};
@@ -209,6 +211,7 @@ export class PostsModel {
     if (updates.errorDetails !== undefined) updateData.errorDetails = updates.errorDetails || null;
     if (updates.publishedAt !== undefined) updateData.publishedAt = updates.publishedAt;
     if (updates.accountOptions !== undefined) updateData.accountOptions = updates.accountOptions || null;
+    if (updates.accountOverrides !== undefined) updateData.accountOverrides = updates.accountOverrides || null;
 
     // Handle account updates
     if (updates.accountIds !== undefined) {
@@ -279,6 +282,7 @@ export class PostsModel {
     createdAt: Date;
     publishedAt: Date | null;
     accountOptions: unknown;
+    accountOverrides: unknown;
     accounts: Array<{ id: string }>;
     media: Array<{
       id: string;
@@ -308,6 +312,7 @@ export class PostsModel {
       createdAt: new Date(post.createdAt),
       publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
       accountOptions: (post.accountOptions as AccountOptionsMap | null) || undefined,
+      accountOverrides: (post.accountOverrides as AccountOverridesMap | null) || undefined,
     };
   }
 }

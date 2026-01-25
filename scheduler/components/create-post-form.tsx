@@ -15,67 +15,57 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
-import { getPlatformById } from "@/lib/config";
-import type { MediaFile, AccountOptionsMap, SocialPost } from "@/types";
+import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount } from "@/types";
 
-import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
-import { CreatePostForm } from "./create-post-form";
+import { GenericPostPreview } from "./generic-post-preview";
 import { MediaUpload } from "./media-upload";
+import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
-import { PostPreview } from "./post-preview";
 
 import type { PlatformValidationRules, ValidationIssue } from "@simple-post/sdk";
-
-interface PostFormProps {
-  mode: "create" | "edit";
-  existingPost?: SocialPost;
-}
 
 interface ValidationResponse {
   platforms: string[];
   results: Array<{
+    accountId: string;
     platform: string;
     rules: PlatformValidationRules;
     errors: ValidationIssue[];
     warnings: ValidationIssue[];
     isValid: boolean;
+    usesCommonContent: boolean;
   }>;
   summary: {
     errors: ValidationIssue[];
     warnings: ValidationIssue[];
     isValid: boolean;
   };
+  accounts: ConnectedAccount[];
 }
 
-export function PostForm({ mode, existingPost }: PostFormProps) {
-  if (mode === "create") {
-    return <CreatePostForm />;
-  }
-
-  if (!existingPost) {
-    return null;
-  }
-
-  return <EditPostForm existingPost={existingPost} />;
-}
-
-function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
-  const mode = "edit";
+export function CreatePostForm() {
   const router = useRouter();
-  const [message, setMessage] = useState(existingPost.message || "");
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(existingPost.accountIds || []);
-  const [postingMode, setPostingMode] = useState<"now" | "schedule">(
-    existingPost.status === "scheduled" ? "schedule" : "now",
-  );
-  const [scheduledDate, setScheduledDate] = useState(
-    existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
-  );
-  const [scheduledTime, setScheduledTime] = useState(
-    existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
-  );
-  const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
-  const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
+  const submitPostMutation = useSubmitPost();
+
+  const {
+    message,
+    media,
+    selectedAccountIds,
+    postingMode,
+    scheduledDate,
+    scheduledTime,
+    accountOptions,
+    accountOverrides,
+    setMessage,
+    setMedia,
+    setSelectedAccountIds,
+    setPostingMode,
+    setScheduledDate,
+    setScheduledTime,
+  } = usePostDraft();
+
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -91,7 +81,22 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const submitPostMutation = useSubmitPost();
+  const enabledOverrides = useMemo<AccountOverridesMap>(() => {
+    if (selectedAccountIds.length === 0) {
+      return {};
+    }
+
+    return selectedAccountIds.reduce((acc, accountId) => {
+      const override = accountOverrides[accountId];
+      if (override?.enabled) {
+        acc[accountId] = {
+          message: override.message,
+          media: override.media,
+        };
+      }
+      return acc;
+    }, {} as AccountOverridesMap);
+  }, [accountOverrides, selectedAccountIds]);
 
   const runValidation = async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
     if (selectedAccountIds.length === 0) {
@@ -109,6 +114,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           message,
           media,
           accountIds: selectedAccountIds,
+          accountOverrides: enabledOverrides,
         }),
         signal,
       });
@@ -151,16 +157,21 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [message, media, selectedAccountIds]);
+  }, [message, media, selectedAccountIds, enabledOverrides]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
+
+    const commonResults = validation.results.filter((result) => result.usesCommonContent);
+    if (commonResults.length === 0) {
+      return undefined;
+    }
 
     const hasMedia = media.length > 0;
     const hasVideo = media.some((item) => item.type === "video");
     const hasImage = media.some((item) => item.type === "image");
 
-    const limits = validation.results
+    const limits = commonResults
       .map((result) => {
         const textRules = result.rules.text;
         if (!textRules) return undefined;
@@ -190,13 +201,19 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
+    const accountId = issue.meta && typeof issue.meta === "object" ? (issue.meta as { accountId?: string }).accountId : "";
+    const account = validation?.accounts.find((acc) => acc.id === accountId);
+
+    if (account) {
+      return `${getAccountDisplayName(account)} (${platform}): ${issue.message}`;
+    }
+
     return `${platform}: ${issue.message}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate based on posting mode
     if (selectedAccountIds.length === 0) {
       return;
     }
@@ -211,60 +228,60 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         return;
       }
 
-      // Build the request body - media is already uploaded to R2
       const body: {
         message: string;
         accountIds: string[];
         postingMode: "now" | "schedule";
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
-        media: MediaFile[];
+        accountOverrides?: AccountOverridesMap;
+        media: typeof media;
       } = {
         message: message.trim(),
         accountIds: selectedAccountIds,
         postingMode,
-        media, // Already contains R2 URLs
+        media,
       };
 
-      // Only add schedule info if scheduling
       if (postingMode === "schedule") {
         const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
         body.scheduledFor = scheduledFor.toISOString();
       }
 
-      if (Object.keys(accountOptions).length > 0) {
-        body.accountOptions = accountOptions;
+      const filteredAccountOptions = selectedAccountIds.reduce((acc, accountId) => {
+        const options = accountOptions[accountId];
+        if (options) {
+          acc[accountId] = options;
+        }
+        return acc;
+      }, {} as AccountOptionsMap);
+
+      if (Object.keys(filteredAccountOptions).length > 0) {
+        body.accountOptions = filteredAccountOptions;
       }
 
-      // Submit using mutation
+      if (Object.keys(enabledOverrides).length > 0) {
+        body.accountOverrides = enabledOverrides;
+      }
+
       const data = await submitPostMutation.mutateAsync({
         body,
-        mode,
-        postId: existingPost.id,
+        mode: "create",
       });
 
-      // If posting now and we have posting results, show the modal
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         setPostingResults(data.postingResults);
 
-        // Check if all posts succeeded
         const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
         setPostingSucceeded(allSucceeded);
 
         setShowPostLinksModal(true);
-        // Navigation will happen when modal closes (see onOpenChange below)
-        // If failed, user can close modal and retry
       } else {
-        // Scheduled post - navigate to Scheduled tab
-        if (mode === "edit") {
-          router.push(`/posts/${existingPost.id}`);
-        } else {
-          router.push("/?tab=scheduled");
-        }
+        router.push("/?tab=scheduled");
       }
     } catch (error) {
-      console.error(`Failed to ${mode} post:`, error);
-      alert(`Failed to ${mode} post. Please try again.`);
+      console.error("Failed to create post:", error);
+      alert("Failed to create post. Please try again.");
     }
   };
 
@@ -276,9 +293,16 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Message Input */}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <AccountSelector
+          selectedAccountIds={selectedAccountIds}
+          onSelectionChange={setSelectedAccountIds}
+          title="Post to"
+          showAdvancedButton
+          getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
+          layout="row"
+        />
+
         <div className="space-y-4">
           <div>
             <Label htmlFor="message" className="text-sm font-medium">
@@ -301,7 +325,6 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             </div>
           </div>
 
-          {/* Media Upload */}
           <div>
             <Label className="text-sm font-medium">Media</Label>
             <div className="mt-2">
@@ -309,10 +332,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             </div>
           </div>
 
-          {/* Validation Feedback */}
-          {validationLoading && (
-            <p className="text-xs text-muted-foreground">Validating content for selected platforms...</p>
-          )}
+          {validationLoading && <p className="text-xs text-muted-foreground">Validating content...</p>}
           {validationError && (
             <Alert variant="destructive">
               <AlertCircle />
@@ -346,22 +366,6 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           ) : null}
         </div>
 
-        {/* Account Selection */}
-        <AccountSelector
-          selectedAccountIds={selectedAccountIds}
-          onSelectionChange={setSelectedAccountIds}
-          title="Accounts"
-          description="Choose which accounts to publish your content to"
-        />
-
-        {/* Account-Specific Options */}
-        <AccountOptionsComponent
-          selectedAccountIds={selectedAccountIds}
-          options={accountOptions}
-          onOptionsChange={setAccountOptions}
-        />
-
-        {/* Posting Mode Selection */}
         <div className="space-y-4">
           <div>
             <Label className="text-sm font-medium">When to Post</Label>
@@ -382,7 +386,6 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           </RadioGroup>
         </div>
 
-        {/* Schedule Settings - Only show when scheduling */}
         {postingMode === "schedule" && (
           <div className="space-y-4">
             <div>
@@ -427,17 +430,12 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           </div>
         )}
 
-        {/* Submit Button */}
         <div className="flex gap-4 pt-4">
           <Button
             type="button"
             variant="outline"
             onClick={() => {
-              if (mode === "edit") {
-                router.push(`/posts/${existingPost.id}`);
-              } else {
-                router.push("/");
-              }
+              router.push("/");
             }}
             className="flex-1">
             Cancel
@@ -446,47 +444,29 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             {submitPostMutation.isPending
               ? postingMode === "now"
                 ? "Posting..."
-                : mode === "edit"
-                  ? "Updating..."
-                  : "Scheduling..."
+                : "Scheduling..."
               : postingMode === "now"
                 ? "Post Now"
-                : mode === "edit"
-                  ? "Update Post"
-                  : "Schedule Post"}
+                : "Schedule Post"}
           </Button>
         </div>
       </form>
 
-      {/* Preview */}
       <div className="lg:sticky lg:top-8 self-start">
-        <PostPreview
-          message={message}
-          media={media}
-          scheduledDate={scheduledDate}
-          scheduledTime={scheduledTime}
-          selectedPlatforms={selectedAccountIds}
-        />
+        <GenericPostPreview message={message} media={media} />
       </div>
 
-      {/* Post Links Modal */}
       <PostLinksModal
         open={showPostLinksModal}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
-          // Navigate when modal is closed
           if (!open && postingSucceeded) {
-            // Navigate to Posted tab on success
-            if (mode === "edit") {
-              router.push(`/posts/${existingPost.id}`);
-            } else {
-              router.push("/?tab=past");
-            }
+            router.push("/?tab=past");
           }
-          // If posting failed, stay on the page to let user retry
         }}
         results={postingResults}
       />
     </div>
   );
 }
+

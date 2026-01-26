@@ -45,6 +45,34 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     connectionType: "oauth",
   },
   {
+    id: "bluesky",
+    name: "Bluesky",
+    description: "Share posts to Bluesky",
+    color: "bg-sky-500",
+    connectionType: "oauth",
+  },
+  {
+    id: "threads",
+    name: "Threads",
+    description: "Post to Threads",
+    color: "bg-black",
+    connectionType: "oauth",
+  },
+  {
+    id: "linkedin",
+    name: "LinkedIn",
+    description: "Publish posts to your profile",
+    color: "bg-blue-700",
+    connectionType: "oauth",
+  },
+  {
+    id: "pinterest",
+    name: "Pinterest",
+    description: "Create pins",
+    color: "bg-red-600",
+    connectionType: "oauth",
+  },
+  {
     id: "telegram",
     name: "Telegram",
     description: "Send messages to channels",
@@ -74,7 +102,11 @@ export function getAccountDisplayName(account: {
 }): string {
   // For X (Twitter), Instagram, and TikTok, prefer showing @username
   if (
-    (account.platform === "x" || account.platform === "instagram" || account.platform === "tiktok") &&
+    (account.platform === "x" ||
+      account.platform === "instagram" ||
+      account.platform === "tiktok" ||
+      account.platform === "bluesky" ||
+      account.platform === "threads") &&
     account.username
   ) {
     return `@${account.username}`;

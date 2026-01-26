@@ -49,16 +49,20 @@ export abstract class Publisher {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle PostErrors and generic errors
 
-      this.logger.info(`Post failed: ${error.message}`);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const data =
+        typeof error === "object" && error && "data" in error ? (error as { data?: unknown }).data : undefined;
+
+      this.logger.info(`Post failed: ${message}`);
 
       if (error instanceof PostError) {
         return { error: error.errorType, message: error.message, details: error.details };
       } else {
-        this.logger.error(error);
-        return { error: PostErrorType.OTHER, message: `Error posting: ${error.message}`, details: error.data };
+        this.logger.error(error instanceof Error ? error : message);
+        return { error: PostErrorType.OTHER, message: `Error posting: ${message}`, details: data };
       }
     }
   }

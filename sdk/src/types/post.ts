@@ -9,6 +9,8 @@ export const PlatformSchema = z.enum([
   "facebook",
   "instagram",
   "tiktok",
+  "bluesky",
+  "threads",
   "linkedin",
   "pinterest",
 ]);
@@ -133,6 +135,51 @@ export const TikTokOptionsSchema = z.object({
     .optional(),
 });
 
+export const BlueskyOptionsSchema = z.object({
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      refreshToken: z.string().optional(),
+      did: z.string(),
+      pdsUrl: z.url(),
+      dpopPublicJwk: z.record(z.string(), z.unknown()).optional(),
+      dpopPrivateJwk: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
+});
+
+export const ThreadsOptionsSchema = z.object({
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      userId: z.string(),
+    })
+    .optional(),
+});
+
+export const LinkedInOptionsSchema = z.object({
+  visibility: z.enum(["PUBLIC", "CONNECTIONS"]).optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      memberId: z.string(),
+    })
+    .optional(),
+});
+
+export const PinterestOptionsSchema = z.object({
+  boardId: z.string(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  link: z.url().optional(),
+  altText: z.string().optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+    })
+    .optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -146,6 +193,10 @@ export const PostOptionsSchema = z.object({
   facebook: FacebookOptionsSchema.optional(),
   instagram: InstagramOptionsSchema.optional(),
   tiktok: TikTokOptionsSchema.optional(),
+  bluesky: BlueskyOptionsSchema.optional(),
+  threads: ThreadsOptionsSchema.optional(),
+  linkedin: LinkedInOptionsSchema.optional(),
+  pinterest: PinterestOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -168,6 +219,10 @@ export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
 export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
+export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
+export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
+export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
+export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -189,6 +244,18 @@ export type InstagramOptionsWithCredentials = InstagramOptions & {
 export type TikTokOptionsWithCredentials = TikTokOptions & {
   credentials: NonNullable<TikTokOptions["credentials"]>;
 };
+export type BlueskyOptionsWithCredentials = BlueskyOptions & {
+  credentials: NonNullable<BlueskyOptions["credentials"]>;
+};
+export type ThreadsOptionsWithCredentials = ThreadsOptions & {
+  credentials: NonNullable<ThreadsOptions["credentials"]>;
+};
+export type LinkedInOptionsWithCredentials = LinkedInOptions & {
+  credentials: NonNullable<LinkedInOptions["credentials"]>;
+};
+export type PinterestOptionsWithCredentials = PinterestOptions & {
+  credentials: NonNullable<PinterestOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -197,4 +264,8 @@ export type PostOptionsWithCredentials = PostOptions & {
   facebook?: FacebookOptionsWithCredentials;
   instagram?: InstagramOptionsWithCredentials;
   tiktok?: TikTokOptionsWithCredentials;
+  bluesky?: BlueskyOptionsWithCredentials;
+  threads?: ThreadsOptionsWithCredentials;
+  linkedin?: LinkedInOptionsWithCredentials;
+  pinterest?: PinterestOptionsWithCredentials;
 };

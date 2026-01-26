@@ -5,6 +5,10 @@ import {
   faFacebook,
   faTiktok,
   faTelegram,
+  faLinkedin,
+  faPinterest,
+  faThreads,
+  faBluesky,
 } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -17,6 +21,10 @@ export const platformIcons: Record<string, IconDefinition> = {
   facebook: faFacebook,
   tiktok: faTiktok,
   telegram: faTelegram,
+  linkedin: faLinkedin,
+  pinterest: faPinterest,
+  threads: faThreads,
+  bluesky: faBluesky,
 };
 
 export function PlatformIcon({ platform, className }: { platform: string; className?: string }) {

@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-client";
+import type { SocialPost } from "@/types";
 
 // Delete post mutation
 async function deletePost(postId: string): Promise<void> {
@@ -105,7 +106,7 @@ interface PostMutationParams {
 }
 
 interface PostMutationResult {
-  post: any;
+  post: SocialPost;
   postingResults?: Array<{
     accountId: string;
     platform: string;

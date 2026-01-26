@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { Upload, X, Video, ImageIcon, AlertCircle, Loader2 } from "lucide-react";
 
@@ -118,35 +118,39 @@ export function MediaUpload({
   maxFileSize = 50 * 1024 * 1024, // 50MB
   acceptedTypes = ["image/*", "video/*"],
 }: MediaUploadProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
 
-  const validateFile = (file: File): string | null => {
-    if (file.size > maxFileSize) {
-      return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))}MB.`;
-    }
-
-    const resolvedType = resolveContentType(file);
-    if (!resolvedType) {
-      return `${file.name} is not a supported file type.`;
-    }
-
-    const isValidType = acceptedTypes.some((type) => {
-      if (type.endsWith("/*")) {
-        return resolvedType.startsWith(type.slice(0, -1));
+  const validateFile = useCallback(
+    (file: File): string | null => {
+      if (file.size > maxFileSize) {
+        return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))}MB.`;
       }
-      return resolvedType === type;
-    });
 
-    if (!isValidType) {
-      return `${file.name} is not a supported file type.`;
-    }
+      const resolvedType = resolveContentType(file);
+      if (!resolvedType) {
+        return `${file.name} is not a supported file type.`;
+      }
 
-    return null;
-  };
+      const isValidType = acceptedTypes.some((type) => {
+        if (type.endsWith("/*")) {
+          return resolvedType.startsWith(type.slice(0, -1));
+        }
+        return resolvedType === type;
+      });
 
-  const uploadFile = async (file: File): Promise<MediaFile | null> => {
+      if (!isValidType) {
+        return `${file.name} is not a supported file type.`;
+      }
+
+      return null;
+    },
+    [acceptedTypes, maxFileSize],
+  );
+
+  const uploadFile = useCallback(async (file: File): Promise<MediaFile | null> => {
     const id = crypto.randomUUID();
     const resolvedContentType = resolveContentType(file);
     if (!resolvedContentType) {
@@ -218,7 +222,7 @@ export function MediaUpload({
       setUploading((prev) => prev.filter((u) => u.id !== id));
       throw error;
     }
-  };
+  }, []);
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -264,8 +268,15 @@ export function MediaUpload({
         onMediaChange([...media, ...successfulUploads]);
       }
     },
-    [media, uploading.length, maxFiles, maxFileSize, onMediaChange],
+    [media, uploading.length, maxFiles, onMediaChange, uploadFile, validateFile],
   );
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      fileInputRef.current?.click();
+    }
+  };
 
   const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -324,7 +335,11 @@ export function MediaUpload({
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
-      onDrop={handleDrop}>
+      onDrop={handleDrop}
+      role="button"
+      tabIndex={0}
+      aria-disabled={cannotAddMore}
+      onKeyDown={handleKeyDown}>
       <input
         type="file"
         multiple
@@ -332,6 +347,7 @@ export function MediaUpload({
         onChange={handleFileInput}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         disabled={cannotAddMore}
+        ref={fileInputRef}
       />
       <div className="flex flex-col items-center justify-center h-full text-center p-2">
         <Upload className={`h-6 w-6 mb-1 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
@@ -349,7 +365,11 @@ export function MediaUpload({
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
-      onDrop={handleDrop}>
+      onDrop={handleDrop}
+      role="button"
+      tabIndex={0}
+      aria-disabled={isUploading || totalFiles >= maxFiles}
+      onKeyDown={handleKeyDown}>
       <input
         type="file"
         id="media-upload"
@@ -358,6 +378,7 @@ export function MediaUpload({
         onChange={handleFileInput}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         disabled={totalFiles >= maxFiles || isUploading}
+        ref={fileInputRef}
       />
       <div className="flex flex-col items-center justify-center p-6 text-center">
         {isUploading ? (

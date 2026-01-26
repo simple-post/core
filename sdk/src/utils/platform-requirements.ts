@@ -1,6 +1,10 @@
+import { BlueskyPublisher } from "../publishers/bluesky";
 import { FacebookPublisher } from "../publishers/facebook";
 import { InstagramPublisher } from "../publishers/instagram";
+import { LinkedInPublisher } from "../publishers/linkedin";
+import { PinterestPublisher } from "../publishers/pinterest";
 import { TelegramPublisher } from "../publishers/telegram";
+import { ThreadsPublisher } from "../publishers/threads";
 import { TikTokPublisher } from "../publishers/tiktok";
 import { XPublisher } from "../publishers/x";
 import { YouTubePublisher } from "../publishers/youtube";
@@ -34,12 +38,16 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
       return TelegramPublisher.mediaRequirement;
     }
     case "linkedin": {
-      // TODO: Implement when LinkedIn publisher is added
-      return "path";
+      return LinkedInPublisher.mediaRequirement;
     }
     case "pinterest": {
-      // TODO: Implement when Pinterest publisher is added
-      return "path";
+      return PinterestPublisher.mediaRequirement;
+    }
+    case "bluesky": {
+      return BlueskyPublisher.mediaRequirement;
+    }
+    case "threads": {
+      return ThreadsPublisher.mediaRequirement;
     }
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -93,46 +93,49 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
   const submitPostMutation = useSubmitPost();
 
-  const runValidation = async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
-    if (selectedAccountIds.length === 0) {
-      setValidation(null);
-      setValidationError(null);
-      return null;
-    }
-
-    setValidationLoading(true);
-    try {
-      const response = await fetch("/api/validation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          media,
-          accountIds: selectedAccountIds,
-        }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Validation failed");
-      }
-
-      const data = (await response.json()) as ValidationResponse;
-      setValidation(data);
-      setValidationError(null);
-      return data;
-    } catch (error) {
-      if (signal?.aborted) {
+  const runValidation = useCallback(
+    async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
+      if (selectedAccountIds.length === 0) {
+        setValidation(null);
+        setValidationError(null);
         return null;
       }
-      setValidationError(error instanceof Error ? error.message : "Validation failed");
-      setValidation(null);
-      return null;
-    } finally {
-      setValidationLoading(false);
-    }
-  };
+
+      setValidationLoading(true);
+      try {
+        const response = await fetch("/api/validation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            media,
+            accountIds: selectedAccountIds,
+          }),
+          signal,
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "Validation failed");
+        }
+
+        const data = (await response.json()) as ValidationResponse;
+        setValidation(data);
+        setValidationError(null);
+        return data;
+      } catch (error) {
+        if (signal?.aborted) {
+          return null;
+        }
+        setValidationError(error instanceof Error ? error.message : "Validation failed");
+        setValidation(null);
+        return null;
+      } finally {
+        setValidationLoading(false);
+      }
+    },
+    [media, message, selectedAccountIds],
+  );
 
   useEffect(() => {
     if (selectedAccountIds.length === 0) {
@@ -151,7 +154,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [message, media, selectedAccountIds]);
+  }, [runValidation, selectedAccountIds]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;

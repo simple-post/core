@@ -138,12 +138,13 @@ export class XPublisher extends Publisher {
       this.clientV1 = this.client.v1;
 
       this.logger.info("X access token refreshed successfully");
-    } catch (error: any) {
-      this.logger.error(`Failed to refresh X access token: ${error.message || error}`);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown }; message?: string };
+      this.logger.error(`Failed to refresh X access token: ${err.message || error}`);
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
         "Failed to refresh X access token",
-        error.response?.data || error.message,
+        err.response?.data || err.message,
       );
     }
   }
@@ -161,9 +162,10 @@ export class XPublisher extends Publisher {
       this.logger.info(`Media uploaded: ${mediaId}`);
 
       return mediaId;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, error.data);
+    } catch (error: unknown) {
+      const err = error as { data?: unknown };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, err.data);
     }
   }
 
@@ -309,9 +311,10 @@ export class XPublisher extends Publisher {
       }
 
       return result;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, error.data);
+    } catch (error: unknown) {
+      const err = error as { data?: unknown };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, err.data);
     } finally {
       await tempFileManager.cleanup();
     }

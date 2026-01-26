@@ -21,7 +21,9 @@ interface PostPreviewProps {
   selectedPlatforms?: string[];
 }
 
-const platformComponents: Record<string, React.ComponentType<any>> = {
+type PreviewComponent = React.ComponentType<{ message: string; media: MediaFile[]; platform: string }>;
+
+const platformComponents: Record<string, PreviewComponent> = {
   x: XPreview,
   instagram: InstagramPreview,
   facebook: FacebookPreview,

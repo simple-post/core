@@ -3,6 +3,19 @@ import type { ConnectedAccount, AccountOptionsMap } from "@/types";
 import type { PostOptions } from "@simple-post/sdk";
 
 type Credentials = Record<string, unknown>;
+type PlatformCredentials<K extends keyof PostOptions> =
+  NonNullable<PostOptions[K]> extends {
+    credentials?: infer C;
+  }
+    ? C
+    : never;
+
+const getTokenMetadata = (account: ConnectedAccount): Record<string, unknown> => {
+  if (!account.tokenMetadata || typeof account.tokenMetadata !== "object") {
+    return {};
+  }
+  return account.tokenMetadata as Record<string, unknown>;
+};
 
 /**
  * Platform-specific credential builders
@@ -43,6 +56,28 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   tiktok: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  bluesky: (account: ConnectedAccount) => {
+    const metadata = getTokenMetadata(account);
+    return {
+      accessToken: account.accessToken,
+      refreshToken: account.refreshToken || "",
+      did: account.platformAccountId,
+      pdsUrl: (metadata.pdsUrl as string) || process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social",
+      dpopPublicJwk: metadata.dpopPublicJwk,
+      dpopPrivateJwk: metadata.dpopPrivateJwk,
+    };
+  },
+  threads: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    userId: account.platformAccountId,
+  }),
+  linkedin: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    memberId: account.platformAccountId,
+  }),
+  pinterest: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+  }),
 };
 
 /**
@@ -64,7 +99,7 @@ const postOptionBuilders: Record<
   x: (account, credentials, accountSpecificOptions) => ({
     x: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as any,
+      credentials: credentials as PlatformCredentials<"x">,
     },
   }),
   twitter: (account, credentials, accountSpecificOptions) =>
@@ -82,7 +117,7 @@ const postOptionBuilders: Record<
     return {
       youtube: {
         ...(accountSpecificOptions as Record<string, unknown>),
-        credentials: youtubeCredentials as any,
+        credentials: youtubeCredentials as PlatformCredentials<"youtube">,
       },
     };
   },
@@ -90,25 +125,50 @@ const postOptionBuilders: Record<
     telegram: {
       chatId: account.platformAccountId,
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as any,
+      credentials: credentials as PlatformCredentials<"telegram">,
     },
   }),
   facebook: (account, credentials, accountSpecificOptions) => ({
     facebook: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as any,
+      credentials: credentials as PlatformCredentials<"facebook">,
     },
   }),
   instagram: (account, credentials, accountSpecificOptions) => ({
     instagram: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as any,
+      credentials: credentials as PlatformCredentials<"instagram">,
     },
   }),
   tiktok: (account, credentials, accountSpecificOptions) => ({
     tiktok: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as any,
+      credentials: credentials as PlatformCredentials<"tiktok">,
+    },
+  }),
+  bluesky: (account, credentials, accountSpecificOptions) => ({
+    bluesky: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      credentials: credentials as PlatformCredentials<"bluesky">,
+    },
+  }),
+  threads: (account, credentials, accountSpecificOptions) => ({
+    threads: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      credentials: credentials as PlatformCredentials<"threads">,
+    },
+  }),
+  linkedin: (account, credentials, accountSpecificOptions) => ({
+    linkedin: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      credentials: credentials as PlatformCredentials<"linkedin">,
+    },
+  }),
+  pinterest: (account, credentials, accountSpecificOptions) => ({
+    pinterest: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      boardId: (accountSpecificOptions as { boardId?: string }).boardId || process.env.PINTEREST_BOARD_ID || "",
+      credentials: credentials as PlatformCredentials<"pinterest">,
     },
   }),
 };

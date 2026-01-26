@@ -16,7 +16,7 @@ interface PostingResult {
   postUrl?: string;
   postId?: string;
   message?: string;
-  details?: any;
+  details?: unknown;
   extraData?: {
     refreshedCredentials?: {
       accessToken?: string;
@@ -38,6 +38,10 @@ function mapPlatformName(platform: string): Platform {
     facebook: "facebook",
     instagram: "instagram",
     tiktok: "tiktok",
+    bluesky: "bluesky",
+    threads: "threads",
+    linkedin: "linkedin",
+    pinterest: "pinterest",
   };
 
   return (platformMap[platform.toLowerCase()] as Platform) || (platform as Platform);
@@ -81,6 +85,26 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
         return `https://t.me/${chatId.replace("@", "")}/${postId}`;
       }
       return undefined;
+    }
+    case "bluesky": {
+      if (postId.startsWith("at://")) {
+        const parts = postId.split("/");
+        const recordKey = parts.at(-1);
+        if (!recordKey) return undefined;
+        const handleOrDid = account?.username || account?.platformAccountId || "";
+        return handleOrDid ? `https://bsky.app/profile/${handleOrDid.replace("@", "")}/post/${recordKey}` : undefined;
+      }
+      return undefined;
+    }
+    case "threads": {
+      const username = account?.username || "";
+      return username ? `https://www.threads.net/@${username.replace("@", "")}/post/${postId}` : undefined;
+    }
+    case "linkedin": {
+      return `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}`;
+    }
+    case "pinterest": {
+      return `https://www.pinterest.com/pin/${postId}/`;
     }
     default: {
       postingLogger.warn({ platform }, "Unknown platform for URL generation");
@@ -143,14 +167,21 @@ async function postToAccountWithPreparedMedia(
     const sanitizedPostData = {
       content: {
         text: postData.content.text,
-        media: postData.content.media?.map((m) => ({
-          type: m.type,
-          url: m.url,
-          title: m.type === "video" ? (m as any).title : undefined,
-          description: m.type === "video" ? (m as any).description : undefined,
-          thumbnailUrl: m.type === "video" ? (m as any).thumbnailUrl : undefined,
-          caption: m.type === "image" ? (m as any).caption : undefined,
-        })),
+        media: postData.content.media?.map((m) =>
+          m.type === "video"
+            ? {
+                type: m.type,
+                url: m.url,
+                title: m.title,
+                description: m.description,
+                thumbnailUrl: m.thumbnailUrl,
+              }
+            : {
+                type: m.type,
+                url: m.url,
+                caption: m.caption,
+              },
+        ),
       },
       platforms: postData.platforms,
       options: options ? redact(options as Record<string, unknown>) : undefined,

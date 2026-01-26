@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
-import type { AccountOverridesMap } from "@/types";
+import type { AccountOverridesMap, MediaFile } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const validation = await validatePostForAccounts({
       userId: session.user.id,
       message: typeof message === "string" ? message : "",
-      media: Array.isArray(media) ? (media as any[]) : [],
+      media: Array.isArray(media) ? (media as MediaFile[]) : [],
       accountIds,
       accountOverrides: accountOverrides || {},
     });

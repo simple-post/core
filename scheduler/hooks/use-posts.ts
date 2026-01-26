@@ -14,8 +14,14 @@ export interface PaginationInfo {
   hasPreviousPage: boolean;
 }
 
+type RawSocialPost = Omit<SocialPost, "scheduledFor" | "createdAt" | "publishedAt"> & {
+  scheduledFor: string;
+  createdAt: string;
+  publishedAt?: string | null;
+};
+
 interface PostsResponse {
-  posts: any[];
+  posts: RawSocialPost[];
   pagination?: PaginationInfo;
 }
 
@@ -24,7 +30,7 @@ export interface PaginatedPostsResult {
   pagination: PaginationInfo;
 }
 
-function parsePost(post: any): SocialPost {
+function parsePost(post: RawSocialPost): SocialPost {
   return {
     ...post,
     scheduledFor: new Date(post.scheduledFor),
@@ -63,7 +69,7 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
     throw new Error("Failed to fetch posts");
   }
   const data: PostsResponse = await response.json();
-  const foundPost = (data.posts || []).find((p: any) => p.id === id);
+  const foundPost = (data.posts || []).find((p) => p.id === id);
   return foundPost ? parsePost(foundPost) : null;
 }
 

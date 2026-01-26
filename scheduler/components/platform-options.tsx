@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import type { PlatformOptions } from "@/types";
 
 interface PlatformOptionsProps {
@@ -18,11 +19,11 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
     return null;
   }
 
-  const updateOption = (platform: keyof PlatformOptions, key: string, value: any) => {
+  const updateOption = (platform: keyof PlatformOptions, key: string, value: unknown) => {
     onOptionsChange({
       ...options,
       [platform]: {
-        ...(options[platform] as any),
+        ...((options[platform] ?? {}) as Record<string, unknown>),
         [key]: value,
       },
     } as PlatformOptions);
@@ -322,6 +323,136 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
           <p className="text-xs text-muted-foreground">
             No additional options required. Media and captions will be posted as configured above.
           </p>
+        </Card>
+      )}
+
+      {/* Bluesky - No additional options needed */}
+      {selectedPlatforms.includes("bluesky") && (
+        <Card className="p-4 space-y-2 border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Bluesky Options</h4>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            No additional options required. Your text and images will be posted to Bluesky.
+          </p>
+        </Card>
+      )}
+
+      {/* Threads - No additional options needed */}
+      {selectedPlatforms.includes("threads") && (
+        <Card className="p-4 space-y-2 border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
+            <h4 className="text-sm font-medium">Threads Options</h4>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            No additional options required. Text and a single media item are supported.
+          </p>
+        </Card>
+      )}
+
+      {/* LinkedIn Options */}
+      {selectedPlatforms.includes("linkedin") && (
+        <Card className="p-4 space-y-4 border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-700 flex-shrink-0" />
+            <h4 className="text-sm font-medium">LinkedIn Options</h4>
+          </div>
+
+          <div>
+            <Label htmlFor="linkedin-visibility" className="text-sm text-muted-foreground">
+              Visibility
+            </Label>
+            <Select
+              value={options.linkedin?.visibility || "PUBLIC"}
+              onValueChange={(value) => updateOption("linkedin", "visibility", value as "PUBLIC" | "CONNECTIONS")}>
+              <SelectTrigger id="linkedin-visibility" className="mt-1 border-border/50">
+                <SelectValue placeholder="Select visibility" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PUBLIC">Public</SelectItem>
+                <SelectItem value="CONNECTIONS">Connections Only</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">Choose who can see your LinkedIn post</p>
+          </div>
+        </Card>
+      )}
+
+      {/* Pinterest Options */}
+      {selectedPlatforms.includes("pinterest") && (
+        <Card className="p-4 space-y-4 border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-600 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Pinterest Options</h4>
+          </div>
+
+          <div>
+            <Label htmlFor="pinterest-boardId" className="text-sm text-muted-foreground">
+              Board ID
+            </Label>
+            <Input
+              id="pinterest-boardId"
+              placeholder="1234567890123456789"
+              value={options.pinterest?.boardId || ""}
+              onChange={(e) => updateOption("pinterest", "boardId", e.target.value)}
+              className="mt-1 border-border/50"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Required. The board where the pin will be created.</p>
+          </div>
+
+          <div>
+            <Label htmlFor="pinterest-title" className="text-sm text-muted-foreground">
+              Title (optional)
+            </Label>
+            <Input
+              id="pinterest-title"
+              placeholder="Pin title"
+              value={options.pinterest?.title || ""}
+              onChange={(e) => updateOption("pinterest", "title", e.target.value || undefined)}
+              className="mt-1 border-border/50"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="pinterest-description" className="text-sm text-muted-foreground">
+              Description (optional)
+            </Label>
+            <Textarea
+              id="pinterest-description"
+              placeholder="Describe your pin"
+              value={options.pinterest?.description || ""}
+              onChange={(e) => updateOption("pinterest", "description", e.target.value || undefined)}
+              className="mt-1 border-border/50"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="pinterest-link" className="text-sm text-muted-foreground">
+              Destination Link (optional)
+            </Label>
+            <Input
+              id="pinterest-link"
+              placeholder="https://example.com"
+              value={options.pinterest?.link || ""}
+              onChange={(e) => updateOption("pinterest", "link", e.target.value || undefined)}
+              className="mt-1 border-border/50"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="pinterest-altText" className="text-sm text-muted-foreground">
+              Alt Text (optional)
+            </Label>
+            <Input
+              id="pinterest-altText"
+              placeholder="Describe the image for accessibility"
+              value={options.pinterest?.altText || ""}
+              onChange={(e) => updateOption("pinterest", "altText", e.target.value || undefined)}
+              className="mt-1 border-border/50"
+            />
+          </div>
         </Card>
       )}
     </div>

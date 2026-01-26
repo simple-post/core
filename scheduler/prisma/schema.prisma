@@ -92,6 +92,7 @@ model ConnectedAccount {
   tokenType    String?   @default("Bearer")
   expiresAt    DateTime?
   scope        String?
+  tokenMetadata Json?
 
   // Account profile information
   username       String? // @handle or username

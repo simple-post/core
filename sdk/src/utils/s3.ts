@@ -60,8 +60,13 @@ export class S3MediaUploader {
       await upload.done();
 
       return `${this.s3BaseUrl}/${key}`;
-    } catch (error: any) {
-      throw new PostError(PostErrorType.API_ERROR, `Error uploading file to S3: ${error.message}`, error);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Error uploading file to S3: ${err.message || "Unknown error"}`,
+        err,
+      );
     }
   }
 
@@ -73,8 +78,13 @@ export class S3MediaUploader {
       });
 
       await this.s3Client.send(command);
-    } catch (error: any) {
-      throw new PostError(PostErrorType.API_ERROR, `Error deleting file from S3: ${error.message}`, error);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Error deleting file from S3: ${err.message || "Unknown error"}`,
+        err,
+      );
     }
   }
 }

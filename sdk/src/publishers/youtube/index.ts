@@ -267,22 +267,23 @@ export class YouTubePublisher extends Publisher {
         videoId = response.data.id!;
         this.logger.info(`[YouTubePublisher] Video upload successful! Video ID: ${videoId}`);
         this.logger.info(`[YouTubePublisher] Upload completed in ${Date.now() - startTime}ms`);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
         this.logger.error(
           `[YouTubePublisher] Video upload failed after ${Date.now() - startTime}ms: ${error instanceof Error ? error.message : String(error)}`,
         );
 
         let errorMessage = "Failed to upload video";
 
-        if (error.response && error.response.data && error.response.data.error) {
-          errorMessage = error.response.data.error.message;
-          this.logger.error(`[YouTubePublisher] YouTube API error: ${JSON.stringify(error.response.data.error)}`);
-        } else if (error.message) {
-          errorMessage = error.message;
-          this.logger.error(`[YouTubePublisher] Error message: ${error.message}`);
+        if (err.response?.data?.error?.message) {
+          errorMessage = err.response.data.error.message;
+          this.logger.error(`[YouTubePublisher] YouTube API error: ${JSON.stringify(err.response.data.error)}`);
+        } else if (err.message) {
+          errorMessage = err.message;
+          this.logger.error(`[YouTubePublisher] Error message: ${err.message}`);
         }
 
-        throw new PostError(PostErrorType.API_ERROR, errorMessage, error);
+        throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
       }
 
       // Upload the thumbnail if provided
@@ -300,7 +301,7 @@ export class YouTubePublisher extends Publisher {
           });
 
           this.logger.info(`[YouTubePublisher] Thumbnail upload successful for video ${videoId}`);
-        } catch (error: any) {
+        } catch (error: unknown) {
           this.logger.warn(
             `[YouTubePublisher] Failed to upload thumbnail for video ${videoId}: ${error instanceof Error ? error.message : String(error)}`,
           );
@@ -327,7 +328,7 @@ export class YouTubePublisher extends Publisher {
             },
           });
           this.logger.info(`[YouTubePublisher] Successfully added video ${videoId} to playlist`);
-        } catch (error: any) {
+        } catch (error: unknown) {
           this.logger.warn(
             `[YouTubePublisher] Failed to add video ${videoId} to playlist ${options.youtube.playlistId}: ${error instanceof Error ? error.message : String(error)}`,
           );

@@ -64,7 +64,7 @@ export class TelegramPublisher extends Publisher {
 
       // Telegram API can accept URLs directly - no need to download
       if (media.url) {
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           chat_id: chatId,
           [mediaField]: media.url,
         };
@@ -106,20 +106,21 @@ export class TelegramPublisher extends Publisher {
       });
 
       return { messageId: response.data.result.message_id.toString(), cleanup: () => tempFileManager.cleanup() };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { description?: string } }; message?: string };
       await tempFileManager.cleanup();
-      this.logger.error(error);
+      this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to send ${media.type}: ${error.response?.data?.description || error.message}`,
-        error.response?.data,
+        `Failed to send ${media.type}: ${err.response?.data?.description || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     }
   }
 
   private async sendMessage(chatId: string, text: string, parseMode?: string, replyTo?: string): Promise<string> {
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         chat_id: chatId,
         text: text,
         parse_mode: parseMode || "HTML",
@@ -132,12 +133,13 @@ export class TelegramPublisher extends Publisher {
       const response = await this.client.post("/sendMessage", payload);
 
       return response.data.result.message_id.toString();
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { description?: string } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to send message: ${error.response?.data?.description || error.message}`,
-        error.response?.data,
+        `Failed to send message: ${err.response?.data?.description || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     }
   }

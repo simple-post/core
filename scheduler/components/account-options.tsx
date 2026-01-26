@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { AccountOptionsMap, ConnectedAccount } from "@/types";
@@ -14,6 +15,11 @@ interface AccountOptionsProps {
   options: AccountOptionsMap;
   onOptionsChange: (options: AccountOptionsMap) => void;
 }
+
+const asString = (value: unknown): string => (typeof value === "string" ? value : "");
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
+const asBoolean = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
 
 export function AccountOptionsComponent({ selectedAccountIds, options, onOptionsChange }: AccountOptionsProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
@@ -28,11 +34,11 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     return null;
   }
 
-  const updateOption = (accountId: string, key: string, value: any) => {
+  const updateOption = (accountId: string, key: string, value: unknown) => {
     onOptionsChange({
       ...options,
       [accountId]: {
-        ...(options[accountId] as any),
+        ...((options[accountId] ?? {}) as Record<string, unknown>),
         [key]: value,
       },
     });
@@ -49,7 +55,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
         const platformConfig = getPlatformById(account.platform);
         if (!platformConfig) return null;
 
-        const accountOptions = (options[account.id] as any) || {};
+        const accountOptions = (options[account.id] ?? {}) as Record<string, unknown>;
 
         return (
           <Card key={account.id} className="p-4 space-y-4 border-border/50">
@@ -69,7 +75,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                 <Input
                   id={`${account.id}-replyToId`}
                   placeholder="Tweet ID to reply to"
-                  value={accountOptions.replyToId || ""}
+                  value={asString(accountOptions.replyToId)}
                   onChange={(e) => updateOption(account.id, "replyToId", e.target.value || undefined)}
                   className="mt-1 border-border/50"
                 />
@@ -87,7 +93,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     Privacy Status
                   </Label>
                   <Select
-                    value={accountOptions.privacyStatus || "private"}
+                    value={asString(accountOptions.privacyStatus) || "private"}
                     onValueChange={(value) =>
                       updateOption(account.id, "privacyStatus", value as "public" | "private" | "unlisted")
                     }>
@@ -109,7 +115,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   <Input
                     id={`${account.id}-tags`}
                     placeholder="education, tutorial, howto (comma separated)"
-                    value={accountOptions.tags?.join(", ") || ""}
+                    value={asStringArray(accountOptions.tags).join(", ")}
                     onChange={(e) =>
                       updateOption(
                         account.id,
@@ -130,7 +136,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     Category ID (optional)
                   </Label>
                   <Select
-                    value={accountOptions.categoryId || undefined}
+                    value={asString(accountOptions.categoryId) || undefined}
                     onValueChange={(value) =>
                       updateOption(account.id, "categoryId", value === "none" ? undefined : value)
                     }>
@@ -164,7 +170,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   <Input
                     id={`${account.id}-playlistId`}
                     placeholder="PL1234567890"
-                    value={accountOptions.playlistId || ""}
+                    value={asString(accountOptions.playlistId)}
                     onChange={(e) => updateOption(account.id, "playlistId", e.target.value)}
                     className="mt-1 border-border/50"
                   />
@@ -174,7 +180,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id={`${account.id}-madeForKids`}
-                    checked={accountOptions.selfDeclaredMadeForKids || false}
+                    checked={asBoolean(accountOptions.selfDeclaredMadeForKids, false)}
                     onCheckedChange={(checked) => updateOption(account.id, "selfDeclaredMadeForKids", checked === true)}
                   />
                   <div>
@@ -193,7 +199,9 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     id={`${account.id}-publishAt`}
                     type="datetime-local"
                     value={
-                      accountOptions.publishAt ? new Date(accountOptions.publishAt).toISOString().slice(0, 16) : ""
+                      asString(accountOptions.publishAt)
+                        ? new Date(asString(accountOptions.publishAt)).toISOString().slice(0, 16)
+                        : ""
                     }
                     onChange={(e) =>
                       updateOption(
@@ -217,7 +225,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     Publish Mode
                   </Label>
                   <Select
-                    value={accountOptions.publishMode || "public"}
+                    value={asString(accountOptions.publishMode) || "public"}
                     onValueChange={(value) => updateOption(account.id, "publishMode", value as "draft" | "public")}>
                     <SelectTrigger id={`${account.id}-publishMode`} className="mt-1 border-border/50">
                       <SelectValue placeholder="Select publish mode" />
@@ -232,14 +240,14 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   </p>
                 </div>
 
-                {accountOptions.publishMode !== "draft" && (
+                {(asString(accountOptions.publishMode) || "public") !== "draft" && (
                   <>
                     <div>
                       <Label htmlFor={`${account.id}-visibility`} className="text-sm text-muted-foreground">
                         Visibility
                       </Label>
                       <Select
-                        value={accountOptions.visibility || "public"}
+                        value={asString(accountOptions.visibility) || "public"}
                         onValueChange={(value) =>
                           updateOption(account.id, "visibility", value as "public" | "friends" | "private")
                         }>
@@ -259,7 +267,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`${account.id}-allowComment`}
-                          checked={accountOptions.allowComment !== false}
+                          checked={asBoolean(accountOptions.allowComment, true)}
                           onCheckedChange={(checked) => updateOption(account.id, "allowComment", checked === true)}
                         />
                         <Label htmlFor={`${account.id}-allowComment`} className="text-sm cursor-pointer">
@@ -270,7 +278,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`${account.id}-allowDuet`}
-                          checked={accountOptions.allowDuet !== false}
+                          checked={asBoolean(accountOptions.allowDuet, true)}
                           onCheckedChange={(checked) => updateOption(account.id, "allowDuet", checked === true)}
                         />
                         <Label htmlFor={`${account.id}-allowDuet`} className="text-sm cursor-pointer">
@@ -281,7 +289,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`${account.id}-allowStitch`}
-                          checked={accountOptions.allowStitch !== false}
+                          checked={asBoolean(accountOptions.allowStitch, true)}
                           onCheckedChange={(checked) => updateOption(account.id, "allowStitch", checked === true)}
                         />
                         <Label htmlFor={`${account.id}-allowStitch`} className="text-sm cursor-pointer">
@@ -303,7 +311,11 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                 <Input
                   id={`${account.id}-publishAt`}
                   type="datetime-local"
-                  value={accountOptions.publishAt ? new Date(accountOptions.publishAt).toISOString().slice(0, 16) : ""}
+                  value={
+                    asString(accountOptions.publishAt)
+                      ? new Date(asString(accountOptions.publishAt)).toISOString().slice(0, 16)
+                      : ""
+                  }
                   onChange={(e) =>
                     updateOption(
                       account.id,
@@ -324,6 +336,102 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
               </p>
             )}
 
+            {/* Bluesky - No additional options needed */}
+            {account.platform === "bluesky" && (
+              <p className="text-xs text-muted-foreground">No additional options required for Bluesky posts.</p>
+            )}
+
+            {/* Threads - No additional options needed */}
+            {account.platform === "threads" && (
+              <p className="text-xs text-muted-foreground">No additional options required for Threads posts.</p>
+            )}
+
+            {/* LinkedIn Options */}
+            {account.platform === "linkedin" && (
+              <div>
+                <Label htmlFor={`${account.id}-linkedin-visibility`} className="text-sm text-muted-foreground">
+                  Visibility
+                </Label>
+                <Select
+                  value={asString(accountOptions.visibility) || "PUBLIC"}
+                  onValueChange={(value) => updateOption(account.id, "visibility", value as "PUBLIC" | "CONNECTIONS")}>
+                  <SelectTrigger id={`${account.id}-linkedin-visibility`} className="mt-1 border-border/50">
+                    <SelectValue placeholder="Select visibility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PUBLIC">Public</SelectItem>
+                    <SelectItem value="CONNECTIONS">Connections Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Pinterest Options */}
+            {account.platform === "pinterest" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-pinterest-boardId`} className="text-sm text-muted-foreground">
+                    Board ID
+                  </Label>
+                  <Input
+                    id={`${account.id}-pinterest-boardId`}
+                    placeholder="1234567890123456789"
+                    value={asString(accountOptions.boardId)}
+                    onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
+                    className="mt-1 border-border/50"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-pinterest-title`} className="text-sm text-muted-foreground">
+                    Title (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-pinterest-title`}
+                    placeholder="Pin title"
+                    value={asString(accountOptions.title)}
+                    onChange={(e) => updateOption(account.id, "title", e.target.value || undefined)}
+                    className="mt-1 border-border/50"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-pinterest-description`} className="text-sm text-muted-foreground">
+                    Description (optional)
+                  </Label>
+                  <Textarea
+                    id={`${account.id}-pinterest-description`}
+                    placeholder="Describe your pin"
+                    value={asString(accountOptions.description)}
+                    onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
+                    className="mt-1 border-border/50"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-pinterest-link`} className="text-sm text-muted-foreground">
+                    Destination Link (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-pinterest-link`}
+                    placeholder="https://example.com"
+                    value={asString(accountOptions.link)}
+                    onChange={(e) => updateOption(account.id, "link", e.target.value || undefined)}
+                    className="mt-1 border-border/50"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-pinterest-altText`} className="text-sm text-muted-foreground">
+                    Alt Text (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-pinterest-altText`}
+                    placeholder="Describe the image for accessibility"
+                    value={asString(accountOptions.altText)}
+                    onChange={(e) => updateOption(account.id, "altText", e.target.value || undefined)}
+                    className="mt-1 border-border/50"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Telegram Options */}
             {account.platform === "telegram" && (
               <div>
@@ -331,7 +439,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   Parse Mode
                 </Label>
                 <Select
-                  value={accountOptions.parseMode || "default"}
+                  value={asString(accountOptions.parseMode) || "default"}
                   onValueChange={(value) =>
                     updateOption(account.id, "parseMode", value === "default" ? undefined : value)
                   }>

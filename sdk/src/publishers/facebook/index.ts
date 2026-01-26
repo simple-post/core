@@ -85,13 +85,14 @@ export class FacebookPublisher extends Publisher {
       });
 
       return response.data.id;
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to upload image: ${error.response?.data?.error?.message || error.message}`,
-        error.response?.data,
+        `Failed to upload image: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     }
   }
@@ -224,18 +225,19 @@ export class FacebookPublisher extends Publisher {
         id: response.data.id,
         error: PostErrorType.NO_ERROR,
       };
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
       let errorMessage = "An unknown error occurred while posting video.";
 
-      if (error.response && error.response.data && error.response.data.error) {
-        errorMessage = error.response.data.error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      if (err.response?.data?.error?.message) {
+        errorMessage = err.response.data.error.message;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
-      throw new PostError(PostErrorType.API_ERROR, errorMessage, error);
+      throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
     }
   }
 
@@ -261,7 +263,7 @@ export class FacebookPublisher extends Publisher {
         return await this.postVideo(video, resolvedPath, options);
       }
 
-      const postData: any = {
+      const postData: Record<string, unknown> = {
         access_token: this.pageAccessToken,
       };
 
@@ -301,13 +303,14 @@ export class FacebookPublisher extends Publisher {
         id: response.data.id,
         error: PostErrorType.NO_ERROR,
       };
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to post content: ${error.response?.data?.error?.message || error.message}`,
-        error.response?.data,
+        `Failed to post content: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     } finally {
       await tempFileManager.cleanup();

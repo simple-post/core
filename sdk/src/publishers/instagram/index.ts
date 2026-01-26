@@ -110,10 +110,15 @@ export class InstagramPublisher extends Publisher {
       });
 
       return response.data.id;
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
-      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${error.message}`, error);
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to create media object: ${err.message || "Unknown error"}`,
+        err,
+      );
     }
   }
 
@@ -141,10 +146,15 @@ export class InstagramPublisher extends Publisher {
       }
 
       return containerId;
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
-      throw new PostError(PostErrorType.API_ERROR, `Failed to create media container: ${error.message}`, error);
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to create media container: ${err.message || "Unknown error"}`,
+        err,
+      );
     }
   }
 
@@ -234,15 +244,16 @@ export class InstagramPublisher extends Publisher {
       const response = await this.client.post(`/${this.businessAccountId}/media_publish`, { creation_id: containerId });
 
       return { id: response.data.id, error: PostErrorType.NO_ERROR };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       if (error instanceof PostError) throw error;
 
-      this.logger.error(error);
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to publish post: ${error.response?.data?.error?.message || error.message}`,
-        error,
+        `Failed to publish post: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err,
       );
     } finally {
       await this.cleanupS3Files();

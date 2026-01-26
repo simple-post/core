@@ -8,9 +8,9 @@ export enum PostErrorType {
 
 export class PostError extends Error {
   public errorType: PostErrorType;
-  public details?: any;
+  public details?: unknown;
 
-  constructor(errorType: PostErrorType, message: string, details?: any) {
+  constructor(errorType: PostErrorType, message: string, details?: unknown) {
     super(message);
     this.name = "PostError";
     this.errorType = errorType;
@@ -23,7 +23,7 @@ export interface PostResult {
   id?: string;
   error: PostErrorType;
   message?: string;
-  details?: any;
+  details?: unknown;
   extraData?: {
     refreshedCredentials?: {
       accessToken?: string;

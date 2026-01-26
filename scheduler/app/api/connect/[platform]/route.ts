@@ -3,6 +3,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
+const BLUESKY_OAUTH_ISSUER = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
+
 // OAuth configuration for each platform
 const OAUTH_CONFIG: Record<
   string,
@@ -39,6 +41,30 @@ const OAUTH_CONFIG: Record<
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     scope:
       "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile",
+    responseType: "code",
+  },
+  bluesky: {
+    authUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/authorize`,
+    clientId: process.env.BLUESKY_CLIENT_ID || "",
+    scope: "atproto",
+    responseType: "code",
+  },
+  threads: {
+    authUrl: "https://threads.net/oauth/authorize",
+    clientId: process.env.THREADS_CLIENT_ID || "",
+    scope: "threads_basic,threads_content_publish",
+    responseType: "code",
+  },
+  linkedin: {
+    authUrl: "https://www.linkedin.com/oauth/v2/authorization",
+    clientId: process.env.LINKEDIN_CLIENT_ID || "",
+    scope: "r_liteprofile w_member_social",
+    responseType: "code",
+  },
+  pinterest: {
+    authUrl: "https://www.pinterest.com/oauth/",
+    clientId: process.env.PINTEREST_CLIENT_ID || "",
+    scope: "pins:write,boards:read,user_accounts:read",
     responseType: "code",
   },
 };
@@ -96,6 +122,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           }),
         ).toString("base64");
         authUrl.searchParams.set("state", xState);
+
+        break;
+      }
+      case "bluesky": {
+        const codeVerifier = Buffer.from(crypto.randomUUID() + crypto.randomUUID()).toString("base64url");
+        const codeChallenge = Buffer.from(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier)),
+        ).toString("base64url");
+
+        authUrl.searchParams.set("code_challenge", codeChallenge);
+        authUrl.searchParams.set("code_challenge_method", "S256");
+
+        const blueskyState = Buffer.from(
+          JSON.stringify({
+            userId: session.user.id,
+            platform,
+            timestamp: Date.now(),
+            codeVerifier,
+          }),
+        ).toString("base64");
+        authUrl.searchParams.set("state", blueskyState);
 
         break;
       }

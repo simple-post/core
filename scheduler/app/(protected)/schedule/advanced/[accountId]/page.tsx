@@ -181,11 +181,12 @@ export default function AdvancedAccountSettingsPage() {
                       className="min-h-28 resize-none mt-2 border-border/50"
                     />
                   ) : (
-                    <div
-                      className="min-h-28 mt-2 p-3 rounded-md border border-border/30 bg-muted/20 text-sm text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors"
+                    <button
+                      type="button"
+                      className="min-h-28 mt-2 p-3 rounded-md border border-border/30 bg-muted/20 text-sm text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors text-left"
                       onClick={() => handleOverrideToggle(true)}>
                       {message || <span className="italic">No message</span>}
-                    </div>
+                    </button>
                   )}
                 </div>
 
@@ -199,8 +200,9 @@ export default function AdvancedAccountSettingsPage() {
                       />
                     </div>
                   ) : (
-                    <div
-                      className="mt-2 p-3 rounded-md border border-border/30 bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors"
+                    <button
+                      type="button"
+                      className="mt-2 p-3 rounded-md border border-border/30 bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors text-left"
                       onClick={() => handleOverrideToggle(true)}>
                       {media.length > 0 ? (
                         <div className="flex gap-2 flex-wrap opacity-50">
@@ -221,7 +223,7 @@ export default function AdvancedAccountSettingsPage() {
                       ) : (
                         <span className="text-sm text-muted-foreground italic">No media attached</span>
                       )}
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>

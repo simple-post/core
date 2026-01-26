@@ -1,9 +1,14 @@
+import crypto from "node:crypto";
+
 import { type NextRequest, NextResponse } from "next/server";
 
 import { authLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
+import type { Prisma } from "@prisma/client";
+
 const PENDING_OAUTH_TTL_MS = 30 * 60 * 1000;
+const BLUESKY_OAUTH_ISSUER = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
 
 // Token exchange configuration for each platform
 const TOKEN_CONFIG: Record<
@@ -45,9 +50,156 @@ const TOKEN_CONFIG: Record<
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     userInfoUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
   },
+  bluesky: {
+    tokenUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/token`,
+    clientId: process.env.BLUESKY_CLIENT_ID || "",
+    clientSecret: process.env.BLUESKY_CLIENT_SECRET || "",
+    userInfoUrl: "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile",
+  },
+  threads: {
+    tokenUrl: "https://graph.threads.net/oauth/access_token",
+    clientId: process.env.THREADS_CLIENT_ID || "",
+    clientSecret: process.env.THREADS_CLIENT_SECRET || "",
+    userInfoUrl: "https://graph.threads.net/v1.0/me?fields=id,username,name,threads_profile_picture_url",
+  },
+  linkedin: {
+    tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
+    clientId: process.env.LINKEDIN_CLIENT_ID || "",
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
+    userInfoUrl: "https://api.linkedin.com/v2/me",
+  },
+  pinterest: {
+    tokenUrl: "https://api.pinterest.com/v5/oauth/token",
+    clientId: process.env.PINTEREST_CLIENT_ID || "",
+    clientSecret: process.env.PINTEREST_CLIENT_SECRET || "",
+    userInfoUrl: "https://api.pinterest.com/v5/user_account",
+  },
 };
 
-async function exchangeCodeForToken(platform: string, code: string, redirectUri: string, codeVerifier?: string) {
+type OAuthTokenResponse = Record<string, unknown> & {
+  access_token?: string;
+  refresh_token?: string | null;
+  expires_in?: number;
+  scope?: string;
+  sub?: string;
+  user_id?: string;
+};
+
+const base64UrlEncode = (input: string | Buffer): string => Buffer.from(input).toString("base64url");
+
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+function createDpopProof({
+  url,
+  method,
+  privateKey,
+  publicJwk,
+}: {
+  url: string;
+  method: string;
+  privateKey: crypto.KeyObject;
+  publicJwk: Record<string, unknown>;
+}): string {
+  const header = {
+    typ: "dpop+jwt",
+    alg: "ES256",
+    jwk: publicJwk,
+  };
+
+  const payload = {
+    htu: url,
+    htm: method.toUpperCase(),
+    jti: crypto.randomUUID(),
+    iat: Math.floor(Date.now() / 1000),
+  };
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+
+  const signature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
+
+  return `${signingInput}.${base64UrlEncode(signature)}`;
+}
+
+function generateDpopKeyPair(): {
+  privateKey: crypto.KeyObject;
+  publicJwk: Record<string, unknown>;
+  privateJwk: Record<string, unknown>;
+} {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const publicJwk = publicKey.export({ format: "jwk" }) as Record<string, unknown>;
+  const privateJwk = privateKey.export({ format: "jwk" }) as Record<string, unknown>;
+
+  return { privateKey, publicJwk, privateJwk };
+}
+
+async function exchangeCodeForBlueskyToken(
+  code: string,
+  redirectUri: string,
+  codeVerifier?: string,
+): Promise<{
+  tokenData: OAuthTokenResponse;
+  dpopPublicJwk: Record<string, unknown>;
+  dpopPrivateJwk: Record<string, unknown>;
+}> {
+  const config = TOKEN_CONFIG.bluesky;
+  const { privateKey, publicJwk, privateJwk } = generateDpopKeyPair();
+
+  const dpopProof = createDpopProof({
+    url: config.tokenUrl,
+    method: "POST",
+    privateKey,
+    publicJwk,
+  });
+
+  const body = new URLSearchParams({
+    client_id: config.clientId,
+    code,
+    redirect_uri: redirectUri,
+    grant_type: "authorization_code",
+  });
+
+  if (codeVerifier) {
+    body.set("code_verifier", codeVerifier);
+  }
+
+  const response = await fetch(config.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      DPoP: dpopProof,
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    authLogger.error({ platform: "bluesky", error, status: response.status }, "Token exchange failed");
+    throw new Error(`Failed to exchange code for token: ${response.statusText}`);
+  }
+
+  return {
+    tokenData: await response.json(),
+    dpopPublicJwk: publicJwk,
+    dpopPrivateJwk: privateJwk,
+  };
+}
+
+async function exchangeCodeForToken(
+  platform: string,
+  code: string,
+  redirectUri: string,
+  codeVerifier?: string,
+): Promise<OAuthTokenResponse> {
   const config = TOKEN_CONFIG[platform];
 
   const body: Record<string, string> = {
@@ -77,8 +229,14 @@ async function exchangeCodeForToken(platform: string, code: string, redirectUri:
       body.client_secret = config.clientSecret;
       break;
     }
-    default: {
+    case "pinterest": {
       body.client_secret = config.clientSecret;
+      break;
+    }
+    default: {
+      if (config.clientSecret) {
+        body.client_secret = config.clientSecret;
+      }
     }
   }
 
@@ -88,6 +246,11 @@ async function exchangeCodeForToken(platform: string, code: string, redirectUri:
 
   // X requires Basic Auth
   if (platform === "x") {
+    const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+    headers.Authorization = `Basic ${credentials}`;
+  }
+
+  if (platform === "pinterest") {
     const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
     headers.Authorization = `Basic ${credentials}`;
   }
@@ -114,7 +277,15 @@ async function fetchUserProfile(platform: string, accessToken: string) {
     Authorization: `Bearer ${accessToken}`,
   };
 
-  const response = await fetch(config.userInfoUrl, { headers });
+  let response: Response;
+
+  if (platform === "threads") {
+    const url = new URL(config.userInfoUrl);
+    url.searchParams.set("access_token", accessToken);
+    response = await fetch(url.toString());
+  } else {
+    response = await fetch(config.userInfoUrl, { headers });
+  }
 
   if (!response.ok) {
     throw new Error(`Failed to fetch user profile: ${response.statusText}`);
@@ -130,7 +301,40 @@ async function fetchUserProfile(platform: string, accessToken: string) {
   return data;
 }
 
-async function exchangeForLongLivedInstagramToken(shortLivedToken: string): Promise<{ accessToken: string; expiresIn: number }> {
+async function fetchBlueskyProfile(did: string) {
+  const url = new URL(TOKEN_CONFIG.bluesky.userInfoUrl);
+  url.searchParams.set("actor", did);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    const error = await response.text();
+    authLogger.error({ error, status: response.status }, "Failed to fetch Bluesky profile");
+    throw new Error("Failed to fetch Bluesky profile");
+  }
+
+  return response.json();
+}
+
+async function fetchBlueskyPdsUrl(did: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://plc.directory/${did}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const services = Array.isArray(data.service) ? data.service : [];
+    const pdsService = services.find(
+      (service: { id?: string; type?: string }) =>
+        service.id === "#atproto_pds" || service.type === "AtprotoPersonalDataServer",
+    );
+    return pdsService?.serviceEndpoint || null;
+  } catch (error) {
+    authLogger.warn({ error }, "Failed to resolve Bluesky PDS URL");
+    return null;
+  }
+}
+
+async function exchangeForLongLivedInstagramToken(
+  shortLivedToken: string,
+): Promise<{ accessToken: string; expiresIn: number }> {
   const config = TOKEN_CONFIG.instagram;
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
@@ -203,7 +407,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Check for OAuth errors (Facebook sends error_reason and error_description)
     if (error || errorReason) {
       const errorMessage = errorDescription || errorReason || error || "Authorization failed";
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(errorMessage)}`);
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(errorMessage)}`,
+      );
     }
 
     if (!code || !state) {
@@ -230,7 +436,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
-    const tokenData = await exchangeCodeForToken(platform, code, redirectUri, codeVerifier);
+    let tokenData: OAuthTokenResponse;
+    let tokenMetadata: Prisma.InputJsonValue | null = null;
+
+    if (platform === "bluesky") {
+      const blueskyExchange = await exchangeCodeForBlueskyToken(code, redirectUri, codeVerifier);
+      tokenData = blueskyExchange.tokenData;
+      tokenMetadata = {
+        dpopPublicJwk: blueskyExchange.dpopPublicJwk,
+        dpopPrivateJwk: blueskyExchange.dpopPrivateJwk,
+      } as Prisma.InputJsonValue;
+    } else {
+      tokenData = await exchangeCodeForToken(platform, code, redirectUri, codeVerifier);
+    }
 
     // Extract tokens based on platform response format
     const accessToken = tokenData.access_token;
@@ -240,6 +458,64 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!accessToken) {
       throw new Error("No access token received");
+    }
+
+    if (platform === "bluesky") {
+      const payload = decodeJwtPayload(accessToken);
+      const did = (tokenData.sub as string | undefined) || (payload?.sub as string | undefined);
+
+      if (!did) {
+        throw new Error("No Bluesky DID received");
+      }
+
+      const profile = await fetchBlueskyProfile(did);
+      const platformAccountId = did;
+      const username = profile.handle || null;
+      const displayName = profile.displayName || profile.handle || null;
+      const profilePicture = profile.avatar || null;
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      const pdsUrl = (await fetchBlueskyPdsUrl(did)) || BLUESKY_OAUTH_ISSUER;
+
+      if (tokenMetadata && typeof tokenMetadata === "object" && !Array.isArray(tokenMetadata)) {
+        tokenMetadata = { ...tokenMetadata, pdsUrl } as Prisma.InputJsonValue;
+      }
+
+      await prisma.connectedAccount.upsert({
+        where: {
+          userId_platform_platformAccountId: {
+            userId,
+            platform: "bluesky",
+            platformAccountId,
+          },
+        },
+        create: {
+          userId,
+          platform: "bluesky",
+          platformAccountId,
+          accessToken,
+          refreshToken,
+          expiresAt,
+          scope,
+          username,
+          displayName,
+          email: null,
+          profilePicture,
+          tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
+        },
+        update: {
+          accessToken,
+          refreshToken,
+          expiresAt,
+          scope,
+          username,
+          displayName,
+          profilePicture,
+          tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
+          updatedAt: new Date(),
+        },
+      });
+
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=bluesky`);
     }
 
     // Special handling for Instagram - use Instagram Login API directly
@@ -351,6 +627,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         username = profile.username;
         displayName = profile.display_name;
         profilePicture = profile.avatar_url;
+        break;
+      }
+      case "threads": {
+        platformAccountId = profile.id || tokenData.user_id;
+        username = profile.username || null;
+        displayName = profile.name || profile.username || null;
+        profilePicture = profile.threads_profile_picture_url || null;
+        break;
+      }
+      case "linkedin": {
+        platformAccountId = profile.id;
+        username = profile.vanityName || null;
+        const firstName = profile.localizedFirstName || profile.firstName?.localized?.en_US;
+        const lastName = profile.localizedLastName || profile.lastName?.localized?.en_US;
+        displayName = [firstName, lastName].filter(Boolean).join(" ") || username;
+        profilePicture = null;
+        break;
+      }
+      case "pinterest": {
+        platformAccountId = profile.id || profile.username;
+        username = profile.username || null;
+        displayName = profile.profile_name || profile.business_name || profile.username || null;
+        profilePicture = profile.profile_image?.url || profile.profile_image || null;
         break;
       }
       case "youtube": {

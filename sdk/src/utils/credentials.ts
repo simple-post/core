@@ -29,6 +29,24 @@ export const getCredentialsFromEnv = (): PostOptions => {
     tiktok: {
       accessToken: process.env.TIKTOK_ACCESS_TOKEN,
     },
+    bluesky: {
+      accessToken: process.env.BLUESKY_ACCESS_TOKEN,
+      refreshToken: process.env.BLUESKY_REFRESH_TOKEN,
+      did: process.env.BLUESKY_DID,
+      pdsUrl: process.env.BLUESKY_PDS_URL,
+    },
+    threads: {
+      accessToken: process.env.THREADS_ACCESS_TOKEN,
+      userId: process.env.THREADS_USER_ID,
+    },
+    linkedin: {
+      accessToken: process.env.LINKEDIN_ACCESS_TOKEN,
+      memberId: process.env.LINKEDIN_MEMBER_ID,
+    },
+    pinterest: {
+      accessToken: process.env.PINTEREST_ACCESS_TOKEN,
+      boardId: process.env.PINTEREST_BOARD_ID,
+    },
   };
 
   // Only add credentials if all required env vars are present
@@ -83,6 +101,44 @@ export const getCredentialsFromEnv = (): PostOptions => {
     };
   }
 
+  if (envVars.bluesky.accessToken && envVars.bluesky.did && envVars.bluesky.pdsUrl) {
+    options.bluesky = {
+      credentials: {
+        accessToken: envVars.bluesky.accessToken,
+        refreshToken: envVars.bluesky.refreshToken,
+        did: envVars.bluesky.did,
+        pdsUrl: envVars.bluesky.pdsUrl,
+      },
+    };
+  }
+
+  if (Object.values(envVars.threads).every(Boolean)) {
+    options.threads = {
+      credentials: {
+        accessToken: envVars.threads.accessToken!,
+        userId: envVars.threads.userId!,
+      },
+    };
+  }
+
+  if (Object.values(envVars.linkedin).every(Boolean)) {
+    options.linkedin = {
+      credentials: {
+        accessToken: envVars.linkedin.accessToken!,
+        memberId: envVars.linkedin.memberId!,
+      },
+    };
+  }
+
+  if (Object.values(envVars.pinterest).every(Boolean)) {
+    options.pinterest = {
+      boardId: envVars.pinterest.boardId!,
+      credentials: {
+        accessToken: envVars.pinterest.accessToken!,
+      },
+    };
+  }
+
   return options;
 };
 
@@ -112,6 +168,21 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
     tiktok: userOptions.tiktok
       ? { ...userOptions.tiktok, credentials: userOptions.tiktok.credentials || envOptions.tiktok?.credentials }
       : envOptions.tiktok,
+    bluesky: userOptions.bluesky
+      ? { ...userOptions.bluesky, credentials: userOptions.bluesky.credentials || envOptions.bluesky?.credentials }
+      : envOptions.bluesky,
+    threads: userOptions.threads
+      ? { ...userOptions.threads, credentials: userOptions.threads.credentials || envOptions.threads?.credentials }
+      : envOptions.threads,
+    linkedin: userOptions.linkedin
+      ? { ...userOptions.linkedin, credentials: userOptions.linkedin.credentials || envOptions.linkedin?.credentials }
+      : envOptions.linkedin,
+    pinterest: userOptions.pinterest
+      ? {
+          ...userOptions.pinterest,
+          credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
+        }
+      : envOptions.pinterest,
   };
 
   return merged as PostOptionsWithCredentials;

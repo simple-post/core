@@ -141,24 +141,25 @@ export class TikTokPublisher extends Publisher {
       });
 
       return response.data;
-    } catch (error: any) {
-      this.logger.error(error);
-      const errorCode = error.response?.data?.error?.code;
-      const errorMessage = error.response?.data?.error?.message || error.message;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      const errorCode = err.response?.data?.error?.code;
+      const errorMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
       // Provide helpful context for common errors
       if (errorCode === "unaudited_client_can_only_post_to_private_accounts") {
         throw new PostError(
           PostErrorType.API_ERROR,
           `TikTok API Error: Unaudited apps can only post to private accounts. Please set your TikTok account to private in the TikTok app settings (Settings → Privacy → Private Account), or get your app audited at https://developers.tiktok.com/doc/content-sharing-guidelines/`,
-          error,
+          err,
         );
       }
 
       throw new PostError(
         PostErrorType.API_ERROR,
         `Failed to initialize video upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
-        error,
+        err,
       );
     }
   }
@@ -179,15 +180,16 @@ export class TikTokPublisher extends Publisher {
       });
 
       return response.data;
-    } catch (error: any) {
-      this.logger.error(error);
-      const errorCode = error.response?.data?.error?.code;
-      const errorMessage = error.response?.data?.error?.message || error.message;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      const errorCode = err.response?.data?.error?.code;
+      const errorMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
       throw new PostError(
         PostErrorType.API_ERROR,
         `Failed to initialize draft video upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
-        error,
+        err,
       );
     }
   }
@@ -223,24 +225,25 @@ export class TikTokPublisher extends Publisher {
       });
 
       return response.data;
-    } catch (error: any) {
-      this.logger.error(error);
-      const errorCode = error.response?.data?.error?.code;
-      const errorMessage = error.response?.data?.error?.message || error.message;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      const errorCode = err.response?.data?.error?.code;
+      const errorMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
       // Provide helpful context for common errors
       if (errorCode === "unaudited_client_can_only_post_to_private_accounts") {
         throw new PostError(
           PostErrorType.API_ERROR,
           `TikTok API Error: Unaudited apps can only post to private accounts. Please set your TikTok account to private in the TikTok app settings (Settings → Privacy → Private Account), or get your app audited at https://developers.tiktok.com/doc/content-sharing-guidelines/`,
-          error,
+          err,
         );
       }
 
       throw new PostError(
         PostErrorType.API_ERROR,
         `Failed to initialize photo upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
-        error,
+        err,
       );
     }
   }
@@ -261,15 +264,16 @@ export class TikTokPublisher extends Publisher {
       });
 
       return response.data;
-    } catch (error: any) {
-      this.logger.error(error);
-      const errorCode = error.response?.data?.error?.code;
-      const errorMessage = error.response?.data?.error?.message || error.message;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      const errorCode = err.response?.data?.error?.code;
+      const errorMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
       throw new PostError(
         PostErrorType.API_ERROR,
         `Failed to initialize draft photo upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
-        error,
+        err,
       );
     }
   }
@@ -305,9 +309,10 @@ export class TikTokPublisher extends Publisher {
 
         uploadedBytes = end + 1;
         this.logger.info(`Uploaded ${uploadedBytes}/${fileSize} bytes`);
-      } catch (error: any) {
-        this.logger.error(error);
-        throw new PostError(PostErrorType.API_ERROR, `Failed to upload chunk: ${error.message}`, error);
+      } catch (error: unknown) {
+        const err = error as { message?: string };
+        this.logger.error(error instanceof Error ? error : String(error));
+        throw new PostError(PostErrorType.API_ERROR, `Failed to upload chunk: ${err.message || "Unknown error"}`, err);
       }
     }
   }
@@ -480,15 +485,16 @@ export class TikTokPublisher extends Publisher {
       const publishId = await this.uploadMedia(media, resolvedPath, content, options);
 
       return { id: publishId, error: PostErrorType.NO_ERROR };
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof PostError) throw error;
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
 
-      this.logger.error(error);
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to publish TikTok post: ${error.response?.data?.error?.message || error.message}`,
-        error,
+        `Failed to publish TikTok post: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err,
       );
     } finally {
       await tempFileManager.cleanup();

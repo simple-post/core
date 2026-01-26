@@ -16,7 +16,7 @@ interface PostingResult {
   postUrl?: string;
   postId?: string;
   message?: string;
-  details?: any;
+  details?: unknown;
   extraData?: {
     refreshedCredentials?: {
       accessToken?: string;

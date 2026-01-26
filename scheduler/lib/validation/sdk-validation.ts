@@ -5,6 +5,10 @@ import {
   TelegramPublisher,
   TikTokPublisher,
   YouTubePublisher,
+  BlueskyPublisher,
+  ThreadsPublisher,
+  LinkedInPublisher,
+  PinterestPublisher,
 } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
@@ -20,6 +24,10 @@ const PLATFORM_MAP: Record<string, Platform> = {
   facebook: "facebook",
   instagram: "instagram",
   tiktok: "tiktok",
+  bluesky: "bluesky",
+  threads: "threads",
+  linkedin: "linkedin",
+  pinterest: "pinterest",
 };
 
 const mapPlatformName = (platform: string): Platform => {
@@ -66,6 +74,18 @@ function getValidationRules(platform: Platform): PlatformValidationRules {
     case "youtube": {
       return YouTubePublisher.getValidationRules();
     }
+    case "bluesky": {
+      return BlueskyPublisher.getValidationRules();
+    }
+    case "threads": {
+      return ThreadsPublisher.getValidationRules();
+    }
+    case "linkedin": {
+      return LinkedInPublisher.getValidationRules();
+    }
+    case "pinterest": {
+      return PinterestPublisher.getValidationRules();
+    }
     default: {
       return {};
     }
@@ -91,6 +111,18 @@ function validateContent(platform: Platform, content: Content): ValidationResult
     }
     case "youtube": {
       return YouTubePublisher.validate(content);
+    }
+    case "bluesky": {
+      return BlueskyPublisher.validate(content);
+    }
+    case "threads": {
+      return ThreadsPublisher.validate(content);
+    }
+    case "linkedin": {
+      return LinkedInPublisher.validate(content);
+    }
+    case "pinterest": {
+      return PinterestPublisher.validate(content);
     }
     default: {
       return { errors: [], warnings: [], isValid: true };

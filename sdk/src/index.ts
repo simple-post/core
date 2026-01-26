@@ -80,11 +80,15 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
 
 // Export publisher classes - use static methods for validation
 export { XPublisher } from "./publishers/x";
+export { BlueskyPublisher } from "./publishers/bluesky";
+export { ThreadsPublisher } from "./publishers/threads";
 export { FacebookPublisher } from "./publishers/facebook";
 export { InstagramPublisher } from "./publishers/instagram";
 export { TelegramPublisher } from "./publishers/telegram";
 export { TikTokPublisher } from "./publishers/tiktok";
 export { YouTubePublisher } from "./publishers/youtube";
+export { LinkedInPublisher } from "./publishers/linkedin";
+export { PinterestPublisher } from "./publishers/pinterest";
 
 // Export all types for TypeScript and JavaScript users
 export type {
@@ -102,6 +106,10 @@ export type {
   FacebookOptions,
   InstagramOptions,
   TikTokOptions,
+  BlueskyOptions,
+  ThreadsOptions,
+  LinkedInOptions,
+  PinterestOptions,
   LogLevel,
 } from "./types/post";
 
@@ -125,4 +133,8 @@ export {
   FacebookOptionsSchema,
   InstagramOptionsSchema,
   TikTokOptionsSchema,
+  BlueskyOptionsSchema,
+  ThreadsOptionsSchema,
+  LinkedInOptionsSchema,
+  PinterestOptionsSchema,
 } from "./types/post";

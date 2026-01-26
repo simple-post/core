@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 export interface AccountPlatformOptions {
   x?: {
     replyToId?: string;
@@ -23,6 +25,18 @@ export interface AccountPlatformOptions {
   instagram?: Record<string, never>;
   telegram?: {
     parseMode?: "HTML" | "Markdown" | "MarkdownV2";
+  };
+  bluesky?: Record<string, never>;
+  threads?: Record<string, never>;
+  linkedin?: {
+    visibility?: "PUBLIC" | "CONNECTIONS";
+  };
+  pinterest?: {
+    boardId?: string;
+    title?: string;
+    description?: string;
+    link?: string;
+    altText?: string;
   };
 }
 
@@ -79,6 +93,18 @@ export interface PlatformOptions {
   telegram?: {
     parseMode?: "HTML" | "Markdown" | "MarkdownV2";
   };
+  bluesky?: Record<string, never>;
+  threads?: Record<string, never>;
+  linkedin?: {
+    visibility?: "PUBLIC" | "CONNECTIONS";
+  };
+  pinterest?: {
+    boardId?: string;
+    title?: string;
+    description?: string;
+    link?: string;
+    altText?: string;
+  };
 }
 
 export interface MediaFile {
@@ -100,6 +126,7 @@ export interface ConnectedAccount {
   tokenType: string | null;
   expiresAt: Date | null;
   scope: string | null;
+  tokenMetadata?: Prisma.JsonValue | null;
   username: string | null;
   displayName: string | null;
   email: string | null;

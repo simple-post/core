@@ -26,10 +26,9 @@ const OAUTH_CONFIG: Record<
       "public_profile email pages_show_list pages_read_engagement pages_manage_posts instagram_basic instagram_content_publish",
   },
   instagram: {
-    authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
-    clientId: process.env.FACEBOOK_CLIENT_ID || "",
-    scope:
-      "public_profile instagram_basic instagram_content_publish pages_show_list pages_read_engagement business_management",
+    authUrl: "https://www.instagram.com/oauth/authorize",
+    clientId: process.env.INSTAGRAM_CLIENT_ID || "",
+    scope: "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages",
   },
   tiktok: {
     authUrl: "https://www.tiktok.com/v2/auth/authorize",
@@ -111,6 +110,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         authUrl.searchParams.set("access_type", "offline");
         // Force consent screen to get a new refresh token
         authUrl.searchParams.set("prompt", "consent");
+
+        break;
+      }
+      case "instagram": {
+        // Use Instagram Login (not Facebook Login)
+        authUrl.searchParams.set("enable_fb_login", "0");
+        authUrl.searchParams.set("force_authentication", "1");
 
         break;
       }

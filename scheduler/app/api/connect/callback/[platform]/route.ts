@@ -28,10 +28,10 @@ const TOKEN_CONFIG: Record<
     userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
   },
   instagram: {
-    tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
-    clientId: process.env.FACEBOOK_CLIENT_ID || "",
-    clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
-    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
+    tokenUrl: "https://api.instagram.com/oauth/access_token",
+    clientId: process.env.INSTAGRAM_CLIENT_ID || "",
+    clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
+    userInfoUrl: "https://graph.instagram.com/me?fields=user_id,username,name,profile_picture_url,account_type",
   },
   tiktok: {
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
@@ -58,17 +58,28 @@ async function exchangeCodeForToken(platform: string, code: string, redirectUri:
   };
 
   // Platform-specific adjustments
-  if (platform === "x") {
-    // X requires PKCE code_verifier
-    if (codeVerifier) {
-      body.code_verifier = codeVerifier;
+  switch (platform) {
+    case "x": {
+      // X requires PKCE code_verifier
+      if (codeVerifier) {
+        body.code_verifier = codeVerifier;
+      }
+      // X requires Basic Auth with client credentials (handled below)
+      break;
     }
-    // X requires Basic Auth with client credentials
-  } else if (platform === "tiktok") {
-    body.client_key = config.clientId;
-    body.client_secret = config.clientSecret;
-  } else {
-    body.client_secret = config.clientSecret;
+    case "tiktok": {
+      body.client_key = config.clientId;
+      body.client_secret = config.clientSecret;
+      break;
+    }
+    case "instagram": {
+      // Instagram API requires client_secret and grant_type
+      body.client_secret = config.clientSecret;
+      break;
+    }
+    default: {
+      body.client_secret = config.clientSecret;
+    }
   }
 
   const headers: Record<string, string> = {
@@ -119,55 +130,40 @@ async function fetchUserProfile(platform: string, accessToken: string) {
   return data;
 }
 
-async function fetchInstagramAccounts(accessToken: string) {
-  // Fetch user's Facebook Pages
-  const pagesResponse = await fetch(
-    `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
+async function exchangeForLongLivedInstagramToken(shortLivedToken: string): Promise<{ accessToken: string; expiresIn: number }> {
+  const config = TOKEN_CONFIG.instagram;
+  const url = new URL("https://graph.instagram.com/access_token");
+  url.searchParams.set("grant_type", "ig_exchange_token");
+  url.searchParams.set("client_secret", config.clientSecret);
+  url.searchParams.set("access_token", shortLivedToken);
+
+  const response = await fetch(url.toString());
+
+  if (!response.ok) {
+    const error = await response.text();
+    authLogger.error({ error, status: response.status }, "Failed to exchange for long-lived Instagram token");
+    throw new Error("Failed to get long-lived Instagram token");
+  }
+
+  const data = await response.json();
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in || 5_184_000, // Default 60 days
+  };
+}
+
+async function fetchInstagramProfile(accessToken: string) {
+  const response = await fetch(
+    `https://graph.instagram.com/me?fields=user_id,username,name,profile_picture_url,account_type&access_token=${accessToken}`,
   );
 
-  if (!pagesResponse.ok) {
-    throw new Error(`Failed to fetch Facebook pages: ${pagesResponse.statusText}`);
+  if (!response.ok) {
+    const error = await response.text();
+    authLogger.error({ error, status: response.status }, "Failed to fetch Instagram profile");
+    throw new Error("Failed to fetch Instagram profile");
   }
 
-  const pagesData = await pagesResponse.json();
-  const instagramAccounts: Array<{
-    businessAccountId: string;
-    username: string;
-    name: string;
-    profilePicture: string;
-    pageAccessToken: string;
-  }> = [];
-
-  // For each page, check if it has an Instagram Business account
-  for (const page of pagesData.data || []) {
-    if (page.instagram_business_account) {
-      const igAccountId = page.instagram_business_account.id;
-
-      // Fetch Instagram account details
-      const igResponse = await fetch(
-        `https://graph.facebook.com/v18.0/${igAccountId}?fields=id,username,name,profile_picture_url`,
-        {
-          headers: { Authorization: `Bearer ${page.access_token}` },
-        },
-      );
-
-      if (igResponse.ok) {
-        const igData = await igResponse.json();
-        instagramAccounts.push({
-          businessAccountId: igData.id,
-          username: igData.username,
-          name: igData.name || igData.username,
-          profilePicture: igData.profile_picture_url || "",
-          pageAccessToken: page.access_token,
-        });
-      }
-    }
-  }
-
-  return instagramAccounts;
+  return response.json();
 }
 
 async function fetchFacebookPages(accessToken: string) {
@@ -241,27 +237,63 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error("No access token received");
     }
 
-    // Special handling for Instagram/Facebook - store pending account choices
-    if (platform === "instagram" || platform === "facebook") {
-      const instagramAccounts = await fetchInstagramAccounts(accessToken);
-      const accounts =
-        platform === "instagram"
-          ? instagramAccounts.map((igAccount) => ({
-              id: igAccount.businessAccountId,
-              name: igAccount.name,
-              username: igAccount.username,
-              profilePicture: igAccount.profilePicture,
-              accessToken: igAccount.pageAccessToken,
-            }))
-          : await fetchFacebookPages(accessToken);
+    // Special handling for Instagram - use Instagram Login API directly
+    if (platform === "instagram") {
+      // Exchange short-lived token for long-lived token
+      const { accessToken: longLivedToken, expiresIn: longLivedExpiresIn } =
+        await exchangeForLongLivedInstagramToken(accessToken);
+
+      // Fetch user profile from Instagram API
+      const profile = await fetchInstagramProfile(longLivedToken);
+
+      const platformAccountId = profile.user_id || profile.id;
+      const username = profile.username;
+      const displayName = profile.name || profile.username;
+      const profilePicture = profile.profile_picture_url || null;
+      const expiresAt = new Date(Date.now() + longLivedExpiresIn * 1000);
+
+      await prisma.connectedAccount.upsert({
+        where: {
+          userId_platform_platformAccountId: {
+            userId,
+            platform: "instagram",
+            platformAccountId,
+          },
+        },
+        create: {
+          userId,
+          platform: "instagram",
+          platformAccountId,
+          accessToken: longLivedToken,
+          refreshToken: null,
+          expiresAt,
+          scope,
+          username,
+          displayName,
+          email: null,
+          profilePicture,
+        },
+        update: {
+          accessToken: longLivedToken,
+          expiresAt,
+          scope,
+          username,
+          displayName,
+          profilePicture,
+          updatedAt: new Date(),
+        },
+      });
+
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=instagram`);
+    }
+
+    // Special handling for Facebook - store pending account choices for picker
+    if (platform === "facebook") {
+      const accounts = await fetchFacebookPages(accessToken);
 
       if (accounts.length === 0) {
-        const message =
-          platform === "instagram"
-            ? "No Instagram Business accounts found. Make sure you have an Instagram Business account connected to a Facebook Page."
-            : "No Facebook Pages found. Make sure you have a Facebook Page connected to your account.";
         return NextResponse.redirect(
-          `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=no_accounts&message=${encodeURIComponent(message)}`,
+          `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=no_accounts&message=${encodeURIComponent("No Facebook Pages found. Make sure you have a Facebook Page connected to your account.")}`,
         );
       }
 

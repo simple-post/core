@@ -24,47 +24,49 @@ export async function POST(req: NextRequest) {
       }
 
       const botUsername = botInfo.result.username;
-      const _botId = botInfo.result.id.toString();
 
-      // Try to get chat info to validate chat ID
+      // Try to get chat info to validate chat ID and resolve username to numeric ID
       const chatInfoResponse = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${chatId}`);
       const chatInfo = await chatInfoResponse.json();
 
-      let chatTitle = channelName;
-      let chatUsername = null;
-
-      if (chatInfoResponse.ok && chatInfo.ok) {
-        chatTitle = chatInfo.result.title || channelName || chatInfo.result.username || chatId;
-        chatUsername = chatInfo.result.username;
+      if (!chatInfoResponse.ok || !chatInfo.ok) {
+        throw new BadRequestError(
+          "Could not find the chat. Make sure the bot is added to the channel/group, or use the numeric chat ID (you can get it from @userinfobot).",
+        );
       }
 
+      // Extract the numeric chat ID from the API response (works for usernames like @channel)
+      const numericChatId = chatInfo.result.id.toString();
+      const chatTitle = chatInfo.result.title || channelName || chatInfo.result.username || numericChatId;
+      const chatUsername = chatInfo.result.username || null;
+
       // Store the Telegram account in the database
-      // Use chatId as platformAccountId
+      // Use numeric chat ID as platformAccountId (required for posting)
       await prisma.connectedAccount.upsert({
         where: {
           userId_platform_platformAccountId: {
             userId: session.user.id,
             platform: "telegram",
-            platformAccountId: chatId,
+            platformAccountId: numericChatId,
           },
         },
         create: {
           userId: session.user.id,
           platform: "telegram",
-          platformAccountId: chatId,
+          platformAccountId: numericChatId,
           accessToken: botToken, // Store bot token as access token
           refreshToken: null,
           expiresAt: null, // Telegram bot tokens don't expire
           scope: null,
           username: chatUsername ? `@${chatUsername}` : null,
-          displayName: chatTitle || `Chat ${chatId}`,
+          displayName: chatTitle || `Chat ${numericChatId}`,
           email: null,
           profilePicture: null,
         },
         update: {
           accessToken: botToken,
           username: chatUsername ? `@${chatUsername}` : null,
-          displayName: chatTitle || `Chat ${chatId}`,
+          displayName: chatTitle || `Chat ${numericChatId}`,
           updatedAt: new Date(),
         },
       });
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
         success: true,
         account: {
           platform: "telegram",
-          chatId,
+          chatId: numericChatId,
           botUsername,
           chatTitle,
         },

@@ -297,7 +297,7 @@ export default function AccountsPage() {
               <button
                 key={platform.id}
                 onClick={() => handleConnect(platform.id)}
-                className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-muted transition-colors text-left group">
+                className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-muted transition-colors text-left group cursor-pointer">
                 <div
                   className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white flex-shrink-0`}>
                   <PlatformIcon platform={platform.id} className="text-2xl" />
@@ -454,13 +454,13 @@ export default function AccountsPage() {
               <Input
                 id="chatId"
                 type="text"
-                placeholder="-1001234567890 or @channelname"
+                placeholder="-1001234567890"
                 value={telegramChatId}
                 onChange={(e) => setTelegramChatId(e.target.value)}
                 className="mt-1.5"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                Channel/group ID or @username. Use{" "}
+                Channel or group ID. Use{" "}
                 <a
                   href="https://t.me/userinfobot"
                   target="_blank"

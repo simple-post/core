@@ -20,10 +20,9 @@ const OAUTH_CONFIG: Record<
     responseType: "code",
   },
   facebook: {
-    authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
+    authUrl: "https://www.facebook.com/v24.0/dialog/oauth",
     clientId: process.env.FACEBOOK_CLIENT_ID || "",
-    scope:
-      "public_profile email pages_show_list pages_read_engagement pages_manage_posts instagram_basic instagram_content_publish",
+    scope: "public_profile,pages_show_list,pages_manage_posts,business_management",
   },
   instagram: {
     authUrl: "https://www.instagram.com/oauth/authorize",

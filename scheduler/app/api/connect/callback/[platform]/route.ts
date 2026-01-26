@@ -22,7 +22,7 @@ const TOKEN_CONFIG: Record<
     userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,name",
   },
   facebook: {
-    tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
+    tokenUrl: "https://graph.facebook.com/v24.0/oauth/access_token",
     clientId: process.env.FACEBOOK_CLIENT_ID || "",
     clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
     userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
@@ -168,7 +168,7 @@ async function fetchInstagramProfile(accessToken: string) {
 
 async function fetchFacebookPages(accessToken: string) {
   const pagesResponse = await fetch(
-    "https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,picture{url}",
+    "https://graph.facebook.com/v24.0/me/accounts?fields=id,name,access_token,picture{url}",
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
@@ -197,13 +197,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     const error = searchParams.get("error");
+    const errorReason = searchParams.get("error_reason");
+    const errorDescription = searchParams.get("error_description");
 
-    // Check for OAuth errors
-    if (error) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(error)}`);
+    // Check for OAuth errors (Facebook sends error_reason and error_description)
+    if (error || errorReason) {
+      const errorMessage = errorDescription || errorReason || error || "Authorization failed";
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(errorMessage)}`);
     }
 
     if (!code || !state) {
+      // Log what we received for debugging
+      authLogger.warn({ code: !!code, state: !!state, url: request.nextUrl.toString() }, "Missing OAuth params");
       return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=missing_params`);
     }
 

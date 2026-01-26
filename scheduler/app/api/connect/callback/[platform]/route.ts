@@ -66,7 +66,7 @@ const TOKEN_CONFIG: Record<
     tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
     clientId: process.env.LINKEDIN_CLIENT_ID || "",
     clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
-    userInfoUrl: "https://api.linkedin.com/v2/me",
+    userInfoUrl: "https://api.linkedin.com/v2/userinfo",
   },
   pinterest: {
     tokenUrl: "https://api.pinterest.com/v5/oauth/token",
@@ -637,12 +637,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         break;
       }
       case "linkedin": {
-        platformAccountId = profile.id;
-        username = profile.vanityName || null;
-        const firstName = profile.localizedFirstName || profile.firstName?.localized?.en_US;
-        const lastName = profile.localizedLastName || profile.lastName?.localized?.en_US;
-        displayName = [firstName, lastName].filter(Boolean).join(" ") || username;
-        profilePicture = null;
+        // OpenID Connect userinfo response
+        platformAccountId = profile.sub || profile.id;
+        username = profile.email || null;
+        displayName = profile.name || profile.given_name || null;
+        email = profile.email || null;
+        profilePicture = profile.picture || null;
         break;
       }
       case "pinterest": {

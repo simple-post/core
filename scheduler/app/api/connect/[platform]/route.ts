@@ -58,7 +58,7 @@ const OAUTH_CONFIG: Record<
   linkedin: {
     authUrl: "https://www.linkedin.com/oauth/v2/authorization",
     clientId: process.env.LINKEDIN_CLIENT_ID || "",
-    scope: "r_liteprofile w_member_social",
+    scope: "openid profile email w_member_social",
     responseType: "code",
   },
   pinterest: {

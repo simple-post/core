@@ -29,8 +29,8 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
       refreshToken: account.refreshToken || "",
     };
   },
-  telegram: () => ({
-    botToken: process.env.TELEGRAM_BOT_TOKEN || "",
+  telegram: (account: ConnectedAccount) => ({
+    botToken: account.accessToken || process.env.TELEGRAM_BOT_TOKEN || "",
   }),
   facebook: (account: ConnectedAccount) => ({
     pageAccessToken: account.accessToken,

@@ -9,8 +9,8 @@ import { ArrowLeft, Info } from "lucide-react";
 
 import { AccountOptionsComponent } from "@/components/account-options";
 import { MediaUpload } from "@/components/media-upload";
-import { PostPreview } from "@/components/post-preview";
 import { usePostDraft } from "@/components/post-draft-context";
+import { PostPreview } from "@/components/post-preview";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";

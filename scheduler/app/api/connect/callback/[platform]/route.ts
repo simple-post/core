@@ -3,6 +3,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { authLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
+const PENDING_OAUTH_TTL_MS = 30 * 60 * 1000;
+
 // Token exchange configuration for each platform
 const TOKEN_CONFIG: Record<
   string,
@@ -168,6 +170,30 @@ async function fetchInstagramAccounts(accessToken: string) {
   return instagramAccounts;
 }
 
+async function fetchFacebookPages(accessToken: string) {
+  const pagesResponse = await fetch(
+    "https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,picture{url}",
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+
+  if (!pagesResponse.ok) {
+    throw new Error(`Failed to fetch Facebook pages: ${pagesResponse.statusText}`);
+  }
+
+  const pagesData = await pagesResponse.json();
+
+  return (pagesData.data || []).map(
+    (page: { id: string; name: string; access_token: string; picture?: { data?: { url?: string } } }) => ({
+      id: page.id,
+      name: page.name,
+      accessToken: page.access_token,
+      profilePicture: page.picture?.data?.url || null,
+    }),
+  );
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   try {
     const { platform } = await params;
@@ -215,54 +241,46 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error("No access token received");
     }
 
-    // Special handling for Instagram - fetch Instagram Business accounts
-    if (platform === "instagram") {
+    // Special handling for Instagram/Facebook - store pending account choices
+    if (platform === "instagram" || platform === "facebook") {
       const instagramAccounts = await fetchInstagramAccounts(accessToken);
+      const accounts =
+        platform === "instagram"
+          ? instagramAccounts.map((igAccount) => ({
+              id: igAccount.businessAccountId,
+              name: igAccount.name,
+              username: igAccount.username,
+              profilePicture: igAccount.profilePicture,
+              accessToken: igAccount.pageAccessToken,
+            }))
+          : await fetchFacebookPages(accessToken);
 
-      if (instagramAccounts.length === 0) {
+      if (accounts.length === 0) {
+        const message =
+          platform === "instagram"
+            ? "No Instagram Business accounts found. Make sure you have an Instagram Business account connected to a Facebook Page."
+            : "No Facebook Pages found. Make sure you have a Facebook Page connected to your account.";
         return NextResponse.redirect(
-          `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=no_instagram_accounts&message=${encodeURIComponent("No Instagram Business accounts found. Make sure you have an Instagram Business account connected to a Facebook Page.")}`,
+          `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=no_accounts&message=${encodeURIComponent(message)}`,
         );
       }
 
-      // Store each Instagram Business account
-      for (const igAccount of instagramAccounts) {
-        await prisma.connectedAccount.upsert({
-          where: {
-            userId_platform_platformAccountId: {
-              userId,
-              platform: "instagram",
-              platformAccountId: igAccount.businessAccountId,
-            },
-          },
-          create: {
-            userId,
-            platform: "instagram",
-            platformAccountId: igAccount.businessAccountId,
-            accessToken: igAccount.pageAccessToken,
-            refreshToken,
-            expiresAt: null, // Page access tokens don't expire if properly set up
-            scope,
-            username: igAccount.username,
-            displayName: igAccount.name,
-            email: null,
-            profilePicture: igAccount.profilePicture,
-          },
-          update: {
-            accessToken: igAccount.pageAccessToken,
-            refreshToken,
-            scope,
-            username: igAccount.username,
-            displayName: igAccount.name,
-            profilePicture: igAccount.profilePicture,
-            updatedAt: new Date(),
-          },
-        });
-      }
+      await prisma.pendingOAuthConnection.deleteMany({ where: { userId, platform } });
 
-      // Redirect back to accounts page with success
+      const pending = await prisma.pendingOAuthConnection.create({
+        data: {
+          userId,
+          platform,
+          data: {
+            accounts,
+            scope,
+          },
+          expiresAt: new Date(Date.now() + PENDING_OAUTH_TTL_MS),
+        },
+      });
+
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=instagram&count=${instagramAccounts.length}`,
+        `${process.env.NEXT_PUBLIC_APP_URL}/accounts/connect/${platform}?pendingId=${pending.id}`,
       );
     }
 

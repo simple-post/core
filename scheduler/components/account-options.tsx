@@ -323,6 +323,31 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                 No additional options required. Media and captions will be posted as configured above.
               </p>
             )}
+
+            {/* Telegram Options */}
+            {account.platform === "telegram" && (
+              <div>
+                <Label htmlFor={`${account.id}-parseMode`} className="text-sm text-muted-foreground">
+                  Parse Mode
+                </Label>
+                <Select
+                  value={accountOptions.parseMode || "default"}
+                  onValueChange={(value) =>
+                    updateOption(account.id, "parseMode", value === "default" ? undefined : value)
+                  }>
+                  <SelectTrigger id={`${account.id}-parseMode`} className="mt-1 border-border/50">
+                    <SelectValue placeholder="Select parse mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="HTML">HTML</SelectItem>
+                    <SelectItem value="Markdown">Markdown</SelectItem>
+                    <SelectItem value="MarkdownV2">MarkdownV2</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Choose how Telegram should parse your message</p>
+              </div>
+            )}
           </Card>
         );
       })}

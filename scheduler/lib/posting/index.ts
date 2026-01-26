@@ -161,6 +161,25 @@ async function postToAccountWithPreparedMedia(
     const results = await sdkPost(postData);
     const result = results.get(platform);
 
+    const refreshedCredentials = result?.extraData?.refreshedCredentials;
+    if (refreshedCredentials && account.platform.toLowerCase() === "x") {
+      try {
+        await prisma.connectedAccount.update({
+          where: { id: account.id },
+          data: {
+            accessToken: refreshedCredentials.accessToken || account.accessToken,
+            refreshToken: refreshedCredentials.refreshToken || account.refreshToken,
+            expiresAt: refreshedCredentials.expiresAt
+              ? new Date(refreshedCredentials.expiresAt * 1000)
+              : account.expiresAt,
+          },
+        });
+        log.info({ accountId: account.id }, "Updated X credentials from refresh");
+      } catch (updateError) {
+        log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update X credentials");
+      }
+    }
+
     log.debug(
       {
         id: result?.id,

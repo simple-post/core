@@ -11,17 +11,18 @@ datasource db {
 }
 
 model User {
-  id                String             @id
-  name              String
-  email             String
-  emailVerified     Boolean            @default(false)
-  image             String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now()) @updatedAt
-  sessions          Session[]
-  accounts          Account[] // For authentication
-  connectedAccounts ConnectedAccount[] // For social media posting
-  posts             Post[]
+  id                     String                   @id
+  name                   String
+  email                  String
+  emailVerified          Boolean                  @default(false)
+  image                  String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
+  sessions               Session[]
+  accounts               Account[] // For authentication
+  connectedAccounts      ConnectedAccount[] // For social media posting
+  posts                  Post[]
+  PendingOAuthConnection PendingOAuthConnection[]
 
   @@unique([email])
   @@map("user")
@@ -110,6 +111,21 @@ model ConnectedAccount {
   @@map("connected_account")
 }
 
+// Pending OAuth connections (used for Facebook/Instagram account pickers)
+model PendingOAuthConnection {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  String
+  data      Json
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@index([userId, platform])
+  @@index([expiresAt])
+  @@map("pending_oauth_connection")
+}
+
 // Scheduled posts
 model Post {
   id           String    @id @default(cuid())
@@ -118,14 +134,14 @@ model Post {
   message      String
   scheduledFor DateTime
   status       String    @default("scheduled") // "scheduled", "published", "failed"
-  errorMessage String?   // Human-readable error message when status is "failed"
-  errorDetails Json?     // Detailed error info (stack trace, API response, etc.)
+  errorMessage String? // Human-readable error message when status is "failed"
+  errorDetails Json? // Detailed error info (stack trace, API response, etc.)
   publishedAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   // Account-specific options stored as JSON
-  accountOptions Json?
+  accountOptions   Json?
   accountOverrides Json?
 
   // Relations

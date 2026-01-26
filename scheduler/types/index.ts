@@ -21,6 +21,9 @@ export interface AccountPlatformOptions {
     publishAt?: string;
   };
   instagram?: Record<string, never>;
+  telegram?: {
+    parseMode?: "HTML" | "Markdown" | "MarkdownV2";
+  };
 }
 
 // Map of accountId to account-specific options
@@ -73,6 +76,9 @@ export interface PlatformOptions {
     publishAt?: string;
   };
   instagram?: Record<string, never>;
+  telegram?: {
+    parseMode?: "HTML" | "Markdown" | "MarkdownV2";
+  };
 }
 
 export interface MediaFile {

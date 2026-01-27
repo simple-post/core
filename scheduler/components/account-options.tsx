@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,13 @@ interface AccountOptionsProps {
   onOptionsChange: (options: AccountOptionsMap) => void;
 }
 
+interface PinterestBoard {
+  id: string;
+  name: string;
+  description: string | null;
+  pinCount: number;
+}
+
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
@@ -23,6 +32,45 @@ const asBoolean = (value: unknown, fallback: boolean): boolean => (typeof value 
 
 export function AccountOptionsComponent({ selectedAccountIds, options, onOptionsChange }: AccountOptionsProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
+  const [pinterestBoards, setPinterestBoards] = useState<Record<string, PinterestBoard[]>>({});
+  const [boardsLoading, setBoardsLoading] = useState<Record<string, boolean>>({});
+  const [boardsError, setBoardsError] = useState<Record<string, string | null>>({});
+
+  // Fetch Pinterest boards for selected Pinterest accounts
+  const fetchBoards = useCallback(async (accountId: string) => {
+    setBoardsLoading((prev) => ({ ...prev, [accountId]: true }));
+    setBoardsError((prev) => ({ ...prev, [accountId]: null }));
+
+    try {
+      const response = await fetch(`/api/accounts/${accountId}/boards`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as { error?: string }).error || "Failed to fetch boards");
+      }
+      const data = (await response.json()) as { boards: PinterestBoard[] };
+      setPinterestBoards((prev) => ({ ...prev, [accountId]: data.boards }));
+    } catch (error) {
+      setBoardsError((prev) => ({
+        ...prev,
+        [accountId]: error instanceof Error ? error.message : "Failed to fetch boards",
+      }));
+    } finally {
+      setBoardsLoading((prev) => ({ ...prev, [accountId]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    const pinterestAccountIds = accounts
+      .filter(
+        (acc: ConnectedAccount) =>
+          acc.platform.toLowerCase() === "pinterest" && selectedAccountIds.includes(acc.id) && !pinterestBoards[acc.id],
+      )
+      .map((acc: ConnectedAccount) => acc.id);
+
+    for (const accountId of pinterestAccountIds) {
+      fetchBoards(accountId);
+    }
+  }, [accounts, selectedAccountIds, pinterestBoards, fetchBoards]);
 
   if (selectedAccountIds.length === 0) {
     return null;
@@ -371,15 +419,48 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
               <div className="space-y-3">
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-boardId`} className="text-sm text-muted-foreground">
-                    Board ID
+                    Board
                   </Label>
-                  <Input
-                    id={`${account.id}-pinterest-boardId`}
-                    placeholder="1234567890123456789"
-                    value={asString(accountOptions.boardId)}
-                    onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
-                    className="mt-1 border-border/50"
-                  />
+                  {boardsLoading[account.id] ? (
+                    <div className="mt-1 text-sm text-muted-foreground">Loading boards...</div>
+                  ) : boardsError[account.id] ? (
+                    <div className="mt-1 space-y-2">
+                      <p className="text-sm text-destructive">{boardsError[account.id]}</p>
+                      <Input
+                        id={`${account.id}-pinterest-boardId`}
+                        placeholder="Enter board ID manually"
+                        value={asString(accountOptions.boardId)}
+                        onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
+                        className="border-border/50"
+                      />
+                    </div>
+                  ) : pinterestBoards[account.id]?.length ? (
+                    <Select
+                      value={asString(accountOptions.boardId) || undefined}
+                      onValueChange={(value) => updateOption(account.id, "boardId", value)}>
+                      <SelectTrigger id={`${account.id}-pinterest-boardId`} className="mt-1 border-border/50">
+                        <SelectValue placeholder="Select a board" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pinterestBoards[account.id].map((board) => (
+                          <SelectItem key={board.id} value={board.id}>
+                            {board.name} {board.pinCount > 0 && `(${board.pinCount} pins)`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="mt-1 space-y-2">
+                      <p className="text-sm text-muted-foreground">No boards found. Create a board on Pinterest first.</p>
+                      <Input
+                        id={`${account.id}-pinterest-boardId`}
+                        placeholder="Or enter board ID manually"
+                        value={asString(accountOptions.boardId)}
+                        onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
+                        className="border-border/50"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-title`} className="text-sm text-muted-foreground">

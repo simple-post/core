@@ -46,7 +46,7 @@ const OAUTH_CONFIG: Record<
   bluesky: {
     authUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/authorize`,
     clientId: process.env.BLUESKY_CLIENT_ID || "",
-    scope: "atproto",
+    scope: "atproto transition:generic",
     responseType: "code",
   },
   threads: {

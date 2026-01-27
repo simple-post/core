@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 
 import { type NextRequest, NextResponse } from "next/server";
 
+import { derToRaw } from "@simple-post/sdk";
+
 import { authLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
@@ -102,11 +104,13 @@ function createDpopProof({
   method,
   privateKey,
   publicJwk,
+  nonce,
 }: {
   url: string;
   method: string;
   privateKey: crypto.KeyObject;
   publicJwk: Record<string, unknown>;
+  nonce?: string;
 }): string {
   const header = {
     typ: "dpop+jwt",
@@ -114,20 +118,28 @@ function createDpopProof({
     jwk: publicJwk,
   };
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     htu: url,
     htm: method.toUpperCase(),
     jti: crypto.randomUUID(),
     iat: Math.floor(Date.now() / 1000),
   };
 
+  if (nonce) {
+    payload.nonce = nonce;
+  }
+
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-  const signature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
+  // Sign with ECDSA SHA-256 (ES256)
+  const derSignature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
 
-  return `${signingInput}.${base64UrlEncode(signature)}`;
+  // Convert DER signature to raw R||S format required by JWS
+  const rawSignature = derToRaw(derSignature);
+
+  return `${signingInput}.${base64UrlEncode(rawSignature)}`;
 }
 
 function generateDpopKeyPair(): {
@@ -154,13 +166,6 @@ async function exchangeCodeForBlueskyToken(
   const config = TOKEN_CONFIG.bluesky;
   const { privateKey, publicJwk, privateJwk } = generateDpopKeyPair();
 
-  const dpopProof = createDpopProof({
-    url: config.tokenUrl,
-    method: "POST",
-    privateKey,
-    publicJwk,
-  });
-
   const body = new URLSearchParams({
     client_id: config.clientId,
     code,
@@ -172,18 +177,69 @@ async function exchangeCodeForBlueskyToken(
     body.set("code_verifier", codeVerifier);
   }
 
+  // First request without nonce - Bluesky will return 401 with DPoP-Nonce header
+  const initialDpopProof = createDpopProof({
+    url: config.tokenUrl,
+    method: "POST",
+    privateKey,
+    publicJwk,
+  });
+
+  const initialResponse = await fetch(config.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      DPoP: initialDpopProof,
+    },
+    body,
+  });
+
+  // Get the nonce from the response header
+  const dpopNonce = initialResponse.headers.get("DPoP-Nonce");
+
+  // If first request succeeded (unlikely but possible), return the result
+  if (initialResponse.ok) {
+    return {
+      tokenData: await initialResponse.json(),
+      dpopPublicJwk: publicJwk,
+      dpopPrivateJwk: privateJwk,
+    };
+  }
+
+  // Check if this is a nonce error (expected on first request)
+  if (!dpopNonce) {
+    const error = await initialResponse.text();
+    authLogger.error(
+      { platform: "bluesky", error, status: initialResponse.status },
+      "Token exchange failed - no DPoP nonce received",
+    );
+    throw new Error(`Failed to exchange code for token: ${initialResponse.statusText}`);
+  }
+
+  // Retry with the nonce
+  const dpopProofWithNonce = createDpopProof({
+    url: config.tokenUrl,
+    method: "POST",
+    privateKey,
+    publicJwk,
+    nonce: dpopNonce,
+  });
+
   const response = await fetch(config.tokenUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      DPoP: dpopProof,
+      DPoP: dpopProofWithNonce,
     },
     body,
   });
 
   if (!response.ok) {
     const error = await response.text();
-    authLogger.error({ platform: "bluesky", error, status: response.status }, "Token exchange failed");
+    authLogger.error(
+      { platform: "bluesky", error, status: response.status },
+      "Token exchange failed after nonce retry",
+    );
     throw new Error(`Failed to exchange code for token: ${response.statusText}`);
   }
 

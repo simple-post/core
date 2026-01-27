@@ -117,6 +117,9 @@ export type { PostResult } from "./types";
 export { PostError, PostErrorType } from "./types";
 export type { PlatformValidationRules, ValidationIssue, ValidationResult } from "./types/validation";
 
+// Export utility functions
+export { derToRaw } from "./utils/crypto";
+
 // Export schemas for runtime validation
 export {
   PlatformSchema,

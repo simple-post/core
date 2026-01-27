@@ -30,6 +30,7 @@ export const getContentType = (filePath: string): string => {
   return contentType;
 };
 
+export * from "./crypto";
 export * from "./media";
 export * from "./platform-requirements";
 export * from "./media-resolver";

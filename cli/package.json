@@ -1,0 +1,24 @@
+{
+  "name": "@simple-post/cli",
+  "version": "0.1.0",
+  "description": "SimplePost CLI for cross-platform posting",
+  "type": "module",
+  "bin": {
+    "simple-post": "./dist/cli.js"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsup",
+    "compile": "tsc --noEmit",
+    "check": "tsc --noEmit",
+    "prepack": "yarn build"
+  },
+  "dependencies": {
+    "@simple-post/sdk": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3"
+  }
+}

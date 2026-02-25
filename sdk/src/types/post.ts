@@ -118,6 +118,7 @@ export const InstagramOptionsSchema = z.object({
     .object({
       accessToken: z.string(),
       businessAccountId: z.string(),
+      expiresAt: z.number().optional(),
     })
     .optional(),
 });

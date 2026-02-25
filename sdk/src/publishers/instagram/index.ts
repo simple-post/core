@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
 
 import { PostError, PostErrorType } from "../../types";
 import { hasValidSource, resolveMediaUrl } from "../../utils";
@@ -10,15 +10,22 @@ import type { Content, Media, PostOptionsWithCredentials } from "../../types/pos
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
-const FACEBOOK_API_VERSION = "v23.0";
+const INSTAGRAM_API_VERSION = "v25.0";
 const MAX_CAPTION_LENGTH = 2200;
 const MAX_MEDIA_COUNT = 10;
 const PROCESSING_POLL_INTERVAL = 3000;
+const PROACTIVE_REFRESH_DAYS = 7;
 
 const VALIDATION_RULES: PlatformValidationRules = {
   text: { maxCaptionLength: MAX_CAPTION_LENGTH },
   media: { requiresMedia: true, minCount: 1, maxCount: MAX_MEDIA_COUNT, allowsMixed: true },
 };
+
+interface InstagramRefreshResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}
 
 export class InstagramPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
@@ -29,9 +36,16 @@ export class InstagramPublisher extends Publisher {
 
   private client: AxiosInstance;
   private businessAccountId: string;
+  private accessToken: string;
+  private expiresAt?: number;
 
   private s3MediaUploader: S3MediaUploader;
   private s3TempFileKeys: string[] = [];
+
+  private refreshedCredentials?: {
+    accessToken: string;
+    expiresAt: number;
+  };
 
   constructor(options?: PostOptionsWithCredentials) {
     super("Instagram", options);
@@ -43,12 +57,15 @@ export class InstagramPublisher extends Publisher {
         "Instagram credentials are required in options.instagram.credentials",
       );
     }
-    const { accessToken, businessAccountId } = options.instagram.credentials;
+    const { accessToken, businessAccountId, expiresAt } = options.instagram.credentials;
     this.businessAccountId = businessAccountId;
+    this.accessToken = accessToken;
+    this.expiresAt = expiresAt;
 
-    // Create axios client with base configuration
+    // Create axios client - use graph.instagram.com for Instagram Login (Business Login) tokens
+    // graph.facebook.com expects Page Access Tokens; Instagram User tokens require graph.instagram.com
     this.client = axios.create({
-      baseURL: `https://graph.facebook.com/${FACEBOOK_API_VERSION}`,
+      baseURL: `https://graph.instagram.com/${INSTAGRAM_API_VERSION}`,
       timeout: 30_000, // 30 seconds timeout
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
@@ -62,13 +79,83 @@ export class InstagramPublisher extends Publisher {
     this.s3MediaUploader = new S3MediaUploader();
   }
 
+  private isTokenExpiringSoon(): boolean {
+    if (!this.expiresAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDays = PROACTIVE_REFRESH_DAYS * 24 * 60 * 60;
+    return now >= this.expiresAt - sevenDays;
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    const currentToken = this.refreshedCredentials?.accessToken || this.accessToken;
+
+    try {
+      this.logger.info("Refreshing Instagram access token...");
+
+      const url = new URL("https://graph.instagram.com/refresh_access_token");
+      url.searchParams.set("grant_type", "ig_refresh_token");
+      url.searchParams.set("access_token", currentToken);
+
+      const response = await axios.get<InstagramRefreshResponse>(url.toString());
+      const { access_token, expires_in } = response.data;
+      const expiresAt = Math.floor(Date.now() / 1000) + expires_in;
+
+      this.refreshedCredentials = { accessToken: access_token, expiresAt };
+      this.accessToken = access_token;
+      this.expiresAt = expiresAt;
+
+      this.client.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      this.logger.info("Instagram access token refreshed successfully");
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(`Failed to refresh Instagram token: ${err.message || error}`);
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Instagram access token has expired. Please reconnect your Instagram account in account settings.",
+        err.response?.data?.error?.message || err.message,
+      );
+    }
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (this.isTokenExpiringSoon()) {
+      await this.refreshAccessToken();
+    }
+  }
+
+  private async apiRequest<T>(
+    method: "get" | "post",
+    url: string,
+    data?: unknown,
+  ): Promise<{ data: T }> {
+    const doRequest = () =>
+      method === "get"
+        ? this.client.get<T>(url)
+        : this.client.post<T>(url, data);
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      const axiosError = error as AxiosError<{ error?: { message?: string } }>;
+      if (axiosError.response?.status === 401) {
+        this.logger.warn("Received 401, attempting token refresh...");
+        await this.refreshAccessToken();
+        return doRequest();
+      }
+      throw error;
+    }
+  }
+
   private async cleanupS3Files(): Promise<void> {
     await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader.deleteFile(key)));
   }
 
   private async waitForMediaReady(containerId: string): Promise<void> {
     while (true) {
-      const statusRes = await this.client.get(`/${containerId}?fields=status_code,status`);
+      const statusRes = await this.apiRequest<{ status_code: string; status: string }>(
+        "get",
+        `/${containerId}?fields=status_code,status`,
+      );
       const statusCode = statusRes.data.status_code;
       const status = statusRes.data.status;
 
@@ -102,7 +189,7 @@ export class InstagramPublisher extends Publisher {
 
     try {
       // Create media object using the URL
-      const response = await this.client.post(`/${this.businessAccountId}/media`, {
+      const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
         media_type: mediaType,
         caption: isCarousel ? undefined : caption,
         is_carousel_item: isCarousel,
@@ -111,14 +198,11 @@ export class InstagramPublisher extends Publisher {
 
       return response.data.id;
     } catch (error: unknown) {
-      const err = error as { message?: string };
+      const err = error as { message?: string; response?: { data?: { error?: { message?: string } } } };
       this.logger.error(error instanceof Error ? error : String(error));
+      const apiMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
-      throw new PostError(
-        PostErrorType.API_ERROR,
-        `Failed to create media object: ${err.message || "Unknown error"}`,
-        err,
-      );
+      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${apiMessage}`, err);
     }
   }
 
@@ -136,7 +220,7 @@ export class InstagramPublisher extends Publisher {
 
       // If there are multiple media objects, create a carousel post
       if (content.media!.length > 1) {
-        const response = await this.client.post(`/${this.businessAccountId}/media`, {
+        const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
           media_type: "CAROUSEL",
           caption: content.text,
           children: mediaObjectIds.join(","),
@@ -220,6 +304,8 @@ export class InstagramPublisher extends Publisher {
   }
 
   async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
+    await this.ensureValidToken();
+
     // Validate the content
     const validation = InstagramPublisher.validate(content);
     if (!validation.isValid) {
@@ -241,9 +327,22 @@ export class InstagramPublisher extends Publisher {
       await this.waitForMediaReady(containerId);
 
       // Publish the container
-      const response = await this.client.post(`/${this.businessAccountId}/media_publish`, { creation_id: containerId });
+      const response = await this.apiRequest<{ id: string }>(
+        "post",
+        `/${this.businessAccountId}/media_publish`,
+        { creation_id: containerId },
+      );
 
-      return { id: response.data.id, error: PostErrorType.NO_ERROR };
+      const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
+      if (this.refreshedCredentials) {
+        result.extraData = {
+          refreshedCredentials: {
+            accessToken: this.refreshedCredentials.accessToken,
+            expiresAt: this.refreshedCredentials.expiresAt,
+          },
+        };
+      }
+      return result;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       if (error instanceof PostError) throw error;

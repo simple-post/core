@@ -56,7 +56,7 @@ describe("InstagramPublisher", () => {
   describe("constructor", () => {
     it("should initialize with valid credentials", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
-        baseURL: "https://graph.facebook.com/v23.0",
+        baseURL: "https://graph.instagram.com/v25.0",
         timeout: 30_000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
@@ -238,7 +238,7 @@ describe("InstagramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Failed to create media object: undefined", apiError),
+        new PostError(PostErrorType.API_ERROR, "Failed to create media object: Invalid media URL", apiError),
       );
     });
 

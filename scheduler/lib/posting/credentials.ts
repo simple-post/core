@@ -52,6 +52,7 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   instagram: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
     businessAccountId: account.platformAccountId,
+    expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : undefined,
   }),
   tiktok: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,

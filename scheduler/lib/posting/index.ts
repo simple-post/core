@@ -193,21 +193,22 @@ async function postToAccountWithPreparedMedia(
     const result = results.get(platform);
 
     const refreshedCredentials = result?.extraData?.refreshedCredentials;
-    if (refreshedCredentials && account.platform.toLowerCase() === "x") {
+    const platformLower = account.platform.toLowerCase();
+    if (refreshedCredentials && (platformLower === "x" || platformLower === "instagram")) {
       try {
         await prisma.connectedAccount.update({
           where: { id: account.id },
           data: {
             accessToken: refreshedCredentials.accessToken || account.accessToken,
-            refreshToken: refreshedCredentials.refreshToken || account.refreshToken,
+            refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
             expiresAt: refreshedCredentials.expiresAt
               ? new Date(refreshedCredentials.expiresAt * 1000)
               : account.expiresAt,
           },
         });
-        log.info({ accountId: account.id }, "Updated X credentials from refresh");
+        log.info({ accountId: account.id, platform: account.platform }, "Updated credentials from refresh");
       } catch (updateError) {
-        log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update X credentials");
+        log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update credentials");
       }
     }
 

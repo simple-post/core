@@ -344,6 +344,11 @@ async function fetchUserProfile(platform: string, accessToken: string) {
   }
 
   if (!response.ok) {
+    const errorBody = await response.text();
+    authLogger.warn(
+      { platform, status: response.status, statusText: response.statusText, errorBody },
+      "Failed to fetch user profile",
+    );
     throw new Error(`Failed to fetch user profile: ${response.statusText}`);
   }
 
@@ -654,7 +659,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Fetch user profile for other platforms
-    const profile = await fetchUserProfile(platform, accessToken);
+    let profile: Record<string, unknown>;
+    try {
+      profile = await fetchUserProfile(platform, accessToken);
+    } catch (profileError) {
+      // Threads: token exchange returns user_id; use it when /me fails (common in dev mode)
+      if (platform === "threads" && tokenData.user_id != null) {
+        authLogger.info(
+          { userId: tokenData.user_id },
+          "Threads /me failed, using user_id from token exchange (consider adding user as Threads Tester)",
+        );
+        profile = { id: String(tokenData.user_id) };
+      } else {
+        throw profileError;
+      }
+    }
 
     // Extract profile data based on platform
     let platformAccountId: string;

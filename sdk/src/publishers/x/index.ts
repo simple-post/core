@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 import axios from "axios";
-import { TwitterApi } from "twitter-api-v2";
+import { EUploadMimeType, TwitterApi } from "twitter-api-v2";
 
 import { PostError, PostErrorType } from "../../types";
 import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
@@ -16,7 +16,6 @@ import type {
   XUserCredentials,
 } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
-import type { TwitterApiv1 } from "twitter-api-v2";
 
 const MAX_TEXT_LENGTH = 280;
 const MAX_MEDIA_COUNT = 4;
@@ -41,7 +40,6 @@ export class XPublisher extends Publisher {
   }
 
   private client: TwitterApi;
-  private clientV1: TwitterApiv1;
 
   private credentials: XCredentials;
 
@@ -74,8 +72,6 @@ export class XPublisher extends Publisher {
           accessToken: this.credentials.accessToken,
           accessSecret: (this.credentials as XAppCredentials).accessSecret,
         }));
-
-    this.clientV1 = this.client.v1;
   }
 
   private isTokenExpired(): boolean {
@@ -135,7 +131,6 @@ export class XPublisher extends Publisher {
 
       // Re-initialize client with new access token
       this.client = new TwitterApi(access_token);
-      this.clientV1 = this.client.v1;
 
       this.logger.info("X access token refreshed successfully");
     } catch (error: unknown) {
@@ -149,15 +144,32 @@ export class XPublisher extends Publisher {
     }
   }
 
+  private static getMimeType(filePath: string): EUploadMimeType {
+    const ext = filePath.split(".").pop()?.toLowerCase();
+    const mimeTypes: Record<string, EUploadMimeType> = {
+      jpg: EUploadMimeType.Jpeg,
+      jpeg: EUploadMimeType.Jpeg,
+      png: EUploadMimeType.Png,
+      gif: EUploadMimeType.Gif,
+      webp: EUploadMimeType.Webp,
+      mp4: EUploadMimeType.Mp4,
+      mov: EUploadMimeType.Mov,
+    };
+    return mimeTypes[ext ?? ""] ?? EUploadMimeType.Jpeg;
+  }
+
   private async uploadMedia(resolvedPath: string): Promise<string> {
     // Check if the media file exists
     if (!fs.existsSync(resolvedPath)) {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${resolvedPath}`);
     }
 
-    // Upload the media using the Twitter V1 API
+    const mimeType = XPublisher.getMimeType(resolvedPath);
+    const buffer = fs.readFileSync(resolvedPath);
+
+    // Upload the media using the X V2 API
     try {
-      const mediaId = await this.clientV1.uploadMedia(resolvedPath);
+      const mediaId = await this.client.v2.uploadMedia(buffer, { media_type: mimeType });
 
       this.logger.info(`Media uploaded: ${mediaId}`);
 

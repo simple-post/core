@@ -145,13 +145,37 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             {/* Error Message for Failed Posts */}
-            {isFailed && post.errorMessage && (
+            {isFailed && (post.errorMessage || post.errorDetails) && (
               <Card className="p-4 border-red-500/20 bg-red-500/5">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-1">
+                  <div className="space-y-3 flex-1 min-w-0">
                     <p className="text-sm font-medium text-red-500">Post Failed</p>
-                    <p className="text-sm text-muted-foreground">{post.errorMessage}</p>
+                    {post.errorMessage && (
+                      <p className="text-sm text-muted-foreground">{post.errorMessage}</p>
+                    )}
+                    {post.errorDetails?.failedPlatforms &&
+                      Array.isArray(post.errorDetails.failedPlatforms) && (
+                        <ul className="space-y-1.5 text-sm">
+                          {(post.errorDetails.failedPlatforms as Array<{
+                            platform?: string;
+                            message?: string;
+                            error?: string;
+                          }>).map((fp, i) => {
+                            const platformConfig = getPlatformById(
+                              (fp.platform || "").toLowerCase() === "twitter" ? "x" : (fp.platform || "").toLowerCase(),
+                            );
+                            const platformName = platformConfig?.name || fp.platform || "Unknown";
+                            const errMsg = fp.message || fp.error || "Unknown error";
+                            return (
+                              <li key={i} className="flex items-start gap-2 text-muted-foreground">
+                                <span className="font-medium text-foreground">{platformName}:</span>
+                                <span>{errMsg}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                   </div>
                 </div>
               </Card>

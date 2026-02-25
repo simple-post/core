@@ -40,14 +40,14 @@ describe("XPublisher", () => {
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(Buffer.from("mock-file-content"));
 
     // Create mock Twitter clients
-    mockV1Client = {
-      uploadMedia: jest.fn(),
-    };
+    mockV1Client = {};
 
     mockV2Client = {
       tweet: jest.fn(),
+      uploadMedia: jest.fn(),
     };
 
     mockTwitterClient = {
@@ -153,14 +153,14 @@ describe("XPublisher", () => {
         media: [{ type: "image", path: "/path/to/image.jpg" }],
       };
 
-      mockV1Client.uploadMedia.mockResolvedValue("media_id_123");
+      mockV2Client.uploadMedia.mockResolvedValue("media_id_123");
       mockV2Client.tweet.mockResolvedValue({
         data: { id: "tweet_id_456" },
       });
 
       const result = await publisher.postContent(content, options);
 
-      expect(mockV1Client.uploadMedia).toHaveBeenCalledWith("/path/to/image.jpg");
+      expect(mockV2Client.uploadMedia).toHaveBeenCalledWith(expect.any(Buffer), { media_type: "image/jpeg" });
       expect(mockV2Client.tweet).toHaveBeenCalledWith("Check out this image!", {
         media: { media_ids: ["media_id_123"] },
         reply: undefined,
@@ -208,7 +208,7 @@ describe("XPublisher", () => {
         ],
       };
 
-      mockV1Client.uploadMedia
+      mockV2Client.uploadMedia
         .mockResolvedValueOnce("media_id_1")
         .mockResolvedValueOnce("media_id_2")
         .mockResolvedValueOnce("media_id_3");
@@ -219,7 +219,7 @@ describe("XPublisher", () => {
 
       const result = await publisher.postContent(content, options);
 
-      expect(mockV1Client.uploadMedia).toHaveBeenCalledTimes(3);
+      expect(mockV2Client.uploadMedia).toHaveBeenCalledTimes(3);
       expect(mockV2Client.tweet).toHaveBeenCalledWith("Multiple images", {
         media: { media_ids: ["media_id_1", "media_id_2", "media_id_3"] },
         reply: undefined,

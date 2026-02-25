@@ -30,15 +30,34 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   }),
   twitter: (account: ConnectedAccount) => credentialBuilders.x(account),
   youtube: (account: ConnectedAccount) => {
-    // Prefer accessToken if available, otherwise fall back to OAuth2 credentials
-    if (account.accessToken) {
+    // Use same client as connect flow - refresh tokens are tied to the OAuth client.
+    // YOUTUBE_* overrides GOOGLE_* when set (for separate YouTube app).
+    const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || "";
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || "";
+
+    // Use access token when still valid - avoids hitting refresh endpoint (which can fail with
+    // invalid_grant if token was revoked or credentials mismatch). Buffer: 5 min before expiry.
+    const YOUTUBE_TOKEN_BUFFER_SEC = 5 * 60;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const expiresAtSec = account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0;
+    const accessTokenValid = account.accessToken && expiresAtSec > nowSec + YOUTUBE_TOKEN_BUFFER_SEC;
+
+    if (accessTokenValid) {
+      return { accessToken: account.accessToken };
+    }
+    if (account.refreshToken && clientId && clientSecret) {
       return {
-        accessToken: account.accessToken,
+        clientId,
+        clientSecret,
+        refreshToken: account.refreshToken,
       };
     }
+    if (account.accessToken) {
+      return { accessToken: account.accessToken };
+    }
     return {
-      clientId: process.env.YOUTUBE_CLIENT_ID || "",
-      clientSecret: process.env.YOUTUBE_CLIENT_SECRET || "",
+      clientId,
+      clientSecret,
       refreshToken: account.refreshToken || "",
     };
   },
@@ -110,14 +129,8 @@ const postOptionBuilders: Record<
   twitter: (account, credentials, accountSpecificOptions) =>
     postOptionBuilders.x(account, credentials, accountSpecificOptions),
   youtube: (account, credentials, accountSpecificOptions) => {
-    // Ensure credentials match the expected YouTube credentials type
-    const youtubeCredentials = account.accessToken
-      ? { accessToken: account.accessToken }
-      : {
-          clientId: process.env.YOUTUBE_CLIENT_ID || "",
-          clientSecret: process.env.YOUTUBE_CLIENT_SECRET || "",
-          refreshToken: account.refreshToken || "",
-        };
+    // Use credentials from credential builder (prefers refresh token flow for auto-refresh)
+    const youtubeCredentials = credentials as PlatformCredentials<"youtube">;
 
     return {
       youtube: {

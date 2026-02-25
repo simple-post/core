@@ -4,7 +4,7 @@ import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
-import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { handleApiError, BadRequestError, sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
@@ -203,9 +203,9 @@ export async function POST(req: NextRequest) {
           const failedResults = results.filter((r) => !r.success);
           const errorMessage =
             failedResults.length === 1
-              ? failedResults[0].error || failedResults[0].message || "Unknown error"
+              ? failedResults[0].message || failedResults[0].error || "Unknown error"
               : `Failed on ${failedResults.length} platform(s)`;
-          const errorDetails = {
+          const errorDetails = sanitizeForJson({
             failedPlatforms: failedResults.map((r) => ({
               accountId: r.accountId,
               platform: r.platform,
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
               message: r.message,
               details: r.details,
             })),
-          };
+          }) as Record<string, unknown>;
 
           await repository.updatePost(post.id, {
             status: "failed",
@@ -226,10 +226,21 @@ export async function POST(req: NextRequest) {
         const durationMs = Date.now() - startTime;
         log.info({ postId: post.id, durationMs }, "Request completed successfully");
 
+        const sanitizedResults = results.map((r) => ({
+          accountId: r.accountId,
+          platform: r.platform,
+          success: r.success,
+          error: r.error,
+          message: r.message,
+          postId: r.postId,
+          postUrl: r.postUrl,
+          details: r.details ? (sanitizeForJson(r.details) as Record<string, unknown>) : undefined,
+        }));
+
         return NextResponse.json(
           {
             post: updatedPost,
-            postingResults: results,
+            postingResults: sanitizedResults,
             summary,
           },
           { status: 201 },

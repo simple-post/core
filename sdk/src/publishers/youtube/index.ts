@@ -268,22 +268,34 @@ export class YouTubePublisher extends Publisher {
         this.logger.info(`[YouTubePublisher] Video upload successful! Video ID: ${videoId}`);
         this.logger.info(`[YouTubePublisher] Upload completed in ${Date.now() - startTime}ms`);
       } catch (error: unknown) {
-        const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+        const err = error as { response?: { data?: { error?: { message?: string; code?: number } } }; message?: string };
         this.logger.error(
           `[YouTubePublisher] Video upload failed after ${Date.now() - startTime}ms: ${error instanceof Error ? error.message : String(error)}`,
         );
 
         let errorMessage = "Failed to upload video";
 
-        if (err.response?.data?.error?.message) {
-          errorMessage = err.response.data.error.message;
-          this.logger.error(`[YouTubePublisher] YouTube API error: ${JSON.stringify(err.response.data.error)}`);
+        const data = err.response?.data as { error?: string | { message?: string; error?: string } } | undefined;
+        const errorCode = typeof data?.error === "string" ? data.error : data?.error?.error;
+
+        if (errorCode === "invalid_grant") {
+          errorMessage =
+            "Your YouTube connection has expired. Please reconnect your YouTube account in Settings.";
+          this.logger.error(`[YouTubePublisher] invalid_grant - refresh token invalid or revoked`);
+        } else if (typeof data?.error === "object" && data.error?.message) {
+          errorMessage = data.error.message;
+          this.logger.error(`[YouTubePublisher] YouTube API error: ${JSON.stringify(data.error)}`);
         } else if (err.message) {
           errorMessage = err.message;
           this.logger.error(`[YouTubePublisher] Error message: ${err.message}`);
         }
 
-        throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
+        // Pass only the serializable API error object, not the full axios/request object
+        const apiErrorDetails = err.response?.data?.error
+          ? { error: err.response.data.error, status: (err as { response?: { status?: number } }).response?.status }
+          : undefined;
+
+        throw new PostError(PostErrorType.API_ERROR, errorMessage, apiErrorDetails);
       }
 
       // Upload the thumbnail if provided

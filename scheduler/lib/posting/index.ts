@@ -1,10 +1,12 @@
 import { PostErrorType, post as sdkPost, prepareMedia } from "@simple-post/sdk";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
+import { sanitizeForJson } from "@/lib/utils/errors";
 import { prisma } from "@/lib/prisma";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import { buildPostOptions } from "./credentials";
+import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
 import type { Post, Platform, Media } from "@simple-post/sdk";
 
@@ -256,7 +258,7 @@ async function postToAccountWithPreparedMedia(
         {
           error: errorMsg,
           errorMessage: result?.message,
-          details: result?.details,
+          details: result?.details ? sanitizeForJson(result.details) : undefined,
           durationMs,
         },
         "Post failed",
@@ -346,6 +348,11 @@ export async function postToAccounts(
       );
     });
 
+    // Refresh TikTok tokens if expired (access tokens expire after 24 hours)
+    const refreshedAccounts = await Promise.all(
+      accounts.map((account) => refreshTikTokTokenIfNeeded(account)),
+    );
+
     const hasOverrides = !!accountOverrides && Object.keys(accountOverrides).length > 0;
 
     if (!hasOverrides) {
@@ -355,7 +362,7 @@ export async function postToAccounts(
       log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 
       // Get all unique platforms for efficient media resolution
-      const uniquePlatforms = [...new Set(accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
+      const uniquePlatforms = [...new Set(refreshedAccounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
 
       log.debug({ uniquePlatforms }, "Unique platforms identified");
 
@@ -378,7 +385,7 @@ export async function postToAccounts(
         log.debug("Posting to all accounts in parallel");
         const preparedMedia = preparedPost.content.media || [];
         const results = await Promise.all(
-          accounts.map((account) => postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions)),
+          refreshedAccounts.map((account) => postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions)),
         );
 
         const successCount = results.filter((r) => r.success).length;
@@ -423,7 +430,7 @@ export async function postToAccounts(
     log.debug("Posting with account-specific overrides");
 
     const results = await Promise.all(
-      accounts.map(async (account) => {
+      refreshedAccounts.map(async (account) => {
         const override = accountOverrides?.[account.id];
         const accountMessage = override?.message ?? message;
         const accountMediaFiles = override?.media ?? mediaFiles;

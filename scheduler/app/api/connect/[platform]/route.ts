@@ -18,7 +18,7 @@ const OAUTH_CONFIG: Record<
   x: {
     authUrl: "https://twitter.com/i/oauth2/authorize",
     clientId: process.env.X_CLIENT_ID || "",
-    scope: "tweet.read tweet.write users.read offline.access",
+    scope: "tweet.read tweet.write users.read offline.access media.write",
     responseType: "code",
   },
   facebook: {

@@ -90,10 +90,3 @@ export async function POST(req: NextRequest) {
     return handleApiError(error);
   }
 }
-
-// Configure Next.js to handle large file uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};

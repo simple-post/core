@@ -173,6 +173,22 @@ export class ThreadsPublisher extends Publisher {
     return this.s3MediaUploader;
   }
 
+  /**
+   * Resolves the Threads user ID from the /me endpoint.
+   * The token exchange may return an ID that doesn't match what the publish API expects;
+   * /me returns the correct app-scoped threads-user-id for the current token.
+   */
+  private async resolveUserId(): Promise<string> {
+    const response = await this.client.get("/me", {
+      params: { fields: "id", access_token: this.accessToken },
+    });
+    const id = response.data?.id;
+    if (!id) {
+      throw new PostError(PostErrorType.API_ERROR, "Threads /me did not return user id.", response.data);
+    }
+    return String(id);
+  }
+
   private async resolveMedia(media: Media): Promise<{ type: "IMAGE" | "VIDEO"; url: string }> {
     const { url, uploadedKey } = await resolveMediaUrl(media, (filePath, key) =>
       this.getS3Uploader().uploadFile(filePath, key),
@@ -203,6 +219,15 @@ export class ThreadsPublisher extends Publisher {
     const media = content.media?.[0];
 
     try {
+      // Resolve user ID from /me - the stored ID may not match what the publish API expects
+      let threadsUserId: string;
+      try {
+        threadsUserId = await this.resolveUserId();
+      } catch (resolveError) {
+        this.logger.warn({ error: resolveError, fallbackUserId: this.userId }, "Threads /me failed, using stored userId");
+        threadsUserId = this.userId;
+      }
+
       const basePayload: Record<string, unknown> = {
         access_token: this.accessToken,
       };
@@ -224,7 +249,7 @@ export class ThreadsPublisher extends Publisher {
         basePayload.media_type = "TEXT";
       }
 
-      const createResponse = await this.client.post(`/${this.userId}/threads`, basePayload);
+      const createResponse = await this.client.post(`/${threadsUserId}/threads`, basePayload);
       const creationId = createResponse.data?.id || createResponse.data?.creation_id;
 
       if (!creationId) {
@@ -235,7 +260,7 @@ export class ThreadsPublisher extends Publisher {
         await this.waitForMediaReady(creationId);
       }
 
-      const publishResponse = await this.client.post(`/${this.userId}/threads_publish`, {
+      const publishResponse = await this.client.post(`/${threadsUserId}/threads_publish`, {
         access_token: this.accessToken,
         creation_id: creationId,
       });

@@ -44,7 +44,7 @@ const DEFAULT_DRAFT: PostDraftState = {
   message: "",
   media: [],
   selectedAccountIds: [],
-  postingMode: "schedule",
+  postingMode: "now",
   scheduledDate: "",
   scheduledTime: "",
   accountOptions: {},

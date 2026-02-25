@@ -194,7 +194,7 @@ async function postToAccountWithPreparedMedia(
 
     const refreshedCredentials = result?.extraData?.refreshedCredentials;
     const platformLower = account.platform.toLowerCase();
-    if (refreshedCredentials && (platformLower === "x" || platformLower === "instagram")) {
+    if (refreshedCredentials && (platformLower === "x" || platformLower === "instagram" || platformLower === "bluesky")) {
       try {
         await prisma.connectedAccount.update({
           where: { id: account.id },

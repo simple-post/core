@@ -59,11 +59,15 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   }),
   bluesky: (account: ConnectedAccount) => {
     const metadata = getTokenMetadata(account);
+    const issuer = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
     return {
       accessToken: account.accessToken,
       refreshToken: account.refreshToken || "",
+      expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0,
       did: account.platformAccountId,
-      pdsUrl: (metadata.pdsUrl as string) || process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social",
+      pdsUrl: (metadata.pdsUrl as string) || issuer,
+      tokenUrl: `${issuer}/oauth/token`,
+      clientId: process.env.BLUESKY_CLIENT_ID || "",
       dpopPublicJwk: metadata.dpopPublicJwk,
       dpopPrivateJwk: metadata.dpopPrivateJwk,
     };

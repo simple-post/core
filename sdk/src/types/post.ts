@@ -141,8 +141,11 @@ export const BlueskyOptionsSchema = z.object({
     .object({
       accessToken: z.string(),
       refreshToken: z.string().optional(),
+      expiresAt: z.number().optional(),
       did: z.string(),
       pdsUrl: z.url(),
+      tokenUrl: z.string().optional(),
+      clientId: z.string().optional(),
       dpopPublicJwk: z.record(z.string(), z.unknown()).optional(),
       dpopPrivateJwk: z.record(z.string(), z.unknown()).optional(),
     })

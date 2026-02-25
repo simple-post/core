@@ -40,6 +40,14 @@ interface AxiosErrorLike {
   message?: string;
 }
 
+interface BlueskyRefreshResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+const PROACTIVE_REFRESH_SECONDS = 60;
+
 export class BlueskyPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
@@ -51,9 +59,20 @@ export class BlueskyPublisher extends Publisher {
   private accessToken: string;
   private did: string;
   private baseUrl: string;
+  private refreshToken?: string;
+  private expiresAt: number;
+  private tokenUrl?: string;
+  private clientId?: string;
   private dpopPublicJwk?: Record<string, unknown>;
   private dpopPrivateJwk?: Record<string, unknown>;
   private dpopNonce?: string;
+  private tokenDpopNonce?: string;
+
+  private refreshedCredentials?: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt: number;
+  };
 
   constructor(options?: PostOptionsWithCredentials) {
     super("Bluesky", options);
@@ -65,7 +84,17 @@ export class BlueskyPublisher extends Publisher {
       );
     }
 
-    const { accessToken, did, pdsUrl, dpopPrivateJwk, dpopPublicJwk } = options.bluesky.credentials;
+    const {
+      accessToken,
+      did,
+      pdsUrl,
+      refreshToken,
+      expiresAt,
+      tokenUrl,
+      clientId,
+      dpopPrivateJwk,
+      dpopPublicJwk,
+    } = options.bluesky.credentials;
 
     if (!pdsUrl) {
       throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Bluesky pdsUrl is required in options.bluesky.credentials");
@@ -74,6 +103,10 @@ export class BlueskyPublisher extends Publisher {
     this.accessToken = accessToken;
     this.did = did;
     this.baseUrl = pdsUrl.replace(/\/$/, "");
+    this.refreshToken = refreshToken;
+    this.expiresAt = expiresAt ?? 0;
+    this.tokenUrl = tokenUrl;
+    this.clientId = clientId;
     this.dpopPrivateJwk = dpopPrivateJwk;
     this.dpopPublicJwk = dpopPublicJwk;
 
@@ -100,11 +133,13 @@ export class BlueskyPublisher extends Publisher {
       alg: "ES256",
       jwk: this.dpopPublicJwk,
     };
+    const iat = Math.floor(Date.now() / 1000);
     const payload: Record<string, unknown> = {
       htu: url,
       htm: method.toUpperCase(),
       jti: crypto.randomUUID(),
-      iat: Math.floor(Date.now() / 1000),
+      iat,
+      exp: iat + 120, // DPoP proof validity window (RFC 9449)
     };
 
     // Add access token hash for resource server requests
@@ -139,6 +174,131 @@ export class BlueskyPublisher extends Publisher {
     }
 
     return headers;
+  }
+
+  private getTokenExpiry(): number | null {
+    const fromRefresh = this.refreshedCredentials?.expiresAt ?? this.expiresAt;
+    if (fromRefresh > 0) return fromRefresh;
+    const payload = this.decodeJwtPayload(this.accessToken);
+    const exp = payload?.exp;
+    return typeof exp === "number" ? exp : null;
+  }
+
+  private decodeJwtPayload(token: string): Record<string, unknown> | null {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    try {
+      return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  private isTokenExpired(): boolean {
+    if (!this.refreshToken || !this.tokenUrl || !this.clientId) return false;
+    const expiresAt = this.getTokenExpiry();
+    if (!expiresAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return now >= expiresAt - PROACTIVE_REFRESH_SECONDS;
+  }
+
+  private buildTokenEndpointDpopProof(tokenUrl: string, nonce?: string): string | null {
+    if (!this.dpopPrivateJwk || !this.dpopPublicJwk) return null;
+
+    const privateKey = crypto.createPrivateKey({ format: "jwk", key: this.dpopPrivateJwk as JsonWebKey });
+    const iat = Math.floor(Date.now() / 1000);
+    const payload: Record<string, unknown> = {
+      htu: tokenUrl,
+      htm: "POST",
+      jti: crypto.randomUUID(),
+      iat,
+      exp: iat + 120,
+    };
+    if (nonce) payload.nonce = nonce;
+
+    const header = { typ: "dpop+jwt", alg: "ES256", jwk: this.dpopPublicJwk };
+    const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
+    const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    const derSignature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
+    const rawSignature = derToRaw(derSignature);
+    return `${signingInput}.${this.base64UrlEncode(rawSignature)}`;
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (!this.refreshToken || !this.tokenUrl || !this.clientId) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Bluesky access token has expired. Please reconnect your Bluesky account in account settings.",
+      );
+    }
+
+    const currentRefreshToken = this.refreshedCredentials?.refreshToken ?? this.refreshToken;
+
+    const makeRequest = async (nonce?: string) => {
+      const dpopProof = this.buildTokenEndpointDpopProof(this.tokenUrl!, nonce);
+      return axios.post<BlueskyRefreshResponse>(
+        this.tokenUrl!,
+        new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: currentRefreshToken,
+          client_id: this.clientId!,
+        }),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            ...(dpopProof && { DPoP: dpopProof }),
+          },
+        },
+      );
+    };
+
+    try {
+      this.logger.info("Refreshing Bluesky access token...");
+
+      let response: Awaited<ReturnType<typeof makeRequest>>;
+      try {
+        response = await makeRequest(this.tokenDpopNonce);
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { status?: number; headers?: Record<string, string> } };
+        const nonce = axiosErr.response?.status === 401
+          ? axiosErr.response?.headers?.["dpop-nonce"] || axiosErr.response?.headers?.["DPoP-Nonce"]
+          : undefined;
+        if (nonce) {
+          this.tokenDpopNonce = nonce;
+          response = await makeRequest(nonce);
+        } else {
+          throw err;
+        }
+      }
+      const { access_token, refresh_token, expires_in } = response.data;
+      const expiresAt = expires_in ? Math.floor(Date.now() / 1000) + expires_in : this.expiresAt + 3600;
+
+      this.accessToken = access_token;
+      this.refreshedCredentials = {
+        accessToken: access_token,
+        refreshToken: refresh_token ?? currentRefreshToken,
+        expiresAt,
+      };
+      if (refresh_token) {
+        this.refreshToken = refresh_token;
+      }
+      this.logger.info("Bluesky access token refreshed successfully");
+    } catch (error: unknown) {
+      const err = error as AxiosErrorLike;
+      this.logger.error(`Failed to refresh Bluesky token: ${err.message || error}`);
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Bluesky access token has expired. Please reconnect your Bluesky account in account settings.",
+        err.response?.data,
+      );
+    }
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (this.isTokenExpired()) {
+      await this.refreshAccessToken();
+    }
   }
 
   private isNonceError(error: unknown): error is AxiosErrorLike {
@@ -290,6 +450,8 @@ export class BlueskyPublisher extends Publisher {
       this.logger.warn(warning.message);
     }
 
+    await this.ensureValidToken();
+
     const tempFileManager = new TempFileManager();
 
     try {
@@ -356,10 +518,20 @@ export class BlueskyPublisher extends Publisher {
         }
       }
 
-      return {
+      const result: PostResult = {
         id: response.data.uri || response.data.cid,
         error: PostErrorType.NO_ERROR,
       };
+      if (this.refreshedCredentials) {
+        result.extraData = {
+          refreshedCredentials: {
+            accessToken: this.refreshedCredentials.accessToken,
+            refreshToken: this.refreshedCredentials.refreshToken,
+            expiresAt: this.refreshedCredentials.expiresAt,
+          },
+        };
+      }
+      return result;
     } catch (error: unknown) {
       const err = error as AxiosErrorLike;
       this.logger.error(error instanceof Error ? error : String(error));

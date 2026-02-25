@@ -5136,6 +5136,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@simple-post/cli@workspace:cli":
+  version: 0.0.0-use.local
+  resolution: "@simple-post/cli@workspace:cli"
+  dependencies:
+    "@simple-post/sdk": "npm:*"
+    "@types/node": "npm:^24.0.0"
+    tsup: "npm:^8.5.0"
+    typescript: "npm:^5.8.3"
+  bin:
+    simple-post: ./dist/cli.js
+  languageName: unknown
+  linkType: soft
+
 "@simple-post/core@workspace:.":
   version: 0.0.0-use.local
   resolution: "@simple-post/core@workspace:."

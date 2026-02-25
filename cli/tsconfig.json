@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@simple-post/sdk": ["../sdk/src/index.ts"],
+      "@simple-post/sdk/*": ["../sdk/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist/**/*", "node_modules/**/*"]
+}

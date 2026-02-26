@@ -1,34 +1,4 @@
-# Ignore everything by default
-*
-
-# Include only what we need
-!package.json
-!yarn.lock
-!.yarnrc.yml
-!.yarn
-!tsconfig.json
-
-# Include SDK
-!sdk/package.json
-!sdk/tsconfig.json
-!sdk/tsup.config.ts
-!sdk/src
-
-# Include server
-!server/package.json
-!server/tsconfig.json
-!server/tsup.config.ts
-!server/pm2.config.cjs
-!server/src
-
-# Include other workspace manifests for immutable installs
-!cli/package.json
-!examples/package.json
-
-# Include scheduler
-!scheduler
-
-# Explicitly exclude these even if matched above
+.git
 **/.git
 **/node_modules
 **/.next

@@ -224,7 +224,8 @@ export class ThreadsPublisher extends Publisher {
       try {
         threadsUserId = await this.resolveUserId();
       } catch (resolveError) {
-        this.logger.warn({ error: resolveError, fallbackUserId: this.userId }, "Threads /me failed, using stored userId");
+        const errorMessage = resolveError instanceof Error ? resolveError.message : String(resolveError);
+        this.logger.warn(`Threads /me failed, using stored userId (${this.userId}): ${errorMessage}`);
         threadsUserId = this.userId;
       }
 

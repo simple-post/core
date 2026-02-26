@@ -26,6 +26,12 @@ import { usePost } from "@/hooks/use-posts";
 import { getPlatformById } from "@/lib/config";
 import type { ConnectedAccount, MediaFile } from "@/types";
 
+type FailedPlatform = {
+  platform?: string;
+  message?: string;
+  error?: string;
+};
+
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -81,6 +87,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const postAccounts = accounts.filter((acc: ConnectedAccount) => post.accountIds.includes(acc.id));
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
+  const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
+    ? (post.errorDetails.failedPlatforms as FailedPlatform[])
+    : [];
 
   return (
     <>
@@ -154,28 +163,23 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     {post.errorMessage && (
                       <p className="text-sm text-muted-foreground">{post.errorMessage}</p>
                     )}
-                    {post.errorDetails?.failedPlatforms &&
-                      Array.isArray(post.errorDetails.failedPlatforms) && (
-                        <ul className="space-y-1.5 text-sm">
-                          {(post.errorDetails.failedPlatforms as Array<{
-                            platform?: string;
-                            message?: string;
-                            error?: string;
-                          }>).map((fp, i) => {
-                            const platformConfig = getPlatformById(
-                              (fp.platform || "").toLowerCase() === "twitter" ? "x" : (fp.platform || "").toLowerCase(),
-                            );
-                            const platformName = platformConfig?.name || fp.platform || "Unknown";
-                            const errMsg = fp.message || fp.error || "Unknown error";
-                            return (
-                              <li key={i} className="flex items-start gap-2 text-muted-foreground">
-                                <span className="font-medium text-foreground">{platformName}:</span>
-                                <span>{errMsg}</span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
+                    {failedPlatforms.length > 0 && (
+                      <ul className="space-y-1.5 text-sm">
+                        {failedPlatforms.map((fp, i) => {
+                          const platformConfig = getPlatformById(
+                            (fp.platform || "").toLowerCase() === "twitter" ? "x" : (fp.platform || "").toLowerCase(),
+                          );
+                          const platformName = platformConfig?.name || fp.platform || "Unknown";
+                          const errMsg = fp.message || fp.error || "Unknown error";
+                          return (
+                            <li key={i} className="flex items-start gap-2 text-muted-foreground">
+                              <span className="font-medium text-foreground">{platformName}:</span>
+                              <span>{errMsg}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 </div>
               </Card>

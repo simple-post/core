@@ -659,7 +659,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Fetch user profile for other platforms
-    let profile: Record<string, unknown>;
+    let profile: any;
     try {
       profile = await fetchUserProfile(platform, accessToken);
     } catch (profileError) {

@@ -3,29 +3,62 @@
 ARG NODE_VERSION=22.14.0
 ARG UBUNTU_VERSION=24.04
 ARG DISTROLESS_IMAGE=gcr.io/distroless/nodejs22-debian12:nonroot
+ARG RUNTIME_FLAVOR=distroless
 
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 ENV NODE_ENV=development
-COPY package.json yarn.lock .yarnrc.yml tsconfig.json ./
-COPY .yarn ./.yarn
-COPY sdk/package.json ./sdk/package.json
-COPY scheduler/package.json ./scheduler/package.json
-COPY server/package.json ./server/package.json
-COPY cli/package.json ./cli/package.json
-COPY examples/package.json ./examples/package.json
-COPY scheduler/prisma ./scheduler/prisma
+COPY . .
+RUN test -f package.json \
+  && test -f yarn.lock \
+  && test -f .yarnrc.yml \
+  && test -d .yarn \
+  && test -d sdk \
+  && test -d scheduler \
+  && grep -q '"name": "@simple-post/core"' package.json \
+  || ( \
+    echo "ERROR: Docker build context must be the repository root (it must contain sdk/, scheduler/, yarn.lock, and .yarn/)." >&2; \
+    echo "Coolify fix: set Base Directory to '/' and keep Dockerfile path as 'scheduler/Dockerfile'." >&2; \
+    exit 1 \
+  )
 RUN yarn install --immutable
 
 FROM deps AS builder
-COPY sdk ./sdk
-COPY scheduler ./scheduler
+ENV NODE_ENV=production
 RUN yarn workspace @simple-post/sdk build
-RUN yarn workspace @simple-post/scheduler build
+RUN yarn workspace @simple-post/scheduler build --webpack
+
+FROM base AS launcher
+RUN cat > /app/docker-entrypoint.mjs <<'EOF'
+import { spawn } from "node:child_process";
+import { mkdirSync } from "node:fs";
+
+mkdirSync("/app/scheduler/data", { recursive: true });
+
+const child = spawn(process.execPath, ["../node_modules/next/dist/bin/next", "start"], {
+  stdio: "inherit",
+  env: process.env,
+});
+
+for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+  process.on(signal, () => child.kill(signal));
+}
+
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code ?? 0);
+});
+EOF
 
 FROM ${DISTROLESS_IMAGE} AS runtime-distroless
 WORKDIR /app
@@ -41,12 +74,12 @@ COPY --from=builder --chown=nonroot:nonroot /app/sdk/dist ./sdk/dist
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/package.json ./scheduler/package.json
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/next.config.mjs ./scheduler/next.config.mjs
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/public ./scheduler/public
-COPY --from=builder --chown=nonroot:nonroot /app/scheduler/data ./scheduler/data
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/.next ./scheduler/.next
+COPY --from=launcher --chown=nonroot:nonroot /app/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
 USER nonroot:nonroot
 WORKDIR /app/scheduler
 EXPOSE 3000
-CMD ["../node_modules/next/dist/bin/next", "start"]
+CMD ["docker-entrypoint.mjs"]
 
 FROM ubuntu:${UBUNTU_VERSION} AS runtime-ubuntu
 ENV DEBIAN_FRONTEND=noninteractive
@@ -75,13 +108,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/sdk/dist ./sdk/dist
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/package.json ./scheduler/package.json
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/next.config.mjs ./scheduler/next.config.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/public ./scheduler/public
-COPY --from=builder --chown=nextjs:nodejs /app/scheduler/data ./scheduler/data
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/.next ./scheduler/.next
+COPY --from=launcher --chown=nextjs:nodejs /app/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
 USER nextjs
 WORKDIR /app/scheduler
 EXPOSE 3000
 ENTRYPOINT ["/usr/bin/tini", "--", "node"]
-CMD ["../node_modules/next/dist/bin/next", "start"]
+CMD ["docker-entrypoint.mjs"]
 
-ARG RUNTIME_FLAVOR=distroless
-FROM runtime-${RUNTIME_FLAVOR} AS runtime
+FROM runtime-${RUNTIME_FLAVOR:-distroless} AS runtime

@@ -21,11 +21,20 @@
 !server/pm2.config.cjs
 !server/src
 
+# Include other workspace manifests for immutable installs
+!cli/package.json
+!examples/package.json
+
+# Include scheduler
+!scheduler
+
 # Explicitly exclude these even if matched above
 **/.git
 **/node_modules
+**/.next
 **/dist
 **/.env*
+**/*.tsbuildinfo
 **/coverage
 **/tests
 **/test
@@ -37,4 +46,3 @@
 **/.idea
 **/*.log
 **/.DS_Store
-

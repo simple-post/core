@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import {
+  uploadFromBuffer,
+  generateFileKey,
+} from "@simple-post/sdk";
 import { requireAuth } from "@/lib/middleware/auth";
-import { uploadToR2, generateFileKey } from "@/lib/r2";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 // Maximum file size: 500MB
@@ -76,8 +79,8 @@ export async function POST(req: NextRequest) {
     // Generate a unique key for the file
     const key = generateFileKey(userId, file.name);
 
-    // Upload to R2
-    const url = await uploadToR2(buffer, key, resolvedType);
+    // Upload to S3-compatible storage
+    const url = await uploadFromBuffer(buffer, key, resolvedType);
 
     return NextResponse.json({
       url,

@@ -2,8 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import {
+  getPresignedUploadUrl,
+  generateFileKey,
+} from "@simple-post/sdk";
 import { requireAuth } from "@/lib/middleware/auth";
-import { getPresignedUploadUrl, generateFileKey } from "@/lib/r2";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 const presignRequestSchema = z.object({

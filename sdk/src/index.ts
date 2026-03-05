@@ -119,6 +119,13 @@ export type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
+export {
+  uploadFromBuffer,
+  getPresignedUploadUrl,
+  deleteFromStorage,
+  getKeyFromUrl,
+  generateFileKey,
+} from "./utils/s3";
 
 // Export schemas for runtime validation
 export {

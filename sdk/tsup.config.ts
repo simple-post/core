@@ -14,6 +14,7 @@ export default defineConfig({
   external: [
     "@aws-sdk/client-s3",
     "@aws-sdk/lib-storage",
+    "@aws-sdk/s3-request-presigner",
     "axios",
     "form-data",
     "googleapis",

@@ -9,30 +9,40 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth(req);
     const body = await req.json();
     const { botToken, chatId, channelName } = body;
+    const trimmedToken = typeof botToken === "string" ? botToken.trim() : "";
+    const trimmedChatId = typeof chatId === "string" ? chatId.trim() : "";
 
-    if (!botToken || !chatId) {
+    if (!trimmedToken || !trimmedChatId) {
       throw new BadRequestError("Bot token and chat ID are required");
     }
 
     // Validate the bot token and chat ID by making a test API call to Telegram
     try {
-      const botInfoResponse = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+      const botInfoResponse = await fetch(`https://api.telegram.org/bot${trimmedToken}/getMe`);
       const botInfo = await botInfoResponse.json();
 
       if (!botInfoResponse.ok || !botInfo.ok) {
-        throw new BadRequestError("Invalid bot token");
+        const msg = botInfo?.description || "Invalid bot token";
+        throw new BadRequestError(msg);
       }
 
       const botUsername = botInfo.result.username;
 
       // Try to get chat info to validate chat ID and resolve username to numeric ID
-      const chatInfoResponse = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${chatId}`);
+      const encodedChatId = encodeURIComponent(trimmedChatId);
+      const chatInfoResponse = await fetch(
+        `https://api.telegram.org/bot${trimmedToken}/getChat?chat_id=${encodedChatId}`,
+      );
       const chatInfo = await chatInfoResponse.json();
 
       if (!chatInfoResponse.ok || !chatInfo.ok) {
-        throw new BadRequestError(
-          "Could not find the chat. Make sure the bot is added to the channel/group, or use the numeric chat ID (you can get it from @userinfobot).",
-        );
+        const apiMsg = chatInfo?.description;
+        const isLikelyUser =
+          /^\d+$/.test(trimmedChatId) && Number.parseInt(trimmedChatId, 10) > 0;
+        const hint = isLikelyUser
+          ? "For direct messages, the user must message the bot with /start first before you can connect."
+          : "Could not find the chat. Make sure the bot is added as an admin to the channel/group, or use the numeric chat ID (you can get it from @userinfobot).";
+        throw new BadRequestError(apiMsg ? `${apiMsg} ${hint}` : hint);
       }
 
       // Extract the numeric chat ID from the API response (works for usernames like @channel)
@@ -54,7 +64,7 @@ export async function POST(req: NextRequest) {
           userId: session.user.id,
           platform: "telegram",
           platformAccountId: numericChatId,
-          accessToken: botToken, // Store bot token as access token
+          accessToken: trimmedToken, // Store bot token as access token
           refreshToken: null,
           expiresAt: null, // Telegram bot tokens don't expire
           scope: null,
@@ -64,7 +74,7 @@ export async function POST(req: NextRequest) {
           profilePicture: null,
         },
         update: {
-          accessToken: botToken,
+          accessToken: trimmedToken,
           username: chatUsername ? `@${chatUsername}` : null,
           displayName: chatTitle || `Chat ${numericChatId}`,
           updatedAt: new Date(),
@@ -80,8 +90,13 @@ export async function POST(req: NextRequest) {
           chatTitle,
         },
       });
-    } catch {
-      throw new BadRequestError("Failed to validate Telegram credentials. Please check your bot token and chat ID.");
+    } catch (error) {
+      if (error instanceof BadRequestError) throw error;
+      // Log unexpected errors (network, DB, etc.) for debugging
+      console.error("Telegram connect error:", error);
+      throw new BadRequestError(
+        "Failed to validate Telegram credentials. Please check your bot token and chat ID. The bot must be added as an admin to the channel/group.",
+      );
     }
   } catch (error) {
     return handleApiError(error);

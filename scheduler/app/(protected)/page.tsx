@@ -47,7 +47,7 @@ export default function Dashboard() {
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="flex items-center gap-2">
                 <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-8 h-8 drop-shadow-lg" />
-                <div>
+                <div className="hidden sm:block">
                   <h1 className="text-xl font-bold text-foreground">SimplePost</h1>
                   <p className="text-xs text-muted-foreground">Scheduler</p>
                 </div>

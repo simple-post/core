@@ -6,6 +6,7 @@ import { derToRaw } from "@simple-post/sdk";
 
 import { authLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
 import type { Prisma } from "@prisma/client";
 
@@ -549,7 +550,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             platformAccountId,
           },
         },
-        create: {
+        create: encryptConnectedAccountSecrets({
           userId,
           platform: "bluesky",
           platformAccountId,
@@ -562,16 +563,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           email: null,
           profilePicture,
           tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
-        },
+        }),
         update: {
-          accessToken,
-          refreshToken,
+          ...encryptConnectedAccountSecrets({
+            accessToken,
+            refreshToken,
+            tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
+          }),
           expiresAt,
           scope,
           username,
           displayName,
           profilePicture,
-          tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
           updatedAt: new Date(),
         },
       });
@@ -602,7 +605,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             platformAccountId,
           },
         },
-        create: {
+        create: encryptConnectedAccountSecrets({
           userId,
           platform: "instagram",
           platformAccountId,
@@ -614,9 +617,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           displayName,
           email: null,
           profilePicture,
-        },
+        }),
         update: {
-          accessToken: longLivedToken,
+          ...encryptConnectedAccountSecrets({ accessToken: longLivedToken, refreshToken: null }),
           expiresAt,
           scope,
           username,
@@ -758,7 +761,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           platformAccountId,
         },
       },
-      create: {
+      create: encryptConnectedAccountSecrets({
         userId,
         platform,
         platformAccountId,
@@ -770,10 +773,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         displayName,
         email,
         profilePicture,
-      },
+      }),
       update: {
-        accessToken,
-        refreshToken,
+        ...encryptConnectedAccountSecrets({ accessToken, refreshToken }),
         expiresAt,
         scope,
         username,

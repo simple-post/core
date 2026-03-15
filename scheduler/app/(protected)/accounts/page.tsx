@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import Link from "next/link";
 
+import { toast } from "sonner";
+
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +25,6 @@ export default function AccountsPage() {
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
 
-  const [selectedAccount, setSelectedAccount] = useState<ConnectedAccount | null>(null);
-  const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
@@ -76,11 +76,6 @@ export default function AccountsPage() {
     }
   };
 
-  const showTokens = (account: ConnectedAccount) => {
-    setSelectedAccount(account);
-    setShowTokenDialog(true);
-  };
-
   const handleDisconnectClick = (account: ConnectedAccount) => {
     setAccountToDisconnect(account);
     setShowDisconnectDialog(true);
@@ -95,7 +90,7 @@ export default function AccountsPage() {
       setAccountToDisconnect(null);
     } catch (error) {
       console.error("Disconnect error:", error);
-      alert("An error occurred while disconnecting the account.");
+      toast.error("An error occurred while disconnecting the account.");
     }
   };
 
@@ -240,9 +235,6 @@ export default function AccountsPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => showTokens(account)}>
-                          View Tokens
-                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -360,56 +352,6 @@ export default function AccountsPage() {
               {disconnectAccountMutation.isPending ? "Disconnecting..." : "Disconnect"}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Token Dialog */}
-      <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Access Tokens</DialogTitle>
-            <DialogDescription>
-              These tokens are used to authenticate with the platform API. Keep them secure.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedAccount && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Platform Account ID</label>
-                <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs break-all">
-                  {selectedAccount.platformAccountId}
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Access Token</label>
-                <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs break-all">
-                  {selectedAccount.accessToken}
-                </div>
-              </div>
-              {selectedAccount.refreshToken && (
-                <div>
-                  <label className="text-sm font-medium">Refresh Token</label>
-                  <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs break-all">
-                    {selectedAccount.refreshToken}
-                  </div>
-                </div>
-              )}
-              {selectedAccount.scope && (
-                <div>
-                  <label className="text-sm font-medium">Scopes</label>
-                  <div className="mt-1 p-3 bg-muted rounded-md font-mono text-xs">{selectedAccount.scope}</div>
-                </div>
-              )}
-              {selectedAccount.expiresAt && (
-                <div>
-                  <label className="text-sm font-medium">Expires At</label>
-                  <div className="mt-1 p-3 bg-muted rounded-md text-sm">
-                    {new Date(selectedAccount.expiresAt).toLocaleString()}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 

@@ -6,6 +6,7 @@
 
 import { postingLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import type { ConnectedAccount } from "@/types";
 
 const TIKTOK_TOKEN_REFRESH_BUFFER_SEC = 5 * 60; // Refresh if expiring in next 5 minutes
@@ -83,8 +84,7 @@ export async function refreshTikTokTokenIfNeeded(account: ConnectedAccount): Pro
     await prisma.connectedAccount.update({
       where: { id: account.id },
       data: {
-        accessToken,
-        refreshToken,
+        ...encryptConnectedAccountSecrets({ accessToken, refreshToken }),
         expiresAt,
         updatedAt: new Date(),
       },

@@ -1,6 +1,7 @@
 import type React from "react";
 import { Suspense } from "react";
 
+import { Toaster } from "@/components/ui/sonner";
 import { QueryClientProvider } from "@/lib/query-client";
 
 import type { Metadata } from "next";
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="antialiased">
         <QueryClientProvider>
           <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+          <Toaster />
         </QueryClientProvider>
       </body>
     </html>

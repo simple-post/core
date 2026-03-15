@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
 import { AlertCircle, Info } from "lucide-react";
+import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -267,7 +268,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       }
     } catch (error) {
       console.error(`Failed to ${mode} post:`, error);
-      alert(`Failed to ${mode} post. Please try again.`);
+      toast.error(`Failed to ${mode} post. Please try again.`);
     }
   };
 

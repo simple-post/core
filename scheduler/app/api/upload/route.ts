@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import {
-  uploadFromBuffer,
-  generateFileKey,
-} from "@simple-post/sdk";
+import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
+
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 

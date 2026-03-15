@@ -73,9 +73,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
                   {result.postId && (
                     <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">ID: {result.postId}</p>
                   )}
-                  {!result.success && (
-                    <p className="text-xs text-red-500 mt-0.5">{result.message || result.error}</p>
-                  )}
+                  {!result.success && <p className="text-xs text-red-500 mt-0.5">{result.message || result.error}</p>}
                 </div>
               </div>
               {result.postUrl && (

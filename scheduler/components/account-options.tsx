@@ -451,7 +451,9 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     </Select>
                   ) : (
                     <div className="mt-1 space-y-2">
-                      <p className="text-sm text-muted-foreground">No boards found. Create a board on Pinterest first.</p>
+                      <p className="text-sm text-muted-foreground">
+                        No boards found. Create a board on Pinterest first.
+                      </p>
                       <Input
                         id={`${account.id}-pinterest-boardId`}
                         placeholder="Or enter board ID manually"

@@ -662,6 +662,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Fetch user profile for other platforms
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped external API responses from multiple platforms
     let profile: any;
     try {
       profile = await fetchUserProfile(platform, accessToken);

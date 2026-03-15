@@ -1,8 +1,9 @@
+import { Prisma } from "@prisma/client";
+
 import { createLogger } from "@/lib/logger";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
-
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@/types";
 
 const log = createLogger("scheduled-dispatcher");
@@ -113,7 +114,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           status: "published",
           publishedAt: new Date(),
           errorMessage: null,
-          errorDetails: null,
+          errorDetails: Prisma.DbNull,
         },
       });
 
@@ -138,7 +139,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         message: result.message,
         details: result.details,
       })),
-    }) as Record<string, unknown>;
+    }) as Prisma.InputJsonValue;
 
     await prisma.post.update({
       where: { id: post.id },
@@ -166,7 +167,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         errorDetails: sanitizeForJson({
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
-        }) as Record<string, unknown>,
+        }) as Prisma.InputJsonValue,
       },
     });
 

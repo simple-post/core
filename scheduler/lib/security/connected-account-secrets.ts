@@ -20,7 +20,9 @@ function decryptString(value: string | null | undefined): string | null | undefi
   return getEncryptionProvider().decrypt(value);
 }
 
-export function encryptTokenMetadata(metadata: Prisma.InputJsonValue | null | undefined): Prisma.InputJsonValue | null | undefined {
+export function encryptTokenMetadata(
+  metadata: Prisma.InputJsonValue | null | undefined,
+): Prisma.InputJsonValue | null | undefined {
   if (!metadata) {
     return metadata;
   }
@@ -43,9 +45,9 @@ export function decryptTokenMetadata(metadata: Prisma.JsonValue | null): Prisma.
   return JSON.parse(decryptedPayload) as Prisma.JsonValue;
 }
 
-export function encryptConnectedAccountSecrets<T extends { accessToken?: string; refreshToken?: string | null; tokenMetadata?: Prisma.InputJsonValue | null }>(
-  data: T,
-): T {
+export function encryptConnectedAccountSecrets<
+  T extends { accessToken?: string; refreshToken?: string | null; tokenMetadata?: Prisma.InputJsonValue | null },
+>(data: T): T {
   return {
     ...data,
     accessToken: encryptString(data.accessToken),
@@ -54,9 +56,9 @@ export function encryptConnectedAccountSecrets<T extends { accessToken?: string;
   };
 }
 
-export function decryptConnectedAccountSecrets<T extends { accessToken: string; refreshToken: string | null; tokenMetadata: Prisma.JsonValue | null }>(
-  account: T,
-): T {
+export function decryptConnectedAccountSecrets<
+  T extends { accessToken: string; refreshToken: string | null; tokenMetadata: Prisma.JsonValue | null },
+>(account: T): T {
   return {
     ...account,
     accessToken: decryptString(account.accessToken) || "",

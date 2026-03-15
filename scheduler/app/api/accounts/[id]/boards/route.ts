@@ -30,7 +30,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const account = storedAccount ? decryptConnectedAccountSecrets(storedAccount) : null;
 
-
     if (!account) {
       throw new NotFoundError("Account not found");
     }

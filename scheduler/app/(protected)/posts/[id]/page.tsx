@@ -161,9 +161,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
                   <div className="space-y-3 flex-1 min-w-0">
                     <p className="text-sm font-medium text-red-500">Post Failed</p>
-                    {post.errorMessage && (
-                      <p className="text-sm text-muted-foreground">{post.errorMessage}</p>
-                    )}
+                    {post.errorMessage && <p className="text-sm text-muted-foreground">{post.errorMessage}</p>}
                     {failedPlatforms.length > 0 && (
                       <ul className="space-y-1.5 text-sm">
                         {failedPlatforms.map((fp, i) => {

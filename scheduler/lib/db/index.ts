@@ -306,7 +306,7 @@ export class PostsModel {
         size: m.size,
       })),
       scheduledFor: new Date(post.scheduledFor),
-      status: post.status as "scheduled" | "published" | "failed",
+      status: post.status as SocialPost["status"],
       errorMessage: post.errorMessage ?? undefined,
       errorDetails: (post.errorDetails as Record<string, unknown> | null) ?? undefined,
       createdAt: new Date(post.createdAt),

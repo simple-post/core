@@ -57,7 +57,7 @@ export interface SocialPost {
   accountIds: string[]; // Changed from platforms to accountIds
   media: MediaFile[];
   scheduledFor: Date;
-  status: "scheduled" | "published" | "failed";
+  status: "scheduled" | "pending" | "published" | "failed";
   errorMessage?: string; // Human-readable error message when status is "failed"
   errorDetails?: Record<string, unknown>; // Detailed error info (platform errors, stack trace, etc.)
   createdAt: Date;

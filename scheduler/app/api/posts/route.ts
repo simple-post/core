@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
         accountIds: validated.accountIds,
         media: mediaFiles,
         scheduledFor,
-        status: validated.postingMode === "now" ? "published" : "scheduled",
+        status: validated.postingMode === "now" ? "pending" : "scheduled",
         accountOptions: validated.accountOptions,
         accountOverrides: validated.accountOverrides,
       },

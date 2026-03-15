@@ -26,7 +26,7 @@ export class PostsModel {
   }
 
   async getScheduledPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
-    const { page = 1, limit = 20 } = options;
+    const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
     const now = new Date();
 
@@ -70,7 +70,7 @@ export class PostsModel {
   }
 
   async getPastPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
-    const { page = 1, limit = 20 } = options;
+    const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
     const now = new Date();
 
@@ -119,7 +119,7 @@ export class PostsModel {
   }
 
   async getFailedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
-    const { page = 1, limit = 20 } = options;
+    const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
 
     const where = {

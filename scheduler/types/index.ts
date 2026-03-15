@@ -123,10 +123,10 @@ export interface ConnectedAccount {
   platformAccountId: string;
   accessToken: string;
   refreshToken: string | null;
+  tokenMetadata?: Prisma.JsonValue | null;
   tokenType: string | null;
   expiresAt: Date | null;
   scope: string | null;
-  tokenMetadata?: Prisma.JsonValue | null;
   username: string | null;
   displayName: string | null;
   email: string | null;

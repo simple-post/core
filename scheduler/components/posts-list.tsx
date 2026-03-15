@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
@@ -34,6 +35,8 @@ interface PostsListProps {
   type: "scheduled" | "past" | "failed";
   page: number;
   onPageChange: (page: number) => void;
+  pageSize: number;
+  onPageSizeChange: (pageSize: number) => void;
   onPostDeleted?: () => void;
 }
 
@@ -62,10 +65,8 @@ function formatTimeAgo(date: Date): string {
   return formatDate(date);
 }
 
-const POSTS_PER_PAGE = 20;
-
-export function PostsList({ type, page, onPageChange, onPostDeleted }: PostsListProps) {
-  const { data, isLoading: postsLoading, isFetching } = usePaginatedPosts(type, page, POSTS_PER_PAGE);
+export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange, onPostDeleted }: PostsListProps) {
+  const { data, isLoading: postsLoading, isFetching } = usePaginatedPosts(type, page, pageSize);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
   const posts = data?.posts ?? [];
@@ -94,6 +95,28 @@ export function PostsList({ type, page, onPageChange, onPostDeleted }: PostsList
         {posts.map((post: SocialPost) => (
           <PostCard key={post.id} post={post} accounts={accounts} onDeleted={onPostDeleted} />
         ))}
+      </div>
+
+      <div className="flex justify-end">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Show</span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => {
+              onPageSizeChange(Number(value));
+              onPageChange(1);
+            }}
+            disabled={isFetching}>
+            <SelectTrigger className="w-24 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {pagination && pagination.totalPages > 1 && (

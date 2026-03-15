@@ -33,6 +33,9 @@ yarn install
 ### Optional Environment Variables
 
 - `PORT` - Server port (default: 3000)
+- `TRUST_PROXY` - Express `trust proxy` setting for deployments behind a reverse proxy/load balancer (default: `1`)
+- `RATE_LIMIT_MAX_REQUESTS` - Max requests per IP in a 15-minute window for all routes (default: `300`)
+- `RATE_LIMIT_AUTH_MAX_REQUESTS` - Max requests per IP in a 15-minute window for authenticated routes (default: `100`)
 
 All social media platform credentials should be configured as environment variables as documented in the [SDK README](../sdk/README.md).
 

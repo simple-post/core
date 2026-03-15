@@ -1,8 +1,12 @@
 import { PostErrorType, post as sdkPost, prepareMedia } from "@simple-post/sdk";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
-import { sanitizeForJson } from "@/lib/utils/errors";
 import { prisma } from "@/lib/prisma";
+import {
+  decryptConnectedAccountSecrets,
+  encryptConnectedAccountSecrets,
+} from "@/lib/security/connected-account-secrets";
+import { sanitizeForJson } from "@/lib/utils/errors";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import { buildPostOptions } from "./credentials";
@@ -196,13 +200,18 @@ async function postToAccountWithPreparedMedia(
 
     const refreshedCredentials = result?.extraData?.refreshedCredentials;
     const platformLower = account.platform.toLowerCase();
-    if (refreshedCredentials && (platformLower === "x" || platformLower === "instagram" || platformLower === "bluesky")) {
+    if (
+      refreshedCredentials &&
+      (platformLower === "x" || platformLower === "instagram" || platformLower === "bluesky")
+    ) {
       try {
         await prisma.connectedAccount.update({
           where: { id: account.id },
           data: {
-            accessToken: refreshedCredentials.accessToken || account.accessToken,
-            refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
+            ...encryptConnectedAccountSecrets({
+              accessToken: refreshedCredentials.accessToken || account.accessToken,
+              refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
+            }),
             expiresAt: refreshedCredentials.expiresAt
               ? new Date(refreshedCredentials.expiresAt * 1000)
               : account.expiresAt,
@@ -325,13 +334,15 @@ export async function postToAccounts(
   try {
     // Fetch all connected accounts
     log.debug("Fetching connected accounts from database");
-    const accounts = await prisma.connectedAccount.findMany({
+    const storedAccounts = await prisma.connectedAccount.findMany({
       where: {
         id: {
           in: accountIds,
         },
       },
     });
+
+    const accounts = storedAccounts.map((account) => decryptConnectedAccountSecrets(account));
 
     log.debug({ foundCount: accounts.length }, "Found accounts in database");
 
@@ -349,9 +360,7 @@ export async function postToAccounts(
     });
 
     // Refresh TikTok tokens if expired (access tokens expire after 24 hours)
-    const refreshedAccounts = await Promise.all(
-      accounts.map((account) => refreshTikTokTokenIfNeeded(account)),
-    );
+    const refreshedAccounts = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
 
     const hasOverrides = !!accountOverrides && Object.keys(accountOverrides).length > 0;
 
@@ -362,7 +371,9 @@ export async function postToAccounts(
       log.debug({ mediaItemCount: media.length }, "Media conversion complete");
 
       // Get all unique platforms for efficient media resolution
-      const uniquePlatforms = [...new Set(refreshedAccounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
+      const uniquePlatforms = [
+        ...new Set(refreshedAccounts.map((account) => mapPlatformName(account.platform))),
+      ] as Platform[];
 
       log.debug({ uniquePlatforms }, "Unique platforms identified");
 
@@ -385,7 +396,9 @@ export async function postToAccounts(
         log.debug("Posting to all accounts in parallel");
         const preparedMedia = preparedPost.content.media || [];
         const results = await Promise.all(
-          refreshedAccounts.map((account) => postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions)),
+          refreshedAccounts.map((account) =>
+            postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions),
+          ),
         );
 
         const successCount = results.filter((r) => r.success).length;

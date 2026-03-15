@@ -13,6 +13,21 @@ export async function GET(req: NextRequest) {
       where: {
         userId: session.user.id,
       },
+      select: {
+        id: true,
+        userId: true,
+        platform: true,
+        platformAccountId: true,
+        tokenType: true,
+        expiresAt: true,
+        scope: true,
+        username: true,
+        displayName: true,
+        email: true,
+        profilePicture: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: {
         createdAt: "desc",
       },

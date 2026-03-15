@@ -24,6 +24,9 @@ export default function Dashboard() {
   const [scheduledPage, setScheduledPage] = useState(1);
   const [postedPage, setPostedPage] = useState(1);
   const [failedPage, setFailedPage] = useState(1);
+  const [scheduledPageSize, setScheduledPageSize] = useState(25);
+  const [postedPageSize, setPostedPageSize] = useState(25);
+  const [failedPageSize, setFailedPageSize] = useState(25);
 
   // Update tab when URL param changes
   useEffect(() => {
@@ -104,15 +107,33 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="scheduled" className="mt-0">
-            <PostsList type="scheduled" page={scheduledPage} onPageChange={setScheduledPage} />
+            <PostsList
+              type="scheduled"
+              page={scheduledPage}
+              pageSize={scheduledPageSize}
+              onPageChange={setScheduledPage}
+              onPageSizeChange={setScheduledPageSize}
+            />
           </TabsContent>
 
           <TabsContent value="past" className="mt-0">
-            <PostsList type="past" page={postedPage} onPageChange={setPostedPage} />
+            <PostsList
+              type="past"
+              page={postedPage}
+              pageSize={postedPageSize}
+              onPageChange={setPostedPage}
+              onPageSizeChange={setPostedPageSize}
+            />
           </TabsContent>
 
           <TabsContent value="failed" className="mt-0">
-            <PostsList type="failed" page={failedPage} onPageChange={setFailedPage} />
+            <PostsList
+              type="failed"
+              page={failedPage}
+              pageSize={failedPageSize}
+              onPageChange={setFailedPage}
+              onPageSizeChange={setFailedPageSize}
+            />
           </TabsContent>
         </Tabs>
       </main>

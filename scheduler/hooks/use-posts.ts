@@ -73,7 +73,7 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
   return foundPost ? parsePost(foundPost) : null;
 }
 
-export function usePaginatedPosts(type: "scheduled" | "past" | "failed", page: number = 1, limit: number = 20) {
+export function usePaginatedPosts(type: "scheduled" | "past" | "failed", page: number = 1, limit: number = 25) {
   return useQuery({
     queryKey: queryKeys.paginatedPosts(type, page, limit),
     queryFn: () => fetchPaginatedPosts(type, page, limit),

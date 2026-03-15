@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function POST(req: NextRequest) {
@@ -37,8 +38,7 @@ export async function POST(req: NextRequest) {
 
       if (!chatInfoResponse.ok || !chatInfo.ok) {
         const apiMsg = chatInfo?.description;
-        const isLikelyUser =
-          /^\d+$/.test(trimmedChatId) && Number.parseInt(trimmedChatId, 10) > 0;
+        const isLikelyUser = /^\d+$/.test(trimmedChatId) && Number.parseInt(trimmedChatId, 10) > 0;
         const hint = isLikelyUser
           ? "For direct messages, the user must message the bot with /start first before you can connect."
           : "Could not find the chat. Make sure the bot is added as an admin to the channel/group, or use the numeric chat ID (you can get it from @userinfobot).";
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
             platformAccountId: numericChatId,
           },
         },
-        create: {
+        create: encryptConnectedAccountSecrets({
           userId: session.user.id,
           platform: "telegram",
           platformAccountId: numericChatId,
@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
           displayName: chatTitle || `Chat ${numericChatId}`,
           email: null,
           profilePicture: null,
-        },
+        }),
         update: {
-          accessToken: trimmedToken,
+          ...encryptConnectedAccountSecrets({ accessToken: trimmedToken, refreshToken: null }),
           username: chatUsername ? `@${chatUsername}` : null,
           displayName: chatTitle || `Chat ${numericChatId}`,
           updatedAt: new Date(),

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError, NotFoundError, ForbiddenError, BadRequestError } from "@/lib/utils/errors";
 
 interface PinterestBoard {
@@ -23,9 +24,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const session = await requireAuth(request);
 
     // Fetch the account
-    const account = await prisma.connectedAccount.findUnique({
+    const storedAccount = await prisma.connectedAccount.findUnique({
       where: { id },
     });
+
+    const account = storedAccount ? decryptConnectedAccountSecrets(storedAccount) : null;
 
     if (!account) {
       throw new NotFoundError("Account not found");

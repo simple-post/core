@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 type PendingAccount = {
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               platformAccountId: account.id,
             },
           },
-          create: {
+          create: encryptConnectedAccountSecrets({
             userId: session.user.id,
             platform: pending.platform,
             platformAccountId: account.id,
@@ -126,9 +127,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             displayName,
             email: null,
             profilePicture: account.profilePicture || null,
-          },
+          }),
           update: {
-            accessToken: account.accessToken,
+            ...encryptConnectedAccountSecrets({ accessToken: account.accessToken, refreshToken: null }),
             scope,
             username,
             displayName,

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { env } from "@/lib/env";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new BadRequestError("Platform not supported or not configured");
     }
 
-    const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseURL = env.NEXT_PUBLIC_APP_URL;
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
     const state = createOAuthState(session.user.id, platform);

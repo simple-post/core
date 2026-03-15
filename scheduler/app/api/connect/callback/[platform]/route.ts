@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { env } from "@/lib/env";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import {
@@ -18,7 +19,7 @@ import { OAuthStateError } from "@/lib/oauth/state";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
-  const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseURL = env.NEXT_PUBLIC_APP_URL;
 
   try {
     const { platform } = await params;

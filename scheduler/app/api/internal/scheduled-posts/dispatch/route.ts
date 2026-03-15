@@ -1,20 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
 
 const log = createLogger("api:internal:scheduled-dispatch");
 
 function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.SCHEDULED_POST_DISPATCH_SECRET;
-  if (!secret) {
-    return false;
-  }
-
   const authHeader = req.headers.get("authorization") || "";
   const [scheme, token] = authHeader.split(" ");
 
-  return scheme?.toLowerCase() === "bearer" && token === secret;
+  return scheme?.toLowerCase() === "bearer" && token === env.SCHEDULED_POST_DISPATCH_SECRET;
 }
 
 export async function POST(req: NextRequest) {

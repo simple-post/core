@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import { env } from "../env";
+
 export interface EncryptionProvider {
   encrypt(plaintext: string): string;
   decrypt(ciphertext: string): string;
@@ -60,12 +62,7 @@ function decodeEncryptionKey(value: string): Buffer {
 let encryptionProvider: EncryptionProvider | null = null;
 
 function createDefaultProvider(): EncryptionProvider {
-  const keyValue = process.env.SCHEDULER_ENCRYPTION_KEY;
-  if (!keyValue) {
-    throw new Error("SCHEDULER_ENCRYPTION_KEY is required for connected account secret encryption");
-  }
-
-  return new AesGcmEncryptionProvider(decodeEncryptionKey(keyValue));
+  return new AesGcmEncryptionProvider(decodeEncryptionKey(env.SCHEDULER_ENCRYPTION_KEY));
 }
 
 export function getEncryptionProvider(): EncryptionProvider {

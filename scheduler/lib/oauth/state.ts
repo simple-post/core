@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import { env } from "../env";
+
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface OAuthStatePayload {
@@ -9,11 +11,7 @@ export interface OAuthStatePayload {
 }
 
 function getSigningKey(): Buffer {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) {
-    throw new Error("BETTER_AUTH_SECRET is required for OAuth state signing");
-  }
-  return Buffer.from(secret, "utf8");
+  return Buffer.from(env.BETTER_AUTH_SECRET, "utf8");
 }
 
 function hmacSign(data: string): string {

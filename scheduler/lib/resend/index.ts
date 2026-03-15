@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 
+import { env } from "../env";
+
 let resend: Resend | null = null;
 
 function getResendClient(): Resend {
@@ -7,18 +9,13 @@ function getResendClient(): Resend {
     return resend;
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not configured");
-  }
-
-  resend = new Resend(apiKey);
+  resend = new Resend(env.RESEND_API_KEY);
   return resend;
 }
 
 export function sendEmail(to: string, subject: string, html: string) {
   return getResendClient().emails.send({
-    from: process.env.RESEND_FROM_ADDRESS || "auth@simplepost.dev",
+    from: env.RESEND_FROM_ADDRESS,
     to: to,
     subject: subject,
     html: html,

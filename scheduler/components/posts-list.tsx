@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -270,7 +271,7 @@ function PostCard({
       }
     } catch (error) {
       console.error("Failed to delete post:", error);
-      alert("Failed to delete post. Please try again.");
+      toast.error("Failed to delete post. Please try again.");
     }
   };
 

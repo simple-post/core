@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
 import { AlertCircle, Info } from "lucide-react";
+import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -285,7 +286,7 @@ export function CreatePostForm() {
       }
     } catch (error) {
       console.error("Failed to create post:", error);
-      alert("Failed to create post. Please try again.");
+      toast.error("Failed to create post. Please try again.");
     }
   };
 

@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import Link from "next/link";
 
+import { toast } from "sonner";
+
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +90,7 @@ export default function AccountsPage() {
       setAccountToDisconnect(null);
     } catch (error) {
       console.error("Disconnect error:", error);
-      alert("An error occurred while disconnecting the account.");
+      toast.error("An error occurred while disconnecting the account.");
     }
   };
 

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
 import { ArrowLeft, Trash2, Calendar, Clock, Edit, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -48,7 +49,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       router.push("/");
     } catch (error) {
       console.error("Failed to delete post:", error);
-      alert("Failed to delete post. Please try again.");
+      toast.error("Failed to delete post. Please try again.");
     }
   };
 

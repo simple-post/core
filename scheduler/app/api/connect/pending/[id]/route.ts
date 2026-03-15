@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { handleApiError, BadRequestError, NotFoundError, GoneError } from "@/lib/utils/errors";
 
 type PendingAccount = {
   id: string;
@@ -40,12 +40,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!pending) {
-      return NextResponse.json({ error: "Pending connection not found" }, { status: 404 });
+      throw new NotFoundError("Pending connection not found");
     }
 
     if (pending.expiresAt && pending.expiresAt.getTime() < Date.now()) {
       await prisma.pendingOAuthConnection.delete({ where: { id: pending.id } });
-      return NextResponse.json({ error: "Pending connection expired" }, { status: 410 });
+      throw new GoneError("Pending connection expired");
     }
 
     const data = pending.data as PendingData;
@@ -82,12 +82,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!pending) {
-      return NextResponse.json({ error: "Pending connection not found" }, { status: 404 });
+      throw new NotFoundError("Pending connection not found");
     }
 
     if (pending.expiresAt && pending.expiresAt.getTime() < Date.now()) {
       await prisma.pendingOAuthConnection.delete({ where: { id: pending.id } });
-      return NextResponse.json({ error: "Pending connection expired" }, { status: 410 });
+      throw new GoneError("Pending connection expired");
     }
 
     const data = pending.data as PendingData;

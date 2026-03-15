@@ -59,7 +59,7 @@ async function getPresignedUrl(
   contentType: string,
   isThumbnail: boolean = false,
 ): Promise<{ uploadUrl: string; publicUrl: string }> {
-  const response = await fetch("/api/upload/presign", {
+  const response = await fetch("/api/v1/upload/presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filename, contentType, isThumbnail }),
@@ -98,7 +98,7 @@ async function uploadViaServer(file: File | Blob, filename: string): Promise<{ u
   const formData = new FormData();
   formData.append("file", file, filename);
 
-  const response = await fetch("/api/upload", {
+  const response = await fetch("/api/v1/upload", {
     method: "POST",
     body: formData,
   });

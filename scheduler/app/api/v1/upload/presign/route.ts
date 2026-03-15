@@ -37,7 +37,7 @@ const normalizeContentType = (contentType: string, filename: string): string | u
   return EXTENSION_TO_TYPE[ext];
 };
 
-// POST /api/upload/presign - Get a presigned URL for direct upload to R2
+// POST /api/v1/upload/presign - Get a presigned URL for direct upload to R2
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);

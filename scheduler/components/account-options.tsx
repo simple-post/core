@@ -42,7 +42,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     setBoardsError((prev) => ({ ...prev, [accountId]: null }));
 
     try {
-      const response = await fetch(`/api/accounts/${accountId}/boards`);
+      const response = await fetch(`/api/v1/accounts/${accountId}/boards`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error((error as { error?: string }).error || "Failed to fetch boards");

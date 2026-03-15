@@ -7,7 +7,7 @@ import type { SocialPost } from "@/types";
 
 // Delete post mutation
 async function deletePost(postId: string): Promise<void> {
-  const response = await fetch(`/api/posts/${postId}`, {
+  const response = await fetch(`/api/v1/posts/${postId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -29,7 +29,7 @@ export function useDeletePost() {
 
 // Disconnect account mutation
 async function disconnectAccount(accountId: string): Promise<void> {
-  const response = await fetch(`/api/accounts/${accountId}`, {
+  const response = await fetch(`/api/v1/accounts/${accountId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -117,7 +117,7 @@ interface PostMutationResult {
 }
 
 async function submitPost({ body, mode, postId }: PostMutationParams): Promise<PostMutationResult> {
-  const url = mode === "edit" ? `/api/posts/${postId}` : "/api/posts";
+  const url = mode === "edit" ? `/api/v1/posts/${postId}` : "/api/v1/posts";
   const method = mode === "edit" ? "PATCH" : "POST";
 
   const response = await fetch(url, {

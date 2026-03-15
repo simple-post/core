@@ -109,7 +109,7 @@ export function CreatePostForm() {
 
       setValidationLoading(true);
       try {
-        const response = await fetch("/api/validation", {
+        const response = await fetch("/api/v1/validation", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

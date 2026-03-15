@@ -44,7 +44,7 @@ async function fetchPaginatedPosts(
   page: number,
   limit: number,
 ): Promise<PaginatedPostsResult> {
-  const url = `/api/posts?type=${type}&page=${page}&limit=${limit}`;
+  const url = `/api/v1/posts?type=${type}&page=${page}&limit=${limit}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error("Failed to fetch posts");
@@ -64,7 +64,7 @@ async function fetchPaginatedPosts(
 }
 
 async function fetchPost(id: string): Promise<SocialPost | null> {
-  const response = await fetch("/api/posts");
+  const response = await fetch("/api/v1/posts");
   if (!response.ok) {
     throw new Error("Failed to fetch posts");
   }

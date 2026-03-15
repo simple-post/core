@@ -2,13 +2,13 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
-import { handleApiError, NotFoundError, BadRequestError } from "@/lib/utils/errors";
+import { handleApiError, NotFoundError, BadRequestError, ValidationError } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
 
-// PATCH /api/posts/[id] - Update a post
+// PATCH /api/v1/posts/[id] - Update a post
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -54,14 +54,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (!validation.summary.isValid) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          details: validation,
-        },
-        { status: 400 },
-      );
+      throw new ValidationError(validation);
     }
+
+    // Capture old media URLs before update for R2 cleanup
+    const oldMediaUrls = new Set(currentPost.media.map((m) => m.url));
+    const newMediaUrls = new Set(finalMedia.map((m) => m.url));
+    const removedMedia = currentPost.media.filter((m) => !newMediaUrls.has(m.url));
 
     // Update the post
     const post = await repository.updatePost(id, {
@@ -73,13 +72,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       media: finalMedia,
     });
 
+    // Clean up removed media from R2 (best-effort, don't fail the request)
+    if (removedMedia.length > 0) {
+      await deleteMediaFiles(removedMedia);
+    }
+
     return NextResponse.json({ post });
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-// DELETE /api/posts/[id] - Delete a post
+// DELETE /api/v1/posts/[id] - Delete a post
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;

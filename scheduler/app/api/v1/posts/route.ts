@@ -4,14 +4,14 @@ import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
-import { handleApiError, BadRequestError, sanitizeForJson } from "@/lib/utils/errors";
+import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
 
 const log = createLogger("api:posts");
 
-// GET /api/posts - Get all posts (scheduled, past, and failed) with pagination
+// GET /api/v1/posts - Get all posts (scheduled, past, and failed) with pagination
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/posts - Create a new post
+// POST /api/v1/posts - Create a new post
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   log.info("Received post creation request");
@@ -143,13 +143,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!validation.summary.isValid) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          details: validation,
-        },
-        { status: 400 },
-      );
+      throw new ValidationError(validation);
     }
 
     // Create the post first

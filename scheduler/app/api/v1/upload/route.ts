@@ -43,7 +43,7 @@ const normalizeContentType = (contentType: string, filename: string): string | u
   return EXTENSION_TO_TYPE[ext];
 };
 
-// POST /api/upload - Upload a file directly through the server (fallback for CORS issues)
+// POST /api/v1/upload - Upload a file directly through the server (fallback for CORS issues)
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);

@@ -10,7 +10,7 @@ interface AccountsResponse {
 }
 
 async function fetchAccounts(): Promise<ConnectedAccount[]> {
-  const response = await fetch("/api/accounts");
+  const response = await fetch("/api/v1/accounts");
   if (!response.ok) {
     throw new Error("Failed to fetch accounts");
   }

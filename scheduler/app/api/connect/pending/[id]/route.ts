@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
+import { upsertConnectedAccount } from "@/lib/oauth";
 import { prisma } from "@/lib/prisma";
-import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 type PendingAccount = {
@@ -107,15 +107,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const displayName = account.name || account.username || account.id;
         const username = pending.platform === "instagram" ? account.username || null : null;
 
-        await tx.connectedAccount.upsert({
-          where: {
-            userId_platform_platformAccountId: {
-              userId: session.user.id,
-              platform: pending.platform,
-              platformAccountId: account.id,
-            },
-          },
-          create: encryptConnectedAccountSecrets({
+        await upsertConnectedAccount(
+          {
             userId: session.user.id,
             platform: pending.platform,
             platformAccountId: account.id,
@@ -127,16 +120,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             displayName,
             email: null,
             profilePicture: account.profilePicture || null,
-          }),
-          update: {
-            ...encryptConnectedAccountSecrets({ accessToken: account.accessToken, refreshToken: null }),
-            scope,
-            username,
-            displayName,
-            profilePicture: account.profilePicture || null,
-            updatedAt: new Date(),
           },
-        });
+          tx,
+        );
       }
 
       await tx.pendingOAuthConnection.delete({ where: { id: pending.id } });

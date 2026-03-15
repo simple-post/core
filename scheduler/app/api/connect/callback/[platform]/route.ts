@@ -5,79 +5,23 @@ import { type NextRequest, NextResponse } from "next/server";
 import { derToRaw } from "@simple-post/sdk";
 
 import { authLogger } from "@/lib/logger";
+import { requireAuth } from "@/lib/middleware/auth";
+import {
+  getPlatformOAuthConfig,
+  verifyOAuthState,
+  getPkceVerifier,
+  clearPkceCookie,
+  upsertConnectedAccount,
+  getErrorRedirectUrl,
+  mapErrorToCode,
+} from "@/lib/oauth";
+import { OAuthStateError } from "@/lib/oauth/state";
 import { prisma } from "@/lib/prisma";
-import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
 import type { Prisma } from "@prisma/client";
 
 const PENDING_OAUTH_TTL_MS = 30 * 60 * 1000;
 const BLUESKY_OAUTH_ISSUER = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
-
-// Token exchange configuration for each platform
-const TOKEN_CONFIG: Record<
-  string,
-  {
-    tokenUrl: string;
-    clientId: string;
-    clientSecret: string;
-    userInfoUrl: string;
-  }
-> = {
-  x: {
-    tokenUrl: "https://api.twitter.com/2/oauth2/token",
-    clientId: process.env.X_CLIENT_ID || "",
-    clientSecret: process.env.X_CLIENT_SECRET || "",
-    userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,name",
-  },
-  facebook: {
-    tokenUrl: "https://graph.facebook.com/v24.0/oauth/access_token",
-    clientId: process.env.FACEBOOK_CLIENT_ID || "",
-    clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
-    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
-  },
-  instagram: {
-    tokenUrl: "https://api.instagram.com/oauth/access_token",
-    clientId: process.env.INSTAGRAM_CLIENT_ID || "",
-    clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
-    userInfoUrl: "https://graph.instagram.com/me?fields=user_id,username,name,profile_picture_url,account_type",
-  },
-  tiktok: {
-    tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
-    clientId: process.env.TIKTOK_CLIENT_KEY || "",
-    clientSecret: process.env.TIKTOK_CLIENT_SECRET || "",
-    userInfoUrl: "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
-  },
-  youtube: {
-    tokenUrl: "https://oauth2.googleapis.com/token",
-    clientId: process.env.GOOGLE_CLIENT_ID || "",
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    userInfoUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
-  },
-  bluesky: {
-    tokenUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/token`,
-    clientId: process.env.BLUESKY_CLIENT_ID || "",
-    clientSecret: process.env.BLUESKY_CLIENT_SECRET || "",
-    userInfoUrl: "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile",
-  },
-  threads: {
-    tokenUrl: "https://graph.threads.net/oauth/access_token",
-    clientId: process.env.THREADS_CLIENT_ID || "",
-    clientSecret: process.env.THREADS_CLIENT_SECRET || "",
-    userInfoUrl: "https://graph.threads.net/v1.0/me?fields=id,username,name,threads_profile_picture_url",
-  },
-  linkedin: {
-    tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
-    clientId: process.env.LINKEDIN_CLIENT_ID || "",
-    clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
-    userInfoUrl: "https://api.linkedin.com/v2/userinfo",
-  },
-  pinterest: {
-    tokenUrl: "https://api.pinterest.com/v5/oauth/token",
-    clientId: process.env.PINTEREST_CLIENT_ID || "",
-    clientSecret: process.env.PINTEREST_CLIENT_SECRET || "",
-    userInfoUrl: "https://api.pinterest.com/v5/user_account",
-  },
-};
 
 type OAuthTokenResponse = Record<string, unknown> & {
   access_token?: string;
@@ -134,10 +78,7 @@ function createDpopProof({
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-  // Sign with ECDSA SHA-256 (ES256)
   const derSignature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
-
-  // Convert DER signature to raw R||S format required by JWS
   const rawSignature = derToRaw(derSignature);
 
   return `${signingInput}.${base64UrlEncode(rawSignature)}`;
@@ -151,7 +92,6 @@ function generateDpopKeyPair(): {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const publicJwk = publicKey.export({ format: "jwk" }) as Record<string, unknown>;
   const privateJwk = privateKey.export({ format: "jwk" }) as Record<string, unknown>;
-
   return { privateKey, publicJwk, privateJwk };
 }
 
@@ -164,7 +104,7 @@ async function exchangeCodeForBlueskyToken(
   dpopPublicJwk: Record<string, unknown>;
   dpopPrivateJwk: Record<string, unknown>;
 }> {
-  const config = TOKEN_CONFIG.bluesky;
+  const config = getPlatformOAuthConfig("bluesky")!;
   const { privateKey, publicJwk, privateJwk } = generateDpopKeyPair();
 
   const body = new URLSearchParams({
@@ -178,7 +118,6 @@ async function exchangeCodeForBlueskyToken(
     body.set("code_verifier", codeVerifier);
   }
 
-  // First request without nonce - Bluesky will return 401 with DPoP-Nonce header
   const initialDpopProof = createDpopProof({
     url: config.tokenUrl,
     method: "POST",
@@ -195,10 +134,8 @@ async function exchangeCodeForBlueskyToken(
     body,
   });
 
-  // Get the nonce from the response header
   const dpopNonce = initialResponse.headers.get("DPoP-Nonce");
 
-  // If first request succeeded (unlikely but possible), return the result
   if (initialResponse.ok) {
     return {
       tokenData: await initialResponse.json(),
@@ -207,7 +144,6 @@ async function exchangeCodeForBlueskyToken(
     };
   }
 
-  // Check if this is a nonce error (expected on first request)
   if (!dpopNonce) {
     const error = await initialResponse.text();
     authLogger.error(
@@ -217,7 +153,6 @@ async function exchangeCodeForBlueskyToken(
     throw new Error(`Failed to exchange code for token: ${initialResponse.statusText}`);
   }
 
-  // Retry with the nonce
   const dpopProofWithNonce = createDpopProof({
     url: config.tokenUrl,
     method: "POST",
@@ -257,7 +192,7 @@ async function exchangeCodeForToken(
   redirectUri: string,
   codeVerifier?: string,
 ): Promise<OAuthTokenResponse> {
-  const config = TOKEN_CONFIG[platform];
+  const config = getPlatformOAuthConfig(platform)!;
 
   const body: Record<string, string> = {
     client_id: config.clientId,
@@ -266,14 +201,11 @@ async function exchangeCodeForToken(
     grant_type: "authorization_code",
   };
 
-  // Platform-specific adjustments
   switch (platform) {
     case "x": {
-      // X requires PKCE code_verifier
       if (codeVerifier) {
         body.code_verifier = codeVerifier;
       }
-      // X requires Basic Auth with client credentials (handled below)
       break;
     }
     case "tiktok": {
@@ -282,7 +214,6 @@ async function exchangeCodeForToken(
       break;
     }
     case "instagram": {
-      // Instagram API requires client_secret and grant_type
       body.client_secret = config.clientSecret;
       break;
     }
@@ -301,13 +232,7 @@ async function exchangeCodeForToken(
     "Content-Type": "application/x-www-form-urlencoded",
   };
 
-  // X requires Basic Auth
-  if (platform === "x") {
-    const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
-    headers.Authorization = `Basic ${credentials}`;
-  }
-
-  if (platform === "pinterest") {
+  if (config.requiresBasicAuth) {
     const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
     headers.Authorization = `Basic ${credentials}`;
   }
@@ -328,7 +253,7 @@ async function exchangeCodeForToken(
 }
 
 async function fetchUserProfile(platform: string, accessToken: string) {
-  const config = TOKEN_CONFIG[platform];
+  const config = getPlatformOAuthConfig(platform)!;
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
@@ -355,7 +280,6 @@ async function fetchUserProfile(platform: string, accessToken: string) {
 
   const data = await response.json();
 
-  // Parse platform-specific response format
   if (platform === "tiktok" && data.data?.user) {
     return data.data.user;
   }
@@ -364,7 +288,8 @@ async function fetchUserProfile(platform: string, accessToken: string) {
 }
 
 async function fetchBlueskyProfile(did: string) {
-  const url = new URL(TOKEN_CONFIG.bluesky.userInfoUrl);
+  const config = getPlatformOAuthConfig("bluesky")!;
+  const url = new URL(config.userInfoUrl);
   url.searchParams.set("actor", did);
 
   const response = await fetch(url.toString());
@@ -397,7 +322,7 @@ async function fetchBlueskyPdsUrl(did: string): Promise<string | null> {
 async function exchangeForLongLivedInstagramToken(
   shortLivedToken: string,
 ): Promise<{ accessToken: string; expiresIn: number }> {
-  const config = TOKEN_CONFIG.instagram;
+  const config = getPlatformOAuthConfig("instagram")!;
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", config.clientSecret);
@@ -414,7 +339,7 @@ async function exchangeForLongLivedInstagramToken(
   const data = await response.json();
   return {
     accessToken: data.access_token,
-    expiresIn: data.expires_in || 5_184_000, // Default 60 days
+    expiresIn: data.expires_in || 5_184_000,
   };
 }
 
@@ -457,6 +382,8 @@ async function fetchFacebookPages(accessToken: string) {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
+  const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
   try {
     const { platform } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -466,36 +393,56 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const errorReason = searchParams.get("error_reason");
     const errorDescription = searchParams.get("error_description");
 
-    // Check for OAuth errors (Facebook sends error_reason and error_description)
     if (error || errorReason) {
-      const errorMessage = errorDescription || errorReason || error || "Authorization failed";
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(errorMessage)}`,
-      );
+      authLogger.warn({ platform, error, errorReason, errorDescription }, "OAuth provider returned error");
+      return NextResponse.redirect(getErrorRedirectUrl("authorization_denied", baseURL));
     }
 
     if (!code || !state) {
-      // Log what we received for debugging
       authLogger.warn({ code: !!code, state: !!state, url: request.nextUrl.toString() }, "Missing OAuth params");
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=missing_params`);
+      return NextResponse.redirect(getErrorRedirectUrl("missing_params", baseURL));
     }
 
-    // Verify state parameter
+    // Verify HMAC-signed state and check expiry
     let stateData;
     try {
-      stateData = JSON.parse(Buffer.from(state, "base64").toString());
-    } catch {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=invalid_state`);
+      stateData = verifyOAuthState(state);
+    } catch (stateError) {
+      if (stateError instanceof OAuthStateError) {
+        return NextResponse.redirect(getErrorRedirectUrl(stateError.code as "invalid_state" | "state_expired", baseURL));
+      }
+      return NextResponse.redirect(getErrorRedirectUrl("invalid_state", baseURL));
     }
 
-    const { userId, platform: statePlatform, codeVerifier } = stateData;
+    const { userId, platform: statePlatform } = stateData;
 
     if (statePlatform !== platform) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=platform_mismatch`);
+      return NextResponse.redirect(getErrorRedirectUrl("platform_mismatch", baseURL));
+    }
+
+    // Validate session matches state userId
+    const session = await requireAuth(request);
+    if (session.user.id !== userId) {
+      authLogger.warn({ stateUserId: userId, sessionUserId: session.user.id }, "OAuth session mismatch");
+      return NextResponse.redirect(getErrorRedirectUrl("session_mismatch", baseURL));
+    }
+
+    const config = getPlatformOAuthConfig(platform);
+    if (!config) {
+      return NextResponse.redirect(getErrorRedirectUrl("unknown_error", baseURL));
+    }
+
+    // Read PKCE verifier from encrypted cookie
+    let codeVerifier: string | undefined;
+    if (config.requiresPkce) {
+      const verifier = getPkceVerifier(request, platform);
+      if (!verifier) {
+        return NextResponse.redirect(getErrorRedirectUrl("pkce_missing", baseURL));
+      }
+      codeVerifier = verifier;
     }
 
     // Exchange code for access token
-    const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
     let tokenData: OAuthTokenResponse;
@@ -512,15 +459,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       tokenData = await exchangeCodeForToken(platform, code, redirectUri, codeVerifier);
     }
 
-    // Extract tokens based on platform response format
     const accessToken = tokenData.access_token;
     const refreshToken = tokenData.refresh_token || null;
     const expiresIn = tokenData.expires_in;
     const scope = tokenData.scope;
 
     if (!accessToken) {
-      throw new Error("No access token received");
+      return NextResponse.redirect(getErrorRedirectUrl("no_access_token", baseURL));
     }
+
+    // --- Platform-specific handling ---
 
     if (platform === "bluesky") {
       const payload = decodeJwtPayload(accessToken);
@@ -531,114 +479,60 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
 
       const profile = await fetchBlueskyProfile(did);
-      const platformAccountId = did;
-      const username = profile.handle || null;
-      const displayName = profile.displayName || profile.handle || null;
-      const profilePicture = profile.avatar || null;
-      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
       const pdsUrl = (await fetchBlueskyPdsUrl(did)) || BLUESKY_OAUTH_ISSUER;
 
       if (tokenMetadata && typeof tokenMetadata === "object" && !Array.isArray(tokenMetadata)) {
         tokenMetadata = { ...tokenMetadata, pdsUrl } as Prisma.InputJsonValue;
       }
 
-      await prisma.connectedAccount.upsert({
-        where: {
-          userId_platform_platformAccountId: {
-            userId,
-            platform: "bluesky",
-            platformAccountId,
-          },
-        },
-        create: encryptConnectedAccountSecrets({
-          userId,
-          platform: "bluesky",
-          platformAccountId,
-          accessToken,
-          refreshToken,
-          expiresAt,
-          scope,
-          username,
-          displayName,
-          email: null,
-          profilePicture,
-          tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
-        }),
-        update: {
-          ...encryptConnectedAccountSecrets({
-            accessToken,
-            refreshToken,
-            tokenMetadata: (tokenMetadata ?? undefined) as Prisma.InputJsonValue | undefined,
-          }),
-          expiresAt,
-          scope,
-          username,
-          displayName,
-          profilePicture,
-          updatedAt: new Date(),
-        },
+      await upsertConnectedAccount({
+        userId,
+        platform: "bluesky",
+        platformAccountId: did,
+        accessToken,
+        refreshToken,
+        expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
+        scope: scope ?? null,
+        username: profile.handle || null,
+        displayName: profile.displayName || profile.handle || null,
+        email: null,
+        profilePicture: profile.avatar || null,
+        tokenMetadata: tokenMetadata ?? undefined,
       });
 
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=bluesky`);
+      const response = NextResponse.redirect(`${baseURL}/accounts?success=true&platform=bluesky`);
+      clearPkceCookie(response, platform);
+      return response;
     }
 
-    // Special handling for Instagram - use Instagram Login API directly
     if (platform === "instagram") {
-      // Exchange short-lived token for long-lived token
       const { accessToken: longLivedToken, expiresIn: longLivedExpiresIn } =
         await exchangeForLongLivedInstagramToken(accessToken);
-
-      // Fetch user profile from Instagram API
       const profile = await fetchInstagramProfile(longLivedToken);
 
-      const platformAccountId = profile.user_id || profile.id;
-      const username = profile.username;
-      const displayName = profile.name || profile.username;
-      const profilePicture = profile.profile_picture_url || null;
-      const expiresAt = new Date(Date.now() + longLivedExpiresIn * 1000);
-
-      await prisma.connectedAccount.upsert({
-        where: {
-          userId_platform_platformAccountId: {
-            userId,
-            platform: "instagram",
-            platformAccountId,
-          },
-        },
-        create: encryptConnectedAccountSecrets({
-          userId,
-          platform: "instagram",
-          platformAccountId,
-          accessToken: longLivedToken,
-          refreshToken: null,
-          expiresAt,
-          scope,
-          username,
-          displayName,
-          email: null,
-          profilePicture,
-        }),
-        update: {
-          ...encryptConnectedAccountSecrets({ accessToken: longLivedToken, refreshToken: null }),
-          expiresAt,
-          scope,
-          username,
-          displayName,
-          profilePicture,
-          updatedAt: new Date(),
-        },
+      await upsertConnectedAccount({
+        userId,
+        platform: "instagram",
+        platformAccountId: profile.user_id || profile.id,
+        accessToken: longLivedToken,
+        refreshToken: null,
+        expiresAt: new Date(Date.now() + longLivedExpiresIn * 1000),
+        scope: scope ?? null,
+        username: profile.username,
+        displayName: profile.name || profile.username,
+        email: null,
+        profilePicture: profile.profile_picture_url || null,
       });
 
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=instagram`);
+      return NextResponse.redirect(`${baseURL}/accounts?success=true&platform=instagram`);
     }
 
-    // Special handling for Facebook - store pending account choices for picker
     if (platform === "facebook") {
       const accounts = await fetchFacebookPages(accessToken);
 
       if (accounts.length === 0) {
         return NextResponse.redirect(
-          `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=no_accounts&message=${encodeURIComponent("No Facebook Pages found. Make sure you have a Facebook Page connected to your account.")}`,
+          `${baseURL}/accounts?error=${encodeURIComponent("No Facebook Pages found. Make sure you have a Facebook Page connected to your account.")}`,
         );
       }
 
@@ -648,26 +542,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         data: {
           userId,
           platform,
-          data: {
-            accounts,
-            scope,
-          },
+          data: { accounts, scope },
           expiresAt: new Date(Date.now() + PENDING_OAUTH_TTL_MS),
         },
       });
 
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/accounts/connect/${platform}?pendingId=${pending.id}`,
-      );
+      return NextResponse.redirect(`${baseURL}/accounts/connect/${platform}?pendingId=${pending.id}`);
     }
 
-    // Fetch user profile for other platforms
+    // Generic flow for remaining platforms
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped external API responses from multiple platforms
     let profile: any;
     try {
       profile = await fetchUserProfile(platform, accessToken);
     } catch (profileError) {
-      // Threads: token exchange returns user_id; try fetching profile by user_id directly
       if (platform === "threads" && tokenData.user_id != null) {
         authLogger.info(
           { userId: tokenData.user_id },
@@ -724,7 +612,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         break;
       }
       case "linkedin": {
-        // OpenID Connect userinfo response
         platformAccountId = profile.sub || profile.id;
         username = profile.email || null;
         displayName = profile.name || profile.given_name || null;
@@ -751,48 +638,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Store or update connected account
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
-    await prisma.connectedAccount.upsert({
-      where: {
-        userId_platform_platformAccountId: {
-          userId,
-          platform,
-          platformAccountId,
-        },
-      },
-      create: encryptConnectedAccountSecrets({
-        userId,
-        platform,
-        platformAccountId,
-        accessToken,
-        refreshToken,
-        expiresAt,
-        scope,
-        username,
-        displayName,
-        email,
-        profilePicture,
-      }),
-      update: {
-        ...encryptConnectedAccountSecrets({ accessToken, refreshToken }),
-        expiresAt,
-        scope,
-        username,
-        displayName,
-        email,
-        profilePicture,
-        updatedAt: new Date(),
-      },
+    await upsertConnectedAccount({
+      userId,
+      platform,
+      platformAccountId,
+      accessToken,
+      refreshToken,
+      expiresAt,
+      scope: scope ?? null,
+      username,
+      displayName,
+      email,
+      profilePicture,
     });
 
-    // Redirect back to accounts page
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/accounts?success=true&platform=${platform}`);
+    const successResponse = NextResponse.redirect(`${baseURL}/accounts?success=true&platform=${platform}`);
+    if (config.requiresPkce) {
+      clearPkceCookie(successResponse, platform);
+    }
+    return successResponse;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/accounts?error=${encodeURIComponent(errorMessage)}`,
-    );
+    const code = mapErrorToCode(error);
+    const response = NextResponse.redirect(getErrorRedirectUrl(code, baseURL));
+    return response;
   }
 }

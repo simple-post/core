@@ -113,73 +113,31 @@ export function buildCredentials(account: ConnectedAccount): Credentials {
   return builder ? builder(account) : {};
 }
 
-/**
- * Platform-specific post option builders
- */
-const postOptionBuilders: Record<
+function defaultPostOptionBuilder(
+  platform: string,
+  _account: ConnectedAccount,
+  credentials: Credentials,
+  accountSpecificOptions: unknown,
+): PostOptions {
+  return {
+    [platform]: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      credentials,
+    },
+  } as PostOptions;
+}
+
+const postOptionOverrides: Record<
   string,
   (account: ConnectedAccount, credentials: Credentials, accountSpecificOptions: unknown) => PostOptions
 > = {
-  x: (account, credentials, accountSpecificOptions) => ({
-    x: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"x">,
-    },
-  }),
   twitter: (account, credentials, accountSpecificOptions) =>
-    postOptionBuilders.x(account, credentials, accountSpecificOptions),
-  youtube: (account, credentials, accountSpecificOptions) => {
-    // Use credentials from credential builder (prefers refresh token flow for auto-refresh)
-    const youtubeCredentials = credentials as PlatformCredentials<"youtube">;
-
-    return {
-      youtube: {
-        ...(accountSpecificOptions as Record<string, unknown>),
-        credentials: youtubeCredentials as PlatformCredentials<"youtube">,
-      },
-    };
-  },
+    defaultPostOptionBuilder("x", account, credentials, accountSpecificOptions),
   telegram: (account, credentials, accountSpecificOptions) => ({
     telegram: {
       chatId: account.platformAccountId,
       ...(accountSpecificOptions as Record<string, unknown>),
       credentials: credentials as PlatformCredentials<"telegram">,
-    },
-  }),
-  facebook: (account, credentials, accountSpecificOptions) => ({
-    facebook: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"facebook">,
-    },
-  }),
-  instagram: (account, credentials, accountSpecificOptions) => ({
-    instagram: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"instagram">,
-    },
-  }),
-  tiktok: (account, credentials, accountSpecificOptions) => ({
-    tiktok: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"tiktok">,
-    },
-  }),
-  bluesky: (account, credentials, accountSpecificOptions) => ({
-    bluesky: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"bluesky">,
-    },
-  }),
-  threads: (account, credentials, accountSpecificOptions) => ({
-    threads: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"threads">,
-    },
-  }),
-  linkedin: (account, credentials, accountSpecificOptions) => ({
-    linkedin: {
-      ...(accountSpecificOptions as Record<string, unknown>),
-      credentials: credentials as PlatformCredentials<"linkedin">,
     },
   }),
   pinterest: (account, credentials, accountSpecificOptions) => ({
@@ -198,11 +156,10 @@ export function buildPostOptions(account: ConnectedAccount, accountOptions?: Acc
   const platform = account.platform.toLowerCase();
   const credentials = buildCredentials(account);
   const accountSpecificOptions = accountOptions?.[account.id] || {};
-  const builder = postOptionBuilders[platform];
-
-  if (!builder) {
-    return {};
+  const override = postOptionOverrides[platform];
+  if (override) {
+    return override(account, credentials, accountSpecificOptions) as PostOptions;
   }
 
-  return builder(account, credentials, accountSpecificOptions) as PostOptions;
+  return defaultPostOptionBuilder(platform, account, credentials, accountSpecificOptions);
 }

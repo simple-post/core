@@ -145,9 +145,8 @@ async function exchangeCodeForBlueskyToken(
   }
 
   if (!dpopNonce) {
-    const error = await initialResponse.text();
     authLogger.error(
-      { platform: "bluesky", error, status: initialResponse.status },
+      { platform: "bluesky", status: initialResponse.status },
       "Token exchange failed - no DPoP nonce received",
     );
     throw new Error(`Failed to exchange code for token: ${initialResponse.statusText}`);
@@ -171,9 +170,8 @@ async function exchangeCodeForBlueskyToken(
   });
 
   if (!response.ok) {
-    const error = await response.text();
     authLogger.error(
-      { platform: "bluesky", error, status: response.status },
+      { platform: "bluesky", status: response.status },
       "Token exchange failed after nonce retry",
     );
     throw new Error(`Failed to exchange code for token: ${response.statusText}`);
@@ -244,8 +242,7 @@ async function exchangeCodeForToken(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    authLogger.error({ platform, error, status: response.status }, "Token exchange failed");
+    authLogger.error({ platform, status: response.status, statusText: response.statusText }, "Token exchange failed");
     throw new Error(`Failed to exchange code for token: ${response.statusText}`);
   }
 
@@ -270,9 +267,8 @@ async function fetchUserProfile(platform: string, accessToken: string) {
   }
 
   if (!response.ok) {
-    const errorBody = await response.text();
     authLogger.warn(
-      { platform, status: response.status, statusText: response.statusText, errorBody },
+      { platform, status: response.status, statusText: response.statusText },
       "Failed to fetch user profile",
     );
     throw new Error(`Failed to fetch user profile: ${response.statusText}`);
@@ -294,8 +290,7 @@ async function fetchBlueskyProfile(did: string) {
 
   const response = await fetch(url.toString());
   if (!response.ok) {
-    const error = await response.text();
-    authLogger.error({ error, status: response.status }, "Failed to fetch Bluesky profile");
+    authLogger.error({ status: response.status }, "Failed to fetch Bluesky profile");
     throw new Error("Failed to fetch Bluesky profile");
   }
 
@@ -331,8 +326,7 @@ async function exchangeForLongLivedInstagramToken(
   const response = await fetch(url.toString());
 
   if (!response.ok) {
-    const error = await response.text();
-    authLogger.error({ error, status: response.status }, "Failed to exchange for long-lived Instagram token");
+    authLogger.error({ status: response.status }, "Failed to exchange for long-lived Instagram token");
     throw new Error("Failed to get long-lived Instagram token");
   }
 
@@ -349,8 +343,7 @@ async function fetchInstagramProfile(accessToken: string) {
   );
 
   if (!response.ok) {
-    const error = await response.text();
-    authLogger.error({ error, status: response.status }, "Failed to fetch Instagram profile");
+    authLogger.error({ status: response.status }, "Failed to fetch Instagram profile");
     throw new Error("Failed to fetch Instagram profile");
   }
 
@@ -399,7 +392,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (!code || !state) {
-      authLogger.warn({ code: !!code, state: !!state, url: request.nextUrl.toString() }, "Missing OAuth params");
+      authLogger.warn({ hasCode: !!code, hasState: !!state, platform }, "Missing OAuth params");
       return NextResponse.redirect(getErrorRedirectUrl("missing_params", baseURL));
     }
 

@@ -1,4 +1,6 @@
 import express from "express";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 
 import { createAuthMiddleware } from "./middleware/auth.js";
 import fileRoutes from "./routes/files.js";
@@ -29,6 +31,47 @@ try {
 
 const app = express();
 
+app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY : 1);
+
+// Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // API server does not serve browser-rendered content
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: "no-referrer" },
+  })
+);
+
+// IP-based rate limiting
+const globalRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: Number(process.env.RATE_LIMIT_MAX_REQUESTS || 300),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    error: "Too many requests",
+    message: "Too many requests from this IP, please try again later.",
+  },
+});
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS || 100),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    error: "Too many authentication attempts",
+    message: "Too many authentication attempts from this IP, please try again later.",
+  },
+});
+
+app.use(globalRateLimiter);
+
 // Configure timeouts (10 minutes for long-running social media operations)
 const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 app.use((req, res, next) => {
@@ -49,6 +92,9 @@ app.get("/health", (req, res) => {
     version: process.env.npm_package_version || "unknown",
   });
 });
+
+// Apply stricter rate limit for authenticated API usage
+app.use(authRateLimiter);
 
 // Apply authentication middleware to all routes except health check
 app.use(createAuthMiddleware(API_KEY));

@@ -45,7 +45,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Posting Results</DialogTitle>
           <DialogDescription>
@@ -71,7 +71,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
                     <span className="text-sm font-medium">{getPlatformDisplayName(result.platform)}</span>
                   </div>
                   {result.postId && (
-                    <p className="text-xs text-muted-foreground font-mono mt-0.5">ID: {result.postId}</p>
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">ID: {result.postId}</p>
                   )}
                   {!result.success && (
                     <p className="text-xs text-red-500 mt-0.5">{result.message || result.error}</p>

@@ -11,3 +11,9 @@ export type { UpsertAccountData } from "./upsert";
 
 export { getErrorRedirectUrl, mapErrorToCode } from "./errors";
 export type { OAuthErrorCode } from "./errors";
+
+export { exchangeCodeForToken, exchangeCodeForBlueskyToken } from "./token-exchange";
+
+export { handlePlatformCallback } from "./callbacks";
+
+export type { OAuthTokenResponse, CallbackContext } from "./types";

@@ -139,7 +139,7 @@ export function AccountSelector({
           </div>
         )}
 
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+        <div className="flex flex-wrap gap-2">
           {accounts.map((account: ConnectedAccount) => {
             const platformConfig = getPlatformById(account.platform);
             if (!platformConfig) return null;
@@ -167,7 +167,7 @@ export function AccountSelector({
                       className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white`}>
                       <PlatformIcon platform={platformConfig.id} className="text-sm" />
                     </div>
-                    <div className="text-[10px] font-medium leading-tight line-clamp-2">
+                    <div className="text-[10px] font-medium leading-tight line-clamp-2 w-full break-all px-0.5">
                       {getAccountDisplayName(account)}
                     </div>
                   </div>

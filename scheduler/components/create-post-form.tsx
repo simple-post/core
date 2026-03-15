@@ -336,7 +336,7 @@ export function CreatePostForm() {
             </div>
           </div>
 
-          {validationLoading && <p className="text-xs text-muted-foreground">Validating content...</p>}
+          {/* Validation loading is shown in the submit button to avoid layout shift */}
           {validationError && (
             <Alert variant="destructive">
               <AlertCircle />
@@ -449,9 +449,11 @@ export function CreatePostForm() {
               ? postingMode === "now"
                 ? "Posting..."
                 : "Scheduling..."
-              : postingMode === "now"
-                ? "Post Now"
-                : "Schedule Post"}
+              : validationLoading
+                ? "Validating..."
+                : postingMode === "now"
+                  ? "Post Now"
+                  : "Schedule Post"}
           </Button>
         </div>
       </form>

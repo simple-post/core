@@ -53,9 +53,9 @@ export default function Dashboard() {
                 </div>
               </div>
             </Link>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link href="/accounts">
-                <Button variant="outline" size="default" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 sm:h-10 sm:px-4 sm:text-sm">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -64,15 +64,16 @@ export default function Dashboard() {
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                     />
                   </svg>
-                  Accounts
+                  <span className="hidden sm:inline">Accounts</span>
                 </Button>
               </Link>
               <Link href="/schedule">
-                <Button size="default" className="gap-2 shadow-sm">
+                <Button size="sm" className="gap-1.5 sm:gap-2 sm:h-10 sm:px-4 sm:text-sm shadow-sm">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Create Post
+                  <span className="sm:hidden">Post</span>
+                  <span className="hidden sm:inline">Create Post</span>
                 </Button>
               </Link>
             </div>

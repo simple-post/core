@@ -313,9 +313,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           </div>
 
           {/* Validation Feedback */}
-          {validationLoading && (
-            <p className="text-xs text-muted-foreground">Validating content for selected platforms...</p>
-          )}
+          {/* Validation loading is shown in the submit button to avoid layout shift */}
           {validationError && (
             <Alert variant="destructive">
               <AlertCircle />
@@ -452,11 +450,13 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                 : mode === "edit"
                   ? "Updating..."
                   : "Scheduling..."
-              : postingMode === "now"
-                ? "Post Now"
-                : mode === "edit"
-                  ? "Update Post"
-                  : "Schedule Post"}
+              : validationLoading
+                ? "Validating..."
+                : postingMode === "now"
+                  ? "Post Now"
+                  : mode === "edit"
+                    ? "Update Post"
+                    : "Schedule Post"}
           </Button>
         </div>
       </form>

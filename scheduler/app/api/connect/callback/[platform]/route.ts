@@ -663,13 +663,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     try {
       profile = await fetchUserProfile(platform, accessToken);
     } catch (profileError) {
-      // Threads: token exchange returns user_id; use it when /me fails (common in dev mode)
+      // Threads: token exchange returns user_id; try fetching profile by user_id directly
       if (platform === "threads" && tokenData.user_id != null) {
         authLogger.info(
           { userId: tokenData.user_id },
-          "Threads /me failed, using user_id from token exchange (consider adding user as Threads Tester)",
+          "Threads /me failed, trying direct user_id fetch (consider adding user as Threads Tester)",
         );
-        profile = { id: String(tokenData.user_id) };
+        try {
+          const directUrl = new URL(`https://graph.threads.net/v1.0/${tokenData.user_id}`);
+          directUrl.searchParams.set("fields", "id,username,name,threads_profile_picture_url");
+          directUrl.searchParams.set("access_token", accessToken);
+          const directResponse = await fetch(directUrl.toString());
+          profile = directResponse.ok ? await directResponse.json() : { id: String(tokenData.user_id) };
+        } catch {
+          profile = { id: String(tokenData.user_id) };
+        }
       } else {
         throw profileError;
       }

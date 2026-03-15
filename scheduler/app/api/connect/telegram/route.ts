@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+
+const log = createLogger("api:connect:telegram");
 
 export async function POST(req: NextRequest) {
   try {
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       if (error instanceof BadRequestError) throw error;
       // Log unexpected errors (network, DB, etc.) for debugging
-      console.error("Telegram connect error:", error);
+      log.error({ err: serializeError(error) }, "Telegram connect error");
       throw new BadRequestError(
         "Failed to validate Telegram credentials. Please check your bot token and chat ID. The bot must be added as an admin to the channel/group.",
       );

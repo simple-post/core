@@ -26,10 +26,11 @@ export const auth = betterAuth({
   plugins: [
     magicLink({
       sendMagicLink: async ({ email, url }) => {
+        const safeUrl = url.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         await sendEmail(
           email,
           "Sign in to Simple Post Scheduler",
-          `Click here to sign in: <a href="${url}">${url}</a>`,
+          `Click here to sign in: <a href="${safeUrl}">${safeUrl}</a>`,
         );
       },
     }),

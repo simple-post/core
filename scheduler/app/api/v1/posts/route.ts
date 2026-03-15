@@ -65,49 +65,11 @@ export async function POST(req: NextRequest) {
 
     const repository = new PostsModel(userId);
 
-    // Parse JSON body
     const body = await req.json();
-    log.debug("Parsing JSON body");
+    log.debug({ postingMode: body.postingMode, messageLength: body.message?.length || 0 }, "Request body parsed");
 
-    const {
-      message,
-      accountIds,
-      postingMode,
-      scheduledFor: scheduledForStr,
-      accountOptions,
-      accountOverrides,
-      media,
-    } = body;
-
-    log.debug({ postingMode, messageLength: message?.length || 0 }, "Request body parsed");
-
-    if (!accountIds) {
-      log.warn("Validation failed: accountIds missing");
-      throw new BadRequestError("accountIds are required");
-    }
-
-    log.debug({ accountCount: accountIds.length, accountIds }, "Parsed account IDs");
-
-    if (accountOptions) {
-      log.debug({ accountOptionsCount: Object.keys(accountOptions).length }, "Account options provided");
-    }
-    if (accountOverrides) {
-      log.debug({ accountOverridesCount: Object.keys(accountOverrides).length }, "Account overrides provided");
-    }
-
-    // Validate with schema
-    const validationData = {
-      message,
-      accountIds,
-      postingMode: postingMode as "now" | "schedule",
-      scheduledFor: scheduledForStr || undefined,
-      accountOptions,
-      accountOverrides,
-    };
-
-    log.debug("Validating data with schema");
-    const validated = createPostSchema.parse(validationData);
-    log.debug("Validation successful");
+    const validated = createPostSchema.parse(body);
+    log.debug({ accountCount: validated.accountIds.length }, "Validation successful");
 
     // Get scheduledFor based on posting mode
     let scheduledFor: Date;
@@ -123,12 +85,7 @@ export async function POST(req: NextRequest) {
       log.debug({ scheduledFor: scheduledFor.toISOString() }, "Scheduling for future");
     }
 
-    // Media files are already uploaded to R2, just use the URLs
-    const mediaFiles: MediaFile[] = media || [];
-    log.debug({ mediaCount: mediaFiles.length }, "Media files from request");
-    mediaFiles.forEach((mf: MediaFile, idx: number) => {
-      log.debug({ index: idx + 1, type: mf.type, filename: mf.filename, size: mf.size }, "Media file");
-    });
+    const mediaFiles: MediaFile[] = validated.media || [];
 
     const validation = await validatePostForAccounts({
       userId,

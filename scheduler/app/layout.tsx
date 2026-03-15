@@ -12,7 +12,6 @@ export const metadata: Metadata = {
   description:
     "Schedule and publish content across X, Instagram, YouTube, TikTok, Facebook, and more. Part of the SimplePost ecosystem.",
 };
-export const dynamic = "force-dynamic";
 
 export default function RootLayout({
   children,

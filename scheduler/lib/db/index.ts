@@ -19,9 +19,9 @@ export interface PaginatedResult<T> {
 }
 
 export class PostsModel {
-  private userId?: string;
+  private userId: string;
 
-  constructor(userId?: string) {
+  constructor(userId: string) {
     this.userId = userId;
   }
 
@@ -31,7 +31,7 @@ export class PostsModel {
     const now = new Date();
 
     const where = {
-      ...(this.userId && { userId: this.userId }),
+      userId: this.userId,
       status: "scheduled",
       scheduledFor: {
         gt: now,
@@ -75,7 +75,7 @@ export class PostsModel {
     const now = new Date();
 
     const where = {
-      ...(this.userId && { userId: this.userId }),
+      userId: this.userId,
       OR: [
         { status: "published" },
         {
@@ -123,7 +123,7 @@ export class PostsModel {
     const skip = (page - 1) * limit;
 
     const where = {
-      ...(this.userId && { userId: this.userId }),
+      userId: this.userId,
       status: "failed",
     };
 
@@ -236,7 +236,7 @@ export class PostsModel {
     }
 
     const post = await prisma.post.update({
-      where: { id, ...(this.userId && { userId: this.userId }) },
+      where: { id, userId: this.userId },
       data: updateData as Parameters<typeof prisma.post.update>[0]["data"],
       include: {
         media: true,
@@ -251,7 +251,7 @@ export class PostsModel {
     const post = await prisma.post.findFirst({
       where: {
         id,
-        ...(this.userId && { userId: this.userId }),
+        userId: this.userId,
       },
       include: {
         media: true,
@@ -268,7 +268,7 @@ export class PostsModel {
 
   async deletePost(id: string): Promise<void> {
     await prisma.post.delete({
-      where: { id, ...(this.userId && { userId: this.userId }) },
+      where: { id, userId: this.userId },
     });
   }
 

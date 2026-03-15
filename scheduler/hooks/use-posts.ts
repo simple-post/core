@@ -64,13 +64,15 @@ async function fetchPaginatedPosts(
 }
 
 async function fetchPost(id: string): Promise<SocialPost | null> {
-  const response = await fetch("/api/v1/posts");
-  if (!response.ok) {
-    throw new Error("Failed to fetch posts");
+  const response = await fetch(`/api/v1/posts/${id}`);
+  if (response.status === 404) {
+    return null;
   }
-  const data: PostsResponse = await response.json();
-  const foundPost = (data.posts || []).find((p) => p.id === id);
-  return foundPost ? parsePost(foundPost) : null;
+  if (!response.ok) {
+    throw new Error("Failed to fetch post");
+  }
+  const data: { post: RawSocialPost } = await response.json();
+  return data.post ? parsePost(data.post) : null;
 }
 
 export function usePaginatedPosts(type: "scheduled" | "past" | "failed", page: number = 1, limit: number = 25) {

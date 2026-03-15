@@ -8,6 +8,24 @@ import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
 import type { MediaFile } from "@/types";
 
+// GET /api/v1/posts/[id] - Get a single post by ID
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const session = await requireAuth(req);
+    const repository = new PostsModel(session.user.id);
+
+    const post = await repository.getPostById(id);
+    if (!post) {
+      throw new NotFoundError("Post not found");
+    }
+
+    return NextResponse.json({ post });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
 // PATCH /api/v1/posts/[id] - Update a post
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -21,25 +39,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new NotFoundError("Post not found");
     }
 
-    // Parse JSON body
+    // Parse and validate body
     const body = await req.json();
-    const { message, accountIds, scheduledFor: scheduledForStr, accountOptions, accountOverrides, media } = body;
-
-    if (!accountIds || !scheduledForStr) {
-      throw new BadRequestError("accountIds and scheduledFor are required");
-    }
-
-    // Validate with schema
-    const validated = updatePostSchema.parse({
-      message,
-      accountIds,
-      scheduledFor: scheduledForStr,
-      accountOptions,
-      accountOverrides,
-    });
+    const validated = updatePostSchema.parse(body);
 
     // Media is already uploaded to R2, just use the provided array
-    const finalMedia: MediaFile[] = media || [];
+    const finalMedia: MediaFile[] = body.media || [];
 
     const validation = await validatePostForAccounts({
       userId: session.user.id,

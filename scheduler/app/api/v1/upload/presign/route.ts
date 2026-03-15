@@ -5,37 +5,13 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-types";
 
 const presignRequestSchema = z.object({
   filename: z.string().min(1),
   contentType: z.string().min(1),
   isThumbnail: z.boolean().optional(),
 });
-
-const EXTENSION_TO_TYPE: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  mp4: "video/mp4",
-  m4v: "video/mp4",
-  mov: "video/quicktime",
-  webm: "video/webm",
-};
-
-const normalizeContentType = (contentType: string, filename: string): string | undefined => {
-  if (contentType === "image/jpg") {
-    return "image/jpeg";
-  }
-
-  if (contentType) {
-    return contentType;
-  }
-
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  return EXTENSION_TO_TYPE[ext];
-};
 
 // POST /api/v1/upload/presign - Get a presigned URL for direct upload to R2
 export async function POST(req: NextRequest) {
@@ -52,18 +28,7 @@ export async function POST(req: NextRequest) {
       throw new BadRequestError("Invalid content type");
     }
 
-    // Validate content type
-    const allowedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-      "video/mp4",
-      "video/quicktime",
-      "video/webm",
-    ];
-
-    if (!allowedTypes.includes(resolvedContentType)) {
+    if (!ALLOWED_MEDIA_TYPES.has(resolvedContentType)) {
       throw new BadRequestError(`Invalid content type: ${resolvedContentType}`);
     }
 

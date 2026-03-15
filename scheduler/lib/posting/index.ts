@@ -7,6 +7,7 @@ import {
   encryptConnectedAccountSecrets,
 } from "@/lib/security/connected-account-secrets";
 import { sanitizeForJson } from "@/lib/utils/errors";
+import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import { buildPostOptions } from "./credentials";
@@ -30,27 +31,6 @@ interface PostingResult {
       expiresAt?: number;
     };
   };
-}
-
-/**
- * Maps scheduler platform names to SDK platform names
- */
-function mapPlatformName(platform: string): Platform {
-  const platformMap: Record<string, Platform> = {
-    x: "x",
-    twitter: "x",
-    youtube: "youtube",
-    telegram: "telegram",
-    facebook: "facebook",
-    instagram: "instagram",
-    tiktok: "tiktok",
-    bluesky: "bluesky",
-    threads: "threads",
-    linkedin: "linkedin",
-    pinterest: "pinterest",
-  };
-
-  return (platformMap[platform.toLowerCase()] as Platform) || (platform as Platform);
 }
 
 /**

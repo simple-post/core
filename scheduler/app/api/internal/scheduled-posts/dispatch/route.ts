@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { type NextRequest, NextResponse } from "next/server";
 
 import { env } from "@/lib/env";
@@ -10,7 +12,19 @@ function isAuthorized(req: NextRequest): boolean {
   const authHeader = req.headers.get("authorization") || "";
   const [scheme, token] = authHeader.split(" ");
 
-  return scheme?.toLowerCase() === "bearer" && token === env.SCHEDULED_POST_DISPATCH_SECRET;
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return false;
+  }
+
+  const expected = env.SCHEDULED_POST_DISPATCH_SECRET;
+  const tokenBuffer = Buffer.from(token, "utf8");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+
+  if (tokenBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(tokenBuffer, expectedBuffer);
 }
 
 export async function POST(req: NextRequest) {

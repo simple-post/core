@@ -12,27 +12,10 @@ import {
 } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
+import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type { Content, Media, Platform, ValidationResult, PlatformValidationRules } from "@simple-post/sdk";
-
-const PLATFORM_MAP: Record<string, Platform> = {
-  x: "x",
-  twitter: "x",
-  youtube: "youtube",
-  telegram: "telegram",
-  facebook: "facebook",
-  instagram: "instagram",
-  tiktok: "tiktok",
-  bluesky: "bluesky",
-  threads: "threads",
-  linkedin: "linkedin",
-  pinterest: "pinterest",
-};
-
-const mapPlatformName = (platform: string): Platform => {
-  return PLATFORM_MAP[platform.toLowerCase()] || (platform.toLowerCase() as Platform);
-};
 
 const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
   const media: Media[] = mediaFiles.map((file) =>
@@ -54,80 +37,25 @@ const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
   };
 };
 
+const publishers: Record<string, { getValidationRules: () => PlatformValidationRules; validate: (content: Content) => ValidationResult }> = {
+  x: XPublisher,
+  facebook: FacebookPublisher,
+  instagram: InstagramPublisher,
+  telegram: TelegramPublisher,
+  tiktok: TikTokPublisher,
+  youtube: YouTubePublisher,
+  bluesky: BlueskyPublisher,
+  threads: ThreadsPublisher,
+  linkedin: LinkedInPublisher,
+  pinterest: PinterestPublisher,
+};
+
 function getValidationRules(platform: Platform): PlatformValidationRules {
-  switch (platform) {
-    case "x": {
-      return XPublisher.getValidationRules();
-    }
-    case "facebook": {
-      return FacebookPublisher.getValidationRules();
-    }
-    case "instagram": {
-      return InstagramPublisher.getValidationRules();
-    }
-    case "telegram": {
-      return TelegramPublisher.getValidationRules();
-    }
-    case "tiktok": {
-      return TikTokPublisher.getValidationRules();
-    }
-    case "youtube": {
-      return YouTubePublisher.getValidationRules();
-    }
-    case "bluesky": {
-      return BlueskyPublisher.getValidationRules();
-    }
-    case "threads": {
-      return ThreadsPublisher.getValidationRules();
-    }
-    case "linkedin": {
-      return LinkedInPublisher.getValidationRules();
-    }
-    case "pinterest": {
-      return PinterestPublisher.getValidationRules();
-    }
-    default: {
-      return {};
-    }
-  }
+  return publishers[platform]?.getValidationRules() ?? {};
 }
 
 function validateContent(platform: Platform, content: Content): ValidationResult {
-  switch (platform) {
-    case "x": {
-      return XPublisher.validate(content);
-    }
-    case "facebook": {
-      return FacebookPublisher.validate(content);
-    }
-    case "instagram": {
-      return InstagramPublisher.validate(content);
-    }
-    case "telegram": {
-      return TelegramPublisher.validate(content);
-    }
-    case "tiktok": {
-      return TikTokPublisher.validate(content);
-    }
-    case "youtube": {
-      return YouTubePublisher.validate(content);
-    }
-    case "bluesky": {
-      return BlueskyPublisher.validate(content);
-    }
-    case "threads": {
-      return ThreadsPublisher.validate(content);
-    }
-    case "linkedin": {
-      return LinkedInPublisher.validate(content);
-    }
-    case "pinterest": {
-      return PinterestPublisher.validate(content);
-    }
-    default: {
-      return { errors: [], warnings: [], isValid: true };
-    }
-  }
+  return publishers[platform]?.validate(content) ?? { errors: [], warnings: [], isValid: true };
 }
 
 export interface PlatformValidationResponse {

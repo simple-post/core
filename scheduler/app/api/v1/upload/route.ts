@@ -4,44 +4,10 @@ import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-types";
 
 // Maximum file size: 500MB
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
-
-const ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-]);
-
-const EXTENSION_TO_TYPE: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  mp4: "video/mp4",
-  m4v: "video/mp4",
-  mov: "video/quicktime",
-  webm: "video/webm",
-};
-
-const normalizeContentType = (contentType: string, filename: string): string | undefined => {
-  if (contentType === "image/jpg") {
-    return "image/jpeg";
-  }
-
-  if (contentType) {
-    return contentType;
-  }
-
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  return EXTENSION_TO_TYPE[ext];
-};
 
 // POST /api/v1/upload - Upload a file directly through the server (fallback for CORS issues)
 export async function POST(req: NextRequest) {
@@ -66,7 +32,7 @@ export async function POST(req: NextRequest) {
       throw new BadRequestError(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
     }
 
-    if (!ALLOWED_TYPES.has(resolvedType)) {
+    if (!ALLOWED_MEDIA_TYPES.has(resolvedType)) {
       throw new BadRequestError(`Invalid file type: ${resolvedType}`);
     }
 

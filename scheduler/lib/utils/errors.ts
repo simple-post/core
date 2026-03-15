@@ -111,6 +111,27 @@ export class BadRequestError extends ApiError {
 }
 
 /**
+ * Validation error (400) with structured details
+ */
+export class ValidationError extends ApiError {
+  constructor(
+    public details: unknown,
+    message: string = "Validation failed",
+  ) {
+    super(message, 400, "VALIDATION_ERROR");
+  }
+}
+
+/**
+ * Gone error (410)
+ */
+export class GoneError extends ApiError {
+  constructor(message: string = "Resource is no longer available") {
+    super(message, 410, "GONE");
+  }
+}
+
+/**
  * Internal server error (500)
  */
 export class InternalServerError extends ApiError {
@@ -138,6 +159,7 @@ export function handleApiError(error: unknown): NextResponse {
       {
         error: error.message,
         code: error.code,
+        ...(error instanceof ValidationError && { details: error.details }),
       },
       { status: error.statusCode },
     );

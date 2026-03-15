@@ -5,7 +5,78 @@ import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 
-async function fetchUserProfile(platform: string, accessToken: string) {
+/** Platform-specific profile shapes returned by each OAuth provider's userinfo endpoint. */
+interface XProfile {
+  data?: { id: string; username: string; name: string; profile_image_url?: string };
+  id?: string;
+  username?: string;
+  name?: string;
+  profile_image_url?: string;
+}
+
+interface FacebookProfile {
+  id: string;
+  name: string;
+  email?: string;
+  picture?: { data?: { url?: string } };
+}
+
+interface TikTokProfile {
+  open_id?: string;
+  union_id?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+interface ThreadsProfile {
+  id?: string;
+  username?: string;
+  name?: string;
+  threads_profile_picture_url?: string;
+}
+
+interface LinkedInProfile {
+  sub?: string;
+  id?: string;
+  email?: string;
+  name?: string;
+  given_name?: string;
+  picture?: string;
+}
+
+interface PinterestProfile {
+  id?: string;
+  username?: string;
+  profile_name?: string;
+  business_name?: string;
+  profile_image?: { url?: string } | string;
+}
+
+interface YouTubeProfile {
+  id?: string;
+  sub?: string;
+  name?: string;
+  email?: string;
+  picture?: string;
+}
+
+interface DefaultProfile {
+  id?: string;
+  sub?: string;
+}
+
+type PlatformProfile =
+  | XProfile
+  | FacebookProfile
+  | TikTokProfile
+  | ThreadsProfile
+  | LinkedInProfile
+  | PinterestProfile
+  | YouTubeProfile
+  | DefaultProfile;
+
+async function fetchUserProfile(platform: string, accessToken: string): Promise<PlatformProfile> {
   const config = getPlatformOAuthConfig(platform)!;
 
   const headers: Record<string, string> = {
@@ -39,8 +110,7 @@ async function fetchUserProfile(platform: string, accessToken: string) {
   return data;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped external API responses from multiple platforms
-function extractProfileData(platform: string, profile: any, tokenData: CallbackContext["tokenData"]) {
+function extractProfileData(platform: string, profile: PlatformProfile, tokenData: CallbackContext["tokenData"]) {
   let platformAccountId: string;
   let username: string | null = null;
   let displayName: string | null = null;
@@ -49,57 +119,66 @@ function extractProfileData(platform: string, profile: any, tokenData: CallbackC
 
   switch (platform) {
     case "x": {
-      platformAccountId = profile.data?.id || profile.id;
-      username = profile.data?.username || profile.username;
-      displayName = profile.data?.name || profile.name;
-      profilePicture = profile.data?.profile_image_url || profile.profile_image_url || null;
+      const p = profile as XProfile;
+      platformAccountId = p.data?.id || p.id || "";
+      username = p.data?.username || p.username || null;
+      displayName = p.data?.name || p.name || null;
+      profilePicture = p.data?.profile_image_url || p.profile_image_url || null;
       break;
     }
     case "facebook": {
-      platformAccountId = profile.id;
-      displayName = profile.name;
-      email = profile.email;
-      profilePicture = profile.picture?.data?.url || null;
+      const p = profile as FacebookProfile;
+      platformAccountId = p.id;
+      displayName = p.name;
+      email = p.email || null;
+      profilePicture = p.picture?.data?.url || null;
       break;
     }
     case "tiktok": {
-      platformAccountId = profile.open_id || profile.union_id;
-      username = profile.username;
-      displayName = profile.display_name;
-      profilePicture = profile.avatar_url;
+      const p = profile as TikTokProfile;
+      platformAccountId = p.open_id || p.union_id || "";
+      username = p.username || null;
+      displayName = p.display_name || null;
+      profilePicture = p.avatar_url || null;
       break;
     }
     case "threads": {
-      platformAccountId = profile.id || tokenData.user_id;
-      username = profile.username || null;
-      displayName = profile.name || profile.username || null;
-      profilePicture = profile.threads_profile_picture_url || null;
+      const p = profile as ThreadsProfile;
+      platformAccountId = p.id || String(tokenData.user_id ?? "");
+      username = p.username || null;
+      displayName = p.name || p.username || null;
+      profilePicture = p.threads_profile_picture_url || null;
       break;
     }
     case "linkedin": {
-      platformAccountId = profile.sub || profile.id;
-      username = profile.email || null;
-      displayName = profile.name || profile.given_name || null;
-      email = profile.email || null;
-      profilePicture = profile.picture || null;
+      const p = profile as LinkedInProfile;
+      platformAccountId = p.sub || p.id || "";
+      username = p.email || null;
+      displayName = p.name || p.given_name || null;
+      email = p.email || null;
+      profilePicture = p.picture || null;
       break;
     }
     case "pinterest": {
-      platformAccountId = profile.id || profile.username;
-      username = profile.username || null;
-      displayName = profile.profile_name || profile.business_name || profile.username || null;
-      profilePicture = profile.profile_image?.url || profile.profile_image || null;
+      const p = profile as PinterestProfile;
+      platformAccountId = p.id || p.username || "";
+      username = p.username || null;
+      displayName = p.profile_name || p.business_name || p.username || null;
+      const img = p.profile_image;
+      profilePicture = (typeof img === "object" ? img?.url : img) || null;
       break;
     }
     case "youtube": {
-      platformAccountId = profile.id || profile.sub;
-      displayName = profile.name;
-      email = profile.email;
-      profilePicture = profile.picture;
+      const p = profile as YouTubeProfile;
+      platformAccountId = p.id || p.sub || "";
+      displayName = p.name || null;
+      email = p.email || null;
+      profilePicture = p.picture || null;
       break;
     }
     default: {
-      platformAccountId = profile.id || profile.sub;
+      const p = profile as DefaultProfile;
+      platformAccountId = p.id || p.sub || "";
     }
   }
 
@@ -107,8 +186,7 @@ function extractProfileData(platform: string, profile: any, tokenData: CallbackC
 }
 
 export async function handleGenericCallback(ctx: CallbackContext): Promise<NextResponse> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped external API responses from multiple platforms
-  let profile: any;
+  let profile: PlatformProfile;
   try {
     profile = await fetchUserProfile(ctx.platform, ctx.accessToken);
   } catch (profileError) {

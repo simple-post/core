@@ -236,7 +236,7 @@ export class PostsModel {
     }
 
     const post = await prisma.post.update({
-      where: { id },
+      where: { id, ...(this.userId && { userId: this.userId }) },
       data: updateData as Parameters<typeof prisma.post.update>[0]["data"],
       include: {
         media: true,
@@ -268,7 +268,7 @@ export class PostsModel {
 
   async deletePost(id: string): Promise<void> {
     await prisma.post.delete({
-      where: { id },
+      where: { id, ...(this.userId && { userId: this.userId }) },
     });
   }
 

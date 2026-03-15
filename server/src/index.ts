@@ -1,6 +1,6 @@
 import express from "express";
-import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
+import helmet from "helmet";
 
 import { createAuthMiddleware } from "./middleware/auth.js";
 import fileRoutes from "./routes/files.js";
@@ -39,7 +39,7 @@ app.use(
     contentSecurityPolicy: false, // API server does not serve browser-rendered content
     crossOriginEmbedderPolicy: false,
     hsts: {
-      maxAge: 31536000,
+      maxAge: 31_536_000, // 1 year
       includeSubDomains: true,
       preload: true,
     },

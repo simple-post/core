@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Check, Settings } from "lucide-react";
 
+import { AccountAvatar } from "@/components/account-avatar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -163,10 +164,11 @@ export function AccountSelector({
                   className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
                   {isSelected && <Check className="absolute top-1.5 left-1.5 h-3 w-3" />}
                   <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <div
-                      className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white`}>
-                      <PlatformIcon platform={platformConfig.id} className="text-sm" />
-                    </div>
+                    <AccountAvatar
+                      profilePicture={account.profilePicture}
+                      platform={platformConfig.id}
+                      size="sm"
+                    />
                     <div className="text-[10px] font-medium leading-tight line-clamp-2 w-full break-all px-0.5">
                       {getAccountDisplayName(account)}
                     </div>
@@ -260,10 +262,11 @@ export function AccountSelector({
                           className="absolute inset-0 w-full h-full p-3 text-center disabled:cursor-not-allowed">
                           {isSelected && <Check className="absolute top-2 left-2 h-4 w-4" />}
                           <div className="flex h-full flex-col items-center justify-center gap-2">
-                            <div
-                              className={`flex items-center justify-center w-9 h-9 rounded-lg ${platformConfig.color} text-white`}>
-                              <PlatformIcon platform={platformConfig.id} className="text-sm" />
-                            </div>
+                            <AccountAvatar
+                              profilePicture={account.profilePicture}
+                              platform={platformConfig.id}
+                              size="md"
+                            />
                             <div className="text-xs font-medium leading-tight line-clamp-2">
                               {getAccountDisplayName(account)}
                             </div>
@@ -305,10 +308,11 @@ export function AccountSelector({
                           className="flex-1 text-left disabled:cursor-not-allowed">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
-                              <div
-                                className={`flex items-center justify-center w-8 h-8 rounded-lg ${platformConfig.color} text-white flex-shrink-0`}>
-                                <PlatformIcon platform={platformConfig.id} className="text-sm" />
-                              </div>
+                              <AccountAvatar
+                                profilePicture={account.profilePicture}
+                                platform={platformConfig.id}
+                                size="sm"
+                              />
                               <div>
                                 <div className="font-medium">{getAccountDisplayName(account)}</div>
                                 {account.email && (

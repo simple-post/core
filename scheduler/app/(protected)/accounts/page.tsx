@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { toast } from "sonner";
 
+import { AccountAvatar } from "@/components/account-avatar";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -163,10 +164,11 @@ export default function AccountsPage() {
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div
-                          className={`flex items-center justify-center w-12 h-12 rounded-xl ${platformConfig.color} text-white flex-shrink-0`}>
-                          <PlatformIcon platform={platformConfig.id} className="text-2xl" />
-                        </div>
+                        <AccountAvatar
+                          profilePicture={account.profilePicture}
+                          platform={platformConfig.id}
+                          size="lg"
+                        />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-lg">{getAccountDisplayName(account)}</h3>
@@ -270,10 +272,11 @@ export default function AccountsPage() {
                   const platformConfig = getPlatformById(accountToDisconnect.platform);
                   return platformConfig ? (
                     <>
-                      <div
-                        className={`flex items-center justify-center w-10 h-10 rounded-lg ${platformConfig.color} text-white flex-shrink-0`}>
-                        <PlatformIcon platform={platformConfig.id} className="text-lg" />
-                      </div>
+                      <AccountAvatar
+                        profilePicture={accountToDisconnect.profilePicture}
+                        platform={platformConfig.id}
+                        size="md"
+                      />
                       <div>
                         <p className="font-medium">{getAccountDisplayName(accountToDisconnect)}</p>
                         <p className="text-sm text-muted-foreground">{platformConfig.name}</p>

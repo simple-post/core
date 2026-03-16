@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
+import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,8 @@ export default function ConnectAccountPickerPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="max-w-4xl mx-auto px-6 py-10 space-y-4">
+        <Navbar breadcrumbs={[{ label: "Accounts", href: "/accounts" }, { label: "Connect" }]} />
+        <div className="max-w-4xl mx-auto px-6 py-8 space-y-4">
           <div className="h-8 bg-muted rounded w-1/3 animate-pulse" />
           <div className="h-64 bg-muted rounded animate-pulse" />
         </div>
@@ -127,17 +129,15 @@ export default function ConnectAccountPickerPage() {
   if (error || !pending || !platformConfig) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
+        <Navbar breadcrumbs={[{ label: "Accounts", href: "/accounts" }, { label: "Connect" }]} />
+        <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Unable to continue</AlertTitle>
             <AlertDescription>{error || "Pending connection not found."}</AlertDescription>
           </Alert>
           <Link href="/accounts">
-            <Button variant="outline" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Accounts
-            </Button>
+            <Button variant="outline">Back to Accounts</Button>
           </Link>
         </div>
       </div>
@@ -146,27 +146,9 @@ export default function ConnectAccountPickerPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="max-w-5xl mx-auto px-6 py-6">
-          <div className="flex items-center gap-3">
-            <Link href="/accounts">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Accounts
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg ${platformConfig.color} text-white flex items-center justify-center`}>
-                <PlatformIcon platform={platformConfig.id} className="text-lg" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold">Connect {platformConfig.name}</h1>
-                <p className="text-xs text-muted-foreground">Select which accounts to connect</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navbar
+        breadcrumbs={[{ label: "Accounts", href: "/accounts" }, { label: `Connect ${platformConfig.name}` }]}
+      />
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
         {error && (

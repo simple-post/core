@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { ArrowLeft, Trash2, Calendar, Clock, Edit, AlertCircle } from "lucide-react";
+import { Trash2, Calendar, Clock, Edit, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
+import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
+        <Navbar breadcrumbs={[{ label: "Post" }]} />
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4" />
@@ -70,14 +72,12 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   if (!post) {
     return (
       <div className="min-h-screen bg-background">
+        <Navbar breadcrumbs={[{ label: "Post" }]} />
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Post not found</h1>
             <Link href="/">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
+              <Button variant="outline">Back to Dashboard</Button>
             </Link>
           </div>
         </div>
@@ -95,35 +95,26 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b border-border/50">
-          <div className="max-w-4xl mx-auto px-6 py-8">
-            <div className="flex items-center justify-between">
-              <Link href="/">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                {isScheduled && (
-                  <Link href={`/posts/${id}/edit`}>
-                    <Button variant="outline" size="sm">
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                  </Link>
-                )}
-                <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        </header>
+        <Navbar
+          breadcrumbs={[{ label: "Post" }]}
+          actions={
+            <>
+              {isScheduled && (
+                <Link href={`/posts/${id}/edit`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Edit className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                </Link>
+              )}
+              <Button variant="destructive" size="sm" className="gap-2" onClick={() => setShowDeleteDialog(true)}>
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Delete</span>
+              </Button>
+            </>
+          }
+        />
 
-        {/* Main Content */}
         <main className="max-w-4xl mx-auto px-6 py-8">
           <div className="space-y-6">
             {/* Status Badge */}

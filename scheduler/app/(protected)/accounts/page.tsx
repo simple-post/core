@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 
-import Link from "next/link";
-
 import { toast } from "sonner";
 
+import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
-import { authClient } from "@/lib/auth/auth-client";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { ConnectedAccount } from "@/types";
 
@@ -28,7 +26,6 @@ export default function AccountsPage() {
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showTelegramDialog, setShowTelegramDialog] = useState(false);
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
@@ -94,59 +91,10 @@ export default function AccountsPage() {
     }
   };
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await authClient.signOut({
-        fetchOptions: {
-          onSuccess: () => {
-            window.location.href = "/";
-          },
-        },
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Link href="/">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Dashboard
-                </Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-7 h-7 drop-shadow-lg" />
-                <h1 className="text-xl font-bold text-foreground">Accounts</h1>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" onClick={handleLogout} disabled={isLoggingOut} className="gap-2">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-              {isLoggingOut ? "Logging out..." : "Logout"}
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Navbar breadcrumbs={[{ label: "Accounts" }]} />
 
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-foreground mb-2">Connected Accounts</h2>

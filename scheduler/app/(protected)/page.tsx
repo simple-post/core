@@ -5,11 +5,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { Calendar, CheckCircle, AlertCircle } from "lucide-react";
+import { Calendar, CheckCircle, AlertCircle, Users, Plus } from "lucide-react";
 
+import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 
 type TabType = "scheduled" | "past" | "failed";
 
@@ -44,45 +46,24 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="flex items-center gap-2">
-                <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-8 h-8 drop-shadow-lg" />
-                <div className="hidden sm:block">
-                  <h1 className="text-xl font-bold text-foreground">SimplePost</h1>
-                  <p className="text-xs text-muted-foreground">Scheduler</p>
-                </div>
-              </div>
+      <Navbar
+        actions={
+          <>
+            <Link href="/accounts">
+              <Button variant="outline" size="sm" className="gap-2">
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">Accounts</span>
+              </Button>
             </Link>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Link href="/accounts">
-                <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 sm:h-10 sm:px-4 sm:text-sm">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">Accounts</span>
-                </Button>
-              </Link>
-              <Link href="/schedule">
-                <Button size="sm" className="gap-1.5 sm:gap-2 sm:h-10 sm:px-4 sm:text-sm shadow-sm">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span className="sm:hidden">Post</span>
-                  <span className="hidden sm:inline">Create Post</span>
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+            <Link href="/schedule">
+              <Button size="sm" className="gap-2 shadow-sm">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Post</span>
+              </Button>
+            </Link>
+          </>
+        }
+      />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="mb-8">

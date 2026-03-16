@@ -5,10 +5,11 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { ArrowLeft, Info } from "lucide-react";
+import { Info } from "lucide-react";
 
 import { AccountOptionsComponent } from "@/components/account-options";
 import { MediaUpload } from "@/components/media-upload";
+import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
 import { PostPreview } from "@/components/post-preview";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ export default function AdvancedAccountSettingsPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
+        <Navbar breadcrumbs={[{ label: "Create Post", href: "/schedule" }, { label: "Advanced Settings" }]} />
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/3" />
@@ -94,14 +96,12 @@ export default function AdvancedAccountSettingsPage() {
   if (!account) {
     return (
       <div className="min-h-screen bg-background">
+        <Navbar breadcrumbs={[{ label: "Create Post", href: "/schedule" }, { label: "Advanced Settings" }]} />
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Account not found</h1>
             <Link href="/schedule">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Create Post
-              </Button>
+              <Button variant="outline">Back to Create Post</Button>
             </Link>
           </div>
         </div>
@@ -111,21 +111,7 @@ export default function AdvancedAccountSettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <Link href="/schedule">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-foreground">Advanced Settings</h1>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navbar breadcrumbs={[{ label: "Create Post", href: "/schedule" }, { label: "Advanced Settings" }]} />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

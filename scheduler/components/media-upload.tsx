@@ -6,7 +6,6 @@ import { useCallback, useRef, useState } from "react";
 import { Upload, X, Video, ImageIcon, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { generateThumbnail } from "@/lib/utils/client-thumbnail";
 import type { MediaFile } from "@/types";
 
@@ -109,6 +108,48 @@ async function uploadViaServer(file: File | Blob, filename: string): Promise<{ u
   }
 
   return response.json();
+}
+
+function CircularProgress({ progress, type }: { progress: number; type: "image" | "video" }) {
+  const radius = 20;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (progress / 100) * circumference;
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg className="h-14 w-14 -rotate-90" viewBox="0 0 48 48">
+        <circle
+          cx="24"
+          cy="24"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          className="text-muted-foreground/20"
+        />
+        <circle
+          cx="24"
+          cy="24"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="text-foreground transition-all duration-300"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        {type === "image" ? (
+          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <Video className="h-4 w-4 text-muted-foreground" />
+        )}
+        <span className="text-[10px] text-muted-foreground mt-0.5">{progress}%</span>
+      </div>
+    </div>
+  );
 }
 
 export function MediaUpload({
@@ -401,28 +442,8 @@ export function MediaUpload({
 
   return (
     <div className="space-y-4">
-      {/* Show large upload area only when no media */}
-      {media.length === 0 && largeUploadArea}
-
-      {/* Upload Progress */}
-      {uploading.length > 0 && (
-        <div className="space-y-2">
-          {uploading.map((file) => (
-            <div key={file.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded">
-              {file.type === "image" ? (
-                <ImageIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              ) : (
-                <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs truncate">{file.filename}</p>
-                <Progress value={file.progress} className="h-1 mt-1" />
-              </div>
-              <span className="text-xs text-muted-foreground">{file.progress}%</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Show large upload area only when no media and nothing uploading */}
+      {media.length === 0 && uploading.length === 0 && largeUploadArea}
 
       {/* Error Messages */}
       {errors.length > 0 && (
@@ -440,8 +461,8 @@ export function MediaUpload({
         </div>
       )}
 
-      {/* Media Preview Grid with compact add button */}
-      {media.length > 0 && (
+      {/* Media Preview Grid with uploading cards and compact add button */}
+      {(media.length > 0 || uploading.length > 0) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {media.map((file) => (
             <div key={file.id} className="relative group overflow-hidden border border-border/50 rounded">
@@ -507,6 +528,18 @@ export function MediaUpload({
                 ) : (
                   <Video className="h-3 w-3 text-white drop-shadow-sm" />
                 )}
+              </div>
+            </div>
+          ))}
+
+          {/* Uploading cards with circular progress */}
+          {uploading.map((file) => (
+            <div key={file.id} className="relative overflow-hidden border border-border/50 rounded">
+              <div className="aspect-square bg-muted/50 flex items-center justify-center">
+                <CircularProgress progress={file.progress} type={file.type} />
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2">
+                <p className="text-xs truncate">{file.filename}</p>
               </div>
             </div>
           ))}

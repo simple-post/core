@@ -6,17 +6,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertTriangle, CalendarIcon, Clock, Info } from "lucide-react";
 import { toast } from "sonner";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { cn } from "@/lib/utils";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount } from "@/types";
 
 import { AccountSelector } from "./account-selector";
@@ -203,6 +205,19 @@ export function CreatePostForm() {
     return limits.length > 0 ? Math.min(...limits) : undefined;
   }, [validation, media]);
 
+  const timeSlots = useMemo(() => {
+    const slots: { value: string; label: string }[] = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        const value = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+        const date = new Date(2000, 0, 1, h, m);
+        const label = format(date, "h:mm a");
+        slots.push({ value, label });
+      }
+    }
+    return slots;
+  }, []);
+
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
     const accountId =
@@ -336,39 +351,6 @@ export function CreatePostForm() {
               <MediaUpload media={media} onMediaChange={setMedia} />
             </div>
           </div>
-
-          {/* Validation loading is shown in the submit button to avoid layout shift */}
-          {validationError && (
-            <Alert variant="destructive">
-              <AlertCircle />
-              <AlertTitle>Validation failed</AlertTitle>
-              <AlertDescription>
-                <p>{validationError}</p>
-              </AlertDescription>
-            </Alert>
-          )}
-          {validation?.summary.errors.length ? (
-            <Alert variant="destructive">
-              <AlertCircle />
-              <AlertTitle>Errors</AlertTitle>
-              <AlertDescription>
-                {validation.summary.errors.map((issue, index) => (
-                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
-                ))}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          {validation?.summary.warnings.length ? (
-            <Alert>
-              <Info />
-              <AlertTitle>Warnings</AlertTitle>
-              <AlertDescription>
-                {validation.summary.warnings.map((issue, index) => (
-                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
-                ))}
-              </AlertDescription>
-            </Alert>
-          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -398,40 +380,68 @@ export function CreatePostForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="date" className="text-sm text-muted-foreground">
-                  Date
-                </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
-                  min={format(new Date(), "yyyy-MM-dd")}
-                  className="mt-1 border-border/50"
-                />
+                <Label className="text-sm text-muted-foreground mb-1 block">Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal border-border/50",
+                        !scheduledDate && "text-muted-foreground",
+                      )}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {scheduledDate ? format(new Date(`${scheduledDate}T00:00:00`), "MMM d, yyyy") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={scheduledDate ? new Date(`${scheduledDate}T00:00:00`) : undefined}
+                      onSelect={(date) => {
+                        if (date) setScheduledDate(format(date, "yyyy-MM-dd"));
+                      }}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
-                <Label htmlFor="time" className="text-sm text-muted-foreground">
-                  Time
-                </Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  className="mt-1 border-border/50"
-                />
+                <Label className="text-sm text-muted-foreground mb-1 block">Time</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal border-border/50",
+                        !scheduledTime && "text-muted-foreground",
+                      )}>
+                      <Clock className="mr-2 h-4 w-4" />
+                      {scheduledTime ? format(new Date(`2000-01-01T${scheduledTime}`), "h:mm a") : "Pick a time"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-0" align="start">
+                    <ScrollArea className="h-60">
+                      <div className="p-1">
+                        {timeSlots.map((slot) => (
+                          <button
+                            key={slot.value}
+                            type="button"
+                            className={cn(
+                              "w-full text-left px-3 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors",
+                              scheduledTime === slot.value && "bg-accent font-medium",
+                            )}
+                            onClick={() => setScheduledTime(slot.value)}>
+                            {slot.label}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
-
-            {scheduledDate && scheduledTime && (
-              <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
-                Publishing on{" "}
-                <span className="font-medium text-foreground">
-                  {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-                </span>
-              </div>
-            )}
           </div>
         )}
 
@@ -459,7 +469,63 @@ export function CreatePostForm() {
         </div>
       </form>
 
-      <div className="lg:sticky lg:top-8 self-start">
+      <div className="lg:sticky lg:top-8 self-start space-y-4">
+        {/* Status Messages */}
+        <div className="space-y-3">
+          {selectedAccountIds.length === 0 && (
+            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+              Select at least one account to publish your content
+            </div>
+          )}
+
+          {validationError && (
+            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                <p className="font-medium text-foreground">Something went wrong</p>
+              </div>
+              <p className="mt-1">{validationError}</p>
+            </div>
+          )}
+
+          {validation?.summary.errors.length ? (
+            <div className="p-3 bg-muted/50 rounded text-sm space-y-1">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                <p className="font-medium text-foreground">Before you can post</p>
+              </div>
+              {validation.summary.errors.map((issue, index) => (
+                <p key={`${issue.code}-${index}`} className="text-muted-foreground">
+                  {formattedIssue(issue)}
+                </p>
+              ))}
+            </div>
+          ) : null}
+
+          {validation?.summary.warnings.length ? (
+            <div className="p-3 bg-muted/50 rounded text-sm space-y-1">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Info className="h-3.5 w-3.5" />
+                <p className="font-medium">Tips</p>
+              </div>
+              {validation.summary.warnings.map((issue, index) => (
+                <p key={`${issue.code}-${index}`} className="text-muted-foreground">
+                  {formattedIssue(issue)}
+                </p>
+              ))}
+            </div>
+          ) : null}
+
+          {postingMode === "schedule" && scheduledDate && scheduledTime && (
+            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+              Publishing on{" "}
+              <span className="font-medium text-foreground">
+                {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+              </span>
+            </div>
+          )}
+        </div>
+
         <GenericPostPreview message={message} media={media} />
       </div>
 

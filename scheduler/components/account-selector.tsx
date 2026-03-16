@@ -187,9 +187,6 @@ export function AccountSelector({
           })}
         </div>
 
-        {selectedAccountIds.length === 0 && (
-          <p className="text-xs text-muted-foreground">Select at least one account to publish your content</p>
-        )}
       </div>
     );
   }

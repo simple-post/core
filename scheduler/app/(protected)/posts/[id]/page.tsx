@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { Trash2, Calendar, Clock, Edit, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
+import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
@@ -57,7 +58,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar breadcrumbs={[{ label: "Post" }]} />
+        <Navbar />
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4" />
@@ -72,7 +73,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   if (!post) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar breadcrumbs={[{ label: "Post" }]} />
+        <Navbar />
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Post not found</h1>
@@ -96,7 +97,6 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     <>
       <div className="min-h-screen bg-background">
         <Navbar
-          breadcrumbs={[{ label: "Post" }]}
           actions={
             <>
               {isScheduled && (
@@ -116,7 +116,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         />
 
         <main className="max-w-4xl mx-auto px-6 py-8">
-          <div className="space-y-6">
+          <BackLink />
+          <div className="space-y-6 mt-4">
             {/* Status Badge */}
             <div className="flex items-center gap-3">
               <span

@@ -7,6 +7,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { AlertCircle } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -117,7 +118,7 @@ export default function ConnectAccountPickerPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar breadcrumbs={[{ label: "Accounts", href: "/accounts" }, { label: "Connect" }]} />
+        <Navbar />
         <div className="max-w-4xl mx-auto px-6 py-8 space-y-4">
           <div className="h-8 bg-muted rounded w-1/3 animate-pulse" />
           <div className="h-64 bg-muted rounded animate-pulse" />
@@ -129,7 +130,7 @@ export default function ConnectAccountPickerPage() {
   if (error || !pending || !platformConfig) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar breadcrumbs={[{ label: "Accounts", href: "/accounts" }, { label: "Connect" }]} />
+        <Navbar />
         <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -146,11 +147,10 @@ export default function ConnectAccountPickerPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar
-        breadcrumbs={[{ label: "Accounts", href: "/accounts" }, { label: `Connect ${platformConfig.name}` }]}
-      />
+      <Navbar />
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        <BackLink href="/accounts" label="Back to accounts" />
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,12 +38,15 @@ export function UserMenu() {
     return null;
   }
 
+  const initials = (session.user.email ?? session.user.name ?? "U").charAt(0).toUpperCase();
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="rounded-xl bg-transparent">
-          {session.user.name || session.user.email || "User"}
-        </Button>
+      <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Avatar className="size-8 cursor-pointer">
+          <AvatarImage src={session.user.image ?? undefined} alt="" />
+          <AvatarFallback className="text-xs font-medium">{initials}</AvatarFallback>
+        </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>

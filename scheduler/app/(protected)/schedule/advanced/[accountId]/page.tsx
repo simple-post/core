@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { Info } from "lucide-react";
 
 import { AccountOptionsComponent } from "@/components/account-options";
+import { BackLink } from "@/components/back-link";
 import { MediaUpload } from "@/components/media-upload";
 import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
@@ -82,7 +83,7 @@ export default function AdvancedAccountSettingsPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar breadcrumbs={[{ label: "Create Post", href: "/schedule" }, { label: "Advanced Settings" }]} />
+        <Navbar />
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/3" />
@@ -96,7 +97,7 @@ export default function AdvancedAccountSettingsPage() {
   if (!account) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar breadcrumbs={[{ label: "Create Post", href: "/schedule" }, { label: "Advanced Settings" }]} />
+        <Navbar />
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Account not found</h1>
@@ -111,9 +112,12 @@ export default function AdvancedAccountSettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar breadcrumbs={[{ label: "Create Post", href: "/schedule" }, { label: "Advanced Settings" }]} />
+      <Navbar />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
+        <div className="mb-4">
+          <BackLink href="/schedule" label="Back to create post" />
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div>

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
+import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -94,10 +95,11 @@ export default function AccountsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar breadcrumbs={[{ label: "Accounts" }]} />
+      <Navbar />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8">
+        <BackLink />
+        <div className="mb-8 mt-4">
           <h2 className="text-2xl font-bold text-foreground mb-2">Connected Accounts</h2>
           <p className="text-muted-foreground">Connect your social media accounts to schedule and publish posts</p>
         </div>

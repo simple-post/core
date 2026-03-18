@@ -276,6 +276,17 @@ describe("XPublisher", () => {
       },
     };
 
+    const expiredPublicOAuthOptions: PostOptionsWithCredentials = {
+      x: {
+        credentials: {
+          clientId: "test_client_id",
+          accessToken: "expired_access_token",
+          refreshToken: "test_refresh_token",
+          expiresAt: nearExpiredTimestamp,
+        },
+      },
+    };
+
     it("should post with valid OAuth credentials without refresh", async () => {
       publisher = new XPublisher(validOAuthOptions);
 
@@ -346,6 +357,45 @@ describe("XPublisher", () => {
           refreshedCredentials: {
             accessToken: "new_access_token",
             refreshToken: "new_refresh_token",
+            expiresAt: expect.any(Number),
+          },
+        },
+      });
+    });
+
+    it("should refresh a public client token without basic auth", async () => {
+      publisher = new XPublisher(expiredPublicOAuthOptions);
+
+      const content: Content = {
+        text: "Hello from public OAuth!",
+      };
+
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          access_token: "new_public_access_token",
+          refresh_token: "new_public_refresh_token",
+          expires_in: 7200,
+        },
+      });
+      mockV2Client.tweet.mockResolvedValue({
+        data: { id: "public_refreshed_tweet_123" },
+      });
+
+      const result = await publisher.postContent(content);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith("https://api.x.com/2/oauth2/token", expect.any(URLSearchParams), {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      });
+      expect(MockedTwitterApi).toHaveBeenCalledWith("new_public_access_token");
+      expect(result).toEqual({
+        id: "public_refreshed_tweet_123",
+        error: PostErrorType.NO_ERROR,
+        extraData: {
+          refreshedCredentials: {
+            accessToken: "new_public_access_token",
+            refreshToken: "new_public_refresh_token",
             expiresAt: expect.any(Number),
           },
         },

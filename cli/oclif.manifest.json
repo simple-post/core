@@ -1,0 +1,489 @@
+{
+  "commands": {
+    "account": {
+      "aliases": [],
+      "args": {
+        "platform": {
+          "description": "Optional platform filter, for example x",
+          "name": "platform",
+          "options": [
+            "x",
+            "youtube",
+            "facebook",
+            "instagram",
+            "tiktok",
+            "bluesky",
+            "threads",
+            "linkedin",
+            "telegram"
+          ],
+          "required": false
+        }
+      },
+      "description": "List connected accounts.",
+      "examples": [
+        "<%= config.bin %> account",
+        "<%= config.bin %> account x",
+        "<%= config.bin %> account add x",
+        "<%= config.bin %> account remove main"
+      ],
+      "flags": {},
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "account",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "account.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "account"
+      ]
+    },
+    "post": {
+      "aliases": [],
+      "args": {},
+      "description": "Post content to one or more platforms via @simple-post/sdk.",
+      "flags": {
+        "interactive": {
+          "char": "i",
+          "description": "Run prompt-based interactive mode",
+          "helpGroup": "Workflow",
+          "name": "interactive",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "account": {
+          "description": "Stored account selection in the form <platform>:<alias>. Repeat to post through multiple connected accounts.",
+          "helpGroup": "Targets",
+          "name": "account",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "text": {
+          "description": "Text content",
+          "helpGroup": "Content",
+          "name": "text",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "image": {
+          "description": "Image path or URL. Repeat to attach multiple images.",
+          "helpGroup": "Media",
+          "name": "image",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "video": {
+          "description": "Video path or URL. Repeat to attach multiple videos.",
+          "helpGroup": "Media",
+          "name": "video",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "media-json": {
+          "description": "JSON array of media entries or a path to a JSON file",
+          "helpGroup": "JSON Input",
+          "name": "media-json",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "post-json": {
+          "description": "Full Post payload JSON or a path to a JSON file",
+          "helpGroup": "JSON Input",
+          "name": "post-json",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "options-json": {
+          "description": "PostOptions JSON or a path to a JSON file",
+          "helpGroup": "JSON Input",
+          "name": "options-json",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "log-level": {
+          "description": "SDK log level (none, error, warn, info)",
+          "helpGroup": "Advanced",
+          "name": "log-level",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "strict-mode": {
+          "description": "SDK strict mode (true or false)",
+          "helpGroup": "Advanced",
+          "name": "strict-mode",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "x-reply-to-id": {
+          "description": "X reply target tweet ID",
+          "helpGroup": "X",
+          "name": "x-reply-to-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "telegram-chat-id": {
+          "description": "Telegram chat ID",
+          "helpGroup": "Telegram",
+          "name": "telegram-chat-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "telegram-parse-mode": {
+          "description": "Telegram parse mode",
+          "helpGroup": "Telegram",
+          "name": "telegram-parse-mode",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "youtube-tags": {
+          "description": "Comma-separated YouTube tags",
+          "helpGroup": "YouTube",
+          "name": "youtube-tags",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "youtube-category-id": {
+          "description": "YouTube category ID",
+          "helpGroup": "YouTube",
+          "name": "youtube-category-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "youtube-playlist-id": {
+          "description": "YouTube playlist ID",
+          "helpGroup": "YouTube",
+          "name": "youtube-playlist-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "youtube-made-for-kids": {
+          "description": "YouTube selfDeclaredMadeForKids option (true or false)",
+          "helpGroup": "YouTube",
+          "name": "youtube-made-for-kids",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "youtube-publish-at": {
+          "description": "YouTube scheduled publish timestamp",
+          "helpGroup": "YouTube",
+          "name": "youtube-publish-at",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "youtube-privacy-status": {
+          "description": "YouTube privacy status",
+          "helpGroup": "YouTube",
+          "name": "youtube-privacy-status",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "facebook-publish-at": {
+          "description": "Facebook scheduled publish timestamp",
+          "helpGroup": "Facebook",
+          "name": "facebook-publish-at",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-publish-mode": {
+          "description": "TikTok publish mode",
+          "helpGroup": "TikTok",
+          "name": "tiktok-publish-mode",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-visibility": {
+          "description": "TikTok visibility",
+          "helpGroup": "TikTok",
+          "name": "tiktok-visibility",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-allow-comment": {
+          "description": "TikTok allow comment (true or false)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-allow-comment",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-allow-duet": {
+          "description": "TikTok allow duet (true or false)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-allow-duet",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-allow-stitch": {
+          "description": "TikTok allow stitch (true or false)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-allow-stitch",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "linkedin-visibility": {
+          "description": "LinkedIn visibility",
+          "helpGroup": "LinkedIn",
+          "name": "linkedin-visibility",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "pinterest-board-id": {
+          "description": "Pinterest board ID",
+          "helpGroup": "Pinterest",
+          "name": "pinterest-board-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "pinterest-title": {
+          "description": "Pinterest title",
+          "helpGroup": "Pinterest",
+          "name": "pinterest-title",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "pinterest-description": {
+          "description": "Pinterest description",
+          "helpGroup": "Pinterest",
+          "name": "pinterest-description",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "pinterest-link": {
+          "description": "Pinterest link URL",
+          "helpGroup": "Pinterest",
+          "name": "pinterest-link",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "pinterest-alt-text": {
+          "description": "Pinterest alt text",
+          "helpGroup": "Pinterest",
+          "name": "pinterest-alt-text",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "post",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "post.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "post"
+      ]
+    },
+    "setup": {
+      "aliases": [],
+      "args": {},
+      "description": "Configure how the CLI stores local credentials and secrets.",
+      "flags": {
+        "backend": {
+          "description": "Secret storage backend",
+          "name": "backend",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "keychain",
+            "file-plain",
+            "file-encrypted"
+          ],
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "setup",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "setup.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "setup"
+      ]
+    },
+    "account:add": {
+      "aliases": [],
+      "args": {
+        "platform": {
+          "description": "Platform to connect",
+          "name": "platform",
+          "options": [
+            "x",
+            "youtube",
+            "facebook",
+            "instagram",
+            "tiktok",
+            "bluesky",
+            "threads",
+            "linkedin",
+            "telegram"
+          ],
+          "required": false
+        }
+      },
+      "description": "Connect a new account.",
+      "flags": {
+        "alias": {
+          "description": "Alias to store for the connected account",
+          "name": "alias",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "bot-token": {
+          "description": "Telegram bot token (for non-interactive Telegram connect)",
+          "name": "bot-token",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "callback-url": {
+          "description": "Provide the final browser callback URL directly instead of waiting for the listener",
+          "name": "callback-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "chat-id": {
+          "description": "Telegram chat ID (for non-interactive Telegram connect)",
+          "name": "chat-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "no-browser": {
+          "description": "Do not try to open the browser automatically",
+          "name": "no-browser",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "redirect-uri": {
+          "description": "Loopback redirect URI to use for the OAuth callback",
+          "name": "redirect-uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "account:add",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "account",
+        "add.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "account:add",
+        "add:account"
+      ]
+    },
+    "account:remove": {
+      "aliases": [],
+      "args": {
+        "account": {
+          "description": "Account alias or <platform>:<alias>",
+          "name": "account",
+          "required": false
+        }
+      },
+      "description": "Remove a connected account.",
+      "flags": {},
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "account:remove",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "account",
+        "remove.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "account:remove",
+        "remove:account"
+      ]
+    }
+  },
+  "version": "0.1.0"
+}

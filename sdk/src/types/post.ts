@@ -56,7 +56,7 @@ export const XAppCredentialsSchema = z.object({
 
 export const XUserCredentialsSchema = z.object({
   clientId: z.string(),
-  clientSecret: z.string(),
+  clientSecret: z.string().optional(),
   accessToken: z.string(),
   refreshToken: z.string(),
   expiresAt: z.number(), // Unix timestamp

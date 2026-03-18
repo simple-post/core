@@ -115,7 +115,11 @@ export class XPublisher extends Publisher {
         {
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+            ...(clientSecret
+              ? {
+                  Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+                }
+              : {}),
           },
         },
       );

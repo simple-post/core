@@ -116,7 +116,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://api.pinterest.com/v5/oauth/token",
     clientId: process.env.PINTEREST_CLIENT_ID || "",
     clientSecret: process.env.PINTEREST_CLIENT_SECRET || "",
-    scope: "pins:write,boards:read,user_accounts:read",
+    scope: "pins:read,pins:write,boards:read,boards:write,user_accounts:read",
     responseType: "code",
     userInfoUrl: "https://api.pinterest.com/v5/user_account",
     requiresPkce: false,

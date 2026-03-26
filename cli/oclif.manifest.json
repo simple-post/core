@@ -15,6 +15,7 @@
             "bluesky",
             "threads",
             "linkedin",
+            "pinterest",
             "telegram"
           ],
           "required": false
@@ -378,6 +379,7 @@
             "bluesky",
             "threads",
             "linkedin",
+            "pinterest",
             "telegram"
           ],
           "required": false

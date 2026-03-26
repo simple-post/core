@@ -11,6 +11,7 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 import type { AxiosInstance } from "axios";
 
 const INSTAGRAM_API_VERSION = "v25.0";
+const FACEBOOK_GRAPH_API_VERSION = "v24.0";
 const MAX_CAPTION_LENGTH = 2200;
 const MAX_MEDIA_COUNT = 10;
 const PROCESSING_POLL_INTERVAL = 3000;
@@ -38,6 +39,7 @@ export class InstagramPublisher extends Publisher {
   private businessAccountId: string;
   private accessToken: string;
   private expiresAt?: number;
+  private graphApi: "instagram" | "facebook";
 
   private s3MediaUploader: S3MediaUploader;
   private s3TempFileKeys: string[] = [];
@@ -57,21 +59,25 @@ export class InstagramPublisher extends Publisher {
         "Instagram credentials are required in options.instagram.credentials",
       );
     }
-    const { accessToken, businessAccountId, expiresAt } = options.instagram.credentials;
+    const { accessToken, businessAccountId, expiresAt, graphApi } = options.instagram.credentials;
     this.businessAccountId = businessAccountId;
     this.accessToken = accessToken;
     this.expiresAt = expiresAt;
+    this.graphApi = graphApi ?? "instagram";
 
-    // Create axios client - use graph.instagram.com for Instagram Login (Business Login) tokens
-    // graph.facebook.com expects Page Access Tokens; Instagram User tokens require graph.instagram.com
+    // Create axios client - graph.instagram.com for Instagram Login tokens, graph.facebook.com for Page access tokens
+    const baseURL =
+      this.graphApi === "facebook"
+        ? `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}`
+        : `https://graph.instagram.com/${INSTAGRAM_API_VERSION}`;
     this.client = axios.create({
-      baseURL: `https://graph.instagram.com/${INSTAGRAM_API_VERSION}`,
+      baseURL,
       timeout: 30_000, // 30 seconds timeout
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        ...(this.graphApi === "instagram" ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
     });
 
@@ -87,6 +93,9 @@ export class InstagramPublisher extends Publisher {
   }
 
   private async refreshAccessToken(): Promise<void> {
+    if (this.graphApi !== "instagram") {
+      return;
+    }
     const currentToken = this.refreshedCredentials?.accessToken || this.accessToken;
 
     try {
@@ -118,9 +127,17 @@ export class InstagramPublisher extends Publisher {
   }
 
   private async ensureValidToken(): Promise<void> {
-    if (this.isTokenExpiringSoon()) {
+    if (this.graphApi === "instagram" && this.isTokenExpiringSoon()) {
       await this.refreshAccessToken();
     }
+  }
+
+  private withAccessToken(url: string): string {
+    if (this.graphApi !== "facebook") {
+      return url;
+    }
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
   }
 
   private async apiRequest<T>(
@@ -128,16 +145,16 @@ export class InstagramPublisher extends Publisher {
     url: string,
     data?: unknown,
   ): Promise<{ data: T }> {
-    const doRequest = () =>
-      method === "get"
-        ? this.client.get<T>(url)
-        : this.client.post<T>(url, data);
+    const doRequest = () => {
+      const requestUrl = this.withAccessToken(url);
+      return method === "get" ? this.client.get<T>(requestUrl) : this.client.post<T>(requestUrl, data);
+    };
 
     try {
       return await doRequest();
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: { message?: string } }>;
-      if (axiosError.response?.status === 401) {
+      if (axiosError.response?.status === 401 && this.graphApi === "instagram") {
         this.logger.warn("Received 401, attempting token refresh...");
         await this.refreshAccessToken();
         return doRequest();

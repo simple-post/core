@@ -1,5 +1,8 @@
 import crypto from "node:crypto";
 import http from "node:http";
+import https from "node:https";
+
+import selfsigned from "selfsigned";
 
 import { DEFAULT_OAUTH_TIMEOUT_MS } from "../constants.js";
 import { getAccountPlatformConfig, type AccountPlatform, type EmbeddedOAuthAppConfig } from "../account/platforms.js";
@@ -82,6 +85,33 @@ function extractErrorMessage(data: unknown, fallback: string): string {
   }
 
   if (isObject(data)) {
+    // TikTok OAuth: { error: "invalid_request", error_description: "...", log_id }
+    const ttDesc = typeof data.error_description === "string" ? data.error_description : undefined;
+    const ttCode = typeof data.error === "string" ? data.error : undefined;
+    if (ttDesc && ttCode) {
+      return `${ttCode}: ${ttDesc}`;
+    }
+    if (ttDesc) {
+      return ttDesc;
+    }
+
+    // Facebook/Meta returns { error: { message: "...", type: "...", code: N } }
+    if (isObject(data.error)) {
+      const nested = data.error;
+      const msg = typeof nested.message === "string" ? nested.message : undefined;
+      const type = typeof nested.type === "string" ? nested.type : undefined;
+      if (msg) {
+        return type ? `${type}: ${msg}` : msg;
+      }
+    }
+
+    // Instagram OAuth: { error_type, code, error_message }
+    const igMsg = typeof data.error_message === "string" ? data.error_message : undefined;
+    const igType = typeof data.error_type === "string" ? data.error_type : undefined;
+    if (igMsg) {
+      return igType ? `${igType}: ${igMsg}` : igMsg;
+    }
+
     for (const key of ["error_description", "detail", "message", "title", "error"]) {
       const value = data[key];
       if (typeof value === "string" && value.trim()) {
@@ -116,17 +146,28 @@ export function ensureLoopbackRedirectUri(redirectUri: string): URL {
 
   const host = parsed.hostname.toLowerCase();
   const isLoopback = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
-  if (parsed.protocol !== "http:" || !isLoopback) {
-    throw new Error("OAuth redirect URI must be an http:// loopback URL such as http://127.0.0.1:5000/oauth/callback.");
+  const isHttp = parsed.protocol === "http:";
+  const isHttps = parsed.protocol === "https:";
+  if ((!isHttp && !isHttps) || !isLoopback) {
+    throw new Error(
+      "OAuth redirect URI must be a loopback URL such as http://127.0.0.1:5000/oauth/callback or https://localhost:5000/oauth/callback.",
+    );
+  }
+  if (isHttps && host !== "localhost") {
+    throw new Error("HTTPS OAuth redirect URI must use localhost (not 127.0.0.1).");
   }
 
   return parsed;
 }
 
-export async function generatePkcePair(): Promise<{ codeChallenge: string; codeVerifier: string }> {
+export async function generatePkcePair(options?: {
+  challengeEncoding?: "base64url" | "hex";
+}): Promise<{ codeChallenge: string; codeVerifier: string }> {
+  const encoding = options?.challengeEncoding ?? "base64url";
   const codeVerifier = crypto.randomBytes(48).toString("base64url");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier));
-  const codeChallenge = Buffer.from(digest).toString("base64url");
+  const codeChallenge =
+    encoding === "hex" ? Buffer.from(digest).toString("hex") : Buffer.from(digest).toString("base64url");
   return { codeChallenge, codeVerifier };
 }
 
@@ -143,6 +184,8 @@ function getOAuthTimeoutMs(): number {
 export function buildAuthorizationUrl(options: {
   appConfig: ResolvedOAuthAppConfig;
   codeChallenge?: string;
+  /** OpenID Connect: required by Meta for OIDC authorization code + PKCE login. */
+  nonce?: string;
   state: string;
 }): string {
   const url = new URL(options.appConfig.authorizationUrl);
@@ -154,6 +197,10 @@ export function buildAuthorizationUrl(options: {
     options.appConfig.scopes.join(options.appConfig.scopeSeparator === "," ? "," : " "),
   );
   url.searchParams.set("state", options.state);
+
+  if (options.nonce) {
+    url.searchParams.set("nonce", options.nonce);
+  }
 
   if (options.codeChallenge) {
     url.searchParams.set("code_challenge", options.codeChallenge);
@@ -172,7 +219,9 @@ async function startDefaultAuthorization(
   appConfig: ResolvedOAuthAppConfig,
   state?: string,
 ): Promise<OAuthAuthorizationSession> {
-  const pkcePair = appConfig.pkce ? await generatePkcePair() : undefined;
+  const pkcePair = appConfig.pkce
+    ? await generatePkcePair({ challengeEncoding: appConfig.pkceChallengeEncoding })
+    : undefined;
   const resolvedState = state ?? crypto.randomUUID();
 
   return {
@@ -219,66 +268,115 @@ export function parseOAuthCallbackUrl(callbackUrl: string, expectedState: string
   return code;
 }
 
-async function waitForLoopbackCallback(redirectUri: string, timeoutMs = DEFAULT_OAUTH_TIMEOUT_MS): Promise<string> {
-  const parsed = ensureLoopbackRedirectUri(redirectUri);
-  const host = parsed.hostname === "[::1]" ? "::1" : parsed.hostname;
-  const port = parsed.port ? Number(parsed.port) : 80;
+function createRequestHandler(
+  parsed: URL,
+  onCallback: (requestUrl: string) => void,
+): (request: http.IncomingMessage, response: http.ServerResponse) => void {
+  return (request, response) => {
+    const requestUrl = new URL(request.url ?? "/", parsed.origin);
 
-  return await new Promise<string>((resolve, reject) => {
-    let settled = false;
-    const server = http.createServer((request, response) => {
-      const requestUrl = new URL(request.url ?? "/", parsed.origin);
-
-      if (requestUrl.pathname !== parsed.pathname) {
-        response.statusCode = 404;
-        response.setHeader("Content-Type", "text/plain; charset=utf-8");
-        response.end("This callback path does not match the active SimplePost login flow.");
-        return;
-      }
-
-      response.statusCode = 200;
-      response.setHeader("Content-Type", "text/html; charset=utf-8");
-      response.end(
-        "<html><body><h1>SimplePost connected.</h1><p>You can close this browser tab and return to the terminal.</p></body></html>",
-      );
-
-      cleanup();
-      settled = true;
-      resolve(requestUrl.toString());
-    });
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      cleanup();
-      reject(
-        new Error(
-          "OAuth callback timed out. If your browser completed the login, paste the full callback URL into the terminal.",
-        ),
-      );
-    }, timeoutMs);
-
-    function cleanup(): void {
-      clearTimeout(timer);
-      server.close(() => undefined);
+    if (requestUrl.pathname !== parsed.pathname) {
+      response.statusCode = 404;
+      response.setHeader("Content-Type", "text/plain; charset=utf-8");
+      response.end("This callback path does not match the active SimplePost login flow.");
+      return;
     }
 
-    server.once("error", (error: NodeJS.ErrnoException) => {
-      cleanup();
-      if (error.code === "EADDRINUSE") {
-        reject(
-          new Error(
-            `The redirect URI port is already in use (${parsed.origin}). Free that port or use --redirect-uri with a different loopback port.`,
-          ),
-        );
-        return;
-      }
+    response.statusCode = 200;
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    response.end(
+      "<html><body><h1>SimplePost connected.</h1><p>You can close this browser tab and return to the terminal.</p></body></html>",
+    );
 
-      reject(new Error(`Failed to listen for the OAuth callback: ${error.message}`));
-    });
-
-    server.listen(port, host);
-  });
+    onCallback(requestUrl.toString());
+  };
 }
+
+interface CallbackServer {
+  close(): void;
+  whenCallback: Promise<string>;
+  whenListening: Promise<void>;
+}
+
+async function startCallbackServer(redirectUri: string, timeoutMs: number): Promise<CallbackServer> {
+  const parsed = ensureLoopbackRedirectUri(redirectUri);
+  const rawHost = parsed.hostname.toLowerCase();
+  const host = rawHost === "localhost" ? "127.0.0.1" : rawHost === "[::1]" ? "::1" : rawHost;
+  const useHttps = parsed.protocol === "https:";
+  const port = parsed.port ? Number(parsed.port) : useHttps ? 443 : 80;
+
+  let tlsOptions: { key: string; cert: string } | undefined;
+  if (useHttps) {
+    const attrs = [{ name: "commonName", value: "localhost" }];
+    const notAfter = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const generated = await selfsigned.generate(attrs, {
+      algorithm: "sha256",
+      notAfterDate: notAfter,
+      extensions: [
+        { name: "subjectAltName", altNames: [{ type: 2, value: "localhost" }, { type: 7, ip: "127.0.0.1" }] },
+      ],
+    });
+    tlsOptions = { key: generated.private, cert: generated.cert };
+  }
+
+  let resolveListening!: () => void;
+  const whenListening = new Promise<void>((r) => { resolveListening = r; });
+
+  let resolveCallback!: (url: string) => void;
+  let rejectCallback!: (err: Error) => void;
+  const whenCallback = new Promise<string>((res, rej) => { resolveCallback = res; rejectCallback = rej; });
+
+  let settled = false;
+  const handler = createRequestHandler(parsed, (url) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    resolveCallback(url);
+  });
+
+  const server = useHttps && tlsOptions
+    ? https.createServer(tlsOptions, handler as (req: http.IncomingMessage, res: http.ServerResponse) => void)
+    : http.createServer(handler);
+
+  const timer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      server.close(() => undefined);
+      rejectCallback(new Error("OAuth callback timed out."));
+    }
+  }, timeoutMs);
+
+  server.once("error", (error: NodeJS.ErrnoException) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    server.close(() => undefined);
+    if (error.code === "EADDRINUSE") {
+      rejectCallback(new Error(
+        `The redirect URI port is already in use (${parsed.origin}). Free that port or use --redirect-uri with a different loopback port.`,
+      ));
+    } else {
+      rejectCallback(new Error(`Failed to listen for the OAuth callback: ${error.message}`));
+    }
+  });
+
+  server.listen(port, host, () => resolveListening());
+
+  return {
+    close() {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+      }
+      server.close(() => undefined);
+    },
+    whenCallback,
+    whenListening,
+  };
+}
+
+/** Brief wait for the loopback callback before offering the paste-URL fallback. */
+const PASTE_PROMPT_DELAY_MS = 2_000;
 
 export async function resolveOAuthCallbackUrl(
   context: AuthProviderContext,
@@ -291,7 +389,9 @@ export async function resolveOAuthCallbackUrl(
     return flags.callbackUrl;
   }
 
-  const callbackPromise = waitForLoopbackCallback(redirectUri, getOAuthTimeoutMs());
+  const callbackServer = await startCallbackServer(redirectUri, getOAuthTimeoutMs());
+  await callbackServer.whenListening;
+
   context.prompt.log("");
   context.prompt.log(`Open this URL in your browser to authorize ${platformLabel}:`);
   context.prompt.log(authUrl);
@@ -300,7 +400,6 @@ export async function resolveOAuthCallbackUrl(
   if (!flags.noBrowser) {
     try {
       await openExternalUrl(authUrl);
-      context.prompt.log("Browser opened. Waiting for the OAuth callback...");
     } catch (error: unknown) {
       context.prompt.log(`Could not open a browser automatically: ${error instanceof Error ? error.message : String(error)}`);
       context.prompt.log("Open the URL above manually.");
@@ -309,16 +408,66 @@ export async function resolveOAuthCallbackUrl(
     context.prompt.log("Automatic browser launch disabled. Open the URL above manually.");
   }
 
-  try {
-    return await callbackPromise;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!context.prompt.interactive) {
+  context.prompt.log("Waiting for OAuth callback...");
+
+  if (!context.prompt.interactive) {
+    try {
+      return await callbackServer.whenCallback;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       throw new Error(`${message} Re-run with --callback-url to provide the final callback URL explicitly.`);
+    } finally {
+      callbackServer.close();
+    }
+  }
+
+  // Wrap the server callback so rejections (timeouts) don't crash — they
+  // become a sentinel value we can check instead.
+  const serverResult = callbackServer.whenCallback
+    .then((url) => ({ source: "server" as const, url }))
+    .catch(() => ({ source: "server-failed" as const }));
+
+  // Wait up to PASTE_PROMPT_DELAY_MS for the callback to arrive automatically.
+  // If it does, return immediately. Otherwise show the paste prompt.
+  const earlyResult = await Promise.race([
+    serverResult,
+    new Promise<{ source: "delay" }>((r) => setTimeout(() => r({ source: "delay" }), PASTE_PROMPT_DELAY_MS)),
+  ]);
+
+  if (earlyResult.source === "server") {
+    callbackServer.close();
+    return earlyResult.url;
+  }
+
+  context.prompt.log("");
+  context.prompt.log("If the browser does not return to the CLI automatically, paste the full callback URL from the address bar.");
+  context.prompt.log("");
+
+  for (;;) {
+    const result = await Promise.race([
+      serverResult,
+      context.prompt.text("Paste callback URL (or Enter to keep waiting)", { required: false }).then((url) => ({ source: "paste" as const, url })),
+    ]);
+
+    if (result.source === "server") {
+      callbackServer.close();
+      return result.url;
     }
 
-    context.prompt.log(message);
-    return await context.prompt.text("Paste the full callback URL", { required: true });
+    if (result.source === "paste") {
+      const pasted = result.url.trim();
+      if (pasted) {
+        callbackServer.close();
+        return pasted;
+      }
+    }
+
+    if (result.source === "server-failed") {
+      context.prompt.log("Callback server timed out. Paste the callback URL from your browser.");
+      return await context.prompt.text("Callback URL", { required: true });
+    }
+
+    context.prompt.log("Still waiting for callback...");
   }
 }
 
@@ -335,9 +484,20 @@ export function resolveOAuthAppInputs(
   flags: OAuthLoginFlags,
   embeddedAppConfig: EmbeddedOAuthAppConfig,
 ): ResolvedOAuthAppConfig {
-  const clientId = process.env[getClientIdOverrideEnvVar(platform)] ?? embeddedAppConfig.clientId;
+  const clientIdEnvVar = getClientIdOverrideEnvVar(platform);
+  const clientId = process.env[clientIdEnvVar] ?? embeddedAppConfig.clientId;
   if (!clientId) {
-    throw new Error(`This CLI build does not embed a ${getAccountPlatformConfig(platform).displayName} OAuth client ID yet.`);
+    const platformName = getAccountPlatformConfig(platform).displayName;
+    if (embeddedAppConfig.clientSecretRequired) {
+      const secretEnvVar = embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
+      throw new Error(
+        `${platformName} does not allow apps to share public OAuth credentials, so you need to register your own ${platformName} developer app.\n\n` +
+        `Set these environment variables before connecting:\n` +
+        `  ${clientIdEnvVar}      your app's client ID\n` +
+        `  ${secretEnvVar}  your app's client secret`,
+      );
+    }
+    throw new Error(`This CLI build does not embed a ${platformName} OAuth client ID. Set ${clientIdEnvVar} in your environment.`);
   }
 
   const redirectUri =
@@ -351,8 +511,10 @@ export function resolveOAuthAppInputs(
     (embeddedAppConfig.clientSecretEnvVar ? process.env[embeddedAppConfig.clientSecretEnvVar] : undefined);
 
   if (embeddedAppConfig.clientSecretRequired && !clientSecret) {
+    const secretEnvVar = embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
     throw new Error(
-      `Connecting ${getAccountPlatformConfig(platform).displayName} requires ${embeddedAppConfig.clientSecretEnvVar} in the environment for token exchange.`,
+      `${getAccountPlatformConfig(platform).displayName} requires a client secret for OAuth token exchange.\n\n` +
+      `Set ${secretEnvVar} in your environment (found in your developer app settings).`,
     );
   }
 
@@ -415,7 +577,10 @@ export async function exchangeAuthorizationCode(input: {
 
   const accessToken = typeof response.access_token === "string" ? response.access_token : undefined;
   if (!accessToken) {
-    throw new Error(`${getAccountPlatformConfig(input.platform).displayName} token exchange returned no access token.`);
+    const detail = extractErrorMessage(response, "no access_token in response body");
+    throw new Error(
+      `${getAccountPlatformConfig(input.platform).displayName} token exchange failed: ${detail}`,
+    );
   }
 
   const expiresIn = typeof response.expires_in === "number" ? response.expires_in : undefined;

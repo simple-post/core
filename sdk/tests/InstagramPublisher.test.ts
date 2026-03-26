@@ -67,6 +67,28 @@ describe("InstagramPublisher", () => {
       });
     });
 
+    it("should initialize with Facebook Graph settings when graphApi is facebook", () => {
+      new InstagramPublisher({
+        instagram: {
+          credentials: {
+            accessToken: "test_access_token",
+            businessAccountId: "test_business_account_id",
+            graphApi: "facebook",
+          },
+        },
+      });
+
+      expect(mockedAxios.create).toHaveBeenCalledWith({
+        baseURL: "https://graph.facebook.com/v24.0",
+        timeout: 30_000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    });
+
     it("should throw error if INSTAGRAM_ACCESS_TOKEN is not provided", () => {
       expect(() => new InstagramPublisher()).toThrow(
         new PostError(
@@ -128,6 +150,44 @@ describe("InstagramPublisher", () => {
         }),
       );
       expect(result).toEqual({ id: "post_id_456", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should attach access_token for Facebook Graph requests", async () => {
+      const facebookPublisher = new InstagramPublisher({
+        instagram: {
+          credentials: {
+            accessToken: "test_access_token",
+            businessAccountId: "test_business_account_id",
+            graphApi: "facebook",
+          },
+        },
+      });
+
+      const content: Content = {
+        text: "Single image post",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
+      const mockS3Uploader = facebookPublisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
+
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_123" } })
+        .mockResolvedValueOnce({ data: { id: "post_id_456" } });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { status_code: "FINISHED" },
+      });
+
+      await facebookPublisher.postContent(content, options);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_business_account_id/media?access_token=test_access_token",
+        expect.objectContaining({
+          image_url: "https://s3.example.com/media1.jpg",
+          caption: "Single image post",
+          is_carousel_item: false,
+        }),
+      );
     });
 
     it("should post single video successfully", async () => {

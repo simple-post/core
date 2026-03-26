@@ -38,7 +38,8 @@
   },
   "dependencies": {
     "@oclif/core": "^4.9.0",
-    "@simple-post/sdk": "*"
+    "@simple-post/sdk": "*",
+    "selfsigned": "^5.5.0"
   },
   "optionalDependencies": {
     "keytar": "^7.9.0"

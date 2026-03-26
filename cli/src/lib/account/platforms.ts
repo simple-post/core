@@ -1,8 +1,8 @@
-import { DEFAULT_OAUTH_REDIRECT_URI, DEFAULT_X_SCOPES } from "../constants.js";
+import { DEFAULT_OAUTH_REDIRECT_URI, META_OAUTH_REDIRECT_URI, DEFAULT_X_SCOPES } from "../constants.js";
 
 import type { Platform } from "@simple-post/sdk";
 
-export type AccountPlatform = Exclude<Platform, "pinterest">;
+export type AccountPlatform = Platform;
 
 export interface EmbeddedOAuthAppConfig {
   authorizationUrl: string;
@@ -14,6 +14,8 @@ export interface EmbeddedOAuthAppConfig {
   clientSecretRequired?: boolean;
   extraAuthorizationParams?: Record<string, string>;
   pkce: boolean;
+  /** RFC 7636 uses base64url; TikTok Login Kit for desktop expects hex-encoded SHA-256. */
+  pkceChallengeEncoding?: "base64url" | "hex";
   redirectUri: string;
   redirectUriEnvVar?: string;
   scopeSeparator?: " " | ",";
@@ -74,49 +76,55 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "Facebook",
     oauthApp: {
       authorizationUrl: "https://www.facebook.com/v24.0/dialog/oauth",
-      clientId: "1151205170264557",
-      clientSecretEnvVar: "FACEBOOK_CLIENT_SECRET",
-      clientSecretRequired: true,
-      pkce: false,
-      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      scopes: ["public_profile", "pages_show_list", "pages_manage_posts", "business_management"],
-      tokenAuthMethod: "client_secret_post",
+      clientId: "2183098135767797",
+      pkce: true,
+      redirectUri: META_OAUTH_REDIRECT_URI,
+      redirectUriEnvVar: "SIMPLE_POST_FACEBOOK_REDIRECT_URI",
+      scopes: ["openid", "public_profile", "pages_show_list", "pages_manage_posts", "business_management"],
+      tokenAuthMethod: "none",
       tokenUrl: "https://graph.facebook.com/v24.0/oauth/access_token",
     },
     platform: "facebook",
   },
   instagram: {
-    connectDescription: "Connect an Instagram business account through Instagram Login.",
+    connectDescription: "Connect Instagram via Facebook Login and select a linked business account.",
     displayName: "Instagram",
     oauthApp: {
-      authorizationUrl: "https://www.instagram.com/oauth/authorize",
-      clientId: "1458767782086183",
-      clientSecretEnvVar: "INSTAGRAM_CLIENT_SECRET",
-      clientSecretRequired: true,
-      extraAuthorizationParams: {
-        enable_fb_login: "0",
-        force_authentication: "1",
-      },
-      pkce: false,
-      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      scopes: ["instagram_business_basic", "instagram_business_content_publish", "instagram_business_manage_messages"],
-      tokenAuthMethod: "client_secret_post",
-      tokenUrl: "https://api.instagram.com/oauth/access_token",
+      authorizationUrl: "https://www.facebook.com/v24.0/dialog/oauth",
+      clientId: "2183098135767797",
+      pkce: true,
+      redirectUri: META_OAUTH_REDIRECT_URI,
+      redirectUriEnvVar: "SIMPLE_POST_INSTAGRAM_REDIRECT_URI",
+      scopes: [
+        "openid",
+        "public_profile",
+        "pages_show_list",
+        "pages_manage_posts",
+        "business_management",
+        "instagram_basic",
+        "instagram_content_publish",
+        "pages_read_engagement",
+      ],
+      tokenAuthMethod: "none",
+      tokenUrl: "https://graph.facebook.com/v24.0/oauth/access_token",
     },
     platform: "instagram",
   },
   tiktok: {
-    connectDescription: "Connect TikTok for direct publishing with the bundled app key.",
+    connectDescription: "Connect TikTok for direct publishing (requires your own TikTok developer app).",
     displayName: "TikTok",
     oauthApp: {
-      authorizationUrl: "https://www.tiktok.com/v2/auth/authorize",
-      clientId: "sbawif7b013dnnr3a5",
+      authorizationUrl: "https://www.tiktok.com/v2/auth/authorize/",
+      clientId: "",
       clientIdAuthorizeParameter: "client_key",
       clientIdTokenParameter: "client_key",
-      clientSecretEnvVar: "TIKTOK_CLIENT_SECRET",
+      clientSecretEnvVar: "SIMPLE_POST_TIKTOK_CLIENT_SECRET",
       clientSecretRequired: true,
-      pkce: false,
+      pkce: true,
+      pkceChallengeEncoding: "hex",
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      redirectUriEnvVar: "SIMPLE_POST_TIKTOK_REDIRECT_URI",
+      scopeSeparator: ",",
       scopes: ["user.info.basic", "video.upload", "video.publish", "user.info.profile"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
@@ -140,15 +148,16 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "bluesky",
   },
   threads: {
-    connectDescription: "Connect Threads for text and media publishing.",
+    connectDescription: "Connect Threads for text and media publishing (requires your own Meta developer app).",
     displayName: "Threads",
     oauthApp: {
       authorizationUrl: "https://threads.net/oauth/authorize",
-      clientId: "2145167062973162",
-      clientSecretEnvVar: "THREADS_CLIENT_SECRET",
+      clientId: "",
+      clientSecretEnvVar: "SIMPLE_POST_THREADS_CLIENT_SECRET",
       clientSecretRequired: true,
       pkce: false,
-      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      redirectUri: META_OAUTH_REDIRECT_URI,
+      redirectUriEnvVar: "SIMPLE_POST_THREADS_REDIRECT_URI",
       scopes: ["threads_basic", "threads_content_publish"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://graph.threads.net/oauth/access_token",
@@ -156,19 +165,36 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "threads",
   },
   linkedin: {
-    connectDescription: "Connect LinkedIn for member posts.",
+    connectDescription: "Connect LinkedIn for member posts (requires your own LinkedIn developer app).",
     displayName: "LinkedIn",
     oauthApp: {
       authorizationUrl: "https://www.linkedin.com/oauth/v2/authorization",
-      clientId: "77p2yp9zm7f6kg",
-      clientSecretEnvVar: "LINKEDIN_CLIENT_SECRET",
-      pkce: true,
+      clientId: "",
+      clientSecretEnvVar: "SIMPLE_POST_LINKEDIN_CLIENT_SECRET",
+      clientSecretRequired: true,
+      pkce: false,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
       scopes: ["openid", "profile", "email", "w_member_social"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
     },
     platform: "linkedin",
+  },
+  pinterest: {
+    connectDescription: "Connect Pinterest for pin publishing (requires your own Pinterest developer app).",
+    displayName: "Pinterest",
+    oauthApp: {
+      authorizationUrl: "https://www.pinterest.com/oauth/",
+      clientId: "",
+      clientSecretEnvVar: "SIMPLE_POST_PINTEREST_CLIENT_SECRET",
+      clientSecretRequired: true,
+      pkce: false,
+      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      scopes: ["pins:write", "boards:read", "user_accounts:read"],
+      tokenAuthMethod: "basic",
+      tokenUrl: "https://api.pinterest.com/v5/oauth/token",
+    },
+    platform: "pinterest",
   },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with bot token and chat ID.",

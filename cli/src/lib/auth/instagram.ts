@@ -1,76 +1,137 @@
 import { OAuthAccountProvider, fetchJson } from "./oauth.js";
+import {
+  exchangeFacebookCode,
+  fetchFacebookPages,
+  fetchFacebookPermissionsHint,
+  graphUrlWithAccessToken,
+  startFacebookAuthorization,
+  type FacebookPageSelection,
+} from "./facebook.js";
+import type { AuthProviderContext } from "./provider.js";
 
-import type { ResolvedOAuthAppConfig } from "./oauth.js";
-
-interface InstagramTokenExchangeResponse {
-  access_token?: string;
-  expires_in?: number;
-}
-
-interface InstagramProfileResponse {
+interface InstagramBusinessAccount {
   id?: string;
-  name?: string;
-  profile_picture_url?: string;
-  user_id?: string;
   username?: string;
 }
 
-async function exchangeForLongLivedToken(
-  shortLivedToken: string,
-  appConfig: ResolvedOAuthAppConfig,
-): Promise<{ accessToken: string; expiresAt: number }> {
-  if (!appConfig.clientSecret) {
-    throw new Error(`Connecting Instagram requires ${appConfig.clientSecretEnvVar} in the environment for long-lived tokens.`);
-  }
-
-  const url = new URL("https://graph.instagram.com/access_token");
-  url.searchParams.set("grant_type", "ig_exchange_token");
-  url.searchParams.set("client_secret", appConfig.clientSecret);
-  url.searchParams.set("access_token", shortLivedToken);
-
-  const response = await fetchJson<InstagramTokenExchangeResponse>(url.toString(), { method: "GET" }, "Instagram long-lived token exchange");
-  if (!response.access_token || typeof response.expires_in !== "number") {
-    throw new Error("Instagram did not return the expected long-lived token response.");
-  }
-
-  return {
-    accessToken: response.access_token,
-    expiresAt: Math.floor(Date.now() / 1000) + response.expires_in,
-  };
+interface InstagramPageLookupResponse {
+  instagram_business_account?: InstagramBusinessAccount;
 }
 
-async function fetchInstagramProfile(accessToken: string): Promise<{ displayName?: string; userId: string; username?: string }> {
-  const url = new URL("https://graph.instagram.com/me");
-  url.searchParams.set("fields", "user_id,username,name,profile_picture_url,account_type");
-  url.searchParams.set("access_token", accessToken);
+interface InstagramLinkedAccountSelection {
+  instagramBusinessAccountId: string;
+  instagramUsername?: string;
+  pageAccessToken: string;
+  pageId: string;
+  pageName?: string;
+}
 
-  const response = await fetchJson<InstagramProfileResponse>(url.toString(), { method: "GET" }, "Instagram profile lookup");
-  const userId = response.user_id ?? response.id;
-  if (!userId) {
-    throw new Error("Instagram profile lookup did not return a business account id.");
+async function fetchInstagramBusinessAccountForPage(
+  page: FacebookPageSelection,
+  userAccessToken: string,
+): Promise<InstagramLinkedAccountSelection | null> {
+  const lookup = async (accessToken: string): Promise<InstagramBusinessAccount | null> => {
+    const response = await fetchJson<InstagramPageLookupResponse>(
+      graphUrlWithAccessToken(
+        `${page.userId}?fields=instagram_business_account{id,username}`,
+        accessToken,
+      ),
+      { method: "GET" },
+      "Facebook Instagram business account lookup",
+    );
+    return response.instagram_business_account ?? null;
+  };
+
+  try {
+    const igAccount = await lookup(page.accessToken).catch(() => lookup(userAccessToken));
+    if (!igAccount?.id) {
+      return null;
+    }
+    return {
+      instagramBusinessAccountId: igAccount.id,
+      instagramUsername: igAccount.username,
+      pageAccessToken: page.accessToken,
+      pageId: page.userId,
+      pageName: page.displayName,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchInstagramLinkedAccounts(userAccessToken: string): Promise<InstagramLinkedAccountSelection[]> {
+  const pages = await fetchFacebookPages(userAccessToken);
+  if (pages.length === 0) {
+    const hint = await fetchFacebookPermissionsHint(userAccessToken);
+    throw new Error(`No Facebook Pages were returned from the Graph API. ${hint}`);
   }
 
-  return {
-    displayName: response.name ?? response.username,
-    userId,
-    username: response.username,
-  };
+  const resolved = await Promise.all(pages.map((page) => fetchInstagramBusinessAccountForPage(page, userAccessToken)));
+  const unique = new Map<string, InstagramLinkedAccountSelection>();
+  for (const selection of resolved) {
+    if (!selection || unique.has(selection.instagramBusinessAccountId)) {
+      continue;
+    }
+    unique.set(selection.instagramBusinessAccountId, selection);
+  }
+
+  return [...unique.values()];
+}
+
+async function chooseInstagramAccount(
+  prompt: AuthProviderContext["prompt"],
+  accounts: InstagramLinkedAccountSelection[],
+  userAccessToken: string,
+): Promise<InstagramLinkedAccountSelection> {
+  if (accounts.length === 0) {
+    const hint = await fetchFacebookPermissionsHint(userAccessToken);
+    throw new Error(
+      `No Instagram business accounts were found for the Pages this token can access. ${hint}`,
+    );
+  }
+
+  if (accounts.length === 1 || !prompt.interactive) {
+    return accounts[0];
+  }
+
+  const selected = await prompt.select(
+    "Which Instagram account should SimplePost post to?",
+    accounts.map((account) => {
+      const pageLabel = account.pageName ?? account.pageId;
+      const igLabel = account.instagramUsername ? `@${account.instagramUsername}` : account.instagramBusinessAccountId;
+      return {
+        description: account.pageId,
+        label: `${pageLabel} — ${igLabel}`,
+        value: account.instagramBusinessAccountId,
+      };
+    }),
+    accounts[0].instagramBusinessAccountId,
+  );
+
+  return accounts.find((account) => account.instagramBusinessAccountId === selected) ?? accounts[0];
 }
 
 export class InstagramAuthProvider extends OAuthAccountProvider {
   public constructor() {
     super("instagram", {
-      async completeLogin({ appConfig, tokenSet }) {
-        const longLived = await exchangeForLongLivedToken(tokenSet.accessToken, appConfig);
-        const profile = await fetchInstagramProfile(longLived.accessToken);
+      startAuthorization: startFacebookAuthorization,
+      exchangeCode: exchangeFacebookCode,
+      async completeLogin({ context, tokenSet }) {
+        const userToken = tokenSet.accessToken;
+        const linkedAccounts = await fetchInstagramLinkedAccounts(userToken);
+        const selected = await chooseInstagramAccount(context.prompt, linkedAccounts, userToken);
+
         return {
-          displayName: profile.displayName,
+          displayName: selected.instagramUsername ?? selected.pageName,
           secretPayload: {
-            accessToken: longLived.accessToken,
-            expiresAt: longLived.expiresAt,
+            accessToken: selected.pageAccessToken,
+            tokenMetadata: {
+              graphApi: "facebook",
+              pageId: selected.pageId,
+            },
           },
-          userId: profile.userId,
-          username: profile.username,
+          userId: selected.instagramBusinessAccountId,
+          username: selected.instagramUsername,
         };
       },
     });

@@ -102,16 +102,22 @@ function buildStoredAccountPostOptions(
           },
         },
       };
-    case "instagram":
+    case "instagram": {
+      const graphApi =
+        secret.tokenMetadata?.graphApi === "facebook" || secret.tokenMetadata?.graphApi === "instagram"
+          ? secret.tokenMetadata.graphApi
+          : undefined;
       return {
         instagram: {
           credentials: {
             accessToken: secret.accessToken,
             businessAccountId: metadata.userId,
+            ...(graphApi ? { graphApi } : {}),
             ...(typeof secret.expiresAt === "number" ? { expiresAt: secret.expiresAt } : {}),
           },
         },
       };
+    }
     case "tiktok":
       return {
         tiktok: {
@@ -162,6 +168,15 @@ function buildStoredAccountPostOptions(
           credentials: {
             accessToken: secret.accessToken,
             memberId: metadata.userId,
+          },
+        },
+      };
+    case "pinterest":
+      return {
+        pinterest: {
+          boardId: (metadata.settings?.boardId as string) ?? "",
+          credentials: {
+            accessToken: secret.accessToken,
           },
         },
       };

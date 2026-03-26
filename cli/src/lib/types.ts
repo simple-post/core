@@ -33,6 +33,7 @@ export interface CliConfigV1 {
   bluesky: PlatformAccounts;
   threads: PlatformAccounts;
   linkedin: PlatformAccounts;
+  pinterest: PlatformAccounts;
   telegram: PlatformAccounts;
 }
 

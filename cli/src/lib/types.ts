@@ -22,9 +22,18 @@ export interface PlatformAccounts {
   accounts: StoredAccount[];
 }
 
+export interface SchedulerConnection {
+  url: string;
+  userId: string;
+  email?: string;
+  name?: string;
+  connectedAt: string;
+}
+
 export interface CliConfigV1 {
   schemaVersion: 1;
   storage?: CliStorageConfig;
+  scheduler?: SchedulerConnection;
   x: PlatformAccounts;
   youtube: PlatformAccounts;
   facebook: PlatformAccounts;

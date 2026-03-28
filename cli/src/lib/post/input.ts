@@ -13,16 +13,21 @@ interface InteractiveAccount {
   alias: string;
   displayName?: string;
   platform: AccountPlatform;
+  source: "local" | "app";
   userId?: string;
   username?: string;
+  /** App account ID for scheduler accounts */
+  appAccountId?: string;
 }
 
 interface InteractiveTargetOption {
   alias?: string;
+  appAccountId?: string;
   description: string;
   group: string;
   label: string;
   platform: Platform;
+  source: "local" | "app";
   type: "account";
   value: string;
 }
@@ -212,27 +217,48 @@ function buildInteractiveTargetOptions(options: {
   selectedAccounts: AccountSelections;
 }): { defaultValues: string[]; options: InteractiveTargetOption[] } {
   const targetOptions: InteractiveTargetOption[] = [];
+  const hasLocal = options.accounts.some((a) => a.source === "local");
+  const hasApp = options.accounts.some((a) => a.source === "app");
+  const showGroups = hasLocal && hasApp;
 
   for (const account of options.accounts) {
     const handle = account.username ? `@${account.username}` : account.alias;
-    const description = account.displayName ? `Connected account ${handle} · ${account.displayName}` : `Connected account ${handle}`;
-    targetOptions.push({
-      alias: account.alias,
-      description,
-      group: "Connected accounts",
-      label: `${getPlatformLabel(account.platform)} · ${account.alias}`,
-      platform: account.platform,
-      type: "account",
-      value: `account:${account.platform}:${account.alias}`,
-    });
+    const displayName = account.displayName ?? "";
+    const description = displayName ? `${handle} · ${displayName}` : handle;
+
+    if (account.source === "app" && account.appAccountId) {
+      targetOptions.push({
+        appAccountId: account.appAccountId,
+        description,
+        group: showGroups ? "App accounts" : "Connected accounts",
+        label: `${getPlatformLabel(account.platform)} · ${account.displayName || account.username || account.alias}`,
+        platform: account.platform,
+        source: "app",
+        type: "account",
+        value: `app:${account.appAccountId}`,
+      });
+    } else {
+      targetOptions.push({
+        alias: account.alias,
+        description,
+        group: showGroups ? "Local accounts" : "Connected accounts",
+        label: `${getPlatformLabel(account.platform)} · ${account.alias}`,
+        platform: account.platform,
+        source: "local",
+        type: "account",
+        value: `account:${account.platform}:${account.alias}`,
+      });
+    }
   }
 
   const defaultValues = new Set<string>();
 
   for (const option of targetOptions) {
-    const aliases = options.selectedAccounts[option.platform] ?? [];
-    if (option.alias && aliases.includes(option.alias)) {
-      defaultValues.add(option.value);
+    if (option.source === "local") {
+      const aliases = options.selectedAccounts[option.platform] ?? [];
+      if (option.alias && aliases.includes(option.alias)) {
+        defaultValues.add(option.value);
+      }
     }
   }
 
@@ -245,7 +271,7 @@ function buildInteractiveTargetOptions(options: {
 function resolveInteractiveTargets(
   selectedValues: string[],
   targetOptions: InteractiveTargetOption[],
-): { accountSelections: AccountSelections; platforms: Platform[] } {
+): { accountSelections: AccountSelections; appAccountIds: string[]; platforms: Platform[] } {
   const selectedOptions = selectedValues.map((value) => {
     const option = targetOptions.find((candidate) => candidate.value === value);
     if (!option) {
@@ -258,6 +284,7 @@ function resolveInteractiveTargets(
   const platforms: Platform[] = [];
   const usedPlatforms = new Set<Platform>();
   const accountSelections: AccountSelections = {};
+  const appAccountIds: string[] = [];
 
   for (const option of selectedOptions) {
     if (!usedPlatforms.has(option.platform)) {
@@ -265,12 +292,14 @@ function resolveInteractiveTargets(
       platforms.push(option.platform);
     }
 
-    if (option.alias) {
+    if (option.source === "app" && option.appAccountId) {
+      appAccountIds.push(option.appAccountId);
+    } else if (option.alias) {
       accountSelections[option.platform] = [...(accountSelections[option.platform] ?? []), option.alias];
     }
   }
 
-  return { accountSelections, platforms };
+  return { accountSelections, appAccountIds, platforms };
 }
 
 function logInteractiveSection(prompt: PromptSession, title: string, description?: string): void {
@@ -640,9 +669,9 @@ async function askInteractivePost(
   prompt: PromptSession,
   availableAccounts: { accounts: InteractiveAccount[] },
   existingSelections: AccountSelections,
-): Promise<{ accountSelections: AccountSelections; post: Post }> {
+): Promise<{ accountSelections: AccountSelections; appAccountIds: string[]; post: Post }> {
   if (availableAccounts.accounts.length === 0) {
-    throw new Error('No connected accounts are available yet. Run "simple-post account add" first.');
+    throw new Error('No connected accounts are available yet. Run "simple-post account add" or "simple-post connect" first.');
   }
 
   const targetOptions = buildInteractiveTargetOptions({
@@ -654,7 +683,12 @@ async function askInteractivePost(
     minSelections: 1,
   });
   const targetSelection = resolveInteractiveTargets(selectedTargets, targetOptions.options);
-  const selectedAccountInfos: SelectedAccountInfo[] = targetSelection.platforms.flatMap((platform) => {
+
+  // Only collect platform options for local accounts (app accounts are handled server-side)
+  const localPlatforms = targetSelection.platforms.filter(
+    (platform) => (targetSelection.accountSelections[platform]?.length ?? 0) > 0 || targetSelection.appAccountIds.length === 0,
+  );
+  const selectedAccountInfos: SelectedAccountInfo[] = localPlatforms.flatMap((platform) => {
     const aliases = targetSelection.accountSelections[platform] ?? [];
     return aliases.map((alias) => {
       const account = availableAccounts.accounts.find((a) => a.platform === platform && a.alias === alias);
@@ -663,22 +697,25 @@ async function askInteractivePost(
   });
   const text = (await prompt.text("Post text (optional)")).trim();
   const media = await collectInteractiveMedia(prompt, []);
-  const postOptions = await collectInteractivePlatformOptions(
-    prompt,
-    targetSelection.platforms,
-    undefined,
-    selectedAccountInfos,
-  );
+
+  const hasLocalAccounts = Object.values(targetSelection.accountSelections).some((aliases) => (aliases?.length ?? 0) > 0);
+  const postOptions = hasLocalAccounts
+    ? await collectInteractivePlatformOptions(prompt, localPlatforms, undefined, selectedAccountInfos)
+    : undefined;
+
+  // For local accounts, we need platforms. For app-only, we just pass a dummy platforms list.
+  const postPlatforms = hasLocalAccounts ? localPlatforms : targetSelection.platforms;
 
   return {
     accountSelections: targetSelection.accountSelections,
+    appAccountIds: targetSelection.appAccountIds,
     post: PostSchema.parse({
-      platforms: targetSelection.platforms,
+      platforms: postPlatforms,
       content: {
         ...(text ? { text } : {}),
         ...(media.length > 0 ? { media } : {}),
       },
-      ...(postOptions ? { options: filterOptionsForPlatforms(postOptions, targetSelection.platforms) } : {}),
+      ...(postOptions ? { options: filterOptionsForPlatforms(postOptions, postPlatforms) } : {}),
     }),
   };
 }
@@ -732,18 +769,20 @@ export async function collectPostInput(
   flags: PostFlagValues,
   prompt: PromptSession,
   options: { accounts: InteractiveAccount[] },
-): Promise<{ accountSelections: AccountSelections; post: Post }> {
+): Promise<{ accountSelections: AccountSelections; appAccountIds: string[]; post: Post }> {
   const existingSelections = parseAccountSelections(flags.account);
   if (flags.interactive) {
     const interactive = await askInteractivePost(prompt, options, existingSelections);
     return {
       accountSelections: interactive.accountSelections,
+      appAccountIds: interactive.appAccountIds,
       post: interactive.post,
     };
   }
 
   return {
     accountSelections: existingSelections,
+    appAccountIds: [],
     post: await buildPostFromFlags(flags, existingSelections),
   };
 }

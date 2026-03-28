@@ -2,9 +2,27 @@ import { getAccountPlatformConfig, getAccountPlatformValues, isAccountPlatform }
 
 import type { AccountPlatform } from "./platforms.js";
 import type { CliConfigV1, StoredAccount } from "../types.js";
+import type { RemoteAccount } from "../scheduler/client.js";
+
+export type AccountSource = "local" | "app";
 
 export interface StoredAccountRecord extends StoredAccount {
   platform: AccountPlatform;
+  source: AccountSource;
+}
+
+export interface AppAccountRecord {
+  appAccountId: string;
+  displayName: string | null;
+  platform: AccountPlatform;
+  source: "app";
+  username: string | null;
+}
+
+export type UnifiedAccountRecord = StoredAccountRecord | AppAccountRecord;
+
+function isAppAccount(record: UnifiedAccountRecord): record is AppAccountRecord {
+  return "appAccountId" in record;
 }
 
 function formatDate(value: string): string {
@@ -15,7 +33,7 @@ function renderRow(row: string[], widths: number[]): string {
   return row.map((cell, index) => cell.padEnd(widths[index])).join("  ").trimEnd();
 }
 
-function formatHandle(account: Pick<StoredAccountRecord, "username">): string {
+function formatHandle(account: Pick<StoredAccountRecord, "username"> | AppAccountRecord): string {
   return account.username ? `@${account.username}` : "-";
 }
 
@@ -25,6 +43,7 @@ export function getStoredAccounts(config: CliConfigV1, platform?: AccountPlatfor
     config[currentPlatform].accounts.map((account) => ({
       ...account,
       platform: currentPlatform,
+      source: "local" as const,
     })),
   );
 
@@ -36,6 +55,28 @@ export function getStoredAccounts(config: CliConfigV1, platform?: AccountPlatfor
 
     return left.alias.localeCompare(right.alias);
   });
+}
+
+export function remoteAccountsToAppRecords(remoteAccounts: RemoteAccount[]): AppAccountRecord[] {
+  return remoteAccounts
+    .filter((account) => isAccountPlatform(account.platform))
+    .map((account) => ({
+      appAccountId: account.id,
+      displayName: account.displayName,
+      platform: account.platform as AccountPlatform,
+      source: "app" as const,
+      username: account.username,
+    }))
+    .sort((left, right) => {
+      const platformCompare = String(left.platform).localeCompare(String(right.platform));
+      if (platformCompare !== 0) {
+        return platformCompare;
+      }
+
+      const leftName = left.displayName ?? left.username ?? left.appAccountId;
+      const rightName = right.displayName ?? right.username ?? right.appAccountId;
+      return leftName.localeCompare(rightName);
+    });
 }
 
 export function parseAccountPlatform(value?: string): AccountPlatform | undefined {
@@ -54,6 +95,37 @@ export function parseAccountPlatform(value?: string): AccountPlatform | undefine
 
 function getAccountPlatformValuesForMessage(): string {
   return getAccountPlatformValues().join(", ");
+}
+
+export function renderUnifiedAccounts(accounts: UnifiedAccountRecord[], options?: { includePlatform?: boolean; showSource?: boolean }): string {
+  const includePlatform = options?.includePlatform ?? true;
+  const showSource = options?.showSource ?? false;
+
+  const rows = accounts.map((account) => {
+    const platformName = getAccountPlatformConfig(account.platform).displayName;
+    const handle = formatHandle(account);
+    const source = account.source === "app" ? "app" : "local";
+
+    if (isAppAccount(account)) {
+      const name = account.displayName || "-";
+      const baseRow = includePlatform
+        ? [platformName, name, handle]
+        : [name, handle];
+      return showSource ? [...baseRow, source] : baseRow;
+    }
+
+    const baseRow = includePlatform
+      ? [platformName, account.alias, handle]
+      : [account.alias, handle];
+    return showSource ? [...baseRow, source] : baseRow;
+  });
+
+  const baseHeader = includePlatform ? ["Platform", "Name", "Handle"] : ["Name", "Handle"];
+  const header = showSource ? [...baseHeader, "Source"] : baseHeader;
+  const allRows = [header, ...rows];
+  const widths = allRows[0].map((_, columnIndex) => Math.max(...allRows.map((row) => row[columnIndex].length)));
+
+  return allRows.map((row) => renderRow(row, widths)).join("\n");
 }
 
 export function renderStoredAccounts(accounts: StoredAccountRecord[], options?: { includePlatform?: boolean }): string {

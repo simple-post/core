@@ -50,6 +50,85 @@
         "account"
       ]
     },
+    "connect": {
+      "aliases": [],
+      "args": {},
+      "description": "Connect the CLI to the SimplePost Scheduler to use its connected accounts.",
+      "examples": [
+        "simple-post connect",
+        "simple-post connect --url http://localhost:3000",
+        "simple-post connect --token sp_cli_..."
+      ],
+      "flags": {
+        "no-browser": {
+          "description": "Do not try to open the browser automatically",
+          "name": "no-browser",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "token": {
+          "description": "Provide a CLI token directly (for CI/non-interactive use)",
+          "name": "token",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "url": {
+          "description": "Scheduler URL (default: https://schedule.simplepost.dev)",
+          "env": "SIMPLE_POST_SCHEDULER_URL",
+          "name": "url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "connect",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "connect.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "connect"
+      ]
+    },
+    "disconnect": {
+      "aliases": [],
+      "args": {},
+      "description": "Disconnect the CLI from the SimplePost Scheduler.",
+      "flags": {},
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "disconnect",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "disconnect.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "disconnect"
+      ]
+    },
     "post": {
       "aliases": [],
       "args": {},

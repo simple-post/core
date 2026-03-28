@@ -4,7 +4,7 @@ import path from "node:path";
 import { CONFIG_FILE_NAME, CLI_CONFIG_SCHEMA_VERSION } from "./constants.js";
 import { getAccountPlatformValues } from "./account/platforms.js";
 
-import type { CliConfigV1, CliPaths, PlatformAccounts, PlatformKey, SecretBackend, StoredAccount } from "./types.js";
+import type { CliConfigV1, CliPaths, PlatformAccounts, PlatformKey, SchedulerConnection, SecretBackend, StoredAccount } from "./types.js";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -57,6 +57,20 @@ function normalizePlatformAccounts(raw: unknown): PlatformAccounts {
   };
 }
 
+function normalizeSchedulerConnection(raw: unknown): SchedulerConnection | undefined {
+  if (!isObject(raw)) return undefined;
+  if (typeof raw.url !== "string" || typeof raw.userId !== "string" || typeof raw.connectedAt !== "string") {
+    return undefined;
+  }
+  return {
+    url: raw.url,
+    userId: raw.userId,
+    ...(typeof raw.email === "string" ? { email: raw.email } : {}),
+    ...(typeof raw.name === "string" ? { name: raw.name } : {}),
+    connectedAt: raw.connectedAt,
+  };
+}
+
 function createEmptyAccountCollections(): Record<PlatformKey, PlatformAccounts> {
   return Object.fromEntries(getAccountPlatformValues().map((platform) => [platform, { accounts: [] }])) as unknown as Record<
     PlatformKey,
@@ -79,6 +93,8 @@ function normalizeConfig(raw: unknown): CliConfigV1 {
     throw new Error("CLI config contains an unknown storage backend.");
   }
 
+  const scheduler = normalizeSchedulerConnection(raw.scheduler);
+
   const accountCollections = createEmptyAccountCollections();
   for (const platform of getAccountPlatformValues()) {
     accountCollections[platform] = normalizePlatformAccounts(raw[platform]);
@@ -87,6 +103,7 @@ function normalizeConfig(raw: unknown): CliConfigV1 {
   return {
     schemaVersion: CLI_CONFIG_SCHEMA_VERSION,
     ...(storage ? { storage: { backend: storage.backend! } } : {}),
+    ...(scheduler ? { scheduler } : {}),
     ...accountCollections,
   };
 }
@@ -146,6 +163,7 @@ export async function saveCliConfig(paths: CliPaths, config: CliConfigV1): Promi
   const serializable: CliConfigV1 = {
     schemaVersion: config.schemaVersion,
     ...(config.storage ? { storage: config.storage } : {}),
+    ...(config.scheduler ? { scheduler: config.scheduler } : {}),
     ...accountCollections,
   };
 
@@ -153,8 +171,14 @@ export async function saveCliConfig(paths: CliPaths, config: CliConfigV1): Promi
   await writeFile(paths.configFile, `${JSON.stringify(serializable, null, 2)}\n`, "utf8");
 }
 
+export const SCHEDULER_SECRET_REF = "scheduler-token";
+
 export function collectSecretRefs(config: CliConfigV1): string[] {
   const refs = new Set<string>();
+
+  if (config.scheduler) {
+    refs.add(SCHEDULER_SECRET_REF);
+  }
 
   for (const platform of getAccountPlatformValues()) {
     for (const account of config[platform].accounts) {

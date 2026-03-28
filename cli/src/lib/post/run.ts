@@ -5,6 +5,14 @@ import { CredentialResolver, hasLegacyXEnvCredentials } from "../credentials.js"
 import { createSecretStore } from "../secrets.js";
 import { collectPostInput } from "./input.js";
 import { getAccountPlatformValues } from "../account/platforms.js";
+import {
+  getSchedulerContextFromConfig,
+  fetchSchedulerApi,
+  fetchRemoteAccounts,
+  type SchedulerContext,
+  type RemotePostResponse,
+} from "../scheduler/client.js";
+import { remoteAccountsToAppRecords } from "../account/store.js";
 
 import type { SecretStore } from "../secrets.js";
 import type { PromptSession } from "../ux/prompt.js";
@@ -176,6 +184,50 @@ async function buildExecutionTargets(options: {
   return { store, targets };
 }
 
+async function postViaScheduler(
+  ctx: SchedulerContext,
+  post: Post,
+  appAccountIds: string[],
+): Promise<ExecutionOutcome[]> {
+  const body: Record<string, unknown> = {
+    message: post.content.text ?? "",
+    accountIds: appAccountIds,
+    postingMode: "now",
+  };
+
+  if (post.content.media && post.content.media.length > 0) {
+    body.media = post.content.media
+      .filter((m) => "url" in m && m.url)
+      .map((m) => ({
+        url: (m as { url: string }).url,
+        type: m.type,
+        filename: (m as { url: string }).url.split("/").pop() || m.type,
+        size: 0,
+      }));
+  }
+
+  const response = await fetchSchedulerApi<RemotePostResponse>(ctx, "/api/v1/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.postingResults) {
+    return [];
+  }
+
+  return response.postingResults.map((result) => ({
+    accountAlias: result.accountId,
+    platform: result.platform as Platform,
+    result: {
+      error: result.success ? PostErrorType.NO_ERROR : PostErrorType.OTHER,
+      id: result.postId,
+      message: result.success ? undefined : (result.message || result.error || "Unknown error"),
+      url: result.postUrl,
+    },
+  }));
+}
+
 export async function runPostWorkflow(options: {
   config: Config;
   flags: PostFlagValues;
@@ -184,56 +236,112 @@ export async function runPostWorkflow(options: {
 }): Promise<void> {
   const paths = getCliPaths(options.config.configDir);
   const cliConfig = await loadCliConfig(paths);
-  const postInput = await collectPostInput(options.flags, options.prompt, {
-    accounts: getAccountPlatformValues().flatMap((platform) =>
-      cliConfig[platform].accounts.map((account) => ({
-        alias: account.alias,
-        displayName: account.displayName,
-        platform,
-        userId: account.userId,
-        username: account.username,
-      })),
-    ),
-  });
 
-  if (
-    postInput.post.platforms.includes("x") &&
-    (postInput.accountSelections.x?.length ?? 0) === 0 &&
-    !hasExplicitXCredentials(postInput.post) &&
-    !hasLegacyXEnvCredentials()
-  ) {
-    throw new Error('Posting to X requires either --account x:<alias> or legacy X_* environment credentials.');
+  // Build the account list: local + app accounts
+  interface AccountEntry {
+    alias: string;
+    appAccountId?: string;
+    displayName?: string;
+    platform: (typeof getAccountPlatformValues extends () => (infer T)[] ? T : never);
+    source: "local" | "app";
+    userId?: string;
+    username?: string;
   }
 
-  const executionPlan = await buildExecutionTargets({
-    cliConfig,
-    paths,
-    post: postInput.post,
-    prompt: options.prompt,
-    selections: postInput.accountSelections,
+  const localAccounts: AccountEntry[] = getAccountPlatformValues().flatMap((platform) =>
+    cliConfig[platform].accounts.map((account) => ({
+      alias: account.alias,
+      displayName: account.displayName,
+      platform,
+      source: "local" as const,
+      userId: account.userId,
+      username: account.username,
+    })),
+  );
+
+  let schedulerCtx: SchedulerContext | undefined;
+  let appAccounts: AccountEntry[] = [];
+
+  if (cliConfig.scheduler) {
+    try {
+      schedulerCtx = await getSchedulerContextFromConfig(cliConfig, paths, options.prompt);
+      const remoteAccounts = await fetchRemoteAccounts(schedulerCtx);
+      appAccounts = remoteAccountsToAppRecords(remoteAccounts).map((record) => ({
+        alias: record.displayName || record.username || record.appAccountId,
+        appAccountId: record.appAccountId,
+        displayName: record.displayName ?? undefined,
+        platform: record.platform,
+        source: "app" as const,
+        username: record.username ?? undefined,
+      }));
+    } catch {
+      // Silently continue without app accounts if scheduler is unreachable
+    }
+  }
+
+  const allAccounts = [...localAccounts, ...appAccounts];
+
+  const postInput = await collectPostInput(options.flags, options.prompt, {
+    accounts: allAccounts,
   });
 
-  if (executionPlan.targets.length === 0) {
+  const hasLocalSelections = Object.values(postInput.accountSelections).some(
+    (aliases) => (aliases?.length ?? 0) > 0,
+  );
+  const hasAppSelections = postInput.appAccountIds.length > 0;
+
+  if (!hasLocalSelections && !hasAppSelections) {
     throw new Error("No posting targets were selected.");
   }
 
   const outcomes: ExecutionOutcome[] = [];
-  for (const target of executionPlan.targets) {
-    const results = await publishPost(target.post);
-    const result = results.get(target.platform);
-    if (!result) {
-      throw new Error(`The SDK did not return a result for ${getPlatformLabel(target.platform)}.`);
+
+  // Handle local account posting
+  if (hasLocalSelections) {
+    if (
+      postInput.post.platforms.includes("x") &&
+      (postInput.accountSelections.x?.length ?? 0) === 0 &&
+      !hasExplicitXCredentials(postInput.post) &&
+      !hasLegacyXEnvCredentials()
+    ) {
+      throw new Error('Posting to X requires either --account x:<alias> or legacy X_* environment credentials.');
     }
 
-    outcomes.push({
-      accountAlias: target.accountAlias,
-      platform: target.platform,
-      result,
+    const executionPlan = await buildExecutionTargets({
+      cliConfig,
+      paths,
+      post: postInput.post,
+      prompt: options.prompt,
+      selections: postInput.accountSelections,
     });
 
-    if (executionPlan.store && target.secretRef) {
-      await persistRefreshedStoredCredentials(executionPlan.store, target.secretRef, result);
+    for (const target of executionPlan.targets) {
+      const results = await publishPost(target.post);
+      const result = results.get(target.platform);
+      if (!result) {
+        throw new Error(`The SDK did not return a result for ${getPlatformLabel(target.platform)}.`);
+      }
+
+      outcomes.push({
+        accountAlias: target.accountAlias,
+        platform: target.platform,
+        result,
+      });
+
+      if (executionPlan.store && target.secretRef) {
+        await persistRefreshedStoredCredentials(executionPlan.store, target.secretRef, result);
+      }
     }
+  }
+
+  // Handle app account posting via scheduler
+  if (hasAppSelections && schedulerCtx) {
+    const appOutcomes = await postViaScheduler(schedulerCtx, postInput.post, postInput.appAccountIds);
+    outcomes.push(...appOutcomes);
+  }
+
+  if (outcomes.length === 0) {
+    throw new Error("No posting targets were selected.");
   }
 
   options.writeOutput(formatPostSummary(outcomes));

@@ -23,6 +23,7 @@ model User {
   connectedAccounts      ConnectedAccount[] // For social media posting
   posts                  Post[]
   PendingOAuthConnection PendingOAuthConnection[]
+  cliTokens              CliToken[]
 
   @@unique([email])
   @@map("user")
@@ -152,6 +153,20 @@ model Post {
   @@index([userId, status])
   @@index([userId, scheduledFor])
   @@map("post")
+}
+
+// CLI tokens for authenticating the CLI with the scheduler API
+model CliToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique // SHA-256 hash of the bearer token
+  name       String    @default("CLI")
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("cli_token")
 }
 
 // Media files stored in Cloudflare R2

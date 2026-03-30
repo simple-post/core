@@ -73,31 +73,42 @@ export async function createAuthorizationCode(params: {
   return code;
 }
 
-/** Exchange an authorization code for an access token. Returns the raw token or null. */
+export type TokenExchangeError =
+  | "code_not_found"
+  | "client_mismatch"
+  | "redirect_uri_mismatch"
+  | "code_expired"
+  | "pkce_failed";
+
+export type TokenExchangeResult =
+  | { ok: true; accessToken: string; expiresIn: number }
+  | { ok: false; error: TokenExchangeError };
+
+/** Exchange an authorization code for an access token. */
 export async function exchangeCodeForToken(params: {
   code: string;
   clientId: string;
   redirectUri: string;
   codeVerifier: string;
-}): Promise<{ accessToken: string; expiresIn: number } | null> {
+}): Promise<TokenExchangeResult> {
   const codeHash = hashValue(params.code);
 
   const authCode = await prisma.mcpAuthorizationCode.findUnique({
     where: { codeHash },
   });
 
-  if (!authCode) return null;
+  if (!authCode) return { ok: false, error: "code_not_found" };
 
   // Delete the code immediately (single-use)
   await prisma.mcpAuthorizationCode.delete({ where: { id: authCode.id } });
 
   // Validate
-  if (authCode.clientId !== params.clientId) return null;
-  if (authCode.redirectUri !== params.redirectUri) return null;
-  if (authCode.expiresAt < new Date()) return null;
+  if (authCode.clientId !== params.clientId) return { ok: false, error: "client_mismatch" };
+  if (authCode.redirectUri !== params.redirectUri) return { ok: false, error: "redirect_uri_mismatch" };
+  if (authCode.expiresAt < new Date()) return { ok: false, error: "code_expired" };
 
   // Verify PKCE
-  if (!verifyPkceS256(params.codeVerifier, authCode.codeChallenge)) return null;
+  if (!verifyPkceS256(params.codeVerifier, authCode.codeChallenge)) return { ok: false, error: "pkce_failed" };
 
   // Issue access token
   const accessToken = generateAccessToken();
@@ -114,7 +125,7 @@ export async function exchangeCodeForToken(params: {
     },
   });
 
-  return { accessToken, expiresIn };
+  return { ok: true, accessToken, expiresIn };
 }
 
 /** Authenticate an MCP access token. Returns user info or null. */

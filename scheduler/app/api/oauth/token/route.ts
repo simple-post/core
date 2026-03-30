@@ -3,6 +3,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForToken, hashValue } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 
+const ERROR_DESCRIPTIONS: Record<string, string> = {
+  code_not_found: "Authorization code not found or already used",
+  client_mismatch: "Client ID does not match the authorization code",
+  redirect_uri_mismatch: "Redirect URI does not match the authorization code",
+  code_expired: "Authorization code has expired",
+  pkce_failed: "PKCE code_verifier validation failed",
+};
+
 /**
  * POST /oauth/token — Token endpoint.
  * Exchanges an authorization code + PKCE verifier for an access token.
@@ -29,8 +37,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (!code || !client_id || !redirect_uri || !code_verifier) {
+      const missing = [
+        !code && "code",
+        !client_id && "client_id",
+        !redirect_uri && "redirect_uri",
+        !code_verifier && "code_verifier",
+      ].filter(Boolean);
       return NextResponse.json(
-        { error: "invalid_request", error_description: "Missing required parameters" },
+        { error: "invalid_request", error_description: `Missing required parameters: ${missing.join(", ")}` },
         { status: 400 },
       );
     }
@@ -71,9 +85,10 @@ export async function POST(req: NextRequest) {
       codeVerifier: code_verifier,
     });
 
-    if (!result) {
+    if (!result.ok) {
+      console.error("Token exchange failed:", result.error, { client_id, redirect_uri });
       return NextResponse.json(
-        { error: "invalid_grant", error_description: "Invalid or expired authorization code" },
+        { error: "invalid_grant", error_description: ERROR_DESCRIPTIONS[result.error] || result.error },
         { status: 400 },
       );
     }
@@ -84,9 +99,10 @@ export async function POST(req: NextRequest) {
       expires_in: result.expiresIn,
     });
   } catch (error) {
-    console.error("Token endpoint error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Token endpoint error:", message, error);
     return NextResponse.json(
-      { error: "server_error", error_description: "Internal server error" },
+      { error: "server_error", error_description: `Token exchange failed: ${message}` },
       { status: 500 },
     );
   }

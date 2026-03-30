@@ -24,6 +24,7 @@ model User {
   posts                  Post[]
   PendingOAuthConnection PendingOAuthConnection[]
   cliTokens              CliToken[]
+  mcpAccessTokens        McpAccessToken[]
 
   @@unique([email])
   @@map("user")
@@ -183,4 +184,56 @@ model MediaFile {
 
   @@index([postId])
   @@map("media_file")
+}
+
+// MCP OAuth clients (registered via Dynamic Client Registration)
+model McpOAuthClient {
+  id           String   @id @default(cuid())
+  clientId     String   @unique
+  clientSecret String? // Hashed; null for public clients
+  name         String
+  redirectUris String[] // Allowed redirect URIs
+  scope        String?
+  createdAt    DateTime @default(now())
+
+  accessTokens       McpAccessToken[]
+  authorizationCodes McpAuthorizationCode[]
+
+  @@map("mcp_oauth_client")
+}
+
+// Temporary authorization codes for OAuth flow
+model McpAuthorizationCode {
+  id                  String         @id @default(cuid())
+  codeHash            String         @unique
+  clientId            String
+  client              McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId              String
+  redirectUri         String
+  codeChallenge       String // PKCE S256
+  codeChallengeMethod String         @default("S256")
+  scope               String?
+  expiresAt           DateTime
+  createdAt           DateTime       @default(now())
+
+  @@index([expiresAt])
+  @@map("mcp_authorization_code")
+}
+
+// MCP access tokens issued via OAuth
+model McpAccessToken {
+  id         String         @id @default(cuid())
+  tokenHash  String         @unique
+  clientId   String
+  client     McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope      String?
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("mcp_access_token")
 }

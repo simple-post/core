@@ -2,14 +2,44 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const PROTECTED_API_PREFIXES = ["/api/v1/", "/api/connect/"];
 
+const MCP_CORS_PREFIXES = ["/mcp", "/.well-known/oauth-", "/api/oauth/"];
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Mcp-Session-Id",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+  "Access-Control-Max-Age": "86400",
+};
+
+function isMcpCorsRoute(pathname: string): boolean {
+  return MCP_CORS_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
 /**
- * Next.js middleware for CSRF/origin validation on state-changing API requests.
- * Verifies that the Origin header matches the app URL for POST/PATCH/PUT/DELETE requests.
+ * Next.js middleware for:
+ * 1. CSRF/origin validation on state-changing API requests
+ * 2. CORS headers for MCP/OAuth endpoints
  */
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Only apply CSRF checks to protected API routes
+  // Handle CORS for MCP-related routes
+  if (isMcpCorsRoute(pathname)) {
+    // Preflight
+    if (req.method === "OPTIONS") {
+      return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    // Actual request — add CORS headers to the response
+    const response = NextResponse.next();
+    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+      response.headers.set(key, value);
+    }
+    return response;
+  }
+
+  // CSRF checks for protected API routes
   const isProtectedApi = PROTECTED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   if (!isProtectedApi) {
     return NextResponse.next();
@@ -34,5 +64,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/v1/:path*", "/api/connect/:path*"],
+  matcher: ["/api/v1/:path*", "/api/connect/:path*", "/mcp", "/.well-known/:path*", "/api/oauth/:path*"],
 };

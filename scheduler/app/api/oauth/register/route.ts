@@ -65,9 +65,10 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    console.error("Client registration error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Client registration error:", message, error);
     return NextResponse.json(
-      { error: "server_error", error_description: "Failed to register client" },
+      { error: "server_error", error_description: `Registration failed: ${message}` },
       { status: 500 },
     );
   }

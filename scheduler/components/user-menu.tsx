@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+import Link from "next/link";
+import { Cpu } from "lucide-react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -55,6 +58,13 @@ export function UserMenu() {
             {session.user.email && <p className="text-xs text-muted-foreground">{session.user.email}</p>}
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/integrations" className="flex items-center gap-2">
+            <Cpu className="h-4 w-4" />
+            AI Integrations
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={isLoading}>
           {isLoading ? "Signing out..." : "Sign out"}

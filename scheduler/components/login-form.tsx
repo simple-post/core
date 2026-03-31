@@ -11,7 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/auth-client";
 
-export function LoginForm() {
+interface LoginFormProps {
+  callbackURL?: string;
+}
+
+export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -25,7 +29,7 @@ export function LoginForm() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/",
+        callbackURL,
       });
     } catch (error_) {
       console.error("Google sign-in error:", error_);
@@ -50,7 +54,7 @@ export function LoginForm() {
     try {
       await authClient.signIn.magicLink({
         email,
-        callbackURL: "/",
+        callbackURL,
       });
       setSuccess("Magic link sent! Check your email to sign in.");
       setEmail("");

@@ -2,19 +2,27 @@ import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
+import { mcpMediaItemSchema, toMediaFiles } from "./posts";
+
 export const validatePostSchema = z.object({
   message: z.string().describe("The post text content"),
   accountIds: z
     .array(z.string())
     .min(1)
     .describe("IDs of connected accounts to validate against. Use list_accounts to get available IDs."),
+  media: z
+    .array(mcpMediaItemSchema)
+    .optional()
+    .describe(
+      "Optional images/videos to validate alongside the text. Each item needs a public URL (user-provided or returned by upload_media).",
+    ),
 });
 
 export async function validatePost(userId: string, input: z.infer<typeof validatePostSchema>) {
   const result = await validatePostForAccounts({
     userId,
     message: input.message,
-    media: [],
+    media: toMediaFiles(input.media),
     accountIds: input.accountIds,
   });
 

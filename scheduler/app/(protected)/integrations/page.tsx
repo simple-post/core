@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Check, Copy, Terminal, Cpu, ExternalLink } from "lucide-react";
+import { Bot, Check, Copy, Terminal, Cpu } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
@@ -65,8 +65,7 @@ export default function IntegrationsPage() {
                 href="https://modelcontextprotocol.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-foreground underline underline-offset-4 hover:text-primary"
-              >
+                className="text-foreground underline underline-offset-4 hover:text-primary">
                 Model Context Protocol (MCP)
               </a>{" "}
               server that AI assistants can connect to. Once connected, the AI can:
@@ -77,8 +76,32 @@ export default function IntegrationsPage() {
               <li>Create and schedule posts across all your platforms</li>
             </ul>
             <p>
-              Authentication uses OAuth — when you connect for the first time, your browser will open to
-              approve access. No API keys or tokens to manage manually.
+              Authentication uses OAuth — when you connect for the first time, your browser will open to approve access.
+              No API keys or tokens to manage manually.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Claude Code */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              ChatGPT
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              For private testing, open ChatGPT and go to{" "}
+              <span className="font-medium text-foreground">
+                Settings &rarr; Apps &amp; Connectors &rarr; Advanced settings
+              </span>
+              , enable developer mode, then create an app with this connector URL:
+            </p>
+            <CodeBlock>{`${MCP_URL}/mcp`}</CodeBlock>
+            <p className="text-sm text-muted-foreground">
+              ChatGPT will open SimplePost in your browser for OAuth approval. After connecting, select SimplePost from
+              ChatGPT&apos;s composer tools menu before asking it to validate, publish, or schedule posts.
             </p>
           </CardContent>
         </Card>
@@ -97,8 +120,8 @@ export default function IntegrationsPage() {
             </p>
             <CodeBlock>{`claude mcp add simplepost ${MCP_URL}/mcp`}</CodeBlock>
             <p className="text-sm text-muted-foreground">
-              Claude Code will open your browser to authenticate. After approving, you can ask Claude to
-              create posts for you.
+              Claude Code will open your browser to authenticate. After approving, you can ask Claude to create posts
+              for you.
             </p>
           </CardContent>
         </Card>
@@ -113,9 +136,8 @@ export default function IntegrationsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              In Claude Desktop, go to{" "}
-              <span className="font-medium text-foreground">Settings &rarr; Connectors</span> and add a new
-              remote MCP server with this URL:
+              In Claude Desktop, go to <span className="font-medium text-foreground">Settings &rarr; Connectors</span>{" "}
+              and add a new remote MCP server with this URL:
             </p>
             <CodeBlock>{`${MCP_URL}/mcp`}</CodeBlock>
             <p className="text-sm text-muted-foreground">
@@ -138,8 +160,8 @@ export default function IntegrationsPage() {
             </p>
             <CodeBlock>{`${MCP_URL}/mcp`}</CodeBlock>
             <p className="text-sm text-muted-foreground">
-              Refer to your client&apos;s documentation for how to add a remote MCP server. The OAuth flow
-              will handle authentication automatically.
+              Refer to your client&apos;s documentation for how to add a remote MCP server. The OAuth flow will handle
+              authentication automatically.
             </p>
           </CardContent>
         </Card>
@@ -160,15 +182,21 @@ export default function IntegrationsPage() {
               <div>
                 <p className="font-medium text-sm text-foreground">validate_post</p>
                 <p className="text-sm text-muted-foreground">
-                  Checks your post content against platform rules (character limits, media requirements, etc.)
-                  before publishing.
+                  Checks your post content against platform rules (character limits, media requirements, etc.) before
+                  publishing.
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-sm text-foreground">preview_post</p>
+                <p className="text-sm text-muted-foreground">
+                  Shows targets, timing, and validation status before creating or publishing anything.
                 </p>
               </div>
               <div>
                 <p className="font-medium text-sm text-foreground">create_post</p>
                 <p className="text-sm text-muted-foreground">
-                  Creates a post — publish immediately or schedule for a specific time. Posts to any
-                  combination of your connected accounts.
+                  Creates a post — publish immediately or schedule for a specific time. Posts to any combination of your
+                  connected accounts.
                 </p>
               </div>
             </div>

@@ -21,7 +21,7 @@ export default function TermsPage() {
             </Button>
           </Link>
           <h1 className="text-4xl font-bold text-foreground mb-2">Terms and Conditions</h1>
-          <p className="text-muted-foreground">Last updated: October 6, 2025</p>
+          <p className="text-muted-foreground">Last updated: April 26, 2026</p>
         </div>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8 text-foreground">
@@ -38,7 +38,8 @@ export default function TermsPage() {
             <p className="text-muted-foreground leading-relaxed">
               Simple Post Scheduler is a social media scheduling platform that allows users to create, schedule, and
               publish content across multiple social media platforms. The Service provides tools for managing social
-              media accounts and scheduling posts in advance.
+              media accounts and scheduling posts in advance, including optional integrations with authorized Model
+              Context Protocol clients such as ChatGPT.
             </p>
           </section>
 
@@ -66,7 +67,17 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">5. Acceptable Use</h2>
+            <h2 className="text-2xl font-semibold mb-4">5. AI and MCP Client Integrations</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              If you authorize ChatGPT or another MCP client to access SimplePost, that client may ask SimplePost to
+              list connected accounts, validate draft content, preview a post, or create and schedule posts. Publishing
+              or scheduling through an MCP client is still your responsibility. Review tool-call details before
+              approving any action that creates or publishes content.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">6. Acceptable Use</h2>
             <p className="text-muted-foreground leading-relaxed mb-3">You agree not to use the Service to:</p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>
@@ -81,7 +92,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">6. Content Ownership and Rights</h2>
+            <h2 className="text-2xl font-semibold mb-4">7. Content Ownership and Rights</h2>
             <p className="text-muted-foreground leading-relaxed">
               You retain all rights to the content you create and upload to the Service. By using the Service, you grant
               us a limited license to store, process, and transmit your content solely for the purpose of providing the
@@ -90,7 +101,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">7. Service Availability</h2>
+            <h2 className="text-2xl font-semibold mb-4">8. Service Availability</h2>
             <p className="text-muted-foreground leading-relaxed">
               While we strive to provide reliable service, we do not guarantee that the Service will be available at all
               times. The Service may be subject to interruptions, delays, or failures due to maintenance, updates, or
@@ -99,7 +110,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">8. Third-Party Services</h2>
+            <h2 className="text-2xl font-semibold mb-4">9. Third-Party Services</h2>
             <p className="text-muted-foreground leading-relaxed">
               The Service integrates with third-party social media platforms. Your use of these platforms is subject to
               their respective terms of service and privacy policies. We are not responsible for the actions, content,
@@ -108,7 +119,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">9. Termination</h2>
+            <h2 className="text-2xl font-semibold mb-4">10. Termination</h2>
             <p className="text-muted-foreground leading-relaxed">
               We reserve the right to suspend or terminate your account and access to the Service at our sole
               discretion, without notice, for conduct that we believe violates these Terms or is harmful to other users,
@@ -117,7 +128,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">10. Disclaimer of Warranties</h2>
+            <h2 className="text-2xl font-semibold mb-4">11. Disclaimer of Warranties</h2>
             <p className="text-muted-foreground leading-relaxed">
               THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
               IMPLIED. WE DISCLAIM ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY,
@@ -126,7 +137,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">11. Limitation of Liability</h2>
+            <h2 className="text-2xl font-semibold mb-4">12. Limitation of Liability</h2>
             <p className="text-muted-foreground leading-relaxed">
               TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
               CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR
@@ -135,7 +146,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">12. Changes to Terms</h2>
+            <h2 className="text-2xl font-semibold mb-4">13. Changes to Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
               We reserve the right to modify these Terms at any time. We will notify users of any material changes by
               updating the "Last updated" date at the top of this page. Your continued use of the Service after such
@@ -144,7 +155,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">13. Contact Information</h2>
+            <h2 className="text-2xl font-semibold mb-4">14. Contact Information</h2>
             <p className="text-muted-foreground leading-relaxed">
               If you have any questions about these Terms, please contact us through the appropriate channels provided
               in the application.

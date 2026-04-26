@@ -21,7 +21,7 @@ export default function PrivacyPage() {
             </Button>
           </Link>
           <h1 className="text-4xl font-bold text-foreground mb-2">Privacy Policy</h1>
-          <p className="text-muted-foreground">Last updated: October 6, 2025</p>
+          <p className="text-muted-foreground">Last updated: April 26, 2026</p>
         </div>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8 text-foreground">
@@ -45,6 +45,9 @@ export default function PrivacyPage() {
               <li>Account information (email address, name)</li>
               <li>Social media account credentials and access tokens</li>
               <li>Content you create, upload, or schedule (text, images, videos)</li>
+              <li>
+                Draft post text, target account IDs, scheduling mode, and scheduled times submitted through MCP clients
+              </li>
               <li>Communications with us</li>
             </ul>
 
@@ -64,6 +67,14 @@ export default function PrivacyPage() {
               When you connect your social media accounts, we receive information from those platforms in accordance
               with their authorization procedures, including profile information and posting permissions.
             </p>
+
+            <h3 className="text-xl font-semibold mb-3 mt-6">2.4 Information from AI and MCP Clients</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              If you authorize ChatGPT or another Model Context Protocol client to use SimplePost, that client may send
+              tool requests containing draft post text, selected SimplePost account IDs, posting mode, and scheduled
+              time. SimplePost may return connected account metadata, validation results, previews, and posting results
+              to the authorized client. We do not return social platform access tokens or credentials through MCP tools.
+            </p>
           </section>
 
           <section>
@@ -72,6 +83,7 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>Provide, maintain, and improve the Service</li>
               <li>Schedule and publish your content to connected social media platforms</li>
+              <li>Operate authorized MCP integrations such as the SimplePost ChatGPT app</li>
               <li>Send you technical notices, updates, and support messages</li>
               <li>Respond to your comments and questions</li>
               <li>Monitor and analyze trends, usage, and activities</li>
@@ -97,13 +109,20 @@ export default function PrivacyPage() {
               as hosting, data storage, security, and analytics.
             </p>
 
-            <h3 className="text-xl font-semibold mb-3 mt-6">4.3 For Legal Purposes</h3>
+            <h3 className="text-xl font-semibold mb-3 mt-6">4.3 With Authorized MCP Clients</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              When you authorize an MCP client such as ChatGPT, we share tool responses with that client so it can show
+              connected accounts, validation results, post previews, and publishing or scheduling results. You can
+              revoke the connection from the client&apos;s app or connector settings.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-3 mt-6">4.4 For Legal Purposes</h3>
             <p className="text-muted-foreground leading-relaxed">
               We may disclose your information if required by law or in response to valid legal requests, such as court
               orders or subpoenas.
             </p>
 
-            <h3 className="text-xl font-semibold mb-3 mt-6">4.4 Business Transfers</h3>
+            <h3 className="text-xl font-semibold mb-3 mt-6">4.5 Business Transfers</h3>
             <p className="text-muted-foreground leading-relaxed">
               If we are involved in a merger, acquisition, or sale of assets, your information may be transferred as
               part of that transaction.
@@ -147,7 +166,8 @@ export default function PrivacyPage() {
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-4">
               To exercise these rights, please contact us through the application. You can also disconnect your social
-              media accounts and delete your account at any time through the settings.
+              media accounts, disconnect authorized MCP clients from their app or connector settings, and delete your
+              account at any time through the settings.
             </p>
           </section>
 

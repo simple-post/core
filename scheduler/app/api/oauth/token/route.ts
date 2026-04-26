@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { resolveMcpResource } from "@/lib/mcp/config";
 import { exchangeCodeForToken, hashValue } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,9 +8,27 @@ const ERROR_DESCRIPTIONS: Record<string, string> = {
   code_not_found: "Authorization code not found or already used",
   client_mismatch: "Client ID does not match the authorization code",
   redirect_uri_mismatch: "Redirect URI does not match the authorization code",
+  resource_mismatch: "Resource does not match the authorization code",
   code_expired: "Authorization code has expired",
   pkce_failed: "PKCE code_verifier validation failed",
 };
+
+function parseBasicAuth(authHeader: string | null): { clientId: string; clientSecret: string } | null {
+  if (!authHeader?.startsWith("Basic ")) return null;
+
+  try {
+    const decoded = Buffer.from(authHeader.slice("Basic ".length), "base64").toString("utf8");
+    const separatorIndex = decoded.indexOf(":");
+    if (separatorIndex === -1) return null;
+
+    return {
+      clientId: decoded.slice(0, separatorIndex),
+      clientSecret: decoded.slice(separatorIndex + 1),
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * POST /oauth/token — Token endpoint.
@@ -27,7 +46,14 @@ export async function POST(req: NextRequest) {
       params = await req.json();
     }
 
-    const { grant_type, code, client_id, client_secret, redirect_uri, code_verifier } = params;
+    const basicAuth = parseBasicAuth(req.headers.get("authorization"));
+    const grant_type = params.grant_type;
+    const code = params.code;
+    const client_id = params.client_id || basicAuth?.clientId;
+    const client_secret = params.client_secret || basicAuth?.clientSecret;
+    const redirect_uri = params.redirect_uri;
+    const code_verifier = params.code_verifier;
+    const resource = params.resource;
 
     if (grant_type !== "authorization_code") {
       return NextResponse.json(
@@ -49,16 +75,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let resolvedResource: string;
+    try {
+      resolvedResource = resolveMcpResource(resource);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: "invalid_target",
+          error_description: error instanceof Error ? error.message : "Unsupported MCP resource",
+        },
+        { status: 400 },
+      );
+    }
+
     // Validate client exists
     const client = await prisma.mcpOAuthClient.findUnique({
       where: { clientId: client_id },
     });
 
     if (!client) {
-      return NextResponse.json(
-        { error: "invalid_client", error_description: "Unknown client" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "invalid_client", error_description: "Unknown client" }, { status: 401 });
     }
 
     // If client has a secret, verify it
@@ -82,6 +118,7 @@ export async function POST(req: NextRequest) {
       code,
       clientId: client_id,
       redirectUri: redirect_uri,
+      resource: resolvedResource,
       codeVerifier: code_verifier,
     });
 
@@ -97,6 +134,7 @@ export async function POST(req: NextRequest) {
       access_token: result.accessToken,
       token_type: "Bearer",
       expires_in: result.expiresIn,
+      scope: result.scope,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Check, Settings } from "lucide-react";
 
 import { AccountAvatar } from "@/components/account-avatar";
-import { PlatformIcon } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
@@ -164,11 +163,7 @@ export function AccountSelector({
                   className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
                   {isSelected && <Check className="absolute top-1.5 left-1.5 h-3 w-3" />}
                   <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <AccountAvatar
-                      profilePicture={account.profilePicture}
-                      platform={platformConfig.id}
-                      size="sm"
-                    />
+                    <AccountAvatar profilePicture={account.profilePicture} platform={platformConfig.id} size="sm" />
                     <div className="text-[10px] font-medium leading-tight line-clamp-2 w-full break-all px-0.5">
                       {getAccountDisplayName(account)}
                     </div>
@@ -188,7 +183,6 @@ export function AccountSelector({
             );
           })}
         </div>
-
       </div>
     );
   }

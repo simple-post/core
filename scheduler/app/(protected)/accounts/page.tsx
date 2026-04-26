@@ -166,11 +166,7 @@ export default function AccountsPage() {
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <AccountAvatar
-                          profilePicture={account.profilePicture}
-                          platform={platformConfig.id}
-                          size="lg"
-                        />
+                        <AccountAvatar profilePicture={account.profilePicture} platform={platformConfig.id} size="lg" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-lg">{getAccountDisplayName(account)}</h3>

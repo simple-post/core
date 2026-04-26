@@ -134,10 +134,7 @@ export async function exchangeCodeForBlueskyToken(
   });
 
   if (!response.ok) {
-    authLogger.error(
-      { platform: "bluesky", status: response.status },
-      "Token exchange failed after nonce retry",
-    );
+    authLogger.error({ platform: "bluesky", status: response.status }, "Token exchange failed after nonce retry");
     throw new Error(`Failed to exchange code for token: ${response.statusText}`);
   }
 

@@ -6,10 +6,7 @@ import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-typ
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 
 export const uploadMediaSchema = z.object({
-  filename: z
-    .string()
-    .min(1)
-    .describe("Original filename including extension, e.g. 'photo.jpg' or 'clip.mp4'."),
+  filename: z.string().min(1).describe("Original filename including extension, e.g. 'photo.jpg' or 'clip.mp4'."),
   mimeType: z
     .string()
     .min(1)
@@ -21,12 +18,19 @@ export const uploadMediaSchema = z.object({
 
 export type UploadMediaInput = z.infer<typeof uploadMediaSchema>;
 
+export const uploadMediaOutputSchema = z.object({
+  kind: z.literal("media_upload"),
+  type: z.enum(["image", "video"]),
+  url: z.string().url(),
+  filename: z.string(),
+  size: z.number(),
+  mimeType: z.string(),
+});
+
 export async function uploadMedia(userId: string, input: UploadMediaInput) {
   const resolvedType = normalizeContentType(input.mimeType, input.filename);
   if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
-    throw new Error(
-      `Unsupported media type: ${input.mimeType}. Allowed: ${[...ALLOWED_MEDIA_TYPES].join(", ")}`,
-    );
+    throw new Error(`Unsupported media type: ${input.mimeType}. Allowed: ${[...ALLOWED_MEDIA_TYPES].join(", ")}`);
   }
 
   let buffer: Buffer;
@@ -47,6 +51,7 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
   const url = await uploadFromBuffer(buffer, key, resolvedType);
 
   return {
+    kind: "media_upload" as const,
     type: resolvedType.startsWith("video/") ? ("video" as const) : ("image" as const),
     url,
     filename: input.filename,

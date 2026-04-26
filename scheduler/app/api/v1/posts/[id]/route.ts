@@ -62,8 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new ValidationError(validation);
     }
 
-    // Capture old media URLs before update for R2 cleanup
-    const oldMediaUrls = new Set(currentPost.media.map((m) => m.url));
+    // Capture removed media before update for R2 cleanup
     const newMediaUrls = new Set(finalMedia.map((m) => m.url));
     const removedMedia = currentPost.media.filter((m) => !newMediaUrls.has(m.url));
 

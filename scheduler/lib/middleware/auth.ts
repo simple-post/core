@@ -36,10 +36,12 @@ async function authenticateCliToken(req: NextRequest) {
   }
 
   // Update lastUsedAt (fire-and-forget)
-  prisma.cliToken.update({
-    where: { id: cliToken.id },
-    data: { lastUsedAt: new Date() },
-  }).catch(() => {});
+  prisma.cliToken
+    .update({
+      where: { id: cliToken.id },
+      data: { lastUsedAt: new Date() },
+    })
+    .catch(() => {});
 
   return {
     user: {

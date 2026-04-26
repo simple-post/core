@@ -37,7 +37,10 @@ const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
   };
 };
 
-const publishers: Record<string, { getValidationRules: () => PlatformValidationRules; validate: (content: Content) => ValidationResult }> = {
+const publishers: Record<
+  string,
+  { getValidationRules: () => PlatformValidationRules; validate: (content: Content) => ValidationResult }
+> = {
   x: XPublisher,
   facebook: FacebookPublisher,
   instagram: InstagramPublisher,

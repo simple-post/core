@@ -1,7 +1,8 @@
 "use client";
 
+import { Suspense, useState } from "react";
+
 import { useSearchParams } from "next/navigation";
-import { useState, Suspense } from "react";
 
 import { LoginForm } from "@/components/login-form";
 import { Button } from "@/components/ui/button";
@@ -71,8 +72,8 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
       const { redirectUrl } = await res.json();
       setAuthorized(true);
       window.location.href = redirectUrl;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to authorize");
+    } catch (error_) {
+      setError(error_ instanceof Error ? error_.message : "Failed to authorize");
       setIsLoading(false);
     }
   };
@@ -126,9 +127,18 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
               <p className="font-medium text-foreground">{session.user.name || "User"}</p>
               {session.user.email && <p className="text-sm text-muted-foreground">{session.user.email}</p>}
             </div>
-            <p className="text-sm text-muted-foreground pt-2">
-              This app will be able to view your connected accounts and create posts on your behalf.
-            </p>
+            <div className="text-left text-sm text-muted-foreground pt-2 space-y-2">
+              <p>This app will be able to:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>View connected social accounts</li>
+                <li>Validate draft post text against platform rules</li>
+                <li>Create or schedule posts after you approve the tool call</li>
+              </ul>
+              <p>
+                Publishing now can create public content on selected platforms. Review the tool-call details before
+                approving.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3">

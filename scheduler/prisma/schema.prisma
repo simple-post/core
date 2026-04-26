@@ -89,11 +89,11 @@ model ConnectedAccount {
   platformAccountId String // The user's ID on that platform
 
   // OAuth tokens for API access
-  accessToken  String
-  refreshToken String?
-  tokenType    String?   @default("Bearer")
-  expiresAt    DateTime?
-  scope        String?
+  accessToken   String
+  refreshToken  String?
+  tokenType     String?   @default("Bearer")
+  expiresAt     DateTime?
+  scope         String?
   tokenMetadata Json?
 
   // Account profile information
@@ -210,6 +210,7 @@ model McpAuthorizationCode {
   client              McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
   userId              String
   redirectUri         String
+  resource            String?
   codeChallenge       String // PKCE S256
   codeChallengeMethod String         @default("S256")
   scope               String?
@@ -229,6 +230,7 @@ model McpAccessToken {
   userId     String
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   scope      String?
+  resource   String?
   expiresAt  DateTime
   lastUsedAt DateTime?
   createdAt  DateTime       @default(now())

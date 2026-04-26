@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isMcpScopeSubset, resolveMcpResource, validateMcpScope } from "@/lib/mcp/config";
 import { createAuthorizationCode, validateClient } from "@/lib/mcp/oauth";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth(req);
     const body = await req.json();
 
-    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope } = body;
+    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource } = body;
 
     if (!client_id || !redirect_uri || !state || !code_challenge) {
       return NextResponse.json(
@@ -38,14 +39,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let resolvedResource: string;
+    try {
+      resolvedResource = resolveMcpResource(resource);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: "invalid_target",
+          error_description: error instanceof Error ? error.message : "Unsupported MCP resource",
+        },
+        { status: 400 },
+      );
+    }
+
+    const scopeResult = validateMcpScope(typeof scope === "string" ? scope : client.scope);
+    if (!scopeResult.ok) {
+      return NextResponse.json(
+        { error: "invalid_scope", error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}` },
+        { status: 400 },
+      );
+    }
+    if (!isMcpScopeSubset(scopeResult.scope, client.scope)) {
+      return NextResponse.json(
+        { error: "invalid_scope", error_description: "Requested scopes exceed registered client scopes" },
+        { status: 400 },
+      );
+    }
+
     // Generate authorization code
     const code = await createAuthorizationCode({
       clientId: client_id,
       userId: session.user.id,
       redirectUri: redirect_uri,
+      resource: resolvedResource,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method || "S256",
-      scope,
+      scope: scopeResult.scope,
     });
 
     // Build redirect URL with code and state

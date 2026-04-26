@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 
+import { DEFAULT_MCP_SCOPE, getMcpResourceUrl, parseMcpScopes, resolveMcpResource } from "./config";
+
 const TOKEN_PREFIX = "sp_mcp_";
 const CODE_BYTES = 32;
 const TOKEN_BYTES = 32;
@@ -33,10 +35,7 @@ export function generateClientSecret(): string {
 
 /** Verify PKCE S256 challenge: base64url(sha256(verifier)) === challenge. */
 export function verifyPkceS256(codeVerifier: string, codeChallenge: string): boolean {
-  const computed = crypto
-    .createHash("sha256")
-    .update(codeVerifier)
-    .digest("base64url");
+  const computed = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
   return computed === codeChallenge;
 }
 
@@ -50,12 +49,14 @@ export async function createAuthorizationCode(params: {
   clientId: string;
   userId: string;
   redirectUri: string;
+  resource?: string;
   codeChallenge: string;
   codeChallengeMethod: string;
   scope?: string;
 }): Promise<string> {
   const code = generateAuthorizationCode();
   const codeHash = hashValue(code);
+  const resource = resolveMcpResource(params.resource);
 
   await prisma.mcpAuthorizationCode.create({
     data: {
@@ -63,9 +64,10 @@ export async function createAuthorizationCode(params: {
       clientId: params.clientId,
       userId: params.userId,
       redirectUri: params.redirectUri,
+      resource,
       codeChallenge: params.codeChallenge,
       codeChallengeMethod: params.codeChallengeMethod,
-      scope: params.scope,
+      scope: params.scope ?? DEFAULT_MCP_SCOPE,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
     },
   });
@@ -77,11 +79,12 @@ export type TokenExchangeError =
   | "code_not_found"
   | "client_mismatch"
   | "redirect_uri_mismatch"
+  | "resource_mismatch"
   | "code_expired"
   | "pkce_failed";
 
 export type TokenExchangeResult =
-  | { ok: true; accessToken: string; expiresIn: number }
+  | { ok: true; accessToken: string; expiresIn: number; scope: string }
   | { ok: false; error: TokenExchangeError };
 
 /** Exchange an authorization code for an access token. */
@@ -89,9 +92,11 @@ export async function exchangeCodeForToken(params: {
   code: string;
   clientId: string;
   redirectUri: string;
+  resource?: string;
   codeVerifier: string;
 }): Promise<TokenExchangeResult> {
   const codeHash = hashValue(params.code);
+  const resource = resolveMcpResource(params.resource);
 
   const authCode = await prisma.mcpAuthorizationCode.findUnique({
     where: { codeHash },
@@ -105,6 +110,7 @@ export async function exchangeCodeForToken(params: {
   // Validate
   if (authCode.clientId !== params.clientId) return { ok: false, error: "client_mismatch" };
   if (authCode.redirectUri !== params.redirectUri) return { ok: false, error: "redirect_uri_mismatch" };
+  if ((authCode.resource ?? getMcpResourceUrl()) !== resource) return { ok: false, error: "resource_mismatch" };
   if (authCode.expiresAt < new Date()) return { ok: false, error: "code_expired" };
 
   // Verify PKCE
@@ -120,16 +126,17 @@ export async function exchangeCodeForToken(params: {
       tokenHash,
       clientId: authCode.clientId,
       userId: authCode.userId,
-      scope: authCode.scope,
+      scope: authCode.scope ?? DEFAULT_MCP_SCOPE,
+      resource,
       expiresAt: new Date(Date.now() + expiresIn * 1000),
     },
   });
 
-  return { ok: true, accessToken, expiresIn };
+  return { ok: true, accessToken, expiresIn, scope: authCode.scope ?? DEFAULT_MCP_SCOPE };
 }
 
 /** Authenticate an MCP access token. Returns user info or null. */
-export async function authenticateMcpToken(token: string) {
+export async function authenticateMcpToken(token: string, resource = getMcpResourceUrl()) {
   if (!isMcpToken(token)) return null;
 
   const tokenHash = hashValue(token);
@@ -141,6 +148,7 @@ export async function authenticateMcpToken(token: string) {
 
   if (!mcpToken) return null;
   if (mcpToken.expiresAt < new Date()) return null;
+  if (mcpToken.resource && mcpToken.resource !== resource) return null;
 
   // Update lastUsedAt (fire-and-forget)
   prisma.mcpAccessToken
@@ -160,6 +168,9 @@ export async function authenticateMcpToken(token: string) {
     session: {
       id: mcpToken.id,
       token: "mcp",
+      scope: mcpToken.scope ?? DEFAULT_MCP_SCOPE,
+      scopes: parseMcpScopes(mcpToken.scope),
+      resource: mcpToken.resource ?? getMcpResourceUrl(),
       expiresAt: mcpToken.expiresAt,
     },
   };
@@ -170,22 +181,24 @@ export async function registerClient(params: {
   name: string;
   redirectUris: string[];
   scope?: string;
-}): Promise<{ clientId: string; clientSecret: string }> {
+  tokenEndpointAuthMethod?: "client_secret_post" | "none";
+}): Promise<{ clientId: string; clientSecret?: string; tokenEndpointAuthMethod: "client_secret_post" | "none" }> {
   const clientId = generateClientId();
-  const clientSecret = generateClientSecret();
-  const clientSecretHash = hashValue(clientSecret);
+  const tokenEndpointAuthMethod = params.tokenEndpointAuthMethod ?? "client_secret_post";
+  const clientSecret = tokenEndpointAuthMethod === "client_secret_post" ? generateClientSecret() : undefined;
+  const clientSecretHash = clientSecret ? hashValue(clientSecret) : undefined;
 
   await prisma.mcpOAuthClient.create({
     data: {
       clientId,
-      clientSecret: clientSecretHash,
+      clientSecret: clientSecretHash ?? null,
       name: params.name,
       redirectUris: params.redirectUris,
-      scope: params.scope,
+      scope: params.scope ?? DEFAULT_MCP_SCOPE,
     },
   });
 
-  return { clientId, clientSecret };
+  return { clientId, clientSecret, tokenEndpointAuthMethod };
 }
 
 /** Validate a client exists and the redirect URI is allowed. */

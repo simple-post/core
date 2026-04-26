@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isAllowedMcpRedirectUri, validateMcpScope } from "@/lib/mcp/config";
 import { registerClient } from "@/lib/mcp/oauth";
 
 /**
@@ -10,10 +11,21 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const clientName = body.client_name;
-    if (!clientName || typeof clientName !== "string") {
+    const clientName =
+      typeof body.client_name === "string" && body.client_name.trim()
+        ? body.client_name.trim()
+        : typeof body.software_id === "string" && body.software_id.trim()
+          ? body.software_id.trim()
+          : "MCP Client";
+
+    const tokenEndpointAuthMethod =
+      body.token_endpoint_auth_method === "none" ? "none" : body.token_endpoint_auth_method || "client_secret_post";
+    if (tokenEndpointAuthMethod !== "client_secret_post" && tokenEndpointAuthMethod !== "none") {
       return NextResponse.json(
-        { error: "invalid_client_metadata", error_description: "client_name is required" },
+        {
+          error: "invalid_client_metadata",
+          error_description: "token_endpoint_auth_method must be client_secret_post or none",
+        },
         { status: 400 },
       );
     }
@@ -41,26 +53,45 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
+      if (!isAllowedMcpRedirectUri(uri)) {
+        return NextResponse.json(
+          {
+            error: "invalid_client_metadata",
+            error_description: `Redirect URI must use HTTPS, or localhost HTTP outside production: ${uri}`,
+          },
+          { status: 400 },
+        );
+      }
     }
 
-    const scope = typeof body.scope === "string" ? body.scope : undefined;
+    const scopeResult = validateMcpScope(typeof body.scope === "string" ? body.scope : undefined);
+    if (!scopeResult.ok) {
+      return NextResponse.json(
+        {
+          error: "invalid_client_metadata",
+          error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}`,
+        },
+        { status: 400 },
+      );
+    }
 
     const { clientId, clientSecret } = await registerClient({
       name: clientName,
       redirectUris,
-      scope,
+      scope: scopeResult.scope,
+      tokenEndpointAuthMethod,
     });
 
     return NextResponse.json(
       {
         client_id: clientId,
-        client_secret: clientSecret,
+        ...(clientSecret ? { client_secret: clientSecret } : {}),
         client_name: clientName,
         redirect_uris: redirectUris,
         grant_types: ["authorization_code"],
         response_types: ["code"],
-        token_endpoint_auth_method: "client_secret_post",
-        scope,
+        token_endpoint_auth_method: tokenEndpointAuthMethod,
+        scope: scopeResult.scope,
       },
       { status: 201 },
     );

@@ -12,7 +12,6 @@ import { PostsList } from "@/components/posts-list";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-
 type TabType = "scheduled" | "past" | "failed";
 
 export default function Dashboard() {

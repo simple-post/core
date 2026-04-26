@@ -5,9 +5,7 @@ import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 
-async function exchangeForLongLivedToken(
-  shortLivedToken: string,
-): Promise<{ accessToken: string; expiresIn: number }> {
+async function exchangeForLongLivedToken(shortLivedToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   const config = getPlatformOAuthConfig("instagram")!;
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");

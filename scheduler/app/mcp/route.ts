@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
-import { registerTools } from "@/lib/mcp/server";
+import { registerTools, SERVER_INSTRUCTIONS } from "@/lib/mcp/server";
 import { env } from "@/lib/env";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
@@ -44,10 +44,15 @@ function unauthorizedResponse(): Response {
  * Creates a fresh server + transport per request (stateless mode).
  */
 async function handleMcpRequest(req: Request, userId: string): Promise<Response> {
-  const server = new McpServer({
-    name: "SimplePost",
-    version: "1.0.0",
-  });
+  const server = new McpServer(
+    {
+      name: "SimplePost",
+      version: "1.0.0",
+    },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+    },
+  );
   registerTools(server, userId);
 
   const transport = new WebStandardStreamableHTTPServerTransport({

@@ -2,6 +2,8 @@ import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { Writable } from "node:stream";
 import { createInterface } from "node:readline/promises";
 
+import { createColors, type Colors } from "./colors.js";
+
 interface PromptOptions {
   defaultValue?: string;
   required?: boolean;
@@ -38,8 +40,13 @@ class SilentWritable extends Writable {
   }
 }
 
+const BANNER = `
+  SimplePost
+`;
+
 export class PromptSession {
   public readonly interactive: boolean;
+  private readonly colors: Colors;
   private readonly input: NodeJS.ReadableStream & { isTTY?: boolean };
   private readonly output: NodeJS.WritableStream & { columns?: number; isTTY?: boolean };
 
@@ -50,6 +57,12 @@ export class PromptSession {
     this.input = (options?.input ?? defaultInput) as NodeJS.ReadableStream & { isTTY?: boolean };
     this.output = (options?.output ?? defaultOutput) as NodeJS.WritableStream & { columns?: number; isTTY?: boolean };
     this.interactive = Boolean(this.input.isTTY && this.output.isTTY);
+    this.colors = createColors(this.output.isTTY);
+  }
+
+  public printBanner(): void {
+    if (!this.interactive) return;
+    this.log(this.colors.lime(this.colors.bold(BANNER)));
   }
 
   public log(message: string): void {
@@ -61,7 +74,7 @@ export class PromptSession {
 
     while (true) {
       const suffix = options?.defaultValue ? ` [${options.defaultValue}]` : "";
-      const answer = (await this.question(`${message}${suffix}: `)).trim();
+      const answer = (await this.question(`${this.colors.lime(message)}${suffix}: `)).trim();
       if (answer) {
         return answer;
       }
@@ -82,7 +95,7 @@ export class PromptSession {
     this.assertInteractive(message);
 
     while (true) {
-      const value = (await this.hiddenQuestion(`${message}: `)).trim();
+      const value = (await this.hiddenQuestion(`${this.colors.lime(message)}: `)).trim();
       if (!value) {
         this.log("A value is required.");
         continue;
@@ -106,7 +119,7 @@ export class PromptSession {
 
     const hint = defaultValue ? "[Y/n]" : "[y/N]";
     while (true) {
-      const answer = (await this.question(`${message} ${hint}: `)).trim().toLowerCase();
+      const answer = (await this.question(`${this.colors.lime(message)} ${hint}: `)).trim().toLowerCase();
       if (!answer) {
         return defaultValue;
       }
@@ -128,7 +141,7 @@ export class PromptSession {
     const defaultIndex =
       defaultValue === undefined ? undefined : options.findIndex((option) => option.value === defaultValue) + 1;
 
-    this.log(message);
+    this.log(this.colors.lime(message));
     this.log("");
 
     if (defaultIndex && defaultIndex > 0) {
@@ -174,7 +187,7 @@ export class PromptSession {
       .map((option, index) => (defaultValues.includes(option.value) ? index + 1 : undefined))
       .filter((value): value is number => value !== undefined);
 
-    this.log(message);
+    this.log(this.colors.lime(message));
     this.log("");
     this.log("Choose one or more options by number or value. Separate multiple choices with commas.");
     if ((settings?.minSelections ?? 0) === 0) {
@@ -258,7 +271,7 @@ export class PromptSession {
       }
 
       const selectedLabel = settings?.selectedValues?.has(option.value) ? " (selected)" : "";
-      this.log(`  [${index + 1}] ${option.label}${selectedLabel}`);
+      this.log(`  ${this.colors.lime(`[${index + 1}]`)} ${option.label}${selectedLabel}`);
       if (option.description) {
         this.logWrapped(option.description, "      ");
       }

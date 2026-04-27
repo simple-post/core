@@ -1,4 +1,5 @@
 import { getAccountPlatformConfig, getAccountPlatformValues, isAccountPlatform } from "./platforms.js";
+import { stdoutColors } from "../ux/colors.js";
 
 import type { AccountPlatform } from "./platforms.js";
 import type { CliConfigV1, StoredAccount } from "../types.js";
@@ -29,8 +30,26 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString();
 }
 
-function renderRow(row: string[], widths: number[]): string {
-  return row.map((cell, index) => cell.padEnd(widths[index])).join("  ").trimEnd();
+function renderRow(row: string[], widths: number[], rawWidths?: number[]): string {
+  // rawWidths lets us pad by visual width when cells contain ANSI codes
+  const w = rawWidths ?? widths;
+  return row.map((cell, index) => cell + " ".repeat(Math.max(0, w[index] - widths[index]))).join("  ").trimEnd();
+}
+
+function renderTable(header: string[], rows: string[][]): string {
+  const c = stdoutColors;
+  const allRows = [header, ...rows];
+  const widths = header.map((_, col) => Math.max(...allRows.map((row) => (row[col] ?? "").length)));
+  const separator = widths.map((w) => "─".repeat(w));
+
+  const styledHeader = header.map((cell) => c.bold(c.lime(cell)));
+  const styledSeparator = separator.map((s) => c.dim(s));
+
+  return [
+    renderRow(styledHeader, widths),
+    renderRow(styledSeparator, widths),
+    ...rows.map((row) => renderRow(row, widths)),
+  ].join("\n");
 }
 
 function formatHandle(account: Pick<StoredAccountRecord, "username"> | AppAccountRecord): string {
@@ -97,35 +116,36 @@ function getAccountPlatformValuesForMessage(): string {
   return getAccountPlatformValues().join(", ");
 }
 
-export function renderUnifiedAccounts(accounts: UnifiedAccountRecord[], options?: { includePlatform?: boolean; showSource?: boolean }): string {
-  const includePlatform = options?.includePlatform ?? true;
-  const showSource = options?.showSource ?? false;
+const COL_SERVICE_MIN = 16;
+const COL_ACCOUNT_MIN = 28;
+
+export function renderUnifiedAccounts(accounts: UnifiedAccountRecord[]): string {
+  const c = stdoutColors;
 
   const rows = accounts.map((account) => {
-    const platformName = getAccountPlatformConfig(account.platform).displayName;
-    const handle = formatHandle(account);
-    const source = account.source === "app" ? "app" : "local";
-
-    if (isAppAccount(account)) {
-      const name = account.displayName || "-";
-      const baseRow = includePlatform
-        ? [platformName, name, handle]
-        : [name, handle];
-      return showSource ? [...baseRow, source] : baseRow;
-    }
-
-    const baseRow = includePlatform
-      ? [platformName, account.alias, handle]
-      : [account.alias, handle];
-    return showSource ? [...baseRow, source] : baseRow;
+    const service = getAccountPlatformConfig(account.platform).displayName;
+    const accountLabel = isAppAccount(account)
+      ? (account.username ? `@${account.username}` : (account.displayName ?? "-"))
+      : (account.username ? `@${account.username}` : account.alias);
+    return [service, accountLabel] as const;
   });
 
-  const baseHeader = includePlatform ? ["Platform", "Name", "Handle"] : ["Name", "Handle"];
-  const header = showSource ? [...baseHeader, "Source"] : baseHeader;
-  const allRows = [header, ...rows];
-  const widths = allRows[0].map((_, columnIndex) => Math.max(...allRows.map((row) => row[columnIndex].length)));
+  const col1 = Math.max(COL_SERVICE_MIN, "Service".length, ...rows.map(([s]) => s.length));
+  const col2 = Math.max(COL_ACCOUNT_MIN, "Account".length, ...rows.map(([, a]) => a.length));
 
-  return allRows.map((row) => renderRow(row, widths)).join("\n");
+  // Pad using raw (uncolored) length so ANSI codes don't skew alignment
+  function cell(raw: string, styled: string, width: number): string {
+    return styled + " ".repeat(Math.max(0, width - raw.length));
+  }
+
+  const sep1 = "─".repeat(col1);
+  const sep2 = "─".repeat(col2);
+
+  return [
+    cell("Service", c.bold(c.lime("Service")), col1) + "  " + c.bold(c.lime("Account")),
+    cell(sep1, c.dim(sep1), col1) + "  " + c.dim(sep2),
+    ...rows.map(([service, account]) => cell(service, c.lime(service), col1) + "  " + account),
+  ].join("\n");
 }
 
 export function renderStoredAccounts(accounts: StoredAccountRecord[], options?: { includePlatform?: boolean }): string {
@@ -142,11 +162,11 @@ export function renderStoredAccounts(accounts: StoredAccountRecord[], options?: 
       : [account.alias, formatHandle(account), account.userId, formatDate(account.updatedAt)],
   );
 
-  const header = includePlatform ? ["Platform", "Alias", "Handle", "User ID", "Updated"] : ["Alias", "Handle", "User ID", "Updated"];
-  const allRows = [header, ...rows];
-  const widths = allRows[0].map((_, columnIndex) => Math.max(...allRows.map((row) => row[columnIndex].length)));
+  const header = includePlatform
+    ? ["Platform", "Alias", "Handle", "User ID", "Updated"]
+    : ["Alias", "Handle", "User ID", "Updated"];
 
-  return allRows.map((row) => renderRow(row, widths)).join("\n");
+  return renderTable(header, rows);
 }
 
 export function findStoredAccount(config: CliConfigV1, selector: string): StoredAccountRecord {

@@ -70,7 +70,6 @@ export default class AccountCommand extends Command {
       return;
     }
 
-    const showSource = hasScheduler && localAccounts.length > 0;
-    this.log(renderUnifiedAccounts(allAccounts, { includePlatform: !platform, showSource }));
+    this.log(renderUnifiedAccounts(allAccounts));
   }
 }

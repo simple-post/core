@@ -1,5 +1,6 @@
 import { PostErrorType, post as publishPost } from "@simple-post/sdk";
 
+import { stdoutColors } from "../ux/colors.js";
 import { loadCliConfig, getCliPaths } from "../config.js";
 import { CredentialResolver, hasLegacyXEnvCredentials } from "../credentials.js";
 import { createSecretStore } from "../secrets.js";
@@ -78,15 +79,16 @@ function formatTargetLabel(target: { accountAlias?: string; platform: Platform }
 }
 
 function formatPostSummary(results: ExecutionOutcome[]): string {
+  const c = stdoutColors;
   const successes = results.filter((entry) => entry.result.error === PostErrorType.NO_ERROR);
   const failures = results.filter((entry) => entry.result.error !== PostErrorType.NO_ERROR);
-  const lines = ["Post summary", ""];
+  const lines = [c.bold("Post summary"), ""];
 
   if (successes.length > 0) {
-    lines.push(`Succeeded (${successes.length})`);
+    lines.push(c.lime(`Succeeded (${successes.length})`));
     for (const entry of successes) {
       const idPart = entry.result.id ? ` (id: ${entry.result.id})` : "";
-      lines.push(`- ${formatTargetLabel(entry)}: posted successfully${idPart}`);
+      lines.push(`  ${c.lime("✓")} ${formatTargetLabel(entry)}: posted successfully${idPart}`);
     }
   }
 
@@ -95,15 +97,15 @@ function formatPostSummary(results: ExecutionOutcome[]): string {
       lines.push("");
     }
 
-    lines.push(`Failed (${failures.length})`);
+    lines.push(c.red(`Failed (${failures.length})`));
     for (const entry of failures) {
       const message = entry.result.message ? ` - ${entry.result.message}` : "";
-      lines.push(`- ${formatTargetLabel(entry)}: ${entry.result.error}${message}`);
+      lines.push(`  ${c.red("✗")} ${formatTargetLabel(entry)}: ${entry.result.error}${message}`);
     }
   }
 
   if (failures.length === 0) {
-    lines.push("All selected targets posted successfully.");
+    lines.push(c.lime("All selected targets posted successfully."));
   }
 
   return lines.join("\n");
@@ -234,6 +236,10 @@ export async function runPostWorkflow(options: {
   prompt: PromptSession;
   writeOutput: (message: string) => void;
 }): Promise<void> {
+  if (options.flags.interactive) {
+    options.prompt.printBanner();
+  }
+
   const paths = getCliPaths(options.config.configDir);
   const cliConfig = await loadCliConfig(paths);
 

@@ -12,7 +12,7 @@ const shouldRewriteLegacyPost =
   !argv.some((token) => topLevelCommands.has(token));
 
 if (shouldRewriteLegacyPost) {
-  process.stderr.write('Warning: compatibility mode enabled. Prefer "simple-post post ...".\n');
+  process.stderr.write('Warning: compatibility mode enabled. Prefer "simplepost post ...".\n');
   argv.unshift("post");
 }
 

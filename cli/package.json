@@ -10,7 +10,7 @@
     "package.json"
   ],
   "bin": {
-    "simple-post": "./bin/run.js"
+    "simplepost": "./bin/run.js"
   },
   "scripts": {
     "clean": "rm -rf dist oclif.manifest.json",
@@ -21,8 +21,8 @@
     "prepack": "yarn build"
   },
   "oclif": {
-    "bin": "simple-post",
-    "dirname": "simple-post",
+    "bin": "simplepost",
+    "dirname": "simplepost",
     "topicSeparator": " ",
     "flexibleTaxonomy": true,
     "topics": {
@@ -34,6 +34,20 @@
     "commands": {
       "strategy": "pattern",
       "target": "./dist/cli/src/commands"
+    },
+    "theme": {
+      "bin": "#c6f432",
+      "command": "#c6f432",
+      "commandSummary": "#b8b8b8",
+      "dollarSign": "#555555",
+      "flag": "#c6f432",
+      "flagDefaultValue": "#555555",
+      "flagOptions": "#858585",
+      "flagSeparator": "#555555",
+      "sectionDescription": "#b8b8b8",
+      "sectionHeader": "bold",
+      "topic": "#c6f432",
+      "version": "#555555"
     }
   },
   "dependencies": {

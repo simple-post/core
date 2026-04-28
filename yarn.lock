@@ -4760,7 +4760,7 @@ __metadata:
     keytar:
       optional: true
   bin:
-    simple-post: ./bin/run.js
+    simplepost: ./bin/run.js
   languageName: unknown
   linkType: soft
 

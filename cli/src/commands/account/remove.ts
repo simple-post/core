@@ -41,14 +41,14 @@ export default class AccountRemoveCommand extends Command {
 
     const selector = args.account ?? (prompt.interactive ? await chooseAccount(prompt, config) : undefined);
     if (!selector) {
-      this.log('No accounts are connected yet. Run "simple-post account add" first.');
+      this.log('No accounts are connected yet. Run "simplepost account add" first.');
       return;
     }
 
     const account = findStoredAccount(config, selector);
 
     if (!config.storage) {
-      throw new Error('Secret storage is not configured. Run "simple-post setup" first.');
+      throw new Error('Secret storage is not configured. Run "simplepost setup" first.');
     }
 
     const store = createSecretStore(paths, config.storage, prompt);

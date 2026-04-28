@@ -55,33 +55,39 @@ export default function Dashboard() {
               </Button>
             </Link>
             <Link href="/schedule">
-              <Button size="sm" className="gap-2 shadow-sm">
+              <Button size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Post</span>
+                <span className="hidden sm:inline">Create post</span>
               </Button>
             </Link>
           </>
         }
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Your Posts</h2>
-          <p className="text-muted-foreground">Manage your scheduled, published, and failed posts</p>
+      <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+        <div className="mb-6 flex items-center gap-3 animate-reveal">
+          <div className="section-kicker !mb-0">
+            <span className="section-kicker-dot" />
+            <span className="section-kicker-label">Dashboard</span>
+          </div>
+          <span className="h-3 w-px bg-border" />
+          <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
+            Your <span className="text-primary">posts</span>
+          </h1>
         </div>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full animate-reveal animate-reveal-delay-1">
           <TabsList className="mb-6">
             <TabsTrigger value="scheduled" className="gap-2">
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-3.5 w-3.5" />
               Scheduled
             </TabsTrigger>
             <TabsTrigger value="past" className="gap-2">
-              <CheckCircle className="h-4 w-4" />
+              <CheckCircle className="h-3.5 w-3.5" />
               Posted
             </TabsTrigger>
             <TabsTrigger value="failed" className="gap-2">
-              <AlertCircle className="h-4 w-4" />
+              <AlertCircle className="h-3.5 w-3.5" />
               Failed
             </TabsTrigger>
           </TabsList>

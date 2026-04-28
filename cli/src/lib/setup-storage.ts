@@ -50,7 +50,7 @@ async function resolveTargetStorage(options: {
   let backend = options.backend;
   if (!backend) {
     if (!options.prompt.interactive) {
-      throw new Error('Storage backend is not configured. Run "simple-post setup --backend <backend>" first.');
+      throw new Error('Storage backend is not configured. Run "simplepost setup --backend <backend>" first.');
     }
 
     backend = await chooseBackend(options.prompt, options.current?.backend);

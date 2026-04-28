@@ -67,7 +67,7 @@ export function AccountSelector({
         </div>
         <div className="grid gap-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="p-3 rounded border border-border/50 animate-pulse">
+            <div key={i} className="p-3 rounded border border-border animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-muted rounded-lg" />
                 <div className="flex-1 space-y-2">
@@ -89,10 +89,10 @@ export function AccountSelector({
           <h3 className="text-sm font-medium">{title}</h3>
           {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
         </div>
-        <div className="p-6 border-2 border-dashed border-border/50 rounded-lg text-center">
+        <div className="p-6 border border-dashed border-border rounded-xl bg-card text-center">
           <p className="text-sm text-muted-foreground mb-3">No accounts connected yet</p>
           <Button variant="outline" size="sm" asChild>
-            <a href="/accounts">Connect Accounts</a>
+            <a href="/accounts">Connect accounts</a>
           </Button>
         </div>
       </div>
@@ -148,10 +148,10 @@ export function AccountSelector({
             const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
             const cardClass = `relative shrink-0 w-20 h-20 rounded-lg border transition-colors ${
               isSelected
-                ? "border-foreground bg-foreground/5"
+                ? "border-primary/50 bg-primary/5"
                 : isDisabled
-                  ? "border-border/50 bg-muted/50 opacity-50"
-                  : "border-border/50 hover:border-border"
+                  ? "border-border bg-secondary/40 opacity-50"
+                  : "border-border hover:border-border/80 hover:bg-secondary/40"
             }`;
 
             return (
@@ -228,8 +228,8 @@ export function AccountSelector({
           return (
             <div key={platform} className="space-y-2">
               <div className="flex items-center gap-2 px-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${platformConfig.color}`} />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className={`w-1.5 h-1.5 rounded-[1px] ${platformConfig.color}`} />
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                   {platformConfig.name}
                 </span>
               </div>
@@ -241,10 +241,10 @@ export function AccountSelector({
                     const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
                     const cardClass = `relative aspect-square rounded-lg border transition-colors ${
                       isSelected
-                        ? "border-foreground bg-foreground/5"
+                        ? "border-primary/50 bg-primary/5"
                         : isDisabled
-                          ? "border-border/50 bg-muted/50 opacity-50"
-                          : "border-border/50 hover:border-border"
+                          ? "border-border bg-secondary/40 opacity-50"
+                          : "border-border hover:border-border/80 hover:bg-secondary/40"
                     }`;
 
                     return (
@@ -287,10 +287,10 @@ export function AccountSelector({
                     const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
                     const containerClass = `p-3 rounded border transition-colors text-sm flex items-center gap-3 ${
                       isSelected
-                        ? "border-foreground bg-foreground/5"
+                        ? "border-primary/50 bg-primary/5"
                         : isDisabled
-                          ? "border-border/50 bg-muted/50 opacity-50"
-                          : "border-border/50 hover:border-border"
+                          ? "border-border bg-secondary/40 opacity-50"
+                          : "border-border hover:border-border/80 hover:bg-secondary/40"
                     }`;
 
                     return (
@@ -331,8 +331,10 @@ export function AccountSelector({
 
       {/* Selection Summary */}
       {selectedAccountIds.length > 0 && (
-        <div className="p-3 bg-muted/50 rounded text-sm">
-          <p className="text-muted-foreground mb-1">Publishing to:</p>
+        <div className="p-3 rounded-lg border border-border bg-card text-sm">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+            Publishing to
+          </p>
           <div className="text-foreground">
             {selectedAccountIds.map((accountId, index) => {
               const account = accounts.find((a: ConnectedAccount) => a.id === accountId);

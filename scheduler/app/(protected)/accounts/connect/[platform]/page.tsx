@@ -12,7 +12,6 @@ import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getPlatformById } from "@/lib/config";
 
@@ -119,9 +118,9 @@ export default function ConnectAccountPickerPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-6 py-8 space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3 animate-pulse" />
-          <div className="h-64 bg-muted rounded animate-pulse" />
+        <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12 space-y-4">
+          <div className="h-8 bg-secondary rounded w-1/3 animate-pulse" />
+          <div className="h-64 bg-secondary rounded animate-pulse" />
         </div>
       </div>
     );
@@ -131,7 +130,7 @@ export default function ConnectAccountPickerPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12 space-y-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Unable to continue</AlertTitle>
@@ -149,8 +148,7 @@ export default function ConnectAccountPickerPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-        <BackLink href="/accounts" label="Back to accounts" />
+      <main className="max-w-5xl mx-auto px-[clamp(18px,4vw,48px)] py-6 space-y-5">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -159,26 +157,38 @@ export default function ConnectAccountPickerPage() {
           </Alert>
         )}
 
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Available Accounts</h2>
-            <p className="text-sm text-muted-foreground">Choose the accounts you want to connect to SimplePost.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={selectAll} disabled={pending.accounts.length === 0}>
-              Select All
-            </Button>
-            <Button variant="outline" size="sm" onClick={clearAll} disabled={selectedIds.length === 0}>
-              Clear
-            </Button>
+        <div className="space-y-3">
+          <BackLink href="/accounts" label="Back to accounts" />
+          <div className="flex items-center gap-3">
+            <div className="section-kicker !mb-0">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">{platformConfig.name}</span>
+            </div>
+            <span className="h-3 w-px bg-border" />
+            <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
+              Available <span className="text-primary">accounts</span>
+            </h1>
           </div>
         </div>
 
-        <div className="grid gap-3">
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={selectAll} disabled={pending.accounts.length === 0}>
+            Select all
+          </Button>
+          <Button variant="outline" size="sm" onClick={clearAll} disabled={selectedIds.length === 0}>
+            Clear
+          </Button>
+        </div>
+
+        <div className="grid gap-2">
           {pending.accounts.map((account) => {
             const isSelected = selectedIds.includes(account.id);
             return (
-              <Card key={account.id} className="p-4 border-border/50">
+              <div
+                key={account.id}
+                className={`rounded-xl border bg-card p-4 transition-colors cursor-pointer ${
+                  isSelected ? "border-primary/40" : "border-border hover:border-border"
+                }`}>
                 <button
                   type="button"
                   onClick={() => toggleSelection(account.id)}
@@ -189,7 +199,7 @@ export default function ConnectAccountPickerPage() {
                     onClick={(event) => event.stopPropagation()}
                   />
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                    <div className="w-10 h-10 rounded-full bg-secondary border border-border flex items-center justify-center overflow-hidden">
                       {account.profilePicture ? (
                         <img src={account.profilePicture} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -199,12 +209,14 @@ export default function ConnectAccountPickerPage() {
                     <div>
                       <div className="font-medium text-sm">{account.name || account.username || account.id}</div>
                       {account.username && (
-                        <div className="text-xs text-muted-foreground">@{account.username.replace(/^@/, "")}</div>
+                        <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
+                          @{account.username.replace(/^@/, "")}
+                        </div>
                       )}
                     </div>
                   </div>
                 </button>
-              </Card>
+              </div>
             );
           })}
         </div>

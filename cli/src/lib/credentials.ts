@@ -237,7 +237,7 @@ export class CredentialResolver {
 
     const account = this.cliConfig[platform].accounts.find((candidate) => candidate.alias === alias);
     if (!account) {
-      throw new Error(`No stored ${getAccountPlatformConfig(platform).displayName} account named "${alias}" was found. Run "simple-post account ${platform}" to inspect accounts.`);
+      throw new Error(`No stored ${getAccountPlatformConfig(platform).displayName} account named "${alias}" was found. Run "simplepost account ${platform}" to inspect accounts.`);
     }
 
     const accountSecret = parseOAuthAccountSecret(await this.secretStore.read(account.secretRef), platform);

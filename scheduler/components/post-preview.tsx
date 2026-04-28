@@ -42,26 +42,32 @@ export function PostPreview({ message, media, selectedPlatforms }: PostPreviewPr
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 bg-muted rounded animate-pulse" />
-        <div className="h-64 bg-muted rounded animate-pulse" />
+        <div className="h-8 bg-secondary rounded animate-pulse" />
+        <div className="h-64 bg-secondary rounded animate-pulse" />
       </div>
     );
   }
 
   if (uniquePlatforms.length === 0) {
     return (
-      <div className="space-y-4">
-        <h3 className="text-sm font-medium text-muted-foreground">Preview</h3>
-        <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm">
-          Select accounts to see platform previews
+      <div className="space-y-3">
+        <div className="section-kicker">
+          <span className="section-kicker-dot" />
+          <span className="section-kicker-label">Preview</span>
+        </div>
+        <div className="border border-dashed border-border bg-card rounded-2xl p-8 text-center text-muted-foreground text-sm">
+          Select accounts to see platform previews.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-sm font-medium text-muted-foreground">Platform Previews</h3>
+    <div className="space-y-5">
+      <div className="section-kicker">
+        <span className="section-kicker-dot" />
+        <span className="section-kicker-label">Platform previews</span>
+      </div>
 
       {uniquePlatforms.map((platformId: string) => {
         const PlatformComponent = platformComponents[platformId];
@@ -71,9 +77,11 @@ export function PostPreview({ message, media, selectedPlatforms }: PostPreviewPr
 
         return (
           <div key={platformId} className="space-y-2">
-            <div className="flex items-center gap-2 px-1">
-              <div className={`w-2 h-2 rounded-full ${platformConfig.color}`} />
-              <span className="text-xs font-medium text-muted-foreground">{platformConfig.name}</span>
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-[1px] ${platformConfig.color}`} />
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                {platformConfig.name}
+              </span>
             </div>
             <PlatformComponent message={message} media={media} platform={platformId} />
           </div>

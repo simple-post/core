@@ -50,7 +50,7 @@ export default class AccountAddCommand extends Command {
     const platform = (args.platform as AccountPlatform | undefined) ?? (prompt.interactive ? await choosePlatform(prompt) : undefined);
 
     if (!platform) {
-      throw new Error('Platform is required in non-interactive mode. Run "simple-post account add <platform>".');
+      throw new Error('Platform is required in non-interactive mode. Run "simplepost account add <platform>".');
     }
 
     const paths = getCliPaths(this.config.configDir);
@@ -58,7 +58,7 @@ export default class AccountAddCommand extends Command {
 
     if (!config.storage) {
       if (!prompt.interactive) {
-        throw new Error('Secret storage is not configured. Run "simple-post setup --backend <backend>" first.');
+        throw new Error('Secret storage is not configured. Run "simplepost setup --backend <backend>" first.');
       }
 
       const setupResult = await configureStorage({

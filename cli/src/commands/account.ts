@@ -62,9 +62,9 @@ export default class AccountCommand extends Command {
 
     if (allAccounts.length === 0) {
       if (platform) {
-        this.log(`No ${getAccountPlatformConfig(platform).displayName} accounts are connected yet. Run "simple-post account add ${platform}" first.`);
+        this.log(`No ${getAccountPlatformConfig(platform).displayName} accounts are connected yet. Run "simplepost account add ${platform}" first.`);
       } else {
-        this.log('No accounts are connected yet. Run "simple-post account add" first.');
+        this.log('No accounts are connected yet. Run "simplepost account add" first.');
       }
 
       return;

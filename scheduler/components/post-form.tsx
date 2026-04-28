@@ -293,7 +293,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
               placeholder="What's on your mind?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="min-h-32 resize-none mt-2 border-border/50"
+              className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
             <div className="flex justify-between items-center mt-2">
@@ -401,7 +401,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
                   min={format(new Date(), "yyyy-MM-dd")}
-                  className="mt-1 border-border/50"
+                  className="mt-1"
                 />
               </div>
               <div>
@@ -413,13 +413,13 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                   type="time"
                   value={scheduledTime}
                   onChange={(e) => setScheduledTime(e.target.value)}
-                  className="mt-1 border-border/50"
+                  className="mt-1"
                 />
               </div>
             </div>
 
             {scheduledDate && scheduledTime && (
-              <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+              <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 text-sm text-muted-foreground">
                 Publishing on{" "}
                 <span className="font-medium text-foreground">
                   {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
@@ -463,7 +463,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       </form>
 
       {/* Preview */}
-      <div className="lg:sticky lg:top-8 self-start">
+      <div className="lg:sticky lg:top-24 self-start">
         <PostPreview
           message={message}
           media={media}

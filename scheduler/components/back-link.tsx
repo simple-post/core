@@ -11,8 +11,8 @@ export function BackLink({ href = "/", label = "Back to dashboard" }: BackLinkPr
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-      <ArrowLeft className="h-3.5 w-3.5" />
+      className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors">
+      <ArrowLeft className="h-3 w-3" />
       {label}
     </Link>
   );

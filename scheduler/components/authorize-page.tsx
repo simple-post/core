@@ -4,9 +4,10 @@ import { Suspense, useState } from "react";
 
 import { useSearchParams } from "next/navigation";
 
+import { Check } from "lucide-react";
+
 import { LoginForm } from "@/components/login-form";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSession } from "@/lib/auth/auth-client";
 
 interface AuthorizePageConfig {
@@ -31,8 +32,8 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
 
   if (isPending) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Loading…</div>
       </div>
     );
   }
@@ -44,16 +45,16 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
 
   if (!paramsValid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-border shadow-2xl bg-card">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl font-bold">Invalid Request</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-center">{config.invalidMessage}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthorizeLayout>
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-2xl">
+          <div className="section-kicker">
+            <span className="section-kicker-dot" />
+            <span className="section-kicker-label">Authorize</span>
+          </div>
+          <h2 className="text-2xl font-semibold tracking-[-0.025em] text-foreground mb-2">Invalid request</h2>
+          <p className="text-sm text-muted-foreground">{config.invalidMessage}</p>
+        </div>
+      </AuthorizeLayout>
     );
   }
 
@@ -85,84 +86,86 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   if (authorized) {
     return (
       <AuthorizeLayout>
-        <Card className="border-border shadow-2xl bg-card">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl font-bold">Connected!</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <div className="flex items-center justify-center">
-              <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <p className="text-muted-foreground">{config.successMessage}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-2xl text-center">
+          <div className="w-12 h-12 mx-auto rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mb-4">
+            <Check className="h-6 w-6 text-primary" />
+          </div>
+          <h2 className="text-2xl font-semibold tracking-[-0.025em] text-foreground mb-2">Connected</h2>
+          <p className="text-sm text-muted-foreground">{config.successMessage}</p>
+        </div>
       </AuthorizeLayout>
     );
   }
 
   return (
     <AuthorizeLayout>
-      <Card className="border-border shadow-2xl bg-card">
-        <CardHeader className="text-center pb-4">
-          <CardTitle className="text-2xl font-bold">{config.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg">
-              {error}
-            </div>
-          )}
+      <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-2xl">
+        <div className="section-kicker">
+          <span className="section-kicker-dot" />
+          <span className="section-kicker-label">Authorize</span>
+        </div>
+        <h2 className="text-2xl font-semibold tracking-[-0.025em] text-foreground mb-2">{config.title}</h2>
+        <p className="text-sm text-muted-foreground mb-6">{config.description}</p>
 
-          <div className="text-center space-y-2">
-            <p className="text-muted-foreground">{config.description}</p>
-            <div className="bg-muted/50 rounded-lg p-4 mt-4">
-              <p className="text-sm text-muted-foreground">Signed in as</p>
-              <p className="font-medium text-foreground">{session.user.name || "User"}</p>
-              {session.user.email && <p className="text-sm text-muted-foreground">{session.user.email}</p>}
-            </div>
-            <div className="text-left text-sm text-muted-foreground pt-2 space-y-2">
-              <p>This app will be able to:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>View connected social accounts</li>
-                <li>Validate draft post text against platform rules</li>
-                <li>Create or schedule posts after you approve the tool call</li>
-              </ul>
-              <p>
-                Publishing now can create public content on selected platforms. Review the tool-call details before
-                approving.
-              </p>
-            </div>
+        {error && (
+          <div className="p-3 mb-4 text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-lg">
+            {error}
           </div>
+        )}
 
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={handleCancel} disabled={isLoading} className="flex-1 h-11">
-              Cancel
-            </Button>
-            <Button onClick={handleApprove} disabled={isLoading} className="flex-1 h-11 font-medium shadow-sm">
-              {isLoading ? "Authorizing..." : "Approve"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="rounded-xl border border-border bg-secondary/40 p-4 mb-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1">
+            Signed in as
+          </p>
+          <p className="font-medium text-foreground text-sm">{session.user.name || "User"}</p>
+          {session.user.email && <p className="text-xs text-muted-foreground mt-0.5">{session.user.email}</p>}
+        </div>
+
+        <div className="space-y-3 mb-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            This app will be able to
+          </p>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            {[
+              "View connected social accounts",
+              "Validate draft post text against platform rules",
+              "Create or schedule posts after you approve the tool call",
+            ].map((item) => (
+              <li key={item} className="flex items-start gap-2.5">
+                <Check className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground pt-1">
+            Publishing now creates public content on the selected platforms. Review the tool-call details before
+            approving.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={handleCancel} disabled={isLoading} className="flex-1">
+            Cancel
+          </Button>
+          <Button onClick={handleApprove} disabled={isLoading} className="flex-1">
+            {isLoading ? "Authorizing…" : "Approve"}
+          </Button>
+        </div>
+      </div>
     </AuthorizeLayout>
   );
 }
 
 function AuthorizeLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-6 overflow-hidden">
+      <div className="absolute inset-0 bg-grid pointer-events-none" />
+      <div className="absolute inset-0 radial-glow pointer-events-none" />
+      <div className="relative w-full max-w-md animate-reveal">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-10 h-10 drop-shadow-2xl" />
-            <h1 className="text-3xl font-bold text-foreground">SimplePost</h1>
+          <div className="flex items-center justify-center gap-3">
+            <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-9 h-9 drop-shadow-2xl" />
+            <span className="font-mono text-base font-medium text-muted-foreground tracking-tight">SimplePost</span>
           </div>
         </div>
         {children}
@@ -175,8 +178,8 @@ export function AuthorizePage({ config }: { config: AuthorizePageConfig }) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-muted-foreground">Loading...</div>
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Loading…</div>
         </div>
       }>
       <AuthorizeContent config={config} />

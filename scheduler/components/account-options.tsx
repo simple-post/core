@@ -93,10 +93,13 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <Label className="text-sm font-medium">Account-Specific Options</Label>
-        <p className="text-xs text-muted-foreground mt-1">Configure additional settings for each account</p>
+        <div className="section-kicker">
+          <span className="section-kicker-dot" />
+          <span className="section-kicker-label">Per-account options</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Configure additional settings for each connected account.</p>
       </div>
 
       {selectedAccounts.map((account: ConnectedAccount) => {
@@ -106,11 +109,14 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
         const accountOptions = (options[account.id] ?? {}) as Record<string, unknown>;
 
         return (
-          <Card key={account.id} className="p-4 space-y-4 border-border/50">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${platformConfig.color} flex-shrink-0`} />
+          <Card key={account.id} className="p-5 space-y-4">
+            <div className="flex items-center gap-2 pb-1">
+              <div className={`w-1.5 h-1.5 rounded-[1px] ${platformConfig.color} flex-shrink-0`} />
               <h4 className="text-sm font-medium">
-                {getAccountDisplayName(account)} ({platformConfig.name})
+                {getAccountDisplayName(account)}{" "}
+                <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground ml-1">
+                  {platformConfig.name}
+                </span>
               </h4>
             </div>
 
@@ -125,7 +131,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   placeholder="Tweet ID to reply to"
                   value={asString(accountOptions.replyToId)}
                   onChange={(e) => updateOption(account.id, "replyToId", e.target.value || undefined)}
-                  className="mt-1 border-border/50"
+                  className="mt-1 border-border"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Create a reply or thread by providing a tweet ID to reply to
@@ -145,7 +151,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     onValueChange={(value) =>
                       updateOption(account.id, "privacyStatus", value as "public" | "private" | "unlisted")
                     }>
-                    <SelectTrigger id={`${account.id}-privacyStatus`} className="mt-1 border-border/50">
+                    <SelectTrigger id={`${account.id}-privacyStatus`} className="mt-1 border-border">
                       <SelectValue placeholder="Select privacy status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -174,7 +180,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                           .filter(Boolean),
                       )
                     }
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Separate tags with commas</p>
                 </div>
@@ -188,7 +194,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     onValueChange={(value) =>
                       updateOption(account.id, "categoryId", value === "none" ? undefined : value)
                     }>
-                    <SelectTrigger id={`${account.id}-categoryId`} className="mt-1 border-border/50">
+                    <SelectTrigger id={`${account.id}-categoryId`} className="mt-1 border-border">
                       <SelectValue placeholder="Select category (optional)" />
                     </SelectTrigger>
                     <SelectContent>
@@ -220,7 +226,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     placeholder="PL1234567890"
                     value={asString(accountOptions.playlistId)}
                     onChange={(e) => updateOption(account.id, "playlistId", e.target.value)}
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
                 </div>
@@ -258,7 +264,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                         e.target.value ? new Date(e.target.value).toISOString() : undefined,
                       )
                     }
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Schedule video for future publication on YouTube</p>
                 </div>
@@ -275,7 +281,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   <Select
                     value={asString(accountOptions.publishMode) || "public"}
                     onValueChange={(value) => updateOption(account.id, "publishMode", value as "draft" | "public")}>
-                    <SelectTrigger id={`${account.id}-publishMode`} className="mt-1 border-border/50">
+                    <SelectTrigger id={`${account.id}-publishMode`} className="mt-1 border-border">
                       <SelectValue placeholder="Select publish mode" />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,7 +305,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                         onValueChange={(value) =>
                           updateOption(account.id, "visibility", value as "public" | "friends" | "private")
                         }>
-                        <SelectTrigger id={`${account.id}-visibility`} className="mt-1 border-border/50">
+                        <SelectTrigger id={`${account.id}-visibility`} className="mt-1 border-border">
                           <SelectValue placeholder="Select visibility" />
                         </SelectTrigger>
                         <SelectContent>
@@ -371,7 +377,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                       e.target.value ? new Date(e.target.value).toISOString() : undefined,
                     )
                   }
-                  className="mt-1 border-border/50"
+                  className="mt-1 border-border"
                 />
                 <p className="text-xs text-muted-foreground mt-1">Schedule post for future publication on Facebook</p>
               </div>
@@ -403,7 +409,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                 <Select
                   value={asString(accountOptions.visibility) || "PUBLIC"}
                   onValueChange={(value) => updateOption(account.id, "visibility", value as "PUBLIC" | "CONNECTIONS")}>
-                  <SelectTrigger id={`${account.id}-linkedin-visibility`} className="mt-1 border-border/50">
+                  <SelectTrigger id={`${account.id}-linkedin-visibility`} className="mt-1 border-border">
                     <SelectValue placeholder="Select visibility" />
                   </SelectTrigger>
                   <SelectContent>
@@ -431,14 +437,14 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                         placeholder="Enter board ID manually"
                         value={asString(accountOptions.boardId)}
                         onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
-                        className="border-border/50"
+                        className="border-border"
                       />
                     </div>
                   ) : pinterestBoards[account.id]?.length ? (
                     <Select
                       value={asString(accountOptions.boardId) || undefined}
                       onValueChange={(value) => updateOption(account.id, "boardId", value)}>
-                      <SelectTrigger id={`${account.id}-pinterest-boardId`} className="mt-1 border-border/50">
+                      <SelectTrigger id={`${account.id}-pinterest-boardId`} className="mt-1 border-border">
                         <SelectValue placeholder="Select a board" />
                       </SelectTrigger>
                       <SelectContent>
@@ -459,7 +465,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                         placeholder="Or enter board ID manually"
                         value={asString(accountOptions.boardId)}
                         onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
-                        className="border-border/50"
+                        className="border-border"
                       />
                     </div>
                   )}
@@ -473,7 +479,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     placeholder="Pin title"
                     value={asString(accountOptions.title)}
                     onChange={(e) => updateOption(account.id, "title", e.target.value || undefined)}
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                 </div>
                 <div>
@@ -485,7 +491,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     placeholder="Describe your pin"
                     value={asString(accountOptions.description)}
                     onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                 </div>
                 <div>
@@ -497,7 +503,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     placeholder="https://example.com"
                     value={asString(accountOptions.link)}
                     onChange={(e) => updateOption(account.id, "link", e.target.value || undefined)}
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                 </div>
                 <div>
@@ -509,7 +515,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     placeholder="Describe the image for accessibility"
                     value={asString(accountOptions.altText)}
                     onChange={(e) => updateOption(account.id, "altText", e.target.value || undefined)}
-                    className="mt-1 border-border/50"
+                    className="mt-1 border-border"
                   />
                 </div>
               </div>
@@ -526,7 +532,7 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                   onValueChange={(value) =>
                     updateOption(account.id, "parseMode", value === "default" ? undefined : value)
                   }>
-                  <SelectTrigger id={`${account.id}-parseMode`} className="mt-1 border-border/50">
+                  <SelectTrigger id={`${account.id}-parseMode`} className="mt-1 border-border">
                     <SelectValue placeholder="Select parse mode" />
                   </SelectTrigger>
                   <SelectContent>

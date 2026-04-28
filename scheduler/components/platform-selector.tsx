@@ -92,12 +92,12 @@ export function PlatformSelector({
               type="button"
               onClick={() => handlePlatformToggle(platform.id)}
               disabled={isDisabled}
-              className={`p-3 rounded border text-left transition-colors text-sm ${
+              className={`p-3 rounded-lg border text-left transition-colors text-sm ${
                 isSelected
-                  ? "border-foreground bg-foreground/5"
+                  ? "border-primary/50 bg-primary/5"
                   : isDisabled
-                    ? "border-border/50 bg-muted/50 opacity-50 cursor-not-allowed"
-                    : "border-border/50 hover:border-border"
+                    ? "border-border bg-secondary/40 opacity-50 cursor-not-allowed"
+                    : "border-border hover:border-border/80 hover:bg-secondary/40"
               }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -123,8 +123,8 @@ export function PlatformSelector({
 
       {/* Selection Summary */}
       {selectedPlatforms.length > 0 && (
-        <div className="p-3 bg-muted/50 rounded text-sm">
-          <p className="text-muted-foreground mb-1">Publishing to:</p>
+        <div className="p-3 rounded-lg border border-border bg-card text-sm">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">Publishing to</p>
           <div className="text-foreground">
             {selectedPlatforms.map((platformId, index) => {
               const platform = getPlatformById(platformId);

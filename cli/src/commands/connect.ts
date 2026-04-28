@@ -25,9 +25,9 @@ export default class ConnectCommand extends Command {
   public static override description = "Connect the CLI to the SimplePost Scheduler to use its connected accounts.";
 
   public static override examples = [
-    "simple-post connect",
-    "simple-post connect --url http://localhost:3000",
-    "simple-post connect --token sp_cli_...",
+    "simplepost connect",
+    "simplepost connect --url http://localhost:3000",
+    "simplepost connect --token sp_cli_...",
   ];
 
   public static override flags = {
@@ -53,7 +53,7 @@ export default class ConnectCommand extends Command {
     // Ensure secret storage is configured
     if (!config.storage) {
       if (!prompt.interactive) {
-        throw new Error('Secret storage is not configured. Run "simple-post setup --backend <backend>" first.');
+        throw new Error('Secret storage is not configured. Run "simplepost setup --backend <backend>" first.');
       }
 
       const setupResult = await configureStorage({
@@ -104,7 +104,7 @@ export default class ConnectCommand extends Command {
     const displayName = user.email || user.name || user.id;
     this.log(`\nConnected to SimplePost Scheduler as ${displayName}.`);
     this.log(`Scheduler URL: ${schedulerUrl}`);
-    this.log('\nRun "simple-post account" to see all your connected accounts.');
+    this.log('\nRun "simplepost account" to see all your connected accounts.');
   }
 
   private async browserFlow(

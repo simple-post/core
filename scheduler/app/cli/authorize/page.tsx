@@ -16,7 +16,10 @@ export default function CliAuthorizePage() {
         invalidMessage: (
           <>
             This authorization link is invalid or has expired. Please run{" "}
-            <code className="bg-muted px-1.5 py-0.5 rounded text-sm">simple-post connect</code> again.
+            <code className="bg-secondary border border-border text-primary font-mono px-1.5 py-0.5 rounded text-xs">
+              simple-post connect
+            </code>{" "}
+            again.
           </>
         ),
         successMessage: "Authorization successful. You can close this tab and return to your terminal.",

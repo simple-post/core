@@ -67,70 +67,78 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="w-full max-w-4xl">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-6 overflow-hidden">
+      {/* Grid + radial glow background */}
+      <div className="absolute inset-0 bg-grid pointer-events-none" />
+      <div className="absolute inset-0 radial-glow pointer-events-none" />
+
+      <div className="relative w-full max-w-4xl">
         {/* Title Section */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-12 h-12 drop-shadow-2xl" />
-            <h1 className="text-4xl font-bold text-foreground">SimplePost</h1>
+        <div className="text-center mb-12 animate-reveal">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-10 h-10 drop-shadow-2xl" />
+            <span className="font-mono text-base font-medium text-muted-foreground tracking-tight">SimplePost</span>
           </div>
-          <h2 className="text-2xl font-semibold text-foreground mb-3">Scheduler</h2>
-          <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-            One Line of Code. 12 Platforms.
-          </p>
-          <p className="text-base text-muted-foreground mt-2 mb-8">
-            Part of the{" "}
+          <h1 className="text-4xl sm:text-5xl font-semibold tracking-[-0.03em] text-foreground mb-3">
+            Schedule posts.<br />
+            <span className="text-primary">Ship faster.</span>
+          </h1>
+          <p className="text-base text-muted-foreground leading-relaxed max-w-lg mx-auto mb-6">
+            One line of code. 12 platforms. Part of the{" "}
             <a
               href="https://simplepost.dev"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline font-semibold">
+              className="text-foreground hover:text-primary transition-colors">
               simplepost.dev
             </a>{" "}
             ecosystem.
           </p>
 
           {/* Platform Icons */}
-          <div className="flex items-center justify-center gap-5 mt-8">
+          <div className="flex items-center justify-center gap-5">
             <PlatformIcon
               platform="facebook"
-              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+              className="w-5 h-5 text-[#555555] hover:text-primary transition-colors"
             />
             <PlatformIcon
               platform="instagram"
-              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+              className="w-5 h-5 text-[#555555] hover:text-primary transition-colors"
             />
-            <PlatformIcon platform="x" className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors" />
+            <PlatformIcon platform="x" className="w-5 h-5 text-[#555555] hover:text-primary transition-colors" />
             <PlatformIcon
               platform="youtube"
-              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+              className="w-5 h-5 text-[#555555] hover:text-primary transition-colors"
             />
             <PlatformIcon
               platform="tiktok"
-              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+              className="w-5 h-5 text-[#555555] hover:text-primary transition-colors"
             />
             <PlatformIcon
               platform="telegram"
-              className="w-7 h-7 text-muted-foreground hover:text-primary transition-colors"
+              className="w-5 h-5 text-[#555555] hover:text-primary transition-colors"
             />
           </div>
         </div>
 
         {/* Login Form Card */}
-        <Card className="max-w-md mx-auto border-border shadow-2xl bg-card backdrop-blur-sm">
+        <Card className="max-w-md mx-auto border-border shadow-2xl bg-card animate-reveal animate-reveal-delay-2">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
+            <div className="section-kicker justify-center">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Sign in</span>
+            </div>
+            <CardTitle className="text-2xl font-semibold tracking-[-0.025em]">Welcome back</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
             {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-lg">
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="p-3 text-sm text-green-600 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="p-3 text-sm text-primary bg-primary/10 border border-primary/30 rounded-lg">
                 {success}
               </div>
             )}
@@ -163,16 +171,18 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+                <span className="w-full border-t border-border" />
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
+              <div className="relative flex justify-center font-mono text-[10px] uppercase tracking-[0.12em]">
                 <span className="bg-card px-2 text-muted-foreground">Or sign in with email</span>
               </div>
             </div>
 
-            <form onSubmit={handleMagicLinkSignIn} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
+            <form onSubmit={handleMagicLinkSignIn} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Email address
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -184,7 +194,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
                   required
                 />
               </div>
-              <Button type="submit" disabled={isLoading} className="w-full h-11 font-medium shadow-sm">
+              <Button type="submit" disabled={isLoading} className="w-full h-11">
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -197,14 +207,14 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
               </Button>
             </form>
 
-            <div className="pt-6 border-t border-border/50 text-center text-sm text-muted-foreground">
+            <div className="pt-5 border-t border-border text-center text-xs text-muted-foreground">
               <p>
                 By signing in, you agree to our{" "}
-                <Link href="/terms" className="underline hover:text-foreground transition-colors">
-                  Terms and Conditions
+                <Link href="/terms" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                  Terms
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy" className="underline hover:text-foreground transition-colors">
+                <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground transition-colors">
                   Privacy Policy
                 </Link>
                 .

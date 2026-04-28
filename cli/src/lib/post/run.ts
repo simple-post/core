@@ -143,7 +143,7 @@ async function buildExecutionTargets(options: {
 
   if (hasStoredSelections) {
     if (!options.cliConfig.storage) {
-      throw new Error('Stored accounts are not configured yet. Run "simple-post setup" first.');
+      throw new Error('Stored accounts are not configured yet. Run "simplepost setup" first.');
     }
 
     store = createSecretStore(options.paths, options.cliConfig.storage, options.prompt);

@@ -63,13 +63,13 @@ export async function getSchedulerContextFromConfig(
 ): Promise<SchedulerContext> {
   if (!config.scheduler) {
     throw new Error(
-      'Not connected to a scheduler. Run "simple-post connect" first.',
+      'Not connected to a scheduler. Run "simplepost connect" first.',
     );
   }
 
   if (!config.storage) {
     throw new Error(
-      'Secret storage is not configured. Run "simple-post setup" first.',
+      'Secret storage is not configured. Run "simplepost setup" first.',
     );
   }
 
@@ -78,7 +78,7 @@ export async function getSchedulerContextFromConfig(
 
   if (!secret || typeof secret.token !== "string") {
     throw new Error(
-      'Scheduler token not found. Run "simple-post connect" to reconnect.',
+      'Scheduler token not found. Run "simplepost connect" to reconnect.',
     );
   }
 

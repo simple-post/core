@@ -671,7 +671,7 @@ async function askInteractivePost(
   existingSelections: AccountSelections,
 ): Promise<{ accountSelections: AccountSelections; appAccountIds: string[]; post: Post }> {
   if (availableAccounts.accounts.length === 0) {
-    throw new Error('No connected accounts are available yet. Run "simple-post account add" or "simple-post connect" first.');
+    throw new Error('No connected accounts are available yet. Run "simplepost account add" or "simplepost connect" first.');
   }
 
   const targetOptions = buildInteractiveTargetOptions({

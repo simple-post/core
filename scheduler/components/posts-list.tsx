@@ -80,12 +80,14 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
 
   if (posts.length === 0) {
     return (
-      <div className="border border-border rounded-xl p-8 text-center bg-card">
-        <div className="text-muted-foreground">
-          <p className="text-sm">
-            {type === "scheduled" ? "No scheduled posts" : type === "failed" ? "No failed posts" : "No published posts"}
-          </p>
-        </div>
+      <div className="border border-dashed border-border rounded-2xl p-12 text-center bg-card">
+        <p className="text-sm text-muted-foreground">
+          {type === "scheduled"
+            ? "No scheduled posts yet."
+            : type === "failed"
+              ? "No failed posts."
+              : "No published posts yet."}
+        </p>
       </div>
     );
   }
@@ -194,7 +196,7 @@ function Pagination({
 
   return (
     <div className="flex items-center justify-between border-t border-border pt-4 mt-4">
-      <div className="text-sm text-muted-foreground">
+      <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
         {total} {total === 1 ? "post" : "posts"} total
       </div>
 
@@ -278,11 +280,11 @@ function PostCard({
   return (
     <>
       <Link href={`/posts/${post.id}`}>
-        <div className="border border-border rounded-xl p-4 transition-all cursor-pointer backdrop-blur-sm bg-card hover:border-primary hover:shadow-lg hover:shadow-primary/20">
+        <div className="border border-border rounded-2xl p-4 cursor-pointer bg-card card-accent-hover">
           <div className="flex gap-4">
             <div className="flex-shrink-0 relative">
               {hasMedia ? (
-                <div className="w-20 h-20 bg-muted rounded-lg relative overflow-hidden shadow-sm">
+                <div className="w-20 h-20 bg-secondary border border-border rounded-xl relative overflow-hidden">
                   {post.media[0].thumbnailUrl || post.media[0].type === "image" ? (
                     <img
                       src={post.media[0].thumbnailUrl || post.media[0].url}
@@ -298,7 +300,7 @@ function PostCard({
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-muted to-muted/50 gap-1">
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-secondary gap-1">
                       <svg
                         className="h-10 w-10 text-muted-foreground"
                         fill="none"
@@ -330,7 +332,7 @@ function PostCard({
                   )}
                 </div>
               ) : (
-                <div className="w-20 h-20 bg-gradient-to-br from-muted to-muted/50 rounded-lg flex items-center justify-center shadow-sm">
+                <div className="w-20 h-20 bg-secondary border border-border rounded-xl flex items-center justify-center">
                   <svg
                     className="h-10 w-10 text-muted-foreground"
                     fill="none"
@@ -348,7 +350,7 @@ function PostCard({
               {/* Platform indicator */}
               {platformsWithNames.length > 0 && (
                 <div
-                  className={`absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full border-2 border-background ${platformsWithNames[0]!.color} shadow-sm`}
+                  className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-md border-2 border-background ${platformsWithNames[0]!.color}`}
                   title={platformsWithNames[0]!.name}
                 />
               )}
@@ -383,19 +385,19 @@ function PostCard({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5 font-mono text-[11px] uppercase tracking-[0.08em]">
                     {postAccounts.slice(0, 2).map((account, idx) => {
                       const platformConfig = getPlatformById(account.platform);
                       return (
-                        <div key={account.id} className="flex items-center gap-1 text-xs text-muted-foreground">
-                          {platformConfig && <div className={`w-1 h-1 rounded-full ${platformConfig.color}`} />}
+                        <div key={account.id} className="flex items-center gap-1 text-muted-foreground">
+                          {platformConfig && <div className={`w-1 h-1 rounded-[1px] ${platformConfig.color}`} />}
                           <span>{getAccountDisplayName(account)}</span>
-                          {idx < Math.min(postAccounts.length - 1, 1) && <span>,</span>}
+                          {idx < Math.min(postAccounts.length - 1, 1) && <span className="text-[#555555]">·</span>}
                         </div>
                       );
                     })}
                     {postAccounts.length > 2 && (
-                      <div className="text-xs text-muted-foreground">+{postAccounts.length - 2} more</div>
+                      <div className="text-muted-foreground">+{postAccounts.length - 2}</div>
                     )}
                   </div>
                 </div>
@@ -477,10 +479,10 @@ function PostCard({
 
 function PostsListSkeleton() {
   return (
-    <div className="border border-border rounded-xl p-8 bg-card">
+    <div className="border border-border rounded-2xl p-12 bg-card">
       <div className="flex flex-col items-center justify-center gap-3">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-muted-foreground">Loading posts...</p>
+        <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Loading posts…</p>
       </div>
     </div>
   );

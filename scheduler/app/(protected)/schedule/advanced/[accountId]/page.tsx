@@ -14,7 +14,6 @@ import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
 import { PostPreview } from "@/components/post-preview";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,10 +83,10 @@ export default function AdvancedAccountSettingsPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3" />
-            <div className="h-64 bg-muted rounded" />
+            <div className="h-8 bg-secondary rounded w-1/3" />
+            <div className="h-64 bg-secondary rounded" />
           </div>
         </div>
       </div>
@@ -98,11 +97,11 @@ export default function AdvancedAccountSettingsPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Account not found</h1>
             <Link href="/schedule">
-              <Button variant="outline">Back to Create Post</Button>
+              <Button variant="outline">Back to create post</Button>
             </Link>
           </div>
         </div>
@@ -114,45 +113,50 @@ export default function AdvancedAccountSettingsPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-4">
+      <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+        <div className="mb-6 space-y-3 animate-reveal">
           <BackLink href="/schedule" label="Back to create post" />
+          <div className="flex items-center gap-3">
+            <div className="section-kicker !mb-0">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">{platformConfig?.name ?? "Account"}</span>
+            </div>
+            <span className="h-3 w-px bg-border" />
+            <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground truncate">
+              Customize <span className="text-primary">{accountLabel}</span>
+            </h1>
+          </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Customize {accountLabel}</h2>
-              <p className="text-sm text-muted-foreground">
-                Override text, media, and advanced platform settings for this account.
-              </p>
-            </div>
-
             {!isSelected && (
-              <Card className="p-4 border-border/60">
+              <div className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-start gap-3">
                   <Info className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      This account is not selected for posting yet. Add it to include this configuration in the post.
+                      This account isn't selected yet. Add it to include this configuration in the post.
                     </p>
                     <Button type="button" size="sm" onClick={handleAddToPost}>
-                      Add to Post
+                      Add to post
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             )}
 
-            <Card className="p-4 space-y-4 border-border/50">
-              <div className="flex items-center justify-between">
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <Label className="text-sm font-medium">Content</Label>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {overrideEnabled ? "Custom content for this account" : "Using common post content"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{overrideEnabled ? "Custom" : "Common"}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    {overrideEnabled ? "Custom" : "Common"}
+                  </span>
                   <Switch checked={overrideEnabled} onCheckedChange={handleOverrideToggle} />
                 </div>
               </div>
@@ -168,12 +172,12 @@ export default function AdvancedAccountSettingsPage() {
                       placeholder="Write a custom message for this account"
                       value={overrideMessage}
                       onChange={(event) => setAccountOverrideMessage(accountId, event.target.value)}
-                      className="min-h-28 resize-none mt-2 border-border/50"
+                      className="min-h-28 resize-none mt-2"
                     />
                   ) : (
                     <button
                       type="button"
-                      className="min-h-28 mt-2 p-3 rounded-md border border-border/30 bg-muted/20 text-sm text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors text-left"
+                      className="min-h-28 mt-2 p-3 rounded-lg border border-border bg-secondary/50 text-sm text-muted-foreground cursor-pointer hover:bg-secondary transition-colors text-left w-full"
                       onClick={() => handleOverrideToggle(true)}>
                       {message || <span className="italic">No message</span>}
                     </button>
@@ -192,12 +196,12 @@ export default function AdvancedAccountSettingsPage() {
                   ) : (
                     <button
                       type="button"
-                      className="mt-2 p-3 rounded-md border border-border/30 bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors text-left"
+                      className="mt-2 p-3 rounded-lg border border-border bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors text-left w-full"
                       onClick={() => handleOverrideToggle(true)}>
                       {media.length > 0 ? (
-                        <div className="flex gap-2 flex-wrap opacity-50">
+                        <div className="flex gap-2 flex-wrap opacity-60">
                           {media.map((file) => (
-                            <div key={file.id} className="w-16 h-16 rounded overflow-hidden bg-muted">
+                            <div key={file.id} className="w-16 h-16 rounded-md overflow-hidden bg-secondary">
                               {file.type === "image" ? (
                                 <img
                                   src={file.thumbnailUrl || file.url}
@@ -220,10 +224,10 @@ export default function AdvancedAccountSettingsPage() {
 
               {!overrideEnabled && (
                 <p className="text-xs text-muted-foreground">
-                  Click on the content above or toggle the switch to customize for this account.
+                  Click the content above or toggle the switch to customize for this account.
                 </p>
               )}
-            </Card>
+            </div>
 
             <AccountOptionsComponent
               selectedAccountIds={[accountId]}
@@ -232,7 +236,7 @@ export default function AdvancedAccountSettingsPage() {
             />
           </div>
 
-          <div className="lg:sticky lg:top-8 self-start">
+          <div className="lg:sticky lg:top-24 self-start">
             <PostPreview message={effectiveMessage} media={effectiveMedia} selectedPlatforms={[accountId]} />
           </div>
         </div>

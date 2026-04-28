@@ -47,23 +47,29 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Posting Results</DialogTitle>
+          <div className="section-kicker">
+            <span className="section-kicker-dot" />
+            <span className="section-kicker-label">Results</span>
+          </div>
+          <DialogTitle className="text-xl tracking-[-0.025em]">Posting results</DialogTitle>
           <DialogDescription>
             {successfulPosts.length > 0
-              ? `Successfully posted to ${successfulPosts.length} platform${successfulPosts.length > 1 ? "s" : ""}`
-              : "Posting completed"}
+              ? `Successfully posted to ${successfulPosts.length} platform${successfulPosts.length > 1 ? "s" : ""}.`
+              : "Posting completed."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* All results in a simple list */}
           {results.map((result) => (
-            <div key={result.accountId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+            <div
+              key={result.accountId}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 p-3">
               <div className="flex items-center gap-3 min-w-0">
                 {result.success ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
                 ) : (
-                  <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                  <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />
                 )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -71,9 +77,11 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
                     <span className="text-sm font-medium">{getPlatformDisplayName(result.platform)}</span>
                   </div>
                   {result.postId && (
-                    <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">ID: {result.postId}</p>
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5 break-all">id: {result.postId}</p>
                   )}
-                  {!result.success && <p className="text-xs text-red-500 mt-0.5">{result.message || result.error}</p>}
+                  {!result.success && (
+                    <p className="text-xs text-destructive mt-0.5">{result.message || result.error}</p>
+                  )}
                 </div>
               </div>
               {result.postUrl && (
@@ -90,11 +98,13 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
           ))}
 
           {/* Summary */}
-          <div className="pt-2 border-t flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Total:</span>
+          <div className="pt-3 mt-2 border-t border-border flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em]">
+            <span className="text-muted-foreground">Total</span>
             <div className="flex items-center gap-3">
-              {successfulPosts.length > 0 && <span className="text-green-500">{successfulPosts.length} success</span>}
-              {failedPosts.length > 0 && <span className="text-red-500">{failedPosts.length} failed</span>}
+              {successfulPosts.length > 0 && (
+                <span className="text-primary">{successfulPosts.length} success</span>
+              )}
+              {failedPosts.length > 0 && <span className="text-destructive">{failedPosts.length} failed</span>}
             </div>
           </div>
         </div>

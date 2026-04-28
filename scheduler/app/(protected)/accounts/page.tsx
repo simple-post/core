@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 
+import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
-import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,12 +37,10 @@ export default function AccountsPage() {
     const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
-      // Open manual connection dialog for Telegram
       setShowConnectDialog(false);
       setShowTelegramDialog(true);
       setTelegramError("");
     } else {
-      // Redirect to OAuth flow for other platforms
       setShowConnectDialog(false);
       window.location.href = `/api/connect/${platform}`;
     }
@@ -64,7 +61,6 @@ export default function AccountsPage() {
         channelName: telegramChannelName.trim() || undefined,
       });
 
-      // Success - close dialog and reset form
       setShowTelegramDialog(false);
       setTelegramBotToken("");
       setTelegramChatId("");
@@ -97,126 +93,110 @@ export default function AccountsPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <BackLink />
-        <div className="mb-8 mt-4">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Connected Accounts</h2>
-          <p className="text-muted-foreground">Connect your social media accounts to schedule and publish posts</p>
-        </div>
-        <div className="flex justify-end mb-6">
-          <Button onClick={() => setShowConnectDialog(true)} size="default" className="gap-2 shadow-sm">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Connect Account
+      <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+        <div className="mb-6 flex items-center justify-between gap-3 animate-reveal">
+          <div className="flex items-center gap-3">
+            <div className="section-kicker !mb-0">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Accounts</span>
+            </div>
+            <span className="h-3 w-px bg-border" />
+            <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
+              Connected <span className="text-primary">accounts</span>
+            </h1>
+          </div>
+          <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Connect account</span>
           </Button>
         </div>
 
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse border-border bg-card">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-muted rounded-lg" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-5 bg-muted rounded w-1/3" />
-                      <div className="h-4 bg-muted rounded w-1/2" />
-                    </div>
+              <div
+                key={i}
+                className="rounded-2xl border border-border bg-card p-5 animate-pulse">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 bg-secondary rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-secondary rounded w-1/3" />
+                    <div className="h-3 bg-secondary rounded w-1/2" />
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         ) : accounts.length === 0 ? (
-          <Card className="border-dashed border-border">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                <svg className="h-7 w-7 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No accounts connected</h3>
-              <p className="text-muted-foreground text-center mb-6 max-w-md text-sm">
-                Connect your social media accounts to start scheduling and publishing posts across multiple platforms.
-              </p>
-              <Button onClick={() => setShowConnectDialog(true)} className="gap-2 shadow-sm">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Connect Your First Account
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center animate-reveal animate-reveal-delay-1">
+            <div className="w-12 h-12 mx-auto rounded-lg border border-border bg-secondary flex items-center justify-center mb-5">
+              <Plus className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <h3 className="text-base font-semibold mb-1.5">No accounts connected</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+              Connect your first social media account to start scheduling and publishing posts.
+            </p>
+            <Button onClick={() => setShowConnectDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Connect your first account
+            </Button>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 animate-reveal animate-reveal-delay-1">
             {accounts.map((account: ConnectedAccount) => {
               const platformConfig = getPlatformById(account.platform);
               if (!platformConfig) return null;
 
               return (
-                <Card
+                <div
                   key={account.id}
-                  className="hover:shadow-lg hover:shadow-primary/20 transition-all border-border bg-card">
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <AccountAvatar profilePicture={account.profilePicture} platform={platformConfig.id} size="lg" />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-lg">{getAccountDisplayName(account)}</h3>
-                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-                              Active
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>{platformConfig.name}</span>
-                            <span>•</span>
-                            <span>Connected {new Date(account.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          {account.email && <p className="text-xs text-muted-foreground mt-1">{account.email}</p>}
+                  className="rounded-2xl border border-border bg-card p-5 card-accent-hover">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <AccountAvatar
+                        profilePicture={account.profilePicture}
+                        platform={platformConfig.id}
+                        size="lg"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-base text-foreground truncate">
+                            {getAccountDisplayName(account)}
+                          </h3>
+                          <Badge variant="secondary" className="border-primary/30 bg-primary/10 text-primary">
+                            Active
+                          </Badge>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleConnect(account.platform)}
-                          className="gap-1">
-                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Reconnect
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDisconnectClick(account)}
-                          className="gap-1 text-destructive hover:text-destructive">
-                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                          Disconnect
-                        </Button>
+                        <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                          <span>{platformConfig.name}</span>
+                          <span className="text-[#555555]">·</span>
+                          <span>Connected {new Date(account.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        {account.email && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>
+                        )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleConnect(account.platform)}
+                        className="gap-1.5">
+                        <RefreshCw className="h-3 w-3" />
+                        <span className="hidden sm:inline">Reconnect</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDisconnectClick(account)}
+                        className="gap-1.5 text-destructive hover:text-destructive hover:border-destructive/40">
+                        <X className="h-3 w-3" />
+                        <span className="hidden sm:inline">Disconnect</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -227,26 +207,28 @@ export default function AccountsPage() {
       <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Connect New Account</DialogTitle>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Connect</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">New account</DialogTitle>
             <DialogDescription>
-              Select a platform to connect a new account. You can connect multiple accounts from the same platform.
+              Pick a platform to connect. You can connect multiple accounts from the same platform.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3 sm:grid-cols-2 mt-4">
+          <div className="grid gap-2 sm:grid-cols-2 mt-4">
             {SOCIAL_PLATFORMS.map((platform) => (
               <button
                 key={platform.id}
                 onClick={() => handleConnect(platform.id)}
-                className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-muted transition-colors text-left group cursor-pointer">
+                className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-secondary transition-colors text-left group cursor-pointer">
                 <div
-                  className={`flex items-center justify-center w-12 h-12 rounded-xl ${platform.color} text-white flex-shrink-0`}>
-                  <PlatformIcon platform={platform.id} className="text-2xl" />
+                  className={`flex items-center justify-center w-10 h-10 rounded-lg ${platform.color} text-white flex-shrink-0`}>
+                  <PlatformIcon platform={platform.id} className="text-xl" />
                 </div>
-                <div>
-                  <h4 className="font-medium text-base text-foreground">{platform.name}</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5 group-hover:text-muted-foreground">
-                    {platform.description}
-                  </p>
+                <div className="min-w-0">
+                  <h4 className="font-medium text-sm text-foreground truncate">{platform.name}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{platform.description}</p>
                 </div>
               </button>
             ))}
@@ -258,14 +240,12 @@ export default function AccountsPage() {
       <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Disconnect Account</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to disconnect this account? This action cannot be undone.
-            </DialogDescription>
+            <DialogTitle className="text-xl tracking-tight">Disconnect account</DialogTitle>
+            <DialogDescription>This action cannot be undone.</DialogDescription>
           </DialogHeader>
           {accountToDisconnect && (
-            <div className="py-4">
-              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+            <div className="py-2">
+              <div className="flex items-center gap-3 p-3 bg-secondary border border-border rounded-lg">
                 {(() => {
                   const platformConfig = getPlatformById(accountToDisconnect.platform);
                   return platformConfig ? (
@@ -276,8 +256,10 @@ export default function AccountsPage() {
                         size="md"
                       />
                       <div>
-                        <p className="font-medium">{getAccountDisplayName(accountToDisconnect)}</p>
-                        <p className="text-sm text-muted-foreground">{platformConfig.name}</p>
+                        <p className="font-medium text-sm">{getAccountDisplayName(accountToDisconnect)}</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
+                          {platformConfig.name}
+                        </p>
                       </div>
                     </>
                   ) : null;
@@ -308,26 +290,32 @@ export default function AccountsPage() {
       <Dialog open={showTelegramDialog} onOpenChange={setShowTelegramDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Connect Telegram</DialogTitle>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Telegram</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Telegram</DialogTitle>
             <DialogDescription>
-              Enter your Telegram bot token and chat ID to connect your channel or group.
+              Provide your bot token and chat ID to publish to a channel or group.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          <div className="space-y-4 mt-2">
             {telegramError && (
               <Alert variant="destructive">
                 <AlertDescription>{telegramError}</AlertDescription>
               </Alert>
             )}
             <div>
-              <Label htmlFor="botToken">Bot Token</Label>
+              <Label htmlFor="botToken" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Bot token
+              </Label>
               <Input
                 id="botToken"
                 type="text"
                 placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
                 value={telegramBotToken}
                 onChange={(e) => setTelegramBotToken(e.target.value)}
-                className="mt-1.5"
+                className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
                 Get this from{" "}
@@ -335,20 +323,23 @@ export default function AccountsPage() {
                   href="https://t.me/botfather"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline hover:text-foreground">
+                  className="underline underline-offset-2 hover:text-foreground">
                   @BotFather
                 </a>
+                .
               </p>
             </div>
             <div>
-              <Label htmlFor="chatId">Chat ID</Label>
+              <Label htmlFor="chatId" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Chat ID
+              </Label>
               <Input
                 id="chatId"
                 type="text"
                 placeholder="-1001234567890"
                 value={telegramChatId}
                 onChange={(e) => setTelegramChatId(e.target.value)}
-                className="mt-1.5"
+                className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
                 Channel or group ID. Use{" "}
@@ -356,26 +347,28 @@ export default function AccountsPage() {
                   href="https://t.me/userinfobot"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline hover:text-foreground">
+                  className="underline underline-offset-2 hover:text-foreground">
                   @userinfobot
                 </a>{" "}
-                to find it
+                to find it.
               </p>
             </div>
             <div>
-              <Label htmlFor="channelName">Channel Name (Optional)</Label>
+              <Label htmlFor="channelName" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Channel name <span className="text-[#555555] normal-case font-sans">(optional)</span>
+              </Label>
               <Input
                 id="channelName"
                 type="text"
                 placeholder="My Channel"
                 value={telegramChannelName}
                 onChange={(e) => setTelegramChannelName(e.target.value)}
-                className="mt-1.5"
+                className="mt-2"
               />
-              <p className="text-xs text-muted-foreground mt-1.5">Friendly name to identify this channel</p>
+              <p className="text-xs text-muted-foreground mt-1.5">A friendly label to identify this channel.</p>
             </div>
           </div>
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-3 mt-2">
             <Button
               variant="outline"
               onClick={() => {

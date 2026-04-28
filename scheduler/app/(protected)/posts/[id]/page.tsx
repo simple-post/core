@@ -22,7 +22,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
@@ -59,11 +58,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/4" />
-            <div className="h-64 bg-muted rounded" />
-            <div className="h-32 bg-muted rounded" />
+            <div className="h-8 bg-secondary rounded w-1/4" />
+            <div className="h-64 bg-secondary rounded" />
+            <div className="h-32 bg-secondary rounded" />
           </div>
         </div>
       </div>
@@ -74,11 +73,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-semibold">Post not found</h1>
             <Link href="/">
-              <Button variant="outline">Back to Dashboard</Button>
+              <Button variant="outline">Back to dashboard</Button>
             </Link>
           </div>
         </div>
@@ -115,28 +114,24 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           }
         />
 
-        <main className="max-w-4xl mx-auto px-6 py-8">
-          <BackLink />
-          <div className="space-y-6 mt-4">
-            {/* Status Badge */}
-            <div className="flex items-center gap-3">
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  isScheduled
-                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                    : isFailed
-                      ? "bg-red-500/10 text-red-600 dark:text-red-400"
-                      : "bg-green-500/10 text-green-600 dark:text-green-400"
-                }`}>
-                {isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
-              </span>
+        <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+          <div className="space-y-3 animate-reveal">
+            <BackLink />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="section-kicker !mb-0">
+                <span className="section-kicker-dot" />
+                <span className="section-kicker-label">
+                  {isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
+                </span>
+              </div>
+              <span className="h-3 w-px bg-border" />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {isScheduled ? (
-                  <Calendar className="h-4 w-4" />
+                  <Calendar className="h-3.5 w-3.5" />
                 ) : isFailed ? (
-                  <AlertCircle className="h-4 w-4" />
+                  <AlertCircle className="h-3.5 w-3.5" />
                 ) : (
-                  <Clock className="h-4 w-4" />
+                  <Clock className="h-3.5 w-3.5" />
                 )}
                 <span>
                   {isScheduled
@@ -145,14 +140,15 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                 </span>
               </div>
             </div>
-
+          </div>
+          <div className="space-y-4 mt-5 animate-reveal animate-reveal-delay-1">
             {/* Error Message for Failed Posts */}
             {isFailed && (post.errorMessage || post.errorDetails) && (
-              <Card className="p-4 border-red-500/20 bg-red-500/5">
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-3 flex-1 min-w-0">
-                    <p className="text-sm font-medium text-red-500">Post Failed</p>
+                  <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <p className="text-sm font-medium text-destructive">Post failed</p>
                     {post.errorMessage && <p className="text-sm text-muted-foreground">{post.errorMessage}</p>}
                     {failedPlatforms.length > 0 && (
                       <ul className="space-y-1.5 text-sm">
@@ -173,23 +169,21 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     )}
                   </div>
                 </div>
-              </Card>
+              </div>
             )}
 
             {/* Post Content */}
-            <Card className="p-6 space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
               {/* Message */}
               {post.message && (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
-                  <p className="whitespace-pre-wrap text-base leading-relaxed">{post.message}</p>
-                </div>
+                <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground">{post.message}</p>
               )}
 
               {/* Media */}
               {post.media.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {post.media.map((media: MediaFile) => (
-                    <div key={media.id} className="rounded-lg overflow-hidden bg-muted">
+                    <div key={media.id} className="rounded-xl overflow-hidden border border-border bg-secondary">
                       {media.type === "image" ? (
                         <img
                           src={media.url}
@@ -211,36 +205,41 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                           />
                         </div>
                       )}
-                      <div className="px-4 py-2 bg-muted/50 text-xs text-muted-foreground flex items-center justify-between">
-                        <span>{media.filename}</span>
+                      <div className="px-4 py-2 border-t border-border font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground flex items-center justify-between">
+                        <span className="truncate normal-case tracking-normal">{media.filename}</span>
                         <span>{(media.size / 1024 / 1024).toFixed(2)} MB</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </Card>
+            </div>
 
             {/* Accounts */}
-            <Card className="p-6">
-              <h3 className="text-sm font-medium mb-4">Publishing to</h3>
-              <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <div className="section-kicker">
+                <span className="section-kicker-dot" />
+                <span className="section-kicker-label">Publishing to</span>
+              </div>
+              <div className="space-y-3 mt-2">
                 {postAccounts.map((account: ConnectedAccount) => {
                   const platformConfig = getPlatformById(account.platform);
                   return (
                     <div key={account.id} className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${platformConfig?.color}`} />
+                      <div className={`w-2 h-2 rounded-[1px] ${platformConfig?.color}`} />
                       <div className="flex-1">
                         <div className="text-sm font-medium">
                           {account.displayName || account.username || account.email}
                         </div>
-                        <div className="text-xs text-muted-foreground">{platformConfig?.name}</div>
+                        <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
+                          {platformConfig?.name}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </Card>
+            </div>
           </div>
         </main>
       </div>

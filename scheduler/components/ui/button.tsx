@@ -6,23 +6,25 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 transition-all duration-300 cursor-pointer font-medium",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 transition-all duration-200 cursor-pointer font-medium",
   {
     variants: {
       variant: {
         default:
-          "bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white rounded-2xl hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25 border-0 font-bold",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg hover:scale-105",
+          "bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg btn-glow hover:-translate-y-px",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg hover:-translate-y-px",
         outline:
-          "border border-border bg-transparent hover:bg-muted hover:text-foreground rounded-lg hover:scale-[1.02]",
-        secondary: "bg-muted text-foreground hover:bg-muted/80 rounded-lg hover:scale-[1.02]",
-        ghost: "hover:bg-muted hover:text-foreground rounded-lg",
-        link: "text-primary underline-offset-4 hover:underline hover:text-primary/80",
+          "border border-border bg-transparent text-foreground hover:bg-secondary hover:text-foreground hover:border-border rounded-lg hover:-translate-y-px",
+        secondary:
+          "bg-secondary text-foreground hover:bg-secondary/80 rounded-lg hover:-translate-y-px",
+        ghost: "text-foreground hover:bg-secondary hover:text-foreground rounded-lg",
+        link: "text-foreground underline-offset-4 hover:underline hover:text-primary",
       },
       size: {
-        default: "h-11 px-6 py-3",
+        default: "h-10 px-5 py-2 text-sm",
         sm: "h-9 rounded-lg px-3 text-sm",
-        lg: "h-14 px-10 py-6 text-lg rounded-2xl",
+        lg: "h-12 px-8 py-3 text-base rounded-lg",
         icon: "size-10 rounded-lg",
       },
     },

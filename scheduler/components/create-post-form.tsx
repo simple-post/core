@@ -333,7 +333,7 @@ export function CreatePostForm() {
               placeholder="What's on your mind?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="min-h-32 resize-none mt-2 border-border/50"
+              className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
             <div className="flex justify-between items-center mt-2">
@@ -387,7 +387,7 @@ export function CreatePostForm() {
                       type="button"
                       variant="outline"
                       className={cn(
-                        "w-full justify-start text-left font-normal border-border/50",
+                        "w-full justify-start text-left font-normal",
                         !scheduledDate && "text-muted-foreground",
                       )}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -414,7 +414,7 @@ export function CreatePostForm() {
                       type="button"
                       variant="outline"
                       className={cn(
-                        "w-full justify-start text-left font-normal border-border/50",
+                        "w-full justify-start text-left font-normal",
                         !scheduledTime && "text-muted-foreground",
                       )}>
                       <Clock className="mr-2 h-4 w-4" />
@@ -429,8 +429,8 @@ export function CreatePostForm() {
                             key={slot.value}
                             type="button"
                             className={cn(
-                              "w-full text-left px-3 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors",
-                              scheduledTime === slot.value && "bg-accent font-medium",
+                              "w-full text-left px-3 py-1.5 text-sm rounded-sm hover:bg-secondary hover:text-foreground transition-colors",
+                              scheduledTime === slot.value && "bg-secondary text-foreground font-medium",
                             )}
                             onClick={() => setScheduledTime(slot.value)}>
                             {slot.label}
@@ -469,30 +469,30 @@ export function CreatePostForm() {
         </div>
       </form>
 
-      <div className="lg:sticky lg:top-8 self-start space-y-4">
+      <div className="lg:sticky lg:top-24 self-start space-y-4">
         {/* Status Messages */}
         <div className="space-y-3">
           {selectedAccountIds.length === 0 && (
-            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
-              Select at least one account to publish your content
+            <div className="p-3 rounded-lg border border-border bg-card text-sm text-muted-foreground">
+              Select at least one account to publish your content.
             </div>
           )}
 
           {validationError && (
-            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                <p className="font-medium text-foreground">Something went wrong</p>
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Something went wrong</p>
               </div>
-              <p className="mt-1">{validationError}</p>
+              <p className="mt-1 text-muted-foreground">{validationError}</p>
             </div>
           )}
 
           {validation?.summary.errors.length ? (
-            <div className="p-3 bg-muted/50 rounded text-sm space-y-1">
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                <p className="font-medium text-foreground">Before you can post</p>
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm space-y-1">
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Before you can post</p>
               </div>
               {validation.summary.errors.map((issue, index) => (
                 <p key={`${issue.code}-${index}`} className="text-muted-foreground">
@@ -503,8 +503,8 @@ export function CreatePostForm() {
           ) : null}
 
           {validation?.summary.warnings.length ? (
-            <div className="p-3 bg-muted/50 rounded text-sm space-y-1">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
+            <div className="p-3 rounded-lg border border-border bg-card text-sm space-y-1">
+              <div className="flex items-center gap-1.5 text-foreground">
                 <Info className="h-3.5 w-3.5" />
                 <p className="font-medium">Tips</p>
               </div>
@@ -517,7 +517,7 @@ export function CreatePostForm() {
           ) : null}
 
           {postingMode === "schedule" && scheduledDate && scheduledTime && (
-            <div className="p-3 bg-muted/50 rounded text-sm text-muted-foreground">
+            <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 text-sm text-muted-foreground">
               Publishing on{" "}
               <span className="font-medium text-foreground">
                 {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}

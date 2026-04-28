@@ -38,7 +38,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* X (Twitter) Options */}
       {selectedPlatforms.includes("x") && (
-        <Card className="p-4 space-y-4 border-border/50">
+        <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
             <h4 className="text-sm font-medium">X (Twitter) Options</h4>
@@ -53,7 +53,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="Tweet ID to reply to"
               value={options.x?.replyToId || ""}
               onChange={(e) => updateOption("x", "replyToId", e.target.value || undefined)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
             <p className="text-xs text-muted-foreground mt-1">
               Create a reply or thread by providing a tweet ID to reply to
@@ -64,7 +64,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* YouTube Options */}
       {selectedPlatforms.includes("youtube") && (
-        <Card className="p-4 space-y-4 border-border/50">
+        <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-red-600 flex-shrink-0" />
             <h4 className="text-sm font-medium">YouTube Options</h4>
@@ -79,7 +79,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               onValueChange={(value) =>
                 updateOption("youtube", "privacyStatus", value as "public" | "private" | "unlisted")
               }>
-              <SelectTrigger id="youtube-privacyStatus" className="mt-1 border-border/50">
+              <SelectTrigger id="youtube-privacyStatus" className="mt-1 border-border">
                 <SelectValue placeholder="Select privacy status" />
               </SelectTrigger>
               <SelectContent>
@@ -108,7 +108,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
                     .filter(Boolean),
                 )
               }
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
             <p className="text-xs text-muted-foreground mt-1">Separate tags with commas</p>
           </div>
@@ -120,7 +120,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             <Select
               value={options.youtube?.categoryId || undefined}
               onValueChange={(value) => updateOption("youtube", "categoryId", value === "none" ? undefined : value)}>
-              <SelectTrigger id="youtube-categoryId" className="mt-1 border-border/50">
+              <SelectTrigger id="youtube-categoryId" className="mt-1 border-border">
                 <SelectValue placeholder="Select category (optional)" />
               </SelectTrigger>
               <SelectContent>
@@ -152,7 +152,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="PL1234567890"
               value={options.youtube?.playlistId || ""}
               onChange={(e) => updateOption("youtube", "playlistId", e.target.value)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
             <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
           </div>
@@ -186,7 +186,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
                   e.target.value ? new Date(e.target.value).toISOString() : undefined,
                 )
               }
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
             <p className="text-xs text-muted-foreground mt-1">Schedule video for future publication on YouTube</p>
           </div>
@@ -195,7 +195,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* TikTok Options */}
       {selectedPlatforms.includes("tiktok") && (
-        <Card className="p-4 space-y-4 border-border/50">
+        <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
             <h4 className="text-sm font-medium">TikTok Options</h4>
@@ -208,7 +208,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             <Select
               value={options.tiktok?.publishMode || "public"}
               onValueChange={(value) => updateOption("tiktok", "publishMode", value as "draft" | "public")}>
-              <SelectTrigger id="tiktok-publishMode" className="mt-1 border-border/50">
+              <SelectTrigger id="tiktok-publishMode" className="mt-1 border-border">
                 <SelectValue placeholder="Select publish mode" />
               </SelectTrigger>
               <SelectContent>
@@ -232,7 +232,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
                   onValueChange={(value) =>
                     updateOption("tiktok", "visibility", value as "public" | "friends" | "private")
                   }>
-                  <SelectTrigger id="tiktok-visibility" className="mt-1 border-border/50">
+                  <SelectTrigger id="tiktok-visibility" className="mt-1 border-border">
                     <SelectValue placeholder="Select visibility" />
                   </SelectTrigger>
                   <SelectContent>
@@ -285,7 +285,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* Facebook Options */}
       {selectedPlatforms.includes("facebook") && (
-        <Card className="p-4 space-y-4 border-border/50">
+        <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0" />
             <h4 className="text-sm font-medium">Facebook Options</h4>
@@ -306,7 +306,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
                   e.target.value ? new Date(e.target.value).toISOString() : undefined,
                 )
               }
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
             <p className="text-xs text-muted-foreground mt-1">Schedule post for future publication on Facebook</p>
           </div>
@@ -315,7 +315,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* Instagram - No additional options needed */}
       {selectedPlatforms.includes("instagram") && (
-        <Card className="p-4 space-y-2 border-border/50">
+        <Card className="p-4 space-y-2 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex-shrink-0" />
             <h4 className="text-sm font-medium">Instagram Options</h4>
@@ -328,7 +328,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* Bluesky - No additional options needed */}
       {selectedPlatforms.includes("bluesky") && (
-        <Card className="p-4 space-y-2 border-border/50">
+        <Card className="p-4 space-y-2 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
             <h4 className="text-sm font-medium">Bluesky Options</h4>
@@ -341,7 +341,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* Threads - No additional options needed */}
       {selectedPlatforms.includes("threads") && (
-        <Card className="p-4 space-y-2 border-border/50">
+        <Card className="p-4 space-y-2 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
             <h4 className="text-sm font-medium">Threads Options</h4>
@@ -354,7 +354,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* LinkedIn Options */}
       {selectedPlatforms.includes("linkedin") && (
-        <Card className="p-4 space-y-4 border-border/50">
+        <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-700 flex-shrink-0" />
             <h4 className="text-sm font-medium">LinkedIn Options</h4>
@@ -367,7 +367,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             <Select
               value={options.linkedin?.visibility || "PUBLIC"}
               onValueChange={(value) => updateOption("linkedin", "visibility", value as "PUBLIC" | "CONNECTIONS")}>
-              <SelectTrigger id="linkedin-visibility" className="mt-1 border-border/50">
+              <SelectTrigger id="linkedin-visibility" className="mt-1 border-border">
                 <SelectValue placeholder="Select visibility" />
               </SelectTrigger>
               <SelectContent>
@@ -382,7 +382,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
 
       {/* Pinterest Options */}
       {selectedPlatforms.includes("pinterest") && (
-        <Card className="p-4 space-y-4 border-border/50">
+        <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-red-600 flex-shrink-0" />
             <h4 className="text-sm font-medium">Pinterest Options</h4>
@@ -397,7 +397,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="1234567890123456789"
               value={options.pinterest?.boardId || ""}
               onChange={(e) => updateOption("pinterest", "boardId", e.target.value)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
             <p className="text-xs text-muted-foreground mt-1">Required. The board where the pin will be created.</p>
           </div>
@@ -411,7 +411,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="Pin title"
               value={options.pinterest?.title || ""}
               onChange={(e) => updateOption("pinterest", "title", e.target.value || undefined)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
           </div>
 
@@ -424,7 +424,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="Describe your pin"
               value={options.pinterest?.description || ""}
               onChange={(e) => updateOption("pinterest", "description", e.target.value || undefined)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
           </div>
 
@@ -437,7 +437,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="https://example.com"
               value={options.pinterest?.link || ""}
               onChange={(e) => updateOption("pinterest", "link", e.target.value || undefined)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
           </div>
 
@@ -450,7 +450,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               placeholder="Describe the image for accessibility"
               value={options.pinterest?.altText || ""}
               onChange={(e) => updateOption("pinterest", "altText", e.target.value || undefined)}
-              className="mt-1 border-border/50"
+              className="mt-1 border-border"
             />
           </div>
         </Card>

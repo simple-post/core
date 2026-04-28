@@ -370,8 +370,8 @@ export function MediaUpload({
   const cannotAddMore = !canAddMore;
   const compactAddButton = (
     <div
-      className={`relative aspect-square border border-dashed rounded transition-colors ${
-        dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
+      className={`relative aspect-square border border-dashed rounded-lg transition-colors ${
+        dragActive ? "border-primary/50 bg-primary/5" : "border-border hover:border-border/80 bg-card"
       } ${cannotAddMore ? "pointer-events-none opacity-50" : ""}`}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -400,8 +400,8 @@ export function MediaUpload({
   // Large upload area (shown when no media)
   const largeUploadArea = (
     <div
-      className={`relative border border-dashed rounded transition-colors ${
-        dragActive ? "border-foreground bg-muted/50" : "border-border/50 hover:border-border"
+      className={`relative border border-dashed rounded-xl transition-colors ${
+        dragActive ? "border-primary/50 bg-primary/5" : "border-border hover:border-border/80 bg-card"
       } ${isUploading ? "pointer-events-none opacity-75" : ""}`}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -465,7 +465,7 @@ export function MediaUpload({
       {(media.length > 0 || uploading.length > 0) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {media.map((file) => (
-            <div key={file.id} className="relative group overflow-hidden border border-border/50 rounded">
+            <div key={file.id} className="relative group overflow-hidden border border-border rounded-lg">
               <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
                 {file.type === "image" ? (
                   <img
@@ -534,7 +534,7 @@ export function MediaUpload({
 
           {/* Uploading cards with circular progress */}
           {uploading.map((file) => (
-            <div key={file.id} className="relative overflow-hidden border border-border/50 rounded">
+            <div key={file.id} className="relative overflow-hidden border border-border rounded-lg">
               <div className="aspect-square bg-muted/50 flex items-center justify-center">
                 <CircularProgress progress={file.progress} type={file.type} />
               </div>

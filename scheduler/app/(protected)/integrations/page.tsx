@@ -1,207 +1,193 @@
 "use client";
 
-import { useState } from "react";
-
-import { Bot, Check, Copy, Terminal, Cpu } from "lucide-react";
+import { Bot, Cpu, Terminal as TerminalIcon, Sparkles } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleCopy}>
-      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-    </Button>
-  );
-}
-
-function CodeBlock({ children }: { children: string }) {
-  return (
-    <div className="flex items-center gap-2 bg-muted/70 rounded-lg px-4 py-3 font-mono text-sm overflow-x-auto">
-      <code className="flex-1 whitespace-pre">{children}</code>
-      <CopyButton text={children} />
-    </div>
-  );
-}
+import { TerminalBlock } from "@/components/terminal-block";
 
 const MCP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://schedule.simplepost.dev";
+
+interface IntegrationProps {
+  icon: React.ReactNode;
+  label: string;
+  title: string;
+  description: React.ReactNode;
+  command: string;
+  commandTitle?: string;
+  footer?: React.ReactNode;
+}
+
+function IntegrationCard({ icon, label, title, description, command, commandTitle, footer }: IntegrationProps) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 card-accent-hover">
+      <div className="section-kicker">
+        <span className="section-kicker-dot" />
+        <span className="section-kicker-label">{label}</span>
+      </div>
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-9 h-9 rounded-lg border border-border bg-secondary flex items-center justify-center text-foreground flex-shrink-0">
+          {icon}
+        </div>
+        <h2 className="text-xl sm:text-2xl font-semibold tracking-[-0.025em] text-foreground">{title}</h2>
+      </div>
+      <div className="text-sm text-muted-foreground leading-relaxed mb-5">{description}</div>
+      <TerminalBlock title={commandTitle}>{command}</TerminalBlock>
+      {footer && <div className="text-sm text-muted-foreground leading-relaxed mt-4">{footer}</div>}
+    </section>
+  );
+}
 
 export default function IntegrationsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <BackLink />
-
-        <div className="mb-8 mt-4">
-          <h2 className="text-2xl font-bold text-foreground mb-2">AI Integrations</h2>
-          <p className="text-muted-foreground">
-            Connect SimplePost to AI assistants so they can create and schedule posts on your behalf.
-          </p>
+      <main className="max-w-3xl mx-auto px-[clamp(18px,4vw,48px)] py-6 space-y-5">
+        <div className="space-y-3 animate-reveal">
+          <BackLink />
+          <div className="flex items-center gap-3">
+            <div className="section-kicker !mb-0">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">AI Integrations</span>
+            </div>
+            <span className="h-3 w-px bg-border" />
+            <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
+              Let AI <span className="text-primary">post for you</span>
+            </h1>
+          </div>
         </div>
 
-        {/* How it works */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Cpu className="h-5 w-5" />
-              How it works
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
+        <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-1">
+          <div className="section-kicker">
+            <span className="section-kicker-dot" />
+            <span className="section-kicker-label">How it works</span>
+          </div>
+          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-3">
+            One server. Every assistant.
+          </h2>
+          <div className="text-sm text-muted-foreground leading-relaxed space-y-3">
             <p>
               SimplePost exposes a{" "}
               <a
                 href="https://modelcontextprotocol.io"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-foreground underline underline-offset-4 hover:text-primary">
-                Model Context Protocol (MCP)
+                className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">
+                Model Context Protocol
               </a>{" "}
-              server that AI assistants can connect to. Once connected, the AI can:
+              server that AI assistants connect to. Once connected, the assistant can:
             </p>
-            <ul className="list-disc list-inside space-y-1 ml-1">
-              <li>View your connected social media accounts</li>
-              <li>Validate post content against platform rules</li>
-              <li>Create and schedule posts across all your platforms</li>
+            <ul className="space-y-1.5">
+              {["View your connected social media accounts", "Validate post content against platform rules", "Create and schedule posts across all your platforms"].map((item) => (
+                <li key={item} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-primary flex-shrink-0" />
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
             <p>
-              Authentication uses OAuth — when you connect for the first time, your browser will open to approve access.
-              No API keys or tokens to manage manually.
+              Authentication uses OAuth — your browser opens once to approve access. No API keys to manage manually.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        {/* Claude Code */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Bot className="h-5 w-5" />
-              ChatGPT
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              For private testing, open ChatGPT and go to{" "}
-              <span className="font-medium text-foreground">
-                Settings &rarr; Apps &amp; Connectors &rarr; Advanced settings
-              </span>
-              , enable developer mode, then create an app with this connector URL:
-            </p>
-            <CodeBlock>{`${MCP_URL}/mcp`}</CodeBlock>
-            <p className="text-sm text-muted-foreground">
-              ChatGPT will open SimplePost in your browser for OAuth approval. After connecting, select SimplePost from
-              ChatGPT&apos;s composer tools menu before asking it to validate, publish, or schedule posts.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4 animate-reveal animate-reveal-delay-2">
+          <IntegrationCard
+            icon={<Bot className="h-4 w-4" />}
+            label="ChatGPT"
+            title="ChatGPT"
+            commandTitle="connector url"
+            description={
+              <>
+                In ChatGPT, go to <span className="text-foreground">Settings → Apps &amp; Connectors → Advanced settings</span>,
+                enable developer mode, then create an app with the connector URL below.
+              </>
+            }
+            command={`${MCP_URL}/mcp`}
+            footer={
+              <>
+                ChatGPT will open SimplePost in your browser for OAuth approval. After connecting, select SimplePost
+                from the composer tools menu before asking it to validate, publish, or schedule posts.
+              </>
+            }
+          />
 
-        {/* Claude Code */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Terminal className="h-5 w-5" />
-              Claude Code
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Run this command in your terminal to add SimplePost to Claude Code:
-            </p>
-            <CodeBlock>{`claude mcp add simplepost ${MCP_URL}/mcp`}</CodeBlock>
-            <p className="text-sm text-muted-foreground">
-              Claude Code will open your browser to authenticate. After approving, you can ask Claude to create posts
-              for you.
-            </p>
-          </CardContent>
-        </Card>
+          <IntegrationCard
+            icon={<TerminalIcon className="h-4 w-4" />}
+            label="Claude Code"
+            title="Claude Code"
+            commandTitle="terminal"
+            description={<>Run this command in your terminal to add SimplePost to Claude Code.</>}
+            command={`claude mcp add simplepost ${MCP_URL}/mcp`}
+            footer={
+              <>
+                Claude Code opens your browser to authenticate. After approving, ask Claude to draft and ship posts.
+              </>
+            }
+          />
 
-        {/* Claude Desktop */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Cpu className="h-5 w-5" />
-              Claude Desktop
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              In Claude Desktop, go to <span className="font-medium text-foreground">Settings &rarr; Connectors</span>{" "}
-              and add a new remote MCP server with this URL:
-            </p>
-            <CodeBlock>{`${MCP_URL}/mcp`}</CodeBlock>
-            <p className="text-sm text-muted-foreground">
-              Claude will prompt you to authenticate in your browser when you first use a SimplePost tool.
-            </p>
-          </CardContent>
-        </Card>
+          <IntegrationCard
+            icon={<Sparkles className="h-4 w-4" />}
+            label="Claude Desktop"
+            title="Claude Desktop"
+            commandTitle="connector url"
+            description={
+              <>
+                In Claude Desktop, go to <span className="text-foreground">Settings → Connectors</span> and add a new
+                remote MCP server with the URL below.
+              </>
+            }
+            command={`${MCP_URL}/mcp`}
+            footer={<>Claude prompts you to authenticate the first time you call a SimplePost tool.</>}
+          />
 
-        {/* Other MCP clients */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Cpu className="h-5 w-5" />
-              Other MCP Clients (Cursor, Windsurf, etc.)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Any MCP-compatible client can connect using the remote server URL:
-            </p>
-            <CodeBlock>{`${MCP_URL}/mcp`}</CodeBlock>
-            <p className="text-sm text-muted-foreground">
-              Refer to your client&apos;s documentation for how to add a remote MCP server. The OAuth flow will handle
-              authentication automatically.
-            </p>
-          </CardContent>
-        </Card>
+          <IntegrationCard
+            icon={<Cpu className="h-4 w-4" />}
+            label="Other clients"
+            title="Cursor, Windsurf, &amp; more"
+            commandTitle="server url"
+            description={<>Any MCP-compatible client can connect using the remote server URL below.</>}
+            command={`${MCP_URL}/mcp`}
+            footer={
+              <>Refer to your client's docs for adding a remote MCP server. The OAuth flow is handled automatically.</>
+            }
+          />
+        </div>
 
-        {/* Available tools */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Available Tools</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="font-medium text-sm text-foreground">list_accounts</p>
-                <p className="text-sm text-muted-foreground">
-                  Lists your connected social media accounts and their IDs.
-                </p>
+        <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-3">
+          <div className="section-kicker">
+            <span className="section-kicker-dot" />
+            <span className="section-kicker-label">Available tools</span>
+          </div>
+          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-5">What the AI can do</h2>
+          <div className="divide-y divide-border">
+            {[
+              {
+                name: "list_accounts",
+                description: "Lists your connected social media accounts and their IDs.",
+              },
+              {
+                name: "validate_post",
+                description:
+                  "Checks post content against platform rules (character limits, media requirements) before publishing.",
+              },
+              {
+                name: "preview_post",
+                description: "Shows targets, timing, and validation status before creating or publishing anything.",
+              },
+              {
+                name: "create_post",
+                description:
+                  "Publishes immediately or schedules for later. Posts to any combination of your connected accounts.",
+              },
+            ].map((tool) => (
+              <div key={tool.name} className="py-4 first:pt-0 last:pb-0">
+                <p className="font-mono text-sm text-primary mb-1">{tool.name}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{tool.description}</p>
               </div>
-              <div>
-                <p className="font-medium text-sm text-foreground">validate_post</p>
-                <p className="text-sm text-muted-foreground">
-                  Checks your post content against platform rules (character limits, media requirements, etc.) before
-                  publishing.
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-sm text-foreground">preview_post</p>
-                <p className="text-sm text-muted-foreground">
-                  Shows targets, timing, and validation status before creating or publishing anything.
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-sm text-foreground">create_post</p>
-                <p className="text-sm text-muted-foreground">
-                  Creates a post — publish immediately or schedule for a specific time. Posts to any combination of your
-                  connected accounts.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        </section>
       </main>
     </div>
   );

@@ -137,20 +137,31 @@ export const TikTokOptionsSchema = z.object({
     .optional(),
 });
 
+export const BlueskyOAuthCredentialsSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string().optional(),
+  expiresAt: z.number().optional(),
+  did: z.string(),
+  pdsUrl: z.url(),
+  tokenUrl: z.string().optional(),
+  clientId: z.string().optional(),
+  dpopPublicJwk: z.record(z.string(), z.unknown()).optional(),
+  dpopPrivateJwk: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const BlueskyAppPasswordCredentialsSchema = z.object({
+  identifier: z.string(),
+  appPassword: z.string(),
+  pdsUrl: z.url().optional(),
+});
+
+export const BlueskyCredentialsSchema = z.union([
+  BlueskyAppPasswordCredentialsSchema,
+  BlueskyOAuthCredentialsSchema,
+]);
+
 export const BlueskyOptionsSchema = z.object({
-  credentials: z
-    .object({
-      accessToken: z.string(),
-      refreshToken: z.string().optional(),
-      expiresAt: z.number().optional(),
-      did: z.string(),
-      pdsUrl: z.url(),
-      tokenUrl: z.string().optional(),
-      clientId: z.string().optional(),
-      dpopPublicJwk: z.record(z.string(), z.unknown()).optional(),
-      dpopPrivateJwk: z.record(z.string(), z.unknown()).optional(),
-    })
-    .optional(),
+  credentials: BlueskyCredentialsSchema.optional(),
 });
 
 export const ThreadsOptionsSchema = z.object({
@@ -224,6 +235,9 @@ export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
 export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
+export type BlueskyOAuthCredentials = z.infer<typeof BlueskyOAuthCredentialsSchema>;
+export type BlueskyAppPasswordCredentials = z.infer<typeof BlueskyAppPasswordCredentialsSchema>;
+export type BlueskyCredentials = z.infer<typeof BlueskyCredentialsSchema>;
 export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;

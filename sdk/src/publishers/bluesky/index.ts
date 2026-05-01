@@ -46,7 +46,17 @@ interface BlueskyRefreshResponse {
   expires_in?: number;
 }
 
+interface BlueskySessionResponse {
+  accessJwt: string;
+  refreshJwt: string;
+  did: string;
+  handle?: string;
+}
+
 const PROACTIVE_REFRESH_SECONDS = 60;
+const DEFAULT_PDS_URL = "https://bsky.social";
+
+type BlueskyAuthMode = "oauth" | "appPassword";
 
 export class BlueskyPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
@@ -56,8 +66,10 @@ export class BlueskyPublisher extends Publisher {
   }
 
   private client: AxiosInstance;
+  private authMode: BlueskyAuthMode;
   private accessToken: string;
   private did: string;
+  private handle?: string;
   private baseUrl: string;
   private refreshToken?: string;
   private expiresAt: number;
@@ -67,6 +79,9 @@ export class BlueskyPublisher extends Publisher {
   private dpopPrivateJwk?: Record<string, unknown>;
   private dpopNonce?: string;
   private tokenDpopNonce?: string;
+
+  private identifier?: string;
+  private appPassword?: string;
 
   private refreshedCredentials?: {
     accessToken: string;
@@ -84,31 +99,65 @@ export class BlueskyPublisher extends Publisher {
       );
     }
 
-    const {
-      accessToken,
-      did,
-      pdsUrl,
-      refreshToken,
-      expiresAt,
-      tokenUrl,
-      clientId,
-      dpopPrivateJwk,
-      dpopPublicJwk,
-    } = options.bluesky.credentials;
+    const credentials = options.bluesky.credentials as Record<string, unknown>;
+    const isAppPassword =
+      typeof credentials.identifier === "string" && typeof credentials.appPassword === "string";
 
-    if (!pdsUrl) {
-      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Bluesky pdsUrl is required in options.bluesky.credentials");
+    this.authMode = isAppPassword ? "appPassword" : "oauth";
+
+    if (isAppPassword) {
+      const { identifier, appPassword, pdsUrl } = credentials as {
+        identifier: string;
+        appPassword: string;
+        pdsUrl?: string;
+      };
+
+      this.identifier = identifier;
+      this.appPassword = appPassword;
+      this.baseUrl = (pdsUrl ?? DEFAULT_PDS_URL).replace(/\/$/, "");
+      this.accessToken = "";
+      this.did = "";
+      this.expiresAt = 0;
+    } else {
+      const {
+        accessToken,
+        did,
+        pdsUrl,
+        refreshToken,
+        expiresAt,
+        tokenUrl,
+        clientId,
+        dpopPrivateJwk,
+        dpopPublicJwk,
+      } = credentials as {
+        accessToken: string;
+        did: string;
+        pdsUrl: string;
+        refreshToken?: string;
+        expiresAt?: number;
+        tokenUrl?: string;
+        clientId?: string;
+        dpopPrivateJwk?: Record<string, unknown>;
+        dpopPublicJwk?: Record<string, unknown>;
+      };
+
+      if (!pdsUrl) {
+        throw new PostError(
+          PostErrorType.CREDENTIALS_ERROR,
+          "Bluesky pdsUrl is required in options.bluesky.credentials",
+        );
+      }
+
+      this.accessToken = accessToken;
+      this.did = did;
+      this.baseUrl = pdsUrl.replace(/\/$/, "");
+      this.refreshToken = refreshToken;
+      this.expiresAt = expiresAt ?? 0;
+      this.tokenUrl = tokenUrl;
+      this.clientId = clientId;
+      this.dpopPrivateJwk = dpopPrivateJwk;
+      this.dpopPublicJwk = dpopPublicJwk;
     }
-
-    this.accessToken = accessToken;
-    this.did = did;
-    this.baseUrl = pdsUrl.replace(/\/$/, "");
-    this.refreshToken = refreshToken;
-    this.expiresAt = expiresAt ?? 0;
-    this.tokenUrl = tokenUrl;
-    this.clientId = clientId;
-    this.dpopPrivateJwk = dpopPrivateJwk;
-    this.dpopPublicJwk = dpopPublicJwk;
 
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -195,7 +244,9 @@ export class BlueskyPublisher extends Publisher {
   }
 
   private isTokenExpired(): boolean {
-    if (!this.refreshToken || !this.tokenUrl || !this.clientId) return false;
+    if (this.authMode === "oauth" && (!this.refreshToken || !this.tokenUrl || !this.clientId)) {
+      return false;
+    }
     const expiresAt = this.getTokenExpiry();
     if (!expiresAt) return false;
     const now = Math.floor(Date.now() / 1000);
@@ -296,9 +347,85 @@ export class BlueskyPublisher extends Publisher {
   }
 
   private async ensureValidToken(): Promise<void> {
+    if (this.authMode === "appPassword") {
+      if (!this.accessToken) {
+        await this.createAppPasswordSession();
+        return;
+      }
+      if (this.isTokenExpired()) {
+        try {
+          await this.refreshAppPasswordSession();
+        } catch (error) {
+          this.logger.warn(
+            `Bluesky session refresh failed, re-authenticating with app password: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          await this.createAppPasswordSession();
+        }
+      }
+      return;
+    }
+
     if (this.isTokenExpired()) {
       await this.refreshAccessToken();
     }
+  }
+
+  private applySessionResponse(data: BlueskySessionResponse): void {
+    this.accessToken = data.accessJwt;
+    this.refreshToken = data.refreshJwt;
+    this.did = data.did;
+    if (data.handle) {
+      this.handle = data.handle;
+    }
+    const exp = this.decodeJwtPayload(data.accessJwt)?.exp;
+    this.expiresAt = typeof exp === "number" ? exp : Math.floor(Date.now() / 1000) + 3600;
+  }
+
+  private async createAppPasswordSession(): Promise<void> {
+    if (!this.identifier || !this.appPassword) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Bluesky app password credentials are missing identifier or appPassword.",
+      );
+    }
+
+    try {
+      this.logger.info("Creating Bluesky session with app password...");
+      const response = await this.client.post<BlueskySessionResponse>(
+        "/xrpc/com.atproto.server.createSession",
+        { identifier: this.identifier, password: this.appPassword },
+        { headers: { "Content-Type": "application/json" } },
+      );
+      this.applySessionResponse(response.data);
+      this.logger.info("Bluesky session created successfully");
+    } catch (error: unknown) {
+      const err = error as AxiosErrorLike;
+      this.logger.error(`Failed to create Bluesky session: ${err.message || error}`);
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        `Failed to authenticate with Bluesky app password: ${
+          err.response?.data?.message || err.response?.data?.error || err.message || "Unknown error"
+        }`,
+        err.response?.data,
+      );
+    }
+  }
+
+  private async refreshAppPasswordSession(): Promise<void> {
+    if (!this.refreshToken) {
+      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "No refresh token available for Bluesky session refresh.");
+    }
+
+    this.logger.info("Refreshing Bluesky session...");
+    const response = await this.client.post<BlueskySessionResponse>(
+      "/xrpc/com.atproto.server.refreshSession",
+      undefined,
+      { headers: { Authorization: `Bearer ${this.refreshToken}` } },
+    );
+    this.applySessionResponse(response.data);
+    this.logger.info("Bluesky session refreshed successfully");
   }
 
   private isNonceError(error: unknown): error is AxiosErrorLike {

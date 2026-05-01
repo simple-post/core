@@ -4,12 +4,14 @@ HTTP server that exposes an API for posting to social media using the SimplePost
 
 ## Overview
 
-The SimplePost server provides a REST API endpoint that allows you to post content to multiple social media platforms simultaneously. It supports both JSON-only requests and multipart requests with file uploads.
+The SimplePost server provides REST API endpoints that allow you to post content to multiple social media platforms simultaneously. It supports JSON post requests and a separate file upload flow for media that should be referenced by filename.
+
+Use this interface when your app is not running TypeScript, when you want a language-agnostic internal service, or when an agent or backend should call SimplePost over HTTP instead of importing the SDK directly.
 
 ## Features
 
-- **Single API endpoint** - `/post` handles all social media posting
-- **File upload support** - Upload images and videos with your posts
+- **Single posting endpoint** - `/post` handles all social media posting
+- **File upload support** - Upload images and videos through `/files`, then reference them from `/post`
 - **Authentication** - API key-based authentication for security
 - **Long timeouts** - Configured for long-running social media operations (10 minutes)
 - **Validation** - Uses the same Zod schemas as the SDK for consistent validation
@@ -34,7 +36,7 @@ yarn install
 
 - `PORT` - Server port (default: 3000)
 
-All social media platform credentials should be configured as environment variables as documented in the [SDK README](../sdk/README.md).
+All social media platform credentials should be configured as environment variables as documented in the [SDK README](../typescript-sdk/README.md).
 
 ## Usage
 
@@ -97,12 +99,11 @@ Posts content to one or more social media platforms.
 **Headers:**
 
 - `x-api-key: YOUR_API_KEY`
-- `Content-Type: application/json` (for JSON-only requests)
-- `Content-Type: multipart/form-data` (for requests with files)
+- `Content-Type: application/json`
 
 **Request Body:**
 
-For JSON-only requests, send the post data directly:
+Send the post data directly:
 
 ```json
 {
@@ -125,15 +126,9 @@ For JSON-only requests, send the post data directly:
 }
 ```
 
-For requests with file uploads, use multipart form data:
+If you are using public media URLs, put them in `content.media[].url`.
 
-- `data` - JSON string containing the post data (same structure as above)
-- `files` - File uploads (use field name "files" for multiple files)
-
-
-If you are posting without media files or if you are using the `url` field instead of the `path` field, you can use JSON directly in the body.
-
-**Note:** When uploading files, use only the filename in the `path` field of media objects. The server will automatically map these to the uploaded files.
+If you uploaded files through `/files`, use only the returned filename in `content.media[].path`. The server maps that filename to the stored file before calling the SDK.
 
 **Response:**
 
@@ -169,6 +164,19 @@ Health check endpoint (no authentication required).
 }
 ```
 
+#### POST /files
+
+Uploads one or more media files to server storage so they can be referenced by filename in a later `/post` request.
+
+**Authentication:** Required
+
+**Fields:**
+
+- `file` - Single image or video
+- `files` - Multiple images or videos
+
+The server accepts common image and video MIME types and enforces a 500MB per-file limit.
+
 ### Example Usage
 
 #### Using curl (JSON only)
@@ -185,13 +193,23 @@ curl -X POST http://localhost:3000/post \
   }'
 ```
 
-#### Using curl (with file upload)
+#### Using curl (upload then post)
 
 ```bash
+curl -X POST http://localhost:3000/files \
+  -H "x-api-key: your-api-key" \
+  -F 'files=@/path/to/image.jpg'
+
 curl -X POST http://localhost:3000/post \
   -H "x-api-key: your-api-key" \
-  -F 'data={"content":{"text":"Check out this image!","media":[{"type":"image","path":"image.jpg"}]},"platforms":["x"]}' \
-  -F 'files=@/path/to/image.jpg'
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": {
+      "text": "Check out this image!",
+      "media": [{ "type": "image", "path": "image.jpg" }]
+    },
+    "platforms": ["x"]
+  }'
 ```
 
 #### Using JavaScript/TypeScript
@@ -233,37 +251,40 @@ const response = await fetch("http://localhost:3000/post", {
   }),
 });
 
-// With file upload
+// Upload first, then reference the returned filename in /post
 const formData = new FormData();
-formData.append(
-  "data",
-  JSON.stringify({
-    content: {
-      text: "Check out this image!",
-      media: [
-        {
-          type: "image",
-          path: "image.jpg", // Just the filename
-        },
-      ],
-    },
-    platforms: ["x"],
-  }),
-);
 formData.append("files", fileInput.files[0]);
 
-const response = await fetch("http://localhost:3000/post", {
+const uploadResponse = await fetch("http://localhost:3000/files", {
   method: "POST",
   headers: {
     "x-api-key": "your-api-key",
   },
   body: formData,
 });
+
+const uploaded = await uploadResponse.json();
+const filename = uploaded.files[0].filename;
+
+const response = await fetch("http://localhost:3000/post", {
+  method: "POST",
+  headers: {
+    "x-api-key": "your-api-key",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    content: {
+      text: "Check out this image!",
+      media: [{ type: "image", path: filename }],
+    },
+    platforms: ["x"],
+  }),
+});
 ```
 
 ## Data Validation
 
-The server uses the same Zod schemas as the SimplePost SDK for validation. This ensures consistency between direct SDK usage and API requests. See the [SDK types documentation](../sdk/src/types/post.ts) for the complete schema definition.
+The server uses the same Zod schemas as the SimplePost SDK for validation. This ensures consistency between direct SDK usage and API requests. See the [SDK types](../../sdk/src/types/post.ts) for the complete schema definition.
 
 ## Error Handling
 
@@ -291,3 +312,10 @@ Example error response:
   ]
 }
 ```
+
+## Related Interfaces
+
+- Use the [TypeScript SDK](../typescript-sdk/README.md) when your app can import `@simple-post/sdk` directly.
+- Use the [Scheduler app](../scheduler-app/README.md) when humans need a UI and account management.
+- Use the [CLI](../cli/README.md) for terminal and script workflows.
+- Use the [MCP server](../mcp-server/README.md) when an AI assistant should post through OAuth.

@@ -1,3 +1,0 @@
-# Using SimplePost through the N8N node
-
-Coming soon...

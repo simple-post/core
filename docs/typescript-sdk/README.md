@@ -2,6 +2,8 @@
 
 The simplest way to use SimplePost - integrate directly into your TypeScript project with a unified interface for all social platforms.
 
+Use the SDK when you control the TypeScript runtime and want the least abstraction between your app or agent and the platform publishers. The [HTTP API server](../http-server/README.md), [Scheduler app](../scheduler-app/README.md), [CLI](../cli/README.md), and [MCP server](../mcp-server/README.md) all build on this package.
+
 ## Quick Start
 
 **Already have credentials?** Jump straight to posting:
@@ -38,10 +40,7 @@ await post({
   },
   platforms: ["x", "youtube"],
 });
-
 ```
-
-
 
 **Need credentials?** Get them at [docs.simplepost.dev](https://docs.simplepost.dev), then continue below.
 
@@ -260,15 +259,16 @@ await post({
   content: { text: "Debug this post" },
   platforms: ["x"],
   options: {
-    common: { logLevel: "info" }, // "error" | "warning" | "info"
+    common: { logLevel: "info" }, // "none" | "error" | "warn" | "info"
   },
 });
 ```
 
 **Log levels:**
 
+- `none` - No SDK logs
 - `error` - Only errors (default)
-- `warning` - Errors and warnings
+- `warn` - Errors and warnings
 - `info` - Everything
 
 ## Platform Specifics
@@ -276,10 +276,15 @@ await post({
 For detailed platform-specific documentation, check out the platform guides:
 
 - [X](../platforms/X.md)
-- [Facebook](../platforms/Facebook.md)
-- [Instagram](../platforms/Instagram.md)
-- [YouTube](../platforms/YouTube.md)
 - [Telegram](../platforms/Telegram.md)
+- [Instagram](../platforms/Instagram.md)
+- [Facebook](../platforms/Facebook.md)
+- [Threads](../platforms/Threads.md)
+- [TikTok](../platforms/TikTok.md)
+- [YouTube](../platforms/YouTube.md)
+- [Pinterest](../platforms/Pinterest.md)
+- [LinkedIn](../platforms/LinkedIn.md)
+- [Bluesky](../platforms/Bluesky.md)
 
 ## Examples
 
@@ -288,6 +293,8 @@ For more examples, check out the [`/examples`](../../examples) directory.
 ## What's Next?
 
 - **Need help with credentials?** → [docs.simplepost.dev](https://docs.simplepost.dev)
-- **Want an HTTP API?** → [HTTP Server docs](../http-server/README.md) (coming soon)
-- **Using N8N?** → [N8N Node docs](../n8n-node/README.md) (coming soon)
+- **Want an HTTP API?** → [HTTP API server docs](../http-server/README.md)
+- **Need a web UI?** → [Scheduler app docs](../scheduler-app/README.md)
+- **Need terminal posting?** → [CLI docs](../cli/README.md)
+- **Need AI assistant posting?** → [MCP server docs](../mcp-server/README.md)
 - **Found a bug?** → [Open an issue](https://github.com/simple-post/core/issues)

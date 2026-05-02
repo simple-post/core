@@ -124,7 +124,9 @@ export function PlatformSelector({
       {/* Selection Summary */}
       {selectedPlatforms.length > 0 && (
         <div className="p-3 rounded-lg border border-border bg-card text-sm">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">Publishing to</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+            Publishing to
+          </p>
           <div className="text-foreground">
             {selectedPlatforms.map((platformId, index) => {
               const platform = getPlatformById(platformId);

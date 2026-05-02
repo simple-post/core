@@ -114,9 +114,7 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
         )}
 
         <div className="rounded-xl border border-border bg-secondary/40 p-4 mb-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1">
-            Signed in as
-          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1">Signed in as</p>
           <p className="font-medium text-foreground text-sm">{session.user.name || "User"}</p>
           {session.user.email && <p className="text-xs text-muted-foreground mt-0.5">{session.user.email}</p>}
         </div>

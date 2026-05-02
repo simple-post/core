@@ -118,11 +118,15 @@ export default function McpDocsPage() {
             </p>
             <p>
               See the{" "}
-              <Link href="/privacy" className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">
+              <Link
+                href="/privacy"
+                className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">
                 privacy policy
               </Link>{" "}
               and{" "}
-              <Link href="/terms" className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">
+              <Link
+                href="/terms"
+                className="text-foreground underline underline-offset-4 hover:text-primary transition-colors">
                 terms
               </Link>{" "}
               for more details.

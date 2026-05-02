@@ -80,7 +80,8 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
             <span className="font-mono text-base font-medium text-muted-foreground tracking-tight">SimplePost</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-[-0.03em] text-foreground mb-3">
-            Schedule posts.<br />
+            Schedule posts.
+            <br />
             <span className="text-primary">Ship faster.</span>
           </h1>
           <p className="text-base text-muted-foreground leading-relaxed max-w-lg mx-auto mb-6">
@@ -98,7 +99,18 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
           {/* Platform Icons */}
           <div className="flex flex-wrap items-center justify-center gap-5">
             {(
-              ["x", "telegram", "instagram", "facebook", "threads", "tiktok", "youtube", "pinterest", "linkedin", "bluesky"] as const
+              [
+                "x",
+                "telegram",
+                "instagram",
+                "facebook",
+                "threads",
+                "tiktok",
+                "youtube",
+                "pinterest",
+                "linkedin",
+                "bluesky",
+              ] as const
             ).map((platform) => (
               <PlatformIcon
                 key={platform}
@@ -153,7 +165,9 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
 
             <form onSubmit={handleMagicLinkSignIn} className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <Label
+                  htmlFor="email"
+                  className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                   Email address
                 </Label>
                 <Input

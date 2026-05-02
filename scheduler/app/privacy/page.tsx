@@ -59,7 +59,9 @@ export default function PrivacyPage() {
               <li>Communications with us</li>
             </ul>
 
-            <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">2.2 Automatically Collected Information</h3>
+            <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">
+              2.2 Automatically Collected Information
+            </h3>
             <p className="text-muted-foreground leading-relaxed mb-3">
               When you use our Service, we automatically collect:
             </p>
@@ -76,7 +78,9 @@ export default function PrivacyPage() {
               with their authorization procedures, including profile information and posting permissions.
             </p>
 
-            <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">2.4 Information from AI and MCP Clients</h3>
+            <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">
+              2.4 Information from AI and MCP Clients
+            </h3>
             <p className="text-muted-foreground leading-relaxed">
               If you authorize ChatGPT or another Model Context Protocol client to use SimplePost, that client may send
               tool requests containing draft post text, selected SimplePost account IDs, posting mode, and scheduled

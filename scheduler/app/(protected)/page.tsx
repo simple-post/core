@@ -76,7 +76,10 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full animate-reveal animate-reveal-delay-1">
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          className="w-full animate-reveal animate-reveal-delay-1">
           <TabsList className="mb-6">
             <TabsTrigger value="scheduled" className="gap-2">
               <Calendar className="h-3.5 w-3.5" />

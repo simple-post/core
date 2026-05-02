@@ -78,7 +78,11 @@ export default function IntegrationsPage() {
               server that AI assistants connect to. Once connected, the assistant can:
             </p>
             <ul className="space-y-1.5">
-              {["View your connected social media accounts", "Validate post content against platform rules", "Create and schedule posts across all your platforms"].map((item) => (
+              {[
+                "View your connected social media accounts",
+                "Validate post content against platform rules",
+                "Create and schedule posts across all your platforms",
+              ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <span className="mt-1.5 w-1 h-1 rounded-full bg-primary flex-shrink-0" />
                   <span>{item}</span>
@@ -99,8 +103,9 @@ export default function IntegrationsPage() {
             commandTitle="connector url"
             description={
               <>
-                In ChatGPT, go to <span className="text-foreground">Settings → Apps &amp; Connectors → Advanced settings</span>,
-                enable developer mode, then create an app with the connector URL below.
+                In ChatGPT, go to{" "}
+                <span className="text-foreground">Settings → Apps &amp; Connectors → Advanced settings</span>, enable
+                developer mode, then create an app with the connector URL below.
               </>
             }
             command={`${MCP_URL}/mcp`}
@@ -120,9 +125,7 @@ export default function IntegrationsPage() {
             description={<>Run this command in your terminal to add SimplePost to Claude Code.</>}
             command={`claude mcp add simplepost ${MCP_URL}/mcp`}
             footer={
-              <>
-                Claude Code opens your browser to authenticate. After approving, ask Claude to draft and ship posts.
-              </>
+              <>Claude Code opens your browser to authenticate. After approving, ask Claude to draft and ship posts.</>
             }
           />
 

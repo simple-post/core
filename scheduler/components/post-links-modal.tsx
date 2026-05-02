@@ -101,9 +101,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
           <div className="pt-3 mt-2 border-t border-border flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em]">
             <span className="text-muted-foreground">Total</span>
             <div className="flex items-center gap-3">
-              {successfulPosts.length > 0 && (
-                <span className="text-primary">{successfulPosts.length} success</span>
-              )}
+              {successfulPosts.length > 0 && <span className="text-primary">{successfulPosts.length} success</span>}
               {failedPosts.length > 0 && <span className="text-destructive">{failedPosts.length} failed</span>}
             </div>
           </div>

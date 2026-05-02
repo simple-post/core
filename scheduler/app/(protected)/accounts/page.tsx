@@ -114,9 +114,7 @@ export default function AccountsPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="rounded-2xl border border-border bg-card p-5 animate-pulse">
+              <div key={i} className="rounded-2xl border border-border bg-card p-5 animate-pulse">
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 bg-secondary rounded-lg" />
                   <div className="flex-1 space-y-2">
@@ -148,16 +146,10 @@ export default function AccountsPage() {
               if (!platformConfig) return null;
 
               return (
-                <div
-                  key={account.id}
-                  className="rounded-2xl border border-border bg-card p-5 card-accent-hover">
+                <div key={account.id} className="rounded-2xl border border-border bg-card p-5 card-accent-hover">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
-                      <AccountAvatar
-                        profilePicture={account.profilePicture}
-                        platform={platformConfig.id}
-                        size="lg"
-                      />
+                      <AccountAvatar profilePicture={account.profilePicture} platform={platformConfig.id} size="lg" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-semibold text-base text-foreground truncate">
@@ -295,9 +287,7 @@ export default function AccountsPage() {
               <span className="section-kicker-label">Telegram</span>
             </div>
             <DialogTitle className="text-xl tracking-tight">Connect Telegram</DialogTitle>
-            <DialogDescription>
-              Provide your bot token and chat ID to publish to a channel or group.
-            </DialogDescription>
+            <DialogDescription>Provide your bot token and chat ID to publish to a channel or group.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             {telegramError && (
@@ -306,7 +296,9 @@ export default function AccountsPage() {
               </Alert>
             )}
             <div>
-              <Label htmlFor="botToken" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+              <Label
+                htmlFor="botToken"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 Bot token
               </Label>
               <Input
@@ -330,7 +322,9 @@ export default function AccountsPage() {
               </p>
             </div>
             <div>
-              <Label htmlFor="chatId" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+              <Label
+                htmlFor="chatId"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 Chat ID
               </Label>
               <Input
@@ -354,7 +348,9 @@ export default function AccountsPage() {
               </p>
             </div>
             <div>
-              <Label htmlFor="channelName" className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+              <Label
+                htmlFor="channelName"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 Channel name <span className="text-[#555555] normal-case font-sans">(optional)</span>
               </Label>
               <Input

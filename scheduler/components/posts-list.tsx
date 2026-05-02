@@ -396,9 +396,7 @@ function PostCard({
                         </div>
                       );
                     })}
-                    {postAccounts.length > 2 && (
-                      <div className="text-muted-foreground">+{postAccounts.length - 2}</div>
-                    )}
+                    {postAccounts.length > 2 && <div className="text-muted-foreground">+{postAccounts.length - 2}</div>}
                   </div>
                 </div>
 

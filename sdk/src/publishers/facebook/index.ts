@@ -13,7 +13,7 @@ import type { Content, Image, PostOptionsWithCredentials, Video } from "../../ty
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
-const FACEBOOK_API_VERSION = "v23.0";
+const FACEBOOK_API_VERSION = "v25.0";
 
 const MAX_TEXT_LENGTH = 63_206;
 const MAX_MEDIA_COUNT = 10;

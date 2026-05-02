@@ -79,7 +79,7 @@ describe("InstagramPublisher", () => {
       });
 
       expect(mockedAxios.create).toHaveBeenCalledWith({
-        baseURL: "https://graph.facebook.com/v24.0",
+        baseURL: "https://graph.facebook.com/v25.0",
         timeout: 30_000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,

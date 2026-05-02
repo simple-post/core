@@ -7,7 +7,7 @@ const PENDING_OAUTH_TTL_MS = 30 * 60 * 1000;
 
 async function fetchFacebookPages(accessToken: string) {
   const pagesResponse = await fetch(
-    "https://graph.facebook.com/v24.0/me/accounts?fields=id,name,access_token,picture{url}",
+    "https://graph.facebook.com/v25.0/me/accounts?fields=id,name,access_token,picture{url}",
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     },

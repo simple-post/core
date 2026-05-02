@@ -76,7 +76,7 @@ export async function exchangeFacebookCode(input: {
 export function graphUrlWithAccessToken(pathAndQuery: string, accessToken: string): string {
   const base = pathAndQuery.startsWith("http")
     ? pathAndQuery
-    : `https://graph.facebook.com/v24.0/${pathAndQuery.replace(/^\//, "")}`;
+    : `https://graph.facebook.com/v25.0/${pathAndQuery.replace(/^\//, "")}`;
   const url = new URL(base);
   url.searchParams.set("access_token", accessToken);
   return url.toString();

@@ -27,8 +27,8 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     requiresDpop: false,
   },
   facebook: {
-    authUrl: "https://www.facebook.com/v24.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v24.0/oauth/access_token",
+    authUrl: "https://www.facebook.com/v25.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v25.0/oauth/access_token",
     clientId: process.env.FACEBOOK_CLIENT_ID || "",
     clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
     scope: "public_profile,pages_show_list,pages_manage_posts,business_management",

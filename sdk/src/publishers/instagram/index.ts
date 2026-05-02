@@ -10,7 +10,7 @@ import type { Content, Media, PostOptionsWithCredentials } from "../../types/pos
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 const INSTAGRAM_API_VERSION = "v25.0";
-const FACEBOOK_GRAPH_API_VERSION = "v24.0";
+const FACEBOOK_GRAPH_API_VERSION = "v25.0";
 const MAX_CAPTION_LENGTH = 2200;
 const MAX_MEDIA_COUNT = 10;
 const PROCESSING_POLL_INTERVAL = 3000;

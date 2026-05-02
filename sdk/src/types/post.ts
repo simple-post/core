@@ -47,23 +47,17 @@ export const CommonOptionsSchema = z.object({
   strictMode: z.boolean().optional(),
 });
 
-export const XAppCredentialsSchema = z.object({
-  apiKey: z.string(),
-  apiSecret: z.string(),
-  accessToken: z.string(),
-  accessSecret: z.string(),
-});
-
-export const XUserCredentialsSchema = z.object({
-  clientId: z.string(),
-  clientSecret: z.string().optional(),
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  expiresAt: z.number(), // Unix timestamp
-});
-
-// Union of the two credential types
-export const XCredentialsSchema = z.union([XAppCredentialsSchema, XUserCredentialsSchema]);
+export const XCredentialsSchema = z
+  .object({
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
+    accessToken: z.string().optional(),
+    refreshToken: z.string().optional(),
+    expiresAt: z.number().optional(), // Unix timestamp
+  })
+  .refine((data) => Boolean(data.accessToken) || Boolean(data.clientId && data.refreshToken), {
+    message: "X credentials require either accessToken, or clientId + refreshToken (or both)",
+  });
 
 export const XOptionsSchema = z.object({
   replyToId: z.string().optional(),
@@ -226,8 +220,6 @@ export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
 export type CommonOptions = z.infer<typeof CommonOptionsSchema>;
-export type XAppCredentials = z.infer<typeof XAppCredentialsSchema>;
-export type XUserCredentials = z.infer<typeof XUserCredentialsSchema>;
 export type XCredentials = z.infer<typeof XCredentialsSchema>;
 export type XOptions = z.infer<typeof XOptionsSchema>;
 export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;

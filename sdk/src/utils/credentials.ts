@@ -5,10 +5,11 @@ export const getCredentialsFromEnv = (): PostOptions => {
 
   const envVars = {
     x: {
-      apiKey: process.env.X_API_KEY,
-      apiSecret: process.env.X_API_SECRET,
+      clientId: process.env.X_CLIENT_ID,
+      clientSecret: process.env.X_CLIENT_SECRET,
       accessToken: process.env.X_ACCESS_TOKEN,
-      accessSecret: process.env.X_ACCESS_SECRET,
+      refreshToken: process.env.X_REFRESH_TOKEN,
+      expiresAt: process.env.X_EXPIRES_AT,
     },
     telegram: {
       botToken: process.env.TELEGRAM_BOT_TOKEN,
@@ -49,14 +50,17 @@ export const getCredentialsFromEnv = (): PostOptions => {
     },
   };
 
-  // Only add credentials if all required env vars are present
-  if (Object.values(envVars.x).every(Boolean)) {
+  // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
+  // or refreshToken is required. clientSecret is only needed for confidential refresh.
+  if (envVars.x.clientId && (envVars.x.accessToken || envVars.x.refreshToken)) {
+    const expiresAtNum = envVars.x.expiresAt ? Number(envVars.x.expiresAt) : undefined;
     options.x = {
       credentials: {
-        apiKey: envVars.x.apiKey!,
-        apiSecret: envVars.x.apiSecret!,
-        accessToken: envVars.x.accessToken!,
-        accessSecret: envVars.x.accessSecret!,
+        clientId: envVars.x.clientId,
+        ...(envVars.x.clientSecret ? { clientSecret: envVars.x.clientSecret } : {}),
+        ...(envVars.x.accessToken ? { accessToken: envVars.x.accessToken } : {}),
+        ...(envVars.x.refreshToken ? { refreshToken: envVars.x.refreshToken } : {}),
+        ...(expiresAtNum && Number.isFinite(expiresAtNum) ? { expiresAt: expiresAtNum } : {}),
       },
     };
   }

@@ -8,13 +8,7 @@ import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type {
-  Content,
-  PostOptionsWithCredentials,
-  XAppCredentials,
-  XCredentials,
-  XUserCredentials,
-} from "../../types/post";
+import type { Content, PostOptionsWithCredentials, XCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 const MAX_TEXT_LENGTH = 280;
@@ -43,8 +37,6 @@ export class XPublisher extends Publisher {
 
   private credentials: XCredentials;
 
-  private isUserCredentials: boolean;
-
   private refreshedCredentials?: {
     accessToken: string;
     refreshToken: string;
@@ -54,37 +46,50 @@ export class XPublisher extends Publisher {
   constructor(options?: PostOptionsWithCredentials) {
     super("X", options);
 
-    // Validate the credentials
     if (!options?.x?.credentials) {
       throw new PostError(PostErrorType.CREDENTIALS_ERROR, "X credentials are required in options.x.credentials");
     }
 
-    // Check if the credentials are user credentials or app credentials
     this.credentials = options.x.credentials;
-    this.isUserCredentials = "refreshToken" in options.x.credentials;
 
-    // Initialize the clients
-    this.client = this.isUserCredentials
-      ? (this.client = new TwitterApi(this.credentials.accessToken))
-      : (this.client = new TwitterApi({
-          appKey: (this.credentials as XAppCredentials).apiKey,
-          appSecret: (this.credentials as XAppCredentials).apiSecret,
-          accessToken: this.credentials.accessToken,
-          accessSecret: (this.credentials as XAppCredentials).accessSecret,
-        }));
+    const canRefresh = Boolean(this.credentials.clientId && this.credentials.refreshToken);
+    if (!this.credentials.accessToken && !canRefresh) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "X credentials require either accessToken, or clientId + refreshToken (or both)",
+      );
+    }
+
+    // If no cached access token is provided, isTokenExpired() will force a refresh on first use.
+    this.client = new TwitterApi(this.credentials.accessToken ?? "");
+  }
+
+  private canRefresh(): boolean {
+    return Boolean(
+      this.credentials.clientId && (this.refreshedCredentials?.refreshToken || this.credentials.refreshToken),
+    );
   }
 
   private isTokenExpired(): boolean {
-    // App credentials don't expire
-    if (!this.isUserCredentials) {
+    // No way to refresh — treat the supplied access token as fresh and let X reject it
+    // with a 401 if it has actually expired. The caller controls token lifecycle.
+    if (!this.canRefresh()) {
       return false;
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    const expiresAt = this.refreshedCredentials?.expiresAt || (this.credentials as XUserCredentials).expiresAt;
+    // We've already refreshed within this publisher's lifetime — use that expiry.
+    if (this.refreshedCredentials) {
+      const now = Math.floor(Date.now() / 1000);
+      return now >= this.refreshedCredentials.expiresAt - 60;
+    }
 
-    // Consider token expired if it expires within the next 1 minute
-    return now >= expiresAt - 60;
+    // No cached access token / expiry → must refresh before first call.
+    if (!this.credentials.accessToken || !this.credentials.expiresAt) {
+      return true;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    return now >= this.credentials.expiresAt - 60;
   }
 
   private async ensureValidToken(): Promise<void> {
@@ -94,13 +99,15 @@ export class XPublisher extends Publisher {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    // No need to refresh app credentials
-    if (!this.isUserCredentials) {
-      return;
-    }
-
-    const { clientId, clientSecret, refreshToken } = this.credentials as XUserCredentials;
+    const { clientId, clientSecret, refreshToken } = this.credentials;
     const currentRefreshToken = this.refreshedCredentials?.refreshToken || refreshToken;
+
+    if (!clientId || !currentRefreshToken) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Cannot refresh X access token: clientId and refreshToken are required",
+      );
+    }
 
     try {
       this.logger.info("Refreshing X access token...");

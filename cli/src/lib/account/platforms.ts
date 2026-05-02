@@ -38,7 +38,7 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "X",
     oauthApp: {
       authorizationUrl: "https://x.com/i/oauth2/authorize",
-      clientId: "NVlUaE1fc1hkeVRrTXlkOElDc186MTpjaQ",
+      clientId: "TEhja1ZudE1iOV9FX05zZ0Fta0E6MTpjaQ",
       pkce: true,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
       redirectUriEnvVar: "SIMPLE_POST_X_REDIRECT_URI",

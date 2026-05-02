@@ -74,40 +74,109 @@ const content = {
 
 ## Authentication
 
-To post on X you need to set the following environment variables:
+X recommends OAuth 2.0 for new integrations. The SDK accepts OAuth 2.0 user credentials in three combinations — pick whichever fits how your app holds and rotates tokens.
 
-```bash
-X_API_KEY=
-X_API_SECRET=
-X_ACCESS_TOKEN=
-X_ACCESS_SECRET=
-```
+| Mode | What you provide | What the SDK does |
+| --- | --- | --- |
+| **Access token only** | `clientId`, `accessToken` (+ optional `expiresAt`) | Uses the access token as-is. Never calls the refresh endpoint. If X returns 401, the call fails — your app is responsible for issuing a fresh token. |
+| **Refresh token only** | `clientId`, `refreshToken` (+ `clientSecret` for confidential clients) | Exchanges the refresh token for a fresh access token on first call, then refreshes again as needed during the publisher's lifetime. |
+| **Both** | `clientId`, `accessToken`, `expiresAt`, `refreshToken` (+ `clientSecret` for confidential clients) | Uses the cached access token while it's still valid; refreshes only when it's within 60s of expiry. |
 
-Follow the [X credentials guide](https://docs.simplepost.dev/x) to get your API keys.
+### ⚠️ Refresh token rotation
 
-## Posting on behalf of a user
-
-If you have have an X app that your users connect to, you can also post on behalf of a user using their access token. In this case, you need to pass the app OAuth 2.0 client ID and secret, and the user's tokens (access token, refresh token, and expiration timestamp) in the `credentials`.
+X rotates refresh tokens on every successful refresh: each call to `/2/oauth2/token` returns a brand-new `refresh_token` *and* invalidates the old one. **The SDK does not persist credentials for you.** Every time a refresh happens, the new tokens are returned in `result.extraData.refreshedCredentials`:
 
 ```typescript
-const userCredentials = {
-  clientId: "X_APP_CLIENT_ID",
-  clientSecret: "X_APP_CLIENT_SECRET",
-  accessToken: "USER_ACCESS_TOKEN",
-  refreshToken: "USER_REFRESH_TOKEN",
-  expiresAt: 1234567890, // Unix timestamp when the token expires
-};
-
-await post({
-  content: { text: "Hello from X using OAuth credentials!" },
-  platforms: ["x"],
-  options: {
-    x: { credentials: userCredentials },
-  },
-});
+Map(1) {
+  'x' => {
+    id: '1948513212514570680',
+    error: 'NO_ERROR',
+    extraData: {
+      refreshedCredentials: {
+        accessToken: 'NEW_USER_ACCESS_TOKEN',
+        refreshToken: 'NEW_USER_REFRESH_TOKEN',
+        expiresAt: 1234567890 // New Unix expiration timestamp
+      }
+    }
+  }
+}
 ```
 
-The SDK will take care of checking if the user's access token is expired and refreshing it if needed. If the user's access token is expired and needs to be refreshed, the `post` function will return the new access token, refresh token and expiration timestamp in the `extraData` property of the result. It is important to update the new user credentials in your database, as the old ones will stop working.
+It is **your** responsibility to write these back to wherever you store the user's credentials (your database, a vault, or `.env` for local dev). If you keep using the previous refresh token, the next refresh will fail with `invalid_grant`.
+
+### Environment variables
+
+The CLI examples and any code that calls `post()` without explicit credentials will load OAuth 2.0 credentials from these environment variables:
+
+```bash
+X_CLIENT_ID=
+X_CLIENT_SECRET=    # only required for confidential OAuth 2.0 clients
+X_ACCESS_TOKEN=     # optional — use for access-token-only mode
+X_EXPIRES_AT=       # optional — Unix timestamp of access-token expiry
+X_REFRESH_TOKEN=    # optional — use for refresh-token mode
+```
+
+At least one of `X_ACCESS_TOKEN` / `X_REFRESH_TOKEN` must be provided.
+
+Follow the [X credentials guide](https://docs.simplepost.dev/x) to obtain these values.
+
+## Posting on behalf of a user (programmatic credentials)
+
+If your app stores per-user X tokens, pass them via `options.x.credentials` instead of using env vars:
+
+```typescript
+// Mode 1: access token only — no refresh attempted
+await post({
+  content: { text: "Hello!" },
+  platforms: ["x"],
+  options: {
+    x: {
+      credentials: {
+        clientId: "X_APP_CLIENT_ID",
+        accessToken: "USER_ACCESS_TOKEN",
+      },
+    },
+  },
+});
+
+// Mode 2: refresh token only — SDK refreshes on first use
+await post({
+  content: { text: "Hello!" },
+  platforms: ["x"],
+  options: {
+    x: {
+      credentials: {
+        clientId: "X_APP_CLIENT_ID",
+        clientSecret: "X_APP_CLIENT_SECRET", // omit for public/PKCE-only clients
+        refreshToken: "USER_REFRESH_TOKEN",
+      },
+    },
+  },
+});
+
+// Mode 3: both — SDK uses the cached access token until it expires
+const result = await post({
+  content: { text: "Hello!" },
+  platforms: ["x"],
+  options: {
+    x: {
+      credentials: {
+        clientId: "X_APP_CLIENT_ID",
+        clientSecret: "X_APP_CLIENT_SECRET",
+        accessToken: "USER_ACCESS_TOKEN",
+        expiresAt: 1234567890, // Unix timestamp when the access token expires
+        refreshToken: "USER_REFRESH_TOKEN",
+      },
+    },
+  },
+});
+
+// If a refresh happened, persist the new tokens — see "Refresh token rotation" above.
+const refreshed = result.get("x")?.extraData?.refreshedCredentials;
+if (refreshed) {
+  await saveUserTokens(refreshed); // your code
+}
+```
 
 ```typescript
 Map(1) {

@@ -100,8 +100,7 @@ export class BlueskyPublisher extends Publisher {
     }
 
     const credentials = options.bluesky.credentials as Record<string, unknown>;
-    const isAppPassword =
-      typeof credentials.identifier === "string" && typeof credentials.appPassword === "string";
+    const isAppPassword = typeof credentials.identifier === "string" && typeof credentials.appPassword === "string";
 
     this.authMode = isAppPassword ? "appPassword" : "oauth";
 
@@ -119,27 +118,18 @@ export class BlueskyPublisher extends Publisher {
       this.did = "";
       this.expiresAt = 0;
     } else {
-      const {
-        accessToken,
-        did,
-        pdsUrl,
-        refreshToken,
-        expiresAt,
-        tokenUrl,
-        clientId,
-        dpopPrivateJwk,
-        dpopPublicJwk,
-      } = credentials as {
-        accessToken: string;
-        did: string;
-        pdsUrl: string;
-        refreshToken?: string;
-        expiresAt?: number;
-        tokenUrl?: string;
-        clientId?: string;
-        dpopPrivateJwk?: Record<string, unknown>;
-        dpopPublicJwk?: Record<string, unknown>;
-      };
+      const { accessToken, did, pdsUrl, refreshToken, expiresAt, tokenUrl, clientId, dpopPrivateJwk, dpopPublicJwk } =
+        credentials as {
+          accessToken: string;
+          did: string;
+          pdsUrl: string;
+          refreshToken?: string;
+          expiresAt?: number;
+          tokenUrl?: string;
+          clientId?: string;
+          dpopPrivateJwk?: Record<string, unknown>;
+          dpopPublicJwk?: Record<string, unknown>;
+        };
 
       if (!pdsUrl) {
         throw new PostError(
@@ -310,16 +300,17 @@ export class BlueskyPublisher extends Publisher {
       let response: Awaited<ReturnType<typeof makeRequest>>;
       try {
         response = await makeRequest(this.tokenDpopNonce);
-      } catch (err: unknown) {
-        const axiosErr = err as { response?: { status?: number; headers?: Record<string, string> } };
-        const nonce = axiosErr.response?.status === 401
-          ? axiosErr.response?.headers?.["dpop-nonce"] || axiosErr.response?.headers?.["DPoP-Nonce"]
-          : undefined;
+      } catch (error: unknown) {
+        const axiosErr = error as { response?: { status?: number; headers?: Record<string, string> } };
+        const nonce =
+          axiosErr.response?.status === 401
+            ? axiosErr.response?.headers?.["dpop-nonce"] || axiosErr.response?.headers?.["DPoP-Nonce"]
+            : undefined;
         if (nonce) {
           this.tokenDpopNonce = nonce;
           response = await makeRequest(nonce);
         } else {
-          throw err;
+          throw error;
         }
       }
       const { access_token, refresh_token, expires_in } = response.data;

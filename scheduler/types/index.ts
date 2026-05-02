@@ -1,4 +1,8 @@
 import type { Prisma } from "@prisma/client";
+import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@simple-post/sdk";
+
+// Shared with @simple-post/server via @simple-post/sdk
+export type { MediaFile, AccountContentOverride, AccountOverridesMap, AccountOptionsMap } from "@simple-post/sdk";
 
 export interface AccountPlatformOptions {
   x?: {
@@ -40,33 +44,22 @@ export interface AccountPlatformOptions {
   };
 }
 
-// Map of accountId to account-specific options
-export type AccountOptionsMap = Record<string, AccountPlatformOptions[keyof AccountPlatformOptions]>;
-
-export interface AccountContentOverride {
-  message?: string;
-  media?: MediaFile[];
-}
-
-// Map of accountId to account-specific content overrides
-export type AccountOverridesMap = Record<string, AccountContentOverride>;
-
 export interface SocialPost {
   id: string;
   message: string;
-  accountIds: string[]; // Changed from platforms to accountIds
+  accountIds: string[];
   media: MediaFile[];
   scheduledFor: Date;
   status: "scheduled" | "pending" | "published" | "failed";
-  errorMessage?: string; // Human-readable error message when status is "failed"
-  errorDetails?: Record<string, unknown>; // Detailed error info (platform errors, stack trace, etc.)
+  errorMessage?: string;
+  errorDetails?: Record<string, unknown>;
   createdAt: Date;
   publishedAt?: Date;
-  accountOptions?: AccountOptionsMap; // Changed from platformOptions to accountOptions
+  accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
 }
 
-// Keep old interface for backward compatibility during migration
+// Legacy shape kept for backward compatibility.
 export interface PlatformOptions {
   x?: {
     replyToId?: string;
@@ -105,15 +98,6 @@ export interface PlatformOptions {
     link?: string;
     altText?: string;
   };
-}
-
-export interface MediaFile {
-  id: string;
-  url: string;
-  thumbnailUrl?: string;
-  type: "image" | "video";
-  filename: string;
-  size: number;
 }
 
 export interface ConnectedAccount {

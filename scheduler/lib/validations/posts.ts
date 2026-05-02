@@ -1,46 +1,20 @@
-import { z } from "zod";
+import { AccountOverridesMapSchema, MediaFileSchema } from "@simple-post/sdk";
+import { z } from "zod/v4";
 
-const mediaFileSchema = z.object({
-  id: z.string(),
-  url: z.string().url(),
-  thumbnailUrl: z.string().url().optional(),
-  type: z.enum(["image", "video"]),
-  filename: z.string(),
-  size: z.number().int().nonnegative(),
-});
+// Schemas shared with the @simple-post/server HTTP API live in @simple-post/sdk.
+// Scheduler-specific schemas (e.g. updatePostSchema) stay here.
+export { createPostSchema, validationRequestSchema } from "@simple-post/sdk";
+export type { CreatePostInput, ValidationRequestInput } from "@simple-post/sdk";
 
-const accountOptionsValueSchema = z.record(z.unknown()).optional();
-
-const accountOverrideSchema = z.object({
-  message: z.string().optional(),
-  media: z.array(mediaFileSchema).optional(),
-});
-
-export const createPostSchema = z.object({
-  message: z.string().default(""),
-  accountIds: z.array(z.string()).min(1, "At least one account is required"),
-  postingMode: z.enum(["now", "schedule"]).default("schedule"),
-  scheduledFor: z.string().datetime().optional(),
-  accountOptions: z.record(accountOptionsValueSchema).optional(),
-  accountOverrides: z.record(accountOverrideSchema).optional(),
-  media: z.array(mediaFileSchema).optional(),
-});
+const accountOptionsValueSchema = z.record(z.string(), z.unknown()).optional();
 
 export const updatePostSchema = z.object({
   message: z.string().default(""),
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
-  scheduledFor: z.string().datetime(),
-  accountOptions: z.record(accountOptionsValueSchema).optional(),
-  accountOverrides: z.record(accountOverrideSchema).optional(),
-  media: z.array(mediaFileSchema).optional(),
+  scheduledFor: z.iso.datetime(),
+  accountOptions: z.record(z.string(), accountOptionsValueSchema).optional(),
+  accountOverrides: AccountOverridesMapSchema.optional(),
+  media: z.array(MediaFileSchema).optional(),
 });
 
-export const validationRequestSchema = z.object({
-  message: z.string().default(""),
-  media: z.array(mediaFileSchema).default([]),
-  accountIds: z.array(z.string()).min(1, "accountIds are required for validation"),
-  accountOverrides: z.record(accountOverrideSchema).optional(),
-});
-
-export type CreatePostInput = z.infer<typeof createPostSchema>;
 export type UpdatePostInput = z.infer<typeof updatePostSchema>;

@@ -117,6 +117,26 @@ export type { PostResult } from "./types";
 export { PostError, PostErrorType } from "./types";
 export type { PlatformValidationRules, ValidationIssue, ValidationResult } from "./types/validation";
 
+// Shared HTTP API contract — request schemas and response types used by
+// the @simple-post/server and @simple-post/scheduler HTTP APIs.
+export {
+  MediaFileSchema,
+  AccountContentOverrideSchema,
+  AccountOverridesMapSchema,
+  createPostSchema,
+  validationRequestSchema,
+} from "./types/api";
+export type {
+  MediaFile,
+  AccountContentOverride,
+  AccountOverridesMap,
+  AccountOptionsMap,
+  CreatePostInput,
+  ValidationRequestInput,
+  PostingResult,
+  PostingSummary,
+} from "./types/api";
+
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
 export {

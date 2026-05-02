@@ -1,4 +1,4 @@
-import axios, { type AxiosError } from "axios";
+import axios, { type AxiosError, type AxiosInstance } from "axios";
 
 import { PostError, PostErrorType } from "../../types";
 import { hasValidSource, resolveMediaUrl } from "../../utils";
@@ -8,7 +8,6 @@ import { Publisher } from "../base";
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
-import type { AxiosInstance } from "axios";
 
 const INSTAGRAM_API_VERSION = "v25.0";
 const FACEBOOK_GRAPH_API_VERSION = "v24.0";
@@ -140,11 +139,7 @@ export class InstagramPublisher extends Publisher {
     return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
   }
 
-  private async apiRequest<T>(
-    method: "get" | "post",
-    url: string,
-    data?: unknown,
-  ): Promise<{ data: T }> {
+  private async apiRequest<T>(method: "get" | "post", url: string, data?: unknown): Promise<{ data: T }> {
     const doRequest = () => {
       const requestUrl = this.withAccessToken(url);
       return method === "get" ? this.client.get<T>(requestUrl) : this.client.post<T>(requestUrl, data);
@@ -344,11 +339,9 @@ export class InstagramPublisher extends Publisher {
       await this.waitForMediaReady(containerId);
 
       // Publish the container
-      const response = await this.apiRequest<{ id: string }>(
-        "post",
-        `/${this.businessAccountId}/media_publish`,
-        { creation_id: containerId },
-      );
+      const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media_publish`, {
+        creation_id: containerId,
+      });
 
       const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
       if (this.refreshedCredentials) {

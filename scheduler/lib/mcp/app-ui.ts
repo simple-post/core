@@ -3,7 +3,7 @@ import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { getAppBaseUrl } from "./config";
 
-export const SIMPLEPOST_WIDGET_URI = "ui://simplepost/social-post-console-v1.html";
+export const SIMPLEPOST_WIDGET_URI = "ui://simplepost/social-post-console-v2.html";
 
 const SOCIAL_REDIRECT_DOMAINS = [
   "https://x.com",
@@ -912,16 +912,17 @@ function buildStyles(): string {
 
 function buildScript(appOrigin: string): string {
   return `
-<script type="module">
-  const APP_ORIGIN = ${JSON.stringify(appOrigin)};
+<script>
+(function () {
+  var APP_ORIGIN = ${JSON.stringify(appOrigin)};
 
-  const root = document.querySelector(".sp-shell");
-  const content = document.getElementById("content");
-  const statusPill = document.getElementById("status-pill");
-  const titleEl = document.getElementById("title");
-  const kickerEl = document.getElementById("kicker-label");
-  const manageLink = document.getElementById("manage-link");
-  manageLink.href = APP_ORIGIN;
+  var root = document.querySelector(".sp-shell");
+  var content = document.getElementById("content");
+  var statusPill = document.getElementById("status-pill");
+  var titleEl = document.getElementById("title");
+  var kickerEl = document.getElementById("kicker-label");
+  var manageLink = document.getElementById("manage-link");
+  if (manageLink) manageLink.href = APP_ORIGIN;
 
   // ---------- Helpers ----------
 
@@ -1489,41 +1490,66 @@ function buildScript(appOrigin: string): string {
   // (window.openai globals + "openai:set_globals" CustomEvent) and any
   // MCP Apps compliant host (postMessage with "ui/notifications/tool-result").
 
-  function readFromOpenAi() {
-    const api = typeof window !== "undefined" ? window.openai : undefined;
-    if (!api) return false;
-    if (api.theme) applyTheme(api.theme);
-    const output = api.toolOutput;
-    if (output && typeof output === "object") {
-      // ChatGPT exposes the parsed structuredContent directly on toolOutput.
-      // Other hosts may wrap it inside a CallToolResult shape.
-      render(output.structuredContent ? output : { structuredContent: output });
-      return true;
+  function renderFromOutput(output) {
+    if (output == null) {
+      renderEmpty();
+      return;
     }
-    return false;
+    // ChatGPT exposes the parsed structuredContent directly on toolOutput.
+    // Other hosts may wrap it inside a CallToolResult shape.
+    if (typeof output === "object" && output.structuredContent) {
+      render(output);
+    } else {
+      render({ structuredContent: output });
+    }
   }
 
-  if (!readFromOpenAi()) {
+  function readFromOpenAi() {
+    var api = window.openai;
+    if (!api) return;
+    if (api.theme) applyTheme(api.theme);
+    renderFromOutput(api.toolOutput);
+  }
+
+  // Render whatever we have right now. window.openai may already be populated
+  // before our script runs, in which case we paint the data immediately;
+  // otherwise we paint the empty state and wait for openai:set_globals.
+  if (window.openai) {
+    if (window.openai.theme) applyTheme(window.openai.theme);
+    if (window.openai.toolOutput) {
+      renderFromOutput(window.openai.toolOutput);
+    } else {
+      renderEmpty();
+    }
+  } else {
     renderEmpty();
   }
 
   window.addEventListener(
     "openai:set_globals",
-    (event) => {
-      const globals = (event && event.detail && event.detail.globals) || {};
+    function (event) {
+      var detail = (event && event.detail) || {};
+      var globals = detail.globals || detail || {};
       if (globals.theme) applyTheme(globals.theme);
-      if ("toolOutput" in globals || "toolInput" in globals) {
+      if ("toolOutput" in globals) {
+        renderFromOutput(globals.toolOutput != null ? globals.toolOutput : (window.openai && window.openai.toolOutput));
+      } else if ("toolInput" in globals) {
         readFromOpenAi();
       }
     },
     { passive: true },
   );
 
+  // Belt-and-braces: re-check window.openai after the iframe has fully loaded,
+  // in case ChatGPT injects toolOutput between our initial read and the first
+  // openai:set_globals event firing.
+  window.addEventListener("load", readFromOpenAi, { passive: true });
+
   window.addEventListener(
     "message",
-    (event) => {
+    function (event) {
       if (event.source !== window.parent) return;
-      const message = event.data;
+      var message = event.data;
       if (!message || typeof message !== "object" || message.jsonrpc !== "2.0") return;
       if (message.method === "ui/notifications/tool-result") {
         render(message.params || {});
@@ -1533,5 +1559,6 @@ function buildScript(appOrigin: string): string {
     },
     { passive: true },
   );
+})();
 </script>`.trim();
 }

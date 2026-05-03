@@ -139,7 +139,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
       _meta: toolMeta("Uploading media", "Media uploaded"),
     },
@@ -244,7 +244,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       annotations: {
         title: "Create or publish a SimplePost post",
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: false,
         openWorldHint: true,
       },

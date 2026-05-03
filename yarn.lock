@@ -4886,7 +4886,8 @@ __metadata:
     typescript-eslint: "npm:^8.33.1"
     uuid: "npm:^11.1.0"
     vaul: "npm:^1.1.2"
-    zod: "npm:3.25.67"
+    zod: "npm:^3.25.76"
+    zod-openapi: "npm:^5.4.6"
   languageName: unknown
   linkType: soft
 
@@ -4924,7 +4925,7 @@ __metadata:
     typescript: "npm:^5.8.3"
     typescript-eslint: "npm:^8.35.1"
     uuid: "npm:^11.1.0"
-    zod: "npm:^3.25.63"
+    zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
 
@@ -4948,7 +4949,8 @@ __metadata:
     tsx: "npm:^4.19.3"
     typescript: "npm:^5.8.3"
     typescript-eslint: "npm:^8.53.1"
-    zod: "npm:^3.24.1"
+    zod: "npm:^3.25.76"
+    zod-openapi: "npm:^5.4.6"
   languageName: unknown
   linkType: soft
 
@@ -16792,26 +16794,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"zod-openapi@npm:^5.4.6":
+  version: 5.4.6
+  resolution: "zod-openapi@npm:5.4.6"
+  peerDependencies:
+    zod: ^3.25.74 || ^4.0.0
+  checksum: 10c0/87fb2c55c11d2a285d4a9edc1f9b9f7a6b741092786065575468f384ef180bb80b03694c1b8f5364ddf698ba603ff0543ef7c5395962cf3289893b1ebf7f1497
+  languageName: node
+  linkType: hard
+
 "zod-to-json-schema@npm:^3.25.1":
   version: 3.25.2
   resolution: "zod-to-json-schema@npm:3.25.2"
   peerDependencies:
     zod: ^3.25.28 || ^4
   checksum: 10c0/dd300554393903022487688af14fbda5c719ba8179702bb55b3aa86318830467f0f7beb7d654036975ac963dc4843b72e59636448bfff9a0608f277bb6a14939
-  languageName: node
-  linkType: hard
-
-"zod@npm:3.25.67":
-  version: 3.25.67
-  resolution: "zod@npm:3.25.67"
-  checksum: 10c0/80a0cab3033272c4ab9312198081f0c4ea88e9673c059aa36dc32024906363729db54bdb78f3dc9d5529bd1601f74974d5a56c0a23e40c6f04a9270c9ff22336
-  languageName: node
-  linkType: hard
-
-"zod@npm:^3.24.1":
-  version: 3.25.76
-  resolution: "zod@npm:3.25.76"
-  checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
   languageName: node
   linkType: hard
 
@@ -16822,9 +16819,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.25.63":
-  version: 3.25.64
-  resolution: "zod@npm:3.25.64"
-  checksum: 10c0/00d76093a999e377e4ffd037fa7185e861c35917e8c4272f514115c206a0654995168f57fb71708b11e0a9243206d988b7f63b543404e1796402e50d346a6bd7
+"zod@npm:^3.25.76":
+  version: 3.25.76
+  resolution: "zod@npm:3.25.76"
+  checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
   languageName: node
   linkType: hard

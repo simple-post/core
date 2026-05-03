@@ -52,7 +52,7 @@
     "googleapis": "^150.0.1",
     "twitter-api-v2": "^1.23.2",
     "uuid": "^11.1.0",
-    "zod": "^3.25.63"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

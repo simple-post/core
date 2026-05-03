@@ -1,0 +1,444 @@
+import {
+  AccountOverridesMapSchema,
+  MediaFileSchema,
+  PlatformSchema,
+  ThreadSchema,
+  createPostSchema,
+  validationRequestSchema,
+} from "@simple-post/sdk";
+import * as z from "zod/v4";
+
+import { updatePostSchema } from "@/lib/validations/posts";
+
+export const JsonValueSchema = z.unknown();
+
+export const ApiErrorSchema = z
+  .object({
+    error: z.string(),
+    code: z.string().optional(),
+    details: JsonValueSchema.optional(),
+    message: z.string().optional(),
+  })
+  .meta({ id: "ApiError" });
+
+export const OAuthErrorSchema = z
+  .object({
+    error: z.string(),
+    error_description: z.string().optional(),
+  })
+  .meta({ id: "OAuthError" });
+
+export const SuccessSchema = z
+  .object({
+    success: z.boolean(),
+  })
+  .meta({ id: "Success" });
+
+export const MediaFileResponseSchema = MediaFileSchema.meta({ id: "MediaFile" });
+
+export const CreatePostRequestSchema = createPostSchema.meta({ id: "CreatePostRequest" });
+
+export const UpdatePostRequestSchema = updatePostSchema.meta({ id: "UpdatePostRequest" });
+
+export const ValidationRequestSchema = validationRequestSchema.meta({ id: "ValidationRequest" });
+
+export const PaginationSchema = z
+  .object({
+    page: z.number().int().positive(),
+    limit: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    totalPages: z.number().int().nonnegative(),
+    hasNextPage: z.boolean(),
+    hasPreviousPage: z.boolean(),
+  })
+  .meta({ id: "Pagination" });
+
+export const ThreadSegmentResultSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    success: z.boolean(),
+    postId: z.string().optional(),
+    postUrl: z.url().optional(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+    details: JsonValueSchema.optional(),
+  })
+  .meta({ id: "ThreadSegmentResult" });
+
+export const PostSchema = z
+  .object({
+    id: z.string(),
+    message: z.string(),
+    accountIds: z.array(z.string()),
+    media: z.array(MediaFileResponseSchema),
+    scheduledFor: z.iso.datetime(),
+    status: z.enum(["scheduled", "pending", "published", "failed"]),
+    errorMessage: z.string().optional(),
+    errorDetails: z.record(z.string(), JsonValueSchema).optional(),
+    createdAt: z.iso.datetime(),
+    publishedAt: z.iso.datetime().optional(),
+    accountOptions: z.record(z.string(), z.record(z.string(), JsonValueSchema).optional()).optional(),
+    accountOverrides: AccountOverridesMapSchema.optional(),
+    thread: ThreadSchema.optional(),
+    threadResults: z.record(z.string(), z.array(ThreadSegmentResultSchema)).optional(),
+  })
+  .meta({ id: "Post" });
+
+export const PostEnvelopeSchema = z
+  .object({
+    post: PostSchema,
+  })
+  .meta({ id: "PostEnvelope" });
+
+export const PostsEnvelopeSchema = z
+  .object({
+    posts: z.array(PostSchema),
+    pagination: PaginationSchema.optional(),
+  })
+  .meta({ id: "PostsEnvelope" });
+
+export const PostingResultSchema = z
+  .object({
+    accountId: z.string(),
+    platform: z.string(),
+    success: z.boolean(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+    postId: z.string().optional(),
+    postUrl: z.url().optional(),
+    details: JsonValueSchema.optional(),
+    threadResults: z.array(ThreadSegmentResultSchema).optional(),
+  })
+  .meta({ id: "PostingResult" });
+
+export const PostingSummarySchema = z
+  .object({
+    successCount: z.number().int().nonnegative(),
+    failureCount: z.number().int().nonnegative(),
+    overallSuccess: z.boolean(),
+  })
+  .meta({ id: "PostingSummary" });
+
+export const CreatePostResponseSchema = z
+  .object({
+    post: PostSchema,
+    postingResults: z.array(PostingResultSchema).optional(),
+    summary: PostingSummarySchema.optional(),
+  })
+  .meta({ id: "CreatePostResponse" });
+
+export const ConnectedAccountSchema = z
+  .object({
+    id: z.string(),
+    userId: z.string(),
+    platform: z.string(),
+    platformAccountId: z.string(),
+    tokenType: z.string().nullable().optional(),
+    expiresAt: z.iso.datetime().nullable().optional(),
+    scope: z.string().nullable().optional(),
+    username: z.string().nullable().optional(),
+    displayName: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    profilePicture: z.url().nullable().optional(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    accessToken: z.string().optional(),
+    refreshToken: z.string().nullable().optional(),
+    tokenMetadata: JsonValueSchema.optional(),
+  })
+  .meta({ id: "ConnectedAccount" });
+
+export const AccountsEnvelopeSchema = z
+  .object({
+    accounts: z.array(ConnectedAccountSchema),
+  })
+  .meta({ id: "AccountsEnvelope" });
+
+export const DisconnectAccountResponseSchema = z
+  .object({
+    success: z.boolean(),
+    message: z.string(),
+  })
+  .meta({ id: "DisconnectAccountResponse" });
+
+export const PinterestBoardSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    pinCount: z.number().int().nonnegative(),
+  })
+  .meta({ id: "PinterestBoard" });
+
+export const PinterestBoardsEnvelopeSchema = z
+  .object({
+    boards: z.array(PinterestBoardSchema),
+  })
+  .meta({ id: "PinterestBoardsEnvelope" });
+
+export const ValidationIssueSchema = z
+  .object({
+    platform: z.union([PlatformSchema, z.literal("common")]),
+    severity: z.enum(["error", "warning"]),
+    code: z.string(),
+    message: z.string(),
+    field: z.string().optional(),
+    limit: z.number().optional(),
+    actual: z.number().optional(),
+    meta: z.record(z.string(), JsonValueSchema).optional(),
+  })
+  .meta({ id: "ValidationIssue" });
+
+export const PlatformValidationRulesSchema = z
+  .object({
+    text: z
+      .object({
+        maxLength: z.number().int().positive().optional(),
+        maxCaptionLength: z.number().int().positive().optional(),
+        maxCaptionLengthByMediaType: z
+          .object({
+            image: z.number().int().positive().optional(),
+            video: z.number().int().positive().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    media: z
+      .object({
+        requiresMedia: z.boolean().optional(),
+        minCount: z.number().int().nonnegative().optional(),
+        maxCount: z.number().int().nonnegative().optional(),
+        maxImages: z.number().int().nonnegative().optional(),
+        maxVideos: z.number().int().nonnegative().optional(),
+        allowsMixed: z.boolean().optional(),
+      })
+      .optional(),
+    video: z
+      .object({
+        requiresVideo: z.boolean().optional(),
+        maxSizeBytes: z.number().int().positive().optional(),
+        maxTitleLength: z.number().int().positive().optional(),
+        maxDescriptionLength: z.number().int().positive().optional(),
+      })
+      .optional(),
+    image: z
+      .object({
+        maxSizeBytes: z.number().int().positive().optional(),
+      })
+      .optional(),
+    notes: z.array(z.string()).optional(),
+  })
+  .meta({ id: "PlatformValidationRules" });
+
+export const PlatformValidationResponseSchema = z
+  .object({
+    accountId: z.string(),
+    platform: PlatformSchema,
+    rules: PlatformValidationRulesSchema,
+    errors: z.array(ValidationIssueSchema),
+    warnings: z.array(ValidationIssueSchema),
+    isValid: z.boolean(),
+    usesCommonContent: z.boolean(),
+  })
+  .meta({ id: "PlatformValidationResponse" });
+
+export const ValidationResponseSchema = z
+  .object({
+    platforms: z.array(PlatformSchema),
+    results: z.array(PlatformValidationResponseSchema),
+    summary: z.object({
+      errors: z.array(ValidationIssueSchema),
+      warnings: z.array(ValidationIssueSchema),
+      isValid: z.boolean(),
+    }),
+    accounts: z.array(ConnectedAccountSchema),
+  })
+  .meta({ id: "ValidationResponse" });
+
+export const SchedulerUploadResponseSchema = z
+  .object({
+    url: z.url(),
+    key: z.string(),
+    filename: z.string(),
+    size: z.number().int().nonnegative(),
+    type: z.string(),
+  })
+  .meta({ id: "SchedulerUploadResponse" });
+
+export const PresignUploadRequestSchema = z
+  .object({
+    filename: z.string().min(1),
+    contentType: z.string().min(1),
+    isThumbnail: z.boolean().optional(),
+  })
+  .meta({ id: "PresignUploadRequest" });
+
+export const PresignUploadResponseSchema = z
+  .object({
+    uploadUrl: z.url(),
+    publicUrl: z.url(),
+    key: z.string(),
+  })
+  .meta({ id: "PresignUploadResponse" });
+
+export const CliAuthorizeRequestSchema = z
+  .object({
+    state: z.string(),
+    redirectUri: z.url(),
+  })
+  .meta({ id: "CliAuthorizeRequest" });
+
+export const RedirectUrlResponseSchema = z
+  .object({
+    redirectUrl: z.url(),
+  })
+  .meta({ id: "RedirectUrlResponse" });
+
+export const TelegramConnectRequestSchema = z
+  .object({
+    botToken: z.string(),
+    chatId: z.string(),
+    channelName: z.string().optional(),
+  })
+  .meta({ id: "TelegramConnectRequest" });
+
+export const TelegramConnectResponseSchema = z
+  .object({
+    success: z.boolean(),
+    account: z.object({
+      platform: z.literal("telegram"),
+      chatId: z.string(),
+      botUsername: z.string(),
+      chatTitle: z.string(),
+    }),
+  })
+  .meta({ id: "TelegramConnectResponse" });
+
+export const PendingConnectionAccountSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    username: z.string().nullable().optional(),
+    profilePicture: z.url().nullable().optional(),
+  })
+  .meta({ id: "PendingConnectionAccount" });
+
+export const PendingConnectionResponseSchema = z
+  .object({
+    id: z.string(),
+    platform: z.string(),
+    accounts: z.array(PendingConnectionAccountSchema),
+  })
+  .meta({ id: "PendingConnectionResponse" });
+
+export const SelectPendingConnectionRequestSchema = z
+  .object({
+    selectedAccountIds: z.array(z.string()).min(1),
+  })
+  .meta({ id: "SelectPendingConnectionRequest" });
+
+export const SelectPendingConnectionResponseSchema = z
+  .object({
+    success: z.boolean(),
+    count: z.number().int().nonnegative(),
+  })
+  .meta({ id: "SelectPendingConnectionResponse" });
+
+export const OAuthAuthorizeRequestSchema = z
+  .object({
+    client_id: z.string(),
+    redirect_uri: z.url(),
+    state: z.string(),
+    code_challenge: z.string(),
+    code_challenge_method: z.literal("S256").optional(),
+    scope: z.string().optional(),
+    resource: z.string().optional(),
+  })
+  .meta({ id: "OAuthAuthorizeRequest" });
+
+export const OAuthRegisterRequestSchema = z
+  .object({
+    client_name: z.string().optional(),
+    software_id: z.string().optional(),
+    redirect_uris: z.array(z.url()).min(1),
+    token_endpoint_auth_method: z.enum(["client_secret_post", "none"]).optional(),
+    scope: z.string().optional(),
+  })
+  .meta({ id: "OAuthRegisterRequest" });
+
+export const OAuthRegisterResponseSchema = z
+  .object({
+    client_id: z.string(),
+    client_secret: z.string().optional(),
+    client_name: z.string(),
+    redirect_uris: z.array(z.url()),
+    grant_types: z.array(z.literal("authorization_code")),
+    response_types: z.array(z.literal("code")),
+    token_endpoint_auth_method: z.enum(["client_secret_post", "none"]),
+    scope: z.string(),
+  })
+  .meta({ id: "OAuthRegisterResponse" });
+
+export const OAuthTokenRequestSchema = z
+  .object({
+    grant_type: z.literal("authorization_code"),
+    code: z.string(),
+    client_id: z.string().optional(),
+    client_secret: z.string().optional(),
+    redirect_uri: z.url(),
+    code_verifier: z.string(),
+    resource: z.string().optional(),
+  })
+  .meta({ id: "OAuthTokenRequest" });
+
+export const OAuthTokenResponseSchema = z
+  .object({
+    access_token: z.string(),
+    token_type: z.literal("Bearer"),
+    expires_in: z.number().int().positive(),
+    scope: z.string(),
+  })
+  .meta({ id: "OAuthTokenResponse" });
+
+export const DispatchScheduledPostsResponseSchema = z
+  .object({
+    startedAt: z.iso.datetime(),
+    finishedAt: z.iso.datetime(),
+    processedPosts: z.number().int().nonnegative(),
+    publishedPosts: z.number().int().nonnegative(),
+    failedPosts: z.number().int().nonnegative(),
+    skippedPosts: z.number().int().nonnegative(),
+    platformSummary: z.array(
+      z.object({
+        platform: z.string(),
+        sent: z.number().int().nonnegative(),
+        availableSlots: z.number().int().nonnegative(),
+        queued: z.number().int().nonnegative(),
+        rateLimit: z.object({
+          maxPosts: z.number().int().positive(),
+          intervalMinutes: z.number().int().positive(),
+        }),
+      }),
+    ),
+    postResults: z.array(
+      z.object({
+        postId: z.string(),
+        success: z.boolean(),
+        status: z.enum(["published", "failed"]),
+        errorMessage: z.string().optional(),
+      }),
+    ),
+  })
+  .meta({ id: "DispatchScheduledPostsResponse" });
+
+export const McpJsonRpcRequestSchema = z
+  .record(z.string(), JsonValueSchema)
+  .meta({ id: "McpJsonRpcRequest", description: "MCP Streamable HTTP JSON-RPC request." });
+
+export const McpJsonRpcResponseSchema = z
+  .record(z.string(), JsonValueSchema)
+  .meta({ id: "McpJsonRpcResponse", description: "MCP Streamable HTTP JSON-RPC response." });
+
+export const OpenApiDocumentSchema = z
+  .record(z.string(), JsonValueSchema)
+  .meta({ id: "OpenApiDocument", description: "Generated OpenAPI 3.1 document." });

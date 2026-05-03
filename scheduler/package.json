@@ -87,7 +87,8 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
-    "zod": "3.25.67"
+    "zod": "^3.25.76",
+    "zod-openapi": "^5.4.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

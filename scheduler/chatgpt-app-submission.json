@@ -1,0 +1,156 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "SimplePost",
+    "subtitle": "Schedule social posts",
+    "description": "SimplePost helps users work with connected social accounts from ChatGPT: list available accounts, upload media, validate drafts against platform rules, preview post targets and timing, then publish immediately or schedule posts for later.",
+    "category": "PRODUCTIVITY"
+  },
+  "tools": {
+    "list_accounts": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the authenticated user's connected SimplePost account metadata.",
+        "open_world_justification": "Does not change public internet state or external third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+      }
+    },
+    "upload_media": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Uploads user-provided image or video bytes to SimplePost storage and returns a new media URL.",
+        "open_world_justification": "Creates a publicly fetchable media URL that can be used by social platforms for posting.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, publish a post, or perform an irreversible platform action."
+      }
+    },
+    "validate_post": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Checks draft text and media URLs against platform validation rules without creating records or posting.",
+        "open_world_justification": "Does not write to public internet state or external third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+      }
+    },
+    "preview_post": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Resolves targets, media count, scheduled time, and validation status without creating or publishing a post.",
+        "open_world_justification": "Does not write to SimplePost, public internet state, or external third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+      }
+    },
+    "create_post": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Creates a SimplePost post record and may update its status after attempting platform posting.",
+        "open_world_justification": "Can publish user-confirmed content to connected external social platforms or schedule it for later publication.",
+        "destructive_justification": "Immediate posting sends public social content to external platforms, which may not be reversible through this app."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "List connected social accounts before starting a posting workflow.",
+      "user_prompt": "Which SimplePost accounts can I post from?",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts",
+      "expected_output": "Returns the user's connected accounts with account IDs, platform names, and display metadata for selecting targets.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Validate a text-only draft against selected accounts.",
+      "user_prompt": "Check whether this post is valid for my connected X and LinkedIn accounts: Shipping the new release notes today.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, validate_post",
+      "expected_output": "Reports whether the draft is valid for the selected accounts and surfaces any platform-specific errors or warnings.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Preview a scheduled post with a public media URL.",
+      "user_prompt": "Preview this for my Instagram account tomorrow at 9 AM Berlin time using https://example.com/photo.jpg: New product photos are live.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, preview_post",
+      "expected_output": "Shows resolved target account details, media count, scheduled time with timezone, and validation results without creating the post.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Upload raw media bytes when no public URL is available.",
+      "user_prompt": "Upload this base64 PNG as launch.png so I can attach it to a SimplePost draft.",
+      "file_attachment_urls": null,
+      "tools_triggered": "upload_media",
+      "expected_output": "Returns a publicly fetchable SimplePost media URL with file type, filename, size, and MIME type.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Schedule a confirmed post for later publication.",
+      "user_prompt": "Schedule the confirmed post 'Office hours start at 16:00 CET' for my Telegram channel tomorrow at 16:00 Europe/Berlin.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, preview_post, create_post",
+      "expected_output": "Creates a scheduled SimplePost post for the selected account and returns the scheduled status and posting summary.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Publish a confirmed post immediately and inspect platform results.",
+      "user_prompt": "Post this now to my selected X account: We just shipped the May update. I confirm the content and target account.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, validate_post, create_post",
+      "expected_output": "Creates the post, attempts immediate publication, and returns per-platform success or failure results for the selected account.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for connecting or reauthorizing accounts.",
+      "user_prompt": "Connect my new Instagram account to SimplePost.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not invoke MCP tools because account connection and reauthorization must happen in the SimplePost web app.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for editing or canceling scheduled posts.",
+      "user_prompt": "Cancel the SimplePost post I scheduled for Friday.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not invoke MCP tools because the MCP server does not list, edit, or cancel scheduled posts.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for unrelated calendar scheduling.",
+      "user_prompt": "Schedule a team meeting tomorrow at 10 AM.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because meeting scheduling is outside SimplePost's supported social posting workflows.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for generic writing help with no intent to use SimplePost.",
+      "user_prompt": "Write three short caption ideas for a product launch.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked unless the user asks to validate, preview, upload media for, publish, or schedule through SimplePost.",
+      "expected_output_url": null
+    }
+  ]
+}

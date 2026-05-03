@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "SimplePost",
     "subtitle": "Schedule social posts",
-    "description": "SimplePost helps users work with connected social accounts from ChatGPT: list available accounts, upload media, validate drafts against platform rules, preview post targets and timing, then publish immediately or schedule posts for later.",
+    "description": "SimplePost helps users work with connected social accounts from ChatGPT: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing when requested, then publish immediately or schedule posts for later.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -23,12 +23,12 @@
     "upload_media": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": true,
+        "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Uploads user-provided image or video bytes to SimplePost storage and returns a new media URL.",
-        "open_world_justification": "Creates a publicly fetchable media URL that can be used by social platforms for posting.",
+        "read_only_justification": "Uploads user-provided image or video bytes to the authenticated user's SimplePost storage and returns a new media URL.",
+        "open_world_justification": "Writes only to the bounded SimplePost media store for the authenticated user; it does not post to social platforms or write to arbitrary external destinations.",
         "destructive_justification": "Does not delete, overwrite, revoke access, publish a post, or perform an irreversible platform action."
       }
     },
@@ -95,8 +95,8 @@
       "expected_output_url": null
     },
     {
-      "description": "Upload raw media bytes when no public URL is available.",
-      "user_prompt": "Upload this base64 PNG as launch.png so I can attach it to a SimplePost draft.",
+      "description": "Upload a generated or attached ChatGPT image when no public URL is available.",
+      "user_prompt": "Upload this generated image as launch.png so I can attach it to a SimplePost draft.",
       "file_attachment_urls": null,
       "tools_triggered": "upload_media",
       "expected_output": "Returns a publicly fetchable SimplePost media URL with file type, filename, size, and MIME type.",
@@ -106,16 +106,16 @@
       "description": "Schedule a confirmed post for later publication.",
       "user_prompt": "Schedule the confirmed post 'Office hours start at 16:00 CET' for my Telegram channel tomorrow at 16:00 Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, preview_post, create_post",
-      "expected_output": "Creates a scheduled SimplePost post for the selected account and returns the scheduled status and posting summary.",
+      "tools_triggered": "list_accounts, create_post",
+      "expected_output": "Creates a scheduled SimplePost post for the selected account after create_post performs internal validation, then returns the scheduled status and posting summary.",
       "expected_output_url": null
     },
     {
       "description": "Publish a confirmed post immediately and inspect platform results.",
       "user_prompt": "Post this now to my selected X account: We just shipped the May update. I confirm the content and target account.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, validate_post, create_post",
-      "expected_output": "Creates the post, attempts immediate publication, and returns per-platform success or failure results for the selected account.",
+      "tools_triggered": "list_accounts, create_post",
+      "expected_output": "Creates the post after create_post performs internal validation, attempts immediate publication, and returns per-platform success or failure results for the selected account.",
       "expected_output_url": null
     }
   ],

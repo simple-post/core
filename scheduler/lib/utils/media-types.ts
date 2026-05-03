@@ -21,12 +21,14 @@ export const EXTENSION_TO_TYPE: Record<string, string> = {
 };
 
 export function normalizeContentType(contentType: string, filename: string): string | undefined {
-  if (contentType === "image/jpg") {
+  const normalized = contentType.split(";")[0]?.trim().toLowerCase();
+
+  if (normalized === "image/jpg") {
     return "image/jpeg";
   }
 
-  if (contentType) {
-    return contentType;
+  if (normalized) {
+    return normalized;
   }
 
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";

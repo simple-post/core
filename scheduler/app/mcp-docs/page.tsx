@@ -62,7 +62,8 @@ export default function McpDocsPage() {
             </h1>
           </div>
           <p className="text-sm text-muted-foreground max-w-xl mb-5">
-            Remote MCP server for validating, publishing, and scheduling posts from any compatible AI assistant.
+            Remote MCP server for publishing and scheduling posts from any compatible AI assistant, with optional
+            validation and previews when you ask for them.
           </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>
@@ -72,8 +73,9 @@ export default function McpDocsPage() {
             <ul className="space-y-1.5">
               {[
                 "List social accounts connected to your SimplePost account",
-                "Validate draft post text against platform-specific rules",
-                "Preview target accounts, timing, and validation before posting",
+                "Upload generated or attached images and videos when no public URL exists",
+                "Validate draft post text against platform-specific rules when requested",
+                "Preview target accounts, timing, and validation when requested",
                 "Create posts for immediate publishing or future scheduling",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
@@ -88,7 +90,6 @@ export default function McpDocsPage() {
             <ul className="space-y-1.5">
               {[
                 "Connect, disconnect, or re-authenticate social accounts through MCP",
-                "Upload images or videos through MCP",
                 "Edit, list, delete, or cancel scheduled posts through MCP",
                 "Read analytics or previous social media posts",
               ].map((item) => (

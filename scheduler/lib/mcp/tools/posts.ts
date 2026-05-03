@@ -6,7 +6,7 @@ import { sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 import { mcpAccountSchema } from "./accounts";
-import { mcpMediaItemSchema, toMediaFiles } from "./media-schema";
+import { mcpMediaItemSchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
 import { validatePost, validatePostOutputSchema } from "./validation";
 
 export const createPostSchema = z.object({
@@ -21,6 +21,7 @@ export const createPostSchema = z.object({
     .describe(
       "Optional images/videos to attach. Each item must have a public URL, either one the user provided or one returned by upload_media. Some platforms, such as Instagram, require media; YouTube requires a video.",
     ),
+  thread: mcpThreadSchema,
   postingMode: z
     .enum(["now", "schedule"])
     .default("now")
@@ -43,6 +44,15 @@ const mcpPostSchema = z.object({
   publishedAt: z.string().nullable(),
 });
 
+const threadSegmentResultSchema = z.object({
+  index: z.number(),
+  success: z.boolean(),
+  postId: z.string().optional(),
+  postUrl: z.string().optional(),
+  error: z.string().optional(),
+  message: z.string().optional(),
+});
+
 const postingResultSchema = z.object({
   accountId: z.string(),
   platform: z.string(),
@@ -50,6 +60,8 @@ const postingResultSchema = z.object({
   error: z.string().optional(),
   message: z.string().optional(),
   postUrl: z.string().optional(),
+  postId: z.string().optional(),
+  threadResults: z.array(threadSegmentResultSchema).optional(),
 });
 
 export const previewPostOutputSchema = z.object({
@@ -63,6 +75,7 @@ export const previewPostOutputSchema = z.object({
   summary: z.object({
     accountCount: z.number(),
     mediaCount: z.number(),
+    threadSegmentCount: z.number(),
     errorCount: z.number(),
     warningCount: z.number(),
   }),
@@ -78,6 +91,7 @@ export const createPostOutputSchema = z.object({
   summary: z.object({
     accountCount: z.number(),
     mediaCount: z.number(),
+    threadSegmentCount: z.number(),
     successCount: z.number(),
     failureCount: z.number(),
     scheduledCount: z.number(),
@@ -127,10 +141,12 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
   const mediaCount = input.media?.length ?? 0;
+  const threadSegmentCount = input.thread?.length ?? 0;
   const validation = await validatePost(userId, {
     message: input.message,
     accountIds: input.accountIds,
     media: input.media,
+    thread: input.thread,
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
@@ -154,10 +170,33 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
     summary: {
       accountCount: validation.summary.accountCount,
       mediaCount,
+      threadSegmentCount,
       errorCount: validation.summary.errorCount,
       warningCount: validation.summary.warningCount,
     },
   };
+}
+
+type PostToAccountsResults = Awaited<ReturnType<typeof postToAccounts>>;
+
+function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof postingResultSchema>[] {
+  return results.map((r) => ({
+    accountId: r.accountId,
+    platform: r.platform,
+    success: r.success,
+    error: r.error,
+    message: r.message,
+    postUrl: r.postUrl,
+    postId: r.postId,
+    threadResults: r.threadResults?.map((s) => ({
+      index: s.index,
+      success: s.success,
+      postId: s.postId,
+      postUrl: s.postUrl,
+      error: s.error,
+      message: s.message,
+    })),
+  }));
 }
 
 export async function createPost(userId: string, input: z.infer<typeof createPostSchema>) {
@@ -165,6 +204,9 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
   const mediaFiles = toMediaFiles(input.media);
+  const threadSegments = toThreadSegments(input.thread);
+  const threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
+  const threadSegmentCount = threadSegments.length;
 
   // Validate content
   const validation = await validatePostForAccounts({
@@ -172,6 +214,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     message: input.message,
     media: mediaFiles,
     accountIds: input.accountIds,
+    thread: threadForPersistence,
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
@@ -191,6 +234,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       media: mediaFiles,
       scheduledFor,
       status: postingMode === "now" ? "pending" : "scheduled",
+      thread: threadForPersistence,
     },
     userId,
   );
@@ -198,11 +242,28 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   // If posting now, dispatch immediately
   if (postingMode === "now") {
     try {
-      const results = await postToAccounts(input.message, mediaFiles, input.accountIds);
+      const results = await postToAccounts(
+        input.message,
+        mediaFiles,
+        input.accountIds,
+        undefined,
+        undefined,
+        threadForPersistence,
+      );
       const summary = getPostingSummary(results);
 
+      const threadResultsByAccount: Record<string, NonNullable<(typeof results)[0]["threadResults"]>> = {};
+      for (const r of results) {
+        if (r.threadResults) threadResultsByAccount[r.accountId] = r.threadResults;
+      }
+      const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
+
       if (summary.overallSuccess) {
-        await repository.updatePost(post.id, { status: "published", publishedAt: new Date() });
+        await repository.updatePost(post.id, {
+          status: "published",
+          publishedAt: new Date(),
+          threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+        });
       } else {
         const failedResults = results.filter((r) => !r.success);
         const errorMessage =
@@ -215,21 +276,20 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
             platform: r.platform,
             error: r.error,
             message: r.message,
+            threadResults: r.threadResults,
           })),
         }) as Record<string, unknown>;
 
-        await repository.updatePost(post.id, { status: "failed", errorMessage, errorDetails });
+        await repository.updatePost(post.id, {
+          status: "failed",
+          errorMessage,
+          errorDetails,
+          threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+        });
       }
 
       const updatedPost = await repository.getPostById(post.id);
-      const sanitizedResults = results.map((r) => ({
-        accountId: r.accountId,
-        platform: r.platform,
-        success: r.success,
-        error: r.error,
-        message: r.message,
-        postUrl: r.postUrl,
-      }));
+      const sanitizedResults = mapPostingResultsForMcp(results);
 
       return {
         kind: "post" as const,
@@ -241,6 +301,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         summary: {
           accountCount: input.accountIds.length,
           mediaCount: mediaFiles.length,
+          threadSegmentCount,
           successCount: summary.successCount,
           failureCount: summary.failureCount,
           scheduledCount: 0,
@@ -264,6 +325,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     summary: {
       accountCount: input.accountIds.length,
       mediaCount: mediaFiles.length,
+      threadSegmentCount,
       successCount: 0,
       failureCount: 0,
       scheduledCount: input.accountIds.length,

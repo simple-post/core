@@ -3,7 +3,7 @@ import { z } from "zod";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 import { mcpAccountSchema } from "./accounts";
-import { mcpMediaItemSchema, toMediaFiles } from "./media-schema";
+import { mcpMediaItemSchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
 
 export const validatePostSchema = z.object({
   message: z.string().describe("The post text content"),
@@ -17,6 +17,7 @@ export const validatePostSchema = z.object({
     .describe(
       "Optional images/videos to validate alongside the text. Each item needs a public URL (user-provided or returned by upload_media).",
     ),
+  thread: mcpThreadSchema,
 });
 
 const validationIssueSchema = z.object({
@@ -47,11 +48,13 @@ export const validatePostOutputSchema = z.object({
 
 export async function validatePost(userId: string, input: z.infer<typeof validatePostSchema>) {
   const mediaFiles = toMediaFiles(input.media);
+  const threadSegments = toThreadSegments(input.thread);
   const result = await validatePostForAccounts({
     userId,
     message: input.message,
     media: mediaFiles,
     accountIds: input.accountIds,
+    thread: threadSegments.length > 0 ? threadSegments : undefined,
   });
 
   return {

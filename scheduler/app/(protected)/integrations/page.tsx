@@ -80,7 +80,8 @@ export default function IntegrationsPage() {
             <ul className="space-y-1.5">
               {[
                 "View your connected social media accounts",
-                "Validate post content against platform rules",
+                "Upload generated or attached media when no public URL exists",
+                "Validate or preview drafts when you ask for a preflight check",
                 "Create and schedule posts across all your platforms",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
@@ -112,7 +113,7 @@ export default function IntegrationsPage() {
             footer={
               <>
                 ChatGPT will open SimplePost in your browser for OAuth approval. After connecting, select SimplePost
-                from the composer tools menu before asking it to validate, publish, or schedule posts.
+                from the composer tools menu before asking it to upload media, validate, publish, or schedule posts.
               </>
             }
           />
@@ -170,18 +171,22 @@ export default function IntegrationsPage() {
                 description: "Lists your connected social media accounts and their IDs.",
               },
               {
-                name: "validate_post",
+                name: "upload_media",
                 description:
-                  "Checks post content against platform rules (character limits, media requirements) before publishing.",
+                  "Uploads generated or attached image/video files to SimplePost storage when no public URL exists.",
+              },
+              {
+                name: "validate_post",
+                description: "Checks post content against platform rules only when you ask for validation feedback.",
               },
               {
                 name: "preview_post",
-                description: "Shows targets, timing, and validation status before creating or publishing anything.",
+                description: "Shows targets, timing, and validation status when you ask for a preview.",
               },
               {
                 name: "create_post",
                 description:
-                  "Publishes immediately or schedules for later. Posts to any combination of your connected accounts.",
+                  "Validates internally, then publishes immediately or schedules for later across connected accounts.",
               },
             ].map((tool) => (
               <div key={tool.name} className="py-4 first:pt-0 last:pb-0">

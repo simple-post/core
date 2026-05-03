@@ -1,4 +1,4 @@
-import { AccountOverridesMapSchema, MediaFileSchema } from "@simple-post/sdk";
+import { AccountOverridesMapSchema, MediaFileSchema, ThreadSchema } from "@simple-post/sdk";
 import { z } from "zod/v4";
 
 // Schemas shared with the @simple-post/server HTTP API live in @simple-post/sdk.
@@ -15,6 +15,7 @@ export const updatePostSchema = z.object({
   accountOptions: z.record(z.string(), accountOptionsValueSchema).optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
+  thread: ThreadSchema.optional(),
 });
 
 export type UpdatePostInput = z.infer<typeof updatePostSchema>;

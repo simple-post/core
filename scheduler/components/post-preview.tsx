@@ -2,7 +2,7 @@
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { getPlatformById } from "@/lib/config";
-import type { MediaFile, ConnectedAccount } from "@/types";
+import type { MediaFile, ConnectedAccount, ThreadSegment } from "@/types";
 
 import {
   XPreview,
@@ -19,9 +19,12 @@ interface PostPreviewProps {
   scheduledDate?: string;
   scheduledTime?: string;
   selectedPlatforms?: string[];
+  thread?: ThreadSegment[];
 }
 
 type PreviewComponent = React.ComponentType<{ message: string; media: MediaFile[]; platform: string }>;
+
+const THREAD_CAPABLE_PLATFORMS = new Set(["x", "bluesky", "threads", "telegram"]);
 
 const platformComponents: Record<string, PreviewComponent> = {
   x: XPreview,
@@ -32,10 +35,9 @@ const platformComponents: Record<string, PreviewComponent> = {
   telegram: TelegramPreview,
 };
 
-export function PostPreview({ message, media, selectedPlatforms }: PostPreviewProps) {
+export function PostPreview({ message, media, selectedPlatforms, thread }: PostPreviewProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
 
-  // Get unique platforms from selected accounts
   const selectedAccounts = accounts.filter((acc: ConnectedAccount) => selectedPlatforms?.includes(acc.id));
   const uniquePlatforms: string[] = [...new Set(selectedAccounts.map((acc: ConnectedAccount) => acc.platform))];
 
@@ -62,6 +64,8 @@ export function PostPreview({ message, media, selectedPlatforms }: PostPreviewPr
     );
   }
 
+  const hasThread = thread && thread.length > 0;
+
   return (
     <div className="space-y-5">
       <div className="section-kicker">
@@ -75,6 +79,8 @@ export function PostPreview({ message, media, selectedPlatforms }: PostPreviewPr
 
         if (!PlatformComponent || !platformConfig) return null;
 
+        const supportsThread = THREAD_CAPABLE_PLATFORMS.has(platformId);
+
         return (
           <div key={platformId} className="space-y-2">
             <div className="flex items-center gap-2">
@@ -82,8 +88,35 @@ export function PostPreview({ message, media, selectedPlatforms }: PostPreviewPr
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 {platformConfig.name}
               </span>
+              {hasThread && !supportsThread && (
+                <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground border border-border rounded px-1 py-0.5">
+                  first post only
+                </span>
+              )}
             </div>
+
+            {/* Root post */}
             <PlatformComponent message={message} media={media} platform={platformId} />
+
+            {/* Thread segments for thread-capable platforms */}
+            {hasThread && supportsThread && (
+              <div className="space-y-0 pl-2">
+                {thread.map((segment, index) => (
+                  <div key={index} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-px bg-border flex-1 my-1" />
+                    </div>
+                    <div className="flex-1">
+                      <PlatformComponent
+                        message={segment.message}
+                        media={segment.media ?? []}
+                        platform={platformId}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

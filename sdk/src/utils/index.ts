@@ -35,3 +35,4 @@ export * from "./media";
 export * from "./platform-requirements";
 export * from "./media-resolver";
 export * from "./s3";
+export * from "./thread";

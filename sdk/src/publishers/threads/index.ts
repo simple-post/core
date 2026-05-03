@@ -15,6 +15,7 @@ const MAX_TEXT_LENGTH = 500;
 const MAX_MEDIA_COUNT = 1;
 const PROCESSING_POLL_INTERVAL = 2000;
 const PROCESSING_MAX_ATTEMPTS = 12;
+const PROACTIVE_REFRESH_DAYS = 7;
 
 const VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: MAX_TEXT_LENGTH },
@@ -31,8 +32,10 @@ export class ThreadsPublisher extends Publisher {
   private client: AxiosInstance;
   private userId: string;
   private accessToken: string;
+  private expiresAt?: number;
   private s3MediaUploader: S3MediaUploader | null = null;
   private s3TempFileKeys: string[] = [];
+  private refreshedCredentials?: { accessToken: string; expiresAt: number };
 
   constructor(options?: PostOptionsWithCredentials) {
     super("Threads", options);
@@ -44,9 +47,10 @@ export class ThreadsPublisher extends Publisher {
       );
     }
 
-    const { accessToken, userId } = options.threads.credentials;
+    const { accessToken, userId, expiresAt } = options.threads.credentials;
     this.accessToken = accessToken;
     this.userId = userId;
+    this.expiresAt = expiresAt;
 
     this.client = axios.create({
       baseURL: `https://graph.threads.net/${THREADS_API_VERSION}`,
@@ -58,6 +62,51 @@ export class ThreadsPublisher extends Publisher {
     // S3MediaUploader is lazily initialized only when media upload is needed
   }
 
+  private isTokenExpiringSoon(): boolean {
+    if (!this.expiresAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDays = PROACTIVE_REFRESH_DAYS * 24 * 60 * 60;
+    return now >= this.expiresAt - sevenDays;
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    const currentToken = this.refreshedCredentials?.accessToken || this.accessToken;
+
+    try {
+      this.logger.info("Refreshing Threads access token...");
+
+      const url = new URL("https://graph.threads.net/refresh_access_token");
+      url.searchParams.set("grant_type", "th_refresh_token");
+      url.searchParams.set("access_token", currentToken);
+
+      const response = await axios.get<{ access_token: string; token_type: string; expires_in: number }>(
+        url.toString(),
+      );
+      const { access_token, expires_in } = response.data;
+      const expiresAt = Math.floor(Date.now() / 1000) + expires_in;
+
+      this.refreshedCredentials = { accessToken: access_token, expiresAt };
+      this.accessToken = access_token;
+      this.expiresAt = expiresAt;
+
+      this.logger.info("Threads access token refreshed successfully");
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(`Failed to refresh Threads token: ${err.message || error}`);
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Threads access token has expired. Please reconnect your Threads account in account settings.",
+        err.response?.data?.error?.message || err.message,
+      );
+    }
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (this.isTokenExpiringSoon()) {
+      await this.refreshAccessToken();
+    }
+  }
+
   private async cleanupS3Files(): Promise<void> {
     if (this.s3MediaUploader && this.s3TempFileKeys.length > 0) {
       await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader!.deleteFile(key)));
@@ -66,24 +115,32 @@ export class ThreadsPublisher extends Publisher {
 
   private async waitForMediaReady(containerId: string): Promise<void> {
     for (let attempt = 0; attempt < PROCESSING_MAX_ATTEMPTS; attempt += 1) {
-      const response = await this.client.get(`/${containerId}`, {
-        params: {
-          fields: "status",
-          access_token: this.accessToken,
-        },
-      });
+      try {
+        const response = await this.client.get(`/${containerId}`, {
+          params: {
+            fields: "status",
+            access_token: this.accessToken,
+          },
+        });
 
-      const status = response.data?.status;
-      if (!status || status === "FINISHED" || status === "READY") {
-        return;
-      }
+        const status = response.data?.status;
+        if (status === "FINISHED" || status === "READY") {
+          return;
+        }
 
-      if (status === "ERROR") {
-        throw new PostError(
-          PostErrorType.API_ERROR,
-          `Threads media container ${containerId} creation failed.`,
-          response.data,
-        );
+        if (status === "ERROR") {
+          throw new PostError(
+            PostErrorType.API_ERROR,
+            `Threads media container ${containerId} creation failed.`,
+            response.data,
+          );
+        }
+        // "IN_PROGRESS", "PUBLISHED", or no status — keep polling.
+      } catch (error: unknown) {
+        // Right after creation the container may not yet be queryable
+        // (Threads returns "The requested resource does not exist"). Treat
+        // any non-final error as transient and keep polling.
+        if (error instanceof PostError) throw error;
       }
 
       await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL));
@@ -207,7 +264,8 @@ export class ThreadsPublisher extends Publisher {
     };
   }
 
-  async postContent(content: Content): Promise<PostResult> {
+  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    const replyToId = options?.threads?.replyToId;
     const validation = ThreadsPublisher.validate(content);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Threads content validation failed", validation);
@@ -215,6 +273,8 @@ export class ThreadsPublisher extends Publisher {
     for (const warning of validation.warnings) {
       this.logger.warn(warning.message);
     }
+
+    await this.ensureValidToken();
 
     const media = content.media?.[0];
 
@@ -237,6 +297,10 @@ export class ThreadsPublisher extends Publisher {
         basePayload.text = content.text;
       }
 
+      if (replyToId) {
+        basePayload.reply_to_id = replyToId;
+      }
+
       if (media) {
         const resolvedMedia = await this.resolveMedia(media);
         basePayload.media_type = resolvedMedia.type;
@@ -251,24 +315,63 @@ export class ThreadsPublisher extends Publisher {
       }
 
       const createResponse = await this.client.post(`/${threadsUserId}/threads`, basePayload);
-      const creationId = createResponse.data?.id || createResponse.data?.creation_id;
+      const creationId = String(createResponse.data?.id || createResponse.data?.creation_id || "");
 
       if (!creationId) {
         throw new PostError(PostErrorType.API_ERROR, "Threads API did not return a creation id.");
       }
 
-      if (media?.type === "video") {
-        await this.waitForMediaReady(creationId);
-      }
+      this.logger.info(`Threads container created — creationId: ${creationId}, userId: ${threadsUserId}`);
+
+      // Threads recommends waiting until the container reports FINISHED before
+      // publishing. Skipping this for text/image replies caused intermittent
+      // "The requested resource does not exist" errors on threads_publish
+      // because the container had not yet propagated server-side.
+      await this.waitForMediaReady(creationId);
 
       const publishResponse = await this.client.post(`/${threadsUserId}/threads_publish`, {
         access_token: this.accessToken,
         creation_id: creationId,
       });
 
+      const publishId = String(publishResponse.data?.id || publishResponse.data?.post_id || creationId);
+
+      // Fetch the permalink. The GET also returns the canonical id; we use it
+      // when available because it is the addressable Threads media id that
+      // the API accepts for `reply_to_id` on subsequent replies.
+      let canonicalId = publishId;
+      let permalink: string | undefined;
+      try {
+        const permalinkRes = await this.client.get(`/${publishId}`, {
+          params: { fields: "id,permalink", access_token: this.accessToken },
+        });
+        if (typeof permalinkRes.data?.id === "string" || typeof permalinkRes.data?.id === "number") {
+          canonicalId = String(permalinkRes.data.id);
+        }
+        if (typeof permalinkRes.data?.permalink === "string") {
+          permalink = permalinkRes.data.permalink;
+        }
+      } catch (permalinkError) {
+        const err = permalinkError as { message?: string };
+        this.logger.warn(`Failed to fetch Threads post metadata: ${err.message || String(permalinkError)}`);
+      }
+
+      this.logger.info(
+        `Threads post IDs — creationId: ${creationId}, publishId: ${publishId}, canonicalId: ${canonicalId}`,
+      );
+
       return {
-        id: publishResponse.data?.id || publishResponse.data?.post_id || creationId,
+        id: canonicalId,
+        url: permalink,
         error: PostErrorType.NO_ERROR,
+        ...(this.refreshedCredentials && {
+          extraData: {
+            refreshedCredentials: {
+              accessToken: this.refreshedCredentials.accessToken,
+              expiresAt: this.refreshedCredentials.expiresAt,
+            },
+          },
+        }),
       };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };

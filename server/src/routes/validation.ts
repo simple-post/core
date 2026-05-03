@@ -21,6 +21,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       media: validated.media,
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides,
+      thread: validated.thread,
     });
 
     res.json(validation);

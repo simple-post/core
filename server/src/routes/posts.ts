@@ -39,6 +39,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       media: mediaFiles,
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides,
+      thread: validated.thread,
     });
 
     if (!validation.summary.isValid) {
@@ -50,7 +51,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       mediaFiles,
       validated.accountIds,
       validated.accountOptions,
-      validated.accountOverrides
+      validated.accountOverrides,
+      validated.thread
     );
     const summary = getPostingSummary(results);
 
@@ -59,6 +61,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       message: validated.message,
       accountIds: validated.accountIds,
       media: mediaFiles,
+      thread: validated.thread,
       scheduledFor: new Date().toISOString(),
       status: summary.overallSuccess ? "published" : "failed",
       createdAt: new Date().toISOString(),
@@ -76,6 +79,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       postId: r.postId,
       postUrl: r.postUrl,
       details: r.details ? (sanitizeForJson(r.details) as Record<string, unknown>) : undefined,
+      threadResults: r.threadResults?.map((s) => ({
+        index: s.index,
+        success: s.success,
+        postId: s.postId,
+        postUrl: s.postUrl,
+        error: s.error,
+        message: s.message,
+        details: s.details ? (sanitizeForJson(s.details) as Record<string, unknown>) : undefined,
+      })),
     }));
 
     res.status(201).json({ post, postingResults: sanitizedResults, summary });

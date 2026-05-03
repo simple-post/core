@@ -21,6 +21,13 @@ export class PostError extends Error {
 
 export interface PostResult {
   id?: string;
+  /**
+   * Canonical public URL of the published post when the platform exposes one
+   * (e.g. Instagram/Threads permalink, TikTok video URL). Publishers should
+   * populate this whenever they have authoritative data; consumers should
+   * prefer it over manually constructing URLs from `id`.
+   */
+  url?: string;
   error: PostErrorType;
   message?: string;
   details?: unknown;
@@ -30,5 +37,6 @@ export interface PostResult {
       refreshToken?: string;
       expiresAt?: number;
     };
+    platformData?: Record<string, unknown>;
   };
 }

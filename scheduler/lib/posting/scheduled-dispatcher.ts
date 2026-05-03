@@ -1,10 +1,14 @@
 import { Prisma } from "@prisma/client";
+import { isThreadCapable } from "@simple-post/sdk";
 
 import { createLogger } from "@/lib/logger";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
+import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@/types";
+
+import type { ThreadSegment } from "@simple-post/sdk";
 
 const log = createLogger("scheduled-dispatcher");
 
@@ -53,6 +57,7 @@ interface DuePost {
   message: string;
   accountOptions: unknown;
   accountOverrides: unknown;
+  thread: ThreadSegment[] | null;
   media: MediaFile[];
   accounts: Array<{
     id: string;
@@ -103,9 +108,17 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       accountIds,
       (post.accountOptions as AccountOptionsMap | null) ?? undefined,
       (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
+      post.thread ?? undefined,
     );
 
     const summary = getPostingSummary(postingResults);
+
+    // Build accountId → ThreadSegmentResult[] map for accounts that posted as a thread.
+    const threadResultsByAccount = postingResults.reduce<Record<string, unknown>>((acc, result) => {
+      if (result.threadResults) acc[result.accountId] = result.threadResults;
+      return acc;
+    }, {});
+    const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
 
     if (summary.overallSuccess) {
       await prisma.post.update({
@@ -115,6 +128,9 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           publishedAt: new Date(),
           errorMessage: null,
           errorDetails: Prisma.DbNull,
+          threadResults: hasThreadResults
+            ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         },
       });
 
@@ -138,6 +154,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         error: result.error,
         message: result.message,
         details: result.details,
+        threadResults: result.threadResults,
       })),
     }) as Prisma.InputJsonValue;
 
@@ -147,6 +164,9 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         status: "failed",
         errorMessage,
         errorDetails,
+        threadResults: hasThreadResults
+          ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
+          : Prisma.DbNull,
       },
     });
 
@@ -244,15 +264,22 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
 
   for (const post of duePosts) {
     const platforms = [...new Set(post.accounts.map((account) => account.platform.toLowerCase()))];
+
+    // Per-platform cost: thread-capable platforms post N segments;
+    // non-capable platforms always post just the root.
+    const threadSegmentCount = post.thread?.length ?? 0;
+    const costFor = (platform: string) =>
+      isThreadCapable(mapPlatformName(platform)) ? 1 + threadSegmentCount : 1;
+
     const canSend = platforms.every((platform) => {
       const budget = platformBudgets.get(platform);
-      return !!budget && budget.availableSlots - budget.sent > 0;
+      return !!budget && budget.availableSlots - budget.sent >= costFor(platform);
     });
 
     if (!canSend) {
       for (const platform of platforms) {
         const budget = platformBudgets.get(platform);
-        if (!budget || budget.availableSlots - budget.sent <= 0) {
+        if (!budget || budget.availableSlots - budget.sent < costFor(platform)) {
           skippedByPlatform.set(platform, (skippedByPlatform.get(platform) ?? 0) + 1);
         }
       }
@@ -263,7 +290,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     for (const platform of platforms) {
       const budget = platformBudgets.get(platform);
       if (budget) {
-        budget.sent += 1;
+        budget.sent += costFor(platform);
       }
     }
   }

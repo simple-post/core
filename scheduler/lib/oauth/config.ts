@@ -92,7 +92,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://graph.threads.net/oauth/access_token",
     clientId: process.env.THREADS_CLIENT_ID || "",
     clientSecret: process.env.THREADS_CLIENT_SECRET || "",
-    scope: "threads_basic,threads_content_publish",
+    scope: "threads_basic,threads_content_publish,threads_manage_replies",
     responseType: "code",
     userInfoUrl: "https://graph.threads.net/v1.0/me?fields=id,username,name,threads_profile_picture_url",
     requiresPkce: false,

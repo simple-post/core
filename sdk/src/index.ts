@@ -107,6 +107,8 @@ export type {
   InstagramOptions,
   TikTokOptions,
   BlueskyOptions,
+  BlueskyPostRef,
+  BlueskyReplyRef,
   ThreadsOptions,
   LinkedInOptions,
   PinterestOptions,
@@ -125,6 +127,11 @@ export {
   AccountOverridesMapSchema,
   createPostSchema,
   validationRequestSchema,
+  ThreadSegmentSchema,
+  ThreadSchema,
+  MAX_THREAD_SEGMENTS,
+  THREAD_CAPABLE_PLATFORMS,
+  isThreadCapablePlatform,
 } from "./types/api";
 export type {
   MediaFile,
@@ -135,6 +142,9 @@ export type {
   ValidationRequestInput,
   PostingResult,
   PostingSummary,
+  ThreadSegment,
+  ThreadSegmentResult,
+  ThreadCapablePlatform,
 } from "./types/api";
 
 // Export utility functions
@@ -146,6 +156,8 @@ export {
   getKeyFromUrl,
   generateFileKey,
 } from "./utils/s3";
+export { buildReplyOverlay, extractChainStep, isThreadCapable } from "./utils/thread";
+export type { ThreadChainState, ReplyOverlay } from "./utils/thread";
 
 // Export schemas for runtime validation
 export {
@@ -164,6 +176,8 @@ export {
   InstagramOptionsSchema,
   TikTokOptionsSchema,
   BlueskyOptionsSchema,
+  BlueskyPostRefSchema,
+  BlueskyReplyRefSchema,
   ThreadsOptionsSchema,
   LinkedInOptionsSchema,
   PinterestOptionsSchema,

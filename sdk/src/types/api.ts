@@ -17,9 +17,31 @@ const accountOptionsValueSchema = z.record(z.string(), z.unknown()).optional();
 
 export type AccountOptionsMap = Record<string, Record<string, unknown> | undefined>;
 
+// Maximum number of additional segments after the root post. X allows 25 total
+// posts in a thread, so 24 additional segments after the root.
+export const MAX_THREAD_SEGMENTS = 24;
+
+// Platforms with native thread / reply support today.
+export const THREAD_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "telegram"] as const;
+export type ThreadCapablePlatform = (typeof THREAD_CAPABLE_PLATFORMS)[number];
+
+export function isThreadCapablePlatform(platform: string): platform is ThreadCapablePlatform {
+  return (THREAD_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
+}
+
+export const ThreadSegmentSchema = z.object({
+  message: z.string().default(""),
+  media: z.array(MediaFileSchema).optional(),
+});
+
+export type ThreadSegment = z.infer<typeof ThreadSegmentSchema>;
+
+export const ThreadSchema = z.array(ThreadSegmentSchema).max(MAX_THREAD_SEGMENTS);
+
 export const AccountContentOverrideSchema = z.object({
   message: z.string().optional(),
   media: z.array(MediaFileSchema).optional(),
+  thread: ThreadSchema.optional(),
 });
 
 export type AccountContentOverride = z.infer<typeof AccountContentOverrideSchema>;
@@ -36,6 +58,7 @@ export const createPostSchema = z.object({
   accountOptions: z.record(z.string(), accountOptionsValueSchema).optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
+  thread: ThreadSchema.optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
@@ -45,9 +68,20 @@ export const validationRequestSchema = z.object({
   media: z.array(MediaFileSchema).default([]),
   accountIds: z.array(z.string()).min(1, "accountIds are required for validation"),
   accountOverrides: AccountOverridesMapSchema.optional(),
+  thread: ThreadSchema.optional(),
 });
 
 export type ValidationRequestInput = z.infer<typeof validationRequestSchema>;
+
+export interface ThreadSegmentResult {
+  index: number;
+  success: boolean;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+  message?: string;
+  details?: unknown;
+}
 
 export interface PostingResult {
   accountId: string;
@@ -58,6 +92,9 @@ export interface PostingResult {
   postId?: string;
   postUrl?: string;
   details?: unknown;
+  // Present when the post is a thread. The first entry (index 0) corresponds
+  // to the root post; postId/postUrl above always reflect the root.
+  threadResults?: ThreadSegmentResult[];
 }
 
 export interface PostingSummary {

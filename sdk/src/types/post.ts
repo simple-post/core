@@ -67,6 +67,7 @@ export const XOptionsSchema = z.object({
 export const TelegramOptionsSchema = z.object({
   chatId: z.string(),
   parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
+  replyTo: z.string().optional(),
   credentials: z
     .object({
       botToken: z.string(),
@@ -154,15 +155,28 @@ export const BlueskyCredentialsSchema = z.union([
   BlueskyOAuthCredentialsSchema,
 ]);
 
+export const BlueskyPostRefSchema = z.object({
+  uri: z.string(),
+  cid: z.string(),
+});
+
+export const BlueskyReplyRefSchema = z.object({
+  root: BlueskyPostRefSchema,
+  parent: BlueskyPostRefSchema,
+});
+
 export const BlueskyOptionsSchema = z.object({
+  replyTo: BlueskyReplyRefSchema.optional(),
   credentials: BlueskyCredentialsSchema.optional(),
 });
 
 export const ThreadsOptionsSchema = z.object({
+  replyToId: z.string().optional(),
   credentials: z
     .object({
       accessToken: z.string(),
       userId: z.string(),
+      expiresAt: z.number().optional(),
     })
     .optional(),
 });
@@ -230,6 +244,8 @@ export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
 export type BlueskyOAuthCredentials = z.infer<typeof BlueskyOAuthCredentialsSchema>;
 export type BlueskyAppPasswordCredentials = z.infer<typeof BlueskyAppPasswordCredentialsSchema>;
 export type BlueskyCredentials = z.infer<typeof BlueskyCredentialsSchema>;
+export type BlueskyPostRef = z.infer<typeof BlueskyPostRefSchema>;
+export type BlueskyReplyRef = z.infer<typeof BlueskyReplyRefSchema>;
 export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;

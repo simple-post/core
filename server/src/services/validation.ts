@@ -2,6 +2,7 @@ import {
   BlueskyPublisher,
   FacebookPublisher,
   InstagramPublisher,
+  isThreadCapable,
   LinkedInPublisher,
   PinterestPublisher,
   TelegramPublisher,
@@ -20,6 +21,7 @@ import type {
   MediaFile,
   Platform,
   PlatformValidationRules,
+  ThreadSegment,
   ValidationResult,
 } from "@simple-post/sdk";
 
@@ -107,6 +109,7 @@ export function validatePostForAccounts(params: {
   media: MediaFile[];
   accountIds: string[];
   accountOverrides?: AccountOverridesMap;
+  thread?: ThreadSegment[];
 }): ValidationResultByPlatform {
   const accounts = getAccountsByIds(params.accountIds);
   const foundIds = new Set(accounts.map((a) => a.id));
@@ -114,30 +117,81 @@ export function validatePostForAccounts(params: {
 
   const platforms = [...new Set(accounts.map((account) => account.platform))];
   const overrides = params.accountOverrides || {};
+  const sharedThread = params.thread ?? [];
 
   const results: PlatformValidationResponse[] = accounts.map((account) => {
     const override = overrides[account.id];
     const usesCommonContent = !override;
-    const content = buildContent(override?.message ?? params.message ?? "", override?.media ?? params.media ?? []);
-    const validation = validateContent(account.platform, content);
+    const rootContent = buildContent(
+      override?.message ?? params.message ?? "",
+      override?.media ?? params.media ?? []
+    );
 
-    const withAccountMeta = (issue: ValidationResult["errors"][number]) => ({
-      ...issue,
-      meta: { ...issue.meta, accountId: account.id },
-    });
+    const accountThread = override?.thread ?? sharedThread;
+    const threadAware = isThreadCapable(account.platform);
+    const segments: Array<{ field: string; content: Content }> = [{ field: "text", content: rootContent }];
+
+    if (threadAware) {
+      for (const [index, segment] of accountThread.entries()) {
+        segments.push({
+          field: `thread[${index}]`,
+          content: buildContent(segment.message ?? "", segment.media ?? []),
+        });
+      }
+    }
+
+    const errors: ValidationResult["errors"] = [];
+    const warnings: ValidationResult["warnings"] = [];
+
+    for (const { field, content } of segments) {
+      const validation = validateContent(account.platform, content);
+      const withMeta = (issue: ValidationResult["errors"][number]) => ({
+        ...issue,
+        field: issue.field === "text" ? field : `${field}.${issue.field}`,
+        meta: { ...issue.meta, accountId: account.id },
+      });
+      for (const issue of validation.errors) errors.push(withMeta(issue));
+      for (const issue of validation.warnings) warnings.push(withMeta(issue));
+    }
+
+    if (!threadAware && accountThread.length > 0) {
+      warnings.push({
+        platform: account.platform,
+        severity: "warning",
+        code: "thread_not_supported",
+        message: `${account.platform} does not support threads — only the first post will be sent.`,
+        field: "thread",
+        meta: { accountId: account.id },
+      });
+    }
 
     return {
       accountId: account.id,
       platform: account.platform,
       rules: getValidationRules(account.platform),
-      errors: validation.errors.map((issue) => withAccountMeta(issue)),
-      warnings: validation.warnings.map((issue) => withAccountMeta(issue)),
-      isValid: validation.isValid,
+      errors,
+      warnings,
+      isValid: errors.length === 0,
       usesCommonContent,
     };
   });
 
-  const errors = results.flatMap((r) => r.errors);
+  // Cross-account check: if any thread segments exist but no selected account
+  // supports threads, that's a hard error.
+  const anyThread = sharedThread.length > 0 || Object.values(overrides).some((o) => (o.thread ?? []).length > 0);
+  const anyThreadCapable = accounts.some((account) => isThreadCapable(account.platform));
+  const crossAccountErrors: ValidationResult["errors"] = [];
+  if (anyThread && !anyThreadCapable) {
+    crossAccountErrors.push({
+      platform: "common",
+      severity: "error",
+      code: "no_thread_capable_accounts",
+      message: "No selected accounts support threads. Remove the additional posts or add a thread-capable account.",
+      field: "thread",
+    });
+  }
+
+  const errors = [...results.flatMap((r) => r.errors), ...crossAccountErrors];
   const warnings = results.flatMap((r) => r.warnings);
 
   return {

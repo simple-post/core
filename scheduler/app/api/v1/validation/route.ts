@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       media: validated.media,
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides || {},
+      thread: validated.thread,
     });
 
     return NextResponse.json(validation);

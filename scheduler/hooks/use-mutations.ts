@@ -100,6 +100,7 @@ interface PostMutationParams {
       filename: string;
       size: number;
     }>;
+    thread?: Array<{ message: string; media?: Array<{ id: string; url: string; thumbnailUrl?: string; type: "image" | "video"; filename: string; size: number }> }>;
   };
   mode: "create" | "edit";
   postId?: string;

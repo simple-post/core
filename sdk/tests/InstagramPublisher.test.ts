@@ -133,10 +133,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_123" } }) // createMediaObject
         .mockResolvedValueOnce({ data: { id: "post_id_456" } }); // publishMediaContainer
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_456/" } });
 
       const result = await publisher.postContent(content, options);
 
@@ -149,7 +149,11 @@ describe("InstagramPublisher", () => {
           is_carousel_item: false,
         }),
       );
-      expect(result).toEqual({ id: "post_id_456", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_456",
+        url: "https://www.instagram.com/p/SHORTCODE_456/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should attach access_token for Facebook Graph requests", async () => {
@@ -174,9 +178,9 @@ describe("InstagramPublisher", () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "container_id_123" } })
         .mockResolvedValueOnce({ data: { id: "post_id_456" } });
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_FB/" } });
 
       await facebookPublisher.postContent(content, options);
 
@@ -205,10 +209,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_789" } }) // createMediaObject
         .mockResolvedValueOnce({ data: { id: "post_id_012" } }); // publishMediaContainer
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_012/" } });
 
       const result = await publisher.postContent(content, options);
 
@@ -222,7 +226,11 @@ describe("InstagramPublisher", () => {
           is_carousel_item: false,
         }),
       );
-      expect(result).toEqual({ id: "post_id_012", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_012",
+        url: "https://www.instagram.com/p/SHORTCODE_012/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should post carousel with multiple images successfully", async () => {
@@ -247,10 +255,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "carousel_id" } }) // createMediaContainer for carousel
         .mockResolvedValueOnce({ data: { id: "post_id_345" } }); // publishMediaContainer
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_345/" } });
 
       const result = await publisher.postContent(content, options);
 
@@ -263,7 +271,11 @@ describe("InstagramPublisher", () => {
           children: "item1_id,item2_id",
         }),
       );
-      expect(result).toEqual({ id: "post_id_345", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_345",
+        url: "https://www.instagram.com/p/SHORTCODE_345/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should throw error for content without media", async () => {
@@ -343,10 +355,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_cleanup" } })
         .mockResolvedValueOnce({ data: { id: "post_id_cleanup" } });
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_CLEANUP/" } });
 
       await publisher.postContent(content, options);
 
@@ -423,14 +435,18 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_test" } })
         .mockResolvedValueOnce({ data: { id: "post_id_test" } });
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_TEST/" } });
 
       const result = await publisher.post(content, options);
 
-      expect(result).toEqual({ id: "post_id_test", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_test",
+        url: "https://www.instagram.com/p/SHORTCODE_TEST/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should handle errors and return PostResult with error", async () => {

@@ -3,11 +3,16 @@ import type { Platform } from "./post";
 export type ValidationSeverity = "error" | "warning";
 
 export interface ValidationIssue {
-  platform: Platform;
+  // "common" is used for cross-account / post-level issues (e.g. "thread has
+  // no thread-capable accounts"); otherwise this is a Platform.
+  platform: Platform | "common";
   severity: ValidationSeverity;
   code: string;
   message: string;
-  field?: "text" | "media" | "image" | "video" | "title" | "description";
+  // Path-style field identifier. Per-platform validators emit "text", "media",
+  // etc.; the post-level validator may prefix with a thread index, e.g.
+  // "thread[2].text" or "thread".
+  field?: string;
   limit?: number;
   actual?: number;
   meta?: Record<string, unknown>;

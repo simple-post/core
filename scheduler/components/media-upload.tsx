@@ -3,7 +3,7 @@
 import type React from "react";
 import { useCallback, useRef, useState } from "react";
 
-import { Upload, X, Video, ImageIcon, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { generateThumbnail } from "@/lib/utils/client-thumbnail";
@@ -22,6 +22,7 @@ interface MediaUploadProps {
   maxFiles?: number;
   maxFileSize?: number; // in bytes
   acceptedTypes?: string[];
+  compact?: boolean;
 }
 
 const EXTENSION_TO_TYPE: Record<string, string> = {
@@ -158,6 +159,7 @@ export function MediaUpload({
   maxFiles = 10,
   maxFileSize = 50 * 1024 * 1024, // 50MB
   acceptedTypes = ["image/*", "video/*"],
+  compact = false,
 }: MediaUploadProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -440,10 +442,43 @@ export function MediaUpload({
     </div>
   );
 
+  // Strip upload area — used in compact mode when there's no media yet
+  const stripUploadArea = (
+    <div
+      className={`relative flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg transition-colors ${
+        dragActive ? "border-primary/50 bg-primary/5" : "border-border hover:border-border/80"
+      } ${isUploading ? "pointer-events-none opacity-75" : "cursor-pointer"}`}
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}
+      role="button"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}>
+      <input
+        type="file"
+        multiple
+        accept={acceptedTypes.join(",")}
+        onChange={handleFileInput}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        disabled={isUploading}
+        ref={fileInputRef}
+      />
+      {isUploading ? (
+        <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />
+      ) : (
+        <Images className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+      )}
+      <span className="text-xs text-muted-foreground">
+        {isUploading ? "Uploading…" : "Add media"}
+      </span>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {/* Show large upload area only when no media and nothing uploading */}
-      {media.length === 0 && uploading.length === 0 && largeUploadArea}
+      {/* Show upload area when no media and nothing uploading */}
+      {media.length === 0 && uploading.length === 0 && (compact ? stripUploadArea : largeUploadArea)}
 
       {/* Error Messages */}
       {errors.length > 0 && (

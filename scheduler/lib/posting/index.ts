@@ -1,4 +1,11 @@
-import { PostErrorType, post as sdkPost, prepareMedia } from "@simple-post/sdk";
+import {
+  buildReplyOverlay,
+  extractChainStep,
+  isThreadCapable,
+  PostErrorType,
+  post as sdkPost,
+  prepareMedia,
+} from "@simple-post/sdk";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +20,15 @@ import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFil
 import { buildPostOptions } from "./credentials";
 import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
-import type { Post, Platform, Media } from "@simple-post/sdk";
+import type {
+  Post,
+  Platform,
+  Media,
+  ThreadChainState,
+  ThreadSegment,
+  ThreadSegmentResult,
+} from "@simple-post/sdk";
+import type { Logger } from "pino";
 
 interface PostingResult {
   accountId: string;
@@ -24,6 +39,7 @@ interface PostingResult {
   postId?: string;
   message?: string;
   details?: unknown;
+  threadResults?: ThreadSegmentResult[];
   extraData?: {
     refreshedCredentials?: {
       accessToken?: string;
@@ -57,12 +73,41 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
       return pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : undefined;
     }
     case "instagram": {
-      // Instagram post URLs use shortcodes, not IDs directly
-      // The ID format is different, but we'll try to construct a URL
+      // Instagram public URLs require an opaque shortcode (e.g. `DX44yisCEr5`).
+      // The Graph API returns a numeric media id which is NOT usable in the
+      // /p/ URL — `instagram.com/p/{numericId}/` returns a 404. The publisher
+      // populates `result.url` with the proper permalink; if we end up here
+      // with a numeric id it means the permalink fetch failed and there's no
+      // working URL we can construct.
+      if (/^\d+$/.test(postId)) {
+        postingLogger.warn(
+          { platform, postId },
+          "Instagram permalink unavailable; cannot construct a public URL from numeric media id",
+        );
+        return undefined;
+      }
       return `https://www.instagram.com/p/${postId}/`;
     }
     case "tiktok": {
-      return `https://www.tiktok.com/@${account?.username || "user"}/video/${postId}`;
+      // TikTok's Direct Post API returns a `publish_id` like
+      // `v_pub_file~v2-1.7635755340554061846` immediately; the real numeric
+      // video id (e.g. `7635755895103786273`) is only available after the
+      // publish-status poll completes. The publisher returns the public id
+      // when it can, but for unaudited apps the post is routed to the
+      // creator's inbox and no public id ever exists. We can never
+      // synthesize the video id from the publish_id (the numeric portion
+      // does not match), so fall back to the creator's profile URL when we
+      // only have a publish_id — the user can still navigate to their post
+      // from there.
+      const username = account?.username?.replace("@", "");
+      if (!/^\d+$/.test(postId)) {
+        postingLogger.warn(
+          { platform, postId },
+          "TikTok public video id unavailable (got publish_id); falling back to creator profile URL",
+        );
+        return username ? `https://www.tiktok.com/@${username}` : undefined;
+      }
+      return username ? `https://www.tiktok.com/@${username}/video/${postId}` : undefined;
     }
     case "telegram": {
       // Telegram doesn't have public URLs for posts, but we can link to the channel
@@ -87,7 +132,15 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
       return username ? `https://www.threads.net/@${username.replace("@", "")}/post/${postId}` : undefined;
     }
     case "linkedin": {
-      return `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}`;
+      // The LinkedIn `/ugcPosts` API returns URNs like
+      // `urn:li:ugcPost:7456790957989093376` (or `urn:li:share:...`).
+      // LinkedIn's `/feed/update/` URL accepts these URNs as-is and
+      // redirects to the actual post page — note that ugcPost and activity
+      // URNs have DIFFERENT numeric IDs for the same post, so we cannot
+      // synthesize an activity URN by swapping the prefix; we have to pass
+      // through whatever the API gave us. Colons must stay raw —
+      // percent-encoding them breaks LinkedIn's redirect.
+      return `https://www.linkedin.com/feed/update/${postId}`;
     }
     case "pinterest": {
       return `https://www.pinterest.com/pin/${postId}/`;
@@ -96,6 +149,165 @@ function generatePostUrl(platform: string, postId: string, account?: ConnectedAc
       postingLogger.warn({ platform }, "Unknown platform for URL generation");
       return undefined;
     }
+  }
+}
+
+function applyYouTubeDefaults(media: Media[], message: string, platform: string): Media[] {
+  return media.map((m) => {
+    if (m.type === "video" && platform === "youtube" && !m.title) {
+      return {
+        ...m,
+        title: message.trim() || "Untitled Video",
+        description: message.trim() || undefined,
+      };
+    }
+    return m;
+  });
+}
+
+function mergeReplyOverlay(options: ReturnType<typeof buildPostOptions>, overlay: ReturnType<typeof buildReplyOverlay>) {
+  if (!overlay) return options;
+  const existing = (options as Record<string, Record<string, unknown> | undefined>)[overlay.platform] ?? {};
+  return {
+    ...options,
+    [overlay.platform]: { ...existing, ...overlay.options },
+  };
+}
+
+async function persistRefreshedCredentials(
+  account: ConnectedAccount,
+  refreshedCredentials: NonNullable<NonNullable<PostingResult["extraData"]>["refreshedCredentials"]>,
+  log: Logger,
+) {
+  const platformLower = account.platform.toLowerCase();
+  if (platformLower !== "x" && platformLower !== "instagram" && platformLower !== "bluesky" && platformLower !== "threads") return;
+
+  try {
+    await prisma.connectedAccount.update({
+      where: { id: account.id },
+      data: {
+        ...encryptConnectedAccountSecrets({
+          accessToken: refreshedCredentials.accessToken || account.accessToken,
+          refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
+        }),
+        expiresAt: refreshedCredentials.expiresAt
+          ? new Date(refreshedCredentials.expiresAt * 1000)
+          : account.expiresAt,
+      },
+    });
+    log.info({ accountId: account.id, platform: account.platform }, "Updated credentials from refresh");
+  } catch (updateError) {
+    log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update credentials");
+  }
+}
+
+/**
+ * Posts a single segment (root or thread reply) to one platform. Handles
+ * credential refresh persistence and logging.
+ */
+async function postSingleSegment(
+  message: string,
+  preparedMedia: Media[],
+  account: ConnectedAccount,
+  accountOptions: AccountOptionsMap | undefined,
+  replyOverlay: ReturnType<typeof buildReplyOverlay>,
+  log: Logger,
+): Promise<PostingResult> {
+  const startTime = Date.now();
+  try {
+    const platform = mapPlatformName(account.platform);
+    const baseOptions = buildPostOptions(account, accountOptions);
+    const options = mergeReplyOverlay(baseOptions, replyOverlay);
+    const processedMedia = applyYouTubeDefaults(preparedMedia, message, platform);
+
+    const postData: Post = {
+      content: {
+        text: message,
+        media: processedMedia.length > 0 ? processedMedia : undefined,
+      },
+      platforms: [platform],
+      options,
+    };
+
+    const sanitizedPostData = {
+      content: {
+        text: postData.content.text,
+        media: postData.content.media?.map((m) =>
+          m.type === "video"
+            ? { type: m.type, url: m.url, title: m.title, description: m.description, thumbnailUrl: m.thumbnailUrl }
+            : { type: m.type, url: m.url, caption: m.caption },
+        ),
+      },
+      platforms: postData.platforms,
+      options: options ? redact(options as Record<string, unknown>) : undefined,
+    };
+    log.debug({ postData: sanitizedPostData, hasReplyOverlay: !!replyOverlay }, "SDK post() call data");
+
+    const results = await sdkPost(postData);
+    const result = results.get(platform);
+
+    if (result?.extraData?.refreshedCredentials) {
+      await persistRefreshedCredentials(account, result.extraData.refreshedCredentials, log);
+    }
+
+    if (result?.error === PostErrorType.NO_ERROR && result?.id) {
+      // Prefer the canonical URL returned by the publisher (Instagram and
+      // Threads provide a permalink that we can't construct from the id
+      // alone). Fall back to building the URL from the post id otherwise.
+      const postUrl = result.url ?? generatePostUrl(platform, result.id, account);
+      const durationMs = Date.now() - startTime;
+      log.info(
+        {
+          postId: result.id,
+          postUrl: postUrl || null,
+          durationMs,
+          credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+        },
+        "Segment post successful",
+      );
+      return {
+        accountId: account.id,
+        platform: account.platform,
+        success: true,
+        postUrl,
+        postId: result.id,
+        message: result.message,
+        details: result.details,
+        extraData: result.extraData,
+      };
+    }
+
+    const errorMsg = result?.error || "Unknown error occurred";
+    const errorMessage = result?.message || errorMsg;
+    const durationMs = Date.now() - startTime;
+    log.error(
+      {
+        error: errorMsg,
+        errorMessage: result?.message,
+        details: result?.details ? sanitizeForJson(result.details) : undefined,
+        durationMs,
+      },
+      "Segment post failed",
+    );
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: errorMsg,
+      message: errorMessage,
+      details: result?.details,
+      extraData: result?.extraData,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    const durationMs = Date.now() - startTime;
+    log.error({ err: serializeError(error), durationMs }, "Exception while posting segment");
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: errorMessage,
+    };
   }
 }
 
@@ -108,7 +320,6 @@ async function postToAccountWithPreparedMedia(
   account: ConnectedAccount,
   accountOptions?: AccountOptionsMap,
 ): Promise<PostingResult> {
-  const startTime = Date.now();
   const log = postingLogger.child({
     fn: "postToAccountWithPreparedMedia",
     accountId: account.id,
@@ -116,166 +327,114 @@ async function postToAccountWithPreparedMedia(
   });
 
   log.info({ messageLength: message.length, mediaCount: preparedMedia.length }, "Starting post to platform");
+  return postSingleSegment(message, preparedMedia, account, accountOptions, undefined, log);
+}
 
-  try {
-    const platform = mapPlatformName(account.platform);
-    log.debug({ mappedPlatform: platform }, "Platform mapped");
+interface AccountSegment {
+  message: string;
+  mediaFiles: MediaFile[];
+}
 
-    log.debug("Building post options");
-    const options = buildPostOptions(account, accountOptions);
-    log.debug("Post options built successfully");
+async function postSegmentsToAccount(
+  segments: AccountSegment[],
+  account: ConnectedAccount,
+  accountOptions?: AccountOptionsMap,
+): Promise<PostingResult> {
+  const log = postingLogger.child({
+    fn: "postSegmentsToAccount",
+    accountId: account.id,
+    platform: account.platform,
+    segmentCount: segments.length,
+  });
 
-    // Prepare media with proper titles for YouTube videos
-    const processedMedia = preparedMedia.map((m) => {
-      if (m.type === "video" && platform === "youtube" && !m.title) {
-        // Ensure YouTube videos have a title
-        return {
-          ...m,
-          title: message.trim() || "Untitled Video",
-          description: message.trim() || undefined,
-        };
+  const platform = mapPlatformName(account.platform);
+  const threadAware = isThreadCapable(platform);
+  const effectiveSegments = threadAware ? segments : segments.slice(0, 1);
+
+  if (!threadAware && segments.length > 1) {
+    log.warn({ requestedSegments: segments.length }, "Platform does not support threads — only root will be posted");
+  }
+
+  const chain: ThreadChainState = {};
+  const segmentResults: ThreadSegmentResult[] = [];
+  let rootResult: PostingResult | undefined;
+
+  for (const [i, segment] of effectiveSegments.entries()) {
+    const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
+    const tempPost: Post = {
+      content: { text: segment.message, media: media.length > 0 ? media : undefined },
+      platforms: [platform],
+    };
+
+    const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
+    let segmentResult: PostingResult;
+    try {
+      const overlay = buildReplyOverlay(platform, chain);
+      const segmentLog = log.child({ segmentIndex: i });
+      segmentResult = await postSingleSegment(
+        segment.message,
+        preparedPost.content.media || [],
+        account,
+        accountOptions,
+        overlay,
+        segmentLog,
+      );
+
+      if (segmentResult.success) {
+        const step = extractChainStep(platform, {
+          id: segmentResult.postId,
+          error: PostErrorType.NO_ERROR,
+          extraData: segmentResult.extraData,
+        });
+        if (step) {
+          if (step.postId) chain.parentPostId = step.postId;
+          if (step.bskyRef) {
+            chain.parentBskyRef = step.bskyRef;
+            if (i === 0) chain.rootBskyRef = step.bskyRef;
+          }
+        }
       }
-      return m;
+    } finally {
+      await cleanup();
+    }
+
+    segmentResults.push({
+      index: i,
+      success: segmentResult.success,
+      postId: segmentResult.postId,
+      postUrl: segmentResult.postUrl,
+      error: segmentResult.error,
+      message: segmentResult.message,
+      details: segmentResult.details,
     });
 
-    const postData: Post = {
-      content: {
-        text: message,
-        media: processedMedia.length > 0 ? processedMedia : undefined,
-      },
-      platforms: [platform],
-      options,
-    };
+    if (i === 0) rootResult = segmentResult;
+    if (!segmentResult.success) break;
 
-    log.debug("Calling SDK post function");
-
-    // Prepare sanitized post data for logging
-    const sanitizedPostData = {
-      content: {
-        text: postData.content.text,
-        media: postData.content.media?.map((m) =>
-          m.type === "video"
-            ? {
-                type: m.type,
-                url: m.url,
-                title: m.title,
-                description: m.description,
-                thumbnailUrl: m.thumbnailUrl,
-              }
-            : {
-                type: m.type,
-                url: m.url,
-                caption: m.caption,
-              },
-        ),
-      },
-      platforms: postData.platforms,
-      options: options ? redact(options as Record<string, unknown>) : undefined,
-    };
-
-    log.debug({ postData: sanitizedPostData }, "SDK post() call data");
-
-    const results = await sdkPost(postData);
-    const result = results.get(platform);
-
-    const refreshedCredentials = result?.extraData?.refreshedCredentials;
-    const platformLower = account.platform.toLowerCase();
-    if (
-      refreshedCredentials &&
-      (platformLower === "x" || platformLower === "instagram" || platformLower === "bluesky")
-    ) {
-      try {
-        await prisma.connectedAccount.update({
-          where: { id: account.id },
-          data: {
-            ...encryptConnectedAccountSecrets({
-              accessToken: refreshedCredentials.accessToken || account.accessToken,
-              refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
-            }),
-            expiresAt: refreshedCredentials.expiresAt
-              ? new Date(refreshedCredentials.expiresAt * 1000)
-              : account.expiresAt,
-          },
-        });
-        log.info({ accountId: account.id, platform: account.platform }, "Updated credentials from refresh");
-      } catch (updateError) {
-        log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update credentials");
-      }
+    // Give the platform time to index the post before we reply to it.
+    // Threads in particular needs ~2 seconds before a reply_to_id lookup succeeds.
+    if (i < effectiveSegments.length - 1 && segmentResult.success) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-
-    log.debug(
-      {
-        id: result?.id,
-        error: result?.error,
-        message: result?.message,
-        hasDetails: !!result?.details,
-        hasExtraData: !!result?.extraData,
-      },
-      "SDK post completed",
-    );
-
-    if (result?.error === PostErrorType.NO_ERROR && result?.id) {
-      const postUrl = generatePostUrl(platform, result.id, account);
-      const durationMs = Date.now() - startTime;
-
-      log.info(
-        {
-          postId: result.id,
-          postUrl: postUrl || null,
-          durationMs,
-          credentialsRefreshed: !!result.extraData?.refreshedCredentials,
-        },
-        "Post successful",
-      );
-
-      return {
-        accountId: account.id,
-        platform: account.platform,
-        success: true,
-        postUrl,
-        postId: result.id,
-        message: result.message,
-        details: result.details,
-        extraData: result.extraData,
-      };
-    } else {
-      const errorMsg = result?.error || "Unknown error occurred";
-      const errorMessage = result?.message || errorMsg;
-      const durationMs = Date.now() - startTime;
-
-      log.error(
-        {
-          error: errorMsg,
-          errorMessage: result?.message,
-          details: result?.details ? sanitizeForJson(result.details) : undefined,
-          durationMs,
-        },
-        "Post failed",
-      );
-
-      return {
-        accountId: account.id,
-        platform: account.platform,
-        success: false,
-        error: errorMsg,
-        message: errorMessage,
-        details: result?.details,
-        extraData: result?.extraData,
-      };
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-    const durationMs = Date.now() - startTime;
-
-    log.error({ err: serializeError(error), durationMs }, "Exception occurred while posting");
-
-    return {
-      accountId: account.id,
-      platform: account.platform,
-      success: false,
-      error: errorMessage,
-    };
   }
+
+  // Fill in skipped segments so the UI can show the correct X/Y total
+  for (let i = segmentResults.length; i < effectiveSegments.length; i++) {
+    segmentResults.push({ index: i, success: false, error: "Skipped due to earlier failure" });
+  }
+
+  const overallSuccess = segmentResults.every((s) => s.success);
+  const base = rootResult ?? {
+    accountId: account.id,
+    platform: account.platform,
+    success: false,
+    error: "No segments to post",
+  };
+
+  if (effectiveSegments.length > 1) {
+    return { ...base, success: overallSuccess, threadResults: segmentResults };
+  }
+  return base;
 }
 
 function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
@@ -293,6 +452,27 @@ function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
   });
 }
 
+function buildAccountSegments(
+  accountId: string,
+  rootMessage: string,
+  rootMediaFiles: MediaFile[],
+  sharedThread: ThreadSegment[],
+  accountOverrides?: AccountOverridesMap,
+): AccountSegment[] {
+  const override = accountOverrides?.[accountId];
+  const message = override?.message ?? rootMessage;
+  const mediaFiles = override?.media ?? rootMediaFiles;
+  const thread = override?.thread ?? sharedThread;
+
+  return [
+    { message, mediaFiles },
+    ...thread.map((segment) => ({
+      message: segment.message ?? "",
+      mediaFiles: segment.media ?? [],
+    })),
+  ];
+}
+
 /**
  * Posts content to multiple accounts
  */
@@ -302,12 +482,18 @@ export async function postToAccounts(
   accountIds: string[],
   accountOptions?: AccountOptionsMap,
   accountOverrides?: AccountOverridesMap,
+  thread?: ThreadSegment[],
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
   const log = postingLogger.child({ fn: "postToAccounts" });
 
   log.info(
-    { accountCount: accountIds.length, accountIds, mediaFileCount: mediaFiles.length },
+    {
+      accountCount: accountIds.length,
+      accountIds,
+      mediaFileCount: mediaFiles.length,
+      threadSegmentCount: thread?.length ?? 0,
+    },
     "Starting post to accounts",
   );
 
@@ -343,6 +529,24 @@ export async function postToAccounts(
     const refreshedAccounts = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
 
     const hasOverrides = !!accountOverrides && Object.keys(accountOverrides).length > 0;
+    const sharedThread = thread ?? [];
+    const hasThread =
+      sharedThread.length > 0 || Object.values(accountOverrides ?? {}).some((o) => (o.thread ?? []).length > 0);
+
+    if (hasThread) {
+      log.debug("Posting via thread loop");
+      const results = await Promise.all(
+        refreshedAccounts.map((account) => {
+          const segments = buildAccountSegments(account.id, message, mediaFiles, sharedThread, accountOverrides);
+          return postSegmentsToAccount(segments, account, accountOptions);
+        }),
+      );
+
+      const successCount = results.filter((r) => r.success).length;
+      const failureCount = results.filter((r) => !r.success).length;
+      log.info({ successCount, failureCount, durationMs: Date.now() - startTime }, "Thread posting complete");
+      return results;
+    }
 
     if (!hasOverrides) {
       // Convert media files to SDK format (simple mapping - SDK will handle resolution)

@@ -94,6 +94,7 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   threads: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
     userId: account.platformAccountId,
+    expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : undefined,
   }),
   linkedin: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,

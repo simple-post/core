@@ -19,6 +19,12 @@ const MAX_PHOTO_CAPTION_LENGTH = 90;
 const MAX_MEDIA_COUNT = 1;
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
 const MIN_FILE_SIZE_FOR_CHUNKING = 10 * 1024 * 1024; // Only chunk files larger than 10MB
+// TikTok's Direct Post API returns a `publish_id` immediately, but the actual
+// public video ID is only known once processing finishes. We poll the status
+// endpoint until PUBLISH_COMPLETE so callers can link to the real video.
+// Video processing can take 1–2 minutes for larger files, so we budget ~3 min.
+const PUBLISH_STATUS_POLL_INTERVAL_MS = 3000;
+const PUBLISH_STATUS_MAX_ATTEMPTS = 60; // ~3 minutes total
 
 const VALIDATION_RULES: PlatformValidationRules = {
   text: {
@@ -40,6 +46,16 @@ interface TikTokInboxUploadInitResponse {
   data: {
     upload_url: string;
   };
+}
+
+interface TikTokPublishStatusResponse {
+  data: {
+    status: string;
+    fail_reason?: string;
+    publicaly_available_post_id?: Array<string | number>;
+    publicly_available_post_id?: Array<string | number>;
+  };
+  error?: { code?: string; message?: string };
 }
 
 export class TikTokPublisher extends Publisher {
@@ -317,6 +333,66 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
+  /**
+   * Polls the TikTok publish status endpoint until the post is fully
+   * published, returning the public-facing video ID once available.
+   *
+   * Direct Post initially returns only a `publish_id` (an internal job id).
+   * The numeric video id required to build a `tiktok.com/@user/video/...`
+   * URL is only emitted via this status endpoint once processing finishes.
+   *
+   * @returns the public post ID when status is PUBLISH_COMPLETE,
+   *          or `undefined` if it can't be resolved within the budget.
+   */
+  private async pollPublishStatus(publishId: string): Promise<string | undefined> {
+    for (let attempt = 0; attempt < PUBLISH_STATUS_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await this.client.post<TikTokPublishStatusResponse>("/v2/post/publish/status/fetch/", {
+          publish_id: publishId,
+        });
+
+        const data = response.data?.data;
+        const status = data?.status;
+        this.logger.info(
+          `TikTok publish status (attempt ${attempt + 1}/${PUBLISH_STATUS_MAX_ATTEMPTS}): ${status ?? "unknown"}`,
+        );
+
+        if (status === "PUBLISH_COMPLETE") {
+          // TikTok's API documents the field as `publicaly_available_post_id`
+          // (note the typo), but accept the corrected form too in case it
+          // ever changes.
+          const publicIds = data?.publicaly_available_post_id ?? data?.publicly_available_post_id;
+          const publicId = publicIds?.[0];
+          if (publicId !== undefined && publicId !== null) {
+            return String(publicId);
+          }
+          return undefined;
+        }
+
+        if (status === "FAILED") {
+          this.logger.warn(`TikTok publish failed during processing: ${data?.fail_reason || "unknown"}`);
+          return undefined;
+        }
+
+        // Unaudited apps cannot publish directly — TikTok routes the post to
+        // the creator's inbox for them to manually finish publishing. There
+        // is no public video id at this point, so stop polling.
+        if (status === "SEND_TO_USER_INBOX") {
+          this.logger.info("TikTok post sent to user inbox; no public video id available yet");
+          return undefined;
+        }
+      } catch (error) {
+        const err = error as { message?: string };
+        this.logger.warn(`TikTok publish status poll failed (attempt ${attempt + 1}): ${err.message || String(error)}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, PUBLISH_STATUS_POLL_INTERVAL_MS));
+    }
+
+    this.logger.warn(`TikTok publish status did not reach PUBLISH_COMPLETE within ${PUBLISH_STATUS_MAX_ATTEMPTS} attempts`);
+    return undefined;
+  }
+
   private mapVisibilityToPrivacyLevel(visibility?: string): string {
     switch (visibility) {
       case "public": {
@@ -483,6 +559,20 @@ export class TikTokPublisher extends Publisher {
       // Upload the media - uses Direct Post API for immediate publishing or Upload API for drafts
       // Based on options.tiktok.publishMode: "draft" goes to inbox, otherwise publishes immediately
       const publishId = await this.uploadMedia(media, resolvedPath, content, options);
+      const isDraft = options?.tiktok?.publishMode === "draft";
+
+      // For direct posts, the publish_id is an internal job id — the actual
+      // public video id (used in the post URL) is only available after
+      // processing completes. Poll the status endpoint to resolve it.
+      if (!isDraft) {
+        const publicPostId = await this.pollPublishStatus(publishId);
+        if (publicPostId) {
+          return { id: publicPostId, error: PostErrorType.NO_ERROR };
+        }
+        this.logger.warn(
+          `TikTok publish for ${publishId} did not yield a public post id in time; falling back to publish_id`,
+        );
+      }
 
       return { id: publishId, error: PostErrorType.NO_ERROR };
     } catch (error: unknown) {

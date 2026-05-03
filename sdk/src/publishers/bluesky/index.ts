@@ -559,7 +559,8 @@ export class BlueskyPublisher extends Publisher {
     return { errors, warnings, isValid: errors.length === 0 };
   }
 
-  async postContent(content: Content, _options?: PostOptionsWithCredentials): Promise<PostResult> {
+  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    const replyTo = options?.bluesky?.replyTo;
     const validation = BlueskyPublisher.validate(content);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Bluesky content validation failed", validation);
@@ -600,6 +601,7 @@ export class BlueskyPublisher extends Publisher {
         text: content.text ?? "",
         createdAt: new Date().toISOString(),
         ...(embed ? { embed } : {}),
+        ...(replyTo ? { reply: { root: replyTo.root, parent: replyTo.parent } } : {}),
       };
 
       const path = "/xrpc/com.atproto.repo.createRecord";
@@ -636,17 +638,21 @@ export class BlueskyPublisher extends Publisher {
         }
       }
 
+      const uri: string | undefined = response.data.uri;
+      const cid: string | undefined = response.data.cid;
       const result: PostResult = {
-        id: response.data.uri || response.data.cid,
+        id: uri || cid,
         error: PostErrorType.NO_ERROR,
+        extraData: {},
       };
+      if (uri && cid) {
+        result.extraData!.platformData = { uri, cid };
+      }
       if (this.refreshedCredentials) {
-        result.extraData = {
-          refreshedCredentials: {
-            accessToken: this.refreshedCredentials.accessToken,
-            refreshToken: this.refreshedCredentials.refreshToken,
-            expiresAt: this.refreshedCredentials.expiresAt,
-          },
+        result.extraData!.refreshedCredentials = {
+          accessToken: this.refreshedCredentials.accessToken,
+          refreshToken: this.refreshedCredentials.refreshToken,
+          expiresAt: this.refreshedCredentials.expiresAt,
         };
       }
       return result;

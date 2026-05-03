@@ -1,8 +1,21 @@
 import type { Prisma } from "@prisma/client";
-import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@simple-post/sdk";
+import type {
+  AccountOptionsMap,
+  AccountOverridesMap,
+  MediaFile,
+  ThreadSegment,
+  ThreadSegmentResult,
+} from "@simple-post/sdk";
 
 // Shared with @simple-post/server via @simple-post/sdk
-export type { MediaFile, AccountContentOverride, AccountOverridesMap, AccountOptionsMap } from "@simple-post/sdk";
+export type {
+  MediaFile,
+  AccountContentOverride,
+  AccountOverridesMap,
+  AccountOptionsMap,
+  ThreadSegment,
+  ThreadSegmentResult,
+} from "@simple-post/sdk";
 
 export interface AccountPlatformOptions {
   x?: {
@@ -57,6 +70,8 @@ export interface SocialPost {
   publishedAt?: Date;
   accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
+  thread?: ThreadSegment[];
+  threadResults?: Record<string, ThreadSegmentResult[]>;
 }
 
 // Legacy shape kept for backward compatibility.

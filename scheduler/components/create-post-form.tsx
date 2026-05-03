@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { AlertTriangle, CalendarIcon, Clock, Info } from "lucide-react";
+import { AlertTriangle, CalendarIcon, Clock, Info, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { cn } from "@/lib/utils";
-import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
 import { GenericPostPreview } from "./generic-post-preview";
@@ -61,12 +61,17 @@ export function CreatePostForm() {
     scheduledTime,
     accountOptions,
     accountOverrides,
+    thread,
     setMessage,
     setMedia,
     setSelectedAccountIds,
     setPostingMode,
     setScheduledDate,
     setScheduledTime,
+    addThreadSegment,
+    removeThreadSegment,
+    updateThreadSegmentMessage,
+    updateThreadSegmentMedia,
   } = usePostDraft();
 
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
@@ -77,6 +82,7 @@ export function CreatePostForm() {
       success: boolean;
       error?: string;
       postUrl?: string;
+      threadResults?: Array<{ index: number; success: boolean; postId?: string; postUrl?: string }>;
     }>
   >([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
@@ -119,6 +125,7 @@ export function CreatePostForm() {
             media,
             accountIds: selectedAccountIds,
             accountOverrides: enabledOverrides,
+            thread: thread.length > 0 ? thread : undefined,
           }),
           signal,
         });
@@ -143,7 +150,7 @@ export function CreatePostForm() {
         setValidationLoading(false);
       }
     },
-    [enabledOverrides, media, message, selectedAccountIds],
+    [enabledOverrides, media, message, selectedAccountIds, thread],
   );
 
   useEffect(() => {
@@ -255,7 +262,8 @@ export function CreatePostForm() {
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
         accountOverrides?: AccountOverridesMap;
-        media: typeof media;
+        media: MediaFile[];
+        thread?: ThreadSegment[];
       } = {
         message: message.trim(),
         accountIds: selectedAccountIds,
@@ -282,6 +290,10 @@ export function CreatePostForm() {
 
       if (Object.keys(enabledOverrides).length > 0) {
         body.accountOverrides = enabledOverrides;
+      }
+
+      if (thread.length > 0) {
+        body.thread = thread;
       }
 
       const data = await submitPostMutation.mutateAsync({
@@ -336,21 +348,66 @@ export function CreatePostForm() {
               className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
-            <div className="flex justify-between items-center mt-2">
-              <p className="text-xs text-muted-foreground">Share your thoughts, updates, or announcements</p>
-              <p className="text-xs text-muted-foreground">
-                {message.length}
-                {maxTextLength ? `/${maxTextLength}` : ""}
-              </p>
+            <div className="mt-1">
+              <MediaUpload media={media} onMediaChange={setMedia} compact />
             </div>
+            {maxTextLength && (
+              <div className="flex justify-end mt-2">
+                <p className="text-xs text-muted-foreground">
+                  {message.length}/{maxTextLength}
+                </p>
+              </div>
+            )}
           </div>
 
-          <div>
-            <Label className="text-sm font-medium">Media</Label>
-            <div className="mt-2">
-              <MediaUpload media={media} onMediaChange={setMedia} />
+          {/* Thread segments */}
+          {thread.length > 0 && (
+            <div className="space-y-0">
+              {thread.map((segment, index) => (
+                <div key={index} className="flex gap-3">
+                  <div className="flex flex-col items-center pt-1">
+                    <div className="w-px bg-border flex-1" />
+                  </div>
+                  <div className="flex-1 space-y-2 pb-4 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                        Post {index + 2}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => removeThreadSegment(index)}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <Textarea
+                      placeholder="Continue your thread…"
+                      value={segment.message}
+                      onChange={(e) => updateThreadSegmentMessage(index, e.target.value)}
+                      className="min-h-20 resize-none text-sm"
+                    />
+                    <MediaUpload
+                      media={segment.media ?? []}
+                      onMediaChange={(m) => updateThreadSegmentMedia(index, m)}
+                      compact
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 text-muted-foreground"
+            onClick={addThreadSegment}>
+            <Plus className="h-3.5 w-3.5" />
+            Add to thread
+          </Button>
         </div>
 
         <div className="space-y-4">
@@ -526,7 +583,7 @@ export function CreatePostForm() {
           )}
         </div>
 
-        <GenericPostPreview message={message} media={media} />
+        <GenericPostPreview message={message} media={media} thread={thread} />
       </div>
 
       <PostLinksModal

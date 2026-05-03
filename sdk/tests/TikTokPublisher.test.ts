@@ -77,14 +77,24 @@ describe("TikTokPublisher", () => {
 
     it("should successfully post a video", async () => {
       // Mock the Direct Post API init response (includes publish_id directly)
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_123",
-            upload_url: "https://upload.tiktok.com/video?upload_id=123",
+            data: {
+              publish_id: "publish_123",
+              upload_url: "https://upload.tiktok.com/video?upload_id=123",
+            },
           },
-        },
-      });
+        })
+        // Status poll resolves the public post id used in the URL
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876543"],
+            },
+          },
+        });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -101,9 +111,9 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(videoContent);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("publish_123");
-      // Direct Post API only requires 1 POST (init) - no complete or publish steps
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(result.id).toBe("7298765432109876543");
+      // 2 POSTs expected: init + status fetch (resolves on first attempt)
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
       // Verify the init call includes post_info
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/v2/post/publish/video/init/",
@@ -115,18 +125,31 @@ describe("TikTokPublisher", () => {
           source_info: expect.any(Object),
         }),
       );
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/v2/post/publish/status/fetch/",
+        expect.objectContaining({ publish_id: "publish_123" }),
+      );
     });
 
     it("should successfully post a photo", async () => {
       // Mock the Direct Post API init response for photos
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_456",
-            upload_url: "https://upload.tiktok.com/photo?upload_id=456",
+            data: {
+              publish_id: "publish_456",
+              upload_url: "https://upload.tiktok.com/photo?upload_id=456",
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876544"],
+            },
+          },
+        });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -142,9 +165,9 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(photoContent);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("publish_456");
-      // Direct Post API only requires 1 POST (init)
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(result.id).toBe("7298765432109876544");
+      // 2 POSTs expected: init + status fetch
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
       // Verify photo endpoint is used
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/v2/post/publish/photo/init/",
@@ -157,14 +180,23 @@ describe("TikTokPublisher", () => {
 
     it("should handle different visibility settings", async () => {
       // Mock the Direct Post API response
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_789",
-            upload_url: "https://upload.tiktok.com/video?upload_id=789",
+            data: {
+              publish_id: "publish_789",
+              upload_url: "https://upload.tiktok.com/video?upload_id=789",
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876545"],
+            },
+          },
+        });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -192,7 +224,7 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(videoContent, options);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("publish_789");
+      expect(result.id).toBe("7298765432109876545");
 
       // Verify the init call includes the privacy settings
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
@@ -295,14 +327,23 @@ describe("TikTokPublisher", () => {
       });
 
       // Mock successful upload for the first image using Direct Post API
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_multi",
-            upload_url: "https://upload.tiktok.com/photo?upload_id=multi",
+            data: {
+              publish_id: "publish_multi",
+              upload_url: "https://upload.tiktok.com/photo?upload_id=multi",
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876546"],
+            },
+          },
+        });
 
       mockedAxios.put.mockResolvedValue({ status: 200 });
 
@@ -316,8 +357,8 @@ describe("TikTokPublisher", () => {
       const result = await strictPublisher.postContent(contentWithMultipleMedia);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      // Direct Post API - should only have 1 POST call (init)
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      // 2 POSTs expected: init + status fetch
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
     });
 
     it("should handle API errors gracefully", async () => {

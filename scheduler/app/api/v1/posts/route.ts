@@ -7,7 +7,7 @@ import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
-import type { MediaFile } from "@/types";
+import type { MediaFile, ThreadSegmentResult } from "@/types";
 
 const log = createLogger("api:posts");
 
@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
       media: mediaFiles,
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides,
+      thread: validated.thread,
     });
 
     if (validation.accounts.length !== validated.accountIds.length) {
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
         status: validated.postingMode === "now" ? "pending" : "scheduled",
         accountOptions: validated.accountOptions,
         accountOverrides: validated.accountOverrides,
+        thread: validated.thread,
       },
       userId,
     );
@@ -129,6 +131,7 @@ export async function POST(req: NextRequest) {
           validated.accountIds,
           validated.accountOptions,
           validated.accountOverrides,
+          validated.thread,
         );
         const summary = getPostingSummary(results);
 
@@ -141,12 +144,19 @@ export async function POST(req: NextRequest) {
           "Posting results",
         );
 
+        const threadResultsByAccount: Record<string, ThreadSegmentResult[]> = {};
+        for (const r of results) {
+          if (r.threadResults) threadResultsByAccount[r.accountId] = r.threadResults;
+        }
+        const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
+
         // Update post status based on results
         if (summary.overallSuccess) {
           log.debug({ postId: post.id }, "Updating post status to published");
           await repository.updatePost(post.id, {
             status: "published",
             publishedAt: new Date(),
+            threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           });
         } else {
           log.debug({ postId: post.id }, "Updating post status to failed");
@@ -163,6 +173,7 @@ export async function POST(req: NextRequest) {
               error: r.error,
               message: r.message,
               details: r.details,
+              threadResults: r.threadResults,
             })),
           }) as Record<string, unknown>;
 
@@ -170,6 +181,7 @@ export async function POST(req: NextRequest) {
             status: "failed",
             errorMessage,
             errorDetails,
+            threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           });
         }
 
@@ -186,6 +198,15 @@ export async function POST(req: NextRequest) {
           postId: r.postId,
           postUrl: r.postUrl,
           details: r.details ? (sanitizeForJson(r.details) as Record<string, unknown>) : undefined,
+          threadResults: r.threadResults?.map((s) => ({
+            index: s.index,
+            success: s.success,
+            postId: s.postId,
+            postUrl: s.postUrl,
+            error: s.error,
+            message: s.message,
+            details: s.details ? (sanitizeForJson(s.details) as Record<string, unknown>) : undefined,
+          })),
         }));
 
         return NextResponse.json(

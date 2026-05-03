@@ -147,6 +147,13 @@ model Post {
   accountOptions   Json?
   accountOverrides Json?
 
+  // Thread support: additional segments after the root post (whose content is
+  // Post.message + Post.media). Stored as ThreadSegment[] (see SDK types).
+  thread        Json?
+  // Per-account thread results captured at publish time. Map of accountId →
+  // ThreadSegmentResult[] for accounts that posted as a thread.
+  threadResults Json?
+
   // Relations
   accounts ConnectedAccount[]
   media    MediaFile[]

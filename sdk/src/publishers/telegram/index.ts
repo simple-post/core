@@ -55,6 +55,7 @@ export class TelegramPublisher extends Publisher {
     media: Media,
     caption?: string,
     parseMode?: string,
+    replyTo?: string,
   ): Promise<{ messageId: string; cleanup: () => Promise<void> }> {
     const tempFileManager = new TempFileManager();
 
@@ -74,6 +75,10 @@ export class TelegramPublisher extends Publisher {
           if (parseMode) {
             payload.parse_mode = parseMode;
           }
+        }
+
+        if (replyTo) {
+          payload.reply_to_message_id = Number.parseInt(replyTo);
         }
 
         const response = await this.client.post(endpoint, payload);
@@ -97,6 +102,10 @@ export class TelegramPublisher extends Publisher {
         if (parseMode) {
           formData.append("parse_mode", parseMode);
         }
+      }
+
+      if (replyTo) {
+        formData.append("reply_to_message_id", replyTo);
       }
 
       const response = await this.client.post(endpoint, formData, {
@@ -238,18 +247,19 @@ export class TelegramPublisher extends Publisher {
 
     const chatId = options.telegram.chatId;
     const parseMode = options.telegram.parseMode;
+    const replyTo = options.telegram.replyTo;
 
     // If there's media, send with caption
     if (content.media && content.media.length > 0) {
       const media = content.media[0];
 
-      const { messageId, cleanup } = await this.sendMedia(chatId, media, content.text, parseMode);
+      const { messageId, cleanup } = await this.sendMedia(chatId, media, content.text, parseMode, replyTo);
       await cleanup();
       return { id: messageId, error: PostErrorType.NO_ERROR };
     }
 
     // Otherwise send as text message
-    const messageId = await this.sendMessage(chatId, content.text!, parseMode);
+    const messageId = await this.sendMessage(chatId, content.text!, parseMode, replyTo);
     return { id: messageId, error: PostErrorType.NO_ERROR };
   }
 }

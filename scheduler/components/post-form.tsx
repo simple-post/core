@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertCircle, Info, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getPlatformById } from "@/lib/config";
-import type { MediaFile, AccountOptionsMap, SocialPost } from "@/types";
+import type { MediaFile, AccountOptionsMap, SocialPost, ThreadSegment } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
@@ -76,6 +76,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
   );
   const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
+  const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
@@ -111,6 +112,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             message,
             media,
             accountIds: selectedAccountIds,
+            thread: thread.length > 0 ? thread : undefined,
           }),
           signal,
         });
@@ -135,7 +137,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         setValidationLoading(false);
       }
     },
-    [media, message, selectedAccountIds],
+    [media, message, selectedAccountIds, thread],
   );
 
   useEffect(() => {
@@ -223,6 +225,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
         media: MediaFile[];
+        thread?: ThreadSegment[];
       } = {
         message: message.trim(),
         accountIds: selectedAccountIds,
@@ -238,6 +241,10 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
       if (Object.keys(accountOptions).length > 0) {
         body.accountOptions = accountOptions;
+      }
+
+      if (thread.length > 0) {
+        body.thread = thread;
       }
 
       // Submit using mutation
@@ -296,8 +303,10 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
               className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
-            <div className="flex justify-between items-center mt-2">
-              <p className="text-xs text-muted-foreground">Share your thoughts, updates, or announcements</p>
+            <div className="mt-1">
+              <MediaUpload media={media} onMediaChange={setMedia} compact />
+            </div>
+            <div className="flex justify-end mt-2">
               <p className="text-xs text-muted-foreground">
                 {message.length}
                 {maxTextLength ? `/${maxTextLength}` : ""}
@@ -305,13 +314,57 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             </div>
           </div>
 
-          {/* Media Upload */}
-          <div>
-            <Label className="text-sm font-medium">Media</Label>
-            <div className="mt-2">
-              <MediaUpload media={media} onMediaChange={setMedia} />
+          {/* Thread segments */}
+          {thread.length > 0 && (
+            <div className="space-y-0">
+              {thread.map((segment, index) => (
+                <div key={index} className="flex gap-3">
+                  <div className="flex flex-col items-center pt-1">
+                    <div className="w-px bg-border flex-1" />
+                  </div>
+                  <div className="flex-1 space-y-2 pb-4 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                        Post {index + 2}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => setThread((prev) => prev.filter((_, i) => i !== index))}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <Textarea
+                      placeholder="Continue your thread…"
+                      value={segment.message}
+                      onChange={(e) => {
+                        const msg = e.target.value;
+                        setThread((prev) => prev.map((s, i) => (i === index ? { ...s, message: msg } : s)));
+                      }}
+                      className="min-h-20 resize-none text-sm"
+                    />
+                    <MediaUpload
+                      media={segment.media ?? []}
+                      onMediaChange={(m) => setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))}
+                      compact
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 text-muted-foreground"
+            onClick={() => setThread((prev) => [...prev, { message: "" }])}>
+            <Plus className="h-3.5 w-3.5" />
+            Add to thread
+          </Button>
 
           {/* Validation Feedback */}
           {/* Validation loading is shown in the submit button to avoid layout shift */}
@@ -470,6 +523,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           scheduledDate={scheduledDate}
           scheduledTime={scheduledTime}
           selectedPlatforms={selectedAccountIds}
+          thread={thread}
         />
       </div>
 

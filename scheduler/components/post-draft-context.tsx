@@ -3,7 +3,7 @@
 import type React from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-import type { AccountOptionsMap, MediaFile } from "@/types";
+import type { AccountOptionsMap, MediaFile, ThreadSegment } from "@/types";
 
 export interface DraftAccountOverride {
   enabled: boolean;
@@ -22,6 +22,7 @@ interface PostDraftState {
   scheduledTime: string;
   accountOptions: AccountOptionsMap;
   accountOverrides: DraftAccountOverridesMap;
+  thread: ThreadSegment[];
 }
 
 interface PostDraftContextValue extends PostDraftState {
@@ -37,6 +38,11 @@ interface PostDraftContextValue extends PostDraftState {
   setAccountOverrideEnabled: (accountId: string, enabled: boolean) => void;
   setAccountOverrideMessage: (accountId: string, message: string) => void;
   setAccountOverrideMedia: (accountId: string, media: MediaFile[]) => void;
+  setThread: (value: ThreadSegment[]) => void;
+  addThreadSegment: () => void;
+  removeThreadSegment: (index: number) => void;
+  updateThreadSegmentMessage: (index: number, message: string) => void;
+  updateThreadSegmentMedia: (index: number, media: MediaFile[]) => void;
   resetDraft: () => void;
 }
 
@@ -49,6 +55,7 @@ const DEFAULT_DRAFT: PostDraftState = {
   scheduledTime: "",
   accountOptions: {},
   accountOverrides: {},
+  thread: [],
 };
 
 const PostDraftContext = createContext<PostDraftContextValue | null>(null);
@@ -62,6 +69,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
   const [scheduledTime, setScheduledTime] = useState(DEFAULT_DRAFT.scheduledTime);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(DEFAULT_DRAFT.accountOptions);
   const [accountOverrides, setAccountOverrides] = useState<DraftAccountOverridesMap>(DEFAULT_DRAFT.accountOverrides);
+  const [thread, setThread] = useState<ThreadSegment[]>(DEFAULT_DRAFT.thread);
 
   const updateAccountOverride = useCallback((accountId: string, updates: Partial<DraftAccountOverride>) => {
     setAccountOverrides((prev) => {
@@ -97,6 +105,22 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     [updateAccountOverride],
   );
 
+  const addThreadSegment = useCallback(() => {
+    setThread((prev) => [...prev, { message: "" }]);
+  }, []);
+
+  const removeThreadSegment = useCallback((index: number) => {
+    setThread((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateThreadSegmentMessage = useCallback((index: number, segmentMessage: string) => {
+    setThread((prev) => prev.map((seg, i) => (i === index ? { ...seg, message: segmentMessage } : seg)));
+  }, []);
+
+  const updateThreadSegmentMedia = useCallback((index: number, segmentMedia: MediaFile[]) => {
+    setThread((prev) => prev.map((seg, i) => (i === index ? { ...seg, media: segmentMedia } : seg)));
+  }, []);
+
   const resetDraft = useCallback(() => {
     setMessage(DEFAULT_DRAFT.message);
     setMedia(DEFAULT_DRAFT.media);
@@ -106,6 +130,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     setScheduledTime(DEFAULT_DRAFT.scheduledTime);
     setAccountOptions(DEFAULT_DRAFT.accountOptions);
     setAccountOverrides(DEFAULT_DRAFT.accountOverrides);
+    setThread(DEFAULT_DRAFT.thread);
   }, []);
 
   const value = useMemo<PostDraftContextValue>(
@@ -118,6 +143,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       scheduledTime,
       accountOptions,
       accountOverrides,
+      thread,
       setMessage,
       setMedia,
       setSelectedAccountIds,
@@ -126,10 +152,15 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setScheduledTime,
       setAccountOptions,
       setAccountOverrides,
+      setThread,
       updateAccountOverride,
       setAccountOverrideEnabled,
       setAccountOverrideMessage,
       setAccountOverrideMedia,
+      addThreadSegment,
+      removeThreadSegment,
+      updateThreadSegmentMessage,
+      updateThreadSegmentMedia,
       resetDraft,
     }),
     [
@@ -141,11 +172,16 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       scheduledDate,
       scheduledTime,
       selectedAccountIds,
+      thread,
       setAccountOverrideEnabled,
       setAccountOverrideMedia,
       setAccountOverrideMessage,
       resetDraft,
       updateAccountOverride,
+      addThreadSegment,
+      removeThreadSegment,
+      updateThreadSegmentMessage,
+      updateThreadSegmentMedia,
     ],
   );
 

@@ -9,13 +9,21 @@ import {
   ThreadsPublisher,
   LinkedInPublisher,
   PinterestPublisher,
+  isThreadCapable,
 } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
 import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
-import type { Content, Media, Platform, ValidationResult, PlatformValidationRules } from "@simple-post/sdk";
+import type {
+  Content,
+  Media,
+  Platform,
+  ThreadSegment,
+  ValidationResult,
+  PlatformValidationRules,
+} from "@simple-post/sdk";
 
 const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
   const media: Media[] = mediaFiles.map((file) =>
@@ -90,6 +98,7 @@ export async function validatePostForAccounts(params: {
   media: MediaFile[];
   accountIds: string[];
   accountOverrides?: AccountOverridesMap;
+  thread?: ThreadSegment[];
 }): Promise<ValidationResultByPlatform> {
   const accounts = await prisma.connectedAccount.findMany({
     where: {
@@ -100,34 +109,80 @@ export async function validatePostForAccounts(params: {
 
   const platforms = [...new Set(accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
   const overrides = params.accountOverrides || {};
+  const sharedThread = params.thread ?? [];
 
   const results: PlatformValidationResponse[] = accounts.map((account) => {
     const platform = mapPlatformName(account.platform);
     const override = overrides[account.id];
     const usesCommonContent = !override;
-    const content = buildContent(override?.message ?? params.message ?? "", override?.media ?? params.media ?? []);
-    const validation: ValidationResult = validateContent(platform, content);
+    const rootContent = buildContent(
+      override?.message ?? params.message ?? "",
+      override?.media ?? params.media ?? [],
+    );
 
-    const withAccountMeta = (issue: ValidationResult["errors"][number]) => ({
-      ...issue,
-      meta: {
-        ...issue.meta,
-        accountId: account.id,
-      },
-    });
+    const accountThread = override?.thread ?? sharedThread;
+    const threadAware = isThreadCapable(platform);
+    const segments: Array<{ field: string; content: Content }> = [{ field: "text", content: rootContent }];
+
+    if (threadAware) {
+      accountThread.forEach((segment, index) => {
+        segments.push({
+          field: `thread[${index}]`,
+          content: buildContent(segment.message ?? "", segment.media ?? []),
+        });
+      });
+    }
+
+    const errors: ValidationResult["errors"] = [];
+    const warnings: ValidationResult["warnings"] = [];
+
+    for (const { field, content } of segments) {
+      const validation = validateContent(platform, content);
+      const withMeta = (issue: ValidationResult["errors"][number]) => ({
+        ...issue,
+        field: issue.field === "text" ? field : `${field}.${issue.field}`,
+        meta: { ...issue.meta, accountId: account.id },
+      });
+      validation.errors.forEach((issue) => errors.push(withMeta(issue)));
+      validation.warnings.forEach((issue) => warnings.push(withMeta(issue)));
+    }
+
+    if (!threadAware && accountThread.length > 0) {
+      warnings.push({
+        platform,
+        severity: "warning",
+        code: "thread_not_supported",
+        message: `${platform} does not support threads — only the first post will be sent.`,
+        field: "thread",
+        meta: { accountId: account.id },
+      });
+    }
 
     return {
       accountId: account.id,
       platform,
       rules: getValidationRules(platform),
-      errors: validation.errors.map((issue) => withAccountMeta(issue)),
-      warnings: validation.warnings.map((issue) => withAccountMeta(issue)),
-      isValid: validation.isValid,
+      errors,
+      warnings,
+      isValid: errors.length === 0,
       usesCommonContent,
     };
   });
 
-  const errors = results.flatMap((result) => result.errors);
+  const anyThread = sharedThread.length > 0 || Object.values(overrides).some((o) => (o.thread ?? []).length > 0);
+  const anyThreadCapable = accounts.some((account) => isThreadCapable(mapPlatformName(account.platform)));
+  const crossAccountErrors: ValidationResult["errors"] = [];
+  if (anyThread && !anyThreadCapable) {
+    crossAccountErrors.push({
+      platform: "common",
+      severity: "error",
+      code: "no_thread_capable_accounts",
+      message: "No selected accounts support threads. Remove the additional posts or add a thread-capable account.",
+      field: "thread",
+    });
+  }
+
+  const errors = [...results.flatMap((result) => result.errors), ...crossAccountErrors];
   const warnings = results.flatMap((result) => result.warnings);
 
   return {

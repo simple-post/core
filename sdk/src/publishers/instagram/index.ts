@@ -158,6 +158,43 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
+  /**
+   * Fetches the public permalink for a freshly-published Instagram media id.
+   *
+   * The Graph API may briefly omit `permalink` while the post is being
+   * indexed right after `media_publish`, so we retry a few times. Returns
+   * `undefined` if the permalink cannot be obtained — callers should treat
+   * the URL as unavailable rather than fabricating one from the numeric id.
+   */
+  private async fetchPermalinkWithRetry(mediaId: string): Promise<string | undefined> {
+    const maxAttempts = 5;
+    const delayMs = 1500;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const permalinkRes = await this.apiRequest<{ permalink?: string }>(
+          "get",
+          `/${mediaId}?fields=permalink`,
+        );
+        if (permalinkRes.data.permalink) {
+          return permalinkRes.data.permalink;
+        }
+      } catch (permalinkError) {
+        const err = permalinkError as { message?: string };
+        this.logger.warn(
+          `Failed to fetch Instagram permalink (attempt ${attempt + 1}/${maxAttempts}): ${err.message || String(permalinkError)}`,
+        );
+      }
+
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    this.logger.warn(`Instagram permalink unavailable after ${maxAttempts} attempts for media ${mediaId}`);
+    return undefined;
+  }
+
   private async cleanupS3Files(): Promise<void> {
     await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader.deleteFile(key)));
   }
@@ -344,6 +381,15 @@ export class InstagramPublisher extends Publisher {
       });
 
       const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
+
+      // Fetch the canonical permalink. Instagram post URLs require shortcodes
+      // that are not derivable from the numeric media ID, so we have to ask
+      // the API. Immediately after media_publish the permalink can briefly
+      // be missing while the post is being indexed, so retry a few times
+      // with a small backoff. Best-effort — failures here should not fail
+      // the publish.
+      result.url = await this.fetchPermalinkWithRetry(response.data.id);
+
       if (this.refreshedCredentials) {
         result.extraData = {
           refreshedCredentials: {

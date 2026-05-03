@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       media: finalMedia,
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides,
+      thread: validated.thread,
     });
 
     if (validation.accounts.length !== validated.accountIds.length) {
@@ -62,9 +63,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new ValidationError(validation);
     }
 
-    // Capture removed media before update for R2 cleanup
-    const newMediaUrls = new Set(finalMedia.map((m) => m.url));
-    const removedMedia = currentPost.media.filter((m) => !newMediaUrls.has(m.url));
+    // Capture removed media before update for R2 cleanup. Include media from
+    // every thread segment in the comparison, otherwise removing a segment
+    // would orphan its media in R2.
+    const newMediaUrls = new Set([
+      ...finalMedia.map((m) => m.url),
+      ...(validated.thread ?? []).flatMap((s) => (s.media ?? []).map((m) => m.url)),
+    ]);
+    const oldThreadMedia = (currentPost.thread ?? []).flatMap((s) => s.media ?? []);
+    const removedMedia = [...currentPost.media, ...oldThreadMedia].filter((m) => !newMediaUrls.has(m.url));
 
     // Update the post
     const post = await repository.updatePost(id, {
@@ -74,6 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
       media: finalMedia,
+      thread: validated.thread,
     });
 
     // Clean up removed media from R2 (best-effort, don't fail the request)

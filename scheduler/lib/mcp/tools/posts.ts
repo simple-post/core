@@ -148,6 +148,7 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
       platform: account.platform,
       username: account.username,
       displayName: account.displayName,
+      profilePicture: account.profilePicture,
     })),
     validation,
     summary: {

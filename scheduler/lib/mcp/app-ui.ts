@@ -528,6 +528,13 @@ function buildStyles(): string {
     height: 16px;
   }
 
+  .sp-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
   .sp-avatar--lg {
     width: 36px;
     height: 36px;
@@ -537,6 +544,34 @@ function buildStyles(): string {
   .sp-avatar--lg svg {
     width: 18px;
     height: 18px;
+  }
+
+  /* Small platform badge that overlays the avatar when a profile picture is shown */
+  .sp-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .sp-avatar-wrap .sp-avatar {
+    border: 1px solid var(--sp-border-soft);
+  }
+
+  .sp-avatar-badge {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #ffffff;
+    border: 2px solid var(--sp-bg);
+  }
+
+  .sp-avatar-badge svg {
+    width: 8px;
+    height: 8px;
   }
 
   .sp-avatar[data-platform="x"],
@@ -952,7 +987,53 @@ function buildScript(appOrigin: string): string {
   function avatarHtml(platform, opts = {}) {
     const size = opts.size === "lg" ? " sp-avatar--lg" : "";
     const platformAttr = String(platform || "").toLowerCase();
+    const profilePicture = opts.profilePicture;
+
+    if (profilePicture) {
+      // Rendered with a brand-colored background so a broken/missing image
+      // still shows a recognizable platform chip. The badge in the corner
+      // also reinforces which platform this account is on.
+      return (
+        '<div class="sp-avatar-wrap">' +
+        '<div class="sp-avatar' + size + '" data-platform="' + escapeHtml(platformAttr) + '" aria-hidden="true">' +
+        '<img src="' + escapeHtml(profilePicture) + '" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback="1" />' +
+        "</div>" +
+        '<span class="sp-avatar-badge" style="background:' + platformBrandColor(platformAttr) + '">' + platformIconHtml(platform) + "</span>" +
+        "</div>"
+      );
+    }
+
     return '<div class="sp-avatar' + size + '" data-platform="' + escapeHtml(platformAttr) + '" aria-hidden="true">' + platformIconHtml(platform) + "</div>";
+  }
+
+  // Hide broken profile pictures so the underlying brand-colored avatar shows through.
+  document.addEventListener(
+    "error",
+    (event) => {
+      const target = event.target;
+      if (target && target.tagName === "IMG" && target.dataset && target.dataset.fallback === "1") {
+        target.style.display = "none";
+      }
+    },
+    true,
+  );
+
+  const PLATFORM_BRAND_COLORS = {
+    x: "#000000",
+    twitter: "#000000",
+    instagram: "#dc2743",
+    facebook: "#1877f2",
+    youtube: "#ff0033",
+    tiktok: "#000000",
+    telegram: "#229ed9",
+    bluesky: "#0085ff",
+    threads: "#000000",
+    linkedin: "#0a66c2",
+    pinterest: "#bd081c",
+  };
+
+  function platformBrandColor(platform) {
+    return PLATFORM_BRAND_COLORS[String(platform || "").toLowerCase()] || "#2c2c2c";
   }
 
   function accountDisplayName(account) {
@@ -968,7 +1049,7 @@ function buildScript(appOrigin: string): string {
     if (account.username) meta.push(account.username.startsWith("@") ? account.username : "@" + account.username);
     return (
       '<div class="sp-account' + fullClass + '">' +
-      avatarHtml(account.platform) +
+      avatarHtml(account.platform, { profilePicture: account.profilePicture }) +
       '<div class="sp-account-text">' +
       '<span class="sp-account-name">' + escapeHtml(accountDisplayName(account)) + "</span>" +
       '<span class="sp-account-meta">' +
@@ -1121,8 +1202,28 @@ function buildScript(appOrigin: string): string {
     const accounts = data.accounts || [];
     const errors = (data.summary && data.summary.errorCount) || 0;
     const warnings = (data.summary && data.summary.warningCount) || 0;
+    const message = data.message || "";
+    const charCount = message.length;
+    const mediaCount = data.mediaCount || (data.summary && data.summary.mediaCount) || 0;
 
     setStatus(data.isValid ? "Ready" : "Needs edits", data.isValid ? "good" : "bad");
+
+    const messageCard = message
+      ? '<section class="sp-card">' +
+        '<div class="sp-card-header">' +
+        '<div><h2 class="sp-card-title">Draft message</h2><p class="sp-card-sub">' + charCount + " character" + (charCount === 1 ? "" : "s") + "</p></div>" +
+        '<span class="sp-badge" data-tone="' + (data.isValid ? "good" : "bad") + '">' + (data.isValid ? "Validated" : "Has issues") + "</span>" +
+        "</div>" +
+        '<div class="sp-card-body sp-card-body--tight">' +
+        '<div class="sp-message-card">' +
+        '<p class="sp-message-text">' + escapeHtml(message) + "</p>" +
+        (mediaCount
+          ? '<div class="sp-message-meta"><span class="sp-chip">' + mediaCount + " media item" + (mediaCount === 1 ? "" : "s") + "</span></div>"
+          : "") +
+        "</div>" +
+        "</div>" +
+        "</section>"
+      : "";
 
     content.innerHTML =
       '<section class="sp-hero" data-tone="' + (data.isValid ? "good" : "bad") + '">' +
@@ -1140,6 +1241,7 @@ function buildScript(appOrigin: string): string {
       "</div>" +
       "</div>" +
       "</section>" +
+      messageCard +
       '<section class="sp-card">' +
       '<div class="sp-card-header">' +
       '<div><h2 class="sp-card-title">Per-account checks</h2></div>' +
@@ -1165,7 +1267,7 @@ function buildScript(appOrigin: string): string {
     return (
       '<div class="sp-check"' + (account.isValid ? "" : ' data-tone="bad"') + ">" +
       '<div class="sp-check-row">' +
-      avatarHtml(account.platform) +
+      avatarHtml(account.platform, { profilePicture: account.profilePicture }) +
       '<div class="sp-account-text">' +
       '<span class="sp-account-name">' + escapeHtml(accountDisplayName(account)) + "</span>" +
       '<span class="sp-account-meta"><span>' + escapeHtml(platformLabel(account.platform)) + "</span></span>" +
@@ -1382,8 +1484,40 @@ function buildScript(appOrigin: string): string {
   }
 
   // ---------- Wiring ----------
+  //
+  // The widget supports two host transports so it works in both ChatGPT
+  // (window.openai globals + "openai:set_globals" CustomEvent) and any
+  // MCP Apps compliant host (postMessage with "ui/notifications/tool-result").
 
-  renderEmpty();
+  function readFromOpenAi() {
+    const api = typeof window !== "undefined" ? window.openai : undefined;
+    if (!api) return false;
+    if (api.theme) applyTheme(api.theme);
+    const output = api.toolOutput;
+    if (output && typeof output === "object") {
+      // ChatGPT exposes the parsed structuredContent directly on toolOutput.
+      // Other hosts may wrap it inside a CallToolResult shape.
+      render(output.structuredContent ? output : { structuredContent: output });
+      return true;
+    }
+    return false;
+  }
+
+  if (!readFromOpenAi()) {
+    renderEmpty();
+  }
+
+  window.addEventListener(
+    "openai:set_globals",
+    (event) => {
+      const globals = (event && event.detail && event.detail.globals) || {};
+      if (globals.theme) applyTheme(globals.theme);
+      if ("toolOutput" in globals || "toolInput" in globals) {
+        readFromOpenAi();
+      }
+    },
+    { passive: true },
+  );
 
   window.addEventListener(
     "message",

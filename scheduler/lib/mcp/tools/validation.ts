@@ -32,6 +32,8 @@ export const validationAccountSchema = mcpAccountSchema.extend({
 
 export const validatePostOutputSchema = z.object({
   kind: z.literal("validation"),
+  message: z.string().describe("The post text that was validated, echoed back so the UI can show a preview."),
+  mediaCount: z.number().describe("Number of media items that were validated alongside the message."),
   isValid: z.boolean(),
   platforms: z.array(z.string()),
   accounts: z.array(validationAccountSchema),
@@ -54,17 +56,23 @@ export async function validatePost(userId: string, input: z.infer<typeof validat
 
   return {
     kind: "validation" as const,
+    message: input.message,
+    mediaCount: mediaFiles.length,
     isValid: result.summary.isValid,
     platforms: result.platforms,
-    accounts: result.results.map((r) => ({
-      accountId: r.accountId,
-      platform: r.platform,
-      username: result.accounts.find((account) => account.id === r.accountId)?.username ?? null,
-      displayName: result.accounts.find((account) => account.id === r.accountId)?.displayName ?? null,
-      isValid: r.isValid,
-      errors: r.errors.map((e) => ({ message: e.message, field: e.field })),
-      warnings: r.warnings.map((w) => ({ message: w.message, field: w.field })),
-    })),
+    accounts: result.results.map((r) => {
+      const account = result.accounts.find((a) => a.id === r.accountId);
+      return {
+        accountId: r.accountId,
+        platform: r.platform,
+        username: account?.username ?? null,
+        displayName: account?.displayName ?? null,
+        profilePicture: account?.profilePicture ?? null,
+        isValid: r.isValid,
+        errors: r.errors.map((e) => ({ message: e.message, field: e.field })),
+        warnings: r.warnings.map((w) => ({ message: w.message, field: w.field })),
+      };
+    }),
     summary: {
       accountCount: result.results.length,
       mediaCount: mediaFiles.length,

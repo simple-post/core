@@ -9,6 +9,11 @@ export const mcpAccountSchema = z.object({
   platform: z.string().describe("Social platform key, such as x, instagram, facebook, or linkedin."),
   username: z.string().nullable().describe("Platform username or handle when available."),
   displayName: z.string().nullable().describe("Human-readable account or page name when available."),
+  profilePicture: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Public URL for the account's profile picture, when available. Used by the SimplePost widget for avatars."),
 });
 
 export const listAccountsOutputSchema = z.object({
@@ -39,6 +44,7 @@ export async function listAccounts(userId: string) {
     platform: account.platform,
     username: account.username,
     displayName: account.displayName,
+    profilePicture: account.profilePicture,
   }));
 
   return {

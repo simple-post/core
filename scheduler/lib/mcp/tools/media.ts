@@ -1,10 +1,12 @@
 import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
 import { z } from "zod";
 
+import { mediaLogger, serializeError } from "@/lib/logger";
 import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-types";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
-const DOWNLOAD_TIMEOUT_MS = 60_000;
+const DOWNLOAD_TIMEOUT_MS = 20_000;
+const STORAGE_UPLOAD_TIMEOUT_MS = 20_000;
 
 const MIME_EXTENSION: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -16,37 +18,35 @@ const MIME_EXTENSION: Record<string, string> = {
   "video/webm": "webm",
 };
 
+const log = mediaLogger.child({ tool: "mcp.upload_media" });
+
 const chatGptFileParamSchema = z
   .object({
     download_url: z.string().url().describe("Temporary ChatGPT file download URL."),
     file_id: z.string().min(1).describe("ChatGPT file id."),
+    file_name: z.string().min(1).optional().describe("Original filename when provided by ChatGPT."),
+    name: z.string().min(1).optional().describe("Original filename when provided by the host."),
+    mime_type: z.string().min(1).optional().describe("MIME type when provided by ChatGPT."),
+    mimeType: z.string().min(1).optional().describe("MIME type when provided by the host."),
+    size: z.number().optional().describe("File size in bytes when provided by the host."),
   })
-  .strict();
+  .passthrough();
 
 export const uploadMediaSchema = z.object({
-  file: chatGptFileParamSchema
-    .optional()
-    .describe(
-      "ChatGPT file parameter for an image or video generated, attached, uploaded, or selected in ChatGPT. Prefer this over data when available.",
-    ),
+  file: chatGptFileParamSchema.describe(
+    "Required ChatGPT file parameter for an image or video generated, attached, uploaded, or selected in ChatGPT. Do not pass file bytes as base64 tool arguments.",
+  ),
   filename: z
     .string()
     .min(1)
     .optional()
-    .describe("Original filename including extension, e.g. 'photo.jpg' or 'clip.mp4'. Required when using data."),
+    .describe("Optional filename override including extension, e.g. 'photo.jpg' or 'clip.mp4'."),
   mimeType: z
     .string()
     .min(1)
     .optional()
     .describe(
-      "MIME type of the file. Supported: image/jpeg, image/png, image/gif, image/webp, video/mp4, video/quicktime, video/webm. Required when using data unless data is a data URL.",
-    ),
-  data: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      "Base64-encoded file contents. Use only when file is unavailable; do not include large ChatGPT images here.",
+      "Optional MIME type override. Supported: image/jpeg, image/png, image/gif, image/webp, video/mp4, video/quicktime, video/webm.",
     ),
 });
 
@@ -65,6 +65,35 @@ interface ResolvedUploadSource {
   buffer: Buffer;
   filename: string;
   mimeType: string;
+}
+
+function uploadTimeoutMessage(action: string): string {
+  return `Timed out ${action} after ${Math.round(DOWNLOAD_TIMEOUT_MS / 1000)} seconds`;
+}
+
+function remainingMs(deadline: number): number {
+  return Math.max(1, deadline - Date.now());
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+  onTimeout?: () => void,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(message));
+      onTimeout?.();
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function extensionForMimeType(mimeType: string): string {
@@ -110,41 +139,6 @@ function ensureFilenameExtension(filename: string, mimeType: string): string {
 
   const stem = withoutQuery.includes(".") ? withoutQuery.slice(0, withoutQuery.lastIndexOf(".")) : withoutQuery;
   return `${stem || "media"}.${desired}`;
-}
-
-function parseDataUrl(value: string): { base64: string; mimeType?: string } {
-  const trimmed = value.trim();
-  const match = trimmed.match(/^data:([^;,]+)?;base64,([\s\S]*)$/i);
-  if (!match) return { base64: trimmed };
-
-  return {
-    mimeType: match[1]?.toLowerCase(),
-    base64: match[2],
-  };
-}
-
-function decodeBase64Data(value: string): { buffer: Buffer; mimeType?: string } {
-  const { base64, mimeType } = parseDataUrl(value);
-  const compact = base64.replace(/\s/g, "");
-
-  if (!compact) {
-    throw new Error("File is empty or base64 data is invalid");
-  }
-
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
-    throw new Error("Invalid base64 data");
-  }
-
-  const padded = compact.padEnd(compact.length + ((4 - (compact.length % 4)) % 4), "=");
-  const buffer = Buffer.from(padded, "base64");
-  const canonicalInput = compact.replace(/=+$/g, "");
-  const canonicalOutput = buffer.toString("base64").replace(/=+$/g, "");
-
-  if (buffer.length === 0 || canonicalInput !== canonicalOutput) {
-    throw new Error("Invalid base64 data");
-  }
-
-  return { buffer, mimeType };
 }
 
 function sniffImageMimeType(buffer: Buffer): string | undefined {
@@ -264,77 +258,164 @@ function resolveMimeType(buffer: Buffer, declaredMimeType: string | undefined, f
   return resolvedType;
 }
 
-async function readResponseBuffer(response: Response): Promise<Buffer> {
+async function readResponseBuffer(response: Response, deadline: number, onTimeout: () => void): Promise<Buffer> {
   const contentLength = response.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_FILE_SIZE) {
     throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
   }
 
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  if (buffer.length === 0) {
+  if (!response.body) {
+    const arrayBuffer = await withTimeout(
+      response.arrayBuffer(),
+      remainingMs(deadline),
+      uploadTimeoutMessage("downloading ChatGPT file"),
+      onTimeout,
+    );
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length === 0) {
+      throw new Error("Downloaded file is empty");
+    }
+    if (buffer.length > MAX_FILE_SIZE) {
+      throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+    }
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let received = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await withTimeout(
+        reader.read(),
+        remainingMs(deadline),
+        uploadTimeoutMessage("downloading ChatGPT file"),
+        () => {
+          onTimeout();
+          void reader.cancel();
+        },
+      );
+      if (done) break;
+      if (!value) continue;
+
+      received += value.byteLength;
+      if (received > MAX_FILE_SIZE) {
+        await reader.cancel();
+        throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (received === 0) {
     throw new Error("Downloaded file is empty");
   }
-  if (buffer.length > MAX_FILE_SIZE) {
-    throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
-  }
-  return buffer;
+
+  return Buffer.concat(chunks, received);
 }
 
 async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUploadSource> {
-  if (input.file) {
-    const response = await fetch(input.file.download_url, {
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to download ChatGPT file: ${response.status} ${response.statusText}`);
-    }
-
-    const buffer = await readResponseBuffer(response);
-    const responseType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
-    const filename =
-      input.filename ??
-      filenameFromContentDisposition(response.headers.get("content-disposition")) ??
-      filenameFromUrl(input.file.download_url) ??
-      `${input.file.file_id}.${extensionForMimeType(responseType ?? "application/octet-stream")}`;
-    const mimeType = resolveMimeType(buffer, input.mimeType ?? responseType, filename);
-
-    return {
-      buffer,
-      filename: ensureFilenameExtension(filename, mimeType),
-      mimeType,
-    };
+  if (input.file.size && input.file.size > MAX_FILE_SIZE) {
+    throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
   }
 
-  if (!input.data) {
-    throw new Error("Provide either a ChatGPT file parameter in file or base64 data in data");
-  }
-  if (!input.filename) {
-    throw new Error("filename is required when uploading base64 data");
+  const controller = new AbortController();
+  const deadline = Date.now() + DOWNLOAD_TIMEOUT_MS;
+
+  const response = await withTimeout(
+    fetch(input.file.download_url, {
+      signal: controller.signal,
+    }),
+    remainingMs(deadline),
+    uploadTimeoutMessage("downloading ChatGPT file"),
+    () => controller.abort(),
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to download ChatGPT file: ${response.status} ${response.statusText}`);
   }
 
-  const { buffer, mimeType: dataUrlMimeType } = decodeBase64Data(input.data);
-  const mimeType = resolveMimeType(buffer, input.mimeType ?? dataUrlMimeType, input.filename);
+  const buffer = await readResponseBuffer(response, deadline, () => controller.abort());
+  const responseType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
+  const filename =
+    input.filename ??
+    input.file.file_name ??
+    input.file.name ??
+    filenameFromContentDisposition(response.headers.get("content-disposition")) ??
+    filenameFromUrl(input.file.download_url) ??
+    `${input.file.file_id}.${extensionForMimeType(input.file.mime_type ?? input.file.mimeType ?? responseType ?? "application/octet-stream")}`;
+  const mimeType = resolveMimeType(
+    buffer,
+    input.mimeType ?? input.file.mime_type ?? input.file.mimeType ?? responseType,
+    filename,
+  );
 
   return {
     buffer,
-    filename: ensureFilenameExtension(input.filename, mimeType),
+    filename: ensureFilenameExtension(filename, mimeType),
     mimeType,
   };
 }
 
 export async function uploadMedia(userId: string, input: UploadMediaInput) {
-  const source = await resolveUploadSource(input);
-  const key = generateFileKey(userId, source.filename);
-  const url = await uploadFromBuffer(source.buffer, key, source.mimeType);
+  const startedAt = Date.now();
+  const sourceType = "file_param";
 
-  return {
-    kind: "media_upload" as const,
-    type: source.mimeType.startsWith("video/") ? ("video" as const) : ("image" as const),
-    url,
-    filename: source.filename,
-    size: source.buffer.length,
-    mimeType: source.mimeType,
-  };
+  try {
+    log.info(
+      { sourceType, hasFilename: Boolean(input.filename), hasMimeType: Boolean(input.mimeType) },
+      "Starting MCP media upload",
+    );
+
+    const source = await resolveUploadSource(input);
+    log.info(
+      {
+        sourceType,
+        filename: source.filename,
+        mimeType: source.mimeType,
+        size: source.buffer.length,
+        elapsedMs: Date.now() - startedAt,
+      },
+      "Resolved MCP media upload source",
+    );
+
+    const key = generateFileKey(userId, source.filename);
+    const uploadStartedAt = Date.now();
+    const url = await uploadFromBuffer(source.buffer, key, source.mimeType, {
+      timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
+    });
+    log.info(
+      {
+        sourceType,
+        filename: source.filename,
+        mimeType: source.mimeType,
+        size: source.buffer.length,
+        storageElapsedMs: Date.now() - uploadStartedAt,
+        totalElapsedMs: Date.now() - startedAt,
+      },
+      "Completed MCP media upload",
+    );
+
+    return {
+      kind: "media_upload" as const,
+      type: source.mimeType.startsWith("video/") ? ("video" as const) : ("image" as const),
+      url,
+      filename: source.filename,
+      size: source.buffer.length,
+      mimeType: source.mimeType,
+    };
+  } catch (error) {
+    log.error(
+      {
+        sourceType,
+        elapsedMs: Date.now() - startedAt,
+        err: serializeError(error),
+      },
+      "Failed MCP media upload",
+    );
+    throw error;
+  }
 }

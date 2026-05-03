@@ -36,15 +36,14 @@ Posts can include images and videos via the \`media\` array on \`validate_post\`
 There are two ways to get a usable \`url\`:
 
 - **The user provides a URL** (most common — they paste a link, or it comes from an earlier tool result). Use it directly.
-- **ChatGPT has a generated or attached file with no public URL**. Call \`upload_media\` with the \`file\` file parameter so SimplePost can download and validate the bytes server-side. Do not transcribe large ChatGPT images into base64 tool arguments when a file parameter is available.
-- **A non-ChatGPT client has raw bytes and no URL**. Call \`upload_media\` with \`{ filename, mimeType, data }\` where \`data\` is base64. This is a fallback path for clients that cannot provide file parameters.
+- **ChatGPT has a generated or attached file with no public URL**. Call \`upload_media\` with the \`file\` file parameter so SimplePost can download and validate the bytes server-side. Do not transcribe large ChatGPT images into base64 tool arguments; \`upload_media\` does not accept base64 media data.
 
 Notes:
 - Some platforms require media: Instagram needs at least one image or video; YouTube needs a video. \`validate_post\` and \`preview_post\` will surface these requirements as errors.
 - Videos benefit from a \`thumbnailUrl\` but it is optional.
 - Allowed upload types: image/jpeg, image/png, image/gif, image/webp, video/mp4, video/quicktime, video/webm. Maximum 500MB per file.
 - \`upload_media\` validates that image/video bytes match the declared type before returning a SimplePost URL.
-- If the client is showing an image but exposes neither a file parameter nor bytes to tools, ask the user for a public URL or to upload via the SimplePost web app.
+- If the client is showing an image but exposes neither a public URL nor a file parameter to tools, ask the user for a public URL or to upload via the SimplePost web app.
 
 # Multi-segment threads (reply chains)
 
@@ -145,7 +144,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "upload_media",
     {
       title: "Upload Media",
-      description: `Upload an image or video to SimplePost storage and get back a public URL you can pass into validate_post, preview_post, or create_post through the media field. Use this when ChatGPT has a generated/attached file and no public URL; prefer the file parameter over base64 data. If the user already gave a fetchable URL, skip this tool and use the URL directly.`,
+      description: `Upload a ChatGPT generated or attached image/video file to SimplePost storage and get back a public URL you can pass into validate_post, preview_post, or create_post through the media field. This tool requires the file parameter; do not pass base64 media data. If the user already gave a fetchable URL, skip this tool and use the URL directly.`,
       inputSchema: uploadMediaSchema.shape,
       outputSchema: uploadMediaOutputSchema.shape,
       annotations: {

@@ -8,6 +8,8 @@ import { getContentType } from ".";
 
 import { PostError, PostErrorType } from "../types";
 
+const DEFAULT_UPLOAD_TIMEOUT_MS = 120_000;
+
 function getStorageConfig(): {
   accessKeyId: string;
   secretAccessKey: string;
@@ -116,6 +118,7 @@ export async function uploadFromBuffer(
   file: Buffer,
   key: string,
   contentType: string,
+  options: { timeoutMs?: number } = {},
 ): Promise<string> {
   const { client, bucket, baseUrl } = createStorageClient();
   const command = new PutObjectCommand({
@@ -124,7 +127,26 @@ export async function uploadFromBuffer(
     Body: file,
     ContentType: contentType,
   });
-  await client.send(command);
+
+  const timeoutMs = options.timeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    await client.send(command, { abortSignal: controller.signal });
+  } catch (error: unknown) {
+    if (controller.signal.aborted) {
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Timed out uploading file to S3-compatible storage after ${Math.round(timeoutMs / 1000)} seconds`,
+        error,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
   return `${baseUrl}/${key}`;
 }
 
@@ -146,12 +168,9 @@ export async function getPresignedUploadUrl(
     Key: key,
     ContentType: contentType,
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AWS SDK version mismatch between client-s3 and s3-request-presigner
-  const uploadUrl = await (getSignedUrl as (client: any, command: any, options: { expiresIn: number }) => Promise<string>)(
-    client,
-    command,
-    { expiresIn },
-  );
+  const uploadUrl = await (
+    getSignedUrl as (client: unknown, command: unknown, options: { expiresIn: number }) => Promise<string>
+  )(client, command, { expiresIn });
   const publicUrl = `${baseUrl}/${key}`;
   return { uploadUrl, publicUrl };
 }

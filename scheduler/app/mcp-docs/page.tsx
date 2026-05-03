@@ -73,7 +73,7 @@ export default function McpDocsPage() {
             <ul className="space-y-1.5">
               {[
                 "List social accounts connected to your SimplePost account",
-                "Upload generated or attached images and videos when no public URL exists",
+                "Upload generated or attached images and videos through ChatGPT file parameters when no public URL exists",
                 "Validate draft post text against platform-specific rules when requested",
                 "Preview target accounts, timing, and validation when requested",
                 "Create posts for immediate publishing or future scheduling",
@@ -107,8 +107,9 @@ export default function McpDocsPage() {
               access in SimplePost.
             </p>
             <p>
-              Tool calls can process connected account metadata, draft post text, target account IDs, posting mode, and
-              scheduled time. SimplePost does not expose social platform credentials through MCP.
+              Tool calls can process connected account metadata, generated or attached media files, draft post text,
+              target account IDs, posting mode, and scheduled time. SimplePost does not expose social platform
+              credentials through MCP.
             </p>
           </DocCard>
 

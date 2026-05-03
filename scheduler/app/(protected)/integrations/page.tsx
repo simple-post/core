@@ -173,7 +173,7 @@ export default function IntegrationsPage() {
               {
                 name: "upload_media",
                 description:
-                  "Uploads generated or attached image/video files to SimplePost storage when no public URL exists.",
+                  "Uploads generated or attached image/video files through ChatGPT file parameters when no public URL exists.",
               },
               {
                 name: "validate_post",

@@ -3,7 +3,9 @@ import express from "express";
 import { loadAccounts } from "./config/accounts.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import accountsRoutes from "./routes/accounts.js";
+import healthRoutes from "./routes/health.js";
 import mediaRoutes from "./routes/media.js";
+import openApiRoutes from "./routes/openapi.js";
 import postsRoutes from "./routes/posts.js";
 import uploadRoutes from "./routes/upload.js";
 import validationRoutes from "./routes/validation.js";
@@ -57,13 +59,8 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "500mb" }));
 
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "unknown",
-  });
-});
+app.use("/health", healthRoutes);
+app.use("/openapi.json", openApiRoutes);
 
 // Public media endpoint — platforms fetch URLs returned from /api/v1/upload here.
 // No auth: filenames are random UUIDs (security through unguessable identifiers).
@@ -96,6 +93,7 @@ const server = app.listen(PORT, () => {
   console.log(`SimplePost server running on port ${PORT}`);
   console.log(`Storage directory: ${getStorageDir()}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`OpenAPI JSON:  http://localhost:${PORT}/openapi.json`);
   console.log(`API base:     http://localhost:${PORT}/api/v1`);
 });
 

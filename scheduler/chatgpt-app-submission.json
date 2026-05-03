@@ -27,7 +27,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Uploads user-provided image or video bytes to the authenticated user's SimplePost storage and returns a new media URL.",
+        "read_only_justification": "Downloads a user-provided ChatGPT file parameter to the authenticated user's SimplePost storage and returns a new media URL.",
         "open_world_justification": "Creates a publicly fetchable media URL that can be used outside ChatGPT and by social platforms when posting.",
         "destructive_justification": "Does not delete, overwrite, revoke access, publish a post, or perform an irreversible platform action."
       }
@@ -99,7 +99,7 @@
       "user_prompt": "Upload this generated image as launch.png so I can attach it to a SimplePost draft.",
       "file_attachment_urls": null,
       "tools_triggered": "upload_media",
-      "expected_output": "Returns a publicly fetchable SimplePost media URL with file type, filename, size, and MIME type.",
+      "expected_output": "Uses the ChatGPT file parameter, not base64 media data, and returns a publicly fetchable SimplePost media URL with file type, filename, size, and MIME type.",
       "expected_output_url": null
     },
     {

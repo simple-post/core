@@ -3,7 +3,7 @@
   "schema_version": 1,
   "app_info": {
     "display_name": "SimplePost",
-    "subtitle": "Schedule social posts",
+    "subtitle": "Post to social media",
     "description": "SimplePost helps users work with connected social accounts from ChatGPT: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing when requested, then publish immediately or schedule posts for later.",
     "category": "PRODUCTIVITY"
   },
@@ -23,12 +23,12 @@
     "upload_media": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
+        "openWorldHint": true,
         "destructiveHint": false
       },
       "justifications": {
         "read_only_justification": "Uploads user-provided image or video bytes to the authenticated user's SimplePost storage and returns a new media URL.",
-        "open_world_justification": "Writes only to the bounded SimplePost media store for the authenticated user; it does not post to social platforms or write to arbitrary external destinations.",
+        "open_world_justification": "Creates a publicly fetchable media URL that can be used outside ChatGPT and by social platforms when posting.",
         "destructive_justification": "Does not delete, overwrite, revoke access, publish a post, or perform an irreversible platform action."
       }
     },
@@ -108,6 +108,14 @@
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post",
       "expected_output": "Creates a scheduled SimplePost post for the selected account after create_post performs internal validation, then returns the scheduled status and posting summary.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Publish a confirmed multi-post thread to a thread-capable account.",
+      "user_prompt": "Post this confirmed two-part thread now to my selected X account. Root: We shipped media uploads for ChatGPT-generated images. Reply: The posting tool should validate internally, so skip a separate validation call.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, create_post",
+      "expected_output": "Creates the root post and follow-up thread segment after create_post performs internal validation, then returns per-account posting and thread results.",
       "expected_output_url": null
     },
     {

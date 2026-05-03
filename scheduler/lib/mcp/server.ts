@@ -153,7 +153,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
       _meta: {
         ...toolMeta("Uploading media", "Media uploaded"),

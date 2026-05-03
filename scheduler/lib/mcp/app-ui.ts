@@ -19,6 +19,34 @@ const SOCIAL_REDIRECT_DOMAINS = [
   "https://www.pinterest.com",
 ];
 
+/** Origins for account avatar <img src> URLs (widget resourceDomains / resource_domains). */
+const PROFILE_PICTURE_RESOURCE_DOMAINS = [
+  // Google / YouTube (lh3.googleusercontent.com, etc.)
+  "https://*.googleusercontent.com",
+  "https://*.ggpht.com",
+  // Pinterest (i.pinimg.com)
+  "https://*.pinimg.com",
+  // LinkedIn (media.licdn.com)
+  "https://*.licdn.com",
+  // Bluesky (cdn.bsky.app)
+  "https://cdn.bsky.app",
+  "https://*.bsky.app",
+  // TikTok CDNs (p16-*.tiktokcdn-eu.com, etc.)
+  "https://*.tiktokcdn.com",
+  "https://*.tiktokcdn-eu.com",
+  "https://*.tiktokcdn-us.com",
+  "https://*.tiktokcdn-va.com",
+  // Meta Facebook CDN (scontent-*-*.xx.fbcdn.net — needs *.xx.fbcdn.net, not only *.fbcdn.net)
+  "https://*.xx.fbcdn.net",
+  "https://*.fbsbx.com",
+  // Instagram / Threads profile CDN (scontent-*-*.cdninstagram.com)
+  "https://*.cdninstagram.com",
+  // X / Twitter (pbs.twimg.com)
+  "https://*.twimg.com",
+] as const;
+
+const SIMPLEPOST_FILES_CDN_ORIGIN = "https://files.simplepost.dev";
+
 export function registerSimplePostAppResource(server: McpServer): void {
   const appOrigin = new URL(getAppBaseUrl()).origin;
 
@@ -34,8 +62,8 @@ export function registerSimplePostAppResource(server: McpServer): void {
           prefersBorder: true,
           domain: appOrigin,
           csp: {
-            connectDomains: [appOrigin],
-            resourceDomains: [appOrigin],
+            connectDomains: [appOrigin, SIMPLEPOST_FILES_CDN_ORIGIN],
+            resourceDomains: [appOrigin, SIMPLEPOST_FILES_CDN_ORIGIN, ...PROFILE_PICTURE_RESOURCE_DOMAINS],
           },
         },
       },
@@ -51,8 +79,8 @@ export function registerSimplePostAppResource(server: McpServer): void {
               prefersBorder: true,
               domain: appOrigin,
               csp: {
-                connectDomains: [appOrigin],
-                resourceDomains: [appOrigin],
+                connectDomains: [appOrigin, SIMPLEPOST_FILES_CDN_ORIGIN],
+                resourceDomains: [appOrigin, SIMPLEPOST_FILES_CDN_ORIGIN, ...PROFILE_PICTURE_RESOURCE_DOMAINS],
               },
             },
             "openai/widgetDescription":
@@ -60,8 +88,8 @@ export function registerSimplePostAppResource(server: McpServer): void {
             "openai/widgetPrefersBorder": true,
             "openai/widgetDomain": appOrigin,
             "openai/widgetCSP": {
-              connect_domains: [appOrigin],
-              resource_domains: [appOrigin],
+              connect_domains: [appOrigin, SIMPLEPOST_FILES_CDN_ORIGIN],
+              resource_domains: [appOrigin, SIMPLEPOST_FILES_CDN_ORIGIN, ...PROFILE_PICTURE_RESOURCE_DOMAINS],
               redirect_domains: [appOrigin, ...SOCIAL_REDIRECT_DOMAINS],
             },
           },

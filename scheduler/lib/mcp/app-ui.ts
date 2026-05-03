@@ -1327,7 +1327,7 @@ function buildScript(appOrigin: string): string {
       "</section>" +
       '<section class="sp-card">' +
       '<div class="sp-card-header">' +
-      '<div><h2 class="sp-card-title">Targets</h2><p class="sp-card-sub">Will publish to ' + accounts.length + " account" + (accounts.length === 1 ? "" : "s") + ".</p></div>' +
+      '<div><h2 class="sp-card-title">Targets</h2><p class="sp-card-sub">Will publish to ' + accounts.length + " account" + (accounts.length === 1 ? "" : "s") + ".</p></div>" +
       '<span class="sp-badge">' + accounts.length + "</span>" +
       "</div>" +
       '<div class="sp-card-body sp-card-body--tight">' +

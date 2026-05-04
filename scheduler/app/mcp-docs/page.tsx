@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { getMcpResourceUrl } from "@/lib/mcp/config";
 
 export const metadata = {
-  title: "SimplePost ChatGPT App and MCP Server",
-  description: "Public documentation for the SimplePost MCP server used by ChatGPT and other MCP clients.",
+  title: "SimplePost Text-Only ChatGPT App and MCP Server",
+  description: "Public documentation for the text-only SimplePost MCP server used by ChatGPT and other MCP clients.",
 };
 
 interface DocCardProps {
@@ -62,8 +62,8 @@ export default function McpDocsPage() {
             </h1>
           </div>
           <p className="text-sm text-muted-foreground max-w-xl mb-5">
-            Remote MCP server for publishing and scheduling posts from any compatible AI assistant, with optional
-            validation and previews when you ask for them.
+            Text-only remote MCP server for publishing and scheduling posts from any compatible AI assistant, with
+            optional validation, previews, and scheduled-post management when you ask for them.
           </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>
@@ -77,6 +77,9 @@ export default function McpDocsPage() {
                 "Validate draft post text against platform-specific rules when requested",
                 "Preview target accounts, timing, and validation when requested",
                 "Create posts for immediate publishing or future scheduling",
+                "Inspect scheduled, posted, and failed SimplePost records",
+                "Edit or discard future scheduled posts",
+                "Return text and structured JSON without an embedded ChatGPT iframe",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <span className="mt-1.5 w-1 h-1 rounded-full bg-primary flex-shrink-0" />
@@ -90,7 +93,7 @@ export default function McpDocsPage() {
             <ul className="space-y-1.5">
               {[
                 "Connect, disconnect, or re-authenticate social accounts through MCP",
-                "Edit, list, delete, or cancel scheduled posts through MCP",
+                "Edit or discard posts that were already published, failed, pending, or due for dispatch",
                 "Read analytics or previous social media posts",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
@@ -108,8 +111,8 @@ export default function McpDocsPage() {
             </p>
             <p>
               Tool calls can process connected account metadata, generated or attached media files, draft post text,
-              target account IDs, posting mode, and scheduled time. SimplePost does not expose social platform
-              credentials through MCP.
+              target account IDs, posting mode, scheduled time, and existing SimplePost post records. SimplePost does
+              not expose social platform credentials through MCP.
             </p>
           </DocCard>
 

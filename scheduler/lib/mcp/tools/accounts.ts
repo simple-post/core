@@ -13,7 +13,7 @@ export const mcpAccountSchema = z.object({
     .string()
     .nullable()
     .optional()
-    .describe("Public URL for the account's profile picture, when available. Used by the SimplePost widget for avatars."),
+    .describe("Public URL for the account's profile picture, when available."),
 });
 
 export const listAccountsOutputSchema = z.object({

@@ -124,6 +124,51 @@ export class PostsModel {
     };
   }
 
+  async getPublishedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+    const { page = 1, limit = 25 } = options;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      userId: this.userId,
+      status: "published",
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        include: {
+          media: true,
+          accounts: true,
+        },
+        orderBy: [
+          {
+            publishedAt: "desc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: posts.map((post) => this.mapPostToSocialPost(post)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
   async getFailedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;

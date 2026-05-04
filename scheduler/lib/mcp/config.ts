@@ -1,6 +1,6 @@
 import { env } from "@/lib/env";
 
-export const MCP_SCOPES = ["accounts:read", "posts:validate", "posts:write"] as const;
+export const MCP_SCOPES = ["accounts:read", "posts:read", "posts:validate", "posts:write"] as const;
 export const DEFAULT_MCP_SCOPE = MCP_SCOPES.join(" ");
 
 export type McpScope = (typeof MCP_SCOPES)[number];

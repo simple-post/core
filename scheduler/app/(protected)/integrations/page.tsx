@@ -164,6 +164,10 @@ export default function IntegrationsPage() {
             <span className="section-kicker-label">Available tools</span>
           </div>
           <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-5">What the AI can do</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            The ChatGPT app is text-only: tool results are returned as assistant-readable text and structured JSON, with
+            no embedded component UI.
+          </p>
           <div className="divide-y divide-border">
             {[
               {
@@ -187,6 +191,18 @@ export default function IntegrationsPage() {
                 name: "create_post",
                 description:
                   "Validates internally, then publishes immediately or schedules for later across connected accounts.",
+              },
+              {
+                name: "inspect_posts",
+                description: "Lists scheduled, posted, and failed SimplePost records, or inspects one post by ID.",
+              },
+              {
+                name: "update_scheduled_post",
+                description: "Edits a future scheduled post after validating the resulting content.",
+              },
+              {
+                name: "discard_scheduled_post",
+                description: "Deletes a future scheduled post and its stored media.",
               },
             ].map((tool) => (
               <div key={tool.name} className="py-4 first:pt-0 last:pb-0">

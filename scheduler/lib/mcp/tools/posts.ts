@@ -3,10 +3,18 @@ import { z } from "zod";
 import { PostsModel } from "@/lib/db";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { sanitizeForJson } from "@/lib/utils/errors";
+import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
+import type { MediaFile, SocialPost, ThreadSegment } from "@/types";
 
-import { mcpAccountSchema } from "./accounts";
-import { mcpMediaItemSchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
+import { listAccounts, mcpAccountSchema } from "./accounts";
+import {
+  mcpMediaItemSchema,
+  mcpThreadSchema,
+  mcpThreadSegmentSchema,
+  toMediaFiles,
+  toThreadSegments,
+} from "./media-schema";
 import { validatePost, validatePostOutputSchema } from "./validation";
 
 export const createPostSchema = z.object({
@@ -101,6 +109,131 @@ export const createPostOutputSchema = z.object({
   }),
 });
 
+export const inspectPostsSchema = z.object({
+  status: z
+    .enum(["scheduled", "posted", "failed", "all"])
+    .default("all")
+    .describe("Which post status to inspect. Use 'all' to inspect scheduled, already posted, and failed posts."),
+  postId: z
+    .string()
+    .optional()
+    .describe("Optional exact SimplePost post ID to inspect. When provided, status, page, and limit are ignored."),
+  page: z.number().int().min(1).default(1).describe("Page number for a single status listing."),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(10)
+    .describe("Maximum posts to return. For status='all', this is the maximum returned per status."),
+});
+
+export const updateScheduledPostSchema = z.object({
+  postId: z.string().describe("ID of the future scheduled SimplePost post to edit. Use inspect_posts to find it."),
+  message: z.string().optional().describe("Replacement root post text. Omit to keep the current text."),
+  accountIds: z
+    .array(z.string())
+    .min(1)
+    .optional()
+    .describe("Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets."),
+  media: z
+    .array(mcpMediaItemSchema)
+    .nullable()
+    .optional()
+    .describe(
+      "Replacement root media array. Each item must have a public URL or upload_media URL. Omit to keep current media; pass null or [] to clear root media.",
+    ),
+  thread: mcpThreadSchema
+    .nullable()
+    .describe("Replacement follow-up thread segments. Omit to keep current thread; pass null or [] to clear it."),
+  scheduledFor: z
+    .string()
+    .datetime()
+    .optional()
+    .describe(
+      "Replacement future scheduled time as a full ISO 8601 datetime with timezone. Omit to keep the current scheduled time.",
+    ),
+});
+
+export const discardScheduledPostSchema = z.object({
+  postId: z.string().describe("ID of the future scheduled SimplePost post to discard. Use inspect_posts to find it."),
+});
+
+const storedMediaSchema = mcpMediaItemSchema.extend({
+  id: z.string().optional(),
+  filename: z.string().optional(),
+  size: z.number().optional(),
+});
+
+const storedThreadSegmentSchema = mcpThreadSegmentSchema.extend({
+  media: z.array(storedMediaSchema).optional(),
+});
+
+const managedPostStatusSchema = z.enum(["scheduled", "pending", "posted", "failed"]);
+
+const managedPostSchema = z.object({
+  id: z.string(),
+  message: z.string(),
+  accountIds: z.array(z.string()),
+  accounts: z.array(mcpAccountSchema),
+  media: z.array(storedMediaSchema),
+  thread: z.array(storedThreadSegmentSchema),
+  scheduledFor: z.string(),
+  createdAt: z.string(),
+  publishedAt: z.string().nullable(),
+  status: managedPostStatusSchema,
+  errorMessage: z.string().nullable(),
+  mediaCount: z.number(),
+  threadSegmentCount: z.number(),
+});
+
+const paginationSchema = z
+  .object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+    hasNextPage: z.boolean(),
+    hasPreviousPage: z.boolean(),
+  })
+  .nullable();
+
+export const inspectPostsOutputSchema = z.object({
+  kind: z.literal("posts"),
+  status: z.enum(["scheduled", "posted", "failed", "all", "single"]),
+  posts: z.array(managedPostSchema),
+  pagination: paginationSchema,
+  summary: z.object({
+    totalReturned: z.number(),
+    scheduledCount: z.number(),
+    postedCount: z.number(),
+    failedCount: z.number(),
+  }),
+});
+
+export const updateScheduledPostOutputSchema = z.object({
+  kind: z.literal("scheduled_post_update"),
+  post: managedPostSchema,
+  validation: validatePostOutputSchema,
+  summary: z.object({
+    updated: z.boolean(),
+    messageChanged: z.boolean(),
+    accountsChanged: z.boolean(),
+    mediaChanged: z.boolean(),
+    threadChanged: z.boolean(),
+    scheduledForChanged: z.boolean(),
+  }),
+});
+
+export const discardScheduledPostOutputSchema = z.object({
+  kind: z.literal("scheduled_post_discard"),
+  post: managedPostSchema,
+  summary: z.object({
+    discarded: z.boolean(),
+    deletedMediaCount: z.number(),
+  }),
+});
+
 function resolveScheduledFor(input: z.infer<typeof createPostSchema>): Date {
   if ((input.postingMode ?? "now") === "now") {
     return new Date();
@@ -139,6 +272,110 @@ function mapPost(post: {
   };
 }
 
+type ManagedPostStatus = z.infer<typeof managedPostStatusSchema>;
+type ManagedPost = z.infer<typeof managedPostSchema>;
+
+function mapManagedStatus(status: SocialPost["status"]): ManagedPostStatus {
+  if (status === "published") return "posted";
+  return status;
+}
+
+function mapStoredMedia(media: MediaFile): z.infer<typeof storedMediaSchema> {
+  return {
+    id: media.id,
+    type: media.type,
+    url: media.url,
+    thumbnailUrl: media.thumbnailUrl,
+    filename: media.filename,
+    size: media.size,
+  };
+}
+
+function mapStoredThread(thread: ThreadSegment[] | undefined): z.infer<typeof storedThreadSegmentSchema>[] {
+  return (thread ?? []).map((segment) => ({
+    message: segment.message,
+    media: segment.media?.map(mapStoredMedia),
+  }));
+}
+
+async function getAccountMap(userId: string) {
+  const result = await listAccounts(userId);
+  return new Map(result.accounts.map((account) => [account.accountId, account]));
+}
+
+function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof getAccountMap>>): ManagedPost {
+  const thread = mapStoredThread(post.thread);
+  return {
+    id: post.id,
+    message: post.message,
+    accountIds: post.accountIds,
+    accounts: post.accountIds.map((accountId) => accountMap.get(accountId)).filter((account) => account !== undefined),
+    media: post.media.map((media) => mapStoredMedia(media)),
+    thread,
+    scheduledFor: post.scheduledFor.toISOString(),
+    createdAt: post.createdAt.toISOString(),
+    publishedAt: post.publishedAt?.toISOString() ?? null,
+    status: mapManagedStatus(post.status),
+    errorMessage: post.errorMessage ?? null,
+    mediaCount: post.media.length,
+    threadSegmentCount: thread.length,
+  };
+}
+
+function countStatuses(posts: ManagedPost[]) {
+  return {
+    totalReturned: posts.length,
+    scheduledCount: posts.filter((post) => post.status === "scheduled").length,
+    postedCount: posts.filter((post) => post.status === "posted").length,
+    failedCount: posts.filter((post) => post.status === "failed").length,
+  };
+}
+
+async function getPostsForStatus(
+  repository: PostsModel,
+  status: "scheduled" | "posted" | "failed",
+  options: { page: number; limit: number },
+) {
+  if (status === "scheduled") return await repository.getScheduledPosts(options);
+  if (status === "posted") return await repository.getPublishedPosts(options);
+  return await repository.getFailedPosts(options);
+}
+
+function assertFutureScheduledPost(post: SocialPost): void {
+  if (post.status !== "scheduled") {
+    throw new Error("Only scheduled posts can be managed with this tool");
+  }
+  if (post.scheduledFor <= new Date()) {
+    throw new Error("Only future scheduled posts can be edited or discarded");
+  }
+}
+
+function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Date): Date {
+  if (!value) return currentValue;
+
+  const scheduledFor = new Date(value);
+  if (Number.isNaN(scheduledFor.getTime())) {
+    throw new TypeError("scheduledFor must be a valid ISO 8601 datetime");
+  }
+  if (scheduledFor <= new Date()) {
+    throw new Error("scheduledFor must be in the future");
+  }
+
+  return scheduledFor;
+}
+
+function collectMediaForCleanup(post: Pick<SocialPost, "media" | "thread">): MediaFile[] {
+  return [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
+}
+
+function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
+  const keptUrls = new Set([
+    ...newMedia.map((media) => media.url),
+    ...(newThread ?? []).flatMap((segment) => (segment.media ?? []).map((media) => media.url)),
+  ]);
+  return collectMediaForCleanup(oldPost).filter((media) => !keptUrls.has(media.url));
+}
+
 export async function previewPost(userId: string, input: z.infer<typeof previewPostSchema>) {
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
@@ -175,6 +412,162 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
       threadSegmentCount,
       errorCount: validation.summary.errorCount,
       warningCount: validation.summary.warningCount,
+    },
+  };
+}
+
+export async function inspectPosts(userId: string, input: z.infer<typeof inspectPostsSchema>) {
+  const repository = new PostsModel(userId);
+  const accountMap = await getAccountMap(userId);
+  const page = input.page ?? 1;
+  const limit = input.limit ?? 10;
+
+  if (input.postId) {
+    const post = await repository.getPostById(input.postId);
+    if (!post) {
+      throw new Error("Post not found");
+    }
+
+    const posts = [mapManagedPost(post, accountMap)];
+    return {
+      kind: "posts" as const,
+      status: "single" as const,
+      posts,
+      pagination: null,
+      summary: countStatuses(posts),
+    };
+  }
+
+  const status = input.status ?? "all";
+  if (status !== "all") {
+    const result = await getPostsForStatus(repository, status, { page, limit });
+    const posts = result.data.map((post) => mapManagedPost(post, accountMap));
+
+    return {
+      kind: "posts" as const,
+      status,
+      posts,
+      pagination: result.pagination,
+      summary: countStatuses(posts),
+    };
+  }
+
+  const [scheduled, posted, failed] = await Promise.all([
+    getPostsForStatus(repository, "scheduled", { page: 1, limit }),
+    getPostsForStatus(repository, "posted", { page: 1, limit }),
+    getPostsForStatus(repository, "failed", { page: 1, limit }),
+  ]);
+  const posts = [...scheduled.data, ...posted.data, ...failed.data].map((post) => mapManagedPost(post, accountMap));
+
+  return {
+    kind: "posts" as const,
+    status: "all" as const,
+    posts,
+    pagination: null,
+    summary: countStatuses(posts),
+  };
+}
+
+export async function updateScheduledPost(userId: string, input: z.infer<typeof updateScheduledPostSchema>) {
+  const hasChanges =
+    input.message !== undefined ||
+    input.accountIds !== undefined ||
+    input.media !== undefined ||
+    input.thread !== undefined ||
+    input.scheduledFor !== undefined;
+
+  if (!hasChanges) {
+    throw new Error("Provide at least one scheduled post field to update");
+  }
+
+  const repository = new PostsModel(userId);
+  const currentPost = await repository.getPostById(input.postId);
+  if (!currentPost) {
+    throw new Error("Post not found");
+  }
+  assertFutureScheduledPost(currentPost);
+
+  const message = input.message ?? currentPost.message;
+  const accountIds = input.accountIds ?? currentPost.accountIds;
+  const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
+  const thread =
+    input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
+  const threadForValidation = thread && thread.length > 0 ? thread : undefined;
+  const scheduledFor = resolveUpdatedScheduledFor(input.scheduledFor, currentPost.scheduledFor);
+
+  const validation = await validatePost(userId, {
+    message,
+    accountIds,
+    media,
+    thread: threadForValidation,
+  });
+
+  if (validation.accounts.length !== accountIds.length) {
+    throw new Error("One or more accounts were not found");
+  }
+
+  if (!validation.isValid) {
+    const errorMessages = validation.accounts
+      .flatMap((account) => account.errors.map((error) => error.message))
+      .join("; ");
+    throw new Error(`Validation failed: ${errorMessages}`);
+  }
+
+  const updates: Partial<SocialPost> = {};
+  if (input.message !== undefined) updates.message = message;
+  if (input.accountIds !== undefined) updates.accountIds = accountIds;
+  if (input.media !== undefined) updates.media = media;
+  if (input.thread !== undefined) updates.thread = thread ?? [];
+  if (input.scheduledFor !== undefined) updates.scheduledFor = scheduledFor;
+
+  const updatedPost = await repository.updatePost(input.postId, updates);
+
+  if (input.media !== undefined || input.thread !== undefined) {
+    const removedMedia = getRemovedMedia(currentPost, media, threadForValidation);
+    if (removedMedia.length > 0) {
+      await deleteMediaFiles(removedMedia);
+    }
+  }
+
+  const accountMap = await getAccountMap(userId);
+  return {
+    kind: "scheduled_post_update" as const,
+    post: mapManagedPost(updatedPost, accountMap),
+    validation,
+    summary: {
+      updated: true,
+      messageChanged: input.message !== undefined,
+      accountsChanged: input.accountIds !== undefined,
+      mediaChanged: input.media !== undefined,
+      threadChanged: input.thread !== undefined,
+      scheduledForChanged: input.scheduledFor !== undefined,
+    },
+  };
+}
+
+export async function discardScheduledPost(userId: string, input: z.infer<typeof discardScheduledPostSchema>) {
+  const repository = new PostsModel(userId);
+  const post = await repository.getPostById(input.postId);
+  if (!post) {
+    throw new Error("Post not found");
+  }
+  assertFutureScheduledPost(post);
+
+  const accountMap = await getAccountMap(userId);
+  const mappedPost = mapManagedPost(post, accountMap);
+  const media = collectMediaForCleanup(post);
+
+  if (media.length > 0) {
+    await deleteMediaFiles(media);
+  }
+  await repository.deletePost(input.postId);
+
+  return {
+    kind: "scheduled_post_discard" as const,
+    post: mappedPost,
+    summary: {
+      discarded: true,
+      deletedMediaCount: media.length,
     },
   };
 }

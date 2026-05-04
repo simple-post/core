@@ -1,7 +1,6 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { registerSimplePostAppResource, SIMPLEPOST_WIDGET_URI } from "./app-ui";
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
@@ -9,9 +8,18 @@ import {
   createPost,
   createPostOutputSchema,
   createPostSchema,
+  discardScheduledPost,
+  discardScheduledPostOutputSchema,
+  discardScheduledPostSchema,
+  inspectPosts,
+  inspectPostsOutputSchema,
+  inspectPostsSchema,
   previewPost,
   previewPostOutputSchema,
   previewPostSchema,
+  updateScheduledPost,
+  updateScheduledPostOutputSchema,
+  updateScheduledPostSchema,
 } from "./tools/posts";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
 
@@ -28,6 +36,8 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 4. Use \`preview_post\` only when the user explicitly asks for a preview or when the requested post is missing essential details such as target account, media choice, or scheduling time. If the user has already confirmed the exact content, accounts, media, thread segments (if any), and timing, call \`create_post\` directly after \`list_accounts\` and any required media upload.
 
 5. Use \`postingMode: "now"\` for immediate publishing (the call blocks until each platform responds and returns \`postingResults\` per account). Use \`postingMode: "schedule"\` together with \`scheduledFor\` to schedule for later — the call returns immediately with \`status: "scheduled"\` and the scheduler will publish at that time.
+
+6. Use \`inspect_posts\` when the user asks what is scheduled, already posted, or failed. Use \`update_scheduled_post\` only for future scheduled posts when the user wants to change the content, accounts, root media, thread, or scheduled time. Use \`discard_scheduled_post\` when the user asks to cancel or delete a future scheduled post.
 
 # Media
 
@@ -61,6 +71,13 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 - When the user says things like "tomorrow at 9am" or "next Monday", resolve to an absolute datetime in the user's timezone before calling the tool. If you don't know their timezone, ask.
 - \`scheduledFor\` must be in the future. Past times are rejected.
 
+# Managing existing posts
+
+- \`inspect_posts\` can list future scheduled posts, already posted posts, and failed posts. Pass a \`postId\` to inspect a single post before editing or discarding it.
+- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`media: null\` or \`media: []\` clears root media, and \`thread: null\` or \`thread: []\` clears follow-up segments.
+- \`update_scheduled_post\` validates the resulting scheduled post before saving changes. If validation fails, surface the per-account errors and do not call \`create_post\`.
+- \`discard_scheduled_post\` deletes a future scheduled post and its stored media from SimplePost. It cannot undo posts that were already published to social platforms.
+
 # Error handling
 
 - A successful \`create_post\` with \`postingMode: "now"\` may still report per-platform failures inside \`postingResults\`. Always inspect \`summary.overallSuccess\` and the individual results — do not assume success just because the tool didn't throw. For threads, a root post can succeed while a later segment fails; check \`threadResults\` on that account.
@@ -69,7 +86,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 # What this server does NOT do
 
 - It cannot connect, disconnect, or re-auth social accounts — direct the user to the SimplePost web app for that.
-- It cannot list, edit, or cancel scheduled posts via MCP — those live in the web app.`;
+- It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
   userId: string;
@@ -81,8 +98,6 @@ const OAUTH_SECURITY_SCHEMES = [{ type: "oauth2", scopes: [...MCP_SCOPES] }];
 function toolMeta(invoking: string, invoked: string) {
   return {
     securitySchemes: OAUTH_SECURITY_SCHEMES,
-    ui: { resourceUri: SIMPLEPOST_WIDGET_URI },
-    "openai/outputTemplate": SIMPLEPOST_WIDGET_URI,
     "openai/toolInvocation/invoking": invoking,
     "openai/toolInvocation/invoked": invoked,
   };
@@ -106,8 +121,6 @@ function requireScope(context: McpToolAuthContext, scope: McpScope): void {
  * The userId is bound to tool handlers so they operate on the authenticated user's data.
  */
 export function registerTools(server: McpServer, context: McpToolAuthContext): void {
-  registerSimplePostAppResource(server);
-
   registerAppTool(
     server,
     "list_accounts",
@@ -295,6 +308,114 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                     : `Post completed with ${result.summary.failureCount} platform failure(s).`,
             },
           ],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    "inspect_posts",
+    {
+      title: "Inspect Posts",
+      description: `Use this when the user asks to review SimplePost posts that are currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a scheduled post. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
+      inputSchema: inspectPostsSchema.shape,
+      outputSchema: inspectPostsOutputSchema.shape,
+      annotations: {
+        title: "Inspect SimplePost posts",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: toolMeta("Inspecting posts", "Posts ready"),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "posts:read");
+        const result = await inspectPosts(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: "text",
+              text:
+                result.status === "single"
+                  ? result.posts.length > 0
+                    ? `Found post ${result.posts[0].id} with status ${result.posts[0].status}.`
+                    : "Post not found."
+                  : `Found ${result.summary.totalReturned} SimplePost post(s): ${result.summary.scheduledCount} scheduled, ${result.summary.postedCount} posted, ${result.summary.failedCount} failed.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    "update_scheduled_post",
+    {
+      title: "Update Scheduled Post",
+      description: `Use this when the user asks to edit a future scheduled SimplePost post. Provide the postId from inspect_posts and only the fields that should change: message, accountIds, media, thread, or scheduledFor. This validates the final scheduled post before saving and cannot edit already posted, failed, pending, or due posts.`,
+      inputSchema: updateScheduledPostSchema.shape,
+      outputSchema: updateScheduledPostOutputSchema.shape,
+      annotations: {
+        title: "Update a scheduled SimplePost post",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+      _meta: toolMeta("Updating scheduled post", "Scheduled post updated"),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "posts:write");
+        const result = await updateScheduledPost(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: "text",
+              text: `Updated scheduled post ${result.post.id}; it is scheduled for ${result.post.scheduledFor}.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    "discard_scheduled_post",
+    {
+      title: "Discard Scheduled Post",
+      description: `Use this when the user asks to cancel, delete, or discard a future scheduled SimplePost post. Provide the postId from inspect_posts. This permanently deletes the scheduled SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
+      inputSchema: discardScheduledPostSchema.shape,
+      outputSchema: discardScheduledPostOutputSchema.shape,
+      annotations: {
+        title: "Discard a scheduled SimplePost post",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+      _meta: toolMeta("Discarding scheduled post", "Scheduled post discarded"),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "posts:write");
+        const result = await discardScheduledPost(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [{ type: "text", text: `Discarded scheduled post ${result.post.id}.` }],
         };
       } catch (error) {
         return errorResult(error);

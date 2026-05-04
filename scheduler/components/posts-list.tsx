@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PlatformIcon } from "@/components/platform-icons";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
@@ -350,9 +351,10 @@ function PostCard({
               {/* Platform indicator */}
               {platformsWithNames.length > 0 && (
                 <div
-                  className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-md border-2 border-background ${platformsWithNames[0]!.color}`}
-                  title={platformsWithNames[0]!.name}
-                />
+                  className={`absolute -bottom-1 -right-1 size-5 rounded-full border-2 border-background ${platformsWithNames[0]!.color} text-white flex items-center justify-center`}
+                  title={platformsWithNames[0]!.name}>
+                  <PlatformIcon platform={platformsWithNames[0]!.id} className="text-[9px]" />
+                </div>
               )}
             </div>
 

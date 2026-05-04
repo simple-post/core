@@ -410,6 +410,23 @@ describe("XPublisher", () => {
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].code).toBe("mixed_media_not_supported");
     });
+
+    it("should warn (not error) when text is longer than 280 but within long-post max", () => {
+      const text = "a".repeat(281);
+      const result = XPublisher.validate({ text, media: [{ type: "image", path: "/path/1.jpg" }] });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.some((w) => w.code === "long_post")).toBe(true);
+    });
+
+    it("should error when text exceeds long-post max", () => {
+      const text = "a".repeat(25_001);
+      const result = XPublisher.validate({ text });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.code === "text_too_long")).toBe(true);
+    });
   });
 
   describe("post (entry method)", () => {

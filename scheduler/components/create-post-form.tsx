@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { cn } from "@/lib/utils";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile, ThreadSegment } from "@/types";
 
@@ -212,6 +213,17 @@ export function CreatePostForm() {
     return limits.length > 0 ? Math.min(...limits) : undefined;
   }, [validation, media]);
 
+  const charCounter = useMemo(
+    () =>
+      getMainFieldCharCounterState({
+        messageLength: message.length,
+        maxTextLength,
+        validationResults: validation?.results ?? [],
+        requireXCommonContent: true,
+      }),
+    [maxTextLength, message.length, validation?.results],
+  );
+
   const timeSlots = useMemo(() => {
     const slots: { value: string; label: string }[] = [];
     for (let h = 0; h < 24; h++) {
@@ -351,13 +363,16 @@ export function CreatePostForm() {
             <div className="mt-1">
               <MediaUpload media={media} onMediaChange={setMedia} compact />
             </div>
-            {maxTextLength && (
-              <div className="flex justify-end mt-2">
-                <p className="text-xs text-muted-foreground">
-                  {message.length}/{maxTextLength}
-                </p>
+            {maxTextLength ? (
+              <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
+                <span className={charCounter.countClassName}>
+                  {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
+                </span>
+                {charCounter.showLongPostOnXHint ? (
+                  <span className="text-muted-foreground">Long X post</span>
+                ) : null}
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Thread segments */}

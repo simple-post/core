@@ -159,7 +159,7 @@ export function validatePostForAccounts(params: {
         platform: account.platform,
         severity: "warning",
         code: "thread_not_supported",
-        message: `${account.platform} does not support threads — only the first post will be sent.`,
+        message: `No threads on ${account.platform}. Root post only.`,
         field: "thread",
         meta: { accountId: account.id },
       });

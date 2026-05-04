@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getPlatformById } from "@/lib/config";
+import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import type { MediaFile, AccountOptionsMap, SocialPost, ThreadSegment } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
@@ -194,6 +195,17 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     return limits.length > 0 ? Math.min(...limits) : undefined;
   }, [validation, media]);
 
+  const charCounter = useMemo(
+    () =>
+      getMainFieldCharCounterState({
+        messageLength: message.length,
+        maxTextLength,
+        validationResults: validation?.results ?? [],
+        requireXCommonContent: false,
+      }),
+    [maxTextLength, message.length, validation?.results],
+  );
+
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
     return `${platform}: ${issue.message}`;
@@ -306,11 +318,19 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             <div className="mt-1">
               <MediaUpload media={media} onMediaChange={setMedia} compact />
             </div>
-            <div className="flex justify-end mt-2">
-              <p className="text-xs text-muted-foreground">
-                {message.length}
-                {maxTextLength ? `/${maxTextLength}` : ""}
-              </p>
+            <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
+              {maxTextLength ? (
+                <>
+                  <span className={charCounter.countClassName}>
+                    {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
+                  </span>
+                  {charCounter.showLongPostOnXHint ? (
+                    <span className="text-muted-foreground">Long X post</span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-muted-foreground">{message.length.toLocaleString()}</span>
+              )}
             </div>
           </div>
 

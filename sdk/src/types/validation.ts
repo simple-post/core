@@ -27,6 +27,8 @@ export interface ValidationResult {
 export interface PlatformValidationRules {
   text?: {
     maxLength?: number; // text-only posts
+    /** Classic short-post length (e.g. X 280); UI may show this until text exceeds it when maxLength is higher. */
+    standardMaxLength?: number;
     maxCaptionLength?: number; // captions when media is attached
     maxCaptionLengthByMediaType?: {
       image?: number;

@@ -152,7 +152,7 @@ export async function validatePostForAccounts(params: {
         platform,
         severity: "warning",
         code: "thread_not_supported",
-        message: `${platform} does not support threads — only the first post will be sent.`,
+        message: `No threads on ${platform}. Root post only.`,
         field: "thread",
         meta: { accountId: account.id },
       });

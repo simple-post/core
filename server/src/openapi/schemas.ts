@@ -130,6 +130,7 @@ export const PlatformValidationRulesSchema = z
     text: z
       .object({
         maxLength: z.number().int().positive().optional(),
+        standardMaxLength: z.number().int().positive().optional(),
         maxCaptionLength: z.number().int().positive().optional(),
         maxCaptionLengthByMediaType: z
           .object({

@@ -11,12 +11,15 @@ import type { PostResult } from "../../types";
 import type { Content, PostOptionsWithCredentials, XCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
-const MAX_TEXT_LENGTH = 280;
+/** Classic tweet length; longer posts require an X account that supports long posts (e.g. X Premium). */
+const X_STANDARD_POST_MAX_LENGTH = 280;
+/** X long-post ceiling per X help (longer posts); posting still requires a capable account. */
+const X_LONG_POST_MAX_LENGTH = 25_000;
 const MAX_MEDIA_COUNT = 4;
 const MAX_VIDEOS = 1;
 
 const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxLength: MAX_TEXT_LENGTH },
+  text: { maxLength: X_LONG_POST_MAX_LENGTH, standardMaxLength: X_STANDARD_POST_MAX_LENGTH },
   media: { maxCount: MAX_MEDIA_COUNT, maxImages: MAX_MEDIA_COUNT, maxVideos: MAX_VIDEOS, allowsMixed: false },
 };
 
@@ -217,15 +220,24 @@ export class XPublisher extends Publisher {
       });
     }
 
-    // Check text length
-    if (text.length > MAX_TEXT_LENGTH) {
+    if (text.length > X_LONG_POST_MAX_LENGTH) {
       errors.push({
         platform: "x",
         severity: "error",
         code: "text_too_long",
-        message: `X text cannot exceed ${MAX_TEXT_LENGTH} characters.`,
+        message: `X text cannot exceed ${X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")} characters.`,
         field: "text",
-        limit: MAX_TEXT_LENGTH,
+        limit: X_LONG_POST_MAX_LENGTH,
+        actual: text.length,
+      });
+    } else if (text.length > X_STANDARD_POST_MAX_LENGTH) {
+      warnings.push({
+        platform: "x",
+        severity: "warning",
+        code: "long_post",
+        message: "Long X post. Premium may be required.",
+        field: "text",
+        limit: X_LONG_POST_MAX_LENGTH,
         actual: text.length,
       });
     }

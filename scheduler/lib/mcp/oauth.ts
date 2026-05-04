@@ -216,6 +216,14 @@ export async function validateClient(clientId: string, redirectUri?: string) {
   return client;
 }
 
+/** Update a dynamic OAuth client's registered scope after a compatible app scope upgrade. */
+export async function updateClientScope(clientId: string, scope: string): Promise<void> {
+  await prisma.mcpOAuthClient.update({
+    where: { clientId },
+    data: { scope },
+  });
+}
+
 /** Clean up expired authorization codes and tokens. */
 export async function cleanupExpired(): Promise<void> {
   const now = new Date();

@@ -57,6 +57,20 @@ export function isMcpScopeSubset(requestedScope: string, allowedScope?: string |
   return parseMcpScopes(requestedScope).every((scope) => allowed.has(scope));
 }
 
+export function canUpgradeLegacyMcpClientScope(requestedScope: string, registeredScope?: string | null): boolean {
+  const registered = new Set(parseMcpScopes(registeredScope));
+  const requested = parseMcpScopes(requestedScope);
+  const missing = requested.filter((scope) => !registered.has(scope));
+
+  return (
+    missing.length === 1 &&
+    missing[0] === "posts:read" &&
+    registered.has("accounts:read") &&
+    registered.has("posts:validate") &&
+    registered.has("posts:write")
+  );
+}
+
 export function resolveMcpResource(resource?: string | null): string {
   const expectedResource = getMcpResourceUrl();
   if (!resource?.trim()) return expectedResource;

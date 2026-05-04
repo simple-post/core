@@ -1,7 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { isMcpScopeSubset, resolveMcpResource, validateMcpScope } from "@/lib/mcp/config";
-import { createAuthorizationCode, validateClient } from "@/lib/mcp/oauth";
+import {
+  canUpgradeLegacyMcpClientScope,
+  isMcpScopeSubset,
+  resolveMcpResource,
+  validateMcpScope,
+} from "@/lib/mcp/config";
+import { createAuthorizationCode, updateClientScope, validateClient } from "@/lib/mcp/oauth";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 
@@ -60,10 +65,16 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!isMcpScopeSubset(scopeResult.scope, client.scope)) {
-      return NextResponse.json(
-        { error: "invalid_scope", error_description: "Requested scopes exceed registered client scopes" },
-        { status: 400 },
-      );
+      // Existing ChatGPT dynamic clients registered before posts:read need a
+      // one-time compatibility upgrade when the user approves the new scope.
+      if (canUpgradeLegacyMcpClientScope(scopeResult.scope, client.scope)) {
+        await updateClientScope(client_id, scopeResult.scope);
+      } else {
+        return NextResponse.json(
+          { error: "invalid_scope", error_description: "Requested scopes exceed registered client scopes" },
+          { status: 400 },
+        );
+      }
     }
 
     // Generate authorization code

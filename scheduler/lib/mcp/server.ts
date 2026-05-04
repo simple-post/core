@@ -216,7 +216,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Preview a post before it is created. This resolves target accounts, optional media count, optional thread segment count, scheduled time, and validation result without writing to SimplePost or publishing to social platforms. Use it when the user explicitly asks for a preview or when essential posting details are missing; do not use it as a default preflight for already-confirmed posts.`,
+      description: `Preview a post before it is created. This resolves target accounts, optional media count, optional thread segment count, scheduled time, and validation result without writing to SimplePost or publishing to social platforms. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Use it when the user explicitly asks for a preview or when essential posting details are missing; do not use it as a default preflight for already-confirmed posts.`,
       inputSchema: previewPostSchema.shape,
       outputSchema: previewPostOutputSchema.shape,
       annotations: {
@@ -258,7 +258,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Create a SimplePost post with text plus optional images/videos and optional multi-segment thread (thread field: follow-up messages after the root). Use postingMode "now" to publish immediately or "schedule" with a future ISO 8601 scheduledFor value to schedule it. This is a write action that can publish public content on connected social platforms and it performs blocking validation internally, so do not call validate_post first unless the user requested validation-only feedback. Always call list_accounts first to get account IDs.`,
+      description: `Create a SimplePost post with text plus optional images/videos and optional multi-segment thread (thread field: follow-up messages after the root). Use postingMode "now" to publish immediately or "schedule" with a future scheduledFor in full ISO 8601 format with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Do not send date-only or local time without timezone. This is a write action that can publish public content on connected social platforms and it performs blocking validation internally, so do not call validate_post first unless the user requested validation-only feedback. Always call list_accounts first to get account IDs.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
       annotations: {

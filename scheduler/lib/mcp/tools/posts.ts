@@ -30,7 +30,9 @@ export const createPostSchema = z.object({
     .string()
     .datetime()
     .optional()
-    .describe("ISO 8601 datetime for scheduled posts. Required when postingMode is 'schedule'."),
+    .describe(
+      "Required when postingMode is 'schedule'. Use a full ISO 8601 datetime with timezone: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm (examples: 2026-05-01T14:30:00Z, 2026-05-01T16:30:00+02:00). Never send date-only or local time without timezone.",
+    ),
 });
 
 export const previewPostSchema = createPostSchema;

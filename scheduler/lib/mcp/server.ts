@@ -39,6 +39,11 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 6. Use \`inspect_posts\` when the user asks what is scheduled, already posted, or failed. Use \`update_scheduled_post\` only for future scheduled posts when the user wants to change the content, accounts, root media, thread, or scheduled time. Use \`discard_scheduled_post\` when the user asks to cancel or delete a future scheduled post.
 
+# Visible text responses
+
+- This is a text-only ChatGPT app. After \`preview_post\`, \`create_post\`, \`inspect_posts\`, \`update_scheduled_post\`, or \`discard_scheduled_post\`, always include the exact post content in the assistant's visible answer so the user can see what was previewed, posted, scheduled, edited, or discarded.
+- For threads, show the root post and each follow-up segment in order. Do not hide the post text behind only a status, count, or URL.
+
 # Media
 
 Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, thumbnailUrl? }\`. The \`url\` must be publicly fetchable.
@@ -114,6 +119,32 @@ function requireScope(context: McpToolAuthContext, scope: McpScope): void {
   if (!hasMcpScope(context.scope, scope)) {
     throw new Error(`Missing required OAuth scope: ${scope}`);
   }
+}
+
+function formatPostContent(message: string, thread?: Array<{ message?: string }>): string {
+  const segments = (thread ?? []).filter((segment) => segment.message !== undefined);
+  if (segments.length === 0) {
+    return `Post content:\n${message}`;
+  }
+
+  return [
+    `Post content:\nRoot:\n${message}`,
+    ...segments.map((segment, index) => `Reply ${index + 1}:\n${segment.message ?? ""}`),
+  ].join("\n\n");
+}
+
+function formatManagedPostContent(post: { message: string; thread?: Array<{ message?: string }> }): string {
+  return formatPostContent(post.message, post.thread);
+}
+
+function formatManagedPosts(
+  posts: Array<{ id: string; status: string; message: string; thread?: Array<{ message?: string }> }>,
+) {
+  if (posts.length === 0) return "No matching post content.";
+
+  return posts
+    .map((post, index) => `${index + 1}. ${post.id} (${post.status})\n${formatManagedPostContent(post)}`)
+    .join("\n\n");
 }
 
 /**
@@ -213,8 +244,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text: result.isValid
-                ? `Post is valid for ${result.summary.accountCount} account(s).`
-                : `Post has ${result.summary.errorCount} blocking validation error(s).`,
+                ? `Post is valid for ${result.summary.accountCount} account(s).\n\n${formatPostContent(input.message, input.thread)}`
+                : `Post has ${result.summary.errorCount} blocking validation error(s).\n\n${formatPostContent(input.message, input.thread)}`,
             },
           ],
         };
@@ -255,8 +286,11 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                     result.summary.threadSegmentCount > 0
                       ? `, ${result.summary.threadSegmentCount} follow-up thread segment(s)`
                       : ""
-                  }.`
-                : `Preview found ${result.summary.errorCount} blocking validation error(s).`,
+                  }.\n\n${formatPostContent(input.message, input.thread)}`
+                : `Preview found ${result.summary.errorCount} blocking validation error(s).\n\n${formatPostContent(
+                    input.message,
+                    input.thread,
+                  )}`,
             },
           ],
         };
@@ -298,14 +332,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                       result.summary.threadSegmentCount > 0
                         ? ` (${result.summary.threadSegmentCount} follow-up thread segment(s) each)`
                         : ""
-                    }.`
+                    }.\n\n${formatPostContent(input.message, input.thread)}`
                   : result.summary.overallSuccess
                     ? `Post published successfully across ${result.summary.successCount} account(s)${
                         result.summary.threadSegmentCount > 0
                           ? ` with ${result.summary.threadSegmentCount} follow-up thread segment(s) per thread-capable account`
                           : ""
-                      }.`
-                    : `Post completed with ${result.summary.failureCount} platform failure(s).`,
+                      }.\n\n${formatPostContent(input.message, input.thread)}`
+                    : `Post completed with ${result.summary.failureCount} platform failure(s).\n\n${formatPostContent(
+                        input.message,
+                        input.thread,
+                      )}`,
             },
           ],
         };
@@ -344,9 +381,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               text:
                 result.status === "single"
                   ? result.posts.length > 0
-                    ? `Found post ${result.posts[0].id} with status ${result.posts[0].status}.`
+                    ? `Found post ${result.posts[0].id} with status ${result.posts[0].status}.\n\n${formatManagedPostContent(
+                        result.posts[0],
+                      )}`
                     : "Post not found."
-                  : `Found ${result.summary.totalReturned} SimplePost post(s): ${result.summary.scheduledCount} scheduled, ${result.summary.postedCount} posted, ${result.summary.failedCount} failed.`,
+                  : `Found ${result.summary.totalReturned} SimplePost post(s): ${result.summary.scheduledCount} scheduled, ${result.summary.postedCount} posted, ${result.summary.failedCount} failed.\n\n${formatManagedPosts(
+                      result.posts,
+                    )}`,
             },
           ],
         };
@@ -382,7 +423,9 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Updated scheduled post ${result.post.id}; it is scheduled for ${result.post.scheduledFor}.`,
+              text: `Updated scheduled post ${result.post.id}; it is scheduled for ${
+                result.post.scheduledFor
+              }.\n\n${formatManagedPostContent(result.post)}`,
             },
           ],
         };
@@ -415,7 +458,12 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         const result = await discardScheduledPost(context.userId, input);
         return {
           structuredContent: result,
-          content: [{ type: "text", text: `Discarded scheduled post ${result.post.id}.` }],
+          content: [
+            {
+              type: "text",
+              text: `Discarded scheduled post ${result.post.id}.\n\n${formatManagedPostContent(result.post)}`,
+            },
+          ],
         };
       } catch (error) {
         return errorResult(error);

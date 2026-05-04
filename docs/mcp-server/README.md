@@ -6,6 +6,8 @@ The MCP server is hosted by the Scheduler app and uses the Scheduler app's conne
 
 The ChatGPT app is text-only. Tools return model-readable text plus structured JSON data, and no embedded ChatGPT iframe or component UI is registered.
 
+Post-related tool responses include the exact root post text, plus thread segments when present, so the conversation history shows what was previewed, posted, scheduled, edited, or discarded.
+
 ## When To Use It
 
 Choose MCP when:

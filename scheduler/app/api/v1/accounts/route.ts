@@ -4,6 +4,8 @@ import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/utils/errors";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
@@ -33,7 +35,14 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ accounts: connectedAccounts });
+    return NextResponse.json(
+      { accounts: connectedAccounts },
+      {
+        headers: {
+          "Cache-Control": "private, no-store",
+        },
+      },
+    );
   } catch (error) {
     return handleApiError(error);
   }

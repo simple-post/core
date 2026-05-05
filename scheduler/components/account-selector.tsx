@@ -163,7 +163,13 @@ export function AccountSelector({
                   className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
                   {isSelected && <Check className="absolute top-1.5 left-1.5 h-3 w-3" />}
                   <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <AccountAvatar profilePicture={account.profilePicture} platform={platformConfig.id} size="sm" />
+                    <AccountAvatar
+                      accountId={account.id}
+                      avatarVersion={account.updatedAt}
+                      profilePicture={account.profilePicture}
+                      platform={platformConfig.id}
+                      size="sm"
+                    />
                     <div className="text-[10px] font-medium leading-tight line-clamp-2 w-full break-all px-0.5">
                       {getAccountDisplayName(account)}
                     </div>
@@ -257,6 +263,8 @@ export function AccountSelector({
                           {isSelected && <Check className="absolute top-2 left-2 h-4 w-4" />}
                           <div className="flex h-full flex-col items-center justify-center gap-2">
                             <AccountAvatar
+                              accountId={account.id}
+                              avatarVersion={account.updatedAt}
                               profilePicture={account.profilePicture}
                               platform={platformConfig.id}
                               size="md"
@@ -303,6 +311,8 @@ export function AccountSelector({
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <AccountAvatar
+                                accountId={account.id}
+                                avatarVersion={account.updatedAt}
                                 profilePicture={account.profilePicture}
                                 platform={platformConfig.id}
                                 size="sm"

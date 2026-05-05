@@ -162,7 +162,13 @@ export default function AccountsPage() {
                 <div key={account.id} className="rounded-2xl border border-border bg-card p-5 card-accent-hover">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
-                      <AccountAvatar profilePicture={account.profilePicture} platform={platformConfig.id} size="lg" />
+                      <AccountAvatar
+                        accountId={account.id}
+                        avatarVersion={account.updatedAt}
+                        profilePicture={account.profilePicture}
+                        platform={platformConfig.id}
+                        size="lg"
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-semibold text-base text-foreground truncate">
@@ -174,8 +180,12 @@ export default function AccountsPage() {
                           {account.platform === "x" && xCredits !== undefined && (
                             <Badge
                               variant="secondary"
-                              className={xCredits === 0 ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border"}>
-                              {xCredits} post{xCredits !== 1 ? "s" : ""} remaining
+                              className={
+                                xCredits === 0
+                                  ? "border-destructive/30 bg-destructive/10 text-destructive"
+                                  : "border-border"
+                              }>
+                              {xCredits} post{xCredits === 1 ? "" : "s"} remaining
                             </Badge>
                           )}
                         </div>
@@ -263,6 +273,8 @@ export default function AccountsPage() {
                   return platformConfig ? (
                     <>
                       <AccountAvatar
+                        accountId={accountToDisconnect.id}
+                        avatarVersion={accountToDisconnect.updatedAt}
                         profilePicture={accountToDisconnect.profilePicture}
                         platform={platformConfig.id}
                         size="md"

@@ -3,6 +3,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getPlatformById } from "@/lib/config";
 
 interface AccountAvatarProps {
+  accountId?: string;
+  avatarVersion?: Date | string | null;
   profilePicture: string | null;
   platform: string;
   /** Size in Tailwind units. Defaults to 12 (3rem / 48px). */
@@ -30,21 +32,43 @@ const sizeConfig = {
   },
 };
 
+function normalizePlatform(platform: string): string {
+  return platform.toLowerCase() === "twitter" ? "x" : platform.toLowerCase();
+}
+
 function normalizeProfilePictureForDisplay(profilePicture: string | null, platform: string): string | null {
   if (!profilePicture) return null;
 
-  const platformId = platform.toLowerCase() === "twitter" ? "x" : platform.toLowerCase();
-  if (platformId === "x") {
+  if (normalizePlatform(platform) === "x") {
     return profilePicture.replace(/^http:\/\//, "https://").replace("_400x400.", "_normal.");
   }
 
   return profilePicture;
 }
 
-export function AccountAvatar({ profilePicture, platform, size = "lg" }: AccountAvatarProps) {
+function getProfilePictureSrc({
+  accountId,
+  avatarVersion,
+  platform,
+  profilePicture,
+}: Pick<AccountAvatarProps, "accountId" | "avatarVersion" | "platform" | "profilePicture">): string | null {
+  const normalized = normalizeProfilePictureForDisplay(profilePicture, platform);
+  const platformId = normalizePlatform(platform);
+
+  if (!normalized) return null;
+
+  if (accountId && (platformId === "x" || platformId === "linkedin")) {
+    const version = avatarVersion ? `?v=${encodeURIComponent(String(avatarVersion))}` : "";
+    return `/api/v1/accounts/${encodeURIComponent(accountId)}/avatar${version}`;
+  }
+
+  return normalized;
+}
+
+export function AccountAvatar({ accountId, avatarVersion, profilePicture, platform, size = "lg" }: AccountAvatarProps) {
   const platformConfig = getPlatformById(platform);
   const cfg = sizeConfig[size];
-  const avatarSrc = normalizeProfilePictureForDisplay(profilePicture, platform);
+  const avatarSrc = getProfilePictureSrc({ accountId, avatarVersion, platform, profilePicture });
 
   if (!platformConfig) return null;
 

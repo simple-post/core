@@ -18,6 +18,7 @@ model User {
   image                  String?
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now()) @updatedAt
+  xPostingCredits        Int                      @default(10)
   sessions               Session[]
   accounts               Account[] // For authentication
   connectedAccounts      ConnectedAccount[] // For social media posting

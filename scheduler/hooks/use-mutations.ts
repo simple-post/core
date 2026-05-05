@@ -142,8 +142,8 @@ export function useSubmitPost() {
   return useMutation({
     mutationFn: submitPost,
     onSuccess: (_data: PostMutationResult, variables: PostMutationParams) => {
-      // Invalidate all post queries to refetch
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.xCredits });
       if (variables.postId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.post(variables.postId) });
       }

@@ -49,4 +49,5 @@ export const queryKeys = {
   posts: (type?: string) => (type ? ["posts", type] : ["posts"]),
   paginatedPosts: (type: string, page: number, limit: number) => ["posts", type, { page, limit }],
   post: (id: string) => ["posts", "detail", id],
+  xCredits: ["xCredits"],
 } as const;

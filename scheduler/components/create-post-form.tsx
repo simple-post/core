@@ -90,6 +90,9 @@ export function CreatePostForm() {
   const [validation, setValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [rateLimitStatuses, setRateLimitStatuses] = useState<
+    Array<{ platform: string; platformName: string; postsToday: number; maxPerDay: number; isAtLimit: boolean }>
+  >([]);
 
   const enabledOverrides = useMemo<AccountOverridesMap>(() => {
     if (selectedAccountIds.length === 0) {
@@ -172,6 +175,24 @@ export function CreatePostForm() {
       controller.abort();
     };
   }, [runValidation, selectedAccountIds]);
+
+  useEffect(() => {
+    if (selectedAccountIds.length === 0) {
+      setRateLimitStatuses([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    for (const id of selectedAccountIds) params.append("accountId", id);
+
+    fetch(`/api/v1/rate-limits?${params.toString()}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data: { statuses: typeof rateLimitStatuses }) => setRateLimitStatuses(data.statuses))
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [selectedAccountIds]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
@@ -329,10 +350,13 @@ export function CreatePostForm() {
     }
   };
 
+  const atLimitPlatforms = rateLimitStatuses.filter((s) => s.isAtLimit);
+
   const isFormValid =
     selectedAccountIds.length > 0 &&
     (validation?.summary.isValid ?? false) &&
     !validationLoading &&
+    atLimitPlatforms.length === 0 &&
     (postingMode === "now" || (scheduledDate && scheduledTime));
 
   return (
@@ -547,6 +571,20 @@ export function CreatePostForm() {
           {selectedAccountIds.length === 0 && (
             <div className="p-3 rounded-lg border border-border bg-card text-sm text-muted-foreground">
               Select at least one account to publish your content.
+            </div>
+          )}
+
+          {atLimitPlatforms.length > 0 && (
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm space-y-1">
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Daily posting limit reached</p>
+              </div>
+              {atLimitPlatforms.map((s) => (
+                <p key={s.platform} className="text-muted-foreground">
+                  You've reached your daily limit for {s.platformName}. Please try again tomorrow.
+                </p>
+              ))}
             </div>
           )}
 

@@ -5,6 +5,7 @@ import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
+import { checkRateLimits } from "@/lib/utils/rate-limit";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
 import type { MediaFile, ThreadSegmentResult } from "@/types";
@@ -103,6 +104,8 @@ export async function POST(req: NextRequest) {
     if (!validation.summary.isValid) {
       throw new ValidationError(validation);
     }
+
+    await checkRateLimits(userId, validated.accountIds);
 
     // Create the post first
     log.debug("Creating post record in database");

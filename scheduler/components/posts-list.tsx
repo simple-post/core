@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
+import { PlatformIconBadge } from "@/components/platform-icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlatformIcon } from "@/components/platform-icons";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
@@ -259,7 +259,6 @@ function PostCard({
 
   // Get unique platforms from the accounts
   const uniquePlatforms = [...new Set(postAccounts.map((acc) => acc.platform))];
-  const platformsWithNames = uniquePlatforms.map((platform) => getPlatformById(platform)).filter(Boolean);
 
   const hasMedia = post.media.length > 0;
   const isScheduled = post.status === "scheduled";
@@ -349,11 +348,11 @@ function PostCard({
                 </div>
               )}
               {/* Platform indicator */}
-              {platformsWithNames.length > 0 && (
-                <div
-                  className={`absolute -bottom-1 -right-1 size-5 rounded-full border-2 border-background ${platformsWithNames[0]!.color} text-white flex items-center justify-center`}
-                  title={platformsWithNames[0]!.name}>
-                  <PlatformIcon platform={platformsWithNames[0]!.id} className="text-[9px]" />
+              {uniquePlatforms.length > 0 && (
+                <div className="absolute -bottom-1 -right-1 flex max-w-[5.5rem] flex-wrap justify-end gap-0.5">
+                  {uniquePlatforms.map((platform) => (
+                    <PlatformIconBadge key={platform} platform={platform} />
+                  ))}
                 </div>
               )}
             </div>

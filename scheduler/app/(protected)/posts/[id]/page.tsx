@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
+import { PlatformIconBadge } from "@/components/platform-icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
-import { getPlatformById } from "@/lib/config";
+import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import type { ConnectedAccount, MediaFile } from "@/types";
 
 type FailedPlatform = {
@@ -226,11 +227,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   const platformConfig = getPlatformById(account.platform);
                   return (
                     <div key={account.id} className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-[1px] ${platformConfig?.color}`} />
+                      <PlatformIconBadge platform={account.platform} className="size-7" iconClassName="text-xs" />
                       <div className="flex-1">
-                        <div className="text-sm font-medium">
-                          {account.displayName || account.username || account.email}
-                        </div>
+                        <div className="text-sm font-medium">{getAccountDisplayName(account)}</div>
                         <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
                           {platformConfig?.name}
                         </div>

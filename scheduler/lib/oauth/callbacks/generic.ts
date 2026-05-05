@@ -45,12 +45,19 @@ interface LinkedInProfile {
   picture?: string;
 }
 
+interface LinkedInProfilePictureElement {
+  data?: {
+    "com.linkedin.digitalmedia.mediaartifact.StillImage"?: {
+      storageSize?: { width?: number; height?: number };
+    };
+  };
+  identifiers?: Array<{ identifier?: string }>;
+}
+
 interface LinkedInProfileV2 {
   profilePicture?: {
     "displayImage~"?: {
-      elements?: Array<{
-        identifiers?: Array<{ identifier?: string }>;
-      }>;
+      elements?: LinkedInProfilePictureElement[];
     };
   };
 }
@@ -86,6 +93,59 @@ type PlatformProfile =
   | YouTubeProfile
   | DefaultProfile;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function decodeJwtPayload(token: unknown): Record<string, unknown> | null {
+  if (typeof token !== "string") return null;
+
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function stringClaim(payload: Record<string, unknown> | null, claim: string): string | null {
+  const value = payload?.[claim];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function normalizeXProfileImageUrl(url: string | null): string | null {
+  if (!url) return null;
+
+  // The API returns a working avatar URL. Do not synthesize undocumented variants here:
+  // a missing variant causes the Radix avatar to fall back to the platform placeholder.
+  return url.replace(/^http:\/\//, "https://");
+}
+
+function getLinkedInImageArea(element: LinkedInProfilePictureElement): number {
+  const storageSize = element.data?.["com.linkedin.digitalmedia.mediaartifact.StillImage"]?.storageSize;
+  return (storageSize?.width ?? 0) * (storageSize?.height ?? 0);
+}
+
+function extractLinkedInDecoratedProfilePicture(profile: LinkedInProfileV2): string | null {
+  const elements = profile.profilePicture?.["displayImage~"]?.elements ?? [];
+  const candidates: Array<{ area: number; identifier: string }> = [];
+
+  for (const element of elements) {
+    const area = getLinkedInImageArea(element);
+    for (const { identifier } of element.identifiers ?? []) {
+      if (identifier) {
+        candidates.push({ area, identifier });
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.area - a.area);
+  return candidates[0]?.identifier ?? null;
+}
+
 async function fetchUserProfile(platform: string, accessToken: string): Promise<PlatformProfile> {
   const config = getPlatformOAuthConfig(platform)!;
 
@@ -98,9 +158,9 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   if (platform === "threads") {
     const url = new URL(config.userInfoUrl);
     url.searchParams.set("access_token", accessToken);
-    response = await fetch(url.toString());
+    response = await fetch(url.toString(), { cache: "no-store" });
   } else {
-    response = await fetch(config.userInfoUrl, { headers });
+    response = await fetch(config.userInfoUrl, { cache: "no-store", headers });
   }
 
   if (!response.ok) {
@@ -120,6 +180,30 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   return data;
 }
 
+async function fetchLinkedInDecoratedProfilePicture(accessToken: string): Promise<string | null> {
+  if (!accessToken) return null;
+
+  try {
+    const picRes = await fetch(
+      "https://api.linkedin.com/v2/me?projection=(id,profilePicture(displayImage~digitalmediaAsset:playableStreams))",
+      { cache: "no-store", headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!picRes.ok) {
+      authLogger.warn(
+        { status: picRes.status, statusText: picRes.statusText },
+        "Failed to fetch decorated LinkedIn profile picture",
+      );
+      return null;
+    }
+
+    const picData = (await picRes.json()) as LinkedInProfileV2;
+    return extractLinkedInDecoratedProfilePicture(picData);
+  } catch (error) {
+    authLogger.warn({ error }, "Failed to fetch decorated LinkedIn profile picture");
+    return null;
+  }
+}
+
 async function extractProfileData(platform: string, profile: PlatformProfile, tokenData: CallbackContext["tokenData"]) {
   let platformAccountId: string;
   let username: string | null = null;
@@ -134,7 +218,7 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       username = p.data?.username || p.username || null;
       displayName = p.data?.name || p.name || null;
       const rawUrl = p.data?.profile_image_url || p.profile_image_url || null;
-      profilePicture = rawUrl ? rawUrl.replace("_normal.", "_400x400.") : null;
+      profilePicture = normalizeXProfileImageUrl(rawUrl);
       break;
     }
     case "facebook": {
@@ -163,26 +247,21 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
     }
     case "linkedin": {
       const p = profile as LinkedInProfile;
+      const idTokenPayload = decodeJwtPayload(tokenData.id_token);
       platformAccountId = p.sub || p.id || "";
-      username = p.email || null;
-      displayName = p.name || p.given_name || null;
-      email = p.email || null;
-      profilePicture = p.picture || null;
+      username = p.email || stringClaim(idTokenPayload, "email");
+      displayName =
+        p.name ||
+        stringClaim(idTokenPayload, "name") ||
+        p.given_name ||
+        stringClaim(idTokenPayload, "given_name") ||
+        null;
+      email = p.email || stringClaim(idTokenPayload, "email");
+      profilePicture = p.picture || stringClaim(idTokenPayload, "picture");
       if (!profilePicture) {
-        try {
-          const picRes = await fetch(
-            "https://api.linkedin.com/v2/me?projection=(id,profilePicture(displayImage~:playableStreams))",
-            { headers: { Authorization: `Bearer ${tokenData.access_token}` } },
-          );
-          if (picRes.ok) {
-            const picData = (await picRes.json()) as LinkedInProfileV2;
-            const elements = picData.profilePicture?.["displayImage~"]?.elements ?? [];
-            const largest = elements[elements.length - 1];
-            profilePicture = largest?.identifiers?.[0]?.identifier ?? null;
-          }
-        } catch {
-          // profile picture is optional; proceed without it
-        }
+        profilePicture = await fetchLinkedInDecoratedProfilePicture(
+          typeof tokenData.access_token === "string" ? tokenData.access_token : "",
+        );
       }
       break;
     }

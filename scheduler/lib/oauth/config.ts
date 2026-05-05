@@ -15,13 +15,13 @@ export interface PlatformOAuthConfig {
 
 const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
   x: {
-    authUrl: "https://twitter.com/i/oauth2/authorize",
-    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    authUrl: "https://x.com/i/oauth2/authorize",
+    tokenUrl: "https://api.x.com/2/oauth2/token",
     clientId: process.env.X_CLIENT_ID || "",
     clientSecret: process.env.X_CLIENT_SECRET || "",
     scope: "tweet.read tweet.write users.read offline.access media.write",
     responseType: "code",
-    userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,name",
+    userInfoUrl: "https://api.x.com/2/users/me?user.fields=profile_image_url,username,name",
     requiresPkce: true,
     requiresBasicAuth: true,
     requiresDpop: false,

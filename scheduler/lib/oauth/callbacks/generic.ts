@@ -45,6 +45,16 @@ interface LinkedInProfile {
   picture?: string;
 }
 
+interface LinkedInProfileV2 {
+  profilePicture?: {
+    "displayImage~"?: {
+      elements?: Array<{
+        identifiers?: Array<{ identifier?: string }>;
+      }>;
+    };
+  };
+}
+
 interface PinterestProfile {
   id?: string;
   username?: string;
@@ -110,7 +120,7 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   return data;
 }
 
-function extractProfileData(platform: string, profile: PlatformProfile, tokenData: CallbackContext["tokenData"]) {
+async function extractProfileData(platform: string, profile: PlatformProfile, tokenData: CallbackContext["tokenData"]) {
   let platformAccountId: string;
   let username: string | null = null;
   let displayName: string | null = null;
@@ -123,7 +133,8 @@ function extractProfileData(platform: string, profile: PlatformProfile, tokenDat
       platformAccountId = p.data?.id || p.id || "";
       username = p.data?.username || p.username || null;
       displayName = p.data?.name || p.name || null;
-      profilePicture = p.data?.profile_image_url || p.profile_image_url || null;
+      const rawUrl = p.data?.profile_image_url || p.profile_image_url || null;
+      profilePicture = rawUrl ? rawUrl.replace("_normal.", "_400x400.") : null;
       break;
     }
     case "facebook": {
@@ -157,6 +168,22 @@ function extractProfileData(platform: string, profile: PlatformProfile, tokenDat
       displayName = p.name || p.given_name || null;
       email = p.email || null;
       profilePicture = p.picture || null;
+      if (!profilePicture) {
+        try {
+          const picRes = await fetch(
+            "https://api.linkedin.com/v2/me?projection=(id,profilePicture(displayImage~:playableStreams))",
+            { headers: { Authorization: `Bearer ${tokenData.access_token}` } },
+          );
+          if (picRes.ok) {
+            const picData = (await picRes.json()) as LinkedInProfileV2;
+            const elements = picData.profilePicture?.["displayImage~"]?.elements ?? [];
+            const largest = elements[elements.length - 1];
+            profilePicture = largest?.identifiers?.[0]?.identifier ?? null;
+          }
+        } catch {
+          // profile picture is optional; proceed without it
+        }
+      }
       break;
     }
     case "pinterest": {
@@ -209,7 +236,7 @@ export async function handleGenericCallback(ctx: CallbackContext): Promise<NextR
     }
   }
 
-  const { platformAccountId, username, displayName, email, profilePicture } = extractProfileData(
+  const { platformAccountId, username, displayName, email, profilePicture } = await extractProfileData(
     ctx.platform,
     profile,
     ctx.tokenData,

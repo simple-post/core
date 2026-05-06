@@ -19,6 +19,13 @@ describe("ThreadsPublisher", () => {
   let publisher: ThreadsPublisher;
   let mockAxiosInstance: any;
 
+  const mockSuccessfulGetSequence = (postId = "post_456") => {
+    mockAxiosInstance.get
+      .mockResolvedValueOnce({ data: { id: "user_123" } })
+      .mockResolvedValueOnce({ data: { status: "FINISHED" } })
+      .mockResolvedValueOnce({ data: { id: postId, permalink: `https://threads.net/@simplepost/post/${postId}` } });
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -49,6 +56,7 @@ describe("ThreadsPublisher", () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "creation_123" } })
         .mockResolvedValueOnce({ data: { id: "post_456" } });
+      mockSuccessfulGetSequence();
 
       const content: Content = {
         text: "Hello Threads!",
@@ -66,7 +74,7 @@ describe("ThreadsPublisher", () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "creation_video" } })
         .mockResolvedValueOnce({ data: { id: "post_video" } });
-      mockAxiosInstance.get.mockResolvedValue({ data: { status: "FINISHED" } });
+      mockSuccessfulGetSequence("post_video");
 
       const content: Content = {
         text: "Video post",
@@ -77,6 +85,73 @@ describe("ThreadsPublisher", () => {
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(mockAxiosInstance.get).toHaveBeenCalled();
+    });
+
+    it("should proactively refresh tokens that are near expiry", async () => {
+      const expiresAt = Math.floor(Date.now() / 1000) + 60;
+      publisher = new ThreadsPublisher({
+        threads: {
+          credentials: {
+            accessToken: "old_access_token",
+            userId: "user_123",
+            expiresAt,
+          },
+        },
+      });
+
+      mockedAxios.get.mockResolvedValueOnce({
+        data: { access_token: "new_access_token", token_type: "bearer", expires_in: 5_184_000 },
+      });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "creation_123" } })
+        .mockResolvedValueOnce({ data: { id: "post_456" } });
+      mockSuccessfulGetSequence();
+
+      const result = await publisher.postContent({ text: "Hello with fresh token" });
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining("https://graph.threads.net/refresh_access_token"),
+      );
+      expect(mockAxiosInstance.post.mock.calls[0][1]).toMatchObject({
+        access_token: "new_access_token",
+      });
+      expect(result.extraData?.refreshedCredentials).toMatchObject({
+        accessToken: "new_access_token",
+        expiresAt: expect.any(Number),
+      });
+    });
+
+    it("should refresh and retry when the API reports an expired token", async () => {
+      mockAxiosInstance.get
+        .mockRejectedValueOnce({
+          response: {
+            status: 401,
+            data: { error: { code: 190, message: "Error validating access token: Session has expired." } },
+          },
+          message: "Request failed",
+        })
+        .mockResolvedValueOnce({ data: { id: "user_123" } })
+        .mockResolvedValueOnce({ data: { status: "FINISHED" } })
+        .mockResolvedValueOnce({
+          data: { id: "post_456", permalink: "https://threads.net/@simplepost/post/post_456" },
+        });
+      mockedAxios.get.mockResolvedValueOnce({
+        data: { access_token: "retry_access_token", token_type: "bearer", expires_in: 5_184_000 },
+      });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "creation_123" } })
+        .mockResolvedValueOnce({ data: { id: "post_456" } });
+
+      const result = await publisher.postContent({ text: "Hello after retry" });
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.get.mock.calls[1][1].params.access_token).toBe("retry_access_token");
+      expect(mockAxiosInstance.post.mock.calls[0][1]).toMatchObject({
+        access_token: "retry_access_token",
+      });
+      expect(result.extraData?.refreshedCredentials?.accessToken).toBe("retry_access_token");
     });
   });
 });

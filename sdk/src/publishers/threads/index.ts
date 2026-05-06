@@ -22,6 +22,20 @@ const VALIDATION_RULES: PlatformValidationRules = {
   media: { maxCount: MAX_MEDIA_COUNT, maxImages: 1, maxVideos: 1, allowsMixed: false },
 };
 
+interface ThreadsAxiosErrorLike {
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        code?: number;
+        message?: string;
+        type?: string;
+      };
+    };
+  };
+  message?: string;
+}
+
 export class ThreadsPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
 
@@ -107,6 +121,34 @@ export class ThreadsPublisher extends Publisher {
     }
   }
 
+  private isAuthError(error: unknown): boolean {
+    const err = error as ThreadsAxiosErrorLike;
+    const apiError = err.response?.data?.error;
+    const message = `${apiError?.message ?? ""} ${err.message ?? ""}`.toLowerCase();
+
+    return (
+      err.response?.status === 401 ||
+      apiError?.code === 190 ||
+      message.includes("session has expired") ||
+      message.includes("access token has expired") ||
+      message.includes("error validating access token")
+    );
+  }
+
+  private async withTokenRefresh<T>(request: () => Promise<T>): Promise<T> {
+    try {
+      return await request();
+    } catch (error) {
+      if (!this.isAuthError(error)) {
+        throw error;
+      }
+
+      this.logger.warn("Threads API rejected the access token, attempting refresh...");
+      await this.refreshAccessToken();
+      return request();
+    }
+  }
+
   private async cleanupS3Files(): Promise<void> {
     if (this.s3MediaUploader && this.s3TempFileKeys.length > 0) {
       await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader!.deleteFile(key)));
@@ -116,12 +158,14 @@ export class ThreadsPublisher extends Publisher {
   private async waitForMediaReady(containerId: string): Promise<void> {
     for (let attempt = 0; attempt < PROCESSING_MAX_ATTEMPTS; attempt += 1) {
       try {
-        const response = await this.client.get(`/${containerId}`, {
-          params: {
-            fields: "status",
-            access_token: this.accessToken,
-          },
-        });
+        const response = await this.withTokenRefresh(() =>
+          this.client.get(`/${containerId}`, {
+            params: {
+              fields: "status",
+              access_token: this.accessToken,
+            },
+          }),
+        );
 
         const status = response.data?.status;
         if (status === "FINISHED" || status === "READY") {
@@ -236,9 +280,11 @@ export class ThreadsPublisher extends Publisher {
    * /me returns the correct app-scoped threads-user-id for the current token.
    */
   private async resolveUserId(): Promise<string> {
-    const response = await this.client.get("/me", {
-      params: { fields: "id", access_token: this.accessToken },
-    });
+    const response = await this.withTokenRefresh(() =>
+      this.client.get("/me", {
+        params: { fields: "id", access_token: this.accessToken },
+      }),
+    );
     const id = response.data?.id;
     if (!id) {
       throw new PostError(PostErrorType.API_ERROR, "Threads /me did not return user id.", response.data);
@@ -284,6 +330,9 @@ export class ThreadsPublisher extends Publisher {
       try {
         threadsUserId = await this.resolveUserId();
       } catch (resolveError) {
+        if (resolveError instanceof PostError && resolveError.errorType === PostErrorType.CREDENTIALS_ERROR) {
+          throw resolveError;
+        }
         const errorMessage = resolveError instanceof Error ? resolveError.message : String(resolveError);
         this.logger.warn(`Threads /me failed, using stored userId (${this.userId}): ${errorMessage}`);
         threadsUserId = this.userId;
@@ -314,7 +363,12 @@ export class ThreadsPublisher extends Publisher {
         basePayload.media_type = "TEXT";
       }
 
-      const createResponse = await this.client.post(`/${threadsUserId}/threads`, basePayload);
+      const createResponse = await this.withTokenRefresh(() =>
+        this.client.post(`/${threadsUserId}/threads`, {
+          ...basePayload,
+          access_token: this.accessToken,
+        }),
+      );
       const creationId = String(createResponse.data?.id || createResponse.data?.creation_id || "");
 
       if (!creationId) {
@@ -329,10 +383,12 @@ export class ThreadsPublisher extends Publisher {
       // because the container had not yet propagated server-side.
       await this.waitForMediaReady(creationId);
 
-      const publishResponse = await this.client.post(`/${threadsUserId}/threads_publish`, {
-        access_token: this.accessToken,
-        creation_id: creationId,
-      });
+      const publishResponse = await this.withTokenRefresh(() =>
+        this.client.post(`/${threadsUserId}/threads_publish`, {
+          access_token: this.accessToken,
+          creation_id: creationId,
+        }),
+      );
 
       const publishId = String(publishResponse.data?.id || publishResponse.data?.post_id || creationId);
 
@@ -342,9 +398,11 @@ export class ThreadsPublisher extends Publisher {
       let canonicalId = publishId;
       let permalink: string | undefined;
       try {
-        const permalinkRes = await this.client.get(`/${publishId}`, {
-          params: { fields: "id,permalink", access_token: this.accessToken },
-        });
+        const permalinkRes = await this.withTokenRefresh(() =>
+          this.client.get(`/${publishId}`, {
+            params: { fields: "id,permalink", access_token: this.accessToken },
+          }),
+        );
         if (typeof permalinkRes.data?.id === "string" || typeof permalinkRes.data?.id === "number") {
           canonicalId = String(permalinkRes.data.id);
         }
@@ -375,6 +433,8 @@ export class ThreadsPublisher extends Publisher {
       };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      if (error instanceof PostError) throw error;
+
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,

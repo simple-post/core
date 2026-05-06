@@ -20,14 +20,7 @@ import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFil
 import { buildPostOptions } from "./credentials";
 import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
-import type {
-  Post,
-  Platform,
-  Media,
-  ThreadChainState,
-  ThreadSegment,
-  ThreadSegmentResult,
-} from "@simple-post/sdk";
+import type { Post, Platform, Media, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
 import type { Logger } from "pino";
 
 interface PostingResult {
@@ -165,7 +158,10 @@ function applyYouTubeDefaults(media: Media[], message: string, platform: string)
   });
 }
 
-function mergeReplyOverlay(options: ReturnType<typeof buildPostOptions>, overlay: ReturnType<typeof buildReplyOverlay>) {
+function mergeReplyOverlay(
+  options: ReturnType<typeof buildPostOptions>,
+  overlay: ReturnType<typeof buildReplyOverlay>,
+) {
   if (!overlay) return options;
   const existing = (options as Record<string, Record<string, unknown> | undefined>)[overlay.platform] ?? {};
   return {
@@ -180,7 +176,13 @@ async function persistRefreshedCredentials(
   log: Logger,
 ) {
   const platformLower = account.platform.toLowerCase();
-  if (platformLower !== "x" && platformLower !== "instagram" && platformLower !== "bluesky" && platformLower !== "threads") return;
+  if (
+    platformLower !== "x" &&
+    platformLower !== "instagram" &&
+    platformLower !== "bluesky" &&
+    platformLower !== "threads"
+  )
+    return;
 
   try {
     await prisma.connectedAccount.update({
@@ -190,14 +192,27 @@ async function persistRefreshedCredentials(
           accessToken: refreshedCredentials.accessToken || account.accessToken,
           refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
         }),
-        expiresAt: refreshedCredentials.expiresAt
-          ? new Date(refreshedCredentials.expiresAt * 1000)
-          : account.expiresAt,
+        expiresAt: refreshedCredentials.expiresAt ? new Date(refreshedCredentials.expiresAt * 1000) : account.expiresAt,
       },
     });
     log.info({ accountId: account.id, platform: account.platform }, "Updated credentials from refresh");
   } catch (updateError) {
     log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update credentials");
+  }
+}
+
+function applyRefreshedCredentialsToAccount(
+  account: ConnectedAccount,
+  refreshedCredentials: NonNullable<NonNullable<PostingResult["extraData"]>["refreshedCredentials"]>,
+) {
+  if (refreshedCredentials.accessToken) {
+    account.accessToken = refreshedCredentials.accessToken;
+  }
+  if (refreshedCredentials.refreshToken !== undefined) {
+    account.refreshToken = refreshedCredentials.refreshToken;
+  }
+  if (refreshedCredentials.expiresAt) {
+    account.expiresAt = new Date(refreshedCredentials.expiresAt * 1000);
   }
 }
 
@@ -247,6 +262,7 @@ async function postSingleSegment(
     const result = results.get(platform);
 
     if (result?.extraData?.refreshedCredentials) {
+      applyRefreshedCredentialsToAccount(account, result.extraData.refreshedCredentials);
       await persistRefreshedCredentials(account, result.extraData.refreshedCredentials, log);
     }
 

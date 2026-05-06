@@ -363,6 +363,55 @@ export class BlueskyPublisher extends Publisher {
     }
   }
 
+  private isAuthError(error: unknown): boolean {
+    const err = error as AxiosErrorLike;
+    const status = err.response?.status;
+    const apiError = err.response?.data?.error?.toLowerCase() ?? "";
+    const message = `${err.response?.data?.message ?? ""} ${err.message ?? ""}`.toLowerCase();
+
+    return (
+      status === 401 ||
+      apiError.includes("expired") ||
+      apiError.includes("invalid") ||
+      apiError.includes("auth") ||
+      message.includes("expired") ||
+      message.includes("invalid token") ||
+      message.includes("authentication")
+    );
+  }
+
+  private async refreshTokenForRetry(): Promise<void> {
+    if (this.authMode === "appPassword") {
+      try {
+        await (this.refreshToken ? this.refreshAppPasswordSession() : this.createAppPasswordSession());
+      } catch (error) {
+        this.logger.warn(
+          `Bluesky session refresh failed, re-authenticating with app password: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        await this.createAppPasswordSession();
+      }
+      return;
+    }
+
+    await this.refreshAccessToken();
+  }
+
+  private async withTokenRefresh<T>(request: () => Promise<T>): Promise<T> {
+    try {
+      return await request();
+    } catch (error) {
+      if (!this.isAuthError(error)) {
+        throw error;
+      }
+
+      this.logger.warn("Bluesky API rejected the access token, attempting refresh...");
+      await this.refreshTokenForRetry();
+      return request();
+    }
+  }
+
   private applySessionResponse(data: BlueskySessionResponse): void {
     this.accessToken = data.accessJwt;
     this.refreshToken = data.refreshJwt;
@@ -450,31 +499,28 @@ export class BlueskyPublisher extends Publisher {
       });
     };
 
-    try {
-      // Try with existing nonce first
-      const response = await makeRequest(this.dpopNonce);
-      return response.data.blob;
-    } catch (error: unknown) {
-      // If nonce error, extract nonce and retry
-      if (this.isNonceError(error)) {
-        const nonce = this.extractNonce(error);
-        if (nonce) {
-          this.dpopNonce = nonce;
-          try {
-            const response = await makeRequest(nonce);
-            return response.data.blob;
-          } catch (retryError: unknown) {
-            const err = retryError as AxiosErrorLike;
-            this.logger.error(retryError instanceof Error ? retryError : String(retryError));
-            throw new PostError(
-              PostErrorType.API_ERROR,
-              `Failed to upload Bluesky image: ${err.response?.data?.message || err.message || "Unknown error"}`,
-              err.response?.data,
-            );
+    const sendWithNonce = async () => {
+      try {
+        // Try with existing nonce first
+        return await makeRequest(this.dpopNonce);
+      } catch (error: unknown) {
+        // If nonce error, extract nonce and retry
+        if (this.isNonceError(error)) {
+          const nonce = this.extractNonce(error);
+          if (nonce) {
+            this.dpopNonce = nonce;
+            return makeRequest(nonce);
           }
         }
+        throw error;
       }
+    };
 
+    try {
+      const response = await this.withTokenRefresh(sendWithNonce);
+      return response.data.blob;
+    } catch (error: unknown) {
+      if (error instanceof PostError) throw error;
       const err = error as AxiosErrorLike;
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
@@ -619,24 +665,24 @@ export class BlueskyPublisher extends Publisher {
         });
       };
 
-      let response;
-      try {
-        // Try with existing nonce first
-        response = await makeRequest(this.dpopNonce);
-      } catch (error: unknown) {
-        // If nonce error, extract nonce and retry
-        if (this.isNonceError(error)) {
-          const nonce = this.extractNonce(error);
-          if (nonce) {
-            this.dpopNonce = nonce;
-            response = await makeRequest(nonce);
-          } else {
-            throw error;
+      const sendWithNonce = async () => {
+        try {
+          // Try with existing nonce first
+          return await makeRequest(this.dpopNonce);
+        } catch (error: unknown) {
+          // If nonce error, extract nonce and retry
+          if (this.isNonceError(error)) {
+            const nonce = this.extractNonce(error);
+            if (nonce) {
+              this.dpopNonce = nonce;
+              return makeRequest(nonce);
+            }
           }
-        } else {
           throw error;
         }
-      }
+      };
+
+      const response = await this.withTokenRefresh(sendWithNonce);
 
       const uri: string | undefined = response.data.uri;
       const cid: string | undefined = response.data.cid;
@@ -658,6 +704,8 @@ export class BlueskyPublisher extends Publisher {
       return result;
     } catch (error: unknown) {
       const err = error as AxiosErrorLike;
+      if (error instanceof PostError) throw error;
+
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,

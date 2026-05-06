@@ -21,6 +21,18 @@ describe("BlueskyPublisher", () => {
   let publisher: BlueskyPublisher;
   let mockAxiosInstance: any;
 
+  const makeOAuthPublisher = (credentials: Record<string, unknown> = {}) =>
+    new BlueskyPublisher({
+      bluesky: {
+        credentials: {
+          accessToken: "test_access_token",
+          did: "did:plc:123",
+          pdsUrl: "https://bsky.social",
+          ...credentials,
+        },
+      },
+    });
+
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -32,15 +44,7 @@ describe("BlueskyPublisher", () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(Buffer.from("mock file"));
 
-    publisher = new BlueskyPublisher({
-      bluesky: {
-        credentials: {
-          accessToken: "test_access_token",
-          did: "did:plc:123",
-          pdsUrl: "https://bsky.social",
-        },
-      },
-    });
+    publisher = makeOAuthPublisher();
   });
 
   describe("constructor", () => {
@@ -114,14 +118,82 @@ describe("BlueskyPublisher", () => {
 
       await expect(publisher.postContent(content)).rejects.toThrow(PostError);
     });
+
+    it("should proactively refresh expired OAuth credentials before posting", async () => {
+      const expiresAt = Math.floor(Date.now() / 1000) - 60;
+      publisher = makeOAuthPublisher({
+        accessToken: "expired_access_token",
+        refreshToken: "refresh_token",
+        expiresAt,
+        tokenUrl: "https://bsky.social/oauth/token",
+        clientId: "client_id",
+      });
+
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { access_token: "new_access_token", refresh_token: "new_refresh_token", expires_in: 3600 },
+      });
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: { uri: "at://did:plc:123/app.bsky.feed.post/refreshed" },
+      });
+
+      const result = await publisher.postContent({ text: "Hello after refresh" });
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        "https://bsky.social/oauth/token",
+        expect.any(URLSearchParams),
+        expect.objectContaining({
+          headers: expect.objectContaining({ "Content-Type": "application/x-www-form-urlencoded" }),
+        }),
+      );
+      expect(mockAxiosInstance.post.mock.calls[0][2].headers.Authorization).toBe("Bearer new_access_token");
+      expect(result.extraData?.refreshedCredentials).toMatchObject({
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+        expiresAt: expect.any(Number),
+      });
+    });
+
+    it("should refresh and retry when Bluesky rejects a stale token", async () => {
+      publisher = makeOAuthPublisher({
+        accessToken: "stale_access_token",
+        refreshToken: "refresh_token",
+        tokenUrl: "https://bsky.social/oauth/token",
+        clientId: "client_id",
+      });
+
+      mockAxiosInstance.post
+        .mockRejectedValueOnce({
+          response: { status: 401, data: { error: "ExpiredToken", message: "Token has expired" } },
+          message: "Request failed",
+        })
+        .mockResolvedValueOnce({
+          data: { uri: "at://did:plc:123/app.bsky.feed.post/retried" },
+        });
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { access_token: "retry_access_token", refresh_token: "retry_refresh_token", expires_in: 3600 },
+      });
+
+      const result = await publisher.postContent({ text: "Hello after retry" });
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post.mock.calls[0][2].headers.Authorization).toBe("Bearer stale_access_token");
+      expect(mockAxiosInstance.post.mock.calls[1][2].headers.Authorization).toBe("Bearer retry_access_token");
+      expect(result.extraData?.refreshedCredentials).toMatchObject({
+        accessToken: "retry_access_token",
+        refreshToken: "retry_refresh_token",
+        expiresAt: expect.any(Number),
+      });
+    });
   });
 
   describe("app password mode", () => {
     const makeJwt = (expiresInSeconds: number): string => {
       const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-      const payload = Buffer.from(
-        JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expiresInSeconds }),
-      ).toString("base64url");
+      const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expiresInSeconds })).toString(
+        "base64url",
+      );
       return `${header}.${payload}.sig`;
     };
 

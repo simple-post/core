@@ -33,7 +33,7 @@ export default defineRoute({
     patch: {
       operationId: "updatePost",
       tags: ["Posts"],
-      summary: "Update a scheduled post",
+      summary: "Update a scheduled post or draft",
       security: userAuthSecurity,
       requestParams,
       requestBody: {

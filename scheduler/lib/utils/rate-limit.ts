@@ -21,10 +21,7 @@ async function getPlatformsForAccounts(userId: string, accountIds: string[]): Pr
   return [...new Set(accounts.map((a) => a.platform))];
 }
 
-export async function getRateLimitStatuses(
-  userId: string,
-  accountIds: string[],
-): Promise<PlatformRateLimitStatus[]> {
+export async function getRateLimitStatuses(userId: string, accountIds: string[]): Promise<PlatformRateLimitStatus[]> {
   const platforms = await getPlatformsForAccounts(userId, accountIds);
   const windowStart = new Date(Date.now() - WINDOW_HOURS * 60 * 60 * 1000);
 
@@ -37,7 +34,7 @@ export async function getRateLimitStatuses(
         where: {
           userId,
           createdAt: { gte: windowStart },
-          status: { notIn: ["failed"] },
+          status: { notIn: ["draft", "failed"] },
           accounts: { some: { platform } },
         },
       });

@@ -130,14 +130,14 @@ model PendingOAuthConnection {
   @@map("pending_oauth_connection")
 }
 
-// Scheduled posts
+// Posts saved as drafts, scheduled for dispatch, or already processed
 model Post {
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   message      String
-  scheduledFor DateTime
-  status       String    @default("scheduled") // "scheduled", "published", "failed"
+  scheduledFor DateTime?
+  status       String    @default("scheduled") // "draft", "scheduled", "pending", "published", "failed"
   errorMessage String? // Human-readable error message when status is "failed"
   errorDetails Json? // Detailed error info (stack trace, API response, etc.)
   publishedAt  DateTime?

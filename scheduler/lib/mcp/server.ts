@@ -35,9 +35,9 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 4. Use \`preview_post\` only when the user explicitly asks for a preview or when the requested post is missing essential details such as target account, media choice, or scheduling time. If the user has already confirmed the exact content, accounts, media, thread segments (if any), and timing, call \`create_post\` directly after \`list_accounts\` and any required media upload.
 
-5. Use \`postingMode: "now"\` for immediate publishing (the call blocks until each platform responds and returns \`postingResults\` per account). Use \`postingMode: "schedule"\` together with \`scheduledFor\` to schedule for later — the call returns immediately with \`status: "scheduled"\` and the scheduler will publish at that time.
+5. Use \`postingMode: "now"\` for immediate publishing (the call blocks until each platform responds and returns \`postingResults\` per account). Use \`postingMode: "schedule"\` together with \`scheduledFor\` to schedule for later — the call returns immediately with \`status: "scheduled"\` and the scheduler will publish at that time. Use \`postingMode: "draft"\` to save the post in SimplePost without publishing or scheduling it.
 
-6. Use \`inspect_posts\` when the user asks what is scheduled, already posted, or failed. Use \`update_scheduled_post\` only for future scheduled posts when the user wants to change the content, accounts, root media, thread, or scheduled time. Use \`discard_scheduled_post\` when the user asks to cancel or delete a future scheduled post.
+6. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, scheduled time, or move between draft and scheduled. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
 
 # Visible text responses
 
@@ -74,14 +74,14 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 
 - \`scheduledFor\` must be an ISO 8601 datetime (e.g. \`2026-05-01T14:30:00Z\` or \`2026-05-01T16:30:00+02:00\`). Always include a timezone offset or \`Z\`; never send a naive local time.
 - When the user says things like "tomorrow at 9am" or "next Monday", resolve to an absolute datetime in the user's timezone before calling the tool. If you don't know their timezone, ask.
-- \`scheduledFor\` must be in the future. Past times are rejected.
+- \`scheduledFor\` must be in the future when \`postingMode: "schedule"\`. Past times are rejected. Drafts do not need \`scheduledFor\`.
 
 # Managing existing posts
 
-- \`inspect_posts\` can list future scheduled posts, already posted posts, and failed posts. Pass a \`postId\` to inspect a single post before editing or discarding it.
-- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`media: null\` or \`media: []\` clears root media, and \`thread: null\` or \`thread: []\` clears follow-up segments.
-- \`update_scheduled_post\` validates the resulting scheduled post before saving changes. If validation fails, surface the per-account errors and do not call \`create_post\`.
-- \`discard_scheduled_post\` deletes a future scheduled post and its stored media from SimplePost. It cannot undo posts that were already published to social platforms.
+- \`inspect_posts\` can list drafts, future scheduled posts, already posted posts, and failed posts. Pass a \`postId\` to inspect a single post before editing or discarding it.
+- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`postingMode: "draft"\` moves a scheduled post to drafts, and \`postingMode: "schedule"\` plus \`scheduledFor\` moves a draft to scheduled. \`media: null\` or \`media: []\` clears root media, and \`thread: null\` or \`thread: []\` clears follow-up segments.
+- \`update_scheduled_post\` validates the resulting scheduled post before saving changes. Draft saves are allowed even if platform validation would block publishing. If validation fails for a scheduled result, surface the per-account errors and do not call \`create_post\`.
+- \`discard_scheduled_post\` deletes a draft or future scheduled post and its stored media from SimplePost. It cannot undo posts that were already published to social platforms.
 
 # Error handling
 
@@ -260,7 +260,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Preview a post before it is created. This resolves target accounts, optional media count, optional thread segment count, scheduled time, and validation result without writing to SimplePost or publishing to social platforms. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Use it when the user explicitly asks for a preview or when essential posting details are missing; do not use it as a default preflight for already-confirmed posts.`,
+      description: `Preview a post before it is created. This resolves target accounts, optional media count, optional thread segment count, scheduled time when applicable, and validation result without writing to SimplePost or publishing to social platforms. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Draft previews do not need scheduledFor. Use it when the user explicitly asks for a preview or when essential posting details are missing; do not use it as a default preflight for already-confirmed posts.`,
       inputSchema: previewPostSchema.shape,
       outputSchema: previewPostOutputSchema.shape,
       annotations: {
@@ -305,7 +305,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Create a SimplePost post with text plus optional images/videos and optional multi-segment thread (thread field: follow-up messages after the root). Use postingMode "now" to publish immediately or "schedule" with a future scheduledFor in full ISO 8601 format with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Do not send date-only or local time without timezone. This is a write action that can publish public content on connected social platforms and it performs blocking validation internally, so do not call validate_post first unless the user requested validation-only feedback. Always call list_accounts first to get account IDs.`,
+      description: `Create a SimplePost post with text plus optional images/videos and optional multi-segment thread (thread field: follow-up messages after the root). Use postingMode "now" to publish immediately, "schedule" with a future scheduledFor in full ISO 8601 format with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z), or "draft" to save without publishing. Do not send date-only or local time without timezone when scheduling. This is a write action that can publish public content on connected social platforms and it performs blocking validation internally for now/schedule, so do not call validate_post first unless the user requested validation-only feedback. Always call list_accounts first to get account IDs.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
       annotations: {
@@ -327,22 +327,28 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text:
-                result.post.status === "scheduled"
-                  ? `Post scheduled for ${result.post.scheduledFor} across ${result.summary.scheduledCount} account(s)${
+                result.post.status === "draft"
+                  ? `Post saved as a draft across ${result.summary.draftCount} account(s)${
                       result.summary.threadSegmentCount > 0
                         ? ` (${result.summary.threadSegmentCount} follow-up thread segment(s) each)`
                         : ""
                     }.\n\n${formatPostContent(input.message, input.thread)}`
-                  : result.summary.overallSuccess
-                    ? `Post published successfully across ${result.summary.successCount} account(s)${
+                  : result.post.status === "scheduled"
+                    ? `Post scheduled for ${result.post.scheduledFor} across ${result.summary.scheduledCount} account(s)${
                         result.summary.threadSegmentCount > 0
-                          ? ` with ${result.summary.threadSegmentCount} follow-up thread segment(s) per thread-capable account`
+                          ? ` (${result.summary.threadSegmentCount} follow-up thread segment(s) each)`
                           : ""
                       }.\n\n${formatPostContent(input.message, input.thread)}`
-                    : `Post completed with ${result.summary.failureCount} platform failure(s).\n\n${formatPostContent(
-                        input.message,
-                        input.thread,
-                      )}`,
+                    : result.summary.overallSuccess
+                      ? `Post published successfully across ${result.summary.successCount} account(s)${
+                          result.summary.threadSegmentCount > 0
+                            ? ` with ${result.summary.threadSegmentCount} follow-up thread segment(s) per thread-capable account`
+                            : ""
+                        }.\n\n${formatPostContent(input.message, input.thread)}`
+                      : `Post completed with ${result.summary.failureCount} platform failure(s).\n\n${formatPostContent(
+                          input.message,
+                          input.thread,
+                        )}`,
             },
           ],
         };
@@ -357,7 +363,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: "Inspect Posts",
-      description: `Use this when the user asks to review SimplePost posts that are currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a scheduled post. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
+      description: `Use this when the user asks to review SimplePost posts that are drafts, currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a draft or scheduled post. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
       inputSchema: inspectPostsSchema.shape,
       outputSchema: inspectPostsOutputSchema.shape,
       annotations: {
@@ -385,7 +391,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                         result.posts[0],
                       )}`
                     : "Post not found."
-                  : `Found ${result.summary.totalReturned} SimplePost post(s): ${result.summary.scheduledCount} scheduled, ${result.summary.postedCount} posted, ${result.summary.failedCount} failed.\n\n${formatManagedPosts(
+                  : `Found ${result.summary.totalReturned} SimplePost post(s): ${result.summary.draftCount} drafts, ${result.summary.scheduledCount} scheduled, ${result.summary.postedCount} posted, ${result.summary.failedCount} failed.\n\n${formatManagedPosts(
                       result.posts,
                     )}`,
             },
@@ -402,7 +408,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "update_scheduled_post",
     {
       title: "Update Scheduled Post",
-      description: `Use this when the user asks to edit a future scheduled SimplePost post. Provide the postId from inspect_posts and only the fields that should change: message, accountIds, media, thread, or scheduledFor. This validates the final scheduled post before saving and cannot edit already posted, failed, pending, or due posts.`,
+      description: `Use this when the user asks to edit a draft or future scheduled SimplePost post. Provide the postId from inspect_posts and only the fields that should change: message, accountIds, media, thread, postingMode, or scheduledFor. Set postingMode to "draft" to move a scheduled post to drafts, or "schedule" with scheduledFor to move a draft to scheduled. This validates the final scheduled post before saving and cannot edit already posted, failed, pending, or due posts.`,
       inputSchema: updateScheduledPostSchema.shape,
       outputSchema: updateScheduledPostOutputSchema.shape,
       annotations: {
@@ -423,9 +429,12 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Updated scheduled post ${result.post.id}; it is scheduled for ${
-                result.post.scheduledFor
-              }.\n\n${formatManagedPostContent(result.post)}`,
+              text:
+                result.post.status === "draft"
+                  ? `Updated draft ${result.post.id}.\n\n${formatManagedPostContent(result.post)}`
+                  : `Updated scheduled post ${result.post.id}; it is scheduled for ${
+                      result.post.scheduledFor
+                    }.\n\n${formatManagedPostContent(result.post)}`,
             },
           ],
         };
@@ -440,7 +449,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "discard_scheduled_post",
     {
       title: "Discard Scheduled Post",
-      description: `Use this when the user asks to cancel, delete, or discard a future scheduled SimplePost post. Provide the postId from inspect_posts. This permanently deletes the scheduled SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
+      description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post. Provide the postId from inspect_posts. This permanently deletes the SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
       inputSchema: discardScheduledPostSchema.shape,
       outputSchema: discardScheduledPostOutputSchema.shape,
       annotations: {
@@ -461,7 +470,9 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Discarded scheduled post ${result.post.id}.\n\n${formatManagedPostContent(result.post)}`,
+              text: `Discarded ${result.post.status === "draft" ? "draft" : "scheduled post"} ${
+                result.post.id
+              }.\n\n${formatManagedPostContent(result.post)}`,
             },
           ],
         };

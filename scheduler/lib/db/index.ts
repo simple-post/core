@@ -75,6 +75,46 @@ export class PostsModel {
     };
   }
 
+  async getDraftPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+    const { page = 1, limit = 25 } = options;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      userId: this.userId,
+      status: "draft",
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        include: {
+          media: true,
+          accounts: true,
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: posts.map((post) => this.mapPostToSocialPost(post)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
   async getPastPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
@@ -245,7 +285,7 @@ export class PostsModel {
   async updatePost(id: string, updates: Partial<SocialPost>): Promise<SocialPost> {
     const updateData: {
       message?: string;
-      scheduledFor?: Date;
+      scheduledFor?: Date | null;
       status?: string;
       errorMessage?: string | null;
       errorDetails?: unknown | null;
@@ -331,7 +371,7 @@ export class PostsModel {
   private mapPostToSocialPost(post: {
     id: string;
     message: string;
-    scheduledFor: Date;
+    scheduledFor: Date | null;
     status: string;
     errorMessage: string | null;
     errorDetails: unknown;
@@ -363,7 +403,7 @@ export class PostsModel {
         filename: m.filename,
         size: m.size,
       })),
-      scheduledFor: new Date(post.scheduledFor),
+      scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
       status: post.status as SocialPost["status"],
       errorMessage: post.errorMessage ?? undefined,
       errorDetails: (post.errorDetails as Record<string, unknown> | null) ?? undefined,

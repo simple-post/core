@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { AlertTriangle, CalendarIcon, Clock, Info, Plus, X } from "lucide-react";
+import { AlertTriangle, CalendarIcon, Clock, Info, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { cn } from "@/lib/utils";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
-import type { AccountOptionsMap, AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
 import { GenericPostPreview } from "./generic-post-preview";
@@ -52,6 +52,8 @@ export function CreatePostForm() {
     accountOptions,
     accountOverrides,
     thread,
+    hasDraftContent,
+    storageError,
     setMessage,
     setMedia,
     setSelectedAccountIds,
@@ -62,6 +64,7 @@ export function CreatePostForm() {
     removeThreadSegment,
     updateThreadSegmentMessage,
     updateThreadSegmentMedia,
+    resetDraft,
   } = usePostDraft();
 
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
@@ -295,15 +298,17 @@ export function CreatePostForm() {
     }
 
     try {
-      const latestValidation = await runBackendValidation();
-      if (!latestValidation?.summary.isValid) {
-        return;
+      if (postingMode !== "draft") {
+        const latestValidation = await runBackendValidation();
+        if (!latestValidation?.summary.isValid) {
+          return;
+        }
       }
 
       const body: {
         message: string;
         accountIds: string[];
-        postingMode: "now" | "schedule";
+        postingMode: PostingMode;
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
         accountOverrides?: AccountOverridesMap;
@@ -351,9 +356,16 @@ export function CreatePostForm() {
 
         const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
         setPostingSucceeded(allSucceeded);
+        if (allSucceeded) {
+          resetDraft();
+        }
 
         setShowPostLinksModal(true);
+      } else if (postingMode === "draft") {
+        resetDraft();
+        router.push("/?tab=drafts");
       } else {
+        resetDraft();
         router.push("/?tab=scheduled");
       }
     } catch (error) {
@@ -369,14 +381,30 @@ export function CreatePostForm() {
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
     selectedAccounts.length === selectedAccountIds.length &&
-    (validation?.summary.isValid ?? false) &&
-    !validationLoading &&
-    atLimitPlatforms.length === 0 &&
-    (postingMode === "now" || (scheduledDate && scheduledTime));
+    (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
+    (postingMode === "draft" || !validationLoading) &&
+    (postingMode === "draft" || atLimitPlatforms.length === 0) &&
+    (postingMode !== "schedule" || (scheduledDate && scheduledTime));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!hasDraftContent}
+            className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
+            onClick={() => {
+              resetDraft();
+              toast.success("Draft cleared");
+            }}>
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear all
+          </Button>
+        </div>
+
         <AccountSelector
           selectedAccountIds={selectedAccountIds}
           onSelectionChange={setSelectedAccountIds}
@@ -471,7 +499,7 @@ export function CreatePostForm() {
           <div>
             <Label className="text-sm font-medium">When to Post</Label>
           </div>
-          <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as "now" | "schedule")}>
+          <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as PostingMode)}>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="now" id="post-now" />
               <Label htmlFor="post-now" className="font-normal cursor-pointer">
@@ -482,6 +510,12 @@ export function CreatePostForm() {
               <RadioGroupItem value="schedule" id="post-schedule" />
               <Label htmlFor="post-schedule" className="font-normal cursor-pointer">
                 Schedule for Later
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="draft" id="post-draft" />
+              <Label htmlFor="post-draft" className="font-normal cursor-pointer">
+                Save as Draft
               </Label>
             </div>
           </RadioGroup>
@@ -573,12 +607,16 @@ export function CreatePostForm() {
             {submitPostMutation.isPending
               ? postingMode === "now"
                 ? "Posting..."
-                : "Scheduling..."
-              : validationLoading
-                ? "Validating..."
-                : postingMode === "now"
-                  ? "Post Now"
-                  : "Schedule Post"}
+                : postingMode === "draft"
+                  ? "Saving..."
+                  : "Scheduling..."
+              : postingMode === "draft"
+                ? "Save Draft"
+                : validationLoading
+                  ? "Validating..."
+                  : postingMode === "now"
+                    ? "Post Now"
+                    : "Schedule Post"}
           </Button>
         </div>
       </form>
@@ -586,6 +624,16 @@ export function CreatePostForm() {
       <div className="lg:sticky lg:top-24 self-start space-y-4">
         {/* Status Messages */}
         <div className="space-y-3">
+          {storageError && (
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Draft is not being saved</p>
+              </div>
+              <p className="mt-1 text-muted-foreground">{storageError}</p>
+            </div>
+          )}
+
           {selectedAccountIds.length === 0 && (
             <div className="p-3 rounded-lg border border-border bg-card text-sm text-muted-foreground">
               Select at least one account to publish your content.

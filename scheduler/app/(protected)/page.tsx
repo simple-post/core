@@ -5,33 +5,34 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { Calendar, CheckCircle, AlertCircle, Users, Plus } from "lucide-react";
+import { Calendar, CheckCircle, AlertCircle, Users, Plus, FileText } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type TabType = "scheduled" | "past" | "failed";
+type TabType = "drafts" | "scheduled" | "past" | "failed";
+const TABS = new Set<TabType>(["drafts", "scheduled", "past", "failed"]);
 
 export default function Dashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab") as TabType | null;
 
-  const [activeTab, setActiveTab] = useState<TabType>(
-    tabParam && ["scheduled", "past", "failed"].includes(tabParam) ? tabParam : "scheduled",
-  );
+  const [activeTab, setActiveTab] = useState<TabType>(tabParam && TABS.has(tabParam) ? tabParam : "scheduled");
+  const [draftsPage, setDraftsPage] = useState(1);
   const [scheduledPage, setScheduledPage] = useState(1);
   const [postedPage, setPostedPage] = useState(1);
   const [failedPage, setFailedPage] = useState(1);
+  const [draftsPageSize, setDraftsPageSize] = useState(25);
   const [scheduledPageSize, setScheduledPageSize] = useState(25);
   const [postedPageSize, setPostedPageSize] = useState(25);
   const [failedPageSize, setFailedPageSize] = useState(25);
 
   // Update tab when URL param changes
   useEffect(() => {
-    if (tabParam && ["scheduled", "past", "failed"].includes(tabParam)) {
+    if (tabParam && TABS.has(tabParam)) {
       setActiveTab(tabParam);
       // Clean up URL by removing the tab param
       router.replace("/", { scroll: false });
@@ -81,6 +82,10 @@ export default function Dashboard() {
           onValueChange={handleTabChange}
           className="w-full animate-reveal animate-reveal-delay-1">
           <TabsList className="mb-6">
+            <TabsTrigger value="drafts" className="gap-2">
+              <FileText className="h-3.5 w-3.5" />
+              Drafts
+            </TabsTrigger>
             <TabsTrigger value="scheduled" className="gap-2">
               <Calendar className="h-3.5 w-3.5" />
               Scheduled
@@ -94,6 +99,16 @@ export default function Dashboard() {
               Failed
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="drafts" className="mt-0">
+            <PostsList
+              type="drafts"
+              page={draftsPage}
+              pageSize={draftsPageSize}
+              onPageChange={setDraftsPage}
+              onPageSizeChange={setDraftsPageSize}
+            />
+          </TabsContent>
 
           <TabsContent value="scheduled" className="mt-0">
             <PostsList

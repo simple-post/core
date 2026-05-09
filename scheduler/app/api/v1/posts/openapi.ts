@@ -16,11 +16,11 @@ export default defineRoute({
       operationId: "listPosts",
       tags: ["Posts"],
       summary: "List posts",
-      description: "Lists scheduled, past, failed, or all posts for the authenticated user.",
+      description: "Lists drafts, scheduled, past, failed, or all posts for the authenticated user.",
       security: userAuthSecurity,
       requestParams: {
         query: z.object({
-          type: z.enum(["all", "scheduled", "past", "failed"]).optional().default("all"),
+          type: z.enum(["all", "drafts", "scheduled", "past", "failed"]).optional().default("all"),
           page: z.coerce.number().int().positive().optional().default(1),
           limit: z.coerce.number().int().positive().max(100).optional().default(25),
         }),

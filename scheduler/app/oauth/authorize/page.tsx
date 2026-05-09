@@ -8,7 +8,7 @@ export default function OAuthAuthorizePage() {
       config={{
         title: "Connect SimplePost",
         description:
-          "ChatGPT or another MCP client is requesting permission to view connected accounts, inspect post history, validate drafts, and create or manage scheduled posts through SimplePost.",
+          "ChatGPT or another MCP client is requesting permission to view connected accounts, inspect post history, validate drafts, and create or manage drafts and scheduled posts through SimplePost.",
         invalidMessage:
           "This authorization link is invalid or has expired. Please try connecting again from your AI assistant.",
         successMessage: "Authorization successful. You can close this tab and return to your app.",

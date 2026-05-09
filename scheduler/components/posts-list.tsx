@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
@@ -29,12 +29,12 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
-import { usePaginatedPosts, type PaginationInfo } from "@/hooks/use-posts";
+import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { SocialPost, ConnectedAccount } from "@/types";
 
 interface PostsListProps {
-  type: "scheduled" | "past" | "failed";
+  type: PostsListType;
   page: number;
   onPageChange: (page: number) => void;
   pageSize: number;
@@ -83,11 +83,13 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
     return (
       <div className="border border-dashed border-border rounded-2xl p-12 text-center bg-card">
         <p className="text-sm text-muted-foreground">
-          {type === "scheduled"
-            ? "No scheduled posts yet."
-            : type === "failed"
-              ? "No failed posts."
-              : "No published posts yet."}
+          {type === "drafts"
+            ? "No drafts yet."
+            : type === "scheduled"
+              ? "No scheduled posts yet."
+              : type === "failed"
+                ? "No failed posts."
+                : "No published posts yet."}
         </p>
       </div>
     );
@@ -261,6 +263,7 @@ function PostCard({
   const uniquePlatforms = [...new Set(postAccounts.map((acc) => acc.platform))];
 
   const hasMedia = post.media.length > 0;
+  const isDraft = post.status === "draft";
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
 
@@ -368,6 +371,12 @@ function PostCard({
                         Failed
                       </Badge>
                     )}
+                    {isDraft && (
+                      <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                        <FileText className="h-3 w-3 mr-1" />
+                        Draft
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -379,8 +388,10 @@ function PostCard({
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    {isScheduled ? (
+                    {isScheduled && post.scheduledFor ? (
                       <span>{formatDate(post.scheduledFor)}</span>
+                    ) : isDraft ? (
+                      <span>Saved {formatTimeAgo(post.createdAt)}</span>
                     ) : (
                       <span>{formatTimeAgo(post.publishedAt || post.createdAt)}</span>
                     )}
@@ -422,7 +433,7 @@ function PostCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {isScheduled && (
+                    {(isScheduled || isDraft) && (
                       <Link href={`/posts/${post.id}/edit`}>
                         <DropdownMenuItem
                           onClick={(e) => {
@@ -457,8 +468,8 @@ function PostCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this scheduled post{hasMedia ? " and all associated media files" : ""}. This
-              action cannot be undone.
+              This will permanently delete this {isDraft ? "draft" : "post"}
+              {hasMedia ? " and all associated media files" : ""}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

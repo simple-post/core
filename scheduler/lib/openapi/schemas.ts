@@ -3,12 +3,11 @@ import {
   MediaFileSchema,
   PlatformSchema,
   ThreadSchema,
-  createPostSchema,
   validationRequestSchema,
 } from "@simple-post/sdk";
 import * as z from "zod/v4";
 
-import { updatePostSchema } from "@/lib/validations/posts";
+import { createPostSchema, updatePostSchema } from "@/lib/validations/posts";
 
 export const JsonValueSchema = z.unknown();
 
@@ -71,8 +70,8 @@ export const PostSchema = z
     message: z.string(),
     accountIds: z.array(z.string()),
     media: z.array(MediaFileResponseSchema),
-    scheduledFor: z.iso.datetime(),
-    status: z.enum(["scheduled", "pending", "published", "failed"]),
+    scheduledFor: z.iso.datetime().nullable(),
+    status: z.enum(["draft", "scheduled", "pending", "published", "failed"]),
     errorMessage: z.string().optional(),
     errorDetails: z.record(z.string(), JsonValueSchema).optional(),
     createdAt: z.iso.datetime(),

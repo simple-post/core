@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-client";
-import type { SocialPost } from "@/types";
+import type { PostingMode, SocialPost } from "@/types";
 
 // Delete post mutation
 async function deletePost(postId: string): Promise<void> {
@@ -88,7 +88,7 @@ interface PostMutationParams {
   body: {
     message: string;
     accountIds: string[];
-    postingMode: "now" | "schedule";
+    postingMode: PostingMode;
     scheduledFor?: string;
     accountOptions?: Record<string, unknown>;
     accountOverrides?: Record<string, unknown>;
@@ -100,7 +100,17 @@ interface PostMutationParams {
       filename: string;
       size: number;
     }>;
-    thread?: Array<{ message: string; media?: Array<{ id: string; url: string; thumbnailUrl?: string; type: "image" | "video"; filename: string; size: number }> }>;
+    thread?: Array<{
+      message: string;
+      media?: Array<{
+        id: string;
+        url: string;
+        thumbnailUrl?: string;
+        type: "image" | "video";
+        filename: string;
+        size: number;
+      }>;
+    }>;
   };
   mode: "create" | "edit";
   postId?: string;

@@ -189,20 +189,21 @@ export default function IntegrationsPage() {
               },
               {
                 name: "create_post",
-                description:
-                  "Validates internally, then publishes immediately or schedules for later across connected accounts.",
+                description: "Validates internally, then publishes immediately, schedules for later, or saves a draft.",
               },
               {
                 name: "inspect_posts",
-                description: "Lists scheduled, posted, and failed SimplePost records, or inspects one post by ID.",
+                description:
+                  "Lists drafts, scheduled, posted, and failed SimplePost records, or inspects one post by ID.",
               },
               {
                 name: "update_scheduled_post",
-                description: "Edits a future scheduled post after validating the resulting content.",
+                description:
+                  "Edits drafts or future scheduled posts, including moving posts between draft and scheduled.",
               },
               {
                 name: "discard_scheduled_post",
-                description: "Deletes a future scheduled post and its stored media.",
+                description: "Deletes a draft or future scheduled post and its stored media.",
               },
             ].map((tool) => (
               <div key={tool.name} className="py-4 first:pt-0 last:pb-0">

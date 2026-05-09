@@ -13,7 +13,33 @@ import type { MediaFile, ThreadSegmentResult } from "@/types";
 
 const log = createLogger("api:posts");
 
-// GET /api/v1/posts - Get all posts (scheduled, past, and failed) with pagination
+type PostingMode = "now" | "schedule" | "draft";
+
+function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: string): Date | null {
+  if (postingMode === "draft") {
+    return null;
+  }
+
+  if (postingMode === "now") {
+    return new Date();
+  }
+
+  if (!scheduledForValue) {
+    throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
+  }
+
+  const scheduledFor = new Date(scheduledForValue);
+  if (Number.isNaN(scheduledFor.getTime())) {
+    throw new BadRequestError("scheduledFor must be a valid ISO 8601 datetime");
+  }
+  if (scheduledFor <= new Date()) {
+    throw new BadRequestError("scheduledFor must be in the future");
+  }
+
+  return scheduledFor;
+}
+
+// GET /api/v1/posts - Get all posts (drafts, scheduled, past, and failed) with pagination
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
@@ -30,6 +56,10 @@ export async function GET(req: NextRequest) {
         const result = await repository.getScheduledPosts(paginationOptions);
         return NextResponse.json({ posts: result.data, pagination: result.pagination });
       }
+      case "drafts": {
+        const result = await repository.getDraftPosts(paginationOptions);
+        return NextResponse.json({ posts: result.data, pagination: result.pagination });
+      }
       case "past": {
         const result = await repository.getPastPosts(paginationOptions);
         return NextResponse.json({ posts: result.data, pagination: result.pagination });
@@ -40,12 +70,13 @@ export async function GET(req: NextRequest) {
       }
       default: {
         // For "all" type, we don't support pagination - return all posts
-        const [scheduled, past, failed] = await Promise.all([
+        const [drafts, scheduled, past, failed] = await Promise.all([
+          repository.getDraftPosts({ page: 1, limit: 1000 }),
           repository.getScheduledPosts({ page: 1, limit: 1000 }),
           repository.getPastPosts({ page: 1, limit: 1000 }),
           repository.getFailedPosts({ page: 1, limit: 1000 }),
         ]);
-        const posts = [...scheduled.data, ...past.data, ...failed.data];
+        const posts = [...drafts.data, ...scheduled.data, ...past.data, ...failed.data];
         return NextResponse.json({ posts });
       }
     }
@@ -73,18 +104,14 @@ export async function POST(req: NextRequest) {
     const validated = createPostSchema.parse(body);
     log.debug({ accountCount: validated.accountIds.length }, "Validation successful");
 
-    // Get scheduledFor based on posting mode
-    let scheduledFor: Date;
-    if (validated.postingMode === "now") {
-      scheduledFor = new Date(); // Post immediately
+    const postingMode = validated.postingMode;
+    const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);
+    if (postingMode === "now") {
       log.debug("Posting immediately (now)");
+    } else if (postingMode === "schedule") {
+      log.debug({ scheduledFor: scheduledFor?.toISOString() }, "Scheduling for future");
     } else {
-      if (!validated.scheduledFor) {
-        log.warn("scheduledFor required but missing for schedule mode");
-        throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
-      }
-      scheduledFor = new Date(validated.scheduledFor);
-      log.debug({ scheduledFor: scheduledFor.toISOString() }, "Scheduling for future");
+      log.debug("Saving post as draft");
     }
 
     const mediaFiles: MediaFile[] = validated.media || [];
@@ -102,12 +129,14 @@ export async function POST(req: NextRequest) {
       throw new BadRequestError("One or more accounts were not found");
     }
 
-    if (!validation.summary.isValid) {
+    if (postingMode !== "draft" && !validation.summary.isValid) {
       throw new ValidationError(validation);
     }
 
-    await checkRateLimits(userId, validated.accountIds);
-    await checkAndDeductXCredits(userId, validated.accountIds);
+    if (postingMode !== "draft") {
+      await checkRateLimits(userId, validated.accountIds);
+      await checkAndDeductXCredits(userId, validated.accountIds);
+    }
 
     // Create the post first
     log.debug("Creating post record in database");
@@ -117,7 +146,7 @@ export async function POST(req: NextRequest) {
         accountIds: validated.accountIds,
         media: mediaFiles,
         scheduledFor,
-        status: validated.postingMode === "now" ? "pending" : "scheduled",
+        status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
         accountOptions: validated.accountOptions,
         accountOverrides: validated.accountOverrides,
         thread: validated.thread,
@@ -127,7 +156,7 @@ export async function POST(req: NextRequest) {
     log.info({ postId: post.id }, "Post created");
 
     // If posting now, actually post to the platforms
-    if (validated.postingMode === "now") {
+    if (postingMode === "now") {
       log.info({ postId: post.id }, "Starting platform posting (immediate mode)");
       try {
         const results = await postToAccounts(
@@ -244,7 +273,7 @@ export async function POST(req: NextRequest) {
     }
 
     const durationMs = Date.now() - startTime;
-    log.info({ postId: post.id, durationMs }, "Post scheduled successfully");
+    log.info({ postId: post.id, durationMs, postingMode }, "Post created successfully");
     return NextResponse.json({ post }, { status: 201 });
   } catch (error) {
     const durationMs = Date.now() - startTime;

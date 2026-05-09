@@ -31,15 +31,15 @@ export const createPostSchema = z.object({
     ),
   thread: mcpThreadSchema,
   postingMode: z
-    .enum(["now", "schedule"])
+    .enum(["now", "schedule", "draft"])
     .default("now")
-    .describe("'now' to post immediately, 'schedule' to schedule for later"),
+    .describe("'now' to post immediately, 'schedule' to schedule for later, or 'draft' to save without publishing"),
   scheduledFor: z
     .string()
     .datetime()
     .optional()
     .describe(
-      "Required when postingMode is 'schedule'. Use a full ISO 8601 datetime with timezone: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm (examples: 2026-05-01T14:30:00Z, 2026-05-01T16:30:00+02:00). Never send date-only or local time without timezone.",
+      "Required when postingMode is 'schedule'; ignored for 'draft'. Use a full ISO 8601 datetime with timezone: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm (examples: 2026-05-01T14:30:00Z, 2026-05-01T16:30:00+02:00). Never send date-only or local time without timezone.",
     ),
 });
 
@@ -49,7 +49,7 @@ const mcpPostSchema = z.object({
   id: z.string(),
   message: z.string(),
   accountIds: z.array(z.string()),
-  scheduledFor: z.string(),
+  scheduledFor: z.string().nullable(),
   status: z.string(),
   publishedAt: z.string().nullable(),
 });
@@ -77,8 +77,8 @@ const postingResultSchema = z.object({
 export const previewPostOutputSchema = z.object({
   kind: z.literal("preview"),
   message: z.string(),
-  postingMode: z.enum(["now", "schedule"]),
-  scheduledFor: z.string(),
+  postingMode: z.enum(["now", "schedule", "draft"]),
+  scheduledFor: z.string().nullable(),
   mediaCount: z.number(),
   accounts: z.array(mcpAccountSchema),
   validation: validatePostOutputSchema,
@@ -94,7 +94,7 @@ export const previewPostOutputSchema = z.object({
 export const createPostOutputSchema = z.object({
   kind: z.literal("post"),
   message: z.string(),
-  postingMode: z.enum(["now", "schedule"]),
+  postingMode: z.enum(["now", "schedule", "draft"]),
   mediaCount: z.number(),
   post: mcpPostSchema,
   postingResults: z.array(postingResultSchema),
@@ -105,15 +105,18 @@ export const createPostOutputSchema = z.object({
     successCount: z.number(),
     failureCount: z.number(),
     scheduledCount: z.number(),
+    draftCount: z.number(),
     overallSuccess: z.boolean(),
   }),
 });
 
 export const inspectPostsSchema = z.object({
   status: z
-    .enum(["scheduled", "posted", "failed", "all"])
+    .enum(["drafts", "scheduled", "posted", "failed", "all"])
     .default("all")
-    .describe("Which post status to inspect. Use 'all' to inspect scheduled, already posted, and failed posts."),
+    .describe(
+      "Which post status to inspect. Use 'all' to inspect drafts, scheduled, already posted, and failed posts.",
+    ),
   postId: z
     .string()
     .optional()
@@ -129,7 +132,13 @@ export const inspectPostsSchema = z.object({
 });
 
 export const updateScheduledPostSchema = z.object({
-  postId: z.string().describe("ID of the future scheduled SimplePost post to edit. Use inspect_posts to find it."),
+  postId: z
+    .string()
+    .describe("ID of the draft or future scheduled SimplePost post to edit. Use inspect_posts to find it."),
+  postingMode: z
+    .enum(["draft", "schedule"])
+    .optional()
+    .describe("Set to 'draft' to save as a draft or 'schedule' to schedule for later. Omit to keep the current state."),
   message: z.string().optional().describe("Replacement root post text. Omit to keep the current text."),
   accountIds: z
     .array(z.string())
@@ -156,7 +165,9 @@ export const updateScheduledPostSchema = z.object({
 });
 
 export const discardScheduledPostSchema = z.object({
-  postId: z.string().describe("ID of the future scheduled SimplePost post to discard. Use inspect_posts to find it."),
+  postId: z
+    .string()
+    .describe("ID of the draft or future scheduled SimplePost post to discard. Use inspect_posts to find it."),
 });
 
 const storedMediaSchema = mcpMediaItemSchema.extend({
@@ -169,7 +180,7 @@ const storedThreadSegmentSchema = mcpThreadSegmentSchema.extend({
   media: z.array(storedMediaSchema).optional(),
 });
 
-const managedPostStatusSchema = z.enum(["scheduled", "pending", "posted", "failed"]);
+const managedPostStatusSchema = z.enum(["draft", "scheduled", "pending", "posted", "failed"]);
 
 const managedPostSchema = z.object({
   id: z.string(),
@@ -178,7 +189,7 @@ const managedPostSchema = z.object({
   accounts: z.array(mcpAccountSchema),
   media: z.array(storedMediaSchema),
   thread: z.array(storedThreadSegmentSchema),
-  scheduledFor: z.string(),
+  scheduledFor: z.string().nullable(),
   createdAt: z.string(),
   publishedAt: z.string().nullable(),
   status: managedPostStatusSchema,
@@ -200,11 +211,12 @@ const paginationSchema = z
 
 export const inspectPostsOutputSchema = z.object({
   kind: z.literal("posts"),
-  status: z.enum(["scheduled", "posted", "failed", "all", "single"]),
+  status: z.enum(["drafts", "scheduled", "posted", "failed", "all", "single"]),
   posts: z.array(managedPostSchema),
   pagination: paginationSchema,
   summary: z.object({
     totalReturned: z.number(),
+    draftCount: z.number(),
     scheduledCount: z.number(),
     postedCount: z.number(),
     failedCount: z.number(),
@@ -221,6 +233,7 @@ export const updateScheduledPostOutputSchema = z.object({
     accountsChanged: z.boolean(),
     mediaChanged: z.boolean(),
     threadChanged: z.boolean(),
+    statusChanged: z.boolean(),
     scheduledForChanged: z.boolean(),
   }),
 });
@@ -234,8 +247,13 @@ export const discardScheduledPostOutputSchema = z.object({
   }),
 });
 
-function resolveScheduledFor(input: z.infer<typeof createPostSchema>): Date {
-  if ((input.postingMode ?? "now") === "now") {
+function resolveScheduledFor(input: z.infer<typeof createPostSchema>): Date | null {
+  const postingMode = input.postingMode ?? "now";
+  if (postingMode === "draft") {
+    return null;
+  }
+
+  if (postingMode === "now") {
     return new Date();
   }
 
@@ -258,15 +276,15 @@ function mapPost(post: {
   id: string;
   message: string;
   accountIds: string[];
-  scheduledFor: Date;
+  scheduledFor: Date | null;
   status: string;
-  publishedAt?: Date;
+  publishedAt?: Date | null;
 }) {
   return {
     id: post.id,
     message: post.message,
     accountIds: post.accountIds,
-    scheduledFor: post.scheduledFor.toISOString(),
+    scheduledFor: post.scheduledFor?.toISOString() ?? null,
     status: post.status,
     publishedAt: post.publishedAt?.toISOString() ?? null,
   };
@@ -312,7 +330,7 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
     accounts: post.accountIds.map((accountId) => accountMap.get(accountId)).filter((account) => account !== undefined),
     media: post.media.map((media) => mapStoredMedia(media)),
     thread,
-    scheduledFor: post.scheduledFor.toISOString(),
+    scheduledFor: post.scheduledFor?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     publishedAt: post.publishedAt?.toISOString() ?? null,
     status: mapManagedStatus(post.status),
@@ -325,6 +343,7 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
 function countStatuses(posts: ManagedPost[]) {
   return {
     totalReturned: posts.length,
+    draftCount: posts.filter((post) => post.status === "draft").length,
     scheduledCount: posts.filter((post) => post.status === "scheduled").length,
     postedCount: posts.filter((post) => post.status === "posted").length,
     failedCount: posts.filter((post) => post.status === "failed").length,
@@ -333,25 +352,34 @@ function countStatuses(posts: ManagedPost[]) {
 
 async function getPostsForStatus(
   repository: PostsModel,
-  status: "scheduled" | "posted" | "failed",
+  status: "drafts" | "scheduled" | "posted" | "failed",
   options: { page: number; limit: number },
 ) {
+  if (status === "drafts") return await repository.getDraftPosts(options);
   if (status === "scheduled") return await repository.getScheduledPosts(options);
   if (status === "posted") return await repository.getPublishedPosts(options);
   return await repository.getFailedPosts(options);
 }
 
-function assertFutureScheduledPost(post: SocialPost): void {
-  if (post.status !== "scheduled") {
-    throw new Error("Only scheduled posts can be managed with this tool");
+function assertEditableManagedPost(post: SocialPost): void {
+  if (post.status === "draft") {
+    return;
   }
-  if (post.scheduledFor <= new Date()) {
+  if (post.status !== "scheduled") {
+    throw new Error("Only draft and scheduled posts can be managed with this tool");
+  }
+  if (!post.scheduledFor || post.scheduledFor <= new Date()) {
     throw new Error("Only future scheduled posts can be edited or discarded");
   }
 }
 
-function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Date): Date {
-  if (!value) return currentValue;
+function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Date | null): Date {
+  if (!value) {
+    if (!currentValue) {
+      throw new Error("scheduledFor is required when moving a draft to scheduled");
+    }
+    return currentValue;
+  }
 
   const scheduledFor = new Date(value);
   if (Number.isNaN(scheduledFor.getTime())) {
@@ -396,7 +424,7 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
     kind: "preview" as const,
     message: input.message,
     postingMode,
-    scheduledFor: scheduledFor.toISOString(),
+    scheduledFor: scheduledFor?.toISOString() ?? null,
     mediaCount,
     accounts: validation.accounts.map((account) => ({
       accountId: account.accountId,
@@ -452,12 +480,15 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
     };
   }
 
-  const [scheduled, posted, failed] = await Promise.all([
+  const [drafts, scheduled, posted, failed] = await Promise.all([
+    getPostsForStatus(repository, "drafts", { page: 1, limit }),
     getPostsForStatus(repository, "scheduled", { page: 1, limit }),
     getPostsForStatus(repository, "posted", { page: 1, limit }),
     getPostsForStatus(repository, "failed", { page: 1, limit }),
   ]);
-  const posts = [...scheduled.data, ...posted.data, ...failed.data].map((post) => mapManagedPost(post, accountMap));
+  const posts = [...drafts.data, ...scheduled.data, ...posted.data, ...failed.data].map((post) =>
+    mapManagedPost(post, accountMap),
+  );
 
   return {
     kind: "posts" as const,
@@ -474,10 +505,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.accountIds !== undefined ||
     input.media !== undefined ||
     input.thread !== undefined ||
+    input.postingMode !== undefined ||
     input.scheduledFor !== undefined;
 
   if (!hasChanges) {
-    throw new Error("Provide at least one scheduled post field to update");
+    throw new Error("Provide at least one draft or scheduled post field to update");
   }
 
   const repository = new PostsModel(userId);
@@ -485,7 +517,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (!currentPost) {
     throw new Error("Post not found");
   }
-  assertFutureScheduledPost(currentPost);
+  assertEditableManagedPost(currentPost);
 
   const message = input.message ?? currentPost.message;
   const accountIds = input.accountIds ?? currentPost.accountIds;
@@ -493,7 +525,10 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
   const threadForValidation = thread && thread.length > 0 ? thread : undefined;
-  const scheduledFor = resolveUpdatedScheduledFor(input.scheduledFor, currentPost.scheduledFor);
+  const currentPostingMode = currentPost.status === "draft" ? "draft" : "schedule";
+  const targetPostingMode = input.postingMode ?? (input.scheduledFor === undefined ? currentPostingMode : "schedule");
+  const scheduledFor =
+    targetPostingMode === "schedule" ? resolveUpdatedScheduledFor(input.scheduledFor, currentPost.scheduledFor) : null;
 
   const validation = await validatePost(userId, {
     message,
@@ -506,7 +541,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     throw new Error("One or more accounts were not found");
   }
 
-  if (!validation.isValid) {
+  if (targetPostingMode === "schedule" && !validation.isValid) {
     const errorMessages = validation.accounts
       .flatMap((account) => account.errors.map((error) => error.message))
       .join("; ");
@@ -518,7 +553,9 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (input.media !== undefined) updates.media = media;
   if (input.thread !== undefined) updates.thread = thread ?? [];
-  if (input.scheduledFor !== undefined) updates.scheduledFor = scheduledFor;
+  if (targetPostingMode !== currentPostingMode)
+    updates.status = targetPostingMode === "schedule" ? "scheduled" : "draft";
+  if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
 
   const updatedPost = await repository.updatePost(input.postId, updates);
 
@@ -540,7 +577,8 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       accountsChanged: input.accountIds !== undefined,
       mediaChanged: input.media !== undefined,
       threadChanged: input.thread !== undefined,
-      scheduledForChanged: input.scheduledFor !== undefined,
+      statusChanged: targetPostingMode !== currentPostingMode,
+      scheduledForChanged: input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode,
     },
   };
 }
@@ -551,7 +589,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   if (!post) {
     throw new Error("Post not found");
   }
-  assertFutureScheduledPost(post);
+  assertEditableManagedPost(post);
 
   const accountMap = await getAccountMap(userId);
   const mappedPost = mapManagedPost(post, accountMap);
@@ -616,7 +654,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     throw new Error("One or more accounts were not found");
   }
 
-  if (!validation.summary.isValid) {
+  if (postingMode !== "draft" && !validation.summary.isValid) {
     const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
     throw new Error(`Validation failed: ${errorMessages}`);
   }
@@ -628,7 +666,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       accountIds: input.accountIds,
       media: mediaFiles,
       scheduledFor,
-      status: postingMode === "now" ? "pending" : "scheduled",
+      status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
       thread: threadForPersistence,
     },
     userId,
@@ -700,6 +738,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           successCount: summary.successCount,
           failureCount: summary.failureCount,
           scheduledCount: 0,
+          draftCount: 0,
           overallSuccess: summary.overallSuccess,
         },
       };
@@ -723,7 +762,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       threadSegmentCount,
       successCount: 0,
       failureCount: 0,
-      scheduledCount: input.accountIds.length,
+      scheduledCount: postingMode === "schedule" ? input.accountIds.length : 0,
+      draftCount: postingMode === "draft" ? input.accountIds.length : 0,
       overallSuccess: true,
     },
   };

@@ -76,9 +76,9 @@ export default function McpDocsPage() {
                 "Upload generated or attached images and videos through ChatGPT file parameters when no public URL exists",
                 "Validate draft post text against platform-specific rules when requested",
                 "Preview target accounts, timing, and validation when requested",
-                "Create posts for immediate publishing or future scheduling",
-                "Inspect scheduled, posted, and failed SimplePost records",
-                "Edit or discard future scheduled posts",
+                "Create posts for immediate publishing, future scheduling, or draft storage",
+                "Inspect drafts, scheduled, posted, and failed SimplePost records",
+                "Edit or discard drafts and future scheduled posts",
                 "Return text and structured JSON without an embedded ChatGPT iframe",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">

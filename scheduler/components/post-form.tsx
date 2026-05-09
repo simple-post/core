@@ -21,7 +21,7 @@ import { getPlatformById } from "@/lib/config";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
-import type { MediaFile, AccountOptionsMap, SocialPost, ThreadSegment } from "@/types";
+import type { MediaFile, AccountOptionsMap, PostingMode, SocialPost, ThreadSegment } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
@@ -56,9 +56,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
   const router = useRouter();
   const [message, setMessage] = useState(existingPost.message || "");
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(existingPost.accountIds || []);
-  const [postingMode, setPostingMode] = useState<"now" | "schedule">(
-    existingPost.status === "scheduled" ? "schedule" : "now",
-  );
+  const [postingMode, setPostingMode] = useState<PostingMode>(existingPost.status === "draft" ? "draft" : "schedule");
   const [scheduledDate, setScheduledDate] = useState(
     existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
   );
@@ -236,16 +234,18 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     }
 
     try {
-      const latestValidation = await runBackendValidation();
-      if (!latestValidation?.summary.isValid) {
-        return;
+      if (postingMode !== "draft") {
+        const latestValidation = await runBackendValidation();
+        if (!latestValidation?.summary.isValid) {
+          return;
+        }
       }
 
       // Build the request body - media is already uploaded to R2
       const body: {
         message: string;
         accountIds: string[];
-        postingMode: "now" | "schedule";
+        postingMode: PostingMode;
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
         media: MediaFile[];
@@ -290,9 +290,11 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         // Navigation will happen when modal closes (see onOpenChange below)
         // If failed, user can close modal and retry
       } else {
-        // Scheduled post - navigate to Scheduled tab
+        // Scheduled or draft post - navigate to the updated post
         if (mode === "edit") {
           router.push(`/posts/${existingPost.id}`);
+        } else if (postingMode === "draft") {
+          router.push("/?tab=drafts");
         } else {
           router.push("/?tab=scheduled");
         }
@@ -307,9 +309,9 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
     selectedAccounts.length === selectedAccountIds.length &&
-    (validation?.summary.isValid ?? false) &&
-    !validationLoading &&
-    (postingMode === "now" || (scheduledDate && scheduledTime));
+    (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
+    (postingMode === "draft" || !validationLoading) &&
+    (postingMode !== "schedule" || (scheduledDate && scheduledTime));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -460,7 +462,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           <div>
             <Label className="text-sm font-medium">When to Post</Label>
           </div>
-          <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as "now" | "schedule")}>
+          <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as PostingMode)}>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="now" id="post-now" />
               <Label htmlFor="post-now" className="font-normal cursor-pointer">
@@ -471,6 +473,12 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
               <RadioGroupItem value="schedule" id="post-schedule" />
               <Label htmlFor="post-schedule" className="font-normal cursor-pointer">
                 Schedule for Later
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="draft" id="post-draft" />
+              <Label htmlFor="post-draft" className="font-normal cursor-pointer">
+                Save as Draft
               </Label>
             </div>
           </RadioGroup>
@@ -540,16 +548,20 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             {submitPostMutation.isPending
               ? postingMode === "now"
                 ? "Posting..."
-                : mode === "edit"
-                  ? "Updating..."
-                  : "Scheduling..."
-              : validationLoading
-                ? "Validating..."
-                : postingMode === "now"
-                  ? "Post Now"
+                : postingMode === "draft"
+                  ? "Saving..."
                   : mode === "edit"
-                    ? "Update Post"
-                    : "Schedule Post"}
+                    ? "Updating..."
+                    : "Scheduling..."
+              : postingMode === "draft"
+                ? "Save Draft"
+                : validationLoading
+                  ? "Validating..."
+                  : postingMode === "now"
+                    ? "Post Now"
+                    : mode === "edit"
+                      ? "Update Post"
+                      : "Schedule Post"}
           </Button>
         </div>
       </form>

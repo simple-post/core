@@ -15,7 +15,7 @@ export interface PaginationInfo {
 }
 
 type RawSocialPost = Omit<SocialPost, "scheduledFor" | "createdAt" | "publishedAt"> & {
-  scheduledFor: string;
+  scheduledFor?: string | null;
   createdAt: string;
   publishedAt?: string | null;
 };
@@ -33,17 +33,15 @@ export interface PaginatedPostsResult {
 function parsePost(post: RawSocialPost): SocialPost {
   return {
     ...post,
-    scheduledFor: new Date(post.scheduledFor),
+    scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
     createdAt: new Date(post.createdAt),
     publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
   };
 }
 
-async function fetchPaginatedPosts(
-  type: "scheduled" | "past" | "failed",
-  page: number,
-  limit: number,
-): Promise<PaginatedPostsResult> {
+export type PostsListType = "drafts" | "scheduled" | "past" | "failed";
+
+async function fetchPaginatedPosts(type: PostsListType, page: number, limit: number): Promise<PaginatedPostsResult> {
   const url = `/api/v1/posts?type=${type}&page=${page}&limit=${limit}`;
   const response = await fetch(url);
   if (!response.ok) {
@@ -75,7 +73,7 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
   return data.post ? parsePost(data.post) : null;
 }
 
-export function usePaginatedPosts(type: "scheduled" | "past" | "failed", page: number = 1, limit: number = 25) {
+export function usePaginatedPosts(type: PostsListType, page: number = 1, limit: number = 25) {
   return useQuery({
     queryKey: queryKeys.paginatedPosts(type, page, limit),
     queryFn: () => fetchPaginatedPosts(type, page, limit),

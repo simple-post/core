@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { Trash2, Calendar, Clock, Edit, AlertCircle } from "lucide-react";
+import { Trash2, Calendar, Clock, Edit, AlertCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { BackLink } from "@/components/back-link";
@@ -87,6 +87,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   const postAccounts = accounts.filter((acc: ConnectedAccount) => post.accountIds.includes(acc.id));
+  const isDraft = post.status === "draft";
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
   const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
@@ -99,7 +100,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <Navbar
           actions={
             <>
-              {isScheduled && (
+              {(isScheduled || isDraft) && (
                 <Link href={`/posts/${id}/edit`}>
                   <Button variant="outline" size="sm" className="gap-2">
                     <Edit className="h-4 w-4" />
@@ -122,12 +123,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
                 <span className="section-kicker-label">
-                  {isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
+                  {isDraft ? "Draft" : isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
                 </span>
               </div>
               <span className="h-3 w-px bg-border" />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {isScheduled ? (
+                {isDraft ? (
+                  <FileText className="h-3.5 w-3.5" />
+                ) : isScheduled ? (
                   <Calendar className="h-3.5 w-3.5" />
                 ) : isFailed ? (
                   <AlertCircle className="h-3.5 w-3.5" />
@@ -135,9 +138,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <Clock className="h-3.5 w-3.5" />
                 )}
                 <span>
-                  {isScheduled
-                    ? format(post.scheduledFor, "EEEE, MMMM d, yyyy 'at' h:mm a")
-                    : format(post.publishedAt || post.createdAt, "MMMM d, yyyy 'at' h:mm a")}
+                  {isDraft
+                    ? `Saved ${format(post.createdAt, "MMMM d, yyyy 'at' h:mm a")}`
+                    : isScheduled && post.scheduledFor
+                      ? format(post.scheduledFor, "EEEE, MMMM d, yyyy 'at' h:mm a")
+                      : format(post.publishedAt || post.createdAt, "MMMM d, yyyy 'at' h:mm a")}
                 </span>
               </div>
             </div>
@@ -249,7 +254,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this scheduled post
+              This will permanently delete this {isDraft ? "draft" : "post"}
               {post.media.length > 0 ? " and all associated media files" : ""}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

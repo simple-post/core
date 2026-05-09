@@ -17,6 +17,9 @@ export type {
   ThreadSegmentResult,
 } from "@simple-post/sdk";
 
+export type PostingMode = "now" | "schedule" | "draft";
+export type PostStatus = "draft" | "scheduled" | "pending" | "published" | "failed";
+
 export interface AccountPlatformOptions {
   x?: {
     replyToId?: string;
@@ -62,16 +65,16 @@ export interface SocialPost {
   message: string;
   accountIds: string[];
   media: MediaFile[];
-  scheduledFor: Date;
-  status: "scheduled" | "pending" | "published" | "failed";
-  errorMessage?: string;
-  errorDetails?: Record<string, unknown>;
+  scheduledFor: Date | null;
+  status: PostStatus;
+  errorMessage?: string | null;
+  errorDetails?: Record<string, unknown> | null;
   createdAt: Date;
-  publishedAt?: Date;
+  publishedAt?: Date | null;
   accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
-  threadResults?: Record<string, ThreadSegmentResult[]>;
+  threadResults?: Record<string, ThreadSegmentResult[]> | null;
 }
 
 // Legacy shape kept for backward compatibility.

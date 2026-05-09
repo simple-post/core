@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "SimplePost",
     "subtitle": "Post to social media",
-    "description": "SimplePost is a text-only ChatGPT app that helps users work with connected social accounts: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing, publish immediately, schedule posts for later, and manage future scheduled posts.",
+    "description": "SimplePost is a text-only ChatGPT app that helps users work with connected social accounts: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing, publish immediately, schedule posts for later, save posts as drafts, and manage drafts or future scheduled posts.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -51,7 +51,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Resolves targets, media count, scheduled time, and validation status without creating or publishing a post.",
+        "read_only_justification": "Resolves targets, media count, scheduled time when applicable, and validation status without creating or publishing a post.",
         "open_world_justification": "Does not write to SimplePost, public internet state, or external third-party systems.",
         "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
       }
@@ -63,8 +63,8 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates a SimplePost post record and may update its status after attempting platform posting.",
-        "open_world_justification": "Can publish user-confirmed content to connected external social platforms or schedule it for later publication.",
+        "read_only_justification": "Creates a SimplePost post record as a draft, scheduled post, or immediate post and may update its status after attempting platform posting.",
+        "open_world_justification": "Can publish user-confirmed content to connected external social platforms, schedule it for later publication, or store it as a SimplePost draft.",
         "destructive_justification": "Immediate posting sends public social content to external platforms, which may not be reversible through this app."
       }
     },
@@ -87,9 +87,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Updates an existing future scheduled SimplePost post record after validating the resulting content.",
-        "open_world_justification": "Changes content or timing that SimplePost will later publish to connected external social platforms.",
-        "destructive_justification": "Can overwrite scheduled post content, targets, media, thread segments, or scheduled time."
+        "read_only_justification": "Updates an existing draft or future scheduled SimplePost post record and validates the result when scheduling.",
+        "open_world_justification": "Can change content or timing that SimplePost will later publish to connected external social platforms.",
+        "destructive_justification": "Can overwrite draft or scheduled post content, targets, media, thread segments, scheduled time, or draft/scheduled status."
       }
     },
     "discard_scheduled_post": {
@@ -99,9 +99,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Deletes a future scheduled SimplePost post record and best-effort deletes its stored media.",
+        "read_only_justification": "Deletes a draft or future scheduled SimplePost post record and best-effort deletes its stored media.",
         "open_world_justification": "Can remove publicly fetchable SimplePost media URLs and prevents scheduled content from being published externally.",
-        "destructive_justification": "Permanently deletes the selected scheduled post record and stored media from SimplePost."
+        "destructive_justification": "Permanently deletes the selected draft or scheduled post record and stored media from SimplePost."
       }
     }
   },
@@ -147,11 +147,27 @@
       "expected_output_url": null
     },
     {
-      "description": "Inspect future scheduled posts before making changes.",
-      "user_prompt": "Show me my SimplePost posts that are currently scheduled.",
+      "description": "Save a confirmed post as a draft without scheduling or publishing it.",
+      "user_prompt": "Save this as a SimplePost draft for my LinkedIn account: We are preparing the launch announcement, but do not publish or schedule it yet.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, create_post",
+      "expected_output": "Creates a SimplePost draft without publishing or scheduling it, then returns the exact draft content, target account details, draft status, and posting summary.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Inspect drafts and future scheduled posts before making changes.",
+      "user_prompt": "Show me my SimplePost drafts and posts that are currently scheduled.",
       "file_attachment_urls": null,
       "tools_triggered": "inspect_posts",
-      "expected_output": "Returns future scheduled SimplePost posts with IDs, status, target account metadata, exact content, media count, thread count, and scheduled time.",
+      "expected_output": "Returns matching SimplePost drafts and future scheduled posts with IDs, status, target account metadata, exact content, media count, thread count, and scheduled time when present.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Move an existing draft to the scheduled queue.",
+      "user_prompt": "Schedule my SimplePost draft post_123 for tomorrow at 18:00 Europe/Berlin.",
+      "file_attachment_urls": null,
+      "tools_triggered": "update_scheduled_post",
+      "expected_output": "Validates the draft for scheduled publication, updates it to scheduled status with the requested future time, and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
@@ -163,11 +179,19 @@
       "expected_output_url": null
     },
     {
-      "description": "Discard an existing future scheduled post.",
-      "user_prompt": "Cancel the SimplePost post with ID post_123 that is scheduled for tomorrow.",
+      "description": "Move an existing scheduled post back to drafts.",
+      "user_prompt": "Move my scheduled SimplePost post post_123 back to drafts for now.",
+      "file_attachment_urls": null,
+      "tools_triggered": "update_scheduled_post",
+      "expected_output": "Updates the future scheduled post to draft status without publishing it and returns the exact updated content and post details.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Discard an existing draft or future scheduled post.",
+      "user_prompt": "Delete the SimplePost draft with ID post_123.",
       "file_attachment_urls": null,
       "tools_triggered": "discard_scheduled_post",
-      "expected_output": "Deletes the future scheduled SimplePost record, returns the exact discarded content, and best-effort deletes stored media while explaining that already published posts cannot be undone.",
+      "expected_output": "Deletes the draft or future scheduled SimplePost record, returns the exact discarded content, and best-effort deletes stored media while explaining that already published posts cannot be undone.",
       "expected_output_url": null
     },
     {
@@ -217,7 +241,7 @@
       "user_prompt": "Write three short caption ideas for a product launch.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not be invoked unless the user asks to validate, preview, upload media for, publish, schedule, inspect, edit, or discard posts through SimplePost.",
+      "expected_output": "The app should not be invoked unless the user asks to validate, preview, upload media for, publish, schedule, save drafts, inspect, edit, or discard posts through SimplePost.",
       "expected_output_url": null
     }
   ]

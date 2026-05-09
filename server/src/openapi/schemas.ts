@@ -33,7 +33,11 @@ export const OpenApiDocumentSchema = z
 
 export const MediaFileResponseSchema = MediaFileSchema.meta({ id: "ServerMediaFile" });
 
-export const CreatePostRequestSchema = createPostSchema.meta({ id: "ServerCreatePostRequest" });
+export const CreatePostRequestSchema = createPostSchema
+  .extend({
+    postingMode: z.literal("now").default("now"),
+  })
+  .meta({ id: "ServerCreatePostRequest" });
 
 export const ValidationRequestSchema = validationRequestSchema.meta({ id: "ServerValidationRequest" });
 

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { createPostSchema } from "@simple-post/sdk";
 import { Router } from "express";
 
 import { getAccountsByIds } from "../config/accounts.js";
+import { CreatePostRequestSchema } from "../openapi/schemas.js";
 import { getPostingSummary, postToAccounts } from "../services/posting.js";
 import { validatePostForAccounts } from "../services/validation.js";
 import { BadRequestError, handleApiError, sanitizeForJson, ValidationError } from "../utils/errors.js";
@@ -15,7 +15,7 @@ const router = Router();
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    const parseResult = createPostSchema.safeParse(req.body);
+    const parseResult = CreatePostRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
       throw new ValidationError(parseResult.error.issues);
     }

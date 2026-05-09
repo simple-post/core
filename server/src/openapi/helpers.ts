@@ -1,11 +1,11 @@
+import { ApiErrorSchema } from "./schemas.js";
+
 import type {
   ZodOpenApiOperationObject,
   ZodOpenApiPathItemObject,
   ZodOpenApiResponseObject,
   ZodOpenApiSchemaObject,
 } from "zod-openapi";
-
-import { ApiErrorSchema } from "./schemas.js";
 
 export type OpenApiMethod = "get" | "post";
 
@@ -56,11 +56,14 @@ export const serverErrorResponses = {
 };
 
 export function buildPaths(routes: OpenApiRoute[]): Record<string, ZodOpenApiPathItemObject> {
-  return routes.reduce<Record<string, ZodOpenApiPathItemObject>>((paths, route) => {
+  const paths: Record<string, ZodOpenApiPathItemObject> = {};
+
+  for (const route of routes) {
     paths[route.path] = {
-      ...(paths[route.path] ?? {}),
+      ...paths[route.path],
       ...route.methods,
     };
-    return paths;
-  }, {});
+  }
+
+  return paths;
 }

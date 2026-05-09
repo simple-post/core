@@ -1,26 +1,21 @@
 import axios from "axios";
 
+import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaUrl } from "../../utils";
+import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 const THREADS_API_VERSION = "v1.0";
-const MAX_TEXT_LENGTH = 500;
-const MAX_MEDIA_COUNT = 1;
 const PROCESSING_POLL_INTERVAL = 2000;
 const PROCESSING_MAX_ATTEMPTS = 12;
 const PROACTIVE_REFRESH_DAYS = 7;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxLength: MAX_TEXT_LENGTH },
-  media: { maxCount: MAX_MEDIA_COUNT, maxImages: 1, maxVideos: 1, allowsMixed: false },
-};
 
 interface ThreadsAxiosErrorLike {
   response?: {
@@ -40,7 +35,7 @@ export class ThreadsPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return THREADS_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -194,77 +189,7 @@ export class ThreadsPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    let videos = 0;
-    for (const item of media) {
-      if (item.type === "video") videos += 1;
-    }
-
-    if (!text.trim() && mediaCount === 0) {
-      errors.push({
-        platform: "threads",
-        severity: "error",
-        code: "content_required",
-        message: "Threads posts require text or media.",
-        field: "text",
-      });
-    }
-
-    if (text.length > MAX_TEXT_LENGTH) {
-      errors.push({
-        platform: "threads",
-        severity: "error",
-        code: "text_too_long",
-        message: `Threads text cannot exceed ${MAX_TEXT_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_TEXT_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "threads",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    if (videos > 1) {
-      errors.push({
-        platform: "threads",
-        severity: "error",
-        code: "too_many_videos",
-        message: "Threads supports only one video per post.",
-        field: "media",
-        limit: 1,
-        actual: videos,
-      });
-    }
-
-    if (mediaCount > MAX_MEDIA_COUNT) {
-      warnings.push({
-        platform: "threads",
-        severity: "warning",
-        code: "too_many_media",
-        message: "Threads supports only one media item per post. Only the first will be posted.",
-        field: "media",
-        limit: MAX_MEDIA_COUNT,
-        actual: mediaCount,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateThreadsContent(content);
   }
 
   private getS3Uploader(): S3MediaUploader {

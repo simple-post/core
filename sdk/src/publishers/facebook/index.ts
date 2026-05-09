@@ -4,36 +4,24 @@ import path from "node:path";
 import axios from "axios";
 import FormData from "form-data";
 
+import { FACEBOOK_MAX_MEDIA_COUNT, FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { getContentType, hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Image, PostOptionsWithCredentials, Video } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 const FACEBOOK_API_VERSION = "v25.0";
-
-const MAX_TEXT_LENGTH = 63_206;
-const MAX_MEDIA_COUNT = 10;
-const MAX_VIDEOS = 1;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxLength: MAX_TEXT_LENGTH },
-  media: {
-    maxCount: MAX_MEDIA_COUNT,
-    maxImages: MAX_MEDIA_COUNT,
-    maxVideos: MAX_VIDEOS,
-    allowsMixed: false,
-  },
-};
 
 export class FacebookPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return FACEBOOK_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -98,94 +86,7 @@ export class FacebookPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    let images = 0;
-    let videos = 0;
-    for (const item of media) {
-      if (item.type === "image") images += 1;
-      if (item.type === "video") videos += 1;
-    }
-
-    // Check for empty content
-    if (!text.trim() && mediaCount === 0) {
-      errors.push({
-        platform: "facebook",
-        severity: "error",
-        code: "content_required",
-        message: "Facebook posts require text or media.",
-        field: "text",
-      });
-    }
-
-    // Check text length
-    if (text.length > MAX_TEXT_LENGTH) {
-      errors.push({
-        platform: "facebook",
-        severity: "error",
-        code: "text_too_long",
-        message: `Facebook text cannot exceed ${MAX_TEXT_LENGTH.toLocaleString()} characters.`,
-        field: "text",
-        limit: MAX_TEXT_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    // Check media sources
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "facebook",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    // Check video restrictions
-    if (videos > 0 && mediaCount > 1) {
-      errors.push({
-        platform: "facebook",
-        severity: "error",
-        code: "video_with_other_media",
-        message: "Facebook video posts can only contain a single video.",
-        field: "media",
-      });
-    }
-
-    if (videos > MAX_VIDEOS) {
-      errors.push({
-        platform: "facebook",
-        severity: "error",
-        code: "too_many_videos",
-        message: "Facebook supports only one video per post.",
-        field: "media",
-        limit: MAX_VIDEOS,
-        actual: videos,
-      });
-    }
-
-    // Warn about excess images
-    if (images > MAX_MEDIA_COUNT) {
-      warnings.push({
-        platform: "facebook",
-        severity: "warning",
-        code: "too_many_images",
-        message: `Facebook supports up to ${MAX_MEDIA_COUNT} images. Only the first ${MAX_MEDIA_COUNT} will be posted.`,
-        field: "media",
-        limit: MAX_MEDIA_COUNT,
-        actual: images,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateFacebookContent(content);
   }
 
   private async postVideo(
@@ -280,7 +181,7 @@ export class FacebookPublisher extends Publisher {
       // Add the media
       if (content.media && content.media.length > 0) {
         const attachedMedia = [];
-        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
+        for (const media of content.media.slice(0, FACEBOOK_MAX_MEDIA_COUNT)) {
           // Resolve media path (download if URL)
           const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
           tempFileManager.add(cleanup);

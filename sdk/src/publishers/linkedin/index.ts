@@ -2,23 +2,21 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import {
+  LINKEDIN_MAX_IMAGES,
+  LINKEDIN_MAX_VIDEOS,
+  LINKEDIN_VALIDATION_RULES,
+  validateLinkedInContent,
+} from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { getContentType, hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
-
-const MAX_TEXT_LENGTH = 3000;
-const MAX_IMAGES = 9;
-const MAX_VIDEOS = 1;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxLength: MAX_TEXT_LENGTH },
-  media: { maxCount: MAX_IMAGES, maxImages: MAX_IMAGES, maxVideos: MAX_VIDEOS, allowsMixed: false },
-};
 
 interface LinkedInUploadInfo {
   uploadUrl: string;
@@ -29,7 +27,7 @@ export class LinkedInPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return LINKEDIN_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -134,89 +132,7 @@ export class LinkedInPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    let images = 0;
-    let videos = 0;
-    for (const item of media) {
-      if (item.type === "image") images += 1;
-      if (item.type === "video") videos += 1;
-    }
-
-    if (!text.trim() && mediaCount === 0) {
-      errors.push({
-        platform: "linkedin",
-        severity: "error",
-        code: "content_required",
-        message: "LinkedIn posts require text or media.",
-        field: "text",
-      });
-    }
-
-    if (text.length > MAX_TEXT_LENGTH) {
-      errors.push({
-        platform: "linkedin",
-        severity: "error",
-        code: "text_too_long",
-        message: `LinkedIn text cannot exceed ${MAX_TEXT_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_TEXT_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "linkedin",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    if (videos > 0 && images > 0) {
-      errors.push({
-        platform: "linkedin",
-        severity: "error",
-        code: "mixed_media_not_supported",
-        message: "LinkedIn posts cannot mix images and videos.",
-        field: "media",
-      });
-    }
-
-    if (videos > MAX_VIDEOS) {
-      errors.push({
-        platform: "linkedin",
-        severity: "error",
-        code: "too_many_videos",
-        message: "LinkedIn supports only one video per post.",
-        field: "media",
-        limit: MAX_VIDEOS,
-        actual: videos,
-      });
-    }
-
-    if (images > MAX_IMAGES) {
-      warnings.push({
-        platform: "linkedin",
-        severity: "warning",
-        code: "too_many_images",
-        message: `LinkedIn supports up to ${MAX_IMAGES} images. Only the first ${MAX_IMAGES} will be posted.`,
-        field: "media",
-        limit: MAX_IMAGES,
-        actual: images,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateLinkedInContent(content);
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -232,8 +148,8 @@ export class LinkedInPublisher extends Publisher {
 
     try {
       const media = content.media ?? [];
-      const images = media.filter((item) => item.type === "image").slice(0, MAX_IMAGES);
-      const videos = media.filter((item) => item.type === "video").slice(0, MAX_VIDEOS);
+      const images = media.filter((item) => item.type === "image").slice(0, LINKEDIN_MAX_IMAGES);
+      const videos = media.filter((item) => item.type === "video").slice(0, LINKEDIN_MAX_VIDEOS);
 
       let shareMediaCategory: "NONE" | "IMAGE" | "VIDEO" = "NONE";
       const mediaEntries: Array<Record<string, unknown>> = [];

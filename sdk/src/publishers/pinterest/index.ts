@@ -2,24 +2,17 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import { PINTEREST_MAX_TITLE_LENGTH, PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { getContentType, hasValidSource, resolveMediaPath, resolveMediaUrl, TempFileManager } from "../../utils";
+import { getContentType, resolveMediaPath, resolveMediaUrl, TempFileManager } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
-
-const MAX_TITLE_LENGTH = 100;
-const MAX_DESCRIPTION_LENGTH = 500;
-const MAX_MEDIA_COUNT = 1;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxCaptionLength: MAX_DESCRIPTION_LENGTH },
-  media: { requiresMedia: true, minCount: 1, maxCount: MAX_MEDIA_COUNT, allowsMixed: false },
-};
 
 interface PinterestMediaResponse {
   media_id: string;
@@ -30,7 +23,7 @@ export class PinterestPublisher extends Publisher {
   static readonly mediaRequirement = "either" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return PINTEREST_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -113,60 +106,7 @@ export class PinterestPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    if (mediaCount === 0) {
-      errors.push({
-        platform: "pinterest",
-        severity: "error",
-        code: "media_required",
-        message: "Pinterest posts require at least one media item.",
-        field: "media",
-      });
-    }
-
-    if (text.length > MAX_DESCRIPTION_LENGTH) {
-      errors.push({
-        platform: "pinterest",
-        severity: "error",
-        code: "description_too_long",
-        message: `Pinterest descriptions cannot exceed ${MAX_DESCRIPTION_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_DESCRIPTION_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "pinterest",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    if (mediaCount > MAX_MEDIA_COUNT) {
-      warnings.push({
-        platform: "pinterest",
-        severity: "warning",
-        code: "too_many_media",
-        message: "Pinterest supports only one media item per pin. Only the first will be posted.",
-        field: "media",
-        limit: MAX_MEDIA_COUNT,
-        actual: mediaCount,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validatePinterestContent(content);
   }
 
   private getS3Uploader(): S3MediaUploader {
@@ -226,10 +166,10 @@ export class PinterestPublisher extends Publisher {
       }
 
       const title = options.pinterest.title ?? (media?.type === "video" ? media.title : undefined);
-      if (title && title.length > MAX_TITLE_LENGTH) {
+      if (title && title.length > PINTEREST_MAX_TITLE_LENGTH) {
         throw new PostError(
           PostErrorType.INVALID_CONTENT,
-          `Pinterest titles cannot exceed ${MAX_TITLE_LENGTH} characters.`,
+          `Pinterest titles cannot exceed ${PINTEREST_MAX_TITLE_LENGTH} characters.`,
         );
       }
 

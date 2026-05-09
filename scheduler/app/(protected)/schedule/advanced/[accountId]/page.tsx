@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { type ClipboardEvent, useCallback, useMemo, useRef } from "react";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -9,7 +9,7 @@ import { Info } from "lucide-react";
 
 import { AccountOptionsComponent } from "@/components/account-options";
 import { BackLink } from "@/components/back-link";
-import { MediaUpload } from "@/components/media-upload";
+import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "@/components/media-upload";
 import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
 import { PostPreview } from "@/components/post-preview";
@@ -46,6 +46,7 @@ export default function AdvancedAccountSettingsPage() {
   const overrideMessage = override?.message ?? "";
   const overrideMedia = override?.media ?? [];
   const isSelected = selectedAccountIds.includes(accountId);
+  const overrideMediaUploadRef = useRef<MediaUploadHandle | null>(null);
 
   const effectiveMessage = overrideEnabled ? overrideMessage : message;
   const effectiveMedia = overrideEnabled ? overrideMedia : media;
@@ -66,6 +67,13 @@ export default function AdvancedAccountSettingsPage() {
 
     setAccountOverrideEnabled(accountId, false);
   };
+
+  const handleOverrideMessagePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = getClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length > 0) {
+      void overrideMediaUploadRef.current?.processFiles(imageFiles);
+    }
+  }, []);
 
   const handleAddToPost = () => {
     if (!isSelected) {
@@ -172,6 +180,7 @@ export default function AdvancedAccountSettingsPage() {
                       placeholder="Write a custom message for this account"
                       value={overrideMessage}
                       onChange={(event) => setAccountOverrideMessage(accountId, event.target.value)}
+                      onPaste={handleOverrideMessagePaste}
                       className="min-h-28 resize-none mt-2"
                     />
                   ) : (
@@ -189,6 +198,7 @@ export default function AdvancedAccountSettingsPage() {
                   {overrideEnabled ? (
                     <div className="mt-2">
                       <MediaUpload
+                        ref={overrideMediaUploadRef}
                         media={overrideMedia}
                         onMediaChange={(items) => setAccountOverrideMedia(accountId, items)}
                       />

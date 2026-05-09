@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -16,44 +16,31 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { useXCredits } from "@/hooks/use-x-credits";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { cn } from "@/lib/utils";
-import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile, ThreadSegment } from "@/types";
+import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
+import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
+import type { AccountOptionsMap, AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
 import { GenericPostPreview } from "./generic-post-preview";
-import { MediaUpload } from "./media-upload";
+import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 
-import type { PlatformValidationRules, ValidationIssue } from "@simple-post/sdk";
+import type { ValidationIssue } from "@simple-post/sdk";
 
-interface ValidationResponse {
-  platforms: string[];
-  results: Array<{
-    accountId: string;
-    platform: string;
-    rules: PlatformValidationRules;
-    errors: ValidationIssue[];
-    warnings: ValidationIssue[];
-    isValid: boolean;
-    usesCommonContent: boolean;
-  }>;
-  summary: {
-    errors: ValidationIssue[];
-    warnings: ValidationIssue[];
-    isValid: boolean;
-  };
-  accounts: ConnectedAccount[];
-}
+type ValidationResponse = ValidationResultByPlatform;
 
 export function CreatePostForm() {
   const router = useRouter();
   const submitPostMutation = useSubmitPost();
   const { data: xCredits } = useXCredits();
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
   const {
     message,
@@ -77,6 +64,8 @@ export function CreatePostForm() {
     updateThreadSegmentMedia,
   } = usePostDraft();
 
+  const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
+  const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -89,7 +78,7 @@ export function CreatePostForm() {
     }>
   >([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
-  const [validation, setValidation] = useState<ValidationResponse | null>(null);
+  const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [rateLimitStatuses, setRateLimitStatuses] = useState<
@@ -113,10 +102,36 @@ export function CreatePostForm() {
     }, {} as AccountOverridesMap);
   }, [accountOverrides, selectedAccountIds]);
 
-  const runValidation = useCallback(
+  const selectedAccounts = useMemo(
+    () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
+    [accounts, selectedAccountIds],
+  );
+
+  const localValidation = useMemo<ValidationResponse | null>(() => {
+    if (selectedAccountIds.length === 0 || selectedAccounts.length !== selectedAccountIds.length) {
+      return null;
+    }
+
+    return validatePostForResolvedAccounts({
+      message,
+      media,
+      accounts: selectedAccounts,
+      accountOverrides: enabledOverrides,
+      thread: thread.length > 0 ? thread : undefined,
+    });
+  }, [enabledOverrides, media, message, selectedAccountIds, selectedAccounts, thread]);
+
+  useEffect(() => {
+    setServerValidation(null);
+    setValidationError(null);
+  }, [localValidation]);
+
+  const validation = serverValidation ?? localValidation;
+
+  const runBackendValidation = useCallback(
     async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
       if (selectedAccountIds.length === 0) {
-        setValidation(null);
+        setServerValidation(null);
         setValidationError(null);
         return null;
       }
@@ -142,7 +157,7 @@ export function CreatePostForm() {
         }
 
         const data = (await response.json()) as ValidationResponse;
-        setValidation(data);
+        setServerValidation(data);
         setValidationError(null);
         return data;
       } catch (error) {
@@ -150,7 +165,7 @@ export function CreatePostForm() {
           return null;
         }
         setValidationError(error instanceof Error ? error.message : "Validation failed");
-        setValidation(null);
+        setServerValidation(null);
         return null;
       } finally {
         setValidationLoading(false);
@@ -158,25 +173,6 @@ export function CreatePostForm() {
     },
     [enabledOverrides, media, message, selectedAccountIds, thread],
   );
-
-  useEffect(() => {
-    if (selectedAccountIds.length === 0) {
-      setValidation(null);
-      setValidationError(null);
-      setValidationLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      void runValidation(controller.signal);
-    }, 250);
-
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [runValidation, selectedAccountIds]);
 
   useEffect(() => {
     if (selectedAccountIds.length === 0) {
@@ -273,6 +269,20 @@ export function CreatePostForm() {
     return `${platform}: ${issue.message}`;
   };
 
+  const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = getClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length > 0) {
+      void mediaUploadRef.current?.processFiles(imageFiles);
+    }
+  }, []);
+
+  const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = getClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length > 0) {
+      void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -285,7 +295,7 @@ export function CreatePostForm() {
     }
 
     try {
-      const latestValidation = await runValidation();
+      const latestValidation = await runBackendValidation();
       if (!latestValidation?.summary.isValid) {
         return;
       }
@@ -357,6 +367,8 @@ export function CreatePostForm() {
 
   const isFormValid =
     selectedAccountIds.length > 0 &&
+    !accountsLoading &&
+    selectedAccounts.length === selectedAccountIds.length &&
     (validation?.summary.isValid ?? false) &&
     !validationLoading &&
     atLimitPlatforms.length === 0 &&
@@ -384,20 +396,19 @@ export function CreatePostForm() {
               placeholder="What's on your mind?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              onPaste={handleMessagePaste}
               className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
             <div className="mt-1">
-              <MediaUpload media={media} onMediaChange={setMedia} compact />
+              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={setMedia} compact />
             </div>
             {maxTextLength ? (
               <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
                 <span className={charCounter.countClassName}>
                   {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
                 </span>
-                {charCounter.showLongPostOnXHint ? (
-                  <span className="text-muted-foreground">Long X post</span>
-                ) : null}
+                {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
               </div>
             ) : null}
           </div>
@@ -428,9 +439,13 @@ export function CreatePostForm() {
                       placeholder="Continue your thread…"
                       value={segment.message}
                       onChange={(e) => updateThreadSegmentMessage(index, e.target.value)}
+                      onPaste={(event) => handleThreadSegmentPaste(index, event)}
                       className="min-h-20 resize-none text-sm"
                     />
                     <MediaUpload
+                      ref={(node) => {
+                        threadMediaUploadRefs.current[index] = node;
+                      }}
                       media={segment.media ?? []}
                       onMediaChange={(m) => updateThreadSegmentMedia(index, m)}
                       compact
@@ -578,7 +593,8 @@ export function CreatePostForm() {
           )}
 
           {hasXAccountSelected && xCredits !== undefined && (
-            <div className={`p-3 rounded-lg border text-sm ${xCredits === 0 ? "border-destructive/30 bg-destructive/10" : "border-border bg-card"}`}>
+            <div
+              className={`p-3 rounded-lg border text-sm ${xCredits === 0 ? "border-destructive/30 bg-destructive/10" : "border-border bg-card"}`}>
               <div className={`flex items-center gap-1.5 ${xCredits === 0 ? "text-destructive" : "text-foreground"}`}>
                 {xCredits === 0 ? <AlertTriangle className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
                 <p className="font-medium">X posting credits</p>
@@ -586,7 +602,9 @@ export function CreatePostForm() {
               <p className="mt-1 text-muted-foreground">
                 {xCredits === 0
                   ? "You have no X posting credits remaining."
-                  : `${xCredits} post${xCredits !== 1 ? "s" : ""} remaining.`}
+                  : xCredits === 1
+                    ? "1 post remaining."
+                    : `${xCredits} posts remaining.`}
               </p>
             </div>
           )}

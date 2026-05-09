@@ -3,20 +3,22 @@ import path from "node:path";
 
 import axios from "axios";
 
+import {
+  TIKTOK_MAX_PHOTO_SIZE,
+  TIKTOK_MAX_VIDEO_SIZE,
+  TIKTOK_VALIDATION_RULES,
+  validateTikTokContent,
+} from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
-const MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
-const MAX_PHOTO_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_VIDEO_CAPTION_LENGTH = 2200;
-const MAX_PHOTO_CAPTION_LENGTH = 90;
-const MAX_MEDIA_COUNT = 1;
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
 const MIN_FILE_SIZE_FOR_CHUNKING = 10 * 1024 * 1024; // Only chunk files larger than 10MB
 // TikTok's Direct Post API returns a `publish_id` immediately, but the actual
@@ -25,15 +27,6 @@ const MIN_FILE_SIZE_FOR_CHUNKING = 10 * 1024 * 1024; // Only chunk files larger 
 // Video processing can take 1–2 minutes for larger files, so we budget ~3 min.
 const PUBLISH_STATUS_POLL_INTERVAL_MS = 3000;
 const PUBLISH_STATUS_MAX_ATTEMPTS = 60; // ~3 minutes total
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: {
-    maxCaptionLengthByMediaType: { video: MAX_VIDEO_CAPTION_LENGTH, image: MAX_PHOTO_CAPTION_LENGTH },
-  },
-  media: { requiresMedia: true, minCount: 1, maxCount: MAX_MEDIA_COUNT },
-  video: { maxSizeBytes: MAX_VIDEO_SIZE },
-  image: { maxSizeBytes: MAX_PHOTO_SIZE },
-};
 
 interface TikTokUploadInitResponse {
   data: {
@@ -62,7 +55,7 @@ export class TikTokPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return TIKTOK_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -389,7 +382,9 @@ export class TikTokPublisher extends Publisher {
       await new Promise((resolve) => setTimeout(resolve, PUBLISH_STATUS_POLL_INTERVAL_MS));
     }
 
-    this.logger.warn(`TikTok publish status did not reach PUBLISH_COMPLETE within ${PUBLISH_STATUS_MAX_ATTEMPTS} attempts`);
+    this.logger.warn(
+      `TikTok publish status did not reach PUBLISH_COMPLETE within ${PUBLISH_STATUS_MAX_ATTEMPTS} attempts`,
+    );
     return undefined;
   }
 
@@ -446,77 +441,7 @@ export class TikTokPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    // Check for required media
-    if (mediaCount === 0) {
-      errors.push({
-        platform: "tiktok",
-        severity: "error",
-        code: "media_required",
-        message: "TikTok posts require at least one media item.",
-        field: "media",
-      });
-    }
-
-    // Check media sources
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "tiktok",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    // Warn about excess media
-    if (mediaCount > MAX_MEDIA_COUNT) {
-      warnings.push({
-        platform: "tiktok",
-        severity: "warning",
-        code: "too_many_media",
-        message: "TikTok posts support only one media item in this SDK. Only the first media will be posted.",
-        field: "media",
-        limit: MAX_MEDIA_COUNT,
-        actual: mediaCount,
-      });
-    }
-
-    // Check caption length based on media type
-    const primaryMedia = media[0];
-    if (primaryMedia?.type === "video" && text.length > MAX_VIDEO_CAPTION_LENGTH) {
-      errors.push({
-        platform: "tiktok",
-        severity: "error",
-        code: "caption_too_long",
-        message: `TikTok video captions cannot exceed ${MAX_VIDEO_CAPTION_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_VIDEO_CAPTION_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    if (primaryMedia?.type === "image" && text.length > MAX_PHOTO_CAPTION_LENGTH) {
-      errors.push({
-        platform: "tiktok",
-        severity: "error",
-        code: "caption_too_long",
-        message: `TikTok photo captions cannot exceed ${MAX_PHOTO_CAPTION_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_PHOTO_CAPTION_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateTikTokContent(content);
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -542,16 +467,16 @@ export class TikTokPublisher extends Publisher {
       // Validate file size after download (for URLs)
       if (isTemp) {
         const fileSize = TikTokPublisher.getFileSize(resolvedPath);
-        if (media.type === "video" && fileSize > MAX_VIDEO_SIZE) {
+        if (media.type === "video" && fileSize > TIKTOK_MAX_VIDEO_SIZE) {
           throw new PostError(
             PostErrorType.INVALID_CONTENT,
-            `Video file size (${(fileSize / (1024 * 1024 * 1024)).toFixed(2)}GB) exceeds maximum allowed size of ${MAX_VIDEO_SIZE / (1024 * 1024 * 1024)}GB.`,
+            `Video file size (${(fileSize / (1024 * 1024 * 1024)).toFixed(2)}GB) exceeds maximum allowed size of ${TIKTOK_MAX_VIDEO_SIZE / (1024 * 1024 * 1024)}GB.`,
           );
         }
-        if (media.type === "image" && fileSize > MAX_PHOTO_SIZE) {
+        if (media.type === "image" && fileSize > TIKTOK_MAX_PHOTO_SIZE) {
           throw new PostError(
             PostErrorType.INVALID_CONTENT,
-            `Photo file size (${(fileSize / (1024 * 1024)).toFixed(2)}MB) exceeds maximum allowed size of ${MAX_PHOTO_SIZE / (1024 * 1024)}MB.`,
+            `Photo file size (${(fileSize / (1024 * 1024)).toFixed(2)}MB) exceeds maximum allowed size of ${TIKTOK_MAX_PHOTO_SIZE / (1024 * 1024)}MB.`,
           );
         }
       }

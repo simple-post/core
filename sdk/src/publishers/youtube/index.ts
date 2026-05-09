@@ -2,33 +2,28 @@ import fs from "node:fs";
 
 import { google } from "googleapis";
 
+import {
+  getYouTubeVideoMetadata,
+  validateYouTubeContent,
+  YOUTUBE_MAX_DESCRIPTION_LENGTH,
+  YOUTUBE_MAX_TITLE_LENGTH,
+  YOUTUBE_VALIDATION_RULES,
+} from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaPath, resolveThumbnailPath, TempFileManager } from "../../utils";
+import { resolveMediaPath, resolveThumbnailPath, TempFileManager } from "../../utils";
 import { Publisher, type MediaRequirement } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, PostOptionsWithCredentials, Video } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { Content, PostOptionsWithCredentials } from "../../types/post";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { youtube_v3, Auth } from "googleapis";
-
-const MAX_TITLE_LENGTH = 100;
-const MAX_DESCRIPTION_LENGTH = 5000;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxCaptionLength: MAX_DESCRIPTION_LENGTH },
-  media: { requiresMedia: true, minCount: 1, maxVideos: 1, allowsMixed: false },
-  video: {
-    requiresVideo: true,
-    maxTitleLength: MAX_TITLE_LENGTH,
-    maxDescriptionLength: MAX_DESCRIPTION_LENGTH,
-  },
-};
 
 export class YouTubePublisher extends Publisher {
   static readonly mediaRequirement: MediaRequirement = "path";
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return YOUTUBE_VALIDATION_RULES;
   }
 
   private youtube: youtube_v3.Youtube;
@@ -72,117 +67,8 @@ export class YouTubePublisher extends Publisher {
     this.youtube = google.youtube({ version: "v3", auth: authClient });
   }
 
-  private static getVideoMetadata(content: Content, video: Video): { title: string; description?: string } {
-    const fallbackTitle = content.text?.trim() || "Untitled Video";
-    const title = video.title?.trim() || fallbackTitle;
-    const description = video.description?.trim() || content.text?.trim() || undefined;
-    return { title, description };
-  }
-
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const media = content.media ?? [];
-
-    let videos = 0;
-    let images = 0;
-    for (const item of media) {
-      if (item.type === "video") videos += 1;
-      if (item.type === "image") images += 1;
-    }
-
-    // Check for required video
-    if (media.length === 0 || videos === 0) {
-      errors.push({
-        platform: "youtube",
-        severity: "error",
-        code: "video_required",
-        message: "YouTube posts require a video.",
-        field: "video",
-      });
-    }
-
-    // Check media sources
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "youtube",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    // Warn about extra videos
-    if (videos > 1) {
-      warnings.push({
-        platform: "youtube",
-        severity: "warning",
-        code: "too_many_videos",
-        message: "YouTube supports only one video per post. Only the first video will be uploaded.",
-        field: "media",
-        limit: 1,
-        actual: videos,
-      });
-    }
-
-    // Warn about images (they will be ignored)
-    if (images > 0) {
-      warnings.push({
-        platform: "youtube",
-        severity: "warning",
-        code: "images_ignored",
-        message: "YouTube posts ignore images. Only the first video will be uploaded.",
-        field: "media",
-      });
-    }
-
-    const video = media.find((item) => item.type === "video") as Video | undefined;
-
-    if (video) {
-      // Check title length
-      const metadata = YouTubePublisher.getVideoMetadata(content, video);
-      if (video.title && video.title.length > MAX_TITLE_LENGTH) {
-        errors.push({
-          platform: "youtube",
-          severity: "error",
-          code: "title_too_long",
-          message: `YouTube titles cannot exceed ${MAX_TITLE_LENGTH} characters.`,
-          field: "title",
-          limit: MAX_TITLE_LENGTH,
-          actual: video.title.length,
-        });
-      } else if (!video.title && metadata.title.length > MAX_TITLE_LENGTH) {
-        // Warn that derived title will be truncated
-        warnings.push({
-          platform: "youtube",
-          severity: "warning",
-          code: "title_truncated",
-          message: `YouTube titles cannot exceed ${MAX_TITLE_LENGTH} characters. The title will be truncated.`,
-          field: "title",
-          limit: MAX_TITLE_LENGTH,
-          actual: metadata.title.length,
-        });
-      }
-
-      // Check description length
-      if (metadata.description && metadata.description.length > MAX_DESCRIPTION_LENGTH) {
-        errors.push({
-          platform: "youtube",
-          severity: "error",
-          code: "description_too_long",
-          message: `YouTube descriptions cannot exceed ${MAX_DESCRIPTION_LENGTH} characters.`,
-          field: "description",
-          limit: MAX_DESCRIPTION_LENGTH,
-          actual: metadata.description.length,
-        });
-      }
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateYouTubeContent(content);
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -205,12 +91,14 @@ export class YouTubePublisher extends Publisher {
     if (!video) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
     }
-    const metadata = YouTubePublisher.getVideoMetadata(content, video);
+    const metadata = getYouTubeVideoMetadata(content, video);
     const safeTitle =
-      metadata.title.length > MAX_TITLE_LENGTH ? metadata.title.slice(0, MAX_TITLE_LENGTH) : metadata.title;
+      metadata.title.length > YOUTUBE_MAX_TITLE_LENGTH
+        ? metadata.title.slice(0, YOUTUBE_MAX_TITLE_LENGTH)
+        : metadata.title;
     const safeDescription =
-      metadata.description && metadata.description.length > MAX_DESCRIPTION_LENGTH
-        ? metadata.description.slice(0, MAX_DESCRIPTION_LENGTH)
+      metadata.description && metadata.description.length > YOUTUBE_MAX_DESCRIPTION_LENGTH
+        ? metadata.description.slice(0, YOUTUBE_MAX_DESCRIPTION_LENGTH)
         : metadata.description;
     this.logger.info(
       `[YouTubePublisher] Video details: title="${safeTitle}", path="${video.path}", hasThumbnail=${!!video.thumbnailPath}`,
@@ -268,7 +156,10 @@ export class YouTubePublisher extends Publisher {
         this.logger.info(`[YouTubePublisher] Video upload successful! Video ID: ${videoId}`);
         this.logger.info(`[YouTubePublisher] Upload completed in ${Date.now() - startTime}ms`);
       } catch (error: unknown) {
-        const err = error as { response?: { data?: { error?: { message?: string; code?: number } } }; message?: string };
+        const err = error as {
+          response?: { data?: { error?: { message?: string; code?: number } } };
+          message?: string;
+        };
         this.logger.error(
           `[YouTubePublisher] Video upload failed after ${Date.now() - startTime}ms: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -279,8 +170,7 @@ export class YouTubePublisher extends Publisher {
         const errorCode = typeof data?.error === "string" ? data.error : data?.error?.error;
 
         if (errorCode === "invalid_grant") {
-          errorMessage =
-            "Your YouTube connection has expired. Please reconnect your YouTube account in Settings.";
+          errorMessage = "Your YouTube connection has expired. Please reconnect your YouTube account in Settings.";
           this.logger.error(`[YouTubePublisher] invalid_grant - refresh token invalid or revoked`);
         } else if (typeof data?.error === "object" && data.error?.message) {
           errorMessage = data.error.message;

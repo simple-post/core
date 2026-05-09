@@ -1,25 +1,20 @@
 import axios, { type AxiosError, type AxiosInstance } from "axios";
 
+import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaUrl } from "../../utils";
+import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 const INSTAGRAM_API_VERSION = "v25.0";
 const FACEBOOK_GRAPH_API_VERSION = "v25.0";
-const MAX_CAPTION_LENGTH = 2200;
-const MAX_MEDIA_COUNT = 10;
 const PROCESSING_POLL_INTERVAL = 3000;
 const PROACTIVE_REFRESH_DAYS = 7;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxCaptionLength: MAX_CAPTION_LENGTH },
-  media: { requiresMedia: true, minCount: 1, maxCount: MAX_MEDIA_COUNT, allowsMixed: true },
-};
 
 interface InstagramRefreshResponse {
   access_token: string;
@@ -31,7 +26,7 @@ export class InstagramPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return INSTAGRAM_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -172,10 +167,7 @@ export class InstagramPublisher extends Publisher {
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
-        const permalinkRes = await this.apiRequest<{ permalink?: string }>(
-          "get",
-          `/${mediaId}?fields=permalink`,
-        );
+        const permalinkRes = await this.apiRequest<{ permalink?: string }>("get", `/${mediaId}?fields=permalink`);
         if (permalinkRes.data.permalink) {
           return permalinkRes.data.permalink;
         }
@@ -292,64 +284,7 @@ export class InstagramPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    // Check for required media
-    if (mediaCount === 0) {
-      errors.push({
-        platform: "instagram",
-        severity: "error",
-        code: "media_required",
-        message: "Instagram posts require at least one media item.",
-        field: "media",
-      });
-    }
-
-    // Check caption length
-    if (text.length > MAX_CAPTION_LENGTH) {
-      errors.push({
-        platform: "instagram",
-        severity: "error",
-        code: "caption_too_long",
-        message: `Instagram captions cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_CAPTION_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    // Check media sources
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "instagram",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    // Warn about excess media
-    if (mediaCount > MAX_MEDIA_COUNT) {
-      warnings.push({
-        platform: "instagram",
-        severity: "warning",
-        code: "too_many_media",
-        message: `Instagram supports up to ${MAX_MEDIA_COUNT} media items. Only the first ${MAX_MEDIA_COUNT} will be posted.`,
-        field: "media",
-        limit: MAX_MEDIA_COUNT,
-        actual: mediaCount,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateInstagramContent(content);
   }
 
   async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
@@ -365,7 +300,7 @@ export class InstagramPublisher extends Publisher {
     }
     const normalizedContent: Content = {
       ...content,
-      media: content.media ? content.media.slice(0, MAX_MEDIA_COUNT) : undefined,
+      media: content.media ? content.media.slice(0, INSTAGRAM_MAX_MEDIA_COUNT) : undefined,
     };
 
     try {

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 
 import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
 
@@ -25,6 +25,10 @@ interface MediaUploadProps {
   compact?: boolean;
 }
 
+export interface MediaUploadHandle {
+  processFiles: (files: FileList | File[]) => Promise<void>;
+}
+
 const EXTENSION_TO_TYPE: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -35,6 +39,13 @@ const EXTENSION_TO_TYPE: Record<string, string> = {
   m4v: "video/mp4",
   mov: "video/quicktime",
   webm: "video/webm",
+};
+
+const IMAGE_TYPE_TO_EXTENSION: Record<string, string> = {
+  "image/gif": "gif",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
 };
 
 const normalizeContentType = (contentType: string) => {
@@ -53,6 +64,38 @@ const resolveContentType = (file: File) => {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   return EXTENSION_TO_TYPE[ext];
 };
+
+const withClipboardImageName = (file: File, index: number) => {
+  if (file.name) {
+    return file;
+  }
+
+  const contentType = normalizeContentType(file.type || "image/png");
+  const extension = IMAGE_TYPE_TO_EXTENSION[contentType] ?? "png";
+
+  return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, {
+    type: contentType,
+    lastModified: file.lastModified,
+  });
+};
+
+export function getClipboardImageFiles(clipboardData: DataTransfer): File[] {
+  const itemFiles = [...clipboardData.items]
+    .filter((item) => item.kind === "file" && normalizeContentType(item.type).startsWith("image/"))
+    .map((item, index) => {
+      const file = item.getAsFile();
+      return file ? withClipboardImageName(file, index) : null;
+    })
+    .filter((file): file is File => file !== null);
+
+  if (itemFiles.length > 0) {
+    return itemFiles;
+  }
+
+  return [...clipboardData.files]
+    .filter((file) => normalizeContentType(file.type).startsWith("image/"))
+    .map((file, index) => withClipboardImageName(file, index));
+}
 
 async function getPresignedUrl(
   filename: string,
@@ -153,14 +196,17 @@ function CircularProgress({ progress, type }: { progress: number; type: "image" 
   );
 }
 
-export function MediaUpload({
-  media,
-  onMediaChange,
-  maxFiles = 10,
-  maxFileSize = 50 * 1024 * 1024, // 50MB
-  acceptedTypes = ["image/*", "video/*"],
-  compact = false,
-}: MediaUploadProps) {
+export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(function MediaUpload(
+  {
+    media,
+    onMediaChange,
+    maxFiles = 10,
+    maxFileSize = 50 * 1024 * 1024, // 50MB
+    acceptedTypes = ["image/*", "video/*"],
+    compact = false,
+  },
+  ref,
+) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -313,6 +359,8 @@ export function MediaUpload({
     },
     [media, uploading.length, maxFiles, onMediaChange, uploadFile, validateFile],
   );
+
+  useImperativeHandle(ref, () => ({ processFiles }), [processFiles]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -469,9 +517,7 @@ export function MediaUpload({
       ) : (
         <Images className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
       )}
-      <span className="text-xs text-muted-foreground">
-        {isUploading ? "Uploading…" : "Add media"}
-      </span>
+      <span className="text-xs text-muted-foreground">{isUploading ? "Uploading…" : "Add media"}</span>
     </div>
   );
 
@@ -585,4 +631,4 @@ export function MediaUpload({
       )}
     </div>
   );
-}
+});

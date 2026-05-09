@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -15,40 +15,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getPlatformById } from "@/lib/config";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
+import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import type { MediaFile, AccountOptionsMap, SocialPost, ThreadSegment } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
 import { CreatePostForm } from "./create-post-form";
-import { MediaUpload } from "./media-upload";
+import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
 import { PostPreview } from "./post-preview";
 
-import type { PlatformValidationRules, ValidationIssue } from "@simple-post/sdk";
+import type { ValidationIssue } from "@simple-post/sdk";
 
 interface PostFormProps {
   mode: "create" | "edit";
   existingPost?: SocialPost;
 }
 
-interface ValidationResponse {
-  platforms: string[];
-  results: Array<{
-    platform: string;
-    rules: PlatformValidationRules;
-    errors: ValidationIssue[];
-    warnings: ValidationIssue[];
-    isValid: boolean;
-  }>;
-  summary: {
-    errors: ValidationIssue[];
-    warnings: ValidationIssue[];
-    isValid: boolean;
-  };
-}
+type ValidationResponse = ValidationResultByPlatform;
 
 export function PostForm({ mode, existingPost }: PostFormProps) {
   if (mode === "create") {
@@ -90,16 +79,44 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     }>
   >([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
-  const [validation, setValidation] = useState<ValidationResponse | null>(null);
+  const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
+  const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
 
   const submitPostMutation = useSubmitPost();
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
-  const runValidation = useCallback(
+  const selectedAccounts = useMemo(
+    () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
+    [accounts, selectedAccountIds],
+  );
+
+  const localValidation = useMemo<ValidationResponse | null>(() => {
+    if (selectedAccountIds.length === 0 || selectedAccounts.length !== selectedAccountIds.length) {
+      return null;
+    }
+
+    return validatePostForResolvedAccounts({
+      message,
+      media,
+      accounts: selectedAccounts,
+      thread: thread.length > 0 ? thread : undefined,
+    });
+  }, [media, message, selectedAccountIds, selectedAccounts, thread]);
+
+  useEffect(() => {
+    setServerValidation(null);
+    setValidationError(null);
+  }, [localValidation]);
+
+  const validation = serverValidation ?? localValidation;
+
+  const runBackendValidation = useCallback(
     async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
       if (selectedAccountIds.length === 0) {
-        setValidation(null);
+        setServerValidation(null);
         setValidationError(null);
         return null;
       }
@@ -124,7 +141,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         }
 
         const data = (await response.json()) as ValidationResponse;
-        setValidation(data);
+        setServerValidation(data);
         setValidationError(null);
         return data;
       } catch (error) {
@@ -132,7 +149,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           return null;
         }
         setValidationError(error instanceof Error ? error.message : "Validation failed");
-        setValidation(null);
+        setServerValidation(null);
         return null;
       } finally {
         setValidationLoading(false);
@@ -140,25 +157,6 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     },
     [media, message, selectedAccountIds, thread],
   );
-
-  useEffect(() => {
-    if (selectedAccountIds.length === 0) {
-      setValidation(null);
-      setValidationError(null);
-      setValidationLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      void runValidation(controller.signal);
-    }, 250);
-
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [runValidation, selectedAccountIds]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
@@ -211,6 +209,20 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     return `${platform}: ${issue.message}`;
   };
 
+  const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = getClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length > 0) {
+      void mediaUploadRef.current?.processFiles(imageFiles);
+    }
+  }, []);
+
+  const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = getClipboardImageFiles(event.clipboardData);
+    if (imageFiles.length > 0) {
+      void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -224,7 +236,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     }
 
     try {
-      const latestValidation = await runValidation();
+      const latestValidation = await runBackendValidation();
       if (!latestValidation?.summary.isValid) {
         return;
       }
@@ -293,6 +305,8 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
   const isFormValid =
     selectedAccountIds.length > 0 &&
+    !accountsLoading &&
+    selectedAccounts.length === selectedAccountIds.length &&
     (validation?.summary.isValid ?? false) &&
     !validationLoading &&
     (postingMode === "now" || (scheduledDate && scheduledTime));
@@ -312,11 +326,12 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
               placeholder="What's on your mind?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              onPaste={handleMessagePaste}
               className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
             <div className="mt-1">
-              <MediaUpload media={media} onMediaChange={setMedia} compact />
+              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={setMedia} compact />
             </div>
             <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
               {maxTextLength ? (
@@ -324,9 +339,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                   <span className={charCounter.countClassName}>
                     {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
                   </span>
-                  {charCounter.showLongPostOnXHint ? (
-                    <span className="text-muted-foreground">Long X post</span>
-                  ) : null}
+                  {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
                 </>
               ) : (
                 <span className="text-muted-foreground">{message.length.toLocaleString()}</span>
@@ -363,11 +376,17 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                         const msg = e.target.value;
                         setThread((prev) => prev.map((s, i) => (i === index ? { ...s, message: msg } : s)));
                       }}
+                      onPaste={(event) => handleThreadSegmentPaste(index, event)}
                       className="min-h-20 resize-none text-sm"
                     />
                     <MediaUpload
+                      ref={(node) => {
+                        threadMediaUploadRefs.current[index] = node;
+                      }}
                       media={segment.media ?? []}
-                      onMediaChange={(m) => setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))}
+                      onMediaChange={(m) =>
+                        setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))
+                      }
                       compact
                     />
                   </div>

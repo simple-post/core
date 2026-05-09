@@ -3,24 +3,18 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import { BLUESKY_MAX_IMAGES, BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { derToRaw, getContentType, hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Image, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
-const MAX_TEXT_LENGTH = 300;
-const MAX_IMAGES = 4;
-
 type JsonWebKey = Record<string, unknown>;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxLength: MAX_TEXT_LENGTH },
-  media: { maxCount: MAX_IMAGES, maxImages: MAX_IMAGES, maxVideos: 0, allowsMixed: false },
-};
 
 interface UploadBlobResponse {
   blob: {
@@ -62,7 +56,7 @@ export class BlueskyPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return BLUESKY_VALIDATION_RULES;
   }
 
   private client: AxiosInstance;
@@ -532,77 +526,7 @@ export class BlueskyPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    let images = 0;
-    let videos = 0;
-    for (const item of media) {
-      if (item.type === "image") images += 1;
-      if (item.type === "video") videos += 1;
-    }
-
-    if (!text.trim() && mediaCount === 0) {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "content_required",
-        message: "Bluesky posts require text or images.",
-        field: "text",
-      });
-    }
-
-    if (text.length > MAX_TEXT_LENGTH) {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "text_too_long",
-        message: `Bluesky text cannot exceed ${MAX_TEXT_LENGTH} characters.`,
-        field: "text",
-        limit: MAX_TEXT_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "bluesky",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    if (videos > 0) {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "video_not_supported",
-        message: "Bluesky publisher currently supports images only.",
-        field: "media",
-      });
-    }
-
-    if (images > MAX_IMAGES) {
-      warnings.push({
-        platform: "bluesky",
-        severity: "warning",
-        code: "too_many_images",
-        message: `Bluesky supports up to ${MAX_IMAGES} images. Only the first ${MAX_IMAGES} will be posted.`,
-        field: "media",
-        limit: MAX_IMAGES,
-        actual: images,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateBlueskyContent(content);
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -620,7 +544,9 @@ export class BlueskyPublisher extends Publisher {
     const tempFileManager = new TempFileManager();
 
     try {
-      const images = (content.media ?? []).filter((item): item is Image => item.type === "image").slice(0, MAX_IMAGES);
+      const images = (content.media ?? [])
+        .filter((item): item is Image => item.type === "image")
+        .slice(0, BLUESKY_MAX_IMAGES);
       let embed: Record<string, unknown> | undefined;
 
       if (images.length > 0) {

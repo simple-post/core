@@ -20,7 +20,8 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@simple-post/sdk": ["../sdk/src/index.ts"]
+      "@simple-post/sdk": ["../sdk/src/index.ts"],
+      "@simple-post/sdk/validation": ["../sdk/src/validation.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],

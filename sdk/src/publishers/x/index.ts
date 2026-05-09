@@ -3,25 +3,15 @@ import fs from "node:fs";
 import axios from "axios";
 import { EUploadMimeType, TwitterApi } from "twitter-api-v2";
 
+import { X_MAX_MEDIA_COUNT, X_VALIDATION_RULES, validateXContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, PostOptionsWithCredentials, XCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
-
-/** Classic tweet length; longer posts require an X account that supports long posts (e.g. X Premium). */
-const X_STANDARD_POST_MAX_LENGTH = 280;
-/** X long-post ceiling per X help (longer posts); posting still requires a capable account. */
-const X_LONG_POST_MAX_LENGTH = 25_000;
-const MAX_MEDIA_COUNT = 4;
-const MAX_VIDEOS = 1;
-
-const VALIDATION_RULES: PlatformValidationRules = {
-  text: { maxLength: X_LONG_POST_MAX_LENGTH, standardMaxLength: X_STANDARD_POST_MAX_LENGTH },
-  media: { maxCount: MAX_MEDIA_COUNT, maxImages: MAX_MEDIA_COUNT, maxVideos: MAX_VIDEOS, allowsMixed: false },
-};
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 interface RefreshTokenResponse {
   access_token: string;
@@ -33,7 +23,7 @@ export class XPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
   static getValidationRules(): PlatformValidationRules {
-    return VALIDATION_RULES;
+    return X_VALIDATION_RULES;
   }
 
   private client: TwitterApi;
@@ -196,104 +186,7 @@ export class XPublisher extends Publisher {
   }
 
   static validate(content: Content): ValidationResult {
-    const errors: ValidationIssue[] = [];
-    const warnings: ValidationIssue[] = [];
-    const text = content.text ?? "";
-    const media = content.media ?? [];
-    const mediaCount = media.length;
-
-    let images = 0;
-    let videos = 0;
-    for (const item of media) {
-      if (item.type === "image") images += 1;
-      if (item.type === "video") videos += 1;
-    }
-
-    // Check for empty content
-    if (!text.trim() && mediaCount === 0) {
-      errors.push({
-        platform: "x",
-        severity: "error",
-        code: "content_required",
-        message: "X posts require text or media.",
-        field: "text",
-      });
-    }
-
-    if (text.length > X_LONG_POST_MAX_LENGTH) {
-      errors.push({
-        platform: "x",
-        severity: "error",
-        code: "text_too_long",
-        message: `X text cannot exceed ${X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")} characters.`,
-        field: "text",
-        limit: X_LONG_POST_MAX_LENGTH,
-        actual: text.length,
-      });
-    } else if (text.length > X_STANDARD_POST_MAX_LENGTH) {
-      warnings.push({
-        platform: "x",
-        severity: "warning",
-        code: "long_post",
-        message: "Long X post. Premium may be required.",
-        field: "text",
-        limit: X_LONG_POST_MAX_LENGTH,
-        actual: text.length,
-      });
-    }
-
-    // Check media sources
-    for (const item of media) {
-      if (!hasValidSource(item)) {
-        errors.push({
-          platform: "x",
-          severity: "error",
-          code: "media_source_missing",
-          message: "Media must have either a path or url.",
-          field: "media",
-        });
-        break;
-      }
-    }
-
-    // Check for mixed media (images + videos)
-    if (videos > 0 && images > 0) {
-      errors.push({
-        platform: "x",
-        severity: "error",
-        code: "mixed_media_not_supported",
-        message: "X posts cannot mix images and videos.",
-        field: "media",
-      });
-    }
-
-    // Check video count
-    if (videos > MAX_VIDEOS) {
-      errors.push({
-        platform: "x",
-        severity: "error",
-        code: "too_many_videos",
-        message: "X supports only one video per post.",
-        field: "media",
-        limit: MAX_VIDEOS,
-        actual: videos,
-      });
-    }
-
-    // Warn about excess images
-    if (images > MAX_MEDIA_COUNT) {
-      warnings.push({
-        platform: "x",
-        severity: "warning",
-        code: "too_many_images",
-        message: `X supports up to ${MAX_MEDIA_COUNT} images. Only the first ${MAX_MEDIA_COUNT} will be posted.`,
-        field: "media",
-        limit: MAX_MEDIA_COUNT,
-        actual: images,
-      });
-    }
-
-    return { errors, warnings, isValid: errors.length === 0 };
+    return validateXContent(content);
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -317,7 +210,7 @@ export class XPublisher extends Publisher {
       // Upload all media files if any
       const mediaIds: string[] = [];
       if (content.media) {
-        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
+        for (const media of content.media.slice(0, X_MAX_MEDIA_COUNT)) {
           // Resolve media path (download if URL)
           const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
           tempFileManager.add(cleanup);

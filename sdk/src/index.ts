@@ -149,15 +149,10 @@ export type {
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
-export {
-  uploadFromBuffer,
-  getPresignedUploadUrl,
-  deleteFromStorage,
-  getKeyFromUrl,
-  generateFileKey,
-} from "./utils/s3";
+export { uploadFromBuffer, getPresignedUploadUrl, deleteFromStorage, getKeyFromUrl, generateFileKey } from "./utils/s3";
 export { buildReplyOverlay, extractChainStep, isThreadCapable } from "./utils/thread";
 export type { ThreadChainState, ReplyOverlay } from "./utils/thread";
+export { getValidationRulesForPlatform, validateContentForPlatform } from "./validation";
 
 // Export schemas for runtime validation
 export {

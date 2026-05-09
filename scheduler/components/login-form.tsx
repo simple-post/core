@@ -15,6 +15,33 @@ interface LoginFormProps {
   callbackURL?: string;
 }
 
+interface OpenAITestUserLoginResponse {
+  authenticated?: boolean;
+}
+
+const OPENAI_TEST_USER_EMAIL = "openai@simplepost.dev";
+
+async function tryOpenAITestUserLogin(email: string): Promise<boolean> {
+  if (email !== OPENAI_TEST_USER_EMAIL) {
+    return false;
+  }
+
+  const response = await fetch("/api/auth/sign-in/openai-test-user", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw new Error("OpenAI test user login failed");
+  }
+
+  const data = (await response.json()) as OpenAITestUserLoginResponse;
+  return data.authenticated === true;
+}
+
 export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,15 +72,22 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     setError(null);
     setSuccess(null);
 
-    if (!email || !email.includes("@")) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
       setError("Please enter a valid email address");
       setIsLoading(false);
       return;
     }
 
     try {
+      if (await tryOpenAITestUserLogin(normalizedEmail)) {
+        window.location.assign(callbackURL);
+        return;
+      }
+
       await authClient.signIn.magicLink({
-        email,
+        email: normalizedEmail,
         callbackURL,
       });
       setSuccess("Magic link sent! Check your email to sign in.");

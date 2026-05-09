@@ -6,6 +6,10 @@ function getRequired(name: string): string {
   return value;
 }
 
+function getBoolean(name: string): boolean {
+  return process.env[name]?.toLowerCase() === "true";
+}
+
 /**
  * Validate that all critical environment variables are present.
  * Call once at startup (instrumentation.ts) to fail fast on misconfiguration.
@@ -43,5 +47,8 @@ export const env = {
   },
   get RESEND_FROM_ADDRESS() {
     return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.dev";
+  },
+  get ENABLE_OPENAI_TEST_LOGIN() {
+    return getBoolean("ENABLE_OPENAI_TEST_LOGIN");
   },
 };

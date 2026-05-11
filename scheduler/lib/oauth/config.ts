@@ -7,7 +7,7 @@ export interface PlatformOAuthConfig {
   clientSecret: string;
   scope: string;
   responseType: string;
-  userInfoUrl: string;
+  userInfoUrl?: string;
   requiresPkce: boolean;
   requiresBasicAuth: boolean;
   requiresDpop: boolean;
@@ -55,9 +55,8 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
     clientId: process.env.TIKTOK_CLIENT_KEY || "",
     clientSecret: process.env.TIKTOK_CLIENT_SECRET || "",
-    scope: "user.info.basic,video.upload,video.publish",
+    scope: "video.upload,video.publish",
     responseType: "code",
-    userInfoUrl: "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
     requiresPkce: false,
     requiresBasicAuth: false,
     requiresDpop: false,

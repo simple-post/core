@@ -21,6 +21,10 @@ const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
 
 async function fetchBlueskyProfile(did: string) {
   const config = getPlatformOAuthConfig("bluesky")!;
+  if (!config.userInfoUrl) {
+    throw new Error("Bluesky profile endpoint is not configured");
+  }
+
   const url = new URL(config.userInfoUrl);
   url.searchParams.set("actor", did);
 

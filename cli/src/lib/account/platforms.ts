@@ -125,7 +125,7 @@ const ACCOUNT_PLATFORM_CONFIGS = {
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
       redirectUriEnvVar: "SIMPLE_POST_TIKTOK_REDIRECT_URI",
       scopeSeparator: ",",
-      scopes: ["user.info.basic", "video.upload", "video.publish"],
+      scopes: ["video.upload", "video.publish"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
     },

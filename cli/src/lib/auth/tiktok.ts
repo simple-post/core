@@ -1,48 +1,35 @@
-import { OAuthAccountProvider, fetchJson } from "./oauth.js";
+import { OAuthAccountProvider, type OAuthTokenSet } from "./oauth.js";
 
-interface TikTokUserInfoResponse {
-  data?: {
-    user?: {
-      avatar_url?: string;
-      display_name?: string;
-      open_id?: string;
-      union_id?: string;
-      username?: string;
-    };
-  };
-}
+import type { OAuthProviderDependencies } from "./oauth.js";
 
-async function fetchTikTokUser(accessToken: string): Promise<{ displayName?: string; userId: string; username?: string }> {
-  const response = await fetchJson<TikTokUserInfoResponse>(
-    "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      method: "GET",
-    },
-    "TikTok user lookup",
-  );
-
-  const user = response.data?.user;
-  const userId = user?.open_id ?? user?.union_id;
-  if (!userId) {
-    throw new Error("TikTok user lookup did not return an account identifier.");
+function stringField(source: unknown, key: string): string | undefined {
+  if (typeof source !== "object" || source === null || Array.isArray(source)) {
+    return undefined;
   }
 
-  return {
-    displayName: user?.display_name,
-    userId,
-    username: user?.username,
-  };
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function getTikTokUserId(tokenSet: OAuthTokenSet): string {
+  const userId = stringField(tokenSet.raw, "open_id") ?? stringField(tokenSet.raw, "union_id");
+  if (!userId) {
+    throw new Error("TikTok token response did not return open_id or union_id.");
+  }
+
+  return userId;
 }
 
 export class TikTokAuthProvider extends OAuthAccountProvider {
-  public constructor() {
-    super("tiktok", {
-      async completeLogin({ tokenSet }) {
-        return fetchTikTokUser(tokenSet.accessToken);
+  public constructor(dependencies?: OAuthProviderDependencies) {
+    super(
+      "tiktok",
+      {
+        async completeLogin({ tokenSet }) {
+          return { userId: getTikTokUserId(tokenSet) };
+        },
       },
-    });
+      dependencies,
+    );
   }
 }

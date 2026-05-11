@@ -124,6 +124,20 @@ function normalizeXProfileImageUrl(url: string | null): string | null {
   return url.replace(/^http:\/\//, "https://");
 }
 
+function extractTikTokProfileFromToken(tokenData: CallbackContext["tokenData"]): TikTokProfile {
+  const openId = stringClaim(tokenData, "open_id");
+  const unionId = stringClaim(tokenData, "union_id");
+
+  if (!openId && !unionId) {
+    throw new Error("TikTok token response did not return an account identifier.");
+  }
+
+  return {
+    ...(openId ? { open_id: openId } : {}),
+    ...(unionId ? { union_id: unionId } : {}),
+  };
+}
+
 function getLinkedInImageArea(element: LinkedInProfilePictureElement): number {
   const storageSize = element.data?.["com.linkedin.digitalmedia.mediaartifact.StillImage"]?.storageSize;
   return (storageSize?.width ?? 0) * (storageSize?.height ?? 0);
@@ -148,6 +162,9 @@ function extractLinkedInDecoratedProfilePicture(profile: LinkedInProfileV2): str
 
 async function fetchUserProfile(platform: string, accessToken: string): Promise<PlatformProfile> {
   const config = getPlatformOAuthConfig(platform)!;
+  if (!config.userInfoUrl) {
+    throw new Error(`${platform} does not support OAuth profile lookup.`);
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
@@ -172,11 +189,6 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   }
 
   const data = await response.json();
-
-  if (platform === "tiktok" && data.data?.user) {
-    return data.data.user;
-  }
-
   return data;
 }
 
@@ -293,25 +305,29 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
 
 export async function handleGenericCallback(ctx: CallbackContext): Promise<NextResponse> {
   let profile: PlatformProfile;
-  try {
-    profile = await fetchUserProfile(ctx.platform, ctx.accessToken);
-  } catch (profileError) {
-    if (ctx.platform === "threads" && ctx.tokenData.user_id != null) {
-      authLogger.info(
-        { userId: ctx.tokenData.user_id },
-        "Threads /me failed, trying direct user_id fetch (consider adding user as Threads Tester)",
-      );
-      try {
-        const directUrl = new URL(`https://graph.threads.net/v1.0/${ctx.tokenData.user_id}`);
-        directUrl.searchParams.set("fields", "id,username,name,threads_profile_picture_url");
-        directUrl.searchParams.set("access_token", ctx.accessToken);
-        const directResponse = await fetch(directUrl.toString());
-        profile = directResponse.ok ? await directResponse.json() : { id: String(ctx.tokenData.user_id) };
-      } catch {
-        profile = { id: String(ctx.tokenData.user_id) };
+  if (ctx.platform === "tiktok") {
+    profile = extractTikTokProfileFromToken(ctx.tokenData);
+  } else {
+    try {
+      profile = await fetchUserProfile(ctx.platform, ctx.accessToken);
+    } catch (profileError) {
+      if (ctx.platform === "threads" && ctx.tokenData.user_id != null) {
+        authLogger.info(
+          { userId: ctx.tokenData.user_id },
+          "Threads /me failed, trying direct user_id fetch (consider adding user as Threads Tester)",
+        );
+        try {
+          const directUrl = new URL(`https://graph.threads.net/v1.0/${ctx.tokenData.user_id}`);
+          directUrl.searchParams.set("fields", "id,username,name,threads_profile_picture_url");
+          directUrl.searchParams.set("access_token", ctx.accessToken);
+          const directResponse = await fetch(directUrl.toString());
+          profile = directResponse.ok ? await directResponse.json() : { id: String(ctx.tokenData.user_id) };
+        } catch {
+          profile = { id: String(ctx.tokenData.user_id) };
+        }
+      } else {
+        throw profileError;
       }
-    } else {
-      throw profileError;
     }
   }
 

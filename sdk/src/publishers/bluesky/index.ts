@@ -295,11 +295,16 @@ export class BlueskyPublisher extends Publisher {
       try {
         response = await makeRequest(this.tokenDpopNonce);
       } catch (error: unknown) {
-        const axiosErr = error as { response?: { status?: number; headers?: Record<string, string> } };
-        const nonce =
-          axiosErr.response?.status === 401
-            ? axiosErr.response?.headers?.["dpop-nonce"] || axiosErr.response?.headers?.["DPoP-Nonce"]
-            : undefined;
+        const axiosErr = error as {
+          response?: { status?: number; headers?: Record<string, string>; data?: { error?: string } };
+        };
+        const isDpopNonceChallenge =
+          axiosErr.response?.status === 400 ||
+          axiosErr.response?.status === 401 ||
+          axiosErr.response?.data?.error === "use_dpop_nonce";
+        const nonce = isDpopNonceChallenge
+          ? axiosErr.response?.headers?.["dpop-nonce"] || axiosErr.response?.headers?.["DPoP-Nonce"]
+          : undefined;
         if (nonce) {
           this.tokenDpopNonce = nonce;
           response = await makeRequest(nonce);

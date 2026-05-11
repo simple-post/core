@@ -51,6 +51,7 @@ async function fetchBlueskyPdsUrl(did: string): Promise<string | null> {
 }
 
 export async function handleBlueskyCallback(ctx: CallbackContext): Promise<NextResponse> {
+  const config = getPlatformOAuthConfig("bluesky")!;
   const payload = decodeJwtPayload(ctx.accessToken);
   const did = (ctx.tokenData.sub as string | undefined) || (payload?.sub as string | undefined);
 
@@ -63,7 +64,12 @@ export async function handleBlueskyCallback(ctx: CallbackContext): Promise<NextR
 
   let tokenMetadata: Prisma.InputJsonValue | undefined;
   if (ctx.tokenMetadata && typeof ctx.tokenMetadata === "object" && !Array.isArray(ctx.tokenMetadata)) {
-    tokenMetadata = { ...ctx.tokenMetadata, pdsUrl } as Prisma.InputJsonValue;
+    tokenMetadata = {
+      ...ctx.tokenMetadata,
+      clientId: config.clientId,
+      pdsUrl,
+      tokenUrl: config.tokenUrl,
+    } as Prisma.InputJsonValue;
   }
 
   await upsertConnectedAccount({

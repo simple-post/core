@@ -154,6 +154,43 @@ describe("BlueskyPublisher", () => {
       });
     });
 
+    it("should retry Bluesky OAuth refresh when the token endpoint returns a DPoP nonce challenge", async () => {
+      const expiresAt = Math.floor(Date.now() / 1000) - 60;
+      publisher = makeOAuthPublisher({
+        accessToken: "expired_access_token",
+        refreshToken: "refresh_token",
+        expiresAt,
+        tokenUrl: "https://bsky.social/oauth/token",
+        clientId: "client_id",
+      });
+
+      mockedAxios.post
+        .mockRejectedValueOnce({
+          response: {
+            status: 400,
+            headers: { "dpop-nonce": "fresh_nonce" },
+            data: { error: "use_dpop_nonce" },
+          },
+          message: "Request failed",
+        })
+        .mockResolvedValueOnce({
+          data: { access_token: "new_access_token", refresh_token: "new_refresh_token", expires_in: 3600 },
+        });
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: { uri: "at://did:plc:123/app.bsky.feed.post/refreshed" },
+      });
+
+      const result = await publisher.postContent({ text: "Hello after nonce refresh" });
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(result.extraData?.refreshedCredentials).toMatchObject({
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+        expiresAt: expect.any(Number),
+      });
+    });
+
     it("should refresh and retry when Bluesky rejects a stale token", async () => {
       publisher = makeOAuthPublisher({
         accessToken: "stale_access_token",

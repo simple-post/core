@@ -26,6 +26,7 @@ model User {
   PendingOAuthConnection PendingOAuthConnection[]
   cliTokens              CliToken[]
   mcpAccessTokens        McpAccessToken[]
+  apiKeys                ApiKey[]
 
   @@unique([email])
   @@map("user")
@@ -176,6 +177,23 @@ model CliToken {
 
   @@index([userId])
   @@map("cli_token")
+}
+
+// API keys for direct Scheduler API access
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String    @default("API Key")
+  tokenHash  String    @unique // SHA-256 hash of the bearer token
+  keyPrefix  String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("api_key")
 }
 
 // Media files stored in Cloudflare R2

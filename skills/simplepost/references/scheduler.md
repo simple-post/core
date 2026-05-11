@@ -10,7 +10,7 @@ Use the Scheduler app when humans need a browser UI and when AI clients need acc
 - Browser compose, preview, validation, posting, drafts, and scheduling.
 - S3-compatible media upload with public URLs.
 - `/mcp` remote MCP server for AI assistants.
-- `/api/v1/*` routes used by the app and scheduler-connected CLI.
+- `/api/v1/*` routes used by the app, scheduler-connected CLI, MCP, and user-managed API keys.
 
 ## Local Development
 
@@ -32,9 +32,19 @@ curl -X POST "$NEXT_PUBLIC_APP_URL/api/internal/scheduled-posts/dispatch" \
   -H "Authorization: Bearer $SCHEDULED_POST_DISPATCH_SECRET"
 ```
 
+## API Keys
+
+Users can create API keys on the Scheduler app API Keys page. The raw key is shown once, stored only as a SHA-256 hash, and can later be deactivated or rotated. Use it as a bearer token:
+
+```bash
+curl -H "Authorization: Bearer $SIMPLEPOST_API_KEY" \
+  "$NEXT_PUBLIC_APP_URL/api/v1/accounts"
+```
+
+The OpenAPI document at `/api/openapi.json` includes the `apiBearerAuth` security scheme and API-key management routes.
+
 ## Agent Guidance
 
 - MCP cannot connect, disconnect, or re-authenticate social accounts. Direct users to the Scheduler app Accounts page.
 - Use Scheduler-connected accounts for OAuth-backed user workflows.
 - Use the self-hosted HTTP server instead when no UI, OAuth, user model, or scheduling is needed.
-

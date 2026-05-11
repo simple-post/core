@@ -81,7 +81,7 @@ Use [docs.simplepost.dev](https://docs.simplepost.dev) for guided credential set
 You have three common options:
 
 - Use environment variables with the SDK or HTTP API server.
-- Store accounts in the Scheduler app and let the web UI, MCP server, and scheduler-connected CLI use them.
+- Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, and Scheduler API keys use them.
 - Store accounts locally in the CLI for terminal-only workflows.
 
 The one-time license model matters here: you can set up your own apps on each social platform and run the code yourself. SimplePost should simplify the setup, not make you dependent on a hosted account you cannot inspect or replace.

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Bot, Cpu, Terminal as TerminalIcon, Sparkles } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
@@ -91,7 +93,12 @@ export default function IntegrationsPage() {
               ))}
             </ul>
             <p>
-              Authentication uses OAuth — your browser opens once to approve access. No API keys to manage manually.
+              MCP authentication uses OAuth — your browser opens once to approve access. For direct HTTP access, create
+              a bearer token on the{" "}
+              <Link href="/api-keys" className="text-foreground underline underline-offset-4 hover:text-primary">
+                API Keys page
+              </Link>
+              .
             </p>
           </div>
         </section>

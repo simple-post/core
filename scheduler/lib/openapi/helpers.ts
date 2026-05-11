@@ -1,11 +1,11 @@
+import { ApiErrorSchema } from "./schemas";
+
 import type {
   ZodOpenApiOperationObject,
   ZodOpenApiPathItemObject,
   ZodOpenApiResponseObject,
   ZodOpenApiSchemaObject,
 } from "zod-openapi";
-
-import { ApiErrorSchema } from "./schemas";
 
 export type OpenApiMethod = "get" | "post" | "patch" | "delete";
 
@@ -60,7 +60,10 @@ export const userAuthSecurity: NonNullable<ZodOpenApiOperationObject["security"]
   { cookieAuth: [] },
   { cliBearerAuth: [] },
   { mcpBearerAuth: [] },
+  { apiBearerAuth: [] },
 ];
+
+export const browserSessionSecurity: NonNullable<ZodOpenApiOperationObject["security"]> = [{ cookieAuth: [] }];
 
 export const mcpAuthSecurity: NonNullable<ZodOpenApiOperationObject["security"]> = [{ mcpBearerAuth: [] }];
 
@@ -85,7 +88,7 @@ export const serverErrorResponses = {
 export function buildPaths(routes: OpenApiRoute[]): Record<string, ZodOpenApiPathItemObject> {
   return routes.reduce<Record<string, ZodOpenApiPathItemObject>>((paths, route) => {
     paths[route.path] = {
-      ...(paths[route.path] ?? {}),
+      ...paths[route.path],
       ...route.methods,
     };
     return paths;

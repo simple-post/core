@@ -153,6 +153,53 @@ export const AccountsEnvelopeSchema = z
   })
   .meta({ id: "AccountsEnvelope" });
 
+export const ApiKeySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    keyPrefix: z.string(),
+    active: z.boolean(),
+    lastUsedAt: z.iso.datetime().nullable().optional(),
+    revokedAt: z.iso.datetime().nullable().optional(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({ id: "ApiKey" });
+
+export const ApiKeysEnvelopeSchema = z
+  .object({
+    keys: z.array(ApiKeySchema),
+  })
+  .meta({ id: "ApiKeysEnvelope" });
+
+export const CreateApiKeyRequestSchema = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+  })
+  .meta({ id: "CreateApiKeyRequest" });
+
+export const CreateApiKeyResponseSchema = z
+  .object({
+    apiKey: z.string(),
+    key: ApiKeySchema,
+  })
+  .meta({ id: "CreateApiKeyResponse" });
+
+export const DeactivateApiKeyResponseSchema = z
+  .object({
+    success: z.boolean(),
+    key: ApiKeySchema,
+  })
+  .meta({ id: "DeactivateApiKeyResponse" });
+
+export const RotateApiKeyResponseSchema = z
+  .object({
+    apiKey: z.string(),
+    key: ApiKeySchema,
+    rotatedFromId: z.string(),
+  })
+  .meta({ id: "RotateApiKeyResponse" });
+
 export const DisconnectAccountResponseSchema = z
   .object({
     success: z.boolean(),

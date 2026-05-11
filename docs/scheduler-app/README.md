@@ -26,7 +26,7 @@ Use the [SDK](../typescript-sdk/README.md) or [HTTP API server](../http-server/R
 - Publishes immediately or saves scheduled posts for later dispatch.
 - Shows scheduled, published, and failed posts.
 - Exposes the remote MCP server at `/mcp`.
-- Exposes API routes used by the app and CLI.
+- Exposes API routes used by the app, CLI, MCP, and user-managed API keys.
 
 Publishing still goes through `@simple-post/sdk`; the Scheduler app handles users, accounts, UI, storage, and scheduling around it.
 
@@ -103,19 +103,37 @@ https://your-scheduler-domain.example/mcp
 
 For details, read the [MCP server docs](../mcp-server/README.md).
 
+### Use API keys
+
+Open the Scheduler app and go to API Keys from the dashboard or user menu. Create a key, copy it immediately, and store it in your secret manager. The full key is shown only once; later the app only shows the saved prefix so you can identify it.
+
+Use the key as a bearer token for authenticated `/api/v1/*` routes:
+
+```bash
+curl -H "Authorization: Bearer $SIMPLEPOST_API_KEY" \
+  "$NEXT_PUBLIC_APP_URL/api/v1/accounts"
+```
+
+API keys are stored as SHA-256 hashes in Postgres. You can deactivate a key or rotate it from the API Keys page. Rotating deactivates the old key and returns a replacement once.
+
+The generated OpenAPI document is available at `/api/openapi.json`. It includes `apiBearerAuth` for Scheduler API routes and the API-key management endpoints.
+
 ## Useful Routes
 
-| Route                    | Purpose                              |
-| ------------------------ | ------------------------------------ |
-| `/accounts`              | Manage connected social accounts     |
-| `/schedule`              | Compose, publish, or schedule a post |
-| `/integrations`          | AI and MCP integration instructions  |
-| `/mcp`                   | Remote MCP server endpoint           |
-| `/mcp-docs`              | Public MCP documentation page        |
-| `/api/v1/accounts`       | Authenticated connected account API  |
-| `/api/v1/posts`          | Authenticated post create/list API   |
-| `/api/v1/upload`         | Server-side media upload             |
-| `/api/v1/upload/presign` | Direct S3/R2 upload URL generation   |
+| Route                    | Purpose                                 |
+| ------------------------ | --------------------------------------- |
+| `/accounts`              | Manage connected social accounts        |
+| `/schedule`              | Compose, publish, or schedule a post    |
+| `/integrations`          | AI and MCP integration instructions     |
+| `/api-keys`              | Create, rotate, and deactivate API keys |
+| `/mcp`                   | Remote MCP server endpoint              |
+| `/mcp-docs`              | Public MCP documentation page           |
+| `/api/openapi.json`      | Generated Scheduler OpenAPI document    |
+| `/api/v1/accounts`       | Authenticated connected account API     |
+| `/api/v1/api-keys`       | Authenticated API-key management API    |
+| `/api/v1/posts`          | Authenticated post create/list API      |
+| `/api/v1/upload`         | Server-side media upload                |
+| `/api/v1/upload/presign` | Direct S3/R2 upload URL generation      |
 
 ## Notes
 

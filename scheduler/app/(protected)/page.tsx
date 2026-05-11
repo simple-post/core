@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { Calendar, CheckCircle, AlertCircle, Users, Plus, FileText } from "lucide-react";
+import { Calendar, CheckCircle, AlertCircle, Users, Plus, FileText, KeyRound } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
@@ -49,6 +49,12 @@ export default function Dashboard() {
       <Navbar
         actions={
           <>
+            <Link href="/api-keys">
+              <Button variant="outline" size="sm" className="gap-2">
+                <KeyRound className="h-4 w-4" />
+                <span className="hidden sm:inline">API</span>
+              </Button>
+            </Link>
             <Link href="/accounts">
               <Button variant="outline" size="sm" className="gap-2">
                 <Users className="h-4 w-4" />

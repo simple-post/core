@@ -28,6 +28,7 @@ export function createSchedulerOpenApiDocument() {
         { name: "Connect", description: "Social account connection and OAuth callback endpoints." },
         { name: "OAuth", description: "OAuth endpoints for MCP clients." },
         { name: "Accounts", description: "Connected social account management." },
+        { name: "API Keys", description: "User-managed API keys for direct Scheduler API access." },
         { name: "Posts", description: "Post listing, creation, publishing, scheduling, and mutation." },
         { name: "Upload", description: "Media upload and presigned upload URL endpoints." },
         { name: "Validation", description: "Platform validation for draft posts." },
@@ -54,6 +55,12 @@ export function createSchedulerOpenApiDocument() {
             scheme: "bearer",
             bearerFormat: "sp_mcp",
             description: "MCP bearer token issued through the Scheduler OAuth flow.",
+          },
+          apiBearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "sp_api",
+            description: "User-managed API key issued by the Scheduler app.",
           },
           scheduledDispatchBearer: {
             type: "http",

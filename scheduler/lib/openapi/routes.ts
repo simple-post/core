@@ -9,11 +9,14 @@ import oauthAuthorizeRoutes from "@/app/api/oauth/authorize/openapi";
 import oauthRegisterRoutes from "@/app/api/oauth/register/openapi";
 import oauthTokenRoutes from "@/app/api/oauth/token/openapi";
 import openApiRoutes from "@/app/api/openapi.json/openapi";
-import accountsRoutes from "@/app/api/v1/accounts/openapi";
-import accountRoutes from "@/app/api/v1/accounts/[id]/openapi";
 import accountBoardsRoutes from "@/app/api/v1/accounts/[id]/boards/openapi";
-import postsRoutes from "@/app/api/v1/posts/openapi";
+import accountRoutes from "@/app/api/v1/accounts/[id]/openapi";
+import accountsRoutes from "@/app/api/v1/accounts/openapi";
+import apiKeyRoute from "@/app/api/v1/api-keys/[id]/openapi";
+import apiKeyRotateRoutes from "@/app/api/v1/api-keys/[id]/rotate/openapi";
+import apiKeyRoutes from "@/app/api/v1/api-keys/openapi";
 import postRoutes from "@/app/api/v1/posts/[id]/openapi";
+import postsRoutes from "@/app/api/v1/posts/openapi";
 import uploadRoutes from "@/app/api/v1/upload/openapi";
 import uploadPresignRoutes from "@/app/api/v1/upload/presign/openapi";
 import validationRoutes from "@/app/api/v1/validation/openapi";
@@ -36,6 +39,9 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   accountsRoutes,
   accountRoutes,
   accountBoardsRoutes,
+  apiKeyRoutes,
+  apiKeyRoute,
+  apiKeyRotateRoutes,
   postsRoutes,
   postRoutes,
   uploadRoutes,

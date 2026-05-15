@@ -1,4 +1,5 @@
 import {
+  AccountOptionsMapSchema,
   AccountOverridesMapSchema,
   MediaFileSchema,
   PlatformSchema,
@@ -81,7 +82,7 @@ export const PostSchema = z
     status: z.enum(["published", "failed"]),
     createdAt: z.iso.datetime(),
     publishedAt: z.iso.datetime().optional(),
-    accountOptions: z.record(z.string(), z.record(z.string(), JsonValueSchema).optional()).optional(),
+    accountOptions: AccountOptionsMapSchema.optional(),
     accountOverrides: AccountOverridesMapSchema.optional(),
   })
   .meta({ id: "ServerPost" });

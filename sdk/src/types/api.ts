@@ -13,7 +13,33 @@ export const MediaFileSchema = z.object({
 
 export type MediaFile = z.infer<typeof MediaFileSchema>;
 
-const accountOptionsValueSchema = z.record(z.string(), z.unknown()).optional();
+export const AccountOptionsValueSchema = z
+  .object({
+    replyToId: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    categoryId: z.string().optional(),
+    playlistId: z.string().optional(),
+    thumbnailUrl: z.url().optional(),
+    selfDeclaredMadeForKids: z.boolean().optional(),
+    publishAt: z.string().optional(),
+    privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
+    publishMode: z.enum(["draft", "public"]).optional(),
+    visibility: z.enum(["public", "friends", "private", "PUBLIC", "CONNECTIONS"]).optional(),
+    allowComment: z.boolean().optional(),
+    allowDuet: z.boolean().optional(),
+    allowStitch: z.boolean().optional(),
+    parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
+    boardId: z.string().optional(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    link: z.url().optional(),
+    altText: z.string().optional(),
+  })
+  .passthrough();
+
+const accountOptionsValueSchema = AccountOptionsValueSchema.optional();
+
+export const AccountOptionsMapSchema = z.record(z.string(), accountOptionsValueSchema);
 
 export type AccountOptionsMap = Record<string, Record<string, unknown> | undefined>;
 
@@ -55,7 +81,7 @@ export const createPostSchema = z.object({
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
   postingMode: z.enum(["now", "schedule"]).default("schedule"),
   scheduledFor: z.iso.datetime().optional(),
-  accountOptions: z.record(z.string(), accountOptionsValueSchema).optional(),
+  accountOptions: AccountOptionsMapSchema.optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
   thread: ThreadSchema.optional(),

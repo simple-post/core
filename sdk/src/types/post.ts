@@ -79,6 +79,8 @@ export const YouTubeOptionsSchema = z.object({
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
+  thumbnailPath: z.string().optional(),
+  thumbnailUrl: z.url().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
   publishAt: z.string().optional(),
   privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
@@ -150,10 +152,7 @@ export const BlueskyAppPasswordCredentialsSchema = z.object({
   pdsUrl: z.url().optional(),
 });
 
-export const BlueskyCredentialsSchema = z.union([
-  BlueskyAppPasswordCredentialsSchema,
-  BlueskyOAuthCredentialsSchema,
-]);
+export const BlueskyCredentialsSchema = z.union([BlueskyAppPasswordCredentialsSchema, BlueskyOAuthCredentialsSchema]);
 
 export const BlueskyPostRefSchema = z.object({
   uri: z.string(),

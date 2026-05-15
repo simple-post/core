@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ImageIcon, Loader2, X } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -30,11 +33,101 @@ const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
 const asBoolean = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
 
+const MAX_YOUTUBE_THUMBNAIL_SIZE = 2 * 1024 * 1024;
+const YOUTUBE_THUMBNAIL_TYPES = new Set(["image/jpeg", "image/png"]);
+
+function normalizeImageContentType(file: File) {
+  if (file.type === "image/jpg") return "image/jpeg";
+  if (file.type) return file.type;
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  return "";
+}
+
+async function getPresignedThumbnailUrl(
+  filename: string,
+  contentType: string,
+): Promise<{
+  uploadUrl: string;
+  publicUrl: string;
+}> {
+  const response = await fetch("/api/v1/upload/presign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename, contentType, isThumbnail: true }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error((data as { error?: string; message?: string }).error || "Failed to get upload URL");
+  }
+
+  return response.json();
+}
+
+async function uploadToStorage(uploadUrl: string, file: File, contentType: string): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Upload failed (${response.status}): ${text || response.statusText}`);
+  }
+}
+
+async function uploadThumbnailViaServer(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  const response = await fetch("/api/v1/upload", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error((data as { error?: string; message?: string }).error || "Failed to upload thumbnail");
+  }
+
+  const result = (await response.json()) as { url: string };
+  return result.url;
+}
+
+async function uploadYouTubeThumbnail(file: File): Promise<string> {
+  if (file.size > MAX_YOUTUBE_THUMBNAIL_SIZE) {
+    throw new Error("YouTube thumbnails must be 2MB or smaller.");
+  }
+
+  const contentType = normalizeImageContentType(file);
+  if (!YOUTUBE_THUMBNAIL_TYPES.has(contentType)) {
+    throw new Error("YouTube thumbnails must be JPG or PNG images.");
+  }
+
+  try {
+    const { uploadUrl, publicUrl } = await getPresignedThumbnailUrl(file.name, contentType);
+    await uploadToStorage(uploadUrl, file, contentType);
+    return publicUrl;
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      return uploadThumbnailViaServer(file);
+    }
+    throw error;
+  }
+}
+
 export function AccountOptionsComponent({ selectedAccountIds, options, onOptionsChange }: AccountOptionsProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
+  const thumbnailInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [pinterestBoards, setPinterestBoards] = useState<Record<string, PinterestBoard[]>>({});
   const [boardsLoading, setBoardsLoading] = useState<Record<string, boolean>>({});
   const [boardsError, setBoardsError] = useState<Record<string, string | null>>({});
+  const [thumbnailUploads, setThumbnailUploads] = useState<Record<string, boolean>>({});
+  const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string | null>>({});
 
   // Fetch Pinterest boards for selected Pinterest accounts
   const fetchBoards = useCallback(async (accountId: string) => {
@@ -92,6 +185,25 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     });
   };
 
+  const handleThumbnailFile = async (accountId: string, file: File | undefined) => {
+    if (!file) return;
+
+    setThumbnailUploads((prev) => ({ ...prev, [accountId]: true }));
+    setThumbnailErrors((prev) => ({ ...prev, [accountId]: null }));
+
+    try {
+      const thumbnailUrl = await uploadYouTubeThumbnail(file);
+      updateOption(accountId, "thumbnailUrl", thumbnailUrl);
+    } catch (error) {
+      setThumbnailErrors((prev) => ({
+        ...prev,
+        [accountId]: error instanceof Error ? error.message : "Failed to upload thumbnail",
+      }));
+    } finally {
+      setThumbnailUploads((prev) => ({ ...prev, [accountId]: false }));
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -107,6 +219,9 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
         if (!platformConfig) return null;
 
         const accountOptions = (options[account.id] ?? {}) as Record<string, unknown>;
+        const thumbnailUrl = asString(accountOptions.thumbnailUrl);
+        const thumbnailUploading = thumbnailUploads[account.id] === true;
+        const thumbnailError = thumbnailErrors[account.id];
 
         return (
           <Card key={account.id} className="p-5 space-y-4">
@@ -229,6 +344,61 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                     className="mt-1 border-border"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
+                </div>
+
+                <div>
+                  <Label htmlFor={`${account.id}-thumbnail`} className="text-sm text-muted-foreground">
+                    Custom thumbnail (optional)
+                  </Label>
+                  <input
+                    id={`${account.id}-thumbnail`}
+                    ref={(node) => {
+                      thumbnailInputRefs.current[account.id] = node;
+                    }}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    onChange={(event) => {
+                      void handleThumbnailFile(account.id, event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                  {thumbnailUrl ? (
+                    <div className="mt-2 flex items-center gap-3 rounded-lg border border-border bg-secondary/40 p-2">
+                      <div className="h-16 w-28 overflow-hidden rounded-md bg-muted">
+                        <img src={thumbnailUrl} alt="YouTube custom thumbnail" className="h-full w-full object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs text-muted-foreground">{thumbnailUrl}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => updateOption(account.id, "thumbnailUrl", undefined)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 gap-2"
+                    disabled={thumbnailUploading}
+                    onClick={() => thumbnailInputRefs.current[account.id]?.click()}>
+                    {thumbnailUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                    {thumbnailUploading ? "Uploading..." : thumbnailUrl ? "Replace thumbnail" : "Upload thumbnail"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload a JPG or PNG image, up to 2MB. This overrides the generated video preview for YouTube.
+                  </p>
+                  {thumbnailError ? <p className="text-xs text-destructive mt-1">{thumbnailError}</p> : null}
                 </div>
 
                 <div className="flex items-center space-x-2">

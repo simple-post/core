@@ -100,8 +100,17 @@ export class YouTubePublisher extends Publisher {
       metadata.description && metadata.description.length > YOUTUBE_MAX_DESCRIPTION_LENGTH
         ? metadata.description.slice(0, YOUTUBE_MAX_DESCRIPTION_LENGTH)
         : metadata.description;
+    const youtubeOptions = options?.youtube;
+    const thumbnailSource =
+      youtubeOptions?.thumbnailPath || youtubeOptions?.thumbnailUrl
+        ? {
+            ...video,
+            thumbnailPath: youtubeOptions.thumbnailPath,
+            thumbnailUrl: youtubeOptions.thumbnailUrl,
+          }
+        : video;
     this.logger.info(
-      `[YouTubePublisher] Video details: title="${safeTitle}", path="${video.path}", hasThumbnail=${!!video.thumbnailPath}`,
+      `[YouTubePublisher] Video details: title="${safeTitle}", path="${video.path}", hasThumbnail=${!!(thumbnailSource.thumbnailPath || thumbnailSource.thumbnailUrl)}`,
     );
 
     const tempFileManager = new TempFileManager();
@@ -112,15 +121,15 @@ export class YouTubePublisher extends Publisher {
       tempFileManager.add(videoCleanup);
 
       // Resolve thumbnail path if provided (download if URL)
-      const { path: resolvedThumbnailPath, cleanup: thumbnailCleanup } = await resolveThumbnailPath(video);
+      const { path: resolvedThumbnailPath, cleanup: thumbnailCleanup } = await resolveThumbnailPath(thumbnailSource);
       tempFileManager.add(thumbnailCleanup);
 
-      const privacyStatus = options?.youtube?.publishAt ? "private" : options?.youtube?.privacyStatus;
-      const publishAt = options?.youtube?.publishAt ? new Date(options.youtube.publishAt).toISOString() : undefined;
+      const privacyStatus = youtubeOptions?.publishAt ? "private" : youtubeOptions?.privacyStatus;
+      const publishAt = youtubeOptions?.publishAt ? new Date(youtubeOptions.publishAt).toISOString() : undefined;
 
       this.logger.info(`[YouTubePublisher] Preparing video upload request`);
       this.logger.info(
-        `[YouTubePublisher] Upload parameters: title="${safeTitle}", description="${safeDescription ? `${safeDescription.slice(0, 50)}...` : "None"}", tags=${options?.youtube?.tags?.length || 0}, categoryId=${options?.youtube?.categoryId || "Not set"}, privacyStatus=${privacyStatus || "Not set"}, publishAt=${publishAt || "Not set"}, selfDeclaredMadeForKids=${options?.youtube?.selfDeclaredMadeForKids ?? false}`,
+        `[YouTubePublisher] Upload parameters: title="${safeTitle}", description="${safeDescription ? `${safeDescription.slice(0, 50)}...` : "None"}", tags=${youtubeOptions?.tags?.length || 0}, categoryId=${youtubeOptions?.categoryId || "Not set"}, privacyStatus=${privacyStatus || "Not set"}, publishAt=${publishAt || "Not set"}, selfDeclaredMadeForKids=${youtubeOptions?.selfDeclaredMadeForKids ?? false}`,
       );
 
       this.logger.info(`[YouTubePublisher] Starting video file upload from: ${resolvedVideoPath}`);
@@ -138,13 +147,13 @@ export class YouTubePublisher extends Publisher {
             snippet: {
               title: safeTitle,
               description: safeDescription,
-              tags: options?.youtube?.tags,
-              categoryId: options?.youtube?.categoryId,
+              tags: youtubeOptions?.tags,
+              categoryId: youtubeOptions?.categoryId,
             },
             status: {
               privacyStatus: privacyStatus,
               publishAt: publishAt,
-              selfDeclaredMadeForKids: options?.youtube?.selfDeclaredMadeForKids ?? false,
+              selfDeclaredMadeForKids: youtubeOptions?.selfDeclaredMadeForKids ?? false,
             },
           },
           media: {

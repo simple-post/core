@@ -9,6 +9,7 @@ Use the Scheduler app when humans need a browser UI and when AI clients need acc
 - Encrypted connected-account secret storage.
 - Browser compose, preview, validation, posting, drafts, and scheduling.
 - S3-compatible media upload with public URLs.
+- Per-account platform options, including custom YouTube thumbnails via `thumbnailUrl`.
 - `/mcp` remote MCP server for AI assistants.
 - `/api/v1/*` routes used by the app, scheduler-connected CLI, MCP, and user-managed API keys.
 

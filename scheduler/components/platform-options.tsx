@@ -157,6 +157,20 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
           </div>
 
+          <div>
+            <Label htmlFor="youtube-thumbnailUrl" className="text-sm text-muted-foreground">
+              Custom Thumbnail URL (optional)
+            </Label>
+            <Input
+              id="youtube-thumbnailUrl"
+              placeholder="https://cdn.example.com/thumbnail.jpg"
+              value={options.youtube?.thumbnailUrl || ""}
+              onChange={(e) => updateOption("youtube", "thumbnailUrl", e.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Use a public JPG or PNG URL for the YouTube thumbnail</p>
+          </div>
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="youtube-madeForKids"

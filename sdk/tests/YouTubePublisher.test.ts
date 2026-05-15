@@ -193,6 +193,47 @@ describe("YouTubePublisher", () => {
       expect(result).toEqual({ id: "video_id_456", error: PostErrorType.NO_ERROR });
     });
 
+    it("should use YouTube-specific thumbnail over media thumbnail", async () => {
+      const content: Content = {
+        text: "Video with custom thumbnail option",
+        media: [
+          {
+            type: "video",
+            path: "/path/to/video.mp4",
+            title: "Test Video",
+            thumbnailPath: "/path/to/generated-thumbnail.jpg",
+          },
+        ],
+      };
+
+      const optionsWithThumbnail: PostOptionsWithCredentials = {
+        youtube: {
+          thumbnailPath: "/path/to/custom-thumbnail.jpg",
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            refreshToken: "test_refresh_token",
+          },
+        },
+      };
+
+      mockYouTubeClient.videos.insert.mockResolvedValue({
+        data: { id: "video_id_custom_thumbnail" },
+      });
+      mockYouTubeClient.thumbnails.set.mockResolvedValue({});
+
+      const result = await publisher.postContent(content, optionsWithThumbnail);
+
+      expect(mockedFs.createReadStream).toHaveBeenCalledWith("/path/to/custom-thumbnail.jpg");
+      expect(mockYouTubeClient.thumbnails.set).toHaveBeenCalledWith({
+        videoId: "video_id_custom_thumbnail",
+        media: {
+          body: "mock-stream",
+        },
+      });
+      expect(result).toEqual({ id: "video_id_custom_thumbnail", error: PostErrorType.NO_ERROR });
+    });
+
     it("should post video with YouTube-specific options", async () => {
       const content: Content = {
         text: "Video with options",

@@ -123,6 +123,8 @@ export type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 // the @simple-post/server and @simple-post/scheduler HTTP APIs.
 export {
   MediaFileSchema,
+  AccountOptionsValueSchema,
+  AccountOptionsMapSchema,
   AccountContentOverrideSchema,
   AccountOverridesMapSchema,
   createPostSchema,

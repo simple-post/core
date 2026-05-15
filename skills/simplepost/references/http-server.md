@@ -54,7 +54,8 @@ The returned URL must be publicly reachable by social platforms. Configure `SIMP
   "postingMode": "now",
   "media": [],
   "accountOptions": {
-    "x-main": { "replyToId": "1234567890" }
+    "x-main": { "replyToId": "1234567890" },
+    "youtube-main": { "thumbnailUrl": "https://cdn.example.com/thumbnail.jpg" }
   },
   "accountOverrides": {
     "telegram-news": { "message": "Telegram-specific copy" }
@@ -67,4 +68,3 @@ Validation failures and unknown accounts return `400` before any platform is tou
 ## Accounts File
 
 The self-hosted server reads configured accounts from `SIMPLE_POST_ACCOUNTS_FILE`. Each account needs a stable `id`, `platform`, `credentials`, and optional platform defaults in `options`. The platform credential shapes mirror `PostOptions[platform].credentials` in the SDK.
-

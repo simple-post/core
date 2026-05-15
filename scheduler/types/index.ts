@@ -28,6 +28,7 @@ export interface AccountPlatformOptions {
     tags?: string[];
     categoryId?: string;
     playlistId?: string;
+    thumbnailUrl?: string;
     selfDeclaredMadeForKids?: boolean;
     privacyStatus?: "public" | "private" | "unlisted";
     publishAt?: string;
@@ -86,6 +87,7 @@ export interface PlatformOptions {
     tags?: string[];
     categoryId?: string;
     playlistId?: string;
+    thumbnailUrl?: string;
     selfDeclaredMadeForKids?: boolean;
     privacyStatus?: "public" | "private" | "unlisted";
     publishAt?: string;

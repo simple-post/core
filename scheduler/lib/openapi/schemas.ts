@@ -1,4 +1,5 @@
 import {
+  AccountOptionsMapSchema,
   AccountOverridesMapSchema,
   MediaFileSchema,
   PlatformSchema,
@@ -76,7 +77,7 @@ export const PostSchema = z
     errorDetails: z.record(z.string(), JsonValueSchema).optional(),
     createdAt: z.iso.datetime(),
     publishedAt: z.iso.datetime().optional(),
-    accountOptions: z.record(z.string(), z.record(z.string(), JsonValueSchema).optional()).optional(),
+    accountOptions: AccountOptionsMapSchema.optional(),
     accountOverrides: AccountOverridesMapSchema.optional(),
     thread: ThreadSchema.optional(),
     threadResults: z.record(z.string(), z.array(ThreadSegmentResultSchema)).optional(),

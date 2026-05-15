@@ -1,4 +1,5 @@
 import {
+  AccountOptionsMapSchema,
   AccountOverridesMapSchema,
   MediaFileSchema,
   ThreadSchema,
@@ -10,8 +11,6 @@ import { z } from "zod/v4";
 // Scheduler-specific schemas (e.g. updatePostSchema) stay here.
 export { validationRequestSchema } from "@simple-post/sdk";
 export type { ValidationRequestInput } from "@simple-post/sdk";
-
-const accountOptionsValueSchema = z.record(z.string(), z.unknown()).optional();
 
 export const postingModeSchema = z.enum(["now", "schedule", "draft"]);
 
@@ -27,7 +26,7 @@ export const updatePostSchema = z.object({
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
   postingMode: postingModeSchema.optional(),
   scheduledFor: z.iso.datetime().optional(),
-  accountOptions: z.record(z.string(), accountOptionsValueSchema).optional(),
+  accountOptions: AccountOptionsMapSchema.optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
   thread: ThreadSchema.optional(),

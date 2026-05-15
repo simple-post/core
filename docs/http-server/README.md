@@ -143,9 +143,15 @@ Long-lived (refresh token):
     "clientSecret": "...",
     "refreshToken": "..."
   },
-  "options": { "privacyStatus": "public", "categoryId": "22" }
+  "options": {
+    "privacyStatus": "public",
+    "categoryId": "22",
+    "thumbnailPath": "/srv/simplepost/thumbs/launch.jpg"
+  }
 }
 ```
+
+Per-request `accountOptions` can also set `thumbnailUrl` for a public custom thumbnail uploaded through `/api/v1/upload`.
 
 Short-lived (direct access token):
 

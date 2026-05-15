@@ -4,7 +4,12 @@ import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { handleApiError, NotFoundError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
-import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
+import {
+  deleteAccountOptionFiles,
+  deleteMediaFiles,
+  deleteStorageUrls,
+  getRemovedAccountOptionThumbnailUrls,
+} from "@/lib/utils/media-cleanup";
 import { checkRateLimits } from "@/lib/utils/rate-limit";
 import { checkAndDeductXCredits } from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -129,8 +134,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...finalMedia.map((m) => m.url),
       ...(validated.thread ?? []).flatMap((s) => (s.media ?? []).map((m) => m.url)),
     ]);
+    const newMediaThumbnailUrls = new Set([
+      ...finalMedia.map((m) => m.thumbnailUrl).filter((url): url is string => typeof url === "string"),
+      ...(validated.thread ?? []).flatMap((s) =>
+        (s.media ?? []).map((m) => m.thumbnailUrl).filter((url): url is string => typeof url === "string"),
+      ),
+    ]);
     const oldThreadMedia = (currentPost.thread ?? []).flatMap((s) => s.media ?? []);
     const removedMedia = [...currentPost.media, ...oldThreadMedia].filter((m) => !newMediaUrls.has(m.url));
+    const removedAccountOptionThumbnailUrls = getRemovedAccountOptionThumbnailUrls(
+      currentPost.accountOptions,
+      validated.accountOptions,
+    ).filter((url) => !newMediaUrls.has(url) && !newMediaThumbnailUrls.has(url));
 
     // Update the post
     const post = await repository.updatePost(id, {
@@ -151,6 +166,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Clean up removed media from R2 (best-effort, don't fail the request)
     if (removedMedia.length > 0) {
       await deleteMediaFiles(removedMedia);
+    }
+    if (removedAccountOptionThumbnailUrls.length > 0) {
+      await deleteStorageUrls(removedAccountOptionThumbnailUrls, "removed-account-option-thumbnail");
     }
 
     if (postingMode !== "now") {
@@ -264,10 +282,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       throw new NotFoundError("Post not found");
     }
 
-    // Delete media files from R2
-    if (post.media.length > 0) {
-      await deleteMediaFiles(post.media);
-    }
+    const postMedia = [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
+
+    // Delete uploaded files from R2
+    await Promise.all([deleteMediaFiles(postMedia), deleteAccountOptionFiles(post.accountOptions)]);
 
     await repository.deletePost(id);
 

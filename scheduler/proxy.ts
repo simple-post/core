@@ -17,11 +17,11 @@ function isMcpCorsRoute(pathname: string): boolean {
 }
 
 /**
- * Next.js middleware for:
+ * Next.js proxy for:
  * 1. CSRF/origin validation on state-changing API requests
  * 2. CORS headers for MCP/OAuth endpoints
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Handle CORS for MCP-related routes

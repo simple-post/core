@@ -10,11 +10,42 @@ import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
 
 const OPENAI_TEST_USER_EMAIL = "openai@simplepost.dev";
+const OPENAI_TEST_USER_PASSWORD = "openai";
 
 function openAITestUserLogin() {
   return {
     id: "openai-test-user-login",
     endpoints: {
+      getOpenAITestUserLoginConfig: createAuthEndpoint(
+        "/sign-in/openai-test-user",
+        {
+          method: "GET",
+          metadata: {
+            openapi: {
+              description: "Return whether the OpenAI test user password login is enabled.",
+              responses: {
+                200: {
+                  description: "OpenAI test user sign-in configuration.",
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: {
+                          enabled: { type: "boolean" },
+                        },
+                        required: ["enabled"],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        async (ctx) => {
+          return ctx.json({ enabled: env.ENABLE_OPENAI_TEST_LOGIN });
+        },
+      ),
       signInOpenAITestUser: createAuthEndpoint(
         "/sign-in/openai-test-user",
         {
@@ -22,10 +53,12 @@ function openAITestUserLogin() {
           requireHeaders: true,
           body: z.object({
             email: z.string().email(),
+            password: z.string(),
           }),
           metadata: {
             openapi: {
-              description: "Sign in the configured OpenAI test user when the server-side feature flag is enabled.",
+              description:
+                "Sign in the configured OpenAI test user with the hard-coded review password when the server-side feature flag is enabled.",
               responses: {
                 200: {
                   description: "OpenAI test user sign-in result.",
@@ -47,7 +80,11 @@ function openAITestUserLogin() {
         },
         async (ctx) => {
           const email = ctx.body.email.trim().toLowerCase();
-          if (!env.ENABLE_OPENAI_TEST_LOGIN || email !== OPENAI_TEST_USER_EMAIL) {
+          if (
+            !env.ENABLE_OPENAI_TEST_LOGIN ||
+            email !== OPENAI_TEST_USER_EMAIL ||
+            ctx.body.password !== OPENAI_TEST_USER_PASSWORD
+          ) {
             return ctx.json({ authenticated: false });
           }
 
@@ -88,7 +125,7 @@ function openAITestUserLogin() {
           return path.startsWith("/sign-in/openai-test-user");
         },
         window: 60,
-        max: 5,
+        max: 60,
       },
     ],
   };

@@ -28,7 +28,7 @@ export default function TermsPage() {
             Terms &amp; <span className="text-primary">conditions</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: April 26, 2026
+            Last updated: May 18, 2026
           </p>
         </div>
 
@@ -71,6 +71,18 @@ export default function TermsPage() {
               When you connect your social media accounts to the Service, you grant us permission to access and post
               content on your behalf. You are solely responsible for the content you create and publish through the
               Service. You must ensure that you have the necessary rights and permissions for all content you schedule.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              When you use Simple Post Scheduler features that access YouTube API Services, you also agree to be bound
+              by the{" "}
+              <a
+                href="https://www.youtube.com/t/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2">
+                YouTube Terms of Service
+              </a>
+              .
             </p>
           </section>
 

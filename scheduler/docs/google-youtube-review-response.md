@@ -17,3 +17,7 @@ For connected YouTube accounts, the Scheduler stores OAuth tokens, scopes, accou
 YouTube OAuth access is refreshed on demand when Google requires a fresh access token for an authorized upload or account action. Basic YouTube account metadata is updated when the user reconnects the YouTube account.
 
 When a user disconnects a YouTube account, the active connection record and stored tokens are deleted immediately. Account deletion and support deletion requests are processed within 30 days unless retention is required by law, fraud prevention, or security obligations.
+
+## Additional Question - Highlighted YouTube Connect Icon Size
+
+The highlighted YouTube connect icon in the Scheduler "New account" dialog is rendered as a fixed `!h-6 !w-6` icon, which is `24px` by `24px` with the default 16px root font size. It sits inside a fixed `h-11 w-11` tile, which is `44px` by `44px`.

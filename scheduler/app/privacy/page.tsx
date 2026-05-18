@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Privacy <span className="text-primary">policy</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: April 26, 2026
+            Last updated: May 18, 2026
           </p>
         </div>
 
@@ -76,6 +76,11 @@ export default function PrivacyPage() {
             <p className="text-muted-foreground leading-relaxed">
               When you connect your social media accounts, we receive information from those platforms in accordance
               with their authorization procedures, including profile information and posting permissions.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              When you connect a YouTube account, Simple Post Scheduler uses YouTube API Services to authenticate your
+              account, read basic channel/account metadata that you authorize, and upload videos that you create,
+              schedule, or publish through the Service.
             </p>
 
             <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">

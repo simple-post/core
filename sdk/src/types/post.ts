@@ -76,6 +76,8 @@ export const TelegramOptionsSchema = z.object({
 });
 
 export const YouTubeOptionsSchema = z.object({
+  title: z.string().max(100).optional(),
+  description: z.string().max(5000).optional(),
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),

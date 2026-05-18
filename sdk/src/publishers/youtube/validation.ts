@@ -1,6 +1,6 @@
 import { countMedia, hasMediaSource } from "../validation-utils";
 
-import type { Content, Video } from "../../types/post";
+import type { Content, Video, YouTubeOptions } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const YOUTUBE_MAX_TITLE_LENGTH = 100;
@@ -16,10 +16,14 @@ export const YOUTUBE_VALIDATION_RULES: PlatformValidationRules = {
   },
 };
 
-export function getYouTubeVideoMetadata(content: Content, video: Video): { title: string; description?: string } {
+export function getYouTubeVideoMetadata(
+  content: Content,
+  video: Video,
+  options?: Pick<YouTubeOptions, "title" | "description">,
+): { title: string; description?: string } {
   const fallbackTitle = content.text?.trim() || "Untitled Video";
-  const title = video.title?.trim() || fallbackTitle;
-  const description = video.description?.trim() || content.text?.trim() || undefined;
+  const title = options?.title?.trim() || video.title?.trim() || fallbackTitle;
+  const description = options?.description?.trim() || video.description?.trim() || content.text?.trim() || undefined;
   return { title, description };
 }
 

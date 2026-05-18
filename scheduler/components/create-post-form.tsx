@@ -26,6 +26,7 @@ import { validatePostForResolvedAccounts } from "@/lib/validation/post-validatio
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
+import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
 import { GenericPostPreview } from "./generic-post-preview";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
@@ -57,6 +58,7 @@ export function CreatePostForm() {
     setMessage,
     setMedia,
     setSelectedAccountIds,
+    setAccountOptions,
     setPostingMode,
     setScheduledDate,
     setScheduledTime,
@@ -412,6 +414,12 @@ export function CreatePostForm() {
           showAdvancedButton
           getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
           layout="row"
+        />
+
+        <AccountOptionsComponent
+          selectedAccountIds={selectedAccountIds}
+          options={accountOptions}
+          onOptionsChange={setAccountOptions}
         />
 
         <div className="space-y-4">

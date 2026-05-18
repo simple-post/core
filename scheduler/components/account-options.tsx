@@ -34,6 +34,8 @@ const asStringArray = (value: unknown): string[] =>
 const asBoolean = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
 
 const MAX_YOUTUBE_THUMBNAIL_SIZE = 2 * 1024 * 1024;
+const YOUTUBE_TITLE_MAX_LENGTH = 100;
+const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
 const YOUTUBE_THUMBNAIL_TYPES = new Set(["image/jpeg", "image/png"]);
 
 function normalizeImageContentType(file: File) {
@@ -275,6 +277,41 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                       <SelectItem value="public">Public</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor={`${account.id}-youtube-title`} className="text-sm text-muted-foreground">
+                    Video title
+                  </Label>
+                  <Input
+                    id={`${account.id}-youtube-title`}
+                    placeholder="YouTube video title"
+                    value={asString(accountOptions.title)}
+                    maxLength={YOUTUBE_TITLE_MAX_LENGTH}
+                    onChange={(e) => updateOption(account.id, "title", e.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {asString(accountOptions.title).length}/{YOUTUBE_TITLE_MAX_LENGTH}. If empty, the message is used.
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor={`${account.id}-youtube-description`} className="text-sm text-muted-foreground">
+                    Video description
+                  </Label>
+                  <Textarea
+                    id={`${account.id}-youtube-description`}
+                    placeholder="YouTube video description"
+                    value={asString(accountOptions.description)}
+                    maxLength={YOUTUBE_DESCRIPTION_MAX_LENGTH}
+                    onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
+                    className="mt-1 min-h-24 border-border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {asString(accountOptions.description).length}/{YOUTUBE_DESCRIPTION_MAX_LENGTH}. If empty, the
+                    message is used.
+                  </p>
                 </div>
 
                 <div>

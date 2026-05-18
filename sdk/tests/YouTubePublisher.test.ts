@@ -248,6 +248,8 @@ describe("YouTubePublisher", () => {
 
       const optionsWithYouTube: PostOptionsWithCredentials = {
         youtube: {
+          title: "Custom upload title",
+          description: "Custom upload description",
           privacyStatus: "private",
           tags: ["tag1", "tag2"],
           categoryId: "22",
@@ -271,8 +273,8 @@ describe("YouTubePublisher", () => {
         part: ["snippet", "status"],
         requestBody: {
           snippet: {
-            title: "Test Video",
-            description: "Video with options",
+            title: "Custom upload title",
+            description: "Custom upload description",
             tags: ["tag1", "tag2"],
             categoryId: "22",
           },

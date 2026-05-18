@@ -207,6 +207,13 @@ export default function PrivacyPage() {
               identifier. You can instruct your browser to refuse all cookies or to indicate when a cookie is being
               sent. However, if you do not accept cookies, you may not be able to use some portions of our Service.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              The Service stores, accesses, or collects information on or from your device through cookies, local
+              storage, session storage, and similar browser technologies. We use these technologies for authentication
+              sessions, security, preferences, draft state, MCP authorization flows, and Service reliability. Service
+              providers that support hosting, analytics, security, or payments may also use these technologies when
+              needed to provide their services to us.
+            </p>
           </section>
 
           <section>

@@ -197,6 +197,21 @@ export default function PrivacyPage() {
               media accounts, disconnect authorized MCP clients from their app or connector settings, and delete your
               account at any time through the settings.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              To delete stored YouTube data in Simple Post Scheduler, sign in, open the Accounts page, and disconnect
+              the YouTube account. This deletes the stored YouTube OAuth tokens and account metadata for that
+              connection. You may also request deletion by contacting support, or delete your SimplePost account to
+              remove all connected accounts and stored content. To revoke Simple Post Scheduler&apos;s access directly
+              from Google, visit the{" "}
+              <a
+                href="https://myaccount.google.com/connections?filters=3,4&hl=en"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2">
+                Google security settings connections page
+              </a>
+              .
+            </p>
           </section>
 
           <section>

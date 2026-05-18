@@ -220,7 +220,16 @@ export default function DataDeletionPage() {
                     <li>Facebook: Settings → Apps and Websites</li>
                     <li>Instagram: Settings → Security → Apps and Websites</li>
                     <li>X (Twitter): Settings → Security and account access → Apps and sessions</li>
-                    <li>Google/YouTube: Account Settings → Security → Third-party apps</li>
+                    <li>
+                      Google/YouTube: revoke SimplePost access from the{" "}
+                      <a
+                        href="https://myaccount.google.com/connections?filters=3,4&hl=en"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline font-medium">
+                        Google security settings connections page
+                      </a>
+                    </li>
                     <li>TikTok: Settings → Security and privacy → Authorized apps</li>
                   </ul>
                 </li>

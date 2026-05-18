@@ -82,6 +82,17 @@ export default function PrivacyPage() {
               account, read basic channel/account metadata that you authorize, and upload videos that you create,
               schedule, or publish through the Service.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              Information received from YouTube API Services is also subject to the{" "}
+              <a
+                href="http://www.google.com/policies/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2">
+                Google Privacy Policy
+              </a>
+              .
+            </p>
 
             <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">
               2.4 Information from AI and MCP Clients

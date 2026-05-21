@@ -91,7 +91,8 @@ export class YouTubePublisher extends Publisher {
     if (!video) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post.");
     }
-    const metadata = getYouTubeVideoMetadata(content, video);
+    const youtubeOptions = options?.youtube;
+    const metadata = getYouTubeVideoMetadata(content, video, youtubeOptions);
     const safeTitle =
       metadata.title.length > YOUTUBE_MAX_TITLE_LENGTH
         ? metadata.title.slice(0, YOUTUBE_MAX_TITLE_LENGTH)
@@ -100,7 +101,6 @@ export class YouTubePublisher extends Publisher {
       metadata.description && metadata.description.length > YOUTUBE_MAX_DESCRIPTION_LENGTH
         ? metadata.description.slice(0, YOUTUBE_MAX_DESCRIPTION_LENGTH)
         : metadata.description;
-    const youtubeOptions = options?.youtube;
     const thumbnailSource =
       youtubeOptions?.thumbnailPath || youtubeOptions?.thumbnailUrl
         ? {

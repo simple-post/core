@@ -219,7 +219,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
               <PlatformIcon
                 key={platform}
                 platform={platform}
-                className="w-5 h-5 text-[#555555] hover:text-primary transition-colors"
+                className="!h-6 !w-6 text-[#555555] hover:text-primary transition-colors"
               />
             ))}
           </div>

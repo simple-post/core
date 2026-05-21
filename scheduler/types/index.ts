@@ -25,6 +25,8 @@ export interface AccountPlatformOptions {
     replyToId?: string;
   };
   youtube?: {
+    title?: string;
+    description?: string;
     tags?: string[];
     categoryId?: string;
     playlistId?: string;
@@ -84,6 +86,8 @@ export interface PlatformOptions {
     replyToId?: string;
   };
   youtube?: {
+    title?: string;
+    description?: string;
     tags?: string[];
     categoryId?: string;
     playlistId?: string;

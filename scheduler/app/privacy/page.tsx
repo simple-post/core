@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Privacy <span className="text-primary">policy</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: April 26, 2026
+            Last updated: May 21, 2026
           </p>
         </div>
 
@@ -76,6 +76,22 @@ export default function PrivacyPage() {
             <p className="text-muted-foreground leading-relaxed">
               When you connect your social media accounts, we receive information from those platforms in accordance
               with their authorization procedures, including profile information and posting permissions.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              When you connect a YouTube account, Simple Post Scheduler uses YouTube API Services to authenticate your
+              account, read basic channel/account metadata that you authorize, and upload videos that you create,
+              schedule, or publish through the Service.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              Information received from YouTube API Services is also subject to the{" "}
+              <a
+                href="http://www.google.com/policies/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2">
+                Google Privacy Policy
+              </a>
+              .
             </p>
 
             <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">
@@ -161,6 +177,15 @@ export default function PrivacyPage() {
               outlined in this privacy policy. When you delete your account, we will delete or anonymize your personal
               information, except where we are required to retain it for legal or compliance purposes.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              For YouTube API Services data, we retain OAuth tokens, scopes, account identifiers, and basic account
+              metadata only while the YouTube account remains connected or while needed to complete posts you create or
+              schedule. We refresh OAuth access on demand when Google requires a fresh access token for an authorized
+              upload or account action, and we update stored YouTube account metadata when you reconnect the account.
+              When you disconnect YouTube, the active connection record and stored tokens are deleted immediately.
+              Account deletion and support deletion requests are processed within 30 days unless retention is required
+              by law or security obligations.
+            </p>
           </section>
 
           <section>
@@ -181,6 +206,21 @@ export default function PrivacyPage() {
               media accounts, disconnect authorized MCP clients from their app or connector settings, and delete your
               account at any time through the settings.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              To delete stored YouTube data in Simple Post Scheduler, sign in, open the Accounts page, and disconnect
+              the YouTube account. This deletes the stored YouTube OAuth tokens and account metadata for that
+              connection. You may also request deletion by contacting support, or delete your SimplePost account to
+              remove all connected accounts and stored content. To revoke Simple Post Scheduler&apos;s access directly
+              from Google, visit the{" "}
+              <a
+                href="https://myaccount.google.com/connections?filters=3,4&hl=en"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2">
+                Google security settings connections page
+              </a>
+              .
+            </p>
           </section>
 
           <section>
@@ -190,6 +230,13 @@ export default function PrivacyPage() {
               information. Cookies are files with a small amount of data that may include an anonymous unique
               identifier. You can instruct your browser to refuse all cookies or to indicate when a cookie is being
               sent. However, if you do not accept cookies, you may not be able to use some portions of our Service.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              The Service stores, accesses, or collects information on or from your device through cookies, local
+              storage, session storage, and similar browser technologies. We use these technologies for authentication
+              sessions, security, preferences, draft state, MCP authorization flows, and Service reliability. Service
+              providers that support hosting, analytics, security, or payments may also use these technologies when
+              needed to provide their services to us.
             </p>
           </section>
 

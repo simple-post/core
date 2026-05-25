@@ -246,7 +246,7 @@ export default function AccountsPage() {
                 className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-secondary transition-colors text-left group cursor-pointer">
                 <div
                   className={`flex h-11 w-11 items-center justify-center rounded-lg ${platform.color} text-white flex-shrink-0`}>
-                  <PlatformIcon platform={platform.id} className="!h-6 !w-6" />
+                  <PlatformIcon platform={platform.id} className="!h-8 !w-8" />
                 </div>
                 <div className="min-w-0">
                   <h4 className="font-medium text-sm text-foreground truncate">{platform.name}</h4>

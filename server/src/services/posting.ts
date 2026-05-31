@@ -41,9 +41,9 @@ function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
       thumbField = { thumbnailUrl: file.thumbnailUrl };
     }
     if (url.kind === "path") {
-      return { type: "video", path: url.path, ...thumbField };
+      return { type: "video", path: url.path, durationSec: file.durationSec, ...thumbField };
     }
-    return { type: "video", url: file.url, ...thumbField };
+    return { type: "video", url: file.url, durationSec: file.durationSec, ...thumbField };
   });
 }
 
@@ -60,7 +60,10 @@ function applyYouTubeDefaults(media: Media[], message: string, platform: string)
   });
 }
 
-function mergeReplyOverlay(options: ReturnType<typeof buildPostOptions>, overlay: ReturnType<typeof buildReplyOverlay>) {
+function mergeReplyOverlay(
+  options: ReturnType<typeof buildPostOptions>,
+  overlay: ReturnType<typeof buildReplyOverlay>
+) {
   if (!overlay) return options;
   const existing = (options as Record<string, Record<string, unknown> | undefined>)[overlay.platform] ?? {};
   return {

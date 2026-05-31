@@ -15,7 +15,7 @@ import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials, TikTokPrivacyLevel } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -50,6 +50,22 @@ interface TikTokPublishStatusResponse {
   };
   error?: { code?: string; message?: string };
 }
+
+interface TikTokCreatorInfoResponse {
+  data?: {
+    creator_avatar_url?: string;
+    creator_username?: string;
+    creator_nickname?: string;
+    privacy_level_options?: TikTokPrivacyLevel[];
+    comment_disabled?: boolean;
+    duet_disabled?: boolean;
+    stitch_disabled?: boolean;
+    max_video_post_duration_sec?: number;
+  };
+  error?: { code?: string; message?: string; log_id?: string; logid?: string };
+}
+
+type TikTokCreatorInfo = NonNullable<TikTokCreatorInfoResponse["data"]>;
 
 export class TikTokPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
@@ -103,10 +119,122 @@ export class TikTokPublisher extends Publisher {
     return { chunkSize, totalChunks };
   }
 
+  private static creatorInfoErrorMessage(code?: string, message?: string): string {
+    switch (code) {
+      case "spam_risk_too_many_posts": {
+        return "TikTok says this creator has reached their daily post cap. Please try again later.";
+      }
+      case "spam_risk_user_banned_from_posting": {
+        return "TikTok says this creator cannot make posts right now.";
+      }
+      case "reached_active_user_cap": {
+        return "TikTok says this app has reached its active creator cap for today. Please try again later.";
+      }
+      case "access_token_invalid": {
+        return "TikTok access token is invalid or expired. Please reconnect the TikTok account.";
+      }
+      case "scope_not_authorized": {
+        return "TikTok did not grant the video.publish scope required for direct posting.";
+      }
+      case "rate_limit_exceeded": {
+        return "TikTok creator info rate limit was exceeded. Please try again later.";
+      }
+      default: {
+        return message || "TikTok creator info request failed.";
+      }
+    }
+  }
+
+  private async queryCreatorInfo(): Promise<TikTokCreatorInfo> {
+    try {
+      const response = await this.client.post<TikTokCreatorInfoResponse>("/v2/post/publish/creator_info/query/");
+      const errorCode = response.data?.error?.code;
+      if (errorCode && errorCode !== "ok") {
+        throw new PostError(
+          PostErrorType.API_ERROR,
+          TikTokPublisher.creatorInfoErrorMessage(errorCode, response.data.error?.message),
+          response.data.error,
+        );
+      }
+      if (!response.data?.data) {
+        throw new PostError(PostErrorType.API_ERROR, "TikTok creator info response did not include creator data.");
+      }
+      return response.data.data;
+    } catch (error: unknown) {
+      if (error instanceof PostError) throw error;
+      const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
+      const errorCode = err.response?.data?.error?.code;
+      const errorMessage = TikTokPublisher.creatorInfoErrorMessage(
+        errorCode,
+        err.response?.data?.error?.message || err.message,
+      );
+      throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
+    }
+  }
+
+  private resolvePrivacyLevel(options?: PostOptionsWithCredentials): TikTokPrivacyLevel | undefined {
+    const privacyLevel = options?.tiktok?.privacyLevel;
+    if (privacyLevel) {
+      return privacyLevel;
+    }
+
+    return this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility);
+  }
+
+  private async validateDirectPostRequirements(
+    media: Media,
+    options?: PostOptionsWithCredentials,
+  ): Promise<TikTokPrivacyLevel> {
+    const creatorInfo = await this.queryCreatorInfo();
+    const privacyLevel = this.resolvePrivacyLevel(options);
+
+    if (!privacyLevel) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "TikTok Direct Post requires a manually selected privacy status from the creator info options.",
+      );
+    }
+
+    const privacyOptions = creatorInfo.privacy_level_options ?? [];
+    if (!privacyOptions.includes(privacyLevel)) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        `TikTok privacy status ${privacyLevel} is not available for this creator.`,
+        { privacyLevel, privacyOptions },
+      );
+    }
+
+    if (
+      media.type === "video" &&
+      typeof media.durationSec === "number" &&
+      typeof creatorInfo.max_video_post_duration_sec === "number" &&
+      media.durationSec > creatorInfo.max_video_post_duration_sec
+    ) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        `TikTok video duration (${Math.ceil(media.durationSec)}s) exceeds this creator's ${creatorInfo.max_video_post_duration_sec}s limit.`,
+        { durationSec: media.durationSec, maxVideoPostDurationSec: creatorInfo.max_video_post_duration_sec },
+      );
+    }
+
+    if (options?.tiktok?.allowComment === true && creatorInfo.comment_disabled) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok comments are disabled by this creator's settings.");
+    }
+    if (media.type === "video" && options?.tiktok?.allowDuet === true && creatorInfo.duet_disabled) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok Duet is disabled by this creator's settings.");
+    }
+    if (media.type === "video" && options?.tiktok?.allowStitch === true && creatorInfo.stitch_disabled) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok Stitch is disabled by this creator's settings.");
+    }
+
+    return privacyLevel;
+  }
+
   private async initVideoUploadDirect(
     media: Media,
     resolvedPath: string,
     content: Content,
+    privacyLevel: TikTokPrivacyLevel,
     options?: PostOptionsWithCredentials,
   ): Promise<TikTokUploadInitResponse> {
     const fileSize = TikTokPublisher.getFileSize(resolvedPath);
@@ -117,7 +245,9 @@ export class TikTokPublisher extends Publisher {
       // Priority: media.title > content.text for title
       // TikTok doesn't support separate description field, so combine title + description if both exist
       let title = "";
-      if (media.type === "video") {
+      if (options?.tiktok?.title !== undefined) {
+        title = options.tiktok.title;
+      } else if (media.type === "video") {
         if (media.title) {
           title = media.title;
           // If description is also provided, append it to the title (TikTok only has one text field)
@@ -134,12 +264,12 @@ export class TikTokPublisher extends Publisher {
       const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/video/init/", {
         post_info: {
           title,
-          privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
-          disable_comment: !(options?.tiktok?.allowComment ?? true),
-          disable_duet: !(options?.tiktok?.allowDuet ?? true),
-          disable_stitch: !(options?.tiktok?.allowStitch ?? true),
-          brand_content_toggle: false,
-          brand_organic_toggle: false,
+          privacy_level: privacyLevel,
+          disable_comment: options?.tiktok?.allowComment !== true,
+          disable_duet: options?.tiktok?.allowDuet !== true,
+          disable_stitch: options?.tiktok?.allowStitch !== true,
+          brand_content_toggle: options?.tiktok?.discloseBrandedContent === true,
+          brand_organic_toggle: options?.tiktok?.discloseYourBrand === true,
         },
         source_info: {
           source: "FILE_UPLOAD",
@@ -207,6 +337,7 @@ export class TikTokPublisher extends Publisher {
     media: Media,
     resolvedPath: string,
     content: Content,
+    privacyLevel: TikTokPrivacyLevel,
     options?: PostOptionsWithCredentials,
   ): Promise<TikTokUploadInitResponse> {
     const fileSize = TikTokPublisher.getFileSize(resolvedPath);
@@ -215,15 +346,16 @@ export class TikTokPublisher extends Publisher {
     try {
       // Use Direct Post API for photos - includes post_info in the init request for immediate publishing
       // Priority: media.caption > content.text for title
-      const title = (media.type === "image" ? media.caption : undefined) || content.text || "";
+      const title =
+        options?.tiktok?.title ?? (media.type === "image" ? media.caption : undefined) ?? content.text ?? "";
 
       const response = await this.client.post<TikTokUploadInitResponse>("/v2/post/publish/photo/init/", {
         post_info: {
           title,
-          privacy_level: this.mapVisibilityToPrivacyLevel(options?.tiktok?.visibility),
-          disable_comment: !(options?.tiktok?.allowComment ?? true),
-          brand_content_toggle: false,
-          brand_organic_toggle: false,
+          privacy_level: privacyLevel,
+          disable_comment: options?.tiktok?.allowComment !== true,
+          brand_content_toggle: options?.tiktok?.discloseBrandedContent === true,
+          brand_organic_toggle: options?.tiktok?.discloseYourBrand === true,
         },
         source_info: {
           source: "FILE_UPLOAD",
@@ -388,7 +520,7 @@ export class TikTokPublisher extends Publisher {
     return undefined;
   }
 
-  private mapVisibilityToPrivacyLevel(visibility?: string): string {
+  private mapVisibilityToPrivacyLevel(visibility?: string): TikTokPrivacyLevel | undefined {
     switch (visibility) {
       case "public": {
         return "PUBLIC_TO_EVERYONE";
@@ -400,7 +532,7 @@ export class TikTokPublisher extends Publisher {
         return "SELF_ONLY";
       }
       default: {
-        return "PUBLIC_TO_EVERYONE";
+        return undefined;
       }
     }
   }
@@ -426,10 +558,12 @@ export class TikTokPublisher extends Publisher {
       // Note: TikTok doesn't provide a publish_id for draft uploads
       return "draft_uploaded";
     } else {
+      const privacyLevel = await this.validateDirectPostRequirements(media, options);
+
       // Use Direct Post API for immediate publishing
       const initResponse = await (media.type === "video"
-        ? this.initVideoUploadDirect(media, resolvedPath, content, options)
-        : this.initPhotoUploadDirect(media, resolvedPath, content, options));
+        ? this.initVideoUploadDirect(media, resolvedPath, content, privacyLevel, options)
+        : this.initPhotoUploadDirect(media, resolvedPath, content, privacyLevel, options));
 
       // Upload the file to TikTok servers
       await this.uploadFileChunks(initResponse.data.upload_url, resolvedPath);

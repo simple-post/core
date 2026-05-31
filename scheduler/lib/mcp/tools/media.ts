@@ -103,7 +103,7 @@ function extensionForMimeType(mimeType: string): string {
 function filenameFromUrl(url: string): string | undefined {
   try {
     const pathname = new URL(url).pathname;
-    const name = pathname.split("/").filter(Boolean).pop();
+    const name = pathname.split("/").findLast(Boolean);
     return name ? decodeURIComponent(name) : undefined;
   } catch {
     return undefined;
@@ -116,9 +116,9 @@ function filenameFromContentDisposition(contentDisposition: string | null): stri
   const utf8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
   if (utf8?.[1]) {
     try {
-      return decodeURIComponent(utf8[1].replace(/^"|"$/g, ""));
+      return decodeURIComponent(utf8[1].replaceAll(/^"|"$/g, ""));
     } catch {
-      return utf8[1].replace(/^"|"$/g, "");
+      return utf8[1].replaceAll(/^"|"$/g, "");
     }
   }
 
@@ -142,20 +142,20 @@ function ensureFilenameExtension(filename: string, mimeType: string): string {
 }
 
 function sniffImageMimeType(buffer: Buffer): string | undefined {
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+  if (buffer.length >= 3 && buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255) {
     return "image/jpeg";
   }
 
   if (
     buffer.length >= 8 &&
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47 &&
-    buffer[4] === 0x0d &&
-    buffer[5] === 0x0a &&
-    buffer[6] === 0x1a &&
-    buffer[7] === 0x0a
+    buffer[0] === 137 &&
+    buffer[1] === 80 &&
+    buffer[2] === 78 &&
+    buffer[3] === 71 &&
+    buffer[4] === 13 &&
+    buffer[5] === 10 &&
+    buffer[6] === 26 &&
+    buffer[7] === 10
   ) {
     return "image/png";
   }
@@ -180,7 +180,7 @@ function sniffImageMimeType(buffer: Buffer): string | undefined {
 
 function hasJpegEndMarker(buffer: Buffer): boolean {
   for (let i = buffer.length - 2; i >= Math.max(0, buffer.length - 4096); i -= 1) {
-    if (buffer[i] === 0xff && buffer[i + 1] === 0xd9) return true;
+    if (buffer[i] === 255 && buffer[i + 1] === 217) return true;
   }
   return false;
 }
@@ -189,10 +189,10 @@ function hasPngEndChunk(buffer: Buffer): boolean {
   if (buffer.length < 12) return false;
   for (let i = buffer.length - 12; i >= Math.max(0, buffer.length - 4096); i -= 1) {
     if (
-      buffer[i] === 0x00 &&
-      buffer[i + 1] === 0x00 &&
-      buffer[i + 2] === 0x00 &&
-      buffer[i + 3] === 0x00 &&
+      buffer[i] === 0 &&
+      buffer[i + 1] === 0 &&
+      buffer[i + 2] === 0 &&
+      buffer[i + 3] === 0 &&
       buffer.subarray(i + 4, i + 8).toString("ascii") === "IEND"
     ) {
       return true;
@@ -206,7 +206,7 @@ function hasMp4FileTypeBox(buffer: Buffer): boolean {
 }
 
 function hasWebmHeader(buffer: Buffer): boolean {
-  return buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3;
+  return buffer.length >= 4 && buffer[0] === 26 && buffer[1] === 69 && buffer[2] === 223 && buffer[3] === 163;
 }
 
 function assertCompleteMedia(buffer: Buffer, mimeType: string): void {
@@ -226,7 +226,7 @@ function assertCompleteMedia(buffer: Buffer, mimeType: string): void {
   if (mimeType === "image/png" && !hasPngEndChunk(buffer)) {
     throw new Error("Invalid or incomplete PNG data");
   }
-  if (mimeType === "image/gif" && buffer[buffer.length - 1] !== 0x3b) {
+  if (mimeType === "image/gif" && buffer.at(-1) !== 59) {
     throw new Error("Invalid or incomplete GIF data");
   }
   if (mimeType === "image/webp") {
@@ -318,7 +318,9 @@ async function readResponseBuffer(response: Response, deadline: number, onTimeou
 }
 
 async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUploadSource> {
-  if (input.file.size && input.file.size > MAX_FILE_SIZE) {
+  const inputFileSize = input.file.size ?? 0;
+
+  if (inputFileSize > 0 && inputFileSize > MAX_FILE_SIZE) {
     throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
   }
 

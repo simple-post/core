@@ -5,7 +5,7 @@ import { createSecretStore } from "../lib/secrets.js";
 import { PromptSession } from "../lib/ux/prompt.js";
 
 export default class DisconnectCommand extends Command {
-  public static override description = "Disconnect the CLI from the SimplePost Scheduler.";
+  public static override description = "Disconnect the CLI from SimplePost.";
 
   public async run(): Promise<void> {
     const prompt = new PromptSession();
@@ -33,6 +33,6 @@ export default class DisconnectCommand extends Command {
     const { scheduler: _, ...rest } = config;
     await saveCliConfig(paths, rest as typeof config);
 
-    this.log(`Disconnected from SimplePost Scheduler (${displayName}).`);
+    this.log(`Disconnected from SimplePost (${displayName}).`);
   }
 }

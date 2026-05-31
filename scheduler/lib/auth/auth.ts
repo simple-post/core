@@ -157,11 +157,7 @@ export const auth = betterAuth({
           .replaceAll("<", "&lt;")
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;");
-        await sendEmail(
-          email,
-          "Sign in to Simple Post Scheduler",
-          `Click here to sign in: <a href="${safeUrl}">${safeUrl}</a>`,
-        );
+        await sendEmail(email, "Sign in to SimplePost", `Click here to sign in: <a href="${safeUrl}">${safeUrl}</a>`);
       },
     }),
   ],

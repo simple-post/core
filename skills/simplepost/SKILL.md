@@ -10,7 +10,7 @@ SimplePost provides one posting model across the TypeScript SDK, HTTP API server
 
 ## Choose The Interface
 
-- Use **MCP** when the AI client can call tools and the user has accounts connected in the SimplePost Scheduler app. Read [references/mcp.md](references/mcp.md).
+- Use **MCP** when the AI client can call tools and the user has accounts connected in SimplePost. Read [references/mcp.md](references/mcp.md).
 - Use **CLI** when the agent can run shell commands on a machine where SimplePost CLI accounts are configured. Read [references/cli.md](references/cli.md).
 - Use **HTTP API** when calling SimplePost from another backend, service, or language. Read [references/http-server.md](references/http-server.md).
 - Use **TypeScript SDK** when editing a TypeScript app or agent that can call `@simple-post/sdk` directly. Read [references/sdk.md](references/sdk.md).
@@ -60,4 +60,3 @@ HTTP and MCP use Scheduler-style account targets:
 ## Threads
 
 Use the root `message` or `content.text` for the first post and `thread` for follow-up segments where supported. Native thread/reply-chain platforms are `x`, `bluesky`, `threads`, and `telegram`. Other platforms receive the root post only and may surface validation warnings.
-

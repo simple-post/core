@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Terms and Conditions - Simple Post Scheduler",
-  description: "Terms and conditions for using Simple Post Scheduler",
+  title: "Terms and Conditions - SimplePost",
+  description: "Terms and conditions for using SimplePost",
 };
 
 export default function TermsPage() {
@@ -36,18 +36,18 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              By accessing and using Simple Post Scheduler ("the Service"), you accept and agree to be bound by the
-              terms and provision of this agreement. If you do not agree to these terms, please do not use the Service.
+              By accessing and using SimplePost ("the Service"), you accept and agree to be bound by the terms and
+              provision of this agreement. If you do not agree to these terms, please do not use the Service.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">2. Description of Service</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Simple Post Scheduler is a social media scheduling platform that allows users to create, schedule, and
-              publish content across multiple social media platforms. The Service provides tools for managing social
-              media accounts and scheduling posts in advance, including optional integrations with authorized Model
-              Context Protocol clients such as ChatGPT.
+              SimplePost is a social media scheduling platform that allows users to create, schedule, and publish
+              content across multiple social media platforms. The Service provides tools for managing social media
+              accounts and scheduling posts in advance, including optional integrations with authorized Model Context
+              Protocol clients such as ChatGPT.
             </p>
           </section>
 
@@ -73,8 +73,7 @@ export default function TermsPage() {
               Service. You must ensure that you have the necessary rights and permissions for all content you schedule.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
-              When you use Simple Post Scheduler features that access YouTube API Services, you also agree to be bound
-              by the{" "}
+              When you use SimplePost features that access YouTube API Services, you also agree to be bound by the{" "}
               <a
                 href="https://www.youtube.com/t/terms"
                 target="_blank"

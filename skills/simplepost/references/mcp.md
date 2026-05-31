@@ -1,6 +1,6 @@
 # SimplePost MCP
 
-Use MCP when an AI assistant should publish, schedule, draft, validate, inspect, edit, or discard posts through accounts connected in the SimplePost Scheduler app.
+Use MCP when an AI assistant should publish, schedule, draft, validate, inspect, edit, or discard posts through accounts connected in SimplePost.
 
 ## Setup
 
@@ -76,4 +76,3 @@ For immediate publishing, inspect:
 - `postingResults[].threadResults` for threads
 
 Always show the exact content that was previewed, created, scheduled, drafted, edited, or discarded.
-

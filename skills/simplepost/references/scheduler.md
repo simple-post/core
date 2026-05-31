@@ -1,4 +1,4 @@
-# SimplePost Scheduler App
+# SimplePost App
 
 Use the Scheduler app when humans need a browser UI and when AI clients need account-backed MCP access.
 

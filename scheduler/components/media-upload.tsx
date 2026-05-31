@@ -79,6 +79,34 @@ const withClipboardImageName = (file: File, index: number) => {
   });
 };
 
+async function getVideoDurationSec(file: File, contentType: string): Promise<number | undefined> {
+  if (!contentType.startsWith("video/")) {
+    return undefined;
+  }
+
+  return new Promise((resolve) => {
+    const objectUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute("src");
+      video.load();
+    };
+
+    video.preload = "metadata";
+    video.addEventListener("loadedmetadata", () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : undefined;
+      cleanup();
+      resolve(duration);
+    });
+    video.addEventListener("error", () => {
+      cleanup();
+      resolve(undefined);
+    });
+    video.src = objectUrl;
+  });
+}
+
 export function getClipboardImageFiles(clipboardData: DataTransfer): File[] {
   const itemFiles = [...clipboardData.items]
     .filter((item) => item.kind === "file" && normalizeContentType(item.type).startsWith("image/"))
@@ -246,6 +274,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
       throw new Error("Unsupported file type");
     }
     const mediaType: "image" | "video" = resolvedContentType.startsWith("video/") ? "video" : "image";
+    const durationSec = await getVideoDurationSec(file, resolvedContentType);
 
     // Add to uploading state
     setUploading((prev) => [...prev, { id, filename: file.name, progress: 0, type: mediaType }]);
@@ -305,6 +334,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
         type: mediaType,
         filename: file.name,
         size: file.size,
+        durationSec,
       };
     } catch (error) {
       // Remove from uploading state

@@ -22,7 +22,7 @@ interface SchedulerUser {
 }
 
 export default class ConnectCommand extends Command {
-  public static override description = "Connect the CLI to the SimplePost Scheduler to use its connected accounts.";
+  public static override description = "Connect the CLI to SimplePost to use its connected accounts.";
 
   public static override examples = [
     "simplepost connect",
@@ -102,7 +102,7 @@ export default class ConnectCommand extends Command {
     await saveCliConfig(paths, config);
 
     const displayName = user.email || user.name || user.id;
-    this.log(`\nConnected to SimplePost Scheduler as ${displayName}.`);
+    this.log(`\nConnected to SimplePost as ${displayName}.`);
     this.log(`Scheduler URL: ${schedulerUrl}`);
     this.log('\nRun "simplepost account" to see all your connected accounts.');
   }

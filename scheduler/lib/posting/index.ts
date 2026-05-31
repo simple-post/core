@@ -464,6 +464,7 @@ function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
           type: "video",
           url: file.url,
           thumbnailUrl: file.thumbnailUrl,
+          durationSec: file.durationSec,
         };
   });
 }

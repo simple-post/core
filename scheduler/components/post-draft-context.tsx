@@ -91,7 +91,7 @@ function normalizeMedia(value: unknown): MediaFile[] {
         return null;
       }
 
-      const { id, url, thumbnailUrl, type, filename, size } = item;
+      const { id, url, thumbnailUrl, type, filename, size, durationSec } = item;
       if (
         typeof id !== "string" ||
         typeof url !== "string" ||
@@ -109,6 +109,7 @@ function normalizeMedia(value: unknown): MediaFile[] {
         type,
         filename,
         size,
+        durationSec: typeof durationSec === "number" ? durationSec : undefined,
       };
     })
     .filter((item): item is MediaFile => item !== null);

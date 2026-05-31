@@ -1,0 +1,1 @@
+ALTER TABLE "media_file" ADD COLUMN "durationSec" DOUBLE PRECISION;

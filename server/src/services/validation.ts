@@ -45,7 +45,7 @@ function buildContent(message: string, mediaFiles: MediaFile[]): Content {
   const media: Media[] = mediaFiles.map((file) =>
     file.type === "image"
       ? { type: "image", url: file.url }
-      : { type: "video", url: file.url, thumbnailUrl: file.thumbnailUrl }
+      : { type: "video", url: file.url, thumbnailUrl: file.thumbnailUrl, durationSec: file.durationSec }
   );
 
   return {
@@ -122,10 +122,7 @@ export function validatePostForAccounts(params: {
   const results: PlatformValidationResponse[] = accounts.map((account) => {
     const override = overrides[account.id];
     const usesCommonContent = !override;
-    const rootContent = buildContent(
-      override?.message ?? params.message ?? "",
-      override?.media ?? params.media ?? []
-    );
+    const rootContent = buildContent(override?.message ?? params.message ?? "", override?.media ?? params.media ?? []);
 
     const accountThread = override?.thread ?? sharedThread;
     const threadAware = isThreadCapable(account.platform);

@@ -270,6 +270,7 @@ export class PostsModel {
             type: m.type,
             filename: m.filename,
             size: m.size,
+            durationSec: m.durationSec,
           })),
         },
       },
@@ -327,6 +328,7 @@ export class PostsModel {
           type: m.type,
           filename: m.filename,
           size: m.size,
+          durationSec: m.durationSec,
         })),
       };
     }
@@ -389,6 +391,7 @@ export class PostsModel {
       type: string;
       filename: string;
       size: number;
+      durationSec: number | null;
     }>;
   }): SocialPost {
     return {
@@ -402,6 +405,7 @@ export class PostsModel {
         type: m.type as "image" | "video",
         filename: m.filename,
         size: m.size,
+        durationSec: m.durationSec ?? undefined,
       })),
       scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
       status: post.status as SocialPost["status"],

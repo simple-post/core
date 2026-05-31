@@ -34,6 +34,7 @@ const BaseVideoSchema = z.object({
   description: z.string().optional(),
   thumbnailPath: z.string().optional(),
   thumbnailUrl: z.url().optional(),
+  durationSec: z.number().nonnegative().optional(),
 });
 
 export const VideoSchema = BaseVideoSchema.refine((data) => data.path || data.url, {
@@ -123,12 +124,24 @@ export const InstagramOptionsSchema = z.object({
     .optional(),
 });
 
+export const TikTokPrivacyLevelSchema = z.enum([
+  "PUBLIC_TO_EVERYONE",
+  "MUTUAL_FOLLOW_FRIENDS",
+  "FOLLOWER_OF_CREATOR",
+  "SELF_ONLY",
+]);
+
 export const TikTokOptionsSchema = z.object({
+  title: z.string().max(2200).optional(),
   publishMode: z.enum(["draft", "public"]).optional(),
+  privacyLevel: TikTokPrivacyLevelSchema.optional(),
   visibility: z.enum(["public", "friends", "private"]).optional(),
   allowComment: z.boolean().optional(),
   allowDuet: z.boolean().optional(),
   allowStitch: z.boolean().optional(),
+  commercialContentDisclosure: z.boolean().optional(),
+  discloseYourBrand: z.boolean().optional(),
+  discloseBrandedContent: z.boolean().optional(),
   credentials: z
     .object({
       accessToken: z.string(),
@@ -242,6 +255,7 @@ export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
 export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
+export type TikTokPrivacyLevel = z.infer<typeof TikTokPrivacyLevelSchema>;
 export type BlueskyOAuthCredentials = z.infer<typeof BlueskyOAuthCredentialsSchema>;
 export type BlueskyAppPasswordCredentials = z.infer<typeof BlueskyAppPasswordCredentialsSchema>;
 export type BlueskyCredentials = z.infer<typeof BlueskyCredentialsSchema>;

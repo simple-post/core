@@ -1,4 +1,4 @@
-# SimplePost Scheduler
+# SimplePost
 
 The Scheduler app is the web UI for connecting accounts, composing posts, previewing content, publishing immediately, scheduling posts, and hosting the remote MCP server.
 

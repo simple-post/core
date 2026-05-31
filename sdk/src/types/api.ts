@@ -9,6 +9,7 @@ export const MediaFileSchema = z.object({
   type: z.enum(["image", "video"]),
   filename: z.string(),
   size: z.number().int().nonnegative(),
+  durationSec: z.number().nonnegative().optional(),
 });
 
 export type MediaFile = z.infer<typeof MediaFileSchema>;
@@ -24,10 +25,16 @@ export const AccountOptionsValueSchema = z
     publishAt: z.string().optional(),
     privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
     publishMode: z.enum(["draft", "public"]).optional(),
+    privacyLevel: z
+      .enum(["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"])
+      .optional(),
     visibility: z.enum(["public", "friends", "private", "PUBLIC", "CONNECTIONS"]).optional(),
     allowComment: z.boolean().optional(),
     allowDuet: z.boolean().optional(),
     allowStitch: z.boolean().optional(),
+    commercialContentDisclosure: z.boolean().optional(),
+    discloseYourBrand: z.boolean().optional(),
+    discloseBrandedContent: z.boolean().optional(),
     parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
     boardId: z.string().optional(),
     title: z.string().optional(),

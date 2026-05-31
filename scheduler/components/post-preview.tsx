@@ -107,11 +107,7 @@ export function PostPreview({ message, media, selectedPlatforms, thread }: PostP
                       <div className="w-px bg-border flex-1 my-1" />
                     </div>
                     <div className="flex-1">
-                      <PlatformComponent
-                        message={segment.message}
-                        media={segment.media ?? []}
-                        platform={platformId}
-                      />
+                      <PlatformComponent message={segment.message} media={segment.media ?? []} platform={platformId} />
                     </div>
                   </div>
                 ))}

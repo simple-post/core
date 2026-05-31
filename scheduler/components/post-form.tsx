@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -80,6 +81,8 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
+  const [tiktokConsent, setTikTokConsent] = useState(false);
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
   const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
 
@@ -90,6 +93,22 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
     [accounts, selectedAccountIds],
   );
+  const selectedTikTokAccounts = useMemo(
+    () => selectedAccounts.filter((account) => account.platform.toLowerCase() === "tiktok"),
+    [selectedAccounts],
+  );
+  const hasSelectedTikTok = selectedTikTokAccounts.length > 0;
+  const tiktokConsentRequired = hasSelectedTikTok && postingMode !== "draft";
+  const hasTikTokBrandedContent = selectedTikTokAccounts.some((account) => {
+    const accountOption = accountOptions[account.id] as Record<string, unknown> | undefined;
+    return accountOption?.discloseBrandedContent === true;
+  });
+
+  useEffect(() => {
+    if (!tiktokConsentRequired) {
+      setTikTokConsent(false);
+    }
+  }, [tiktokConsentRequired]);
 
   const localValidation = useMemo<ValidationResponse | null>(() => {
     if (selectedAccountIds.length === 0 || selectedAccounts.length !== selectedAccountIds.length) {
@@ -311,6 +330,8 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     selectedAccounts.length === selectedAccountIds.length &&
     (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
     (postingMode === "draft" || !validationLoading) &&
+    (postingMode === "draft" || !accountOptionsBlocked) &&
+    (!tiktokConsentRequired || tiktokConsent) &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime));
 
   return (
@@ -455,6 +476,8 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           selectedAccountIds={selectedAccountIds}
           options={accountOptions}
           onOptionsChange={setAccountOptions}
+          media={media}
+          onBlockingChange={setAccountOptionsBlocked}
         />
 
         {/* Posting Mode Selection */}
@@ -526,6 +549,57 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                 </span>
               </div>
             )}
+          </div>
+        )}
+
+        {tiktokConsentRequired && (
+          <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="tiktok-consent-edit"
+                checked={tiktokConsent}
+                onCheckedChange={(checked) => setTikTokConsent(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="tiktok-consent-edit" className="text-sm font-normal leading-relaxed cursor-pointer">
+                {hasTikTokBrandedContent ? (
+                  <>
+                    By posting, you agree to TikTok&apos;s{" "}
+                    <a
+                      href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2">
+                      Branded Content Policy
+                    </a>{" "}
+                    and{" "}
+                    <a
+                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2">
+                      Music Usage Confirmation
+                    </a>
+                    .
+                  </>
+                ) : (
+                  <>
+                    By posting, you agree to TikTok&apos;s{" "}
+                    <a
+                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2">
+                      Music Usage Confirmation
+                    </a>
+                    .
+                  </>
+                )}
+              </Label>
+            </div>
+            <p className="pl-6 text-xs text-muted-foreground">
+              TikTok may take a few minutes to process your content before it is visible on your profile.
+            </p>
           </div>
         )}
 

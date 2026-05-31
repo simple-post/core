@@ -26,6 +26,7 @@ const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
           type: "video",
           url: file.url,
           thumbnailUrl: file.thumbnailUrl,
+          durationSec: file.durationSec,
         },
   );
 

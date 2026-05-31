@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Privacy Policy - Simple Post Scheduler",
-  description: "Privacy policy for Simple Post Scheduler",
+  title: "Privacy Policy - SimplePost",
+  description: "Privacy policy for SimplePost",
 };
 
 export default function PrivacyPage() {
@@ -36,9 +36,9 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">1. Introduction</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Welcome to Simple Post Scheduler ("we," "our," or "us"). We respect your privacy and are committed to
-              protecting your personal data. This privacy policy explains how we collect, use, disclose, and safeguard
-              your information when you use our Service.
+              Welcome to SimplePost ("we," "our," or "us"). We respect your privacy and are committed to protecting your
+              personal data. This privacy policy explains how we collect, use, disclose, and safeguard your information
+              when you use our Service.
             </p>
           </section>
 
@@ -78,9 +78,9 @@ export default function PrivacyPage() {
               with their authorization procedures, including profile information and posting permissions.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
-              When you connect a YouTube account, Simple Post Scheduler uses YouTube API Services to authenticate your
-              account, read basic channel/account metadata that you authorize, and upload videos that you create,
-              schedule, or publish through the Service.
+              When you connect a YouTube account, SimplePost uses YouTube API Services to authenticate your account,
+              read basic channel/account metadata that you authorize, and upload videos that you create, schedule, or
+              publish through the Service.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
               Information received from YouTube API Services is also subject to the{" "}
@@ -207,11 +207,10 @@ export default function PrivacyPage() {
               account at any time through the settings.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
-              To delete stored YouTube data in Simple Post Scheduler, sign in, open the Accounts page, and disconnect
-              the YouTube account. This deletes the stored YouTube OAuth tokens and account metadata for that
-              connection. You may also request deletion by contacting support, or delete your SimplePost account to
-              remove all connected accounts and stored content. To revoke Simple Post Scheduler&apos;s access directly
-              from Google, visit the{" "}
+              To delete stored YouTube data in SimplePost, sign in, open the Accounts page, and disconnect the YouTube
+              account. This deletes the stored YouTube OAuth tokens and account metadata for that connection. You may
+              also request deletion by contacting support, or delete your SimplePost account to remove all connected
+              accounts and stored content. To revoke SimplePost&apos;s access directly from Google, visit the{" "}
               <a
                 href="https://myaccount.google.com/connections?filters=3,4&hl=en"
                 target="_blank"

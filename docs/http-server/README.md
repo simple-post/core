@@ -18,14 +18,14 @@ If you want scheduling, OAuth-based account connection, multi-user accounts, or 
 
 All `/api/v1/*` endpoints require an API key in the `x-api-key` header. `/health` and `/media/*` are public.
 
-| Method | Path                       | Purpose                                                                |
-| ------ | -------------------------- | ---------------------------------------------------------------------- |
-| GET    | `/health`                  | Liveness check                                                         |
-| GET    | `/api/v1/accounts`         | List configured accounts (without credentials)                         |
-| POST   | `/api/v1/upload`           | Upload an image or video, returns a `MediaFile` reference              |
-| POST   | `/api/v1/validation`       | Validate a draft against the rules of each target account              |
-| POST   | `/api/v1/posts`            | Publish a post (only `postingMode: "now"` is supported on this server) |
-| GET    | `/media/:filename`         | Public read for uploaded media; platforms fetch URLs returned by upload |
+| Method | Path                 | Purpose                                                                 |
+| ------ | -------------------- | ----------------------------------------------------------------------- |
+| GET    | `/health`            | Liveness check                                                          |
+| GET    | `/api/v1/accounts`   | List configured accounts (without credentials)                          |
+| POST   | `/api/v1/upload`     | Upload an image or video, returns a `MediaFile` reference               |
+| POST   | `/api/v1/validation` | Validate a draft against the rules of each target account               |
+| POST   | `/api/v1/posts`      | Publish a post (only `postingMode: "now"` is supported on this server)  |
+| GET    | `/media/:filename`   | Public read for uploaded media; platforms fetch URLs returned by upload |
 
 Endpoints the scheduler exposes that this server **does not**: `/api/v1/posts/[id]`, `/api/v1/upload/presign`, `/api/oauth/*`, `/api/connect/*`, `/api/cli/*`, `/api/auth/*`, `/api/internal/scheduled-posts/dispatch`, `/mcp`. Use the scheduler app if you need any of those.
 
@@ -33,13 +33,13 @@ Endpoints the scheduler exposes that this server **does not**: `/api/v1/posts/[i
 
 ### Environment variables
 
-| Variable                    | Required | Description                                                                                      |
-| --------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `SIMPLE_POST_API_KEY`       | Yes      | Shared secret clients pass in the `x-api-key` header.                                            |
-| `SIMPLE_POST_ACCOUNTS_FILE` | Yes\*    | Path to the JSON file describing your connected accounts. Without it, `/api/v1/posts` rejects everything. |
+| Variable                    | Required    | Description                                                                                                  |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `SIMPLE_POST_API_KEY`       | Yes         | Shared secret clients pass in the `x-api-key` header.                                                        |
+| `SIMPLE_POST_ACCOUNTS_FILE` | Yes\*       | Path to the JSON file describing your connected accounts. Without it, `/api/v1/posts` rejects everything.    |
 | `SIMPLE_POST_PUBLIC_URL`    | Recommended | Public URL where this server is reachable. Used to build media URLs. Defaults to `http://localhost:${PORT}`. |
-| `SIMPLE_POST_STORAGE_DIR`   | No       | Local directory for uploaded files. Defaults to `./data` next to the binary.                     |
-| `PORT`                      | No       | HTTP port. Defaults to `3000`.                                                                   |
+| `SIMPLE_POST_STORAGE_DIR`   | No          | Local directory for uploaded files. Defaults to `./data` next to the binary.                                 |
+| `PORT`                      | No          | HTTP port. Defaults to `3000`.                                                                               |
 
 \* The server boots without it, but only `/health`, `/api/v1/accounts` (returning `{accounts: []}`), and `/media/*` are useful in that state.
 
@@ -63,15 +63,15 @@ The accounts file is a JSON document with a single `accounts` array. Each entry 
 }
 ```
 
-| Field               | Required | Description                                                                                                |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `id`                | Yes      | Stable identifier you reference in `accountIds` when posting. Must be unique across the file.              |
-| `platform`          | Yes      | One of `x`, `telegram`, `facebook`, `instagram`, `youtube`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`. The legacy alias `twitter` maps to `x`. |
-| `label`             | No       | Human-readable name surfaced in `GET /api/v1/accounts`.                                                    |
-| `username`          | No       | Used to build post URLs returned in `postingResults[].postUrl` (e.g. `https://x.com/<username>/status/...`). |
-| `platformAccountId` | Varies   | Required for Telegram (used as `chatId`) and Facebook (used as `pageId`). Optional elsewhere.              |
-| `profilePicture`    | No       | Returned by `GET /api/v1/accounts` for UI display.                                                         |
-| `credentials`       | Yes      | Platform-specific credentials. Shapes mirror `PostOptions[platform].credentials` in `@simple-post/sdk`. See examples below. |
+| Field               | Required | Description                                                                                                                                                                         |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | Yes      | Stable identifier you reference in `accountIds` when posting. Must be unique across the file.                                                                                       |
+| `platform`          | Yes      | One of `x`, `telegram`, `facebook`, `instagram`, `youtube`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`. The legacy alias `twitter` maps to `x`.                        |
+| `label`             | No       | Human-readable name surfaced in `GET /api/v1/accounts`.                                                                                                                             |
+| `username`          | No       | Used to build post URLs returned in `postingResults[].postUrl` (e.g. `https://x.com/<username>/status/...`).                                                                        |
+| `platformAccountId` | Varies   | Required for Telegram (used as `chatId`) and Facebook (used as `pageId`). Optional elsewhere.                                                                                       |
+| `profilePicture`    | No       | Returned by `GET /api/v1/accounts` for UI display.                                                                                                                                  |
+| `credentials`       | Yes      | Platform-specific credentials. Shapes mirror `PostOptions[platform].credentials` in `@simple-post/sdk`. See examples below.                                                         |
 | `options`           | No       | Platform-specific defaults (e.g. YouTube `privacyStatus`, LinkedIn `visibility`). Mirrors `PostOptions[platform]` minus `credentials`. Per-request `accountOptions` override these. |
 
 The server validates the file at startup. Unknown platforms, duplicate IDs, or malformed JSON cause it to refuse to boot — fail fast on misconfiguration.
@@ -203,7 +203,7 @@ Short-lived (direct access token):
   "platform": "tiktok",
   "username": "yourbrand",
   "credentials": { "accessToken": "..." },
-  "options": { "publishMode": "public", "visibility": "public" }
+  "options": { "publishMode": "public", "privacyLevel": "SELF_ONLY" }
 }
 ```
 
@@ -422,7 +422,13 @@ Response:
     "publishedAt": "2026-05-02T12:34:57.000Z"
   },
   "postingResults": [
-    { "accountId": "x-main", "platform": "x", "success": true, "postId": "...", "postUrl": "https://x.com/yourbrand/status/..." },
+    {
+      "accountId": "x-main",
+      "platform": "x",
+      "success": true,
+      "postId": "...",
+      "postUrl": "https://x.com/yourbrand/status/..."
+    },
     { "accountId": "telegram-news", "platform": "telegram", "success": true, "postId": "..." }
   ],
   "summary": { "successCount": 2, "failureCount": 0, "overallSuccess": true }
@@ -439,13 +445,13 @@ Standard JSON error shape:
 { "error": "Validation failed", "code": "VALIDATION_ERROR", "details": [...] }
 ```
 
-| Status | Code                    | Cause                                                                  |
-| ------ | ----------------------- | ---------------------------------------------------------------------- |
-| 400    | `BAD_REQUEST`           | Bad input — missing accounts, scheduling mode requested, etc.          |
-| 400    | `VALIDATION_ERROR`      | Body doesn't match the schema, or platform validation rules failed.    |
-| 401    | —                       | Missing or invalid `x-api-key`.                                        |
-| 404    | `NOT_FOUND`             | Unknown route or media file.                                           |
-| 500    | `INTERNAL_SERVER_ERROR` | Unexpected failure inside the server or SDK.                           |
+| Status | Code                    | Cause                                                               |
+| ------ | ----------------------- | ------------------------------------------------------------------- |
+| 400    | `BAD_REQUEST`           | Bad input — missing accounts, scheduling mode requested, etc.       |
+| 400    | `VALIDATION_ERROR`      | Body doesn't match the schema, or platform validation rules failed. |
+| 401    | —                       | Missing or invalid `x-api-key`.                                     |
+| 404    | `NOT_FOUND`             | Unknown route or media file.                                        |
+| 500    | `INTERNAL_SERVER_ERROR` | Unexpected failure inside the server or SDK.                        |
 
 ## Differences from the scheduler app
 

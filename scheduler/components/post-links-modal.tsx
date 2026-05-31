@@ -51,6 +51,7 @@ function getPlatformDisplayName(platform: string): string {
 export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalProps) {
   const successfulPosts = results.filter((r) => r.success);
   const failedPosts = results.filter((r) => !r.success);
+  const hasSuccessfulTikTokPost = successfulPosts.some((result) => result.platform.toLowerCase() === "tiktok");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -134,6 +135,12 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
               {failedPosts.length > 0 && <span className="text-destructive">{failedPosts.length} failed</span>}
             </div>
           </div>
+
+          {hasSuccessfulTikTokPost && (
+            <p className="rounded-lg border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+              TikTok may take a few minutes to process your content before it is visible on your profile.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

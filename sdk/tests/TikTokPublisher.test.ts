@@ -52,6 +52,36 @@ describe("TikTokPublisher", () => {
     });
   });
 
+  function mockCreatorInfoOnce(overrides: Record<string, unknown> = {}) {
+    mockAxiosInstance.post.mockResolvedValueOnce({
+      data: {
+        data: {
+          creator_username: "simplepost",
+          creator_nickname: "SimplePost",
+          privacy_level_options: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
+          comment_disabled: false,
+          duet_disabled: false,
+          stitch_disabled: false,
+          max_video_post_duration_sec: 300,
+          ...overrides,
+        },
+        error: { code: "ok", message: "" },
+      },
+    });
+  }
+
+  const directOptions: PostOptionsWithCredentials = {
+    tiktok: {
+      privacyLevel: "PUBLIC_TO_EVERYONE",
+      allowComment: false,
+      allowDuet: false,
+      allowStitch: false,
+      credentials: {
+        accessToken: "test_access_token",
+      },
+    },
+  };
+
   describe("constructor", () => {
     it("should throw an error if credentials are missing", () => {
       expect(() => {
@@ -77,6 +107,7 @@ describe("TikTokPublisher", () => {
 
     it("should successfully post a video", async () => {
       // Mock the Direct Post API init response (includes publish_id directly)
+      mockCreatorInfoOnce();
       mockAxiosInstance.post
         .mockResolvedValueOnce({
           data: {
@@ -108,12 +139,13 @@ describe("TikTokPublisher", () => {
       };
       jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
 
-      const result = await publisher.postContent(videoContent);
+      const result = await publisher.postContent(videoContent, directOptions);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(result.id).toBe("7298765432109876543");
-      // 2 POSTs expected: init + status fetch (resolves on first attempt)
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      // 3 POSTs expected: creator info + init + status fetch (resolves on first attempt)
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/v2/post/publish/creator_info/query/");
       // Verify the init call includes post_info
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/v2/post/publish/video/init/",
@@ -133,6 +165,7 @@ describe("TikTokPublisher", () => {
 
     it("should successfully post a photo", async () => {
       // Mock the Direct Post API init response for photos
+      mockCreatorInfoOnce();
       mockAxiosInstance.post
         .mockResolvedValueOnce({
           data: {
@@ -162,12 +195,12 @@ describe("TikTokPublisher", () => {
       };
       jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
 
-      const result = await publisher.postContent(photoContent);
+      const result = await publisher.postContent(photoContent, directOptions);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(result.id).toBe("7298765432109876544");
-      // 2 POSTs expected: init + status fetch
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      // 3 POSTs expected: creator info + init + status fetch
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
       // Verify photo endpoint is used
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/v2/post/publish/photo/init/",
@@ -180,6 +213,7 @@ describe("TikTokPublisher", () => {
 
     it("should handle different visibility settings", async () => {
       // Mock the Direct Post API response
+      mockCreatorInfoOnce();
       mockAxiosInstance.post
         .mockResolvedValueOnce({
           data: {
@@ -327,6 +361,7 @@ describe("TikTokPublisher", () => {
       });
 
       // Mock successful upload for the first image using Direct Post API
+      mockCreatorInfoOnce();
       mockAxiosInstance.post
         .mockResolvedValueOnce({
           data: {
@@ -354,11 +389,11 @@ describe("TikTokPublisher", () => {
       };
       jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
 
-      const result = await strictPublisher.postContent(contentWithMultipleMedia);
+      const result = await strictPublisher.postContent(contentWithMultipleMedia, directOptions);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      // 2 POSTs expected: init + status fetch
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      // 3 POSTs expected: creator info + init + status fetch
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
     });
 
     it("should handle API errors gracefully", async () => {

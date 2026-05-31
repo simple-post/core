@@ -50,11 +50,11 @@ export async function handleThreadsCallback(ctx: CallbackContext): Promise<NextR
   try {
     profile = await fetchThreadsProfile(longLivedToken);
   } catch (profileError) {
-    if (ctx.tokenData.user_id != null) {
+    if (ctx.tokenData.user_id == null) {
+      throw profileError;
+    } else {
       authLogger.info({ userId: ctx.tokenData.user_id }, "Threads /me failed, using user_id from token");
       profile = { id: String(ctx.tokenData.user_id) };
-    } else {
-      throw profileError;
     }
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ImageIcon, Loader2, X } from "lucide-react";
 
@@ -10,15 +10,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
-import type { AccountOptionsMap, ConnectedAccount } from "@/types";
+import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
+import type { AccountOptionsMap, ConnectedAccount, MediaFile } from "@/types";
 
 interface AccountOptionsProps {
   selectedAccountIds: string[];
   options: AccountOptionsMap;
   onOptionsChange: (options: AccountOptionsMap) => void;
+  media?: MediaFile[];
+  onBlockingChange?: (blocked: boolean) => void;
 }
 
 interface PinterestBoard {
@@ -37,6 +41,36 @@ const MAX_YOUTUBE_THUMBNAIL_SIZE = 2 * 1024 * 1024;
 const YOUTUBE_TITLE_MAX_LENGTH = 100;
 const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
 const YOUTUBE_THUMBNAIL_TYPES = new Set(["image/jpeg", "image/png"]);
+
+const TIKTOK_PRIVACY_LABELS: Record<TikTokPrivacyLevel, string> = {
+  PUBLIC_TO_EVERYONE: "Everyone",
+  MUTUAL_FOLLOW_FRIENDS: "Friends",
+  FOLLOWER_OF_CREATOR: "Followers",
+  SELF_ONLY: "Only me",
+};
+
+const TIKTOK_PRIVACY_VALUES = new Set<string>(Object.keys(TIKTOK_PRIVACY_LABELS));
+
+function isTikTokPrivacyLevel(value: string): value is TikTokPrivacyLevel {
+  return TIKTOK_PRIVACY_VALUES.has(value);
+}
+
+function legacyVisibilityToPrivacyLevel(value: string): TikTokPrivacyLevel | undefined {
+  switch (value) {
+    case "public": {
+      return "PUBLIC_TO_EVERYONE";
+    }
+    case "friends": {
+      return "MUTUAL_FOLLOW_FRIENDS";
+    }
+    case "private": {
+      return "SELF_ONLY";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
 
 function normalizeImageContentType(file: File) {
   if (file.type === "image/jpg") return "image/jpeg";
@@ -122,7 +156,13 @@ async function uploadYouTubeThumbnail(file: File): Promise<string> {
   }
 }
 
-export function AccountOptionsComponent({ selectedAccountIds, options, onOptionsChange }: AccountOptionsProps) {
+export function AccountOptionsComponent({
+  selectedAccountIds,
+  options,
+  onOptionsChange,
+  media = [],
+  onBlockingChange,
+}: AccountOptionsProps) {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const thumbnailInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [pinterestBoards, setPinterestBoards] = useState<Record<string, PinterestBoard[]>>({});
@@ -130,6 +170,37 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
   const [boardsError, setBoardsError] = useState<Record<string, string | null>>({});
   const [thumbnailUploads, setThumbnailUploads] = useState<Record<string, boolean>>({});
   const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string | null>>({});
+  const [tiktokCreatorInfo, setTikTokCreatorInfo] = useState<Record<string, TikTokCreatorInfo>>({});
+  const [tiktokInfoLoading, setTikTokInfoLoading] = useState<Record<string, boolean>>({});
+  const [tiktokInfoErrors, setTikTokInfoErrors] = useState<Record<string, string | null>>({});
+
+  const updateOptions = useCallback(
+    (accountId: string, updates: Record<string, unknown>) => {
+      const nextAccountOptions = {
+        ...((options[accountId] ?? {}) as Record<string, unknown>),
+        ...updates,
+      };
+
+      for (const [key, value] of Object.entries(nextAccountOptions)) {
+        if (value === undefined || value === "") {
+          delete nextAccountOptions[key];
+        }
+      }
+
+      onOptionsChange({
+        ...options,
+        [accountId]: nextAccountOptions,
+      });
+    },
+    [onOptionsChange, options],
+  );
+
+  const updateOption = useCallback(
+    (accountId: string, key: string, value: unknown) => {
+      updateOptions(accountId, { [key]: value });
+    },
+    [updateOptions],
+  );
 
   // Fetch Pinterest boards for selected Pinterest accounts
   const fetchBoards = useCallback(async (accountId: string) => {
@@ -167,25 +238,193 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
     }
   }, [accounts, selectedAccountIds, pinterestBoards, fetchBoards]);
 
+  useEffect(() => {
+    const tiktokAccountIds = accounts
+      .filter((acc: ConnectedAccount) => acc.platform.toLowerCase() === "tiktok" && selectedAccountIds.includes(acc.id))
+      .map((acc: ConnectedAccount) => acc.id);
+
+    setTikTokCreatorInfo((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([accountId]) => tiktokAccountIds.includes(accountId))),
+    );
+    setTikTokInfoErrors((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([accountId]) => tiktokAccountIds.includes(accountId))),
+    );
+    setTikTokInfoLoading((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([accountId]) => tiktokAccountIds.includes(accountId))),
+    );
+
+    if (tiktokAccountIds.length === 0) {
+      return;
+    }
+
+    const controllers = new Map<string, AbortController>();
+
+    for (const accountId of tiktokAccountIds) {
+      const controller = new AbortController();
+      controllers.set(accountId, controller);
+      setTikTokInfoLoading((prev) => ({ ...prev, [accountId]: true }));
+      setTikTokInfoErrors((prev) => ({ ...prev, [accountId]: null }));
+
+      fetch(`/api/v1/accounts/${accountId}/tiktok/creator-info`, { signal: controller.signal })
+        .then(async (response) => {
+          const data = (await response.json().catch(() => ({}))) as {
+            creatorInfo?: TikTokCreatorInfo;
+            error?: string;
+          };
+          if (!response.ok || !data.creatorInfo) {
+            throw new Error(data.error || "Failed to fetch TikTok creator info");
+          }
+          setTikTokCreatorInfo((prev) => ({ ...prev, [accountId]: data.creatorInfo! }));
+        })
+        .catch((error) => {
+          if (controller.signal.aborted) {
+            return;
+          }
+          setTikTokInfoErrors((prev) => ({
+            ...prev,
+            [accountId]: error instanceof Error ? error.message : "Failed to fetch TikTok creator info",
+          }));
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setTikTokInfoLoading((prev) => ({ ...prev, [accountId]: false }));
+          }
+        });
+    }
+
+    return () => {
+      for (const controller of controllers.values()) {
+        controller.abort();
+      }
+    };
+  }, [accounts, selectedAccountIds]);
+
+  const selectedAccounts = useMemo(
+    () => accounts.filter((acc: { id: string }) => selectedAccountIds.includes(acc.id)),
+    [accounts, selectedAccountIds],
+  );
+  const hasTikTokVideo = media.some((file) => file.type === "video");
+  const hasTikTokPhotoOnly = media.length > 0 && media.every((file) => file.type === "image");
+  const maxSelectedVideoDurationSec = media
+    .filter((file) => file.type === "video" && typeof file.durationSec === "number")
+    .reduce<number | null>((max, file) => Math.max(max ?? 0, file.durationSec ?? 0), null);
+
+  const getTikTokPrivacyLevel = useCallback(
+    (accountOptions: Record<string, unknown>): TikTokPrivacyLevel | undefined => {
+      const privacyLevel = asString(accountOptions.privacyLevel);
+      if (isTikTokPrivacyLevel(privacyLevel)) {
+        return privacyLevel;
+      }
+      return legacyVisibilityToPrivacyLevel(asString(accountOptions.visibility));
+    },
+    [],
+  );
+
+  const getTikTokBlockingReasons = (account: ConnectedAccount, accountOptions: Record<string, unknown>) => {
+    if ((asString(accountOptions.publishMode) || "public") === "draft") {
+      return [];
+    }
+
+    const reasons: string[] = [];
+    const creatorInfo = tiktokCreatorInfo[account.id];
+    const privacyLevel = getTikTokPrivacyLevel(accountOptions);
+    const commercialDisclosure = asBoolean(accountOptions.commercialContentDisclosure, false);
+    const discloseYourBrand = asBoolean(accountOptions.discloseYourBrand, false);
+    const discloseBrandedContent = asBoolean(accountOptions.discloseBrandedContent, false);
+
+    if (tiktokInfoLoading[account.id] || (!creatorInfo && !tiktokInfoErrors[account.id])) {
+      reasons.push("Checking latest TikTok creator info.");
+    }
+    if (tiktokInfoErrors[account.id]) {
+      reasons.push(tiktokInfoErrors[account.id]!);
+    }
+    if (creatorInfo?.canPost === false) {
+      reasons.push(creatorInfo.blockReason || "TikTok says this account cannot post right now.");
+    }
+    if (!privacyLevel) {
+      reasons.push("Select a TikTok privacy status.");
+    } else if (creatorInfo && !creatorInfo.privacyLevelOptions.includes(privacyLevel)) {
+      reasons.push("Select one of the privacy statuses currently available for this TikTok account.");
+    }
+    if (commercialDisclosure && !discloseYourBrand && !discloseBrandedContent) {
+      reasons.push("You need to indicate if your content promotes yourself, a third party, or both.");
+    }
+    if (discloseBrandedContent && privacyLevel === "SELF_ONLY") {
+      reasons.push("Branded content visibility cannot be set to private.");
+    }
+    if (
+      hasTikTokVideo &&
+      creatorInfo?.maxVideoPostDurationSec &&
+      maxSelectedVideoDurationSec &&
+      maxSelectedVideoDurationSec > creatorInfo.maxVideoPostDurationSec
+    ) {
+      reasons.push(`This video exceeds this creator's ${creatorInfo.maxVideoPostDurationSec}s TikTok limit.`);
+    }
+    if (creatorInfo?.commentDisabled && asBoolean(accountOptions.allowComment, false)) {
+      reasons.push("Comments are disabled by this TikTok account's settings.");
+    }
+    if (hasTikTokVideo && creatorInfo?.duetDisabled && asBoolean(accountOptions.allowDuet, false)) {
+      reasons.push("Duet is disabled by this TikTok account's settings.");
+    }
+    if (hasTikTokVideo && creatorInfo?.stitchDisabled && asBoolean(accountOptions.allowStitch, false)) {
+      reasons.push("Stitch is disabled by this TikTok account's settings.");
+    }
+
+    return reasons;
+  };
+
+  const tiktokBlocked = selectedAccounts.some((account) => {
+    if (account.platform.toLowerCase() !== "tiktok") {
+      return false;
+    }
+    return getTikTokBlockingReasons(account, (options[account.id] ?? {}) as Record<string, unknown>).length > 0;
+  });
+
+  useEffect(() => {
+    onBlockingChange?.(tiktokBlocked);
+  }, [onBlockingChange, tiktokBlocked]);
+
+  useEffect(() => {
+    for (const account of selectedAccounts) {
+      if (account.platform.toLowerCase() !== "tiktok") {
+        continue;
+      }
+
+      const creatorInfo = tiktokCreatorInfo[account.id];
+      if (!creatorInfo) {
+        continue;
+      }
+
+      const accountOptions = (options[account.id] ?? {}) as Record<string, unknown>;
+      const privacyLevel = getTikTokPrivacyLevel(accountOptions);
+      const updates: Record<string, unknown> = {};
+
+      if (creatorInfo.commentDisabled && accountOptions.allowComment === true) {
+        updates.allowComment = false;
+      }
+      if ((creatorInfo.duetDisabled || hasTikTokPhotoOnly) && accountOptions.allowDuet === true) {
+        updates.allowDuet = false;
+      }
+      if ((creatorInfo.stitchDisabled || hasTikTokPhotoOnly) && accountOptions.allowStitch === true) {
+        updates.allowStitch = false;
+      }
+      if (accountOptions.discloseBrandedContent === true && privacyLevel === "SELF_ONLY") {
+        updates.privacyLevel = undefined;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updateOptions(account.id, updates);
+      }
+    }
+  }, [getTikTokPrivacyLevel, hasTikTokPhotoOnly, options, selectedAccounts, tiktokCreatorInfo, updateOptions]);
+
   if (selectedAccountIds.length === 0) {
     return null;
   }
 
-  const selectedAccounts = accounts.filter((acc: { id: string }) => selectedAccountIds.includes(acc.id));
-
   if (loading || selectedAccounts.length === 0) {
     return null;
   }
-
-  const updateOption = (accountId: string, key: string, value: unknown) => {
-    onOptionsChange({
-      ...options,
-      [accountId]: {
-        ...((options[accountId] ?? {}) as Record<string, unknown>),
-        [key]: value,
-      },
-    });
-  };
 
   const handleThumbnailFile = async (accountId: string, file: File | undefined) => {
     if (!file) return;
@@ -224,6 +463,13 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
         const thumbnailUrl = asString(accountOptions.thumbnailUrl);
         const thumbnailUploading = thumbnailUploads[account.id] === true;
         const thumbnailError = thumbnailErrors[account.id];
+        const tiktokInfo = tiktokCreatorInfo[account.id];
+        const tiktokPrivacyLevel = getTikTokPrivacyLevel(accountOptions);
+        const tiktokBlockingReasons =
+          account.platform.toLowerCase() === "tiktok" ? getTikTokBlockingReasons(account, accountOptions) : [];
+        const tiktokCommercialDisclosure = asBoolean(accountOptions.commercialContentDisclosure, false);
+        const tiktokDiscloseYourBrand = asBoolean(accountOptions.discloseYourBrand, false);
+        const tiktokDiscloseBrandedContent = asBoolean(accountOptions.discloseBrandedContent, false);
 
         return (
           <Card key={account.id} className="p-5 space-y-4">
@@ -481,6 +727,43 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
             {/* TikTok Options */}
             {account.platform === "tiktok" && (
               <>
+                <div className="rounded-lg border border-border bg-secondary/30 p-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    {tiktokInfo?.creatorAvatarUrl ? (
+                      <img
+                        src={tiktokInfo.creatorAvatarUrl}
+                        alt=""
+                        className="h-9 w-9 rounded-full border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="h-9 w-9 rounded-full border border-border bg-background" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">
+                        {tiktokInfo?.creatorNickname || getAccountDisplayName(account)}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {tiktokInfo?.creatorUsername
+                          ? `@${tiktokInfo.creatorUsername.replace(/^@/, "")}`
+                          : "Checking TikTok account"}
+                      </p>
+                    </div>
+                  </div>
+                  {tiktokInfo?.maxVideoPostDurationSec ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Video limit for this creator: {tiktokInfo.maxVideoPostDurationSec}s
+                    </p>
+                  ) : null}
+                </div>
+
+                {tiktokBlockingReasons.length > 0 && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-muted-foreground space-y-1">
+                    {tiktokBlockingReasons.map((reason) => (
+                      <p key={reason}>{reason}</p>
+                    ))}
+                  </div>
+                )}
+
                 <div>
                   <Label htmlFor={`${account.id}-publishMode`} className="text-sm text-muted-foreground">
                     Publish Mode
@@ -504,59 +787,190 @@ export function AccountOptionsComponent({ selectedAccountIds, options, onOptions
                 {(asString(accountOptions.publishMode) || "public") !== "draft" && (
                   <>
                     <div>
+                      <Label htmlFor={`${account.id}-tiktok-title`} className="text-sm text-muted-foreground">
+                        Title
+                      </Label>
+                      <Input
+                        id={`${account.id}-tiktok-title`}
+                        value={asString(accountOptions.title)}
+                        onChange={(e) => updateOption(account.id, "title", e.target.value)}
+                        placeholder="Enter the TikTok title"
+                        maxLength={2200}
+                        className="mt-1 border-border"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Preset text and hashtags remain editable before posting.
+                      </p>
+                    </div>
+
+                    <div>
                       <Label htmlFor={`${account.id}-visibility`} className="text-sm text-muted-foreground">
-                        Visibility
+                        Privacy Status
                       </Label>
                       <Select
-                        value={asString(accountOptions.visibility) || "public"}
-                        onValueChange={(value) =>
-                          updateOption(account.id, "visibility", value as "public" | "friends" | "private")
-                        }>
+                        value={tiktokPrivacyLevel}
+                        onValueChange={(value) => {
+                          const privacyLevel = value as TikTokPrivacyLevel;
+                          updateOptions(account.id, {
+                            privacyLevel,
+                            visibility: undefined,
+                          });
+                        }}>
                         <SelectTrigger id={`${account.id}-visibility`} className="mt-1 border-border">
-                          <SelectValue placeholder="Select visibility" />
+                          <SelectValue placeholder="Select privacy status" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="public">Public</SelectItem>
-                          <SelectItem value="friends">Friends Only</SelectItem>
-                          <SelectItem value="private">Private</SelectItem>
+                          {(tiktokInfo?.privacyLevelOptions ?? []).map((privacyLevel) => (
+                            <SelectItem
+                              key={privacyLevel}
+                              value={privacyLevel}
+                              disabled={tiktokDiscloseBrandedContent && privacyLevel === "SELF_ONLY"}
+                              title={
+                                tiktokDiscloseBrandedContent && privacyLevel === "SELF_ONLY"
+                                  ? "Branded content visibility cannot be set to private."
+                                  : undefined
+                              }>
+                              {TIKTOK_PRIVACY_LABELS[privacyLevel]}
+                              {tiktokDiscloseBrandedContent && privacyLevel === "SELF_ONLY"
+                                ? " - not available for branded content"
+                                : ""}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground mt-1">Who can view your content</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Options are loaded from TikTok creator info and must be selected manually.
+                      </p>
                     </div>
 
                     <div className="space-y-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">Interaction Ability</p>
+                        <p className="text-xs text-muted-foreground">
+                          Turn on each interaction you want to allow. Disabled items are unavailable in TikTok settings.
+                        </p>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`${account.id}-allowComment`}
-                          checked={asBoolean(accountOptions.allowComment, true)}
+                          checked={tiktokInfo?.commentDisabled ? false : asBoolean(accountOptions.allowComment, false)}
+                          disabled={tiktokInfo?.commentDisabled}
                           onCheckedChange={(checked) => updateOption(account.id, "allowComment", checked === true)}
                         />
-                        <Label htmlFor={`${account.id}-allowComment`} className="text-sm cursor-pointer">
+                        <Label
+                          htmlFor={`${account.id}-allowComment`}
+                          className={`text-sm ${tiktokInfo?.commentDisabled ? "text-muted-foreground" : "cursor-pointer"}`}>
                           Allow Comments
                         </Label>
                       </div>
 
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`${account.id}-allowDuet`}
-                          checked={asBoolean(accountOptions.allowDuet, true)}
-                          onCheckedChange={(checked) => updateOption(account.id, "allowDuet", checked === true)}
+                      {!hasTikTokPhotoOnly && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`${account.id}-allowDuet`}
+                            checked={tiktokInfo?.duetDisabled ? false : asBoolean(accountOptions.allowDuet, false)}
+                            disabled={tiktokInfo?.duetDisabled}
+                            onCheckedChange={(checked) => updateOption(account.id, "allowDuet", checked === true)}
+                          />
+                          <Label
+                            htmlFor={`${account.id}-allowDuet`}
+                            className={`text-sm ${tiktokInfo?.duetDisabled ? "text-muted-foreground" : "cursor-pointer"}`}>
+                            Allow Duets
+                          </Label>
+                        </div>
+                      )}
+
+                      {!hasTikTokPhotoOnly && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`${account.id}-allowStitch`}
+                            checked={tiktokInfo?.stitchDisabled ? false : asBoolean(accountOptions.allowStitch, false)}
+                            disabled={tiktokInfo?.stitchDisabled}
+                            onCheckedChange={(checked) => updateOption(account.id, "allowStitch", checked === true)}
+                          />
+                          <Label
+                            htmlFor={`${account.id}-allowStitch`}
+                            className={`text-sm ${tiktokInfo?.stitchDisabled ? "text-muted-foreground" : "cursor-pointer"}`}>
+                            Allow Stitch
+                          </Label>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-3 rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <Label htmlFor={`${account.id}-commercialContentDisclosure`} className="text-sm">
+                            Content Disclosure Setting
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Indicate whether this content promotes yourself, a brand, product or service.
+                          </p>
+                        </div>
+                        <Switch
+                          id={`${account.id}-commercialContentDisclosure`}
+                          checked={tiktokCommercialDisclosure}
+                          onCheckedChange={(checked) =>
+                            updateOptions(account.id, {
+                              commercialContentDisclosure: checked,
+                              discloseYourBrand: checked ? accountOptions.discloseYourBrand : undefined,
+                              discloseBrandedContent: checked ? accountOptions.discloseBrandedContent : undefined,
+                            })
+                          }
                         />
-                        <Label htmlFor={`${account.id}-allowDuet`} className="text-sm cursor-pointer">
-                          Allow Duets
-                        </Label>
                       </div>
 
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`${account.id}-allowStitch`}
-                          checked={asBoolean(accountOptions.allowStitch, true)}
-                          onCheckedChange={(checked) => updateOption(account.id, "allowStitch", checked === true)}
-                        />
-                        <Label htmlFor={`${account.id}-allowStitch`} className="text-sm cursor-pointer">
-                          Allow Stitch
-                        </Label>
-                      </div>
+                      {tiktokCommercialDisclosure && (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${account.id}-discloseYourBrand`}
+                              checked={tiktokDiscloseYourBrand}
+                              onCheckedChange={(checked) =>
+                                updateOption(account.id, "discloseYourBrand", checked === true)
+                              }
+                            />
+                            <Label htmlFor={`${account.id}-discloseYourBrand`} className="text-sm cursor-pointer">
+                              Your brand
+                            </Label>
+                          </div>
+                          {tiktokDiscloseYourBrand && (
+                            <p className="text-xs text-muted-foreground">
+                              Your photo/video will be labeled as 'Promotional content'
+                            </p>
+                          )}
+
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${account.id}-discloseBrandedContent`}
+                              checked={tiktokDiscloseBrandedContent}
+                              onCheckedChange={(checked) => {
+                                const nextChecked = checked === true;
+                                updateOptions(account.id, {
+                                  discloseBrandedContent: nextChecked,
+                                  privacyLevel:
+                                    nextChecked && tiktokPrivacyLevel === "SELF_ONLY" ? undefined : tiktokPrivacyLevel,
+                                });
+                              }}
+                            />
+                            <Label htmlFor={`${account.id}-discloseBrandedContent`} className="text-sm cursor-pointer">
+                              Branded content
+                            </Label>
+                          </div>
+                          {tiktokDiscloseBrandedContent && (
+                            <p className="text-xs text-muted-foreground">
+                              Your photo/video will be labeled as 'Paid partnership'
+                            </p>
+                          )}
+                          {!tiktokDiscloseYourBrand && !tiktokDiscloseBrandedContent && (
+                            <p
+                              className="text-xs text-destructive"
+                              title="You need to indicate if your content promotes yourself, a third party, or both.">
+                              You need to indicate if your content promotes yourself, a third party, or both.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

@@ -268,8 +268,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     // Per-platform cost: thread-capable platforms post N segments;
     // non-capable platforms always post just the root.
     const threadSegmentCount = post.thread?.length ?? 0;
-    const costFor = (platform: string) =>
-      isThreadCapable(mapPlatformName(platform)) ? 1 + threadSegmentCount : 1;
+    const costFor = (platform: string) => (isThreadCapable(mapPlatformName(platform)) ? 1 + threadSegmentCount : 1);
 
     const canSend = platforms.every((platform) => {
       const budget = platformBudgets.get(platform);

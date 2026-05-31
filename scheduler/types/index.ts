@@ -36,11 +36,16 @@ export interface AccountPlatformOptions {
     publishAt?: string;
   };
   tiktok?: {
+    title?: string;
     publishMode?: "draft" | "public";
+    privacyLevel?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
     visibility?: "public" | "friends" | "private";
     allowComment?: boolean;
     allowDuet?: boolean;
     allowStitch?: boolean;
+    commercialContentDisclosure?: boolean;
+    discloseYourBrand?: boolean;
+    discloseBrandedContent?: boolean;
   };
   facebook?: {
     publishAt?: string;
@@ -97,11 +102,16 @@ export interface PlatformOptions {
     publishAt?: string;
   };
   tiktok?: {
+    title?: string;
     publishMode?: "draft" | "public";
+    privacyLevel?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
     visibility?: "public" | "friends" | "private";
     allowComment?: boolean;
     allowDuet?: boolean;
     allowStitch?: boolean;
+    commercialContentDisclosure?: boolean;
+    discloseYourBrand?: boolean;
+    discloseBrandedContent?: boolean;
   };
   facebook?: {
     publishAt?: string;

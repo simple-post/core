@@ -9,6 +9,12 @@ import type { Content } from "../src/types/post";
 
 jest.mock("axios");
 jest.mock("fs");
+jest.mock("../src/utils/s3", () => ({
+  S3MediaUploader: jest.fn().mockImplementation(() => ({
+    uploadFile: jest.fn(),
+    deleteFile: jest.fn(),
+  })),
+}));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedFs = fs as jest.Mocked<typeof fs>;

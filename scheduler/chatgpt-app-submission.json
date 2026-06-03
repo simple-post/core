@@ -131,11 +131,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Upload a generated or attached ChatGPT image when no public URL is available.",
-      "user_prompt": "Upload this generated image as launch.png so I can attach it to a SimplePost draft.",
-      "file_attachment_urls": null,
+      "description": "Upload an attached ChatGPT image when no public URL is available.",
+      "user_prompt": "Upload the attached image as launch.png so I can attach it to a SimplePost draft.",
+      "file_attachment_urls": ["https://schedule.simplepost.dev/simplepost-logo.png"],
       "tools_triggered": "upload_media",
-      "expected_output": "Uses the ChatGPT file parameter, not base64 media data, and returns a publicly fetchable SimplePost media URL with file type, filename, size, and MIME type.",
+      "expected_output": "Uses the attached file as the ChatGPT file parameter, not base64 media data, and returns a publicly fetchable SimplePost media URL with file type, filename, size, and MIME type.",
       "expected_output_url": null
     },
     {
@@ -163,35 +163,35 @@
       "expected_output_url": null
     },
     {
-      "description": "Move an existing draft to the scheduled queue.",
-      "user_prompt": "Schedule my SimplePost draft post_123 for tomorrow at 18:00 Europe/Berlin.",
+      "description": "Create a temporary draft and move it to the scheduled queue.",
+      "user_prompt": "Save a temporary SimplePost draft for my Telegram channel with text 'Review scheduling draft', then schedule that same draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "update_scheduled_post",
-      "expected_output": "Validates the draft for scheduled publication, updates it to scheduled status with the requested future time, and returns the exact updated content and post details.",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
+      "expected_output": "Creates a temporary draft, uses the returned post ID to validate and update it to scheduled status with the requested future time, and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
-      "description": "Update the scheduled time for an existing scheduled post.",
-      "user_prompt": "Move my scheduled SimplePost post post_123 to tomorrow at 18:00 Europe/Berlin.",
+      "description": "Create a scheduled post and update its scheduled time.",
+      "user_prompt": "Create a scheduled SimplePost post for my Telegram channel tomorrow at 17:00 Europe/Berlin with text 'Review reschedule test', then move that same scheduled post to tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "update_scheduled_post",
-      "expected_output": "Validates the resulting scheduled post, updates the scheduled time when it is still a future scheduled post, and returns the exact updated content and post details.",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
+      "expected_output": "Creates a scheduled SimplePost post, uses the returned post ID to validate and update the future scheduled time, and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
-      "description": "Move an existing scheduled post back to drafts.",
-      "user_prompt": "Move my scheduled SimplePost post post_123 back to drafts for now.",
+      "description": "Create a scheduled post and move it back to drafts.",
+      "user_prompt": "Create a scheduled SimplePost post for my Telegram channel tomorrow at 19:00 Europe/Berlin with text 'Review draft rollback test', then move that same scheduled post back to drafts for now.",
       "file_attachment_urls": null,
-      "tools_triggered": "update_scheduled_post",
-      "expected_output": "Updates the future scheduled post to draft status without publishing it and returns the exact updated content and post details.",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
+      "expected_output": "Creates a future scheduled post, then uses the returned post ID to update it to draft status without publishing it and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
-      "description": "Discard an existing draft or future scheduled post.",
-      "user_prompt": "Delete the SimplePost draft with ID post_123.",
+      "description": "Create and discard a temporary draft.",
+      "user_prompt": "Create a temporary SimplePost draft for my Telegram channel with text 'Review discard test', then delete that same draft.",
       "file_attachment_urls": null,
-      "tools_triggered": "discard_scheduled_post",
-      "expected_output": "Deletes the draft or future scheduled SimplePost record, returns the exact discarded content, and best-effort deletes stored media while explaining that already published posts cannot be undone.",
+      "tools_triggered": "list_accounts, create_post, discard_scheduled_post",
+      "expected_output": "Creates a temporary draft, uses the returned post ID to delete that draft, returns the exact discarded content, and explains that already published posts cannot be undone.",
       "expected_output_url": null
     },
     {
@@ -222,7 +222,7 @@
     },
     {
       "description": "Do not trigger for undoing already published social posts.",
-      "user_prompt": "Delete the tweet SimplePost already published yesterday from X.",
+      "user_prompt": "Delete yesterday's tweet from my X account.",
       "file_attachment_urls": null,
       "tools_triggered": null,
       "expected_output": "The app should not invoke MCP tools because it cannot delete or undo content that was already published to external social platforms.",

@@ -36,7 +36,7 @@ export const createPostSchema = z.object({
     .describe("'now' to post immediately, 'schedule' to schedule for later, or 'draft' to save without publishing"),
   scheduledFor: z
     .string()
-    .datetime()
+    .datetime({ offset: true })
     .optional()
     .describe(
       "Required when postingMode is 'schedule'; ignored for 'draft'. Use a full ISO 8601 datetime with timezone: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm (examples: 2026-05-01T14:30:00Z, 2026-05-01T16:30:00+02:00). Never send date-only or local time without timezone.",
@@ -157,10 +157,10 @@ export const updateScheduledPostSchema = z.object({
     .describe("Replacement follow-up thread segments. Omit to keep current thread; pass null or [] to clear it."),
   scheduledFor: z
     .string()
-    .datetime()
+    .datetime({ offset: true })
     .optional()
     .describe(
-      "Replacement future scheduled time as a full ISO 8601 datetime with timezone. Omit to keep the current scheduled time.",
+      "Replacement future scheduled time as a full ISO 8601 datetime with timezone. Omit to keep the current scheduled time. Providing this for a draft moves it to scheduled.",
     ),
 });
 
@@ -405,8 +405,8 @@ function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: 
 }
 
 export async function previewPost(userId: string, input: z.infer<typeof previewPostSchema>) {
-  const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
+  const scheduledFor = postingMode === "schedule" ? resolveScheduledFor(input) : null;
   const mediaCount = input.media?.length ?? 0;
   const threadSegmentCount = input.thread?.length ?? 0;
   const validation = await validatePost(userId, {
@@ -595,10 +595,10 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const mappedPost = mapManagedPost(post, accountMap);
   const media = collectMediaForCleanup(post);
 
+  await repository.deletePost(input.postId);
   if (media.length > 0) {
     await deleteMediaFiles(media);
   }
-  await repository.deletePost(input.postId);
 
   return {
     kind: "scheduled_post_discard" as const,

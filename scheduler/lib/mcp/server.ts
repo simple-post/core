@@ -79,7 +79,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 # Managing existing posts
 
 - \`inspect_posts\` can list drafts, future scheduled posts, already posted posts, and failed posts. Pass a \`postId\` to inspect a single post before editing or discarding it.
-- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`postingMode: "draft"\` moves a scheduled post to drafts, and \`postingMode: "schedule"\` plus \`scheduledFor\` moves a draft to scheduled. \`media: null\` or \`media: []\` clears root media, and \`thread: null\` or \`thread: []\` clears follow-up segments.
+- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`postingMode: "draft"\` moves a scheduled post to drafts, and \`postingMode: "schedule"\` plus \`scheduledFor\` moves a draft to scheduled (sending \`scheduledFor\` for a draft without \`postingMode\` also moves it to scheduled). \`media: null\` or \`media: []\` clears root media, and \`thread: null\` or \`thread: []\` clears follow-up segments.
 - \`update_scheduled_post\` validates the resulting scheduled post before saving changes. Draft saves are allowed even if platform validation would block publishing. If validation fails for a scheduled result, surface the per-account errors and do not call \`create_post\`.
 - \`discard_scheduled_post\` deletes a draft or future scheduled post and its stored media from SimplePost. It cannot undo posts that were already published to social platforms.
 

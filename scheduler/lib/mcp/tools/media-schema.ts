@@ -29,9 +29,9 @@ export const mcpThreadSegmentSchema = z.object({
     .describe("Optional images/videos for this segment only. Same URL rules as the root `media` field."),
 });
 
-export const mcpThreadSchema = z
-  .array(mcpThreadSegmentSchema)
-  .max(MAX_THREAD_SEGMENTS)
+export const mcpThreadArraySchema = z.array(mcpThreadSegmentSchema).max(MAX_THREAD_SEGMENTS);
+
+export const mcpThreadSchema = mcpThreadArraySchema
   .optional()
   .describe(
     `Additional posts after the root, in order (max ${MAX_THREAD_SEGMENTS}). Only thread-capable platforms (x, bluesky, threads, telegram) publish every segment; others get a validation warning and only the root is sent.`,

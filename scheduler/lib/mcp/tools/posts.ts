@@ -10,6 +10,7 @@ import type { MediaFile, SocialPost, ThreadSegment } from "@/types";
 import { listAccounts, mcpAccountSchema } from "./accounts";
 import {
   mcpMediaItemSchema,
+  mcpThreadArraySchema,
   mcpThreadSchema,
   mcpThreadSegmentSchema,
   toMediaFiles,
@@ -152,8 +153,9 @@ export const updateScheduledPostSchema = z.object({
     .describe(
       "Replacement root media array. Each item must have a public URL or upload_media URL. Omit to keep current media; pass null or [] to clear root media.",
     ),
-  thread: mcpThreadSchema
+  thread: mcpThreadArraySchema
     .nullable()
+    .optional()
     .describe("Replacement follow-up thread segments. Omit to keep current thread; pass null or [] to clear it."),
   scheduledFor: z
     .string()

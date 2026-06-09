@@ -1,5 +1,6 @@
 import { getValidationRulesForPlatform, validateContentForPlatform } from "@simple-post/sdk/validation";
 
+import { getPlatformById } from "@/lib/config";
 import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
@@ -112,7 +113,7 @@ export function validatePostForResolvedAccounts(params: {
         platform,
         severity: "warning",
         code: "thread_not_supported",
-        message: `No threads on ${platform}. Root post only.`,
+        message: `${getPlatformById(platform)?.name ?? platform} doesn't support threads, so only the first post will be published there.`,
         field: "thread",
         meta: { accountId: account.id },
       });
@@ -137,7 +138,8 @@ export function validatePostForResolvedAccounts(params: {
       platform: "common",
       severity: "error",
       code: "no_thread_capable_accounts",
-      message: "No selected accounts support threads. Remove the additional posts or add a thread-capable account.",
+      message:
+        "None of the selected accounts support threads. Remove the extra posts or add an account that supports them (X, Bluesky, Threads, or Telegram).",
       field: "thread",
     });
   }

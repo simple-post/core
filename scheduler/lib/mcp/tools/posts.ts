@@ -260,19 +260,34 @@ function resolveScheduledFor(input: z.infer<typeof createPostSchema>): Date | nu
   }
 
   if (!input.scheduledFor) {
-    throw new Error("scheduledFor is required when postingMode is 'schedule'");
+    throw new Error(
+      "To schedule this post, please provide the date and time it should be published (the scheduledFor field).",
+    );
   }
 
   const scheduledFor = new Date(input.scheduledFor);
   if (Number.isNaN(scheduledFor.getTime())) {
-    throw new TypeError("scheduledFor must be a valid ISO 8601 datetime");
+    throw new TypeError(
+      "The scheduled time isn't a valid date. Use an ISO 8601 datetime with a timezone, like 2026-05-01T14:30:00Z.",
+    );
   }
   if (scheduledFor <= new Date()) {
-    throw new Error("scheduledFor must be in the future");
+    throw new Error("That scheduled time has already passed — please pick a time in the future.");
   }
 
   return scheduledFor;
 }
+
+function missingAccountsError(requestedIds: string[], foundIds: string[]): Error {
+  const missing = requestedIds.filter((id) => !foundIds.includes(id));
+  const list = missing.length > 0 ? missing.join(", ") : requestedIds.join(", ");
+  return new Error(
+    `These accounts aren't connected to SimplePost: ${list}. Call list_accounts to see the available accounts.`,
+  );
+}
+
+const POST_NOT_FOUND_MESSAGE =
+  "Couldn't find that post — it may have been deleted. Use inspect_posts to list your current posts.";
 
 function mapPost(post: {
   id: string;
@@ -368,27 +383,33 @@ function assertEditableManagedPost(post: SocialPost): void {
     return;
   }
   if (post.status !== "scheduled") {
-    throw new Error("Only draft and scheduled posts can be managed with this tool");
+    throw new Error(
+      `This post has already been ${post.status === "failed" ? "attempted" : "published"}, so it can no longer be edited or deleted here. Only drafts and upcoming scheduled posts can be changed.`,
+    );
   }
   if (!post.scheduledFor || post.scheduledFor <= new Date()) {
-    throw new Error("Only future scheduled posts can be edited or discarded");
+    throw new Error(
+      "This post is due to be published right now or already went out, so it can no longer be edited or deleted.",
+    );
   }
 }
 
 function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Date | null): Date {
   if (!value) {
     if (!currentValue) {
-      throw new Error("scheduledFor is required when moving a draft to scheduled");
+      throw new Error("To schedule this draft, please provide the date and time it should be published.");
     }
     return currentValue;
   }
 
   const scheduledFor = new Date(value);
   if (Number.isNaN(scheduledFor.getTime())) {
-    throw new TypeError("scheduledFor must be a valid ISO 8601 datetime");
+    throw new TypeError(
+      "The scheduled time isn't a valid date. Use an ISO 8601 datetime with a timezone, like 2026-05-01T14:30:00Z.",
+    );
   }
   if (scheduledFor <= new Date()) {
-    throw new Error("scheduledFor must be in the future");
+    throw new Error("That scheduled time has already passed — please pick a time in the future.");
   }
 
   return scheduledFor;
@@ -419,7 +440,10 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
-    throw new Error("One or more accounts were not found");
+    throw missingAccountsError(
+      input.accountIds,
+      validation.accounts.map((account) => account.accountId),
+    );
   }
 
   return {
@@ -455,7 +479,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
   if (input.postId) {
     const post = await repository.getPostById(input.postId);
     if (!post) {
-      throw new Error("Post not found");
+      throw new Error(POST_NOT_FOUND_MESSAGE);
     }
 
     const posts = [mapManagedPost(post, accountMap)];
@@ -511,13 +535,15 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.scheduledFor !== undefined;
 
   if (!hasChanges) {
-    throw new Error("Provide at least one draft or scheduled post field to update");
+    throw new Error(
+      "Nothing to update — please specify what should change: the text, accounts, media, thread, or scheduled time.",
+    );
   }
 
   const repository = new PostsModel(userId);
   const currentPost = await repository.getPostById(input.postId);
   if (!currentPost) {
-    throw new Error("Post not found");
+    throw new Error(POST_NOT_FOUND_MESSAGE);
   }
   assertEditableManagedPost(currentPost);
 
@@ -540,14 +566,17 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   });
 
   if (validation.accounts.length !== accountIds.length) {
-    throw new Error("One or more accounts were not found");
+    throw missingAccountsError(
+      accountIds,
+      validation.accounts.map((account) => account.accountId),
+    );
   }
 
   if (targetPostingMode === "schedule" && !validation.isValid) {
     const errorMessages = validation.accounts
       .flatMap((account) => account.errors.map((error) => error.message))
       .join("; ");
-    throw new Error(`Validation failed: ${errorMessages}`);
+    throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
   }
 
   const updates: Partial<SocialPost> = {};
@@ -589,7 +618,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const repository = new PostsModel(userId);
   const post = await repository.getPostById(input.postId);
   if (!post) {
-    throw new Error("Post not found");
+    throw new Error(POST_NOT_FOUND_MESSAGE);
   }
   assertEditableManagedPost(post);
 
@@ -653,12 +682,17 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
-    throw new Error("One or more accounts were not found");
+    throw missingAccountsError(
+      input.accountIds,
+      validation.accounts.map((account) => account.id),
+    );
   }
 
   if (postingMode !== "draft" && !validation.summary.isValid) {
     const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
-    throw new Error(`Validation failed: ${errorMessages}`);
+    throw new Error(
+      `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
+    );
   }
 
   // Create the post record
@@ -747,7 +781,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     } catch (postingError) {
       const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
       await repository.updatePost(post.id, { status: "failed", errorMessage });
-      throw new Error(`Failed to post: ${errorMessage}`);
+      throw new Error(`Something went wrong while publishing the post: ${errorMessage}`);
     }
   }
 

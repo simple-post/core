@@ -67,8 +67,30 @@ interface ResolvedUploadSource {
   mimeType: string;
 }
 
+const MIME_LABEL: Record<string, string> = {
+  "image/jpeg": "JPEG image",
+  "image/png": "PNG image",
+  "image/gif": "GIF image",
+  "image/webp": "WebP image",
+  "video/mp4": "MP4 video",
+  "video/quicktime": "QuickTime video",
+  "video/webm": "WebM video",
+};
+
+function mimeLabel(mimeType: string): string {
+  return MIME_LABEL[mimeType] ?? mimeType;
+}
+
+const FILE_TOO_LARGE_MESSAGE = `This file is too large — the maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`;
+
+function corruptedFileError(mimeType: string): Error {
+  return new Error(
+    `This ${mimeLabel(mimeType)} appears to be corrupted or incomplete. Please re-upload it or try a different file.`,
+  );
+}
+
 function uploadTimeoutMessage(action: string): string {
-  return `Timed out ${action} after ${Math.round(DOWNLOAD_TIMEOUT_MS / 1000)} seconds`;
+  return `${action} took too long (over ${Math.round(DOWNLOAD_TIMEOUT_MS / 1000)} seconds). Please try again.`;
 }
 
 function remainingMs(deadline: number): number {
@@ -211,35 +233,39 @@ function hasWebmHeader(buffer: Buffer): boolean {
 
 function assertCompleteMedia(buffer: Buffer, mimeType: string): void {
   if (buffer.length > MAX_FILE_SIZE) {
-    throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
 
   const sniffedImageType = sniffImageMimeType(buffer);
 
   if (mimeType.startsWith("image/") && sniffedImageType !== mimeType) {
-    throw new Error(`Media bytes do not match MIME type ${mimeType}`);
+    throw new Error(
+      `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
+    );
   }
 
   if (mimeType === "image/jpeg" && !hasJpegEndMarker(buffer)) {
-    throw new Error("Invalid or incomplete JPEG data");
+    throw corruptedFileError(mimeType);
   }
   if (mimeType === "image/png" && !hasPngEndChunk(buffer)) {
-    throw new Error("Invalid or incomplete PNG data");
+    throw corruptedFileError(mimeType);
   }
   if (mimeType === "image/gif" && buffer.at(-1) !== 59) {
-    throw new Error("Invalid or incomplete GIF data");
+    throw corruptedFileError(mimeType);
   }
   if (mimeType === "image/webp") {
     const expectedLength = buffer.readUInt32LE(4) + 8;
     if (expectedLength > buffer.length) {
-      throw new Error("Invalid or incomplete WebP data");
+      throw corruptedFileError(mimeType);
     }
   }
   if ((mimeType === "video/mp4" || mimeType === "video/quicktime") && !hasMp4FileTypeBox(buffer)) {
-    throw new Error(`Media bytes do not match MIME type ${mimeType}`);
+    throw new Error(
+      `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
+    );
   }
   if (mimeType === "video/webm" && !hasWebmHeader(buffer)) {
-    throw new Error("Media bytes do not match MIME type video/webm");
+    throw new Error("This file doesn't appear to be a valid WebM video. Please re-upload it or try a different file.");
   }
 }
 
@@ -250,7 +276,7 @@ function resolveMimeType(buffer: Buffer, declaredMimeType: string | undefined, f
 
   if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
     throw new Error(
-      `Unsupported media type${declaredMimeType ? `: ${declaredMimeType}` : ""}. Allowed: ${[...ALLOWED_MEDIA_TYPES].join(", ")}`,
+      `This file type${declaredMimeType ? ` (${declaredMimeType})` : ""} isn't supported. Supported formats: ${[...ALLOWED_MEDIA_TYPES].map((type) => mimeLabel(type)).join(", ")}.`,
     );
   }
 
@@ -261,22 +287,22 @@ function resolveMimeType(buffer: Buffer, declaredMimeType: string | undefined, f
 async function readResponseBuffer(response: Response, deadline: number, onTimeout: () => void): Promise<Buffer> {
   const contentLength = response.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_FILE_SIZE) {
-    throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
 
   if (!response.body) {
     const arrayBuffer = await withTimeout(
       response.arrayBuffer(),
       remainingMs(deadline),
-      uploadTimeoutMessage("downloading ChatGPT file"),
+      uploadTimeoutMessage("Downloading the file from ChatGPT"),
       onTimeout,
     );
     const buffer = Buffer.from(arrayBuffer);
     if (buffer.length === 0) {
-      throw new Error("Downloaded file is empty");
+      throw new Error("The downloaded file is empty. Please re-attach the file and try again.");
     }
     if (buffer.length > MAX_FILE_SIZE) {
-      throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      throw new Error(FILE_TOO_LARGE_MESSAGE);
     }
     return buffer;
   }
@@ -290,7 +316,7 @@ async function readResponseBuffer(response: Response, deadline: number, onTimeou
       const { done, value } = await withTimeout(
         reader.read(),
         remainingMs(deadline),
-        uploadTimeoutMessage("downloading ChatGPT file"),
+        uploadTimeoutMessage("Downloading the file from ChatGPT"),
         () => {
           onTimeout();
           void reader.cancel();
@@ -302,7 +328,7 @@ async function readResponseBuffer(response: Response, deadline: number, onTimeou
       received += value.byteLength;
       if (received > MAX_FILE_SIZE) {
         await reader.cancel();
-        throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+        throw new Error(FILE_TOO_LARGE_MESSAGE);
       }
       chunks.push(Buffer.from(value));
     }
@@ -311,7 +337,7 @@ async function readResponseBuffer(response: Response, deadline: number, onTimeou
   }
 
   if (received === 0) {
-    throw new Error("Downloaded file is empty");
+    throw new Error("The downloaded file is empty. Please re-attach the file and try again.");
   }
 
   return Buffer.concat(chunks, received);
@@ -321,7 +347,7 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
   const inputFileSize = input.file.size ?? 0;
 
   if (inputFileSize > 0 && inputFileSize > MAX_FILE_SIZE) {
-    throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
 
   const controller = new AbortController();
@@ -332,12 +358,14 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
       signal: controller.signal,
     }),
     remainingMs(deadline),
-    uploadTimeoutMessage("downloading ChatGPT file"),
+    uploadTimeoutMessage("Downloading the file from ChatGPT"),
     () => controller.abort(),
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to download ChatGPT file: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Couldn't download the file from ChatGPT (HTTP ${response.status}). The link may have expired — please re-attach the file and try again.`,
+    );
   }
 
   const buffer = await readResponseBuffer(response, deadline, () => controller.abort());

@@ -2,6 +2,7 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
+import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import {
@@ -110,14 +111,23 @@ function toolMeta(invoking: string, invoked: string) {
 
 function errorResult(error: unknown) {
   return {
-    content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+    content: [{ type: "text" as const, text: error instanceof Error ? error.message : String(error) }],
     isError: true,
   };
 }
 
+const SCOPE_ACTIONS: Record<McpScope, string> = {
+  "accounts:read": "view your connected accounts",
+  "posts:read": "view your posts",
+  "posts:validate": "check posts against platform rules",
+  "posts:write": "create or change posts",
+};
+
 function requireScope(context: McpToolAuthContext, scope: McpScope): void {
   if (!hasMcpScope(context.scope, scope)) {
-    throw new Error(`Missing required OAuth scope: ${scope}`);
+    throw new Error(
+      `SimplePost doesn't have permission to ${SCOPE_ACTIONS[scope]} for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: ${scope}).`,
+    );
   }
 }
 
@@ -156,13 +166,17 @@ interface ValidationAccount extends AccountSummary {
 }
 
 function formatAccount(account: AccountSummary): string {
-  const label = account.displayName ?? account.username ?? "Unnamed account";
-  const username = account.username ? `, username: ${account.username}` : "";
-  return `${label} (platform: ${account.platform}, accountId: ${account.accountId}${username})`;
+  const handle = account.username ? `@${account.username}` : null;
+  const name =
+    account.displayName && handle && account.displayName !== handle
+      ? `${account.displayName} (${handle})`
+      : (account.displayName ?? handle ?? "Unnamed account");
+  return `${name} on ${platformLabel(account.platform)} (account ID: ${account.accountId})`;
 }
 
 function formatAccounts(accounts: AccountSummary[]): string {
-  if (accounts.length === 0) return "Connected accounts: none.";
+  if (accounts.length === 0)
+    return "You don't have any connected accounts yet. Connect one in the SimplePost web app to start posting.";
 
   return `Connected accounts:\n${accounts.map((account) => `- ${formatAccount(account)}`).join("\n")}`;
 }
@@ -176,8 +190,14 @@ function formatValidationDetails(validation: {
   summary: { errorCount: number; warningCount: number };
 }): string {
   if (validation.accounts.length === 0) {
-    return "Validation results: no matching accounts were validated.";
+    return "Validation: no matching accounts were checked.";
   }
+
+  const { errorCount, warningCount } = validation.summary;
+  const headline =
+    errorCount === 0 && warningCount === 0
+      ? "Validation: all good — no errors or warnings."
+      : `Validation: ${plural(errorCount, "error")}, ${plural(warningCount, "warning")}.`;
 
   const accounts = validation.accounts
     .map((account) => {
@@ -190,11 +210,17 @@ function formatValidationDetails(validation: {
         .filter(Boolean)
         .join("; ");
 
-      return `- ${formatAccount(account)}: ${account.isValid ? "valid" : "invalid"}${details ? ` (${details})` : ""}`;
+      return `- ${formatAccount(account)}: ${account.isValid ? "OK" : "has issues"}${details ? ` (${details})` : ""}`;
     })
     .join("\n");
 
-  return `Validation results: ${validation.summary.errorCount} error(s), ${validation.summary.warningCount} warning(s).\n${accounts}`;
+  return `${headline}\n${accounts}`;
+}
+
+function formatTiming(postingMode: string, scheduledFor: string | null): string {
+  if (postingMode === "draft") return "When: saved as a draft (not scheduled)";
+  if (postingMode === "schedule" && scheduledFor) return `When: scheduled for ${formatDateTime(scheduledFor)}`;
+  return "When: published immediately";
 }
 
 function formatPreviewDetails(result: {
@@ -207,13 +233,16 @@ function formatPreviewDetails(result: {
 }): string {
   return [
     "Preview details:",
-    `Posting mode: ${result.postingMode}`,
-    `Scheduled for: ${result.scheduledFor ?? "not scheduled"}`,
-    `Root media count: ${result.mediaCount}`,
-    `Follow-up thread segment count: ${result.summary.threadSegmentCount}`,
+    formatTiming(result.postingMode, result.scheduledFor),
+    result.mediaCount > 0 ? `Media: ${plural(result.mediaCount, "item")}` : "",
+    result.summary.threadSegmentCount > 0
+      ? `Thread: ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+      : "",
     formatAccounts(result.accounts),
     formatValidationDetails(result.validation),
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function formatPostingResults(
@@ -236,41 +265,41 @@ function formatPostingResults(
   }>,
 ): string {
   if (results.length === 0) {
-    return "Posting results: no immediate platform publish was attempted.";
+    return "";
   }
 
   return `Posting results:\n${results
     .map((result) => {
       const details = [
-        result.postId ? `postId: ${result.postId}` : "",
-        result.postUrl ? `postUrl: ${result.postUrl}` : "",
-        result.message ? `message: ${result.message}` : "",
-        result.error ? `error: ${result.error}` : "",
+        result.postUrl ? `link: ${result.postUrl}` : "",
+        !result.postUrl && result.postId ? `post ID: ${result.postId}` : "",
+        result.message ?? "",
+        result.error ?? "",
       ]
         .filter(Boolean)
-        .join(", ");
+        .join(" — ");
       const threadResults =
         result.threadResults && result.threadResults.length > 0
-          ? `\n  Thread results:\n${result.threadResults
+          ? `\n${result.threadResults
               .map((segment) => {
                 const segmentDetails = [
-                  segment.postId ? `postId: ${segment.postId}` : "",
-                  segment.postUrl ? `postUrl: ${segment.postUrl}` : "",
-                  segment.message ? `message: ${segment.message}` : "",
-                  segment.error ? `error: ${segment.error}` : "",
+                  segment.postUrl ? `link: ${segment.postUrl}` : "",
+                  !segment.postUrl && segment.postId ? `post ID: ${segment.postId}` : "",
+                  segment.message ?? "",
+                  segment.error ?? "",
                 ]
                   .filter(Boolean)
-                  .join(", ");
-                return `  - Segment ${segment.index}: ${segment.success ? "success" : "failed"}${
-                  segmentDetails ? ` (${segmentDetails})` : ""
-                }`;
+                  .join(" — ");
+                return `  - ${segment.index === 0 ? "Root post" : `Reply ${segment.index}`}: ${
+                  segment.success ? "published" : "failed"
+                }${segmentDetails ? ` (${segmentDetails})` : ""}`;
               })
               .join("\n")}`
           : "";
 
-      return `- ${result.platform} (${result.accountId}): ${result.success ? "success" : "failed"}${
-        details ? ` (${details})` : ""
-      }${threadResults}`;
+      return `- ${platformLabel(result.platform)} (account ID: ${result.accountId}): ${
+        result.success ? "published" : "failed"
+      }${details ? ` (${details})` : ""}${threadResults}`;
     })
     .join("\n")}`;
 }
@@ -290,19 +319,34 @@ function formatCreatedPostDetails(result: {
     overallSuccess: boolean;
   };
 }): string {
+  const { summary, post } = result;
+  const outcome =
+    result.postingMode === "draft"
+      ? `Saved as a draft for ${plural(summary.accountCount, "account")}.`
+      : result.postingMode === "schedule"
+        ? `Scheduled for ${plural(summary.accountCount, "account")}.`
+        : summary.failureCount === 0
+          ? `Published to ${summary.accountCount === 1 ? "the account" : `all ${summary.accountCount} accounts`}.`
+          : `Published to ${summary.successCount} of ${plural(summary.accountCount, "account")}; ${plural(
+              summary.failureCount,
+              "account",
+            )} failed.`;
+
   return [
     "Post details:",
-    `Post ID: ${result.post.id}`,
-    `Status: ${result.post.status}`,
-    `Posting mode: ${result.postingMode}`,
-    `Account IDs: ${result.post.accountIds.join(", ")}`,
-    `Scheduled for: ${result.post.scheduledFor ?? "not scheduled"}`,
-    `Published at: ${result.post.publishedAt ?? "not published"}`,
-    `Root media count: ${result.mediaCount}`,
-    `Follow-up thread segment count: ${result.summary.threadSegmentCount}`,
-    `Summary: ${result.summary.successCount} success(es), ${result.summary.failureCount} failure(s), ${result.summary.scheduledCount} scheduled, ${result.summary.draftCount} draft(s), overallSuccess: ${result.summary.overallSuccess}`,
+    `Post ID: ${post.id} (status: ${post.status})`,
+    outcome,
+    result.postingResults.length === 0 ? `Account IDs: ${post.accountIds.join(", ")}` : "",
+    post.scheduledFor ? `Scheduled for: ${formatDateTime(post.scheduledFor)}` : "",
+    post.publishedAt ? `Published at: ${formatDateTime(post.publishedAt)}` : "",
+    result.mediaCount > 0 ? `Media: ${plural(result.mediaCount, "item")}` : "",
+    summary.threadSegmentCount > 0
+      ? `Thread: ${plural(summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+      : "",
     formatPostingResults(result.postingResults),
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function formatManagedPostDetails(post: {
@@ -319,23 +363,25 @@ function formatManagedPostDetails(post: {
   errorMessage: string | null;
 }): string {
   return [
-    `${post.id} (${post.status})`,
+    `Post ${post.id} (${post.status})`,
     formatManagedPostContent(post),
     post.accounts.length > 0
       ? `Accounts: ${post.accounts.map((account) => formatAccount(account)).join("; ")}`
       : `Account IDs: ${post.accountIds.join(", ")}`,
-    `Root media count: ${post.mediaCount}`,
-    `Follow-up thread segment count: ${post.threadSegmentCount}`,
-    `Scheduled for: ${post.scheduledFor ?? "not scheduled"}`,
-    `Published at: ${post.publishedAt ?? "not published"}`,
-    post.errorMessage ? `Error: ${post.errorMessage}` : "",
+    post.mediaCount > 0 ? `Media: ${plural(post.mediaCount, "item")}` : "",
+    post.threadSegmentCount > 0
+      ? `Thread: ${plural(post.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+      : "",
+    post.scheduledFor ? `Scheduled for: ${formatDateTime(post.scheduledFor)}` : "",
+    post.publishedAt ? `Published at: ${formatDateTime(post.publishedAt)}` : "",
+    post.errorMessage ? `Last error: ${post.errorMessage}` : "",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 function formatManagedPosts(posts: Array<Parameters<typeof formatManagedPostDetails>[0]>) {
-  if (posts.length === 0) return "No matching post content.";
+  if (posts.length === 0) return "No posts matched — nothing drafted, scheduled, posted, or failed for this filter.";
 
   return posts.map((post, index) => `${index + 1}. ${formatManagedPostDetails(post)}`).join("\n\n");
 }
@@ -360,7 +406,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: true,
         openWorldHint: false,
       },
-      _meta: toolMeta("Loading accounts", "Accounts loaded"),
+      _meta: toolMeta("Checking your connected accounts", "Found your accounts"),
     },
     async () => {
       try {
@@ -371,9 +417,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `${result.summary.total} SimplePost account(s) available across ${
-                result.summary.platforms.length
-              } platform(s).\n\n${formatAccounts(result.accounts)}`,
+              text:
+                result.summary.total === 0
+                  ? formatAccounts(result.accounts)
+                  : `You have ${plural(result.summary.total, "connected account")} across ${plural(
+                      result.summary.platforms.length,
+                      "platform",
+                    )}.\n\n${formatAccounts(result.accounts)}`,
             },
           ],
         };
@@ -399,7 +449,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         openWorldHint: true,
       },
       _meta: {
-        ...toolMeta("Uploading media", "Media uploaded"),
+        ...toolMeta("Uploading your media", "Media uploaded"),
         "openai/fileParams": ["file"],
       },
     },
@@ -413,11 +463,9 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text: [
-                `Uploaded ${result.type} ${result.filename}.`,
+                `Uploaded the ${result.type} ${result.filename} (${formatBytes(result.size)}, ${result.mimeType}).`,
                 `URL: ${result.url}`,
-                `MIME type: ${result.mimeType}`,
-                `Size: ${result.size} bytes`,
-                `Media item: {"type":"${result.type}","url":"${result.url}"}`,
+                `Media item to attach to a post: {"type":"${result.type}","url":"${result.url}"}`,
               ].join("\n"),
             },
           ],
@@ -443,7 +491,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: true,
         openWorldHint: false,
       },
-      _meta: toolMeta("Validating post", "Validation ready"),
+      _meta: toolMeta("Checking your post", "Check complete"),
     },
     async (input) => {
       try {
@@ -455,11 +503,14 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text: result.isValid
-                ? `Post is valid for ${result.summary.accountCount} account(s).\n\n${formatPostContent(
+                ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
                     input.message,
                     input.thread,
                   )}\n\n${formatValidationDetails(result)}`
-                : `Post has ${result.summary.errorCount} blocking validation error(s).\n\n${formatPostContent(
+                : `The post has ${plural(
+                    result.summary.errorCount,
+                    "problem",
+                  )} that would block publishing.\n\n${formatPostContent(
                     input.message,
                     input.thread,
                   )}\n\n${formatValidationDetails(result)}`,
@@ -487,22 +538,24 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: true,
         openWorldHint: false,
       },
-      _meta: toolMeta("Preparing preview", "Preview ready"),
+      _meta: toolMeta("Preparing a preview", "Preview ready"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:validate");
         const result = await previewPost(context.userId, input);
         const summaryText = result.validation.isValid
-          ? `Preview ready for ${result.summary.accountCount} account(s), ${result.summary.mediaCount} root media item(s)${
+          ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
+              result.summary.mediaCount > 0 ? ` with ${plural(result.summary.mediaCount, "media item")}` : ""
+            }${
               result.summary.threadSegmentCount > 0
-                ? `, ${result.summary.threadSegmentCount} follow-up thread segment(s)`
+                ? ` and ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
                 : ""
             }.\n\n${formatPostContent(input.message, input.thread)}`
-          : `Preview found ${result.summary.errorCount} blocking validation error(s).\n\n${formatPostContent(
-              input.message,
-              input.thread,
-            )}`;
+          : `The preview found ${plural(
+              result.summary.errorCount,
+              "problem",
+            )} that would block publishing.\n\n${formatPostContent(input.message, input.thread)}`;
 
         return {
           structuredContent: result,
@@ -534,35 +587,33 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: false,
         openWorldHint: true,
       },
-      _meta: toolMeta("Creating post", "Post created"),
+      _meta: toolMeta("Working on your post", "Finished working on your post"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:write");
         const result = await createPost(context.userId, input);
+        const threadSuffix =
+          result.summary.threadSegmentCount > 0
+            ? ` with ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+            : "";
         const summaryText =
           result.post.status === "draft"
-            ? `Post saved as a draft across ${result.summary.draftCount} account(s)${
-                result.summary.threadSegmentCount > 0
-                  ? ` (${result.summary.threadSegmentCount} follow-up thread segment(s) each)`
-                  : ""
-              }.\n\n${formatPostContent(input.message, input.thread)}`
+            ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread)}`
             : result.post.status === "scheduled"
-              ? `Post scheduled for ${result.post.scheduledFor} across ${result.summary.scheduledCount} account(s)${
-                  result.summary.threadSegmentCount > 0
-                    ? ` (${result.summary.threadSegmentCount} follow-up thread segment(s) each)`
-                    : ""
-                }.\n\n${formatPostContent(input.message, input.thread)}`
+              ? `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
+                  result.summary.scheduledCount,
+                  "account",
+                )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread)}`
               : result.summary.overallSuccess
-                ? `Post published successfully across ${result.summary.successCount} account(s)${
-                    result.summary.threadSegmentCount > 0
-                      ? ` with ${result.summary.threadSegmentCount} follow-up thread segment(s) per thread-capable account`
-                      : ""
-                  }.\n\n${formatPostContent(input.message, input.thread)}`
-                : `Post completed with ${result.summary.failureCount} platform failure(s).\n\n${formatPostContent(
-                    input.message,
-                    input.thread,
-                  )}`;
+                ? `Published the post to ${plural(
+                    result.summary.successCount,
+                    "account",
+                  )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread)}`
+                : `Published to ${result.summary.successCount} of ${plural(
+                    result.summary.accountCount,
+                    "account",
+                  )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread)}`;
 
         return {
           structuredContent: result,
@@ -594,12 +645,20 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: true,
         openWorldHint: false,
       },
-      _meta: toolMeta("Inspecting posts", "Posts ready"),
+      _meta: toolMeta("Looking up your posts", "Found your posts"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:read");
         const result = await inspectPosts(context.userId, input);
+        const statusBreakdown = [
+          result.summary.draftCount > 0 ? plural(result.summary.draftCount, "draft") : "",
+          result.summary.scheduledCount > 0 ? `${result.summary.scheduledCount} scheduled` : "",
+          result.summary.postedCount > 0 ? `${result.summary.postedCount} posted` : "",
+          result.summary.failedCount > 0 ? `${result.summary.failedCount} failed` : "",
+        ]
+          .filter(Boolean)
+          .join(", ");
         return {
           structuredContent: result,
           content: [
@@ -608,13 +667,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               text:
                 result.status === "single"
                   ? result.posts.length > 0
-                    ? `Found post ${result.posts[0].id} with status ${
-                        result.posts[0].status
-                      }.\n\n${formatManagedPostDetails(result.posts[0])}`
-                    : "Post not found."
-                  : `Found ${result.summary.totalReturned} SimplePost post(s): ${result.summary.draftCount} drafts, ${result.summary.scheduledCount} scheduled, ${result.summary.postedCount} posted, ${result.summary.failedCount} failed.\n\n${formatManagedPosts(
-                      result.posts,
-                    )}`,
+                    ? `Found the post (${result.posts[0].status}).\n\n${formatManagedPostDetails(result.posts[0])}`
+                    : "Couldn't find that post — it may have been deleted."
+                  : result.summary.totalReturned === 0
+                    ? formatManagedPosts(result.posts)
+                    : `Found ${plural(result.summary.totalReturned, "post")}${
+                        statusBreakdown ? ` (${statusBreakdown})` : ""
+                      }.\n\n${formatManagedPosts(result.posts)}`,
             },
           ],
         };
@@ -639,7 +698,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: false,
         openWorldHint: true,
       },
-      _meta: toolMeta("Updating scheduled post", "Scheduled post updated"),
+      _meta: toolMeta("Updating your post", "Post updated"),
     },
     async (input) => {
       try {
@@ -652,12 +711,12 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               type: "text",
               text:
                 result.post.status === "draft"
-                  ? `Updated draft ${result.post.id}.\n\n${formatManagedPostDetails(
-                      result.post,
-                    )}\n\n${formatValidationDetails(result.validation)}`
-                  : `Updated scheduled post ${result.post.id}; it is scheduled for ${
-                      result.post.scheduledFor
-                    }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`,
+                  ? `Updated the draft.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(
+                      result.validation,
+                    )}`
+                  : `Updated the post — it's now scheduled for ${formatDateTime(
+                      result.post.scheduledFor ?? "",
+                    )}.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`,
             },
           ],
         };
@@ -682,7 +741,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         idempotentHint: false,
         openWorldHint: true,
       },
-      _meta: toolMeta("Discarding scheduled post", "Scheduled post discarded"),
+      _meta: toolMeta("Deleting your post", "Post deleted"),
     },
     async (input) => {
       try {
@@ -693,11 +752,11 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Discarded ${result.post.status === "draft" ? "draft" : "scheduled post"} ${
-                result.post.id
-              }.\n\n${formatManagedPostDetails(
+              text: `Deleted the ${
+                result.post.status === "draft" ? "draft" : "scheduled post"
+              } — it will not be published.\n\n${formatManagedPostDetails(
                 result.post,
-              )}\n\nThis only deletes drafts or future scheduled SimplePost posts; already published social posts cannot be undone by this tool.`,
+              )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`,
             },
           ],
         };

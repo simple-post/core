@@ -1,6 +1,6 @@
+import { createEmptyCliConfig } from "../../src/lib/config.js";
 import * as secretsModule from "../../src/lib/secrets.js";
 import { configureStorage } from "../../src/lib/setup-storage.js";
-import { createEmptyCliConfig } from "../../src/lib/config.js";
 import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 
 describe("configureStorage", () => {
@@ -88,7 +88,11 @@ describe("configureStorage", () => {
     });
 
     expect(result.config.storage?.backend).toBe("file-plain");
-    expect(select).toHaveBeenCalledWith(expect.stringContaining("Choose how SimplePost should store account secrets."), expect.any(Array), "keychain");
+    expect(select).toHaveBeenCalledWith(
+      expect.stringContaining("Choose how SimplePost should store account secrets."),
+      expect.any(Array),
+      "keychain",
+    );
   });
 
   it("shows the current backend as the selected default in interactive setup", async () => {

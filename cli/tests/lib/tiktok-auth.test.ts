@@ -1,13 +1,13 @@
-import { createSecretStore } from "../../src/lib/secrets.js";
-import { createEmptyCliConfig } from "../../src/lib/config.js";
 import { TikTokAuthProvider } from "../../src/lib/auth/tiktok.js";
+import { createEmptyCliConfig } from "../../src/lib/config.js";
+import { createSecretStore } from "../../src/lib/secrets.js";
 import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 
 describe("TikTok auth", () => {
   afterEach(() => {
     delete process.env.SIMPLE_POST_TIKTOK_CLIENT_ID;
     delete process.env.SIMPLE_POST_TIKTOK_CLIENT_SECRET;
-    delete (global as any).fetch;
+    delete (globalThis as any).fetch;
   });
 
   it("stores the account from the token response without fetching user info", async () => {
@@ -19,11 +19,10 @@ describe("TikTok auth", () => {
     const provider = new TikTokAuthProvider({
       createAccountSecretRef: () => "account-secret-id",
       createState: () => "state-1",
-      resolveCallbackUrl: async () =>
-        "http://127.0.0.1:5000/oauth/callback?code=provider-code&state=state-1",
+      resolveCallbackUrl: async () => "http://127.0.0.1:5000/oauth/callback?code=provider-code&state=state-1",
     });
 
-    (global as any).fetch = jest.fn().mockResolvedValueOnce(
+    (globalThis as any).fetch = jest.fn().mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           access_token: "access-token",
@@ -56,7 +55,7 @@ describe("TikTok auth", () => {
       },
     );
 
-    expect((global as any).fetch).toHaveBeenCalledTimes(1);
+    expect((globalThis as any).fetch).toHaveBeenCalledTimes(1);
     expect(nextConfig.tiktok.accounts[0]).toMatchObject({
       alias: "main",
       userId: "open-id-1",

@@ -43,7 +43,7 @@ describe("post command", () => {
 
     expect(stderr).not.toContain("compatibility mode enabled");
     expect(stdout).toContain("USAGE");
-    expect(stdout).toContain("$ simple-post [COMMAND]");
+    expect(stdout).toContain("$ simplepost [COMMAND]");
     expect(stdout).toContain("account");
     expect(stdout).toContain("post");
     expect(stdout).toContain("setup");

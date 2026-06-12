@@ -1,12 +1,15 @@
 import { Args, Command } from "@oclif/core";
 
-import { getCliPaths, loadCliConfig, saveCliConfig } from "../../lib/config.js";
+import { getAccountPlatformConfig } from "../../lib/account/platforms.js";
 import { findStoredAccount, getStoredAccounts, removeStoredAccount } from "../../lib/account/store.js";
+import { getCliPaths, loadCliConfig, saveCliConfig } from "../../lib/config.js";
 import { createSecretStore } from "../../lib/secrets.js";
 import { PromptSession } from "../../lib/ux/prompt.js";
-import { getAccountPlatformConfig } from "../../lib/account/platforms.js";
 
-async function chooseAccount(prompt: PromptSession, config: Awaited<ReturnType<typeof loadCliConfig>>): Promise<string | undefined> {
+async function chooseAccount(
+  prompt: PromptSession,
+  config: Awaited<ReturnType<typeof loadCliConfig>>,
+): Promise<string | undefined> {
   const accounts = getStoredAccounts(config);
   if (accounts.length === 0) {
     return undefined;
@@ -17,7 +20,7 @@ async function chooseAccount(prompt: PromptSession, config: Awaited<ReturnType<t
     accounts.map((account) => ({
       label: `${getAccountPlatformConfig(account.platform).displayName}: ${account.alias}${account.username ? ` (@${account.username})` : ""}`,
       value: `${account.platform}:${account.alias}`,
-      description: account.displayName ? account.displayName : `User ID ${account.userId}`,
+      description: account.displayName || `User ID ${account.userId}`,
     })),
     `${accounts[0].platform}:${accounts[0].alias}`,
   );

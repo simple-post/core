@@ -1,8 +1,12 @@
 import { Args, Command, Flags } from "@oclif/core";
 
+import {
+  getAccountPlatformOptions,
+  getAccountPlatformValues,
+  type AccountPlatform,
+} from "../../lib/account/platforms.js";
 import { getAuthProvider } from "../../lib/auth/registry.js";
 import { getCliPaths, loadCliConfig, saveCliConfig } from "../../lib/config.js";
-import { getAccountPlatformOptions, getAccountPlatformValues, type AccountPlatform } from "../../lib/account/platforms.js";
 import { createSecretStore } from "../../lib/secrets.js";
 import { configureStorage } from "../../lib/setup-storage.js";
 import { PromptSession } from "../../lib/ux/prompt.js";
@@ -47,7 +51,8 @@ export default class AccountAddCommand extends Command {
   public async run(): Promise<void> {
     const { args, flags } = await this.parse(AccountAddCommand);
     const prompt = new PromptSession();
-    const platform = (args.platform as AccountPlatform | undefined) ?? (prompt.interactive ? await choosePlatform(prompt) : undefined);
+    const platform =
+      (args.platform as AccountPlatform | undefined) ?? (prompt.interactive ? await choosePlatform(prompt) : undefined);
 
     if (!platform) {
       throw new Error('Platform is required in non-interactive mode. Run "simplepost account add <platform>".');
@@ -80,15 +85,12 @@ export default class AccountAddCommand extends Command {
       noBrowser: flags["no-browser"],
       redirectUri: flags["redirect-uri"],
     };
-    const nextConfig = await provider.login(
-      loginFlags,
-      {
-        config,
-        paths,
-        prompt,
-        secretStore: createSecretStore(paths, config.storage!, prompt),
-      },
-    );
+    const nextConfig = await provider.login(loginFlags, {
+      config,
+      paths,
+      prompt,
+      secretStore: createSecretStore(paths, config.storage!, prompt),
+    });
 
     await saveCliConfig(paths, nextConfig);
   }

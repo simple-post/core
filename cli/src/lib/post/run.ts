@@ -1,11 +1,11 @@
 import { PostErrorType, post as publishPost } from "@simple-post/sdk";
 
-import { stdoutColors } from "../ux/colors.js";
+import { collectPostInput } from "./input.js";
+
+import { getAccountPlatformValues } from "../account/platforms.js";
+import { remoteAccountsToAppRecords } from "../account/store.js";
 import { loadCliConfig, getCliPaths } from "../config.js";
 import { CredentialResolver, hasLegacyXEnvCredentials } from "../credentials.js";
-import { createSecretStore } from "../secrets.js";
-import { collectPostInput } from "./input.js";
-import { getAccountPlatformValues } from "../account/platforms.js";
 import {
   getSchedulerContextFromConfig,
   fetchSchedulerApi,
@@ -13,13 +13,14 @@ import {
   type SchedulerContext,
   type RemotePostResponse,
 } from "../scheduler/client.js";
-import { remoteAccountsToAppRecords } from "../account/store.js";
+import { createSecretStore } from "../secrets.js";
+import { stdoutColors } from "../ux/colors.js";
 
 import type { SecretStore } from "../secrets.js";
+import type { PostFlagValues } from "./input.js";
 import type { PromptSession } from "../ux/prompt.js";
 import type { Config } from "@oclif/core";
 import type { Platform, Post, PostResult } from "@simple-post/sdk";
-import type { PostFlagValues } from "./input.js";
 
 interface ExecutionTarget {
   accountAlias?: string;
@@ -75,7 +76,9 @@ function clonePostForPlatform(post: Post, platform: Platform): Post {
 }
 
 function formatTargetLabel(target: { accountAlias?: string; platform: Platform }): string {
-  return target.accountAlias ? `${getPlatformLabel(target.platform)} · ${target.accountAlias}` : getPlatformLabel(target.platform);
+  return target.accountAlias
+    ? `${getPlatformLabel(target.platform)} · ${target.accountAlias}`
+    : getPlatformLabel(target.platform);
 }
 
 function formatPostSummary(results: ExecutionOutcome[]): string {
@@ -152,7 +155,9 @@ async function buildExecutionTargets(options: {
 
   for (const platform of Object.keys(options.selections) as Platform[]) {
     if ((options.selections[platform]?.length ?? 0) > 0 && !options.post.platforms.includes(platform)) {
-      throw new Error(`Received --account for ${getPlatformLabel(platform)}, but the post does not target that platform.`);
+      throw new Error(
+        `Received --account for ${getPlatformLabel(platform)}, but the post does not target that platform.`,
+      );
     }
   }
 
@@ -169,7 +174,9 @@ async function buildExecutionTargets(options: {
     }
 
     if (!resolver) {
-      throw new Error(`A stored ${getPlatformLabel(platform)} account was selected, but the credential resolver is unavailable.`);
+      throw new Error(
+        `A stored ${getPlatformLabel(platform)} account was selected, but the credential resolver is unavailable.`,
+      );
     }
 
     for (const alias of aliases) {
@@ -224,7 +231,7 @@ async function postViaScheduler(
     result: {
       error: result.success ? PostErrorType.NO_ERROR : PostErrorType.OTHER,
       id: result.postId,
-      message: result.success ? undefined : (result.message || result.error || "Unknown error"),
+      message: result.success ? undefined : result.message || result.error || "Unknown error",
       url: result.postUrl,
     },
   }));
@@ -248,7 +255,7 @@ export async function runPostWorkflow(options: {
     alias: string;
     appAccountId?: string;
     displayName?: string;
-    platform: (typeof getAccountPlatformValues extends () => (infer T)[] ? T : never);
+    platform: typeof getAccountPlatformValues extends () => (infer T)[] ? T : never;
     source: "local" | "app";
     userId?: string;
     username?: string;
@@ -291,9 +298,7 @@ export async function runPostWorkflow(options: {
     accounts: allAccounts,
   });
 
-  const hasLocalSelections = Object.values(postInput.accountSelections).some(
-    (aliases) => (aliases?.length ?? 0) > 0,
-  );
+  const hasLocalSelections = Object.values(postInput.accountSelections).some((aliases) => (aliases?.length ?? 0) > 0);
   const hasAppSelections = postInput.appAccountIds.length > 0;
 
   if (!hasLocalSelections && !hasAppSelections) {
@@ -310,7 +315,7 @@ export async function runPostWorkflow(options: {
       !hasExplicitXCredentials(postInput.post) &&
       !hasLegacyXEnvCredentials()
     ) {
-      throw new Error('Posting to X requires either --account x:<alias> or legacy X_* environment credentials.');
+      throw new Error("Posting to X requires either --account x:<alias> or legacy X_* environment credentials.");
     }
 
     const executionPlan = await buildExecutionTargets({
@@ -353,7 +358,9 @@ export async function runPostWorkflow(options: {
   options.writeOutput(formatPostSummary(outcomes));
 
   if (outcomes.some((entry) => entry.result.error !== PostErrorType.NO_ERROR)) {
-    const failedTargets = outcomes.filter((entry) => entry.result.error !== PostErrorType.NO_ERROR).map(formatTargetLabel);
+    const failedTargets = outcomes
+      .filter((entry) => entry.result.error !== PostErrorType.NO_ERROR)
+      .map(formatTargetLabel);
     throw new Error(`Posting failed for: ${failedTargets.join(", ")}.`);
   }
 }

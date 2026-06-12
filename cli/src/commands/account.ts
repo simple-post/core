@@ -1,7 +1,6 @@
 import { Args, Command } from "@oclif/core";
 
-import { getCliPaths, loadCliConfig } from "../lib/config.js";
-import { getAccountPlatformValues } from "../lib/account/platforms.js";
+import { getAccountPlatformValues, getAccountPlatformConfig } from "../lib/account/platforms.js";
 import {
   parseAccountPlatform,
   getStoredAccounts,
@@ -9,7 +8,7 @@ import {
   remoteAccountsToAppRecords,
   type UnifiedAccountRecord,
 } from "../lib/account/store.js";
-import { getAccountPlatformConfig } from "../lib/account/platforms.js";
+import { getCliPaths, loadCliConfig } from "../lib/config.js";
 import { getSchedulerContextFromConfig, fetchRemoteAccounts } from "../lib/scheduler/client.js";
 import { PromptSession } from "../lib/ux/prompt.js";
 
@@ -39,7 +38,6 @@ export default class AccountCommand extends Command {
 
     const localAccounts = getStoredAccounts(config, platform);
     const allAccounts: UnifiedAccountRecord[] = [...localAccounts];
-    let hasScheduler = false;
 
     // Fetch app accounts if connected to scheduler
     if (config.scheduler) {
@@ -54,7 +52,6 @@ export default class AccountCommand extends Command {
         }
 
         allAccounts.push(...appRecords);
-        hasScheduler = true;
       } catch {
         // Silently skip if scheduler is unreachable
       }
@@ -62,7 +59,9 @@ export default class AccountCommand extends Command {
 
     if (allAccounts.length === 0) {
       if (platform) {
-        this.log(`No ${getAccountPlatformConfig(platform).displayName} accounts are connected yet. Run "simplepost account add ${platform}" first.`);
+        this.log(
+          `No ${getAccountPlatformConfig(platform).displayName} accounts are connected yet. Run "simplepost account add ${platform}" first.`,
+        );
       } else {
         this.log('No accounts are connected yet. Run "simplepost account add" first.');
       }

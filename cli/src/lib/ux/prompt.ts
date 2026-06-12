@@ -1,6 +1,6 @@
 import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
-import { Writable } from "node:stream";
 import { createInterface } from "node:readline/promises";
+import { Writable } from "node:stream";
 
 import { createColors, type Colors } from "./colors.js";
 
@@ -152,7 +152,8 @@ export class PromptSession {
     this.renderOptions(options);
 
     while (true) {
-      const promptLabel = defaultIndex && defaultIndex > 0 ? `Select an option [${defaultIndex}]: ` : "Select an option: ";
+      const promptLabel =
+        defaultIndex && defaultIndex > 0 ? `Select an option [${defaultIndex}]: ` : "Select an option: ";
       const answer = (await this.question(promptLabel)).trim();
       if (!answer && defaultValue) {
         return defaultValue;
@@ -314,7 +315,10 @@ export class PromptSession {
     return selected;
   }
 
-  private resolveOptionToken<T extends string>(token: string, options: Array<SelectOption<T>>): SelectOption<T> | undefined {
+  private resolveOptionToken<T extends string>(
+    token: string,
+    options: Array<SelectOption<T>>,
+  ): SelectOption<T> | undefined {
     const index = Number.parseInt(token, 10);
     if (!Number.isNaN(index) && index >= 1 && index <= options.length) {
       return options[index - 1];

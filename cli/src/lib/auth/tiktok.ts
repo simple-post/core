@@ -1,6 +1,4 @@
-import { OAuthAccountProvider, type OAuthTokenSet } from "./oauth.js";
-
-import type { OAuthProviderDependencies } from "./oauth.js";
+import { OAuthAccountProvider, type OAuthTokenSet, type OAuthProviderDependencies } from "./oauth.js";
 
 function stringField(source: unknown, key: string): string | undefined {
   if (typeof source !== "object" || source === null || Array.isArray(source)) {

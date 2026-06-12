@@ -1,4 +1,3 @@
-import { OAuthAccountProvider, fetchJson } from "./oauth.js";
 import {
   exchangeFacebookCode,
   fetchFacebookPages,
@@ -7,6 +6,8 @@ import {
   startFacebookAuthorization,
   type FacebookPageSelection,
 } from "./facebook.js";
+import { OAuthAccountProvider, fetchJson } from "./oauth.js";
+
 import type { AuthProviderContext } from "./provider.js";
 
 interface InstagramBusinessAccount {
@@ -32,10 +33,7 @@ async function fetchInstagramBusinessAccountForPage(
 ): Promise<InstagramLinkedAccountSelection | null> {
   const lookup = async (accessToken: string): Promise<InstagramBusinessAccount | null> => {
     const response = await fetchJson<InstagramPageLookupResponse>(
-      graphUrlWithAccessToken(
-        `${page.userId}?fields=instagram_business_account{id,username}`,
-        accessToken,
-      ),
+      graphUrlWithAccessToken(`${page.userId}?fields=instagram_business_account{id,username}`, accessToken),
       { method: "GET" },
       "Facebook Instagram business account lookup",
     );
@@ -85,9 +83,7 @@ async function chooseInstagramAccount(
 ): Promise<InstagramLinkedAccountSelection> {
   if (accounts.length === 0) {
     const hint = await fetchFacebookPermissionsHint(userAccessToken);
-    throw new Error(
-      `No Instagram business accounts were found for the Pages this token can access. ${hint}`,
-    );
+    throw new Error(`No Instagram business accounts were found for the Pages this token can access. ${hint}`);
   }
 
   if (accounts.length === 1 || !prompt.interactive) {

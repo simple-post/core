@@ -1,7 +1,7 @@
-import { createSecretStore, clearSecretPasswordCache } from "../../src/lib/secrets.js";
-import { createEmptyCliConfig, saveCliConfig } from "../../src/lib/config.js";
 import { getAccountPlatformConfig } from "../../src/lib/account/platforms.js";
+import { createEmptyCliConfig, saveCliConfig } from "../../src/lib/config.js";
 import { runPostWorkflow } from "../../src/lib/post/run.js";
+import { createSecretStore, clearSecretPasswordCache } from "../../src/lib/secrets.js";
 import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 
 jest.mock("@simple-post/sdk", () => ({
@@ -153,6 +153,6 @@ describe("runPostWorkflow", () => {
         prompt: { interactive: false } as any,
         writeOutput: jest.fn(),
       }),
-    ).rejects.toThrow(/requires either --account x:<alias> or legacy X_\* environment credentials/i);
+    ).rejects.toThrow(/no posting targets were selected/i);
   });
 });

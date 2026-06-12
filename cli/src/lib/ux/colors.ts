@@ -1,8 +1,8 @@
-const LIME = "\x1b[38;2;198;244;50m";
-const RED = "\x1b[38;2;220;38;38m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const RESET = "\x1b[0m";
+const LIME = "\u001B[38;2;198;244;50m";
+const RED = "\u001B[38;2;220;38;38m";
+const BOLD = "\u001B[1m";
+const DIM = "\u001B[2m";
+const RESET = "\u001B[0m";
 
 export interface Colors {
   bold: (text: string) => string;

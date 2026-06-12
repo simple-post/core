@@ -1,16 +1,12 @@
-import crypto from "node:crypto";
 import { execFile } from "node:child_process";
+import crypto from "node:crypto";
 import { promisify } from "node:util";
 
 import { derToRaw } from "@simple-post/sdk";
 
 import { OAuthAccountProvider, fetchJson, generatePkcePair } from "./oauth.js";
 
-import type {
-  OAuthAuthorizationSession,
-  OAuthTokenSet,
-  ResolvedOAuthAppConfig,
-} from "./oauth.js";
+import type { OAuthAuthorizationSession, OAuthTokenSet, ResolvedOAuthAppConfig } from "./oauth.js";
 
 type JsonWebKey = Record<string, unknown>;
 const execFileAsync = promisify(execFile);
@@ -140,9 +136,9 @@ function extractBlueskyError(data: unknown, fallback: string): string {
 }
 
 function parseCurlResponse<T>(stdout: string, label: string): CurlJsonResponse<T> {
-  const normalized = stdout.replace(/\r\n/g, "\n");
+  const normalized = stdout.replaceAll("\r\n", "\n");
   const separatorIndex = normalized.indexOf("\n\n");
-  if (separatorIndex < 0) {
+  if (separatorIndex === -1) {
     throw new Error(`${label} returned an unreadable response from curl.`);
   }
 
@@ -158,7 +154,7 @@ function parseCurlResponse<T>(stdout: string, label: string): CurlJsonResponse<T
   const headers = new Map<string, string>();
   for (const line of headerLines) {
     const separator = line.indexOf(":");
-    if (separator < 0) continue;
+    if (separator === -1) continue;
     headers.set(line.slice(0, separator).trim().toLowerCase(), line.slice(separator + 1).trim());
   }
 
@@ -169,7 +165,7 @@ function parseCurlResponse<T>(stdout: string, label: string): CurlJsonResponse<T
   try {
     data = body ? (JSON.parse(body) as T) : ({} as T);
   } catch {
-    const snippet = body.replace(/\s+/g, " ").slice(0, 160);
+    const snippet = body.replaceAll(/\s+/g, " ").slice(0, 160);
     throw new Error(`${label} returned a non-JSON response (${status}): ${snippet}`);
   }
 
@@ -226,7 +222,11 @@ async function validateBlueskyClientMetadata(appConfig: ResolvedOAuthAppConfig):
     return;
   }
 
-  const metadata = await fetchJson<BlueskyClientMetadataResponse>(metadataUrl, { method: "GET" }, "Bluesky client metadata");
+  const metadata = await fetchJson<BlueskyClientMetadataResponse>(
+    metadataUrl,
+    { method: "GET" },
+    "Bluesky client metadata",
+  );
   const redirectUris = metadata.redirect_uris ?? [];
   if (!redirectUris.includes(appConfig.redirectUri)) {
     throw new Error(
@@ -235,7 +235,9 @@ async function validateBlueskyClientMetadata(appConfig: ResolvedOAuthAppConfig):
   }
 }
 
-async function discoverBlueskyAuthorizationServer(appConfig: ResolvedOAuthAppConfig): Promise<BlueskyAuthorizationServerMetadata> {
+async function discoverBlueskyAuthorizationServer(
+  appConfig: ResolvedOAuthAppConfig,
+): Promise<BlueskyAuthorizationServerMetadata> {
   const issuerUrl = new URL(appConfig.authorizationUrl);
   const metadataUrl = new URL("/.well-known/oauth-authorization-server", issuerUrl.origin);
   const metadata = await fetchJson<BlueskyAuthorizationServerMetadata>(
@@ -424,7 +426,9 @@ async function fetchBlueskyPdsUrl(did: string): Promise<string | undefined> {
       return undefined;
     }
 
-    const data = (await response.json()) as { service?: Array<{ id?: string; serviceEndpoint?: string; type?: string }> };
+    const data = (await response.json()) as {
+      service?: Array<{ id?: string; serviceEndpoint?: string; type?: string }>;
+    };
     const services = Array.isArray(data.service) ? data.service : [];
     const pdsService = services.find(
       (service) => service.id === "#atproto_pds" || service.type === "AtprotoPersonalDataServer",
@@ -453,7 +457,7 @@ export class BlueskyAuthProvider extends OAuthAccountProvider {
           displayName: profile.displayName ?? profile.handle,
           secretPayload: {
             tokenMetadata: {
-              ...(tokenSet.tokenMetadata ?? {}),
+              ...tokenSet.tokenMetadata,
               pdsUrl,
             },
           },

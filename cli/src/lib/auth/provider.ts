@@ -1,6 +1,6 @@
 import type { AccountPlatform } from "../account/platforms.js";
-import type { CliConfigV1, CliPaths } from "../types.js";
 import type { SecretStore } from "../secrets.js";
+import type { CliConfigV1, CliPaths } from "../types.js";
 import type { PromptSession } from "../ux/prompt.js";
 
 export interface OAuthLoginFlags {

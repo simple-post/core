@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-
 import fs from "node:fs/promises";
 
 import { getExpectedCliPaths, CLI_ROOT, makeTempHome } from "../helpers.js";

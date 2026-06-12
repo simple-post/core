@@ -1,5 +1,5 @@
-import type { Platform, PostOptions } from "@simple-post/sdk";
 import type { AccountPlatform } from "./account/platforms.js";
+import type { Platform, PostOptions } from "@simple-post/sdk";
 
 export type SecretBackend = "keychain" | "file-plain" | "file-encrypted";
 

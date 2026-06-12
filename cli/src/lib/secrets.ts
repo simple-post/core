@@ -9,7 +9,6 @@ import {
   PLAIN_SECRETS_FILE_NAME,
   SECRET_FILE_SCHEMA_VERSION,
 } from "./constants.js";
-import { PromptSession } from "./ux/prompt.js";
 
 import type {
   CliPaths,
@@ -20,6 +19,7 @@ import type {
   SecretBackend,
   SecretPayload,
 } from "./types.js";
+import type { PromptSession } from "./ux/prompt.js";
 
 const scrypt = promisify(crypto.scrypt);
 const passwordCache = new Map<string, string>();
@@ -128,7 +128,7 @@ async function importKeytar(): Promise<KeytarModule> {
       typeof keytar.setPassword !== "function" ||
       typeof keytar.deletePassword !== "function"
     ) {
-      throw new Error("Invalid keytar module shape.");
+      throw new TypeError("Invalid keytar module shape.");
     }
 
     return keytar as KeytarModule;
@@ -177,7 +177,7 @@ class PlainFileSecretStore implements SecretStore {
       }
 
       if (error instanceof SyntaxError) {
-        throw new Error(`Failed to parse ${PLAIN_SECRETS_FILE_NAME}.`);
+        throw new TypeError(`Failed to parse ${PLAIN_SECRETS_FILE_NAME}.`);
       }
 
       throw error;
@@ -253,7 +253,7 @@ class EncryptedFileSecretStore implements SecretStore {
       }
 
       if (error instanceof SyntaxError) {
-        throw new Error(`Failed to parse ${ENCRYPTED_SECRETS_FILE_NAME}.`);
+        throw new TypeError(`Failed to parse ${ENCRYPTED_SECRETS_FILE_NAME}.`);
       }
 
       throw error;

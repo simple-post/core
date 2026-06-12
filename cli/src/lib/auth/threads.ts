@@ -50,7 +50,9 @@ async function exchangeThreadsCode(input: {
   };
 }
 
-async function fetchThreadsUser(accessToken: string): Promise<{ displayName?: string; userId: string; username?: string }> {
+async function fetchThreadsUser(
+  accessToken: string,
+): Promise<{ displayName?: string; userId: string; username?: string }> {
   const url = new URL("https://graph.threads.net/v1.0/me");
   url.searchParams.set("fields", "id,username,name,threads_profile_picture_url");
   url.searchParams.set("access_token", accessToken);

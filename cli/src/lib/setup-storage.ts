@@ -1,18 +1,20 @@
 import { collectSecretRefs } from "./config.js";
 import { copySecretRef, createSecretStore, probeKeychain } from "./secrets.js";
 
-import type { SecretStore } from "./secrets.js";
-import type { PromptSession } from "./ux/prompt.js";
 import type { CliConfigV1, CliPaths, CliStorageConfig, SecretBackend } from "./types.js";
+import type { PromptSession } from "./ux/prompt.js";
 
 function getBackendLabel(backend: SecretBackend): string {
   switch (backend) {
-    case "keychain":
+    case "keychain": {
       return "OS keychain";
-    case "file-encrypted":
+    }
+    case "file-encrypted": {
       return "Encrypted file";
-    case "file-plain":
+    }
+    case "file-plain": {
       return "Plain file";
+    }
   }
 }
 
@@ -25,12 +27,14 @@ async function chooseBackend(prompt: PromptSession, current?: SecretBackend): Pr
       {
         label: current === "keychain" ? "OS keychain (current)" : "OS keychain",
         value: "keychain",
-        description: "Best default on a personal machine. Secrets stay in the system keychain and only metadata is written to disk.",
+        description:
+          "Best default on a personal machine. Secrets stay in the system keychain and only metadata is written to disk.",
       },
       {
         label: current === "file-encrypted" ? "Encrypted file (current)" : "Encrypted file",
         value: "file-encrypted",
-        description: "Good fallback when no keychain is available. Secrets are stored on disk and unlocked with a password.",
+        description:
+          "Good fallback when no keychain is available. Secrets are stored on disk and unlocked with a password.",
       },
       {
         label: current === "file-plain" ? "Plain file (current)" : "Plain file",

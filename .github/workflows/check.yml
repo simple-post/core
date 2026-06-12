@@ -34,15 +34,15 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: yarn check
 
-      - name: Run tests
-        env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-        run: yarn test
-
-      - name: Run tests with coverage
+      - name: Run SDK tests with coverage
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: yarn test:coverage
+
+      - name: Run CLI tests
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+        run: yarn workspace @simple-post/cli test
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4

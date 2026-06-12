@@ -4,8 +4,8 @@ import https from "node:https";
 
 import selfsigned from "selfsigned";
 
-import { DEFAULT_OAUTH_TIMEOUT_MS } from "../constants.js";
 import { getAccountPlatformConfig, type AccountPlatform, type EmbeddedOAuthAppConfig } from "../account/platforms.js";
+import { DEFAULT_OAUTH_TIMEOUT_MS } from "../constants.js";
 import { openExternalUrl } from "../ux/browser.js";
 
 import type { AuthProvider, AuthProviderContext, OAuthLoginFlags } from "./provider.js";
@@ -192,10 +192,7 @@ export function buildAuthorizationUrl(options: {
   url.searchParams.set("response_type", "code");
   url.searchParams.set(options.appConfig.clientIdAuthorizeParameter ?? "client_id", options.appConfig.clientId);
   url.searchParams.set("redirect_uri", options.appConfig.redirectUri);
-  url.searchParams.set(
-    "scope",
-    options.appConfig.scopes.join(options.appConfig.scopeSeparator === "," ? "," : " "),
-  );
+  url.searchParams.set("scope", options.appConfig.scopes.join(options.appConfig.scopeSeparator === "," ? "," : " "));
   url.searchParams.set("state", options.state);
 
   if (options.nonce) {
@@ -313,18 +310,29 @@ async function startCallbackServer(redirectUri: string, timeoutMs: number): Prom
       algorithm: "sha256",
       notAfterDate: notAfter,
       extensions: [
-        { name: "subjectAltName", altNames: [{ type: 2, value: "localhost" }, { type: 7, ip: "127.0.0.1" }] },
+        {
+          name: "subjectAltName",
+          altNames: [
+            { type: 2, value: "localhost" },
+            { type: 7, ip: "127.0.0.1" },
+          ],
+        },
       ],
     });
     tlsOptions = { key: generated.private, cert: generated.cert };
   }
 
   let resolveListening!: () => void;
-  const whenListening = new Promise<void>((r) => { resolveListening = r; });
+  const whenListening = new Promise<void>((r) => {
+    resolveListening = r;
+  });
 
   let resolveCallback!: (url: string) => void;
   let rejectCallback!: (err: Error) => void;
-  const whenCallback = new Promise<string>((res, rej) => { resolveCallback = res; rejectCallback = rej; });
+  const whenCallback = new Promise<string>((res, rej) => {
+    resolveCallback = res;
+    rejectCallback = rej;
+  });
 
   let settled = false;
   const handler = createRequestHandler(parsed, (url) => {
@@ -334,14 +342,15 @@ async function startCallbackServer(redirectUri: string, timeoutMs: number): Prom
     resolveCallback(url);
   });
 
-  const server = useHttps && tlsOptions
-    ? https.createServer(tlsOptions, handler as (req: http.IncomingMessage, res: http.ServerResponse) => void)
-    : http.createServer(handler);
+  const server =
+    useHttps && tlsOptions
+      ? https.createServer(tlsOptions, handler as (req: http.IncomingMessage, res: http.ServerResponse) => void)
+      : http.createServer(handler);
 
   const timer = setTimeout(() => {
     if (!settled) {
       settled = true;
-      server.close(() => undefined);
+      server.close(() => {});
       rejectCallback(new Error("OAuth callback timed out."));
     }
   }, timeoutMs);
@@ -350,11 +359,13 @@ async function startCallbackServer(redirectUri: string, timeoutMs: number): Prom
     if (settled) return;
     settled = true;
     clearTimeout(timer);
-    server.close(() => undefined);
+    server.close(() => {});
     if (error.code === "EADDRINUSE") {
-      rejectCallback(new Error(
-        `The redirect URI port is already in use (${parsed.origin}). Free that port or use --redirect-uri with a different loopback port.`,
-      ));
+      rejectCallback(
+        new Error(
+          `The redirect URI port is already in use (${parsed.origin}). Free that port or use --redirect-uri with a different loopback port.`,
+        ),
+      );
     } else {
       rejectCallback(new Error(`Failed to listen for the OAuth callback: ${error.message}`));
     }
@@ -368,7 +379,7 @@ async function startCallbackServer(redirectUri: string, timeoutMs: number): Prom
         settled = true;
         clearTimeout(timer);
       }
-      server.close(() => undefined);
+      server.close(() => {});
     },
     whenCallback,
     whenListening,
@@ -376,7 +387,7 @@ async function startCallbackServer(redirectUri: string, timeoutMs: number): Prom
 }
 
 /** Brief wait for the loopback callback before offering the paste-URL fallback. */
-const PASTE_PROMPT_DELAY_MS = 2_000;
+const PASTE_PROMPT_DELAY_MS = 2000;
 
 export async function resolveOAuthCallbackUrl(
   context: AuthProviderContext,
@@ -397,15 +408,17 @@ export async function resolveOAuthCallbackUrl(
   context.prompt.log(authUrl);
   context.prompt.log("");
 
-  if (!flags.noBrowser) {
+  if (flags.noBrowser) {
+    context.prompt.log("Automatic browser launch disabled. Open the URL above manually.");
+  } else {
     try {
       await openExternalUrl(authUrl);
     } catch (error: unknown) {
-      context.prompt.log(`Could not open a browser automatically: ${error instanceof Error ? error.message : String(error)}`);
+      context.prompt.log(
+        `Could not open a browser automatically: ${error instanceof Error ? error.message : String(error)}`,
+      );
       context.prompt.log("Open the URL above manually.");
     }
-  } else {
-    context.prompt.log("Automatic browser launch disabled. Open the URL above manually.");
   }
 
   context.prompt.log("Waiting for OAuth callback...");
@@ -440,13 +453,17 @@ export async function resolveOAuthCallbackUrl(
   }
 
   context.prompt.log("");
-  context.prompt.log("If the browser does not return to the CLI automatically, paste the full callback URL from the address bar.");
+  context.prompt.log(
+    "If the browser does not return to the CLI automatically, paste the full callback URL from the address bar.",
+  );
   context.prompt.log("");
 
   for (;;) {
     const result = await Promise.race([
       serverResult,
-      context.prompt.text("Paste callback URL (or Enter to keep waiting)", { required: false }).then((url) => ({ source: "paste" as const, url })),
+      context.prompt
+        .text("Paste callback URL (or Enter to keep waiting)", { required: false })
+        .then((url) => ({ source: "paste" as const, url })),
     ]);
 
     if (result.source === "server") {
@@ -489,15 +506,18 @@ export function resolveOAuthAppInputs(
   if (!clientId) {
     const platformName = getAccountPlatformConfig(platform).displayName;
     if (embeddedAppConfig.clientSecretRequired) {
-      const secretEnvVar = embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
+      const secretEnvVar =
+        embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
       throw new Error(
         `${platformName} does not allow apps to share public OAuth credentials, so you need to register your own ${platformName} developer app.\n\n` +
-        `Set these environment variables before connecting:\n` +
-        `  ${clientIdEnvVar}      your app's client ID\n` +
-        `  ${secretEnvVar}  your app's client secret`,
+          `Set these environment variables before connecting:\n` +
+          `  ${clientIdEnvVar}      your app's client ID\n` +
+          `  ${secretEnvVar}  your app's client secret`,
       );
     }
-    throw new Error(`This CLI build does not embed a ${platformName} OAuth client ID. Set ${clientIdEnvVar} in your environment.`);
+    throw new Error(
+      `This CLI build does not embed a ${platformName} OAuth client ID. Set ${clientIdEnvVar} in your environment.`,
+    );
   }
 
   const redirectUri =
@@ -514,7 +534,7 @@ export function resolveOAuthAppInputs(
     const secretEnvVar = embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
     throw new Error(
       `${getAccountPlatformConfig(platform).displayName} requires a client secret for OAuth token exchange.\n\n` +
-      `Set ${secretEnvVar} in your environment (found in your developer app settings).`,
+        `Set ${secretEnvVar} in your environment (found in your developer app settings).`,
     );
   }
 
@@ -578,9 +598,7 @@ export async function exchangeAuthorizationCode(input: {
   const accessToken = typeof response.access_token === "string" ? response.access_token : undefined;
   if (!accessToken) {
     const detail = extractErrorMessage(response, "no access_token in response body");
-    throw new Error(
-      `${getAccountPlatformConfig(input.platform).displayName} token exchange failed: ${detail}`,
-    );
+    throw new Error(`${getAccountPlatformConfig(input.platform).displayName} token exchange failed: ${detail}`);
   }
 
   const expiresIn = typeof response.expires_in === "number" ? response.expires_in : undefined;
@@ -610,8 +628,8 @@ function createDefaultAlias(platform: AccountPlatform, preferredAlias?: string):
   const normalized = preferredAlias
     ?.trim()
     .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replaceAll(/[^a-z0-9._-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
   return normalized || `${platform}-account`;
 }
 
@@ -625,16 +643,18 @@ export async function resolveStoredAccountAlias(
 ): Promise<string> {
   const existingByUserId = accounts.find((account) => account.userId === userId);
   const defaultAlias = existingByUserId?.alias ?? createDefaultAlias(platform, preferredAlias);
-  const alias = requestedAlias
-    ? requestedAlias
-    : prompt.interactive
+  const alias =
+    requestedAlias ||
+    (prompt.interactive
       ? await prompt.text("Account alias", { defaultValue: defaultAlias, required: true })
-      : defaultAlias;
+      : defaultAlias);
 
   const normalized = validateAlias(alias);
   const existingByAlias = accounts.find((account) => account.alias === normalized);
   if (existingByAlias && existingByAlias.userId !== userId) {
-    throw new Error(`Another ${getAccountPlatformConfig(platform).displayName} account is already stored as "${normalized}". Choose a different alias.`);
+    throw new Error(
+      `Another ${getAccountPlatformConfig(platform).displayName} account is already stored as "${normalized}". Choose a different alias.`,
+    );
   }
 
   return normalized;
@@ -654,7 +674,9 @@ export class OAuthAccountProvider implements AuthProvider<OAuthLoginFlags> {
   public async login(flags: OAuthLoginFlags, context: AuthProviderContext): Promise<CliConfigV1> {
     const embeddedAppConfig = getAccountPlatformConfig(this.platform).oauthApp;
     if (!embeddedAppConfig) {
-      throw new Error(`${getAccountPlatformConfig(this.platform).displayName} does not use OAuth. Use the platform-specific auth provider.`);
+      throw new Error(
+        `${getAccountPlatformConfig(this.platform).displayName} does not use OAuth. Use the platform-specific auth provider.`,
+      );
     }
     const appInputs = resolveOAuthAppInputs(this.platform, flags, embeddedAppConfig);
 
@@ -705,13 +727,17 @@ export class OAuthAccountProvider implements AuthProvider<OAuthLoginFlags> {
       flags.alias,
     );
 
-    const existingAccount = context.config[this.platform].accounts.find((account) => account.userId === completion.userId);
+    const existingAccount = context.config[this.platform].accounts.find(
+      (account) => account.userId === completion.userId,
+    );
     const now = new Date().toISOString();
     const secretRef =
       existingAccount?.secretRef ??
       `${this.platform}-account-${this.dependencies?.createAccountSecretRef?.() ?? crypto.randomUUID()}`;
 
-    const updatedAccounts = context.config[this.platform].accounts.filter((account) => account.userId !== completion.userId);
+    const updatedAccounts = context.config[this.platform].accounts.filter(
+      (account) => account.userId !== completion.userId,
+    );
     updatedAccounts.push({
       alias,
       connectedAt: existingAccount?.connectedAt ?? now,
@@ -726,15 +752,15 @@ export class OAuthAccountProvider implements AuthProvider<OAuthLoginFlags> {
 
     const tokenMetadata = {
       clientId: authorization.appConfig.clientId,
-      ...(tokenSet.tokenMetadata ?? {}),
-      ...(completion.secretPayload?.tokenMetadata ?? {}),
+      ...tokenSet.tokenMetadata,
+      ...completion.secretPayload?.tokenMetadata,
     };
 
     const secretPayload = {
       accessToken: tokenSet.accessToken,
       ...(tokenSet.refreshToken ? { refreshToken: tokenSet.refreshToken } : {}),
       ...(typeof tokenSet.expiresAt === "number" ? { expiresAt: tokenSet.expiresAt } : {}),
-      ...(completion.secretPayload ?? {}),
+      ...completion.secretPayload,
       ...(Object.keys(tokenMetadata).length > 0 ? { tokenMetadata } : {}),
     } satisfies OAuthAccountSecretPayload;
 
@@ -742,7 +768,8 @@ export class OAuthAccountProvider implements AuthProvider<OAuthLoginFlags> {
 
     const handle = completion.username ? ` @${completion.username}` : "";
     context.prompt.log(
-      completion.message ?? `Connected ${getAccountPlatformConfig(this.platform).displayName} account "${alias}"${handle}.`,
+      completion.message ??
+        `Connected ${getAccountPlatformConfig(this.platform).displayName} account "${alias}"${handle}.`,
     );
 
     return {

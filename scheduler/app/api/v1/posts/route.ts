@@ -7,7 +7,11 @@ import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { checkRateLimits } from "@/lib/utils/rate-limit";
-import { checkAndDeductXCredits } from "@/lib/utils/x-credits";
+import {
+  checkAndDeductXCredits,
+  refundXCreditsForAccountIds,
+  refundXCreditsForFailedResults,
+} from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
 import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types";
@@ -199,6 +203,7 @@ export async function POST(req: NextRequest) {
           });
         } else {
           log.debug({ postId: post.id }, "Updating post status to failed");
+          await refundXCreditsForFailedResults(userId, results);
           // Collect error details from failed platforms
           const failedResults = results.filter((r) => !r.success);
           const errorMessage =
@@ -260,6 +265,7 @@ export async function POST(req: NextRequest) {
       } catch (postingError) {
         // Update post status to failed
         log.error({ err: serializeError(postingError), postId: post.id }, "Error during platform posting");
+        await refundXCreditsForAccountIds(userId, validated.accountIds);
         const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
         const errorDetails = {
           error: postingError instanceof Error ? postingError.message : String(postingError),

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { handleApiError, NotFoundError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import {
   deleteAccountOptionFiles,
@@ -11,10 +12,15 @@ import {
   getRemovedAccountOptionThumbnailUrls,
 } from "@/lib/utils/media-cleanup";
 import { checkRateLimits } from "@/lib/utils/rate-limit";
-import { checkAndDeductXCredits } from "@/lib/utils/x-credits";
+import {
+  checkAndDeductXCredits,
+  refundXCreditsForAccountIds,
+  refundXCreditsForDiscardedPost,
+  refundXCreditsForFailedResults,
+} from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
-import type { MediaFile, PostingMode, SocialPost, ThreadSegmentResult } from "@/types";
+import type { AccountResultsMap, MediaFile, PostingMode, SocialPost, ThreadSegmentResult } from "@/types";
 
 function resolveScheduledFor(
   postingMode: PostingMode,
@@ -53,7 +59,14 @@ function getAccountIdsNeedingWriteChecks(currentPost: SocialPost, nextMode: Post
   }
 
   if (currentPost.status !== "scheduled") {
-    return nextAccountIds;
+    // Retrying a failed post: accounts that already published successfully
+    // will be skipped at publish time and must not be charged again.
+    const alreadySucceeded = new Set(
+      Object.values(currentPost.accountResults ?? {})
+        .filter((result) => result.success)
+        .map((result) => result.accountId),
+    );
+    return nextAccountIds.filter((accountId) => !alreadySucceeded.has(accountId));
   }
 
   const currentAccountIds = new Set(currentPost.accountIds);
@@ -127,6 +140,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await checkAndDeductXCredits(session.user.id, checkedAccountIds);
     }
 
+    // Moving a scheduled post back to draft returns its X credits (drafts
+    // are not charged; scheduling it again will deduct anew).
+    if (postingMode === "draft") {
+      await refundXCreditsForDiscardedPost(session.user.id, currentPost);
+    }
+
     // Capture removed media before update for R2 cleanup. Include media from
     // every thread segment in the comparison, otherwise removing a segment
     // would orphan its media in R2.
@@ -192,14 +211,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (result.threadResults) threadResultsByAccount[result.accountId] = result.threadResults;
       }
       const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
+      const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
       if (summary.overallSuccess) {
         await repository.updatePost(post.id, {
           status: "published",
           publishedAt: new Date(),
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
         });
       } else {
+        await refundXCreditsForFailedResults(session.user.id, results);
         const failedResults = results.filter((result) => !result.success);
         const errorMessage =
           failedResults.length === 1
@@ -221,6 +243,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           errorMessage,
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
         });
       }
 
@@ -257,6 +280,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         stack: postingError instanceof Error ? postingError.stack : undefined,
       };
 
+      await refundXCreditsForAccountIds(session.user.id, validated.accountIds);
+
       await repository.updatePost(post.id, {
         status: "failed",
         errorMessage,
@@ -289,6 +314,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await Promise.all([deleteMediaFiles(postMedia), deleteAccountOptionFiles(post.accountOptions)]);
 
     await repository.deletePost(id);
+    await refundXCreditsForDiscardedPost(session.user.id, post);
 
     return NextResponse.json({ success: true });
   } catch (error) {

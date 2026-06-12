@@ -1,9 +1,12 @@
+import dns from "node:dns";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 import { v7 as uuidv7 } from "uuid";
 
 import type { Media, Video } from "../types/post";
@@ -77,60 +80,83 @@ const isLocalhost = (hostname: string): boolean => {
 };
 
 /**
- * Checks if an IP address is in a private/internal range
+ * Checks if a parsed IPv4 address (as four octets) is in a private/internal
+ * range. Operating on numbers instead of the string representation closes
+ * the decimal/octal/hex literal bypasses (e.g. http://2130706433/).
+ */
+const isPrivateIPv4 = (octets: number[]): boolean => {
+  const [a, b] = octets;
+
+  if (a === 127) return true; // Loopback (127.0.0.0/8)
+  if (a === 10) return true; // Private Class A (10.0.0.0/8)
+  if (a === 172 && b >= 16 && b <= 31) return true; // Private Class B (172.16.0.0/12)
+  if (a === 192 && b === 168) return true; // Private Class C (192.168.0.0/16)
+  if (a === 169 && b === 254) return true; // Link-local incl. cloud metadata (169.254.0.0/16)
+  if (a === 0) return true; // Current network (0.0.0.0/8)
+  if (a === 100 && b >= 64 && b <= 127) return true; // Shared address space (100.64.0.0/10)
+  if (a === 192 && b === 0 && (octets[2] === 0 || octets[2] === 2)) return true; // IETF / TEST-NET-1
+  if (a === 198 && b === 51 && octets[2] === 100) return true; // TEST-NET-2
+  if (a === 203 && b === 0 && octets[2] === 113) return true; // TEST-NET-3
+  if (a >= 224) return true; // Multicast (224.0.0.0/4), reserved (240.0.0.0/4), broadcast
+
+  return false;
+};
+
+/**
+ * Checks if an IP address literal is in a private/internal range.
  * Blocks: private networks, loopback, link-local, cloud metadata, etc.
  */
 const isPrivateIP = (ip: string): boolean => {
   // Remove IPv6 brackets if present
   const cleanIP = ip.replace(/^\[/, "").replace(/\]$/, "");
 
-  // IPv4 patterns
-  const ipv4Patterns = [
-    /^127\./, // Loopback (127.0.0.0/8)
-    /^10\./, // Private Class A (10.0.0.0/8)
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // Private Class B (172.16.0.0/12)
-    /^192\.168\./, // Private Class C (192.168.0.0/16)
-    /^169\.254\./, // Link-local (169.254.0.0/16) - includes cloud metadata
-    /^0\./, // Current network (0.0.0.0/8)
-    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // Shared address space (100.64.0.0/10)
-    /^192\.0\.0\./, // IETF Protocol Assignments (192.0.0.0/24)
-    /^192\.0\.2\./, // TEST-NET-1 (192.0.2.0/24)
-    /^198\.51\.100\./, // TEST-NET-2 (198.51.100.0/24)
-    /^203\.0\.113\./, // TEST-NET-3 (203.0.113.0/24)
-    /^224\./, // Multicast (224.0.0.0/4)
-    /^240\./, // Reserved (240.0.0.0/4)
-    /^255\.255\.255\.255$/, // Broadcast
-  ];
-
-  for (const pattern of ipv4Patterns) {
-    if (pattern.test(cleanIP)) {
-      return true;
-    }
+  if (net.isIPv4(cleanIP)) {
+    return isPrivateIPv4(cleanIP.split(".").map(Number));
   }
 
-  // IPv6 patterns
-  const ipv6Patterns = [
-    /^::1$/, // Loopback
-    /^::$/, // Unspecified
-    /^fe80:/i, // Link-local
-    /^fc00:/i, // Unique local (fc00::/7)
-    /^fd[0-9a-f]{2}:/i, // Unique local (fd00::/8)
-    /^ff[0-9a-f]{2}:/i, // Multicast
-    /^::ffff:(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.)/i, // IPv4-mapped IPv6
-  ];
+  if (net.isIPv6(cleanIP)) {
+    const lower = cleanIP.toLowerCase();
 
-  for (const pattern of ipv6Patterns) {
-    if (pattern.test(cleanIP)) {
-      return true;
+    // IPv4-mapped IPv6 (::ffff:a.b.c.d or ::ffff:hex) — validate the
+    // embedded IPv4 address numerically.
+    const mapped = /^::ffff:(.+)$/.exec(lower);
+    if (mapped) {
+      const tail = mapped[1];
+      if (net.isIPv4(tail)) {
+        return isPrivateIPv4(tail.split(".").map(Number));
+      }
+      // Hex-grouped form (::ffff:7f00:1)
+      const groups = tail.split(":");
+      if (groups.length === 2) {
+        const value = (Number.parseInt(groups[0], 16) << 16) | Number.parseInt(groups[1], 16);
+        return isPrivateIPv4([(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255]);
+      }
     }
+
+    const ipv6Patterns = [
+      /^::1$/, // Loopback
+      /^::$/, // Unspecified
+      /^fe[89ab][0-9a-f]:/, // Link-local (fe80::/10)
+      /^f[cd][0-9a-f]{2}:/, // Unique local (fc00::/7)
+      /^ff[0-9a-f]{2}:/, // Multicast
+    ];
+
+    return ipv6Patterns.some((pattern) => pattern.test(lower));
   }
 
   return false;
 };
 
+// Hostnames pointing at cloud metadata / internal services.
+// AWS, GCP, Azure, and other cloud providers use 169.254.169.254; some also
+// use hostnames like metadata.google.internal.
+const blockedHostPatterns = [/^metadata\./i, /\.internal$/i, /^internal\./i];
+
 /**
- * Validates a URL to prevent SSRF attacks
- * Throws an error if the URL points to a private/internal resource
+ * Validates a URL string to prevent SSRF attacks. This is the synchronous
+ * first line of defense (protocol, IP literals, blocked hostnames); names
+ * that resolve to private addresses are caught at connection time by
+ * ssrfSafeLookup below.
  */
 const validateUrlForSSRF = (urlString: string): void => {
   let parsedUrl: URL;
@@ -152,15 +178,10 @@ const validateUrlForSSRF = (urlString: string): void => {
     throw new Error(`Access to localhost URLs is not allowed: ${urlString}`);
   }
 
-  // Block private/internal IP addresses
+  // Block private/internal IP address literals
   if (isPrivateIP(hostname)) {
     throw new Error(`Access to private/internal IP addresses is not allowed: ${urlString}`);
   }
-
-  // Block specific cloud metadata endpoints by hostname pattern
-  // AWS, GCP, Azure, and other cloud providers use 169.254.169.254
-  // Some also use hostnames like metadata.google.internal
-  const blockedHostPatterns = [/^metadata\./i, /\.internal$/i, /^internal\./i];
 
   for (const pattern of blockedHostPatterns) {
     if (pattern.test(hostname)) {
@@ -168,6 +189,40 @@ const validateUrlForSSRF = (urlString: string): void => {
     }
   }
 };
+
+type SsrfSafeLookup = NonNullable<AxiosRequestConfig["lookup"]>;
+
+/**
+ * DNS lookup wrapper that rejects hostnames resolving to private/internal
+ * addresses. Used as the `lookup` for outbound media requests so the check
+ * applies to the address actually connected to — closing the
+ * public-DNS-name-resolving-to-internal-IP bypass (and DNS rebinding, since
+ * validation happens on the same resolution used for the connection).
+ */
+const ssrfSafeLookup: SsrfSafeLookup = (hostname, options, callback) => {
+  dns.lookup(hostname, { ...options, all: true }, (error, addresses) => {
+    if (error) {
+      callback(error, []);
+      return;
+    }
+
+    const resolved = Array.isArray(addresses) ? addresses : [addresses];
+    const blocked = resolved.find((address) => isLocalhost(address.address) || isPrivateIP(address.address));
+    if (blocked) {
+      callback(
+        new Error(`Access to private/internal IP addresses is not allowed: ${hostname} -> ${blocked.address}`),
+        [],
+      );
+      return;
+    }
+
+    callback(null, resolved as Parameters<typeof callback>[1]);
+  });
+};
+
+// Maximum size of a downloaded media file. Matches the 500 MB upload limit
+// enforced by the HTTP server and scheduler upload endpoints.
+const MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;
 
 /**
  * Downloads a file from a URL to a temporary local file
@@ -189,9 +244,29 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
     const response = await axios.get<Readable>(url, {
       responseType: "stream",
       timeout: 120_000, // 2 minutes timeout for large files
-      maxContentLength: Infinity,
+      maxContentLength: MAX_DOWNLOAD_BYTES,
       maxBodyLength: Infinity,
+      maxRedirects: 5,
+      // Validate the address actually connected to, not just the URL string.
+      lookup: ssrfSafeLookup,
+      // Each redirect hop is re-validated: a public URL must not be able to
+      // bounce the request to localhost, a private address, or a metadata
+      // endpoint. IP-literal hops would bypass DNS lookup entirely, so the
+      // string-level check here is load-bearing.
+      beforeRedirect: (options: Record<string, unknown>) => {
+        const redirectUrl =
+          typeof options.href === "string"
+            ? options.href
+            : `${String(options.protocol)}//${String(options.hostname)}${String(options.path ?? "")}`;
+        validateUrlForSSRF(redirectUrl);
+      },
     });
+
+    const contentLength = Number(response.headers["content-length"]);
+    if (Number.isFinite(contentLength) && contentLength > MAX_DOWNLOAD_BYTES) {
+      response.data.destroy();
+      throw new Error(`Media at ${url} exceeds the maximum download size of ${MAX_DOWNLOAD_BYTES} bytes`);
+    }
 
     // Try to get extension from content-type if not available
     if (!extension) {
@@ -217,11 +292,25 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
       }
     }
 
-    // Write the stream to temp file
+    // Write the stream to temp file, enforcing the size cap while streaming
+    // (the content-length header is optional and can lie).
     const writer = fs.createWriteStream(tempFilePath);
+    let receivedBytes = 0;
+    const sizeLimiter = new Transform({
+      transform(chunk: Buffer, _encoding, transformCallback) {
+        receivedBytes += chunk.length;
+        if (receivedBytes > MAX_DOWNLOAD_BYTES) {
+          transformCallback(
+            new Error(`Media at ${url} exceeds the maximum download size of ${MAX_DOWNLOAD_BYTES} bytes`),
+          );
+          return;
+        }
+        transformCallback(null, chunk);
+      },
+    });
 
     try {
-      await pipeline(response.data, writer);
+      await pipeline(response.data, sizeLimiter, writer);
     } catch (pipelineError) {
       // Clean up partially written file on pipeline failure
       cleanupTempFile(tempFilePath);

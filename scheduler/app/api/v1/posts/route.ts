@@ -4,12 +4,13 @@ import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { checkRateLimits } from "@/lib/utils/rate-limit";
 import { checkAndDeductXCredits } from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
-import type { MediaFile, ThreadSegmentResult } from "@/types";
+import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types";
 
 const log = createLogger("api:posts");
 
@@ -184,6 +185,8 @@ export async function POST(req: NextRequest) {
         }
         const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
 
+        const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
+
         // Update post status based on results
         if (summary.overallSuccess) {
           log.debug({ postId: post.id }, "Updating post status to published");
@@ -191,6 +194,7 @@ export async function POST(req: NextRequest) {
             status: "published",
             publishedAt: new Date(),
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+            accountResults,
           });
         } else {
           log.debug({ postId: post.id }, "Updating post status to failed");
@@ -216,6 +220,7 @@ export async function POST(req: NextRequest) {
             errorMessage,
             errorDetails,
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+            accountResults,
           });
         }
 

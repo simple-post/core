@@ -23,7 +23,7 @@ import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 import type { Post, Platform, Media, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
 import type { Logger } from "pino";
 
-interface PostingResult {
+export interface PostingResult {
   accountId: string;
   platform: string;
   success: boolean;

@@ -156,6 +156,11 @@ model Post {
   // ThreadSegmentResult[] for accounts that posted as a thread.
   threadResults Json?
 
+  // Per-account publish outcomes captured at publish time. Map of accountId →
+  // AccountPublishResult (see scheduler types). Lets retries of partially
+  // failed posts skip accounts that already published.
+  accountResults Json?
+
   // Relations
   accounts ConnectedAccount[]
   media    MediaFile[]

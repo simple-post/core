@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   type AccountOptionsMap,
   type AccountOverridesMap,
+  type AccountResultsMap,
   type SocialPost,
   type ThreadSegment,
   type ThreadSegmentResult,
@@ -295,6 +296,7 @@ export class PostsModel {
       accountOverrides?: unknown | null;
       thread?: unknown | null;
       threadResults?: unknown | null;
+      accountResults?: unknown | null;
       accounts?: { set: Array<{ id: string }> };
       media?: { deleteMany: Record<string, never>; create: Array<Record<string, unknown>> };
     } = {};
@@ -309,6 +311,7 @@ export class PostsModel {
     if (updates.accountOverrides !== undefined) updateData.accountOverrides = updates.accountOverrides || null;
     if (updates.thread !== undefined) updateData.thread = updates.thread ?? null;
     if (updates.threadResults !== undefined) updateData.threadResults = updates.threadResults ?? null;
+    if (updates.accountResults !== undefined) updateData.accountResults = updates.accountResults ?? null;
 
     // Handle account updates
     if (updates.accountIds !== undefined) {
@@ -383,6 +386,7 @@ export class PostsModel {
     accountOverrides?: unknown;
     thread?: unknown;
     threadResults?: unknown;
+    accountResults?: unknown;
     accounts: Array<{ id: string }>;
     media: Array<{
       id: string;
@@ -417,6 +421,7 @@ export class PostsModel {
       accountOverrides: (post.accountOverrides as AccountOverridesMap | null) || undefined,
       thread: (post.thread as ThreadSegment[] | null) ?? undefined,
       threadResults: (post.threadResults as Record<string, ThreadSegmentResult[]> | null) ?? undefined,
+      accountResults: (post.accountResults as AccountResultsMap | null) ?? undefined,
     };
   }
 }

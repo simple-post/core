@@ -2,10 +2,11 @@ import { z } from "zod";
 
 import { PostsModel } from "@/lib/db";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
-import type { MediaFile, SocialPost, ThreadSegment } from "@/types";
+import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
 
 import { listAccounts, mcpAccountSchema } from "./accounts";
 import {
@@ -726,12 +727,14 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         if (r.threadResults) threadResultsByAccount[r.accountId] = r.threadResults;
       }
       const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
+      const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
       if (summary.overallSuccess) {
         await repository.updatePost(post.id, {
           status: "published",
           publishedAt: new Date(),
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
         });
       } else {
         const failedResults = results.filter((r) => !r.success);
@@ -754,6 +757,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           errorMessage,
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
         });
       }
 

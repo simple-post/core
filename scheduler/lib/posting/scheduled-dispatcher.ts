@@ -3,10 +3,11 @@ import { isThreadCapable } from "@simple-post/sdk";
 
 import { createLogger } from "@/lib/logger";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { mapPlatformName } from "@/lib/utils/platforms";
-import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 
 import type { ThreadSegment } from "@simple-post/sdk";
 
@@ -66,6 +67,7 @@ interface DuePost {
   accountOptions: unknown;
   accountOverrides: unknown;
   thread: ThreadSegment[] | null;
+  accountResults: unknown;
   media: MediaFile[];
   accounts: Array<{
     id: string;
@@ -159,7 +161,33 @@ async function getSentCountForPlatform(platform: string, intervalMinutes: number
 }
 
 async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> {
-  const accountIds = post.accounts.map((account) => account.id);
+  const previousResults = (post.accountResults as AccountResultsMap | null) ?? undefined;
+  const succeededAccountIds = getSucceededAccountIds(previousResults);
+
+  // A retried post (rescheduled after a partial failure) only publishes to
+  // the accounts that have no recorded success — never double-post.
+  const accountIds = post.accounts.map((account) => account.id).filter((id) => !succeededAccountIds.has(id));
+
+  if (succeededAccountIds.size > 0) {
+    log.info(
+      { postId: post.id, skippedAccounts: [...succeededAccountIds], remainingAccounts: accountIds },
+      "Skipping accounts that already published successfully",
+    );
+  }
+
+  if (accountIds.length === 0) {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        status: "published",
+        publishedAt: new Date(),
+        errorMessage: null,
+        errorDetails: Prisma.DbNull,
+      },
+    });
+
+    return { postId: post.id, success: true, status: "published" };
+  }
 
   try {
     const postingResults = await postToAccounts(
@@ -172,6 +200,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     );
 
     const summary = getPostingSummary(postingResults);
+    const accountResults = mergeAccountResults(previousResults, postingResults);
+    const sanitizedAccountResults = sanitizeForJson(accountResults) as Prisma.InputJsonValue;
 
     // Build accountId → ThreadSegmentResult[] map for accounts that posted as a thread.
     const threadResultsByAccount = postingResults.reduce<Record<string, unknown>>((acc, result) => {
@@ -188,6 +218,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           publishedAt: new Date(),
           errorMessage: null,
           errorDetails: Prisma.DbNull,
+          accountResults: sanitizedAccountResults,
           threadResults: hasThreadResults
             ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
             : Prisma.DbNull,
@@ -224,6 +255,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         status: "failed",
         errorMessage,
         errorDetails,
+        accountResults: sanitizedAccountResults,
         threadResults: hasThreadResults
           ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
           : Prisma.DbNull,

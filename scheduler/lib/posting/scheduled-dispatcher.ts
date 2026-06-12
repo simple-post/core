@@ -8,6 +8,7 @@ import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/accou
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { refundXCreditsForAccountIds, refundXCreditsForFailedResults } from "@/lib/utils/x-credits";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 
 import type { ThreadSegment } from "@simple-post/sdk";
@@ -96,21 +97,40 @@ export interface DispatchDuePostsResult {
  */
 async function recoverStalePendingPosts(): Promise<number> {
   const cutoff = new Date(Date.now() - STALE_PENDING_MINUTES * 60 * 1000);
+  const errorMessage = "Publishing was interrupted before completion. Reschedule the post to try again.";
 
-  const { count } = await prisma.post.updateMany({
+  const stalePosts = await prisma.post.findMany({
     where: {
       status: "pending",
       updatedAt: { lt: cutoff },
     },
+    select: { id: true, userId: true, message: true },
+  });
+
+  if (stalePosts.length === 0) {
+    return 0;
+  }
+
+  const { count } = await prisma.post.updateMany({
+    where: { id: { in: stalePosts.map((post) => post.id) }, status: "pending" },
     data: {
       status: "failed",
-      errorMessage: "Publishing was interrupted before completion. Reschedule the post to try again.",
+      errorMessage,
     },
   });
 
-  if (count > 0) {
-    log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending posts");
-  }
+  log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending posts");
+
+  await Promise.all(
+    stalePosts.map((post) =>
+      dispatchPostWebhooks(post.userId, "post.failed", {
+        id: post.id,
+        status: "failed",
+        message: post.message,
+        errorMessage,
+      }),
+    ),
+  );
 
   return count;
 }
@@ -187,6 +207,13 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         errorDetails: Prisma.DbNull,
       },
     });
+    await dispatchPostWebhooks(post.userId, "post.published", {
+      id: post.id,
+      status: "published",
+      message: post.message,
+      publishedAt: new Date().toISOString(),
+      accountResults: previousResults,
+    });
 
     return { postId: post.id, success: true, status: "published" };
   }
@@ -228,6 +255,14 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         },
       });
 
+      await dispatchPostWebhooks(post.userId, "post.published", {
+        id: post.id,
+        status: "published",
+        message: post.message,
+        publishedAt: new Date().toISOString(),
+        accountResults,
+      });
+
       return {
         postId: post.id,
         success: true,
@@ -267,6 +302,14 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       },
     });
 
+    await dispatchPostWebhooks(post.userId, "post.failed", {
+      id: post.id,
+      status: "failed",
+      message: post.message,
+      errorMessage,
+      accountResults,
+    });
+
     return {
       postId: post.id,
       success: false,
@@ -288,6 +331,13 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           stack: error instanceof Error ? error.stack : undefined,
         }) as Prisma.InputJsonValue,
       },
+    });
+
+    await dispatchPostWebhooks(post.userId, "post.failed", {
+      id: post.id,
+      status: "failed",
+      message: post.message,
+      errorMessage,
     });
 
     return {

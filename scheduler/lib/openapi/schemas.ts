@@ -448,6 +448,56 @@ export const OAuthTokenResponseSchema = z
   })
   .meta({ id: "OAuthTokenResponse" });
 
+export const WebhookEventSchema = z.enum(["post.published", "post.failed"]).meta({ id: "WebhookEvent" });
+
+export const WebhookEndpointSchema = z
+  .object({
+    id: z.string(),
+    url: z.string(),
+    events: z.array(WebhookEventSchema),
+    active: z.boolean(),
+    lastSuccessAt: z.iso.datetime().nullable(),
+    lastFailureAt: z.iso.datetime().nullable(),
+    lastError: z.string().nullable(),
+    createdAt: z.iso.datetime(),
+  })
+  .meta({ id: "WebhookEndpoint" });
+
+export const WebhooksEnvelopeSchema = z
+  .object({
+    webhooks: z.array(WebhookEndpointSchema),
+  })
+  .meta({ id: "WebhooksEnvelope" });
+
+export const CreateWebhookRequestSchema = z
+  .object({
+    url: z.string().min(1),
+    events: z.array(WebhookEventSchema).min(1).optional(),
+  })
+  .meta({ id: "CreateWebhookRequest" });
+
+export const CreateWebhookResponseSchema = z
+  .object({
+    webhook: WebhookEndpointSchema.extend({
+      secret: z.string().describe("HMAC-SHA256 signing secret. Returned only once - store it immediately."),
+    }),
+  })
+  .meta({ id: "CreateWebhookResponse" });
+
+export const UpdateWebhookRequestSchema = z
+  .object({
+    url: z.string().min(1).optional(),
+    events: z.array(WebhookEventSchema).min(1).optional(),
+    active: z.boolean().optional(),
+  })
+  .meta({ id: "UpdateWebhookRequest" });
+
+export const WebhookSuccessResponseSchema = z
+  .object({
+    success: z.boolean(),
+  })
+  .meta({ id: "WebhookSuccessResponse" });
+
 export const DispatchScheduledPostsResponseSchema = z
   .object({
     startedAt: z.iso.datetime(),

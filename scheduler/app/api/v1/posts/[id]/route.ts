@@ -20,6 +20,7 @@ import {
 } from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, PostingMode, SocialPost, ThreadSegmentResult } from "@/types";
 
 function resolveScheduledFor(
@@ -220,6 +221,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
         });
+        await dispatchPostWebhooks(session.user.id, "post.published", {
+          id: post.id,
+          status: "published",
+          message: validated.message,
+          publishedAt: new Date().toISOString(),
+          accountResults,
+        });
       } else {
         await refundXCreditsForFailedResults(session.user.id, results);
         const failedResults = results.filter((result) => !result.success);
@@ -243,6 +251,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           errorMessage,
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
+        });
+        await dispatchPostWebhooks(session.user.id, "post.failed", {
+          id: post.id,
+          status: "failed",
+          message: validated.message,
+          errorMessage,
           accountResults,
         });
       }

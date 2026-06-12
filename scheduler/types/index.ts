@@ -84,6 +84,7 @@ export interface SocialPost {
   thread?: ThreadSegment[];
   threadResults?: Record<string, ThreadSegmentResult[]> | null;
   accountResults?: AccountResultsMap | null;
+  idempotencyKey?: string | null;
 }
 
 // Outcome of publishing to a single connected account, persisted on the post

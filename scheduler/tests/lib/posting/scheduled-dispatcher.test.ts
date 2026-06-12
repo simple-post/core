@@ -12,6 +12,10 @@ jest.mock("@/lib/prisma", () => ({
       update: jest.fn(),
       count: jest.fn(),
     },
+    webhookEndpoint: {
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
   },
 }));
 
@@ -34,6 +38,10 @@ const prismaMock = prisma as unknown as {
     updateMany: jest.Mock;
     update: jest.Mock;
     count: jest.Mock;
+  };
+  webhookEndpoint: {
+    findMany: jest.Mock;
+    update: jest.Mock;
   };
 };
 const postToAccountsMock = postToAccounts as jest.Mock;
@@ -75,21 +83,41 @@ function successFor(accountIds: string[], platform = "x"): PostingResult[] {
  * Routes prisma.post.updateMany calls: the stale-pending sweep matches
  * `where.status === "pending"`, claims match `where.status === "scheduled"`.
  */
-function mockUpdateMany({ stale = 0, claims = {} }: { stale?: number; claims?: Record<string, number> }) {
-  prismaMock.post.updateMany.mockImplementation(({ where }: { where: { status: string; id?: string } }) => {
+function mockUpdateMany({ claims = {} }: { claims?: Record<string, number> }) {
+  prismaMock.post.updateMany.mockImplementation(({ where }: { where: { status: string; id?: unknown } }) => {
     if (where.status === "pending") {
-      return Promise.resolve({ count: stale });
+      const ids = (where.id as { in?: string[] } | undefined)?.in ?? [];
+      return Promise.resolve({ count: ids.length });
     }
-    if (where.status === "scheduled" && where.id) {
+    if (where.status === "scheduled" && typeof where.id === "string") {
       return Promise.resolve({ count: claims[where.id] ?? 1 });
     }
     throw new Error(`Unexpected updateMany where: ${JSON.stringify(where)}`);
   });
 }
 
+/**
+ * Routes prisma.post.findMany calls: the stale-pending sweep queries
+ * `where.status === "pending"`, the due-post fetch `where.status === "scheduled"`.
+ */
+function mockFindMany({
+  due = [],
+  stale = [],
+}: {
+  due?: unknown[];
+  stale?: Array<{ id: string; userId: string; message: string }>;
+}) {
+  prismaMock.post.findMany.mockImplementation(({ where }: { where: { status: string } }) => {
+    if (where.status === "pending") return Promise.resolve(stale);
+    if (where.status === "scheduled") return Promise.resolve(due);
+    throw new Error(`Unexpected findMany where: ${JSON.stringify(where)}`);
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
-  prismaMock.post.findMany.mockResolvedValue([]);
+  prismaMock.webhookEndpoint.findMany.mockResolvedValue([]);
+  mockFindMany({});
   prismaMock.post.count.mockResolvedValue(0);
   prismaMock.post.update.mockResolvedValue({});
   mockUpdateMany({});
@@ -106,8 +134,14 @@ describe("dispatchDueScheduledPosts", () => {
     expect(postToAccountsMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces the number of recovered stale pending posts", async () => {
-    mockUpdateMany({ stale: 3 });
+  it("recovers stale pending posts and reports the count", async () => {
+    mockFindMany({
+      stale: [
+        { id: "s1", userId: "u1", message: "stuck 1" },
+        { id: "s2", userId: "u1", message: "stuck 2" },
+        { id: "s3", userId: "u2", message: "stuck 3" },
+      ],
+    });
 
     const result = await dispatchDueScheduledPosts();
 
@@ -115,10 +149,12 @@ describe("dispatchDueScheduledPosts", () => {
   });
 
   it("publishes claimed posts and skips posts another run already claimed", async () => {
-    prismaMock.post.findMany.mockResolvedValue([
-      duePost({ id: "p1", accounts: [{ id: "a1", platform: "x" }] }),
-      duePost({ id: "p2", accounts: [{ id: "a2", platform: "x" }] }),
-    ]);
+    mockFindMany({
+      due: [
+        duePost({ id: "p1", accounts: [{ id: "a1", platform: "x" }] }),
+        duePost({ id: "p2", accounts: [{ id: "a2", platform: "x" }] }),
+      ],
+    });
     mockUpdateMany({ claims: { p1: 1, p2: 0 } });
     postToAccountsMock.mockResolvedValue(successFor(["a1"]));
 
@@ -137,16 +173,18 @@ describe("dispatchDueScheduledPosts", () => {
   });
 
   it("publishes only to accounts without a recorded success", async () => {
-    prismaMock.post.findMany.mockResolvedValue([
-      duePost({
-        id: "p1",
-        accounts: [
-          { id: "a1", platform: "x" },
-          { id: "a2", platform: "telegram" },
-        ],
-        accountResults: toAccountResultsMap([{ accountId: "a1", platform: "x", success: true, postId: "1" }]),
-      }),
-    ]);
+    mockFindMany({
+      due: [
+        duePost({
+          id: "p1",
+          accounts: [
+            { id: "a1", platform: "x" },
+            { id: "a2", platform: "telegram" },
+          ],
+          accountResults: toAccountResultsMap([{ accountId: "a1", platform: "x", success: true, postId: "1" }]),
+        }),
+      ],
+    });
     postToAccountsMock.mockResolvedValue(successFor(["a2"], "telegram"));
 
     const result = await dispatchDueScheduledPosts();
@@ -157,13 +195,15 @@ describe("dispatchDueScheduledPosts", () => {
   });
 
   it("marks a post published without publishing when every account already succeeded", async () => {
-    prismaMock.post.findMany.mockResolvedValue([
-      duePost({
-        id: "p1",
-        accounts: [{ id: "a1", platform: "x" }],
-        accountResults: toAccountResultsMap([{ accountId: "a1", platform: "x", success: true, postId: "1" }]),
-      }),
-    ]);
+    mockFindMany({
+      due: [
+        duePost({
+          id: "p1",
+          accounts: [{ id: "a1", platform: "x" }],
+          accountResults: toAccountResultsMap([{ accountId: "a1", platform: "x", success: true, postId: "1" }]),
+        }),
+      ],
+    });
 
     const result = await dispatchDueScheduledPosts();
 
@@ -178,15 +218,17 @@ describe("dispatchDueScheduledPosts", () => {
   });
 
   it("marks a post failed and records per-account results on partial failure", async () => {
-    prismaMock.post.findMany.mockResolvedValue([
-      duePost({
-        id: "p1",
-        accounts: [
-          { id: "a1", platform: "x" },
-          { id: "a2", platform: "telegram" },
-        ],
-      }),
-    ]);
+    mockFindMany({
+      due: [
+        duePost({
+          id: "p1",
+          accounts: [
+            { id: "a1", platform: "x" },
+            { id: "a2", platform: "telegram" },
+          ],
+        }),
+      ],
+    });
     postToAccountsMock.mockResolvedValue([
       { accountId: "a1", platform: "x", success: true, postId: "1" },
       { accountId: "a2", platform: "telegram", success: false, error: "API_ERROR", message: "boom" },
@@ -204,10 +246,12 @@ describe("dispatchDueScheduledPosts", () => {
   });
 
   it("defers posts beyond the per-platform rate budget", async () => {
-    prismaMock.post.findMany.mockResolvedValue([
-      duePost({ id: "p1", accounts: [{ id: "a1", platform: "x" }] }),
-      duePost({ id: "p2", accounts: [{ id: "a2", platform: "x" }] }),
-    ]);
+    mockFindMany({
+      due: [
+        duePost({ id: "p1", accounts: [{ id: "a1", platform: "x" }] }),
+        duePost({ id: "p2", accounts: [{ id: "a2", platform: "x" }] }),
+      ],
+    });
     // 14 of 15 per-minute slots already used: only one post fits.
     prismaMock.post.count.mockResolvedValue(14);
     postToAccountsMock.mockResolvedValue(successFor(["a1"]));
@@ -222,14 +266,16 @@ describe("dispatchDueScheduledPosts", () => {
   });
 
   it("accounts for thread segments in the rate budget on thread-capable platforms", async () => {
-    prismaMock.post.findMany.mockResolvedValue([
-      duePost({
-        id: "p1",
-        accounts: [{ id: "a1", platform: "x" }],
-        // Root + 5 segments = 6 slots on a thread-capable platform.
-        thread: [{}, {}, {}, {}, {}],
-      }),
-    ]);
+    mockFindMany({
+      due: [
+        duePost({
+          id: "p1",
+          accounts: [{ id: "a1", platform: "x" }],
+          // Root + 5 segments = 6 slots on a thread-capable platform.
+          thread: [{}, {}, {}, {}, {}],
+        }),
+      ],
+    });
     // Only 5 slots left -> the 6-slot thread does not fit.
     prismaMock.post.count.mockResolvedValue(10);
 

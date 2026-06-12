@@ -257,6 +257,7 @@ export class PostsModel {
         message: postData.message,
         scheduledFor: postData.scheduledFor,
         status: postData.status,
+        idempotencyKey: postData.idempotencyKey ?? undefined,
         publishedAt: postData.publishedAt,
         accountOptions: (postData.accountOptions as object) || undefined,
         accountOverrides: (postData.accountOverrides as object) || undefined,

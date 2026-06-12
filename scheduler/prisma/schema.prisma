@@ -22,6 +22,7 @@ model User {
   sessions               Session[]
   accounts               Account[] // For authentication
   connectedAccounts      ConnectedAccount[] // For social media posting
+  webhookEndpoints       WebhookEndpoint[]
   posts                  Post[]
   PendingOAuthConnection PendingOAuthConnection[]
   cliTokens              CliToken[]
@@ -161,13 +162,41 @@ model Post {
   // failed posts skip accounts that already published.
   accountResults Json?
 
+  // Client-supplied key making post creation idempotent: a retried create
+  // request (agent timeout, network blip) returns the original post instead
+  // of publishing twice.
+  idempotencyKey String?
+
   // Relations
   accounts ConnectedAccount[]
   media    MediaFile[]
 
+  @@unique([userId, idempotencyKey])
   @@index([userId, status])
   @@index([userId, scheduledFor])
   @@map("post")
+}
+
+// Webhook endpoints notified on post lifecycle events (post.published,
+// post.failed) so API consumers don't have to poll.
+model WebhookEndpoint {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url           String
+  // HMAC-SHA256 signing secret; shown to the user once at creation.
+  secret        String
+  // Subscribed events ("post.published", "post.failed")
+  events        String[]
+  active        Boolean   @default(true)
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("webhook_endpoint")
 }
 
 // CLI tokens for authenticating the CLI with the scheduler API

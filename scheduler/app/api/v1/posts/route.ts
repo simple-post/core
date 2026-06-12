@@ -1,10 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { Prisma } from "@prisma/client";
+
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { checkRateLimits } from "@/lib/utils/rate-limit";
 import {
@@ -14,6 +17,7 @@ import {
 } from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types";
 
 const log = createLogger("api:posts");
@@ -109,6 +113,20 @@ export async function POST(req: NextRequest) {
     const validated = createPostSchema.parse(body);
     log.debug({ accountCount: validated.accountIds.length }, "Validation successful");
 
+    // Idempotent creation: a retried request with the same key returns the
+    // originally created post instead of creating (and publishing) again.
+    if (validated.idempotencyKey) {
+      const existing = await prisma.post.findUnique({
+        where: { userId_idempotencyKey: { userId, idempotencyKey: validated.idempotencyKey } },
+        select: { id: true },
+      });
+      if (existing) {
+        const existingPost = await repository.getPostById(existing.id);
+        log.info({ postId: existing.id }, "Idempotency key replay - returning existing post");
+        return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
+      }
+    }
+
     const postingMode = validated.postingMode;
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);
     if (postingMode === "now") {
@@ -145,19 +163,43 @@ export async function POST(req: NextRequest) {
 
     // Create the post first
     log.debug("Creating post record in database");
-    const post = await repository.createPost(
-      {
-        message: validated.message,
-        accountIds: validated.accountIds,
-        media: mediaFiles,
-        scheduledFor,
-        status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
-        accountOptions: validated.accountOptions,
-        accountOverrides: validated.accountOverrides,
-        thread: validated.thread,
-      },
-      userId,
-    );
+    let post;
+    try {
+      post = await repository.createPost(
+        {
+          message: validated.message,
+          accountIds: validated.accountIds,
+          media: mediaFiles,
+          scheduledFor,
+          status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+          accountOptions: validated.accountOptions,
+          accountOverrides: validated.accountOverrides,
+          thread: validated.thread,
+          idempotencyKey: validated.idempotencyKey,
+        },
+        userId,
+      );
+    } catch (createError) {
+      // Concurrent request with the same idempotency key won the insert:
+      // undo this request's deduction and return the winner's post.
+      if (
+        validated.idempotencyKey &&
+        createError instanceof Prisma.PrismaClientKnownRequestError &&
+        createError.code === "P2002"
+      ) {
+        if (postingMode !== "draft") {
+          await refundXCreditsForAccountIds(userId, validated.accountIds);
+        }
+        const existing = await prisma.post.findUnique({
+          where: { userId_idempotencyKey: { userId, idempotencyKey: validated.idempotencyKey } },
+          select: { id: true },
+        });
+        const existingPost = existing ? await repository.getPostById(existing.id) : null;
+        log.info({ postId: existing?.id }, "Idempotency key replay (concurrent) - returning existing post");
+        return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
+      }
+      throw createError;
+    }
     log.info({ postId: post.id }, "Post created");
 
     // If posting now, actually post to the platforms
@@ -201,6 +243,13 @@ export async function POST(req: NextRequest) {
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
             accountResults,
           });
+          await dispatchPostWebhooks(userId, "post.published", {
+            id: post.id,
+            status: "published",
+            message: validated.message,
+            publishedAt: new Date().toISOString(),
+            accountResults,
+          });
         } else {
           log.debug({ postId: post.id }, "Updating post status to failed");
           await refundXCreditsForFailedResults(userId, results);
@@ -226,6 +275,13 @@ export async function POST(req: NextRequest) {
             errorMessage,
             errorDetails,
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+            accountResults,
+          });
+          await dispatchPostWebhooks(userId, "post.failed", {
+            id: post.id,
+            status: "failed",
+            message: validated.message,
+            errorMessage,
             accountResults,
           });
         }

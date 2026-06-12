@@ -1,8 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { PostsModel } from "@/lib/db";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { checkRateLimits } from "@/lib/utils/rate-limit";
@@ -13,6 +15,7 @@ import {
   refundXCreditsForFailedResults,
 } from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
 
 import { listAccounts, mcpAccountSchema } from "./accounts";
@@ -49,6 +52,14 @@ export const createPostSchema = z.object({
     .optional()
     .describe(
       "Required when postingMode is 'schedule'; ignored for 'draft'. Use a full ISO 8601 datetime with timezone: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm (examples: 2026-05-01T14:30:00Z, 2026-05-01T16:30:00+02:00). Never send date-only or local time without timezone.",
+    ),
+  idempotencyKey: z
+    .string()
+    .min(1)
+    .max(255)
+    .optional()
+    .describe(
+      "Optional unique key making creation idempotent. If a post was already created with this key, the original post is returned instead of creating and publishing a duplicate. Recommended when retrying after a timeout.",
     ),
 });
 
@@ -116,6 +127,10 @@ export const createPostOutputSchema = z.object({
     scheduledCount: z.number(),
     draftCount: z.number(),
     overallSuccess: z.boolean(),
+    replayed: z
+      .boolean()
+      .optional()
+      .describe("True when this response returns a previously created post matched by idempotencyKey."),
   }),
 });
 
@@ -688,8 +703,58 @@ function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof
   }));
 }
 
+function buildReplayResponse(post: SocialPost, input: z.infer<typeof createPostSchema>) {
+  const accountResults = Object.values(post.accountResults ?? {});
+  const successCount = accountResults.filter((result) => result.success).length;
+  const failureCount = accountResults.filter((result) => !result.success).length;
+
+  return {
+    kind: "post" as const,
+    message: post.message,
+    postingMode: input.postingMode ?? "now",
+    mediaCount: post.media.length,
+    post: mapPost(post),
+    postingResults: accountResults.map((result) => ({
+      accountId: result.accountId,
+      platform: result.platform,
+      success: result.success,
+      error: result.error,
+      message: result.message,
+      postUrl: result.postUrl,
+      postId: result.postId,
+    })),
+    summary: {
+      accountCount: post.accountIds.length,
+      mediaCount: post.media.length,
+      threadSegmentCount: post.thread?.length ?? 0,
+      successCount,
+      failureCount,
+      scheduledCount: post.status === "scheduled" ? 1 : 0,
+      draftCount: post.status === "draft" ? 1 : 0,
+      overallSuccess: successCount > 0 && failureCount === 0,
+      replayed: true,
+    },
+  };
+}
+
 export async function createPost(userId: string, input: z.infer<typeof createPostSchema>) {
   const repository = new PostsModel(userId);
+
+  // Idempotent creation: a retried call with the same key returns the
+  // originally created post instead of creating (and publishing) again.
+  if (input.idempotencyKey) {
+    const existing = await prisma.post.findUnique({
+      where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+      select: { id: true },
+    });
+    if (existing) {
+      const existingPost = await repository.getPostById(existing.id);
+      if (existingPost) {
+        return buildReplayResponse(existingPost, input);
+      }
+    }
+  }
+
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
   const mediaFiles = toMediaFiles(input.media);
@@ -728,17 +793,42 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   }
 
   // Create the post record
-  const post = await repository.createPost(
-    {
-      message: input.message,
-      accountIds: input.accountIds,
-      media: mediaFiles,
-      scheduledFor,
-      status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
-      thread: threadForPersistence,
-    },
-    userId,
-  );
+  let post: SocialPost;
+  try {
+    post = await repository.createPost(
+      {
+        message: input.message,
+        accountIds: input.accountIds,
+        media: mediaFiles,
+        scheduledFor,
+        status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+        thread: threadForPersistence,
+        idempotencyKey: input.idempotencyKey,
+      },
+      userId,
+    );
+  } catch (createError) {
+    // A concurrent call with the same idempotency key won the insert: undo
+    // this call's deduction and return the winner's post.
+    if (
+      input.idempotencyKey &&
+      createError instanceof Prisma.PrismaClientKnownRequestError &&
+      createError.code === "P2002"
+    ) {
+      if (postingMode !== "draft") {
+        await refundXCreditsForAccountIds(userId, input.accountIds);
+      }
+      const existing = await prisma.post.findUnique({
+        where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+        select: { id: true },
+      });
+      const existingPost = existing ? await repository.getPostById(existing.id) : null;
+      if (existingPost) {
+        return buildReplayResponse(existingPost, input);
+      }
+    }
+    throw createError;
+  }
 
   // If posting now, dispatch immediately
   if (postingMode === "now") {
@@ -768,6 +858,13 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
         });
+        await dispatchPostWebhooks(userId, "post.published", {
+          id: post.id,
+          status: "published",
+          message: input.message,
+          publishedAt: new Date().toISOString(),
+          accountResults,
+        });
       } else {
         await refundXCreditsForFailedResults(userId, results);
         const failedResults = results.filter((r) => !r.success);
@@ -790,6 +887,13 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           errorMessage,
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
+        });
+        await dispatchPostWebhooks(userId, "post.failed", {
+          id: post.id,
+          status: "failed",
+          message: input.message,
+          errorMessage,
           accountResults,
         });
       }

@@ -92,6 +92,14 @@ export const createPostSchema = z.object({
   accountOverrides: AccountOverridesMapSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
   thread: ThreadSchema.optional(),
+  idempotencyKey: z
+    .string()
+    .min(1)
+    .max(255)
+    .optional()
+    .describe(
+      "Optional client-supplied key making creation idempotent: retrying a request with the same key returns the originally created post instead of creating (and publishing) a duplicate.",
+    ),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;

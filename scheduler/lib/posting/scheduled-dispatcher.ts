@@ -13,6 +13,14 @@ import type { ThreadSegment } from "@simple-post/sdk";
 const log = createLogger("scheduled-dispatcher");
 
 const MAX_POSTS_PER_RUN = 100;
+
+// A post stuck in "pending" longer than this is considered abandoned (the
+// process that claimed it crashed or was killed mid-publish) and is failed
+// out so the user sees an actionable error instead of a silently stuck post.
+// Must comfortably exceed the longest legitimate publish (large video uploads
+// can run several minutes per platform).
+const STALE_PENDING_MINUTES = 30;
+
 const DEFAULT_RATE_LIMIT: PlatformRateLimit = {
   maxPosts: 15,
   intervalMinutes: 1,
@@ -72,8 +80,60 @@ export interface DispatchDuePostsResult {
   publishedPosts: number;
   failedPosts: number;
   skippedPosts: number;
+  staleRecoveredPosts: number;
   platformSummary: DispatchPlatformSummary[];
   postResults: DispatchPostResult[];
+}
+
+/**
+ * Fails out posts stuck in "pending" (claimed by a dispatch run or an
+ * immediate-post request that died before recording a result). Without this
+ * sweep such posts are invisible to the dispatcher forever.
+ */
+async function recoverStalePendingPosts(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_PENDING_MINUTES * 60 * 1000);
+
+  const { count } = await prisma.post.updateMany({
+    where: {
+      status: "pending",
+      updatedAt: { lt: cutoff },
+    },
+    data: {
+      status: "failed",
+      errorMessage: "Publishing was interrupted before completion. Reschedule the post to try again.",
+    },
+  });
+
+  if (count > 0) {
+    log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending posts");
+  }
+
+  return count;
+}
+
+/**
+ * Atomically claims posts for this dispatch run by flipping them from
+ * "scheduled" to "pending". A post whose status already changed (claimed by a
+ * concurrent run, or edited by the user) is filtered out, which makes
+ * overlapping dispatch runs safe: each due post is published at most once.
+ */
+async function claimPosts(posts: DuePost[]): Promise<DuePost[]> {
+  const claimed: DuePost[] = [];
+
+  for (const post of posts) {
+    const { count } = await prisma.post.updateMany({
+      where: { id: post.id, status: "scheduled" },
+      data: { status: "pending" },
+    });
+
+    if (count === 1) {
+      claimed.push(post);
+    } else {
+      log.info({ postId: post.id }, "Post no longer claimable — skipping (claimed elsewhere or edited)");
+    }
+  }
+
+  return claimed;
 }
 
 function getRateLimit(platform: string): PlatformRateLimit {
@@ -204,6 +264,8 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   const startedAt = new Date();
   const now = new Date();
 
+  const staleRecoveredPosts = await recoverStalePendingPosts();
+
   const duePosts = (await prisma.post.findMany({
     where: {
       status: "scheduled",
@@ -234,6 +296,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       publishedPosts: 0,
       failedPosts: 0,
       skippedPosts: 0,
+      staleRecoveredPosts,
       platformSummary: [],
       postResults: [],
     };
@@ -294,7 +357,9 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     }
   }
 
-  const postResults = await Promise.all(postsToProcess.map((post) => publishScheduledPost(post)));
+  const claimedPosts = await claimPosts(postsToProcess);
+
+  const postResults = await Promise.all(claimedPosts.map((post) => publishScheduledPost(post)));
 
   const publishedPosts = postResults.filter((result) => result.status === "published").length;
   const failedPosts = postResults.filter((result) => result.status === "failed").length;
@@ -322,8 +387,9 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   log.info(
     {
       duePosts: duePosts.length,
-      processedPosts: postsToProcess.length,
-      skippedPosts: duePosts.length - postsToProcess.length,
+      processedPosts: claimedPosts.length,
+      skippedPosts: duePosts.length - claimedPosts.length,
+      staleRecoveredPosts,
       publishedPosts,
       failedPosts,
       platformSummary,
@@ -334,10 +400,11 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   return {
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
-    processedPosts: postsToProcess.length,
+    processedPosts: claimedPosts.length,
     publishedPosts,
     failedPosts,
-    skippedPosts: duePosts.length - postsToProcess.length,
+    skippedPosts: duePosts.length - claimedPosts.length,
+    staleRecoveredPosts,
     platformSummary,
     postResults,
   };

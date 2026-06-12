@@ -456,6 +456,7 @@ export const DispatchScheduledPostsResponseSchema = z
     publishedPosts: z.number().int().nonnegative(),
     failedPosts: z.number().int().nonnegative(),
     skippedPosts: z.number().int().nonnegative(),
+    staleRecoveredPosts: z.number().int().nonnegative(),
     platformSummary: z.array(
       z.object({
         platform: z.string(),

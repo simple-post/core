@@ -44,6 +44,11 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: yarn workspace @simple-post/cli test
 
+      - name: Run Scheduler tests
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+        run: yarn workspace @simple-post/scheduler test
+
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
         if: success()

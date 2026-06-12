@@ -6,7 +6,7 @@ import multer from "multer";
 import { storeUpload } from "../services/uploads.js";
 import { BadRequestError, handleApiError } from "../utils/errors.js";
 import { ensureUploadTmpDir } from "../utils/files.js";
-import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "../utils/media-types.js";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 
 import type { Request, Response } from "express";
 

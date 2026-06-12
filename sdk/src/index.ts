@@ -150,6 +150,14 @@ export type {
   ThreadCapablePlatform,
 } from "./types/api";
 
+// Shared platform-name aliasing, post URL construction, and accepted media
+// content types (also available as browser-safe subpath exports
+// @simple-post/sdk/platform-names and @simple-post/sdk/media-types).
+export { mapPlatformName, generatePostUrl } from "./platform-names";
+export type { PostUrlContext } from "./platform-names";
+export { ALLOWED_MEDIA_TYPES, EXTENSION_TO_TYPE, normalizeContentType } from "./media-types";
+export { MediaResolver } from "./utils/media-resolver";
+
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
 export { uploadFromBuffer, getPresignedUploadUrl, deleteFromStorage, getKeyFromUrl, generateFileKey } from "./utils/s3";

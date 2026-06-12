@@ -1,12 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { isThreadCapable } from "@simple-post/sdk";
+import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { createLogger } from "@/lib/logger";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
-import { mapPlatformName } from "@/lib/utils/platforms";
 import { refundXCreditsForAccountIds, refundXCreditsForFailedResults } from "@/lib/utils/x-credits";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 

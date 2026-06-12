@@ -1,3 +1,10 @@
+/**
+ * Media content types accepted across SimplePost upload surfaces (HTTP
+ * server, scheduler, MCP). The set is intentionally limited to formats the
+ * supported platforms actually publish — accepting e.g. AVI uploads only
+ * defers the failure to publish time. Browser-safe: no Node imports.
+ */
+
 export const ALLOWED_MEDIA_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -20,6 +27,11 @@ export const EXTENSION_TO_TYPE: Record<string, string> = {
   webm: "video/webm",
 };
 
+/**
+ * Normalizes a reported content type (stripping parameters, lowercasing,
+ * mapping the common image/jpg misnomer), falling back to the filename
+ * extension when no content type was reported.
+ */
 export function normalizeContentType(contentType: string, filename: string): string | undefined {
   const normalized = contentType.split(";")[0]?.trim().toLowerCase();
 

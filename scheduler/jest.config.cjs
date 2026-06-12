@@ -13,6 +13,8 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/$1",
     "^@simple-post/sdk$": "<rootDir>/../sdk/src/index.ts",
     "^@simple-post/sdk/validation$": "<rootDir>/../sdk/src/validation.ts",
+    "^@simple-post/sdk/media-types$": "<rootDir>/../sdk/src/media-types.ts",
+    "^@simple-post/sdk/platform-names$": "<rootDir>/../sdk/src/platform-names.ts",
   },
   transform: {
     "^.+\\.tsx?$": [

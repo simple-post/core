@@ -713,6 +713,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   if (postingMode === "now") {
     try {
       const results = await postToAccounts(
+        userId,
         input.message,
         mediaFiles,
         input.accountIds,

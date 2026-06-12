@@ -36,7 +36,7 @@ function safeExtension(originalName: string): string {
 }
 
 export async function storeUpload(params: {
-  buffer: Buffer;
+  tempPath: string;
   originalName: string;
   mimeType: string;
   size: number;
@@ -51,7 +51,8 @@ export async function storeUpload(params: {
   const storedFilename = `${id}${ext}`;
 
   const storageDir = await ensureStorageDir();
-  await fs.writeFile(path.join(storageDir, storedFilename), params.buffer);
+  // Same filesystem (tmp dir lives inside the storage dir), so this is atomic.
+  await fs.rename(params.tempPath, path.join(storageDir, storedFilename));
 
   return {
     id,

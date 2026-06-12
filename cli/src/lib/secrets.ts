@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import {
@@ -59,7 +59,22 @@ function normalizeSecretsFile(raw: unknown): PlainSecretsFile {
 }
 
 async function ensureDir(paths: CliPaths): Promise<void> {
-  await mkdir(paths.configDir, { recursive: true });
+  await mkdir(paths.configDir, { recursive: true, mode: 0o700 });
+}
+
+/**
+ * Writes a secrets file readable only by the owner. The mode on writeFile
+ * applies only when the file is created, so an explicit chmod tightens
+ * pre-existing files too (best-effort on platforms without POSIX modes).
+ */
+async function writeSecretsFile(filePath: string, contents: string): Promise<void> {
+  await writeFile(filePath, contents, { encoding: "utf8", mode: 0o600 });
+  try {
+    await chmod(filePath, 0o600);
+  } catch {
+    // Ignore chmod errors (e.g. unsupported filesystem); the file was still
+    // created with a restrictive mode above.
+  }
 }
 
 async function resolvePassword(
@@ -186,7 +201,7 @@ class PlainFileSecretStore implements SecretStore {
 
   private async save(secrets: PlainSecretsFile): Promise<void> {
     await ensureDir(this.paths);
-    await writeFile(this.paths.plainSecretsFile, `${JSON.stringify(secrets, null, 2)}\n`, "utf8");
+    await writeSecretsFile(this.paths.plainSecretsFile, `${JSON.stringify(secrets, null, 2)}\n`);
   }
 }
 
@@ -264,7 +279,7 @@ class EncryptedFileSecretStore implements SecretStore {
     const password = await resolvePassword(this.storage, this.prompt, { confirmOnPrompt: options?.newFile });
     const encrypted = await encryptString(JSON.stringify(secrets), password);
     await ensureDir(this.paths);
-    await writeFile(this.paths.encryptedSecretsFile, `${JSON.stringify(encrypted, null, 2)}\n`, "utf8");
+    await writeSecretsFile(this.paths.encryptedSecretsFile, `${JSON.stringify(encrypted, null, 2)}\n`);
   }
 }
 

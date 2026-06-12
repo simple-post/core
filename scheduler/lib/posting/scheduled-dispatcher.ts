@@ -63,6 +63,7 @@ interface DispatchPostResult {
 
 interface DuePost {
   id: string;
+  userId: string;
   message: string;
   accountOptions: unknown;
   accountOverrides: unknown;
@@ -191,6 +192,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
 
   try {
     const postingResults = await postToAccounts(
+      post.userId,
       post.message,
       post.media,
       accountIds,

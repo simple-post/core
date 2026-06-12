@@ -509,9 +509,13 @@ function buildAccountSegments(
 }
 
 /**
- * Posts content to multiple accounts
+ * Posts content to multiple accounts. Accounts are always resolved scoped to
+ * `userId` — callers validate ownership at their API boundary, but the
+ * constraint is enforced here too so no future call site can post to another
+ * user's connected accounts.
  */
 export async function postToAccounts(
+  userId: string,
   message: string,
   mediaFiles: MediaFile[],
   accountIds: string[],
@@ -540,6 +544,7 @@ export async function postToAccounts(
         id: {
           in: accountIds,
         },
+        userId,
       },
     });
 

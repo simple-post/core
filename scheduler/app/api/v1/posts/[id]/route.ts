@@ -177,6 +177,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     try {
       const results = await postToAccounts(
+        session.user.id,
         validated.message,
         finalMedia,
         validated.accountIds,

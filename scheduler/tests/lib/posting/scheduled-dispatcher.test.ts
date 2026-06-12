@@ -51,6 +51,7 @@ interface DuePostFixture {
 
 function duePost(fixture: DuePostFixture) {
   return {
+    userId: "user-1",
     message: "hello",
     accountOptions: null,
     accountOverrides: null,
@@ -151,7 +152,7 @@ describe("dispatchDueScheduledPosts", () => {
     const result = await dispatchDueScheduledPosts();
 
     expect(postToAccountsMock).toHaveBeenCalledTimes(1);
-    expect(postToAccountsMock.mock.calls[0][2]).toEqual(["a2"]);
+    expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
     expect(result.publishedPosts).toBe(1);
   });
 

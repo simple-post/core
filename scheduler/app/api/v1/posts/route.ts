@@ -161,6 +161,7 @@ export async function POST(req: NextRequest) {
       log.info({ postId: post.id }, "Starting platform posting (immediate mode)");
       try {
         const results = await postToAccounts(
+          userId,
           validated.message,
           mediaFiles,
           validated.accountIds,

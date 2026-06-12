@@ -29,8 +29,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new BadRequestError("This endpoint only supports TikTok accounts");
     }
 
-    const refreshedAccount = await refreshTikTokTokenIfNeeded(account);
-    const creatorInfo = await fetchTikTokCreatorInfo(refreshedAccount.accessToken);
+    const refreshResult = await refreshTikTokTokenIfNeeded(account);
+    if (refreshResult.error) {
+      throw new BadRequestError(refreshResult.error);
+    }
+    const creatorInfo = await fetchTikTokCreatorInfo(refreshResult.account.accessToken);
 
     return NextResponse.json(
       { creatorInfo },

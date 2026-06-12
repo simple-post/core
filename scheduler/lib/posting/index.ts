@@ -17,6 +17,7 @@ import { sanitizeForJson } from "@/lib/utils/errors";
 import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
+import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
 import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
@@ -343,7 +344,15 @@ async function postToAccountWithPreparedMedia(
   });
 
   log.info({ messageLength: message.length, mediaCount: preparedMedia.length }, "Starting post to platform");
-  return postSingleSegment(message, preparedMedia, account, accountOptions, undefined, log);
+
+  // Serialize publishes per account: concurrent refreshes of rotating
+  // refresh tokens (X, TikTok) can invalidate the token family. Reload
+  // credentials inside the lock so a publish that waited picks up tokens
+  // persisted by the previous one.
+  return withAccountLock(account.id, async () => {
+    const freshAccount = await reloadAccountSecrets(account);
+    return postSingleSegment(message, preparedMedia, freshAccount, accountOptions, undefined, log);
+  });
 }
 
 interface AccountSegment {
@@ -375,64 +384,73 @@ async function postSegmentsToAccount(
   const segmentResults: ThreadSegmentResult[] = [];
   let rootResult: PostingResult | undefined;
 
-  for (const [i, segment] of effectiveSegments.entries()) {
-    const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
-    const tempPost: Post = {
-      content: { text: segment.message, media: media.length > 0 ? media : undefined },
-      platforms: [platform],
-    };
+  // Hold the account lock for the whole thread so segments of concurrent
+  // posts to the same account don't interleave and token refreshes (which
+  // rotate refresh tokens on X/TikTok) stay serialized. Credentials are
+  // reloaded inside the lock to pick up tokens persisted by a publish this
+  // one waited on.
+  await withAccountLock(account.id, async () => {
+    const freshAccount = await reloadAccountSecrets(account);
 
-    const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
-    let segmentResult: PostingResult;
-    try {
-      const overlay = buildReplyOverlay(platform, chain);
-      const segmentLog = log.child({ segmentIndex: i });
-      segmentResult = await postSingleSegment(
-        segment.message,
-        preparedPost.content.media || [],
-        account,
-        accountOptions,
-        overlay,
-        segmentLog,
-      );
+    for (const [i, segment] of effectiveSegments.entries()) {
+      const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
+      const tempPost: Post = {
+        content: { text: segment.message, media: media.length > 0 ? media : undefined },
+        platforms: [platform],
+      };
 
-      if (segmentResult.success) {
-        const step = extractChainStep(platform, {
-          id: segmentResult.postId,
-          error: PostErrorType.NO_ERROR,
-          extraData: segmentResult.extraData,
-        });
-        if (step) {
-          if (step.postId) chain.parentPostId = step.postId;
-          if (step.bskyRef) {
-            chain.parentBskyRef = step.bskyRef;
-            if (i === 0) chain.rootBskyRef = step.bskyRef;
+      const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
+      let segmentResult: PostingResult;
+      try {
+        const overlay = buildReplyOverlay(platform, chain);
+        const segmentLog = log.child({ segmentIndex: i });
+        segmentResult = await postSingleSegment(
+          segment.message,
+          preparedPost.content.media || [],
+          freshAccount,
+          accountOptions,
+          overlay,
+          segmentLog,
+        );
+
+        if (segmentResult.success) {
+          const step = extractChainStep(platform, {
+            id: segmentResult.postId,
+            error: PostErrorType.NO_ERROR,
+            extraData: segmentResult.extraData,
+          });
+          if (step) {
+            if (step.postId) chain.parentPostId = step.postId;
+            if (step.bskyRef) {
+              chain.parentBskyRef = step.bskyRef;
+              if (i === 0) chain.rootBskyRef = step.bskyRef;
+            }
           }
         }
+      } finally {
+        await cleanup();
       }
-    } finally {
-      await cleanup();
+
+      segmentResults.push({
+        index: i,
+        success: segmentResult.success,
+        postId: segmentResult.postId,
+        postUrl: segmentResult.postUrl,
+        error: segmentResult.error,
+        message: segmentResult.message,
+        details: segmentResult.details,
+      });
+
+      if (i === 0) rootResult = segmentResult;
+      if (!segmentResult.success) break;
+
+      // Give the platform time to index the post before we reply to it.
+      // Threads in particular needs ~2 seconds before a reply_to_id lookup succeeds.
+      if (i < effectiveSegments.length - 1 && segmentResult.success) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
     }
-
-    segmentResults.push({
-      index: i,
-      success: segmentResult.success,
-      postId: segmentResult.postId,
-      postUrl: segmentResult.postUrl,
-      error: segmentResult.error,
-      message: segmentResult.message,
-      details: segmentResult.details,
-    });
-
-    if (i === 0) rootResult = segmentResult;
-    if (!segmentResult.success) break;
-
-    // Give the platform time to index the post before we reply to it.
-    // Threads in particular needs ~2 seconds before a reply_to_id lookup succeeds.
-    if (i < effectiveSegments.length - 1 && segmentResult.success) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-  }
+  });
 
   // Fill in skipped segments so the UI can show the correct X/Y total
   for (let i = segmentResults.length; i < effectiveSegments.length; i++) {
@@ -542,8 +560,31 @@ export async function postToAccounts(
       );
     });
 
-    // Refresh TikTok tokens if expired (access tokens expire after 24 hours)
-    const refreshedAccounts = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
+    // Refresh TikTok tokens if expired (access tokens expire after 24 hours).
+    // Accounts whose token is expired and could not be refreshed fail fast
+    // with an actionable message instead of attempting a doomed publish.
+    const refreshResults = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
+    const refreshFailures: PostingResult[] = refreshResults
+      .filter((result) => result.error)
+      .map((result) => ({
+        accountId: result.account.id,
+        platform: result.account.platform,
+        success: false,
+        error: "CREDENTIALS_ERROR",
+        message: result.error,
+      }));
+    const refreshedAccounts = refreshResults.filter((result) => !result.error).map((result) => result.account);
+
+    if (refreshFailures.length > 0) {
+      log.error(
+        { failedAccountIds: refreshFailures.map((failure) => failure.accountId) },
+        "Skipping accounts whose token refresh failed",
+      );
+    }
+
+    if (refreshedAccounts.length === 0) {
+      return refreshFailures;
+    }
 
     const hasOverrides = !!accountOverrides && Object.keys(accountOverrides).length > 0;
     const sharedThread = thread ?? [];
@@ -562,7 +603,7 @@ export async function postToAccounts(
       const successCount = results.filter((r) => r.success).length;
       const failureCount = results.filter((r) => !r.success).length;
       log.info({ successCount, failureCount, durationMs: Date.now() - startTime }, "Thread posting complete");
-      return results;
+      return [...refreshFailures, ...results];
     }
 
     if (!hasOverrides) {
@@ -633,7 +674,7 @@ export async function postToAccounts(
           }
         });
 
-        return results;
+        return [...refreshFailures, ...results];
       } finally {
         // Cleanup temporary files and S3 uploads
         log.debug("Cleaning up temporary media files");
@@ -701,7 +742,7 @@ export async function postToAccounts(
       }
     });
 
-    return results;
+    return [...refreshFailures, ...results];
   } catch (error) {
     const durationMs = Date.now() - startTime;
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");

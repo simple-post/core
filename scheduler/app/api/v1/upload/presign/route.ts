@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getPresignedUploadUrl, generateFileKey } from "@simple-post/sdk";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 import { z } from "zod";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
-import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-types";
 
 const presignRequestSchema = z.object({
   filename: z.string().min(1),

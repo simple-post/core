@@ -1,4 +1,4 @@
-import { OAuthAccountProvider, fetchJson, generatePkcePair, parseOAuthCallbackUrl, resolveOAuthCallbackUrl, resolveStoredAccountAlias } from "./oauth.js";
+import { OAuthAccountProvider, fetchJson, resolveOAuthCallbackUrl, resolveStoredAccountAlias } from "./oauth.js";
 
 import type { OAuthProviderDependencies } from "./oauth.js";
 import type { AuthProviderContext, OAuthLoginFlags } from "./provider.js";
@@ -14,7 +14,9 @@ interface XUserInfoResponse {
   };
 }
 
-async function fetchCurrentUser(accessToken: string): Promise<{ displayName?: string; userId: string; username: string }> {
+async function fetchCurrentUser(
+  accessToken: string,
+): Promise<{ displayName?: string; userId: string; username: string }> {
   const response = await fetchJson<XUserInfoResponse>(
     X_ME_URL,
     {
@@ -76,4 +78,4 @@ export class XAuthProvider extends OAuthAccountProvider {
   }
 }
 
-export { generatePkcePair, parseOAuthCallbackUrl };
+export { generatePkcePair, parseOAuthCallbackUrl } from "./oauth.js";

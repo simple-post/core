@@ -38,18 +38,26 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "account.js"],
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "account.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["account"]
+      "permutations": [
+        "account"
+      ]
     },
     "connect": {
       "aliases": [],
       "args": {},
       "description": "Connect the CLI to SimplePost to use its connected accounts.",
       "examples": [
-        "simple-post connect",
-        "simple-post connect --url http://localhost:3000",
-        "simple-post connect --token sp_cli_..."
+        "simplepost connect",
+        "simplepost connect --url http://localhost:3000",
+        "simplepost connect --token sp_cli_..."
       ],
       "flags": {
         "no-browser": {
@@ -83,9 +91,17 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "connect.js"],
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "connect.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["connect"]
+      "permutations": [
+        "connect"
+      ]
     },
     "disconnect": {
       "aliases": [],
@@ -101,9 +117,17 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "disconnect.js"],
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "disconnect.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["disconnect"]
+      "permutations": [
+        "disconnect"
+      ]
     },
     "post": {
       "aliases": [],
@@ -368,9 +392,17 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "post.js"],
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "post.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["post"]
+      "permutations": [
+        "post"
+      ]
     },
     "setup": {
       "aliases": [],
@@ -382,7 +414,11 @@
           "name": "backend",
           "hasDynamicHelp": false,
           "multiple": false,
-          "options": ["keychain", "file-plain", "file-encrypted"],
+          "options": [
+            "keychain",
+            "file-plain",
+            "file-encrypted"
+          ],
           "type": "option"
         }
       },
@@ -395,9 +431,105 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "setup.js"],
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "setup.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["setup"]
+      "permutations": [
+        "setup"
+      ]
+    },
+    "account:add": {
+      "aliases": [],
+      "args": {
+        "platform": {
+          "description": "Platform to connect",
+          "name": "platform",
+          "options": [
+            "x",
+            "youtube",
+            "facebook",
+            "instagram",
+            "tiktok",
+            "bluesky",
+            "threads",
+            "linkedin",
+            "pinterest",
+            "telegram"
+          ],
+          "required": false
+        }
+      },
+      "description": "Connect a new account.",
+      "flags": {
+        "alias": {
+          "description": "Alias to store for the connected account",
+          "name": "alias",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "bot-token": {
+          "description": "Telegram bot token (for non-interactive Telegram connect)",
+          "name": "bot-token",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "callback-url": {
+          "description": "Provide the final browser callback URL directly instead of waiting for the listener",
+          "name": "callback-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "chat-id": {
+          "description": "Telegram chat ID (for non-interactive Telegram connect)",
+          "name": "chat-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "no-browser": {
+          "description": "Do not try to open the browser automatically",
+          "name": "no-browser",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "redirect-uri": {
+          "description": "Loopback redirect URI to use for the OAuth callback",
+          "name": "redirect-uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "account:add",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "account",
+        "add.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "account:add",
+        "add:account"
+      ]
     },
     "account:remove": {
       "aliases": [],
@@ -419,9 +551,19 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "account", "remove.js"],
+      "relativePath": [
+        "dist",
+        "cli",
+        "src",
+        "commands",
+        "account",
+        "remove.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["account:remove", "remove:account"]
+      "permutations": [
+        "account:remove",
+        "remove:account"
+      ]
     }
   },
   "version": "0.1.0"

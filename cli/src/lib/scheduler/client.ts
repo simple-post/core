@@ -1,9 +1,9 @@
+import { fetchJson } from "../auth/oauth.js";
 import { getCliPaths, loadCliConfig, SCHEDULER_SECRET_REF } from "../config.js";
 import { createSecretStore } from "../secrets.js";
-import { fetchJson } from "../auth/oauth.js";
-import { PromptSession } from "../ux/prompt.js";
 
 import type { CliConfigV1, CliPaths } from "../types.js";
+import type { PromptSession } from "../ux/prompt.js";
 
 export interface SchedulerContext {
   schedulerUrl: string;
@@ -47,10 +47,7 @@ export interface RemotePostResponse {
   };
 }
 
-export async function getSchedulerContext(
-  configDir: string,
-  prompt: PromptSession,
-): Promise<SchedulerContext> {
+export async function getSchedulerContext(configDir: string, prompt: PromptSession): Promise<SchedulerContext> {
   const paths = getCliPaths(configDir);
   const config = await loadCliConfig(paths);
   return getSchedulerContextFromConfig(config, paths, prompt);
@@ -62,24 +59,18 @@ export async function getSchedulerContextFromConfig(
   prompt: PromptSession,
 ): Promise<SchedulerContext> {
   if (!config.scheduler) {
-    throw new Error(
-      'Not connected to a scheduler. Run "simplepost connect" first.',
-    );
+    throw new Error('Not connected to a scheduler. Run "simplepost connect" first.');
   }
 
   if (!config.storage) {
-    throw new Error(
-      'Secret storage is not configured. Run "simplepost setup" first.',
-    );
+    throw new Error('Secret storage is not configured. Run "simplepost setup" first.');
   }
 
   const secretStore = createSecretStore(paths, config.storage, prompt);
   const secret = await secretStore.read(SCHEDULER_SECRET_REF);
 
   if (!secret || typeof secret.token !== "string") {
-    throw new Error(
-      'Scheduler token not found. Run "simplepost connect" to reconnect.',
-    );
+    throw new Error('Scheduler token not found. Run "simplepost connect" to reconnect.');
   }
 
   return {
@@ -88,11 +79,7 @@ export async function getSchedulerContextFromConfig(
   };
 }
 
-export async function fetchSchedulerApi<T>(
-  ctx: SchedulerContext,
-  path: string,
-  options?: RequestInit,
-): Promise<T> {
+export async function fetchSchedulerApi<T>(ctx: SchedulerContext, path: string, options?: RequestInit): Promise<T> {
   const url = `${ctx.schedulerUrl}${path}`;
   return fetchJson<T>(
     url,
@@ -100,7 +87,7 @@ export async function fetchSchedulerApi<T>(
       ...options,
       headers: {
         Authorization: `Bearer ${ctx.token}`,
-        ...(options?.headers ?? {}),
+        ...options?.headers,
       },
     },
     "Scheduler API",

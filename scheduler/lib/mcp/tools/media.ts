@@ -1,8 +1,8 @@
 import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 import { z } from "zod";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
-import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-types";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 20_000;

@@ -14,6 +14,16 @@
       "types": "./dist/validation.d.ts",
       "import": "./dist/validation.js",
       "require": "./dist/validation.cjs"
+    },
+    "./media-types": {
+      "types": "./dist/media-types.d.ts",
+      "import": "./dist/media-types.js",
+      "require": "./dist/media-types.cjs"
+    },
+    "./platform-names": {
+      "types": "./dist/platform-names.d.ts",
+      "import": "./dist/platform-names.js",
+      "require": "./dist/platform-names.cjs"
     }
   },
   "main": "./dist/index.cjs",

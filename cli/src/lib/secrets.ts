@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import {
@@ -9,7 +9,6 @@ import {
   PLAIN_SECRETS_FILE_NAME,
   SECRET_FILE_SCHEMA_VERSION,
 } from "./constants.js";
-import { PromptSession } from "./ux/prompt.js";
 
 import type {
   CliPaths,
@@ -20,6 +19,7 @@ import type {
   SecretBackend,
   SecretPayload,
 } from "./types.js";
+import type { PromptSession } from "./ux/prompt.js";
 
 const scrypt = promisify(crypto.scrypt);
 const passwordCache = new Map<string, string>();
@@ -59,7 +59,22 @@ function normalizeSecretsFile(raw: unknown): PlainSecretsFile {
 }
 
 async function ensureDir(paths: CliPaths): Promise<void> {
-  await mkdir(paths.configDir, { recursive: true });
+  await mkdir(paths.configDir, { recursive: true, mode: 0o700 });
+}
+
+/**
+ * Writes a secrets file readable only by the owner. The mode on writeFile
+ * applies only when the file is created, so an explicit chmod tightens
+ * pre-existing files too (best-effort on platforms without POSIX modes).
+ */
+async function writeSecretsFile(filePath: string, contents: string): Promise<void> {
+  await writeFile(filePath, contents, { encoding: "utf8", mode: 0o600 });
+  try {
+    await chmod(filePath, 0o600);
+  } catch {
+    // Ignore chmod errors (e.g. unsupported filesystem); the file was still
+    // created with a restrictive mode above.
+  }
 }
 
 async function resolvePassword(
@@ -128,7 +143,7 @@ async function importKeytar(): Promise<KeytarModule> {
       typeof keytar.setPassword !== "function" ||
       typeof keytar.deletePassword !== "function"
     ) {
-      throw new Error("Invalid keytar module shape.");
+      throw new TypeError("Invalid keytar module shape.");
     }
 
     return keytar as KeytarModule;
@@ -177,7 +192,7 @@ class PlainFileSecretStore implements SecretStore {
       }
 
       if (error instanceof SyntaxError) {
-        throw new Error(`Failed to parse ${PLAIN_SECRETS_FILE_NAME}.`);
+        throw new TypeError(`Failed to parse ${PLAIN_SECRETS_FILE_NAME}.`);
       }
 
       throw error;
@@ -186,7 +201,7 @@ class PlainFileSecretStore implements SecretStore {
 
   private async save(secrets: PlainSecretsFile): Promise<void> {
     await ensureDir(this.paths);
-    await writeFile(this.paths.plainSecretsFile, `${JSON.stringify(secrets, null, 2)}\n`, "utf8");
+    await writeSecretsFile(this.paths.plainSecretsFile, `${JSON.stringify(secrets, null, 2)}\n`);
   }
 }
 
@@ -253,7 +268,7 @@ class EncryptedFileSecretStore implements SecretStore {
       }
 
       if (error instanceof SyntaxError) {
-        throw new Error(`Failed to parse ${ENCRYPTED_SECRETS_FILE_NAME}.`);
+        throw new TypeError(`Failed to parse ${ENCRYPTED_SECRETS_FILE_NAME}.`);
       }
 
       throw error;
@@ -264,7 +279,7 @@ class EncryptedFileSecretStore implements SecretStore {
     const password = await resolvePassword(this.storage, this.prompt, { confirmOnPrompt: options?.newFile });
     const encrypted = await encryptString(JSON.stringify(secrets), password);
     await ensureDir(this.paths);
-    await writeFile(this.paths.encryptedSecretsFile, `${JSON.stringify(encrypted, null, 2)}\n`, "utf8");
+    await writeSecretsFile(this.paths.encryptedSecretsFile, `${JSON.stringify(encrypted, null, 2)}\n`);
   }
 }
 

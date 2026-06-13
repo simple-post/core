@@ -1,18 +1,29 @@
 import { Prisma } from "@prisma/client";
 import { isThreadCapable } from "@simple-post/sdk";
+import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { createLogger } from "@/lib/logger";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
-import { mapPlatformName } from "@/lib/utils/platforms";
-import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@/types";
+import { refundXCreditsForAccountIds, refundXCreditsForFailedResults } from "@/lib/utils/x-credits";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
+import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 
 import type { ThreadSegment } from "@simple-post/sdk";
 
 const log = createLogger("scheduled-dispatcher");
 
 const MAX_POSTS_PER_RUN = 100;
+
+// A post stuck in "pending" longer than this is considered abandoned (the
+// process that claimed it crashed or was killed mid-publish) and is failed
+// out so the user sees an actionable error instead of a silently stuck post.
+// Must comfortably exceed the longest legitimate publish (large video uploads
+// can run several minutes per platform).
+const STALE_PENDING_MINUTES = 30;
+
 const DEFAULT_RATE_LIMIT: PlatformRateLimit = {
   maxPosts: 15,
   intervalMinutes: 1,
@@ -54,10 +65,12 @@ interface DispatchPostResult {
 
 interface DuePost {
   id: string;
+  userId: string;
   message: string;
   accountOptions: unknown;
   accountOverrides: unknown;
   thread: ThreadSegment[] | null;
+  accountResults: unknown;
   media: MediaFile[];
   accounts: Array<{
     id: string;
@@ -72,8 +85,79 @@ export interface DispatchDuePostsResult {
   publishedPosts: number;
   failedPosts: number;
   skippedPosts: number;
+  staleRecoveredPosts: number;
   platformSummary: DispatchPlatformSummary[];
   postResults: DispatchPostResult[];
+}
+
+/**
+ * Fails out posts stuck in "pending" (claimed by a dispatch run or an
+ * immediate-post request that died before recording a result). Without this
+ * sweep such posts are invisible to the dispatcher forever.
+ */
+async function recoverStalePendingPosts(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_PENDING_MINUTES * 60 * 1000);
+  const errorMessage = "Publishing was interrupted before completion. Reschedule the post to try again.";
+
+  const stalePosts = await prisma.post.findMany({
+    where: {
+      status: "pending",
+      updatedAt: { lt: cutoff },
+    },
+    select: { id: true, userId: true, message: true },
+  });
+
+  if (stalePosts.length === 0) {
+    return 0;
+  }
+
+  const { count } = await prisma.post.updateMany({
+    where: { id: { in: stalePosts.map((post) => post.id) }, status: "pending" },
+    data: {
+      status: "failed",
+      errorMessage,
+    },
+  });
+
+  log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending posts");
+
+  await Promise.all(
+    stalePosts.map((post) =>
+      dispatchPostWebhooks(post.userId, "post.failed", {
+        id: post.id,
+        status: "failed",
+        message: post.message,
+        errorMessage,
+      }),
+    ),
+  );
+
+  return count;
+}
+
+/**
+ * Atomically claims posts for this dispatch run by flipping them from
+ * "scheduled" to "pending". A post whose status already changed (claimed by a
+ * concurrent run, or edited by the user) is filtered out, which makes
+ * overlapping dispatch runs safe: each due post is published at most once.
+ */
+async function claimPosts(posts: DuePost[]): Promise<DuePost[]> {
+  const claimed: DuePost[] = [];
+
+  for (const post of posts) {
+    const { count } = await prisma.post.updateMany({
+      where: { id: post.id, status: "scheduled" },
+      data: { status: "pending" },
+    });
+
+    if (count === 1) {
+      claimed.push(post);
+    } else {
+      log.info({ postId: post.id }, "Post no longer claimable — skipping (claimed elsewhere or edited)");
+    }
+  }
+
+  return claimed;
 }
 
 function getRateLimit(platform: string): PlatformRateLimit {
@@ -99,10 +183,44 @@ async function getSentCountForPlatform(platform: string, intervalMinutes: number
 }
 
 async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> {
-  const accountIds = post.accounts.map((account) => account.id);
+  const previousResults = (post.accountResults as AccountResultsMap | null) ?? undefined;
+  const succeededAccountIds = getSucceededAccountIds(previousResults);
+
+  // A retried post (rescheduled after a partial failure) only publishes to
+  // the accounts that have no recorded success — never double-post.
+  const accountIds = post.accounts.map((account) => account.id).filter((id) => !succeededAccountIds.has(id));
+
+  if (succeededAccountIds.size > 0) {
+    log.info(
+      { postId: post.id, skippedAccounts: [...succeededAccountIds], remainingAccounts: accountIds },
+      "Skipping accounts that already published successfully",
+    );
+  }
+
+  if (accountIds.length === 0) {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        status: "published",
+        publishedAt: new Date(),
+        errorMessage: null,
+        errorDetails: Prisma.DbNull,
+      },
+    });
+    await dispatchPostWebhooks(post.userId, "post.published", {
+      id: post.id,
+      status: "published",
+      message: post.message,
+      publishedAt: new Date().toISOString(),
+      accountResults: previousResults,
+    });
+
+    return { postId: post.id, success: true, status: "published" };
+  }
 
   try {
     const postingResults = await postToAccounts(
+      post.userId,
       post.message,
       post.media,
       accountIds,
@@ -112,6 +230,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     );
 
     const summary = getPostingSummary(postingResults);
+    const accountResults = mergeAccountResults(previousResults, postingResults);
+    const sanitizedAccountResults = sanitizeForJson(accountResults) as Prisma.InputJsonValue;
 
     // Build accountId → ThreadSegmentResult[] map for accounts that posted as a thread.
     const threadResultsByAccount = postingResults.reduce<Record<string, unknown>>((acc, result) => {
@@ -128,10 +248,19 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           publishedAt: new Date(),
           errorMessage: null,
           errorDetails: Prisma.DbNull,
+          accountResults: sanitizedAccountResults,
           threadResults: hasThreadResults
             ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
             : Prisma.DbNull,
         },
+      });
+
+      await dispatchPostWebhooks(post.userId, "post.published", {
+        id: post.id,
+        status: "published",
+        message: post.message,
+        publishedAt: new Date().toISOString(),
+        accountResults,
       });
 
       return {
@@ -140,6 +269,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         status: "published",
       };
     }
+
+    await refundXCreditsForFailedResults(post.userId, postingResults);
 
     const failedResults = postingResults.filter((result) => !result.success);
     const errorMessage =
@@ -164,10 +295,19 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         status: "failed",
         errorMessage,
         errorDetails,
+        accountResults: sanitizedAccountResults,
         threadResults: hasThreadResults
           ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
           : Prisma.DbNull,
       },
+    });
+
+    await dispatchPostWebhooks(post.userId, "post.failed", {
+      id: post.id,
+      status: "failed",
+      message: post.message,
+      errorMessage,
+      accountResults,
     });
 
     return {
@@ -179,6 +319,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error while publishing scheduled post";
 
+    await refundXCreditsForAccountIds(post.userId, accountIds);
+
     await prisma.post.update({
       where: { id: post.id },
       data: {
@@ -189,6 +331,13 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           stack: error instanceof Error ? error.stack : undefined,
         }) as Prisma.InputJsonValue,
       },
+    });
+
+    await dispatchPostWebhooks(post.userId, "post.failed", {
+      id: post.id,
+      status: "failed",
+      message: post.message,
+      errorMessage,
     });
 
     return {
@@ -203,6 +352,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
 export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResult> {
   const startedAt = new Date();
   const now = new Date();
+
+  const staleRecoveredPosts = await recoverStalePendingPosts();
 
   const duePosts = (await prisma.post.findMany({
     where: {
@@ -234,6 +385,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       publishedPosts: 0,
       failedPosts: 0,
       skippedPosts: 0,
+      staleRecoveredPosts,
       platformSummary: [],
       postResults: [],
     };
@@ -294,7 +446,9 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     }
   }
 
-  const postResults = await Promise.all(postsToProcess.map((post) => publishScheduledPost(post)));
+  const claimedPosts = await claimPosts(postsToProcess);
+
+  const postResults = await Promise.all(claimedPosts.map((post) => publishScheduledPost(post)));
 
   const publishedPosts = postResults.filter((result) => result.status === "published").length;
   const failedPosts = postResults.filter((result) => result.status === "failed").length;
@@ -322,8 +476,9 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   log.info(
     {
       duePosts: duePosts.length,
-      processedPosts: postsToProcess.length,
-      skippedPosts: duePosts.length - postsToProcess.length,
+      processedPosts: claimedPosts.length,
+      skippedPosts: duePosts.length - claimedPosts.length,
+      staleRecoveredPosts,
       publishedPosts,
       failedPosts,
       platformSummary,
@@ -334,10 +489,11 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   return {
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
-    processedPosts: postsToProcess.length,
+    processedPosts: claimedPosts.length,
     publishedPosts,
     failedPosts,
-    skippedPosts: duePosts.length - postsToProcess.length,
+    skippedPosts: duePosts.length - claimedPosts.length,
+    staleRecoveredPosts,
     platformSummary,
     postResults,
   };

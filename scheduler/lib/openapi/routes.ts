@@ -20,6 +20,8 @@ import postsRoutes from "@/app/api/v1/posts/openapi";
 import uploadRoutes from "@/app/api/v1/upload/openapi";
 import uploadPresignRoutes from "@/app/api/v1/upload/presign/openapi";
 import validationRoutes from "@/app/api/v1/validation/openapi";
+import webhookRoute from "@/app/api/v1/webhooks/[id]/openapi";
+import webhooksRoutes from "@/app/api/v1/webhooks/openapi";
 import mcpRoutes from "@/app/mcp/openapi";
 
 import type { OpenApiRoute } from "./helpers";
@@ -47,5 +49,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   uploadRoutes,
   uploadPresignRoutes,
   validationRoutes,
+  webhooksRoutes,
+  webhookRoute,
   mcpRoutes,
 ];

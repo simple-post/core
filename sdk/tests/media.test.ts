@@ -176,8 +176,11 @@ describe("Media Utilities", () => {
       expect(mockedAxios.get).toHaveBeenCalledWith("https://example.com/video.mp4", {
         responseType: "stream",
         timeout: 120_000,
-        maxContentLength: Infinity,
+        maxContentLength: 500 * 1024 * 1024,
         maxBodyLength: Infinity,
+        maxRedirects: 5,
+        lookup: expect.any(Function),
+        beforeRedirect: expect.any(Function),
       });
       expect(result).toBe("/tmp/simplepost_mock-uuid-v7.mp4");
       expect(mockedFs.createWriteStream).toHaveBeenCalledWith("/tmp/simplepost_mock-uuid-v7.mp4");
@@ -354,6 +357,87 @@ describe("Media Utilities", () => {
       it("should reject link-local/cloud metadata IPs (169.254.x.x)", async () => {
         await expect(downloadToTempFile("http://169.254.169.254/latest/meta-data/")).rejects.toThrow(
           "Access to private/internal IP addresses is not allowed",
+        );
+      });
+
+      it("should reject decimal and hex IP literals (URL parsing canonicalizes them)", async () => {
+        // http://2130706433/ is 127.0.0.1; http://0xA000001/ is 10.0.0.1.
+        // The WHATWG URL parser canonicalizes these, so the string-level
+        // check catches them before any request is made.
+        await expect(downloadToTempFile("http://2130706433/image.jpg")).rejects.toThrow("is not allowed");
+        await expect(downloadToTempFile("http://0xA000001/image.jpg")).rejects.toThrow(
+          "Access to private/internal IP addresses is not allowed",
+        );
+      });
+
+      it("should reject hostnames that resolve to private addresses at lookup time", async () => {
+        // DNS-rebinding / public-name-to-internal-IP bypass: the URL string
+        // looks fine, but resolution returns a private address. The lookup
+        // passed to axios must reject it at connection time.
+        mockedAxios.get.mockImplementation(async (_url, config) => {
+          const lookup = (config as any).lookup as (
+            hostname: string,
+            options: object,
+            cb: (err: Error | null, addresses?: unknown) => void,
+          ) => void;
+
+          const dns = jest.requireActual("node:dns") as typeof import("node:dns");
+          const lookupSpy = jest.spyOn(dns, "lookup").mockImplementation(((
+            _hostname: string,
+            _options: unknown,
+            callback: (err: Error | null, addresses: unknown) => void,
+          ) => {
+            callback(null, [{ address: "169.254.169.254", family: 4 }]);
+          }) as any);
+
+          try {
+            await new Promise<void>((resolve, reject) => {
+              lookup("evil.example.com", {}, (error) => (error ? reject(error) : resolve()));
+            });
+          } finally {
+            lookupSpy.mockRestore();
+          }
+          return { data: createMockStreamData(), headers: {} };
+        });
+
+        await expect(downloadToTempFile("https://evil.example.com/image.jpg")).rejects.toThrow(
+          "Access to private/internal IP addresses is not allowed: evil.example.com -> 169.254.169.254",
+        );
+      });
+
+      it("should reject IPv4-mapped IPv6 literals pointing at private ranges", async () => {
+        await expect(downloadToTempFile("http://[::ffff:192.168.0.1]/image.jpg")).rejects.toThrow(
+          "Access to private/internal IP addresses is not allowed",
+        );
+        await expect(downloadToTempFile("http://[::ffff:7f00:1]/image.jpg")).rejects.toThrow(
+          "Access to private/internal IP addresses is not allowed",
+        );
+      });
+
+      it("should re-validate redirect targets", async () => {
+        mockedAxios.get.mockImplementation(async (_url, config) => {
+          // Simulate follow-redirects invoking beforeRedirect for a hop that
+          // bounces to the cloud metadata endpoint.
+          (config as any).beforeRedirect({ href: "http://169.254.169.254/latest/meta-data/" });
+          return { data: createMockStreamData(), headers: {} };
+        });
+
+        await expect(downloadToTempFile("https://example.com/image.jpg")).rejects.toThrow(
+          "Access to private/internal IP addresses is not allowed",
+        );
+      });
+
+      it("should reject downloads whose content-length exceeds the size cap", async () => {
+        const mockStream = createMockStreamData();
+        (mockStream as any).destroy = jest.fn();
+
+        mockedAxios.get.mockResolvedValue({
+          data: mockStream,
+          headers: { "content-length": String(501 * 1024 * 1024) },
+        });
+
+        await expect(downloadToTempFile("https://example.com/huge.mp4")).rejects.toThrow(
+          "exceeds the maximum download size",
         );
       });
 

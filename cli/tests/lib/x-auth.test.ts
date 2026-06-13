@@ -1,13 +1,19 @@
-import { createSecretStore } from "../../src/lib/secrets.js";
 import { getAccountPlatformConfig } from "../../src/lib/account/platforms.js";
+import {
+  XAuthProvider,
+  generatePkcePair,
+  parseOAuthCallbackUrl,
+  resolveXAlias,
+  resolveXCallbackUrl,
+} from "../../src/lib/auth/x.js";
 import { createEmptyCliConfig } from "../../src/lib/config.js";
-import { XAuthProvider, generatePkcePair, parseOAuthCallbackUrl, resolveXAlias, resolveXCallbackUrl } from "../../src/lib/auth/x.js";
+import { createSecretStore } from "../../src/lib/secrets.js";
 import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 
 describe("X auth helpers", () => {
   afterEach(() => {
     delete process.env.SIMPLE_POST_OAUTH_TIMEOUT_MS;
-    delete (global as any).fetch;
+    delete (globalThis as any).fetch;
   });
 
   it("generates a PKCE verifier and challenge", async () => {
@@ -79,11 +85,10 @@ describe("X auth helpers", () => {
     const provider = new XAuthProvider({
       createAccountSecretRef: () => "account-secret-id",
       createState: () => "state-1",
-      resolveCallbackUrl: async () =>
-        "http://127.0.0.1:5000/oauth/callback?code=provider-code&state=state-1",
+      resolveCallbackUrl: async () => "http://127.0.0.1:5000/oauth/callback?code=provider-code&state=state-1",
     });
 
-    (global as any).fetch = jest
+    (globalThis as any).fetch = jest
       .fn()
       .mockResolvedValueOnce(
         new Response(
@@ -138,7 +143,7 @@ describe("X auth helpers", () => {
       },
     });
 
-    const firstFetchCall = (global as any).fetch.mock.calls[0];
+    const firstFetchCall = (globalThis as any).fetch.mock.calls[0];
     expect(firstFetchCall[1].headers.Authorization).toBeUndefined();
     expect(firstFetchCall[1].body.get("client_id")).toBe(getAccountPlatformConfig("x").oauthApp!.clientId);
   });

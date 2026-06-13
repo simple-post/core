@@ -1,19 +1,10 @@
 import crypto from "node:crypto";
 
-import {
-  OAuthAccountProvider,
-  buildAuthorizationUrl,
-  fetchJson,
-  generatePkcePair,
-} from "./oauth.js";
+import { OAuthAccountProvider, buildAuthorizationUrl, fetchJson, generatePkcePair } from "./oauth.js";
 
-import type {
-  OAuthAuthorizationSession,
-  OAuthTokenSet,
-  ResolvedOAuthAppConfig,
-} from "./oauth.js";
-import type { AccountPlatform } from "../account/platforms.js";
+import type { OAuthAuthorizationSession, OAuthTokenSet, ResolvedOAuthAppConfig } from "./oauth.js";
 import type { AuthProviderContext, OAuthLoginFlags } from "./provider.js";
+import type { AccountPlatform } from "../account/platforms.js";
 
 interface FacebookPageRow {
   access_token?: string;

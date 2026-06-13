@@ -83,7 +83,25 @@ export interface SocialPost {
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
   threadResults?: Record<string, ThreadSegmentResult[]> | null;
+  accountResults?: AccountResultsMap | null;
+  idempotencyKey?: string | null;
 }
+
+// Outcome of publishing to a single connected account, persisted on the post
+// so that retries of partially failed posts can skip accounts that already
+// published successfully.
+export interface AccountPublishResult {
+  accountId: string;
+  platform: string;
+  success: boolean;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+  message?: string;
+  completedAt: string;
+}
+
+export type AccountResultsMap = Record<string, AccountPublishResult>;
 
 // Legacy shape kept for backward compatibility.
 export interface PlatformOptions {

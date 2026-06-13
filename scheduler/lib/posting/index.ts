@@ -2,10 +2,11 @@ import {
   buildReplyOverlay,
   extractChainStep,
   isThreadCapable,
+  MediaResolver,
   PostErrorType,
   post as sdkPost,
-  prepareMedia,
 } from "@simple-post/sdk";
+import { generatePostUrl, mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -14,16 +15,16 @@ import {
   encryptConnectedAccountSecrets,
 } from "@/lib/security/connected-account-secrets";
 import { sanitizeForJson } from "@/lib/utils/errors";
-import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
+import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
 import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
-import type { Post, Platform, Media, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
+import type { Post, Media, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
 import type { Logger } from "pino";
 
-interface PostingResult {
+export interface PostingResult {
   accountId: string;
   platform: string;
   success: boolean;
@@ -40,109 +41,6 @@ interface PostingResult {
       expiresAt?: number;
     };
   };
-}
-
-/**
- * Generates a post URL for a platform based on the post ID
- */
-function generatePostUrl(platform: string, postId: string, account?: ConnectedAccount): string | undefined {
-  postingLogger.debug({ platform, postId }, "Generating URL for platform");
-
-  const platformLower = platform.toLowerCase();
-
-  switch (platformLower) {
-    case "youtube": {
-      return `https://www.youtube.com/watch?v=${postId}`;
-    }
-    case "x":
-    case "twitter": {
-      // X/Twitter post URLs require username, but we can construct a basic URL
-      const username = account?.username || account?.platformAccountId || "";
-      return username ? `https://x.com/${username.replace("@", "")}/status/${postId}` : undefined;
-    }
-    case "facebook": {
-      // Facebook post URLs typically need page ID and post ID
-      const pageId = account?.platformAccountId || "";
-      return pageId ? `https://www.facebook.com/${pageId}/posts/${postId}` : undefined;
-    }
-    case "instagram": {
-      // Instagram public URLs require an opaque shortcode (e.g. `DX44yisCEr5`).
-      // The Graph API returns a numeric media id which is NOT usable in the
-      // /p/ URL — `instagram.com/p/{numericId}/` returns a 404. The publisher
-      // populates `result.url` with the proper permalink; if we end up here
-      // with a numeric id it means the permalink fetch failed and there's no
-      // working URL we can construct.
-      if (/^\d+$/.test(postId)) {
-        postingLogger.warn(
-          { platform, postId },
-          "Instagram permalink unavailable; cannot construct a public URL from numeric media id",
-        );
-        return undefined;
-      }
-      return `https://www.instagram.com/p/${postId}/`;
-    }
-    case "tiktok": {
-      // TikTok's Direct Post API returns a `publish_id` like
-      // `v_pub_file~v2-1.7635755340554061846` immediately; the real numeric
-      // video id (e.g. `7635755895103786273`) is only available after the
-      // publish-status poll completes. The publisher returns the public id
-      // when it can, but for unaudited apps the post is routed to the
-      // creator's inbox and no public id ever exists. We can never
-      // synthesize the video id from the publish_id (the numeric portion
-      // does not match), so fall back to the creator's profile URL when we
-      // only have a publish_id — the user can still navigate to their post
-      // from there.
-      const username = account?.username?.replace("@", "");
-      if (!/^\d+$/.test(postId)) {
-        postingLogger.warn(
-          { platform, postId },
-          "TikTok public video id unavailable (got publish_id); falling back to creator profile URL",
-        );
-        return username ? `https://www.tiktok.com/@${username}` : undefined;
-      }
-      return username ? `https://www.tiktok.com/@${username}/video/${postId}` : undefined;
-    }
-    case "telegram": {
-      // Telegram doesn't have public URLs for posts, but we can link to the channel
-      const chatId = account?.platformAccountId || "";
-      if (chatId.startsWith("@")) {
-        return `https://t.me/${chatId.replace("@", "")}/${postId}`;
-      }
-      return undefined;
-    }
-    case "bluesky": {
-      if (postId.startsWith("at://")) {
-        const parts = postId.split("/");
-        const recordKey = parts.at(-1);
-        if (!recordKey) return undefined;
-        const handleOrDid = account?.username || account?.platformAccountId || "";
-        return handleOrDid ? `https://bsky.app/profile/${handleOrDid.replace("@", "")}/post/${recordKey}` : undefined;
-      }
-      return undefined;
-    }
-    case "threads": {
-      const username = account?.username || "";
-      return username ? `https://www.threads.net/@${username.replace("@", "")}/post/${postId}` : undefined;
-    }
-    case "linkedin": {
-      // The LinkedIn `/ugcPosts` API returns URNs like
-      // `urn:li:ugcPost:7456790957989093376` (or `urn:li:share:...`).
-      // LinkedIn's `/feed/update/` URL accepts these URNs as-is and
-      // redirects to the actual post page — note that ugcPost and activity
-      // URNs have DIFFERENT numeric IDs for the same post, so we cannot
-      // synthesize an activity URN by swapping the prefix; we have to pass
-      // through whatever the API gave us. Colons must stay raw —
-      // percent-encoding them breaks LinkedIn's redirect.
-      return `https://www.linkedin.com/feed/update/${postId}`;
-    }
-    case "pinterest": {
-      return `https://www.pinterest.com/pin/${postId}/`;
-    }
-    default: {
-      postingLogger.warn({ platform }, "Unknown platform for URL generation");
-      return undefined;
-    }
-  }
 }
 
 function applyYouTubeDefaults(media: Media[], message: string, platform: string): Media[] {
@@ -270,7 +168,12 @@ async function postSingleSegment(
       // Prefer the canonical URL returned by the publisher (Instagram and
       // Threads provide a permalink that we can't construct from the id
       // alone). Fall back to building the URL from the post id otherwise.
-      const postUrl = result.url ?? generatePostUrl(platform, result.id, account);
+      const postUrl =
+        result.url ??
+        generatePostUrl(platform, result.id, {
+          username: account.username ?? undefined,
+          platformAccountId: account.platformAccountId ?? undefined,
+        });
       const durationMs = Date.now() - startTime;
       log.info(
         {
@@ -327,25 +230,6 @@ async function postSingleSegment(
   }
 }
 
-/**
- * Posts content to a single account using the SDK with pre-prepared media
- */
-async function postToAccountWithPreparedMedia(
-  message: string,
-  preparedMedia: Media[],
-  account: ConnectedAccount,
-  accountOptions?: AccountOptionsMap,
-): Promise<PostingResult> {
-  const log = postingLogger.child({
-    fn: "postToAccountWithPreparedMedia",
-    accountId: account.id,
-    platform: account.platform,
-  });
-
-  log.info({ messageLength: message.length, mediaCount: preparedMedia.length }, "Starting post to platform");
-  return postSingleSegment(message, preparedMedia, account, accountOptions, undefined, log);
-}
-
 interface AccountSegment {
   message: string;
   mediaFiles: MediaFile[];
@@ -354,6 +238,7 @@ interface AccountSegment {
 async function postSegmentsToAccount(
   segments: AccountSegment[],
   account: ConnectedAccount,
+  resolver: MediaResolver,
   accountOptions?: AccountOptionsMap,
 ): Promise<PostingResult> {
   const log = postingLogger.child({
@@ -375,22 +260,27 @@ async function postSegmentsToAccount(
   const segmentResults: ThreadSegmentResult[] = [];
   let rootResult: PostingResult | undefined;
 
-  for (const [i, segment] of effectiveSegments.entries()) {
-    const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
-    const tempPost: Post = {
-      content: { text: segment.message, media: media.length > 0 ? media : undefined },
-      platforms: [platform],
-    };
+  // Hold the account lock for the whole thread so segments of concurrent
+  // posts to the same account don't interleave and token refreshes (which
+  // rotate refresh tokens on X/TikTok) stay serialized. Credentials are
+  // reloaded inside the lock to pick up tokens persisted by a publish this
+  // one waited on.
+  await withAccountLock(account.id, async () => {
+    const freshAccount = await reloadAccountSecrets(account);
 
-    const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
-    let segmentResult: PostingResult;
-    try {
+    for (const [i, segment] of effectiveSegments.entries()) {
+      const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
+      // The resolver is shared across every account and segment of this
+      // postToAccounts call: downloads/uploads are cached by source, so the
+      // same media is fetched once no matter how many accounts post it.
+      const preparedMedia = media.length > 0 ? await resolver.resolve(media, [platform]) : [];
+
       const overlay = buildReplyOverlay(platform, chain);
       const segmentLog = log.child({ segmentIndex: i });
-      segmentResult = await postSingleSegment(
+      const segmentResult = await postSingleSegment(
         segment.message,
-        preparedPost.content.media || [],
-        account,
+        preparedMedia,
+        freshAccount,
         accountOptions,
         overlay,
         segmentLog,
@@ -410,29 +300,27 @@ async function postSegmentsToAccount(
           }
         }
       }
-    } finally {
-      await cleanup();
+
+      segmentResults.push({
+        index: i,
+        success: segmentResult.success,
+        postId: segmentResult.postId,
+        postUrl: segmentResult.postUrl,
+        error: segmentResult.error,
+        message: segmentResult.message,
+        details: segmentResult.details,
+      });
+
+      if (i === 0) rootResult = segmentResult;
+      if (!segmentResult.success) break;
+
+      // Give the platform time to index the post before we reply to it.
+      // Threads in particular needs ~2 seconds before a reply_to_id lookup succeeds.
+      if (i < effectiveSegments.length - 1 && segmentResult.success) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
     }
-
-    segmentResults.push({
-      index: i,
-      success: segmentResult.success,
-      postId: segmentResult.postId,
-      postUrl: segmentResult.postUrl,
-      error: segmentResult.error,
-      message: segmentResult.message,
-      details: segmentResult.details,
-    });
-
-    if (i === 0) rootResult = segmentResult;
-    if (!segmentResult.success) break;
-
-    // Give the platform time to index the post before we reply to it.
-    // Threads in particular needs ~2 seconds before a reply_to_id lookup succeeds.
-    if (i < effectiveSegments.length - 1 && segmentResult.success) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-  }
+  });
 
   // Fill in skipped segments so the UI can show the correct X/Y total
   for (let i = segmentResults.length; i < effectiveSegments.length; i++) {
@@ -491,9 +379,13 @@ function buildAccountSegments(
 }
 
 /**
- * Posts content to multiple accounts
+ * Posts content to multiple accounts. Accounts are always resolved scoped to
+ * `userId` — callers validate ownership at their API boundary, but the
+ * constraint is enforced here too so no future call site can post to another
+ * user's connected accounts.
  */
 export async function postToAccounts(
+  userId: string,
   message: string,
   mediaFiles: MediaFile[],
   accountIds: string[],
@@ -522,6 +414,7 @@ export async function postToAccounts(
         id: {
           in: accountIds,
         },
+        userId,
       },
     });
 
@@ -542,140 +435,56 @@ export async function postToAccounts(
       );
     });
 
-    // Refresh TikTok tokens if expired (access tokens expire after 24 hours)
-    const refreshedAccounts = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
+    // Refresh TikTok tokens if expired (access tokens expire after 24 hours).
+    // Accounts whose token is expired and could not be refreshed fail fast
+    // with an actionable message instead of attempting a doomed publish.
+    const refreshResults = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
+    const refreshFailures: PostingResult[] = refreshResults
+      .filter((result) => result.error)
+      .map((result) => ({
+        accountId: result.account.id,
+        platform: result.account.platform,
+        success: false,
+        error: "CREDENTIALS_ERROR",
+        message: result.error,
+      }));
+    const refreshedAccounts = refreshResults.filter((result) => !result.error).map((result) => result.account);
 
-    const hasOverrides = !!accountOverrides && Object.keys(accountOverrides).length > 0;
+    if (refreshFailures.length > 0) {
+      log.error(
+        { failedAccountIds: refreshFailures.map((failure) => failure.accountId) },
+        "Skipping accounts whose token refresh failed",
+      );
+    }
+
+    if (refreshedAccounts.length === 0) {
+      return refreshFailures;
+    }
+
     const sharedThread = thread ?? [];
-    const hasThread =
-      sharedThread.length > 0 || Object.values(accountOverrides ?? {}).some((o) => (o.thread ?? []).length > 0);
 
-    if (hasThread) {
-      log.debug("Posting via thread loop");
-      const results = await Promise.all(
+    // Every post is a list of segments per account (a plain post is a thread
+    // of length 1; overrides swap in per-account message/media/thread). One
+    // MediaResolver is shared across the whole call so identical media is
+    // downloaded/uploaded once regardless of account count.
+    const resolver = new MediaResolver();
+
+    let results: PostingResult[];
+    try {
+      results = await Promise.all(
         refreshedAccounts.map((account) => {
           const segments = buildAccountSegments(account.id, message, mediaFiles, sharedThread, accountOverrides);
-          return postSegmentsToAccount(segments, account, accountOptions);
+          return postSegmentsToAccount(segments, account, resolver, accountOptions);
         }),
       );
-
-      const successCount = results.filter((r) => r.success).length;
-      const failureCount = results.filter((r) => !r.success).length;
-      log.info({ successCount, failureCount, durationMs: Date.now() - startTime }, "Thread posting complete");
-      return results;
+    } finally {
+      log.debug("Cleaning up temporary media files");
+      await resolver.cleanup();
     }
-
-    if (!hasOverrides) {
-      // Convert media files to SDK format (simple mapping - SDK will handle resolution)
-      log.debug("Converting media files to SDK format");
-      const media: Media[] = mapMediaFilesToSdk(mediaFiles);
-      log.debug({ mediaItemCount: media.length }, "Media conversion complete");
-
-      // Get all unique platforms for efficient media resolution
-      const uniquePlatforms = [
-        ...new Set(refreshedAccounts.map((account) => mapPlatformName(account.platform))),
-      ] as Platform[];
-
-      log.debug({ uniquePlatforms }, "Unique platforms identified");
-
-      // Prepare media once for all platforms (downloads/uploads as needed)
-      log.debug("Preparing media for all platforms");
-      const tempPost: Post = {
-        content: {
-          text: message,
-          media: media.length > 0 ? media : undefined,
-        },
-        platforms: uniquePlatforms,
-        options: undefined, // Options are per-account, not needed for media resolution
-      };
-
-      const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
-      log.debug("Media preparation complete");
-
-      try {
-        // Post to all accounts in parallel using prepared media
-        log.debug("Posting to all accounts in parallel");
-        const preparedMedia = preparedPost.content.media || [];
-        const results = await Promise.all(
-          refreshedAccounts.map((account) =>
-            postToAccountWithPreparedMedia(message, preparedMedia, account, accountOptions),
-          ),
-        );
-
-        const successCount = results.filter((r) => r.success).length;
-        const failureCount = results.filter((r) => !r.success).length;
-        const durationMs = Date.now() - startTime;
-
-        log.info({ successCount, failureCount, durationMs }, "Posting complete");
-
-        // Log detailed results
-        results.forEach((result) => {
-          if (result.success) {
-            log.info(
-              {
-                platform: result.platform,
-                postId: result.postId,
-                postUrl: result.postUrl || null,
-                credentialsRefreshed: !!result.extraData?.refreshedCredentials,
-              },
-              "Platform post succeeded",
-            );
-          } else {
-            log.error(
-              {
-                platform: result.platform,
-                error: result.error,
-                message: result.message,
-                details: result.details,
-              },
-              "Platform post failed",
-            );
-          }
-        });
-
-        return results;
-      } finally {
-        // Cleanup temporary files and S3 uploads
-        log.debug("Cleaning up temporary media files");
-        await cleanup();
-      }
-    }
-
-    log.debug("Posting with account-specific overrides");
-
-    const results = await Promise.all(
-      refreshedAccounts.map(async (account) => {
-        const override = accountOverrides?.[account.id];
-        const accountMessage = override?.message ?? message;
-        const accountMediaFiles = override?.media ?? mediaFiles;
-        const media = mapMediaFilesToSdk(accountMediaFiles);
-        const platform = mapPlatformName(account.platform);
-
-        const tempPost: Post = {
-          content: {
-            text: accountMessage,
-            media: media.length > 0 ? media : undefined,
-          },
-          platforms: [platform],
-          options: undefined,
-        };
-
-        const { post: preparedPost, cleanup } = await prepareMedia(tempPost);
-
-        try {
-          const preparedMedia = preparedPost.content.media || [];
-          return await postToAccountWithPreparedMedia(accountMessage, preparedMedia, account, accountOptions);
-        } finally {
-          await cleanup();
-        }
-      }),
-    );
 
     const successCount = results.filter((r) => r.success).length;
     const failureCount = results.filter((r) => !r.success).length;
-    const durationMs = Date.now() - startTime;
-
-    log.info({ successCount, failureCount, durationMs }, "Posting complete");
+    log.info({ successCount, failureCount, durationMs: Date.now() - startTime }, "Posting complete");
 
     results.forEach((result) => {
       if (result.success) {
@@ -701,7 +510,7 @@ export async function postToAccounts(
       }
     });
 
-    return results;
+    return [...refreshFailures, ...results];
   } catch (error) {
     const durationMs = Date.now() - startTime;
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");

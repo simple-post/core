@@ -57,7 +57,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true, limit: "500mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use("/health", healthRoutes);
 app.use("/openapi.json", openApiRoutes);

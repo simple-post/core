@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
-import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@/lib/utils/media-types";
 
 // Maximum file size: 500MB
 const MAX_FILE_SIZE = 500 * 1024 * 1024;

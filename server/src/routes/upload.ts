@@ -1,24 +1,35 @@
+import fs from "node:fs/promises";
+
 import { Router } from "express";
 import multer from "multer";
 
 import { storeUpload } from "../services/uploads.js";
 import { BadRequestError, handleApiError } from "../utils/errors.js";
-import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "../utils/media-types.js";
+import { ensureUploadTmpDir } from "../utils/files.js";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 
 import type { Request, Response } from "express";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 
+// Stream uploads to disk: buffering up to 500 MB per request in memory
+// (memoryStorage) lets a handful of concurrent video uploads OOM the process.
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      ensureUploadTmpDir()
+        .then((dir) => callback(null, dir))
+        .catch((error: Error) => callback(error, ""));
+    },
+  }),
   limits: { fileSize: MAX_FILE_SIZE, files: 1 },
 });
 
 const router = Router();
 
 router.post("/", upload.single("file"), async (req: Request, res: Response): Promise<void> => {
+  const file = req.file;
   try {
-    const file = req.file;
     if (!file) {
       throw new BadRequestError("No file provided");
     }
@@ -29,7 +40,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response): Pro
     }
 
     const stored = await storeUpload({
-      buffer: file.buffer,
+      tempPath: file.path,
       originalName: file.originalname,
       mimeType: resolvedType,
       size: file.size,
@@ -37,6 +48,9 @@ router.post("/", upload.single("file"), async (req: Request, res: Response): Pro
 
     res.status(201).json(stored);
   } catch (error) {
+    if (file?.path) {
+      await fs.unlink(file.path).catch(() => {});
+    }
     handleApiError(error, res);
   }
 });

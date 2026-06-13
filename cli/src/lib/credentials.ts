@@ -1,9 +1,9 @@
-import type { Platform, Post, PostOptions } from "@simple-post/sdk";
-
 import { getAccountPlatformConfig, isAccountPlatform } from "./account/platforms.js";
+
+import type { AccountPlatform } from "./account/platforms.js";
 import type { SecretStore } from "./secrets.js";
 import type { CliConfigV1, OAuthAccountSecretPayload, ResolvedStoredAccount } from "./types.js";
-import type { AccountPlatform } from "./account/platforms.js";
+import type { Platform, Post, PostOptions } from "@simple-post/sdk";
 
 export type AccountSelections = Partial<Record<Platform, string[]>>;
 
@@ -39,9 +39,11 @@ function buildStoredAccountPostOptions(
   secret: OAuthAccountSecretPayload,
 ): PostOptions {
   switch (platform) {
-    case "x":
+    case "x": {
       if (!secret.refreshToken || typeof secret.expiresAt !== "number") {
-        throw new Error(`Stored X account "${metadata.alias}" is missing refresh token details. Reconnect the account.`);
+        throw new Error(
+          `Stored X account "${metadata.alias}" is missing refresh token details. Reconnect the account.`,
+        );
       }
 
       return {
@@ -54,6 +56,7 @@ function buildStoredAccountPostOptions(
           },
         },
       };
+    }
     case "youtube": {
       const nowSec = Math.floor(Date.now() / 1000);
       const clientId = getStoredClientId("youtube", secret);
@@ -61,7 +64,8 @@ function buildStoredAccountPostOptions(
         getAccountPlatformConfig("youtube").oauthApp?.clientSecret ??
         process.env.YOUTUBE_CLIENT_SECRET ??
         process.env.GOOGLE_CLIENT_SECRET;
-      const accessTokenValid = typeof secret.expiresAt === "number" ? secret.expiresAt > nowSec + YOUTUBE_TOKEN_BUFFER_SEC : true;
+      const accessTokenValid =
+        typeof secret.expiresAt === "number" ? secret.expiresAt > nowSec + YOUTUBE_TOKEN_BUFFER_SEC : true;
 
       if (accessTokenValid) {
         return {
@@ -93,7 +97,7 @@ function buildStoredAccountPostOptions(
         },
       };
     }
-    case "facebook":
+    case "facebook": {
       return {
         facebook: {
           credentials: {
@@ -102,6 +106,7 @@ function buildStoredAccountPostOptions(
           },
         },
       };
+    }
     case "instagram": {
       const graphApi =
         secret.tokenMetadata?.graphApi === "facebook" || secret.tokenMetadata?.graphApi === "instagram"
@@ -118,7 +123,7 @@ function buildStoredAccountPostOptions(
         },
       };
     }
-    case "tiktok":
+    case "tiktok": {
       return {
         tiktok: {
           credentials: {
@@ -126,6 +131,7 @@ function buildStoredAccountPostOptions(
           },
         },
       };
+    }
     case "bluesky": {
       const tokenMetadata = secret.tokenMetadata ?? {};
       const pdsUrl = typeof tokenMetadata.pdsUrl === "string" ? tokenMetadata.pdsUrl : undefined;
@@ -153,7 +159,7 @@ function buildStoredAccountPostOptions(
         },
       };
     }
-    case "threads":
+    case "threads": {
       return {
         threads: {
           credentials: {
@@ -162,7 +168,8 @@ function buildStoredAccountPostOptions(
           },
         },
       };
-    case "linkedin":
+    }
+    case "linkedin": {
       return {
         linkedin: {
           credentials: {
@@ -171,7 +178,8 @@ function buildStoredAccountPostOptions(
           },
         },
       };
-    case "pinterest":
+    }
+    case "pinterest": {
       return {
         pinterest: {
           boardId: (metadata.settings?.boardId as string) ?? "",
@@ -180,7 +188,8 @@ function buildStoredAccountPostOptions(
           },
         },
       };
-    case "telegram":
+    }
+    case "telegram": {
       return {
         telegram: {
           chatId: metadata.userId,
@@ -189,6 +198,7 @@ function buildStoredAccountPostOptions(
           },
         },
       };
+    }
   }
 
   throw new Error(`Stored account resolution is not implemented for ${platform}.`);
@@ -221,7 +231,9 @@ export function parseAccountSelections(rawValues?: string[]): AccountSelections 
 }
 
 export function hasLegacyXEnvCredentials(): boolean {
-  return Boolean(process.env.X_API_KEY && process.env.X_API_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_SECRET);
+  return Boolean(
+    process.env.X_API_KEY && process.env.X_API_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_SECRET,
+  );
 }
 
 export class CredentialResolver {
@@ -237,7 +249,9 @@ export class CredentialResolver {
 
     const account = this.cliConfig[platform].accounts.find((candidate) => candidate.alias === alias);
     if (!account) {
-      throw new Error(`No stored ${getAccountPlatformConfig(platform).displayName} account named "${alias}" was found. Run "simplepost account ${platform}" to inspect accounts.`);
+      throw new Error(
+        `No stored ${getAccountPlatformConfig(platform).displayName} account named "${alias}" was found. Run "simplepost account ${platform}" to inspect accounts.`,
+      );
     }
 
     const accountSecret = parseOAuthAccountSecret(await this.secretStore.read(account.secretRef), platform);
@@ -252,7 +266,9 @@ export class CredentialResolver {
 
   public injectResolvedAccount(post: Post, account: ResolvedStoredAccount): Post {
     if (!post.platforms.includes(account.platform)) {
-      throw new Error(`Received --account ${account.platform}:${account.alias}, but the post does not target platform "${account.platform}".`);
+      throw new Error(
+        `Received --account ${account.platform}:${account.alias}, but the post does not target platform "${account.platform}".`,
+      );
     }
 
     const options: PostOptions = {

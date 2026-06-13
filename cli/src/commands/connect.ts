@@ -3,10 +3,10 @@ import http from "node:http";
 
 import { Command, Flags } from "@oclif/core";
 
-import { getCliPaths, loadCliConfig, saveCliConfig, SCHEDULER_SECRET_REF } from "../lib/config.js";
-import { configureStorage } from "../lib/setup-storage.js";
-import { createSecretStore } from "../lib/secrets.js";
 import { fetchJson } from "../lib/auth/oauth.js";
+import { getCliPaths, loadCliConfig, saveCliConfig, SCHEDULER_SECRET_REF } from "../lib/config.js";
+import { createSecretStore } from "../lib/secrets.js";
+import { configureStorage } from "../lib/setup-storage.js";
 import { openExternalUrl } from "../lib/ux/browser.js";
 import { PromptSession } from "../lib/ux/prompt.js";
 
@@ -121,14 +121,14 @@ export default class ConnectCommand extends Command {
     prompt.log(authUrl);
     prompt.log("");
 
-    if (!noBrowser) {
+    if (noBrowser) {
+      prompt.log("Open the URL above in your browser.");
+    } else {
       try {
         await openExternalUrl(authUrl);
       } catch {
         prompt.log("Could not open the browser automatically. Open the URL above manually.");
       }
-    } else {
-      prompt.log("Open the URL above in your browser.");
     }
 
     prompt.log("Waiting for authorization...");
@@ -194,7 +194,7 @@ export default class ConnectCommand extends Command {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
-          server.close(() => undefined);
+          server.close(() => {});
           resolve(requestUrl.toString());
         }
       });
@@ -202,7 +202,7 @@ export default class ConnectCommand extends Command {
       const timer = setTimeout(() => {
         if (!settled) {
           settled = true;
-          server.close(() => undefined);
+          server.close(() => {});
           reject(new Error("Authorization timed out. Please try again."));
         }
       }, CALLBACK_TIMEOUT_MS);
@@ -211,7 +211,7 @@ export default class ConnectCommand extends Command {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        server.close(() => undefined);
+        server.close(() => {});
         if (error.code === "EADDRINUSE") {
           reject(new Error(`Port ${port} is already in use. Free that port and try again.`));
         } else {
@@ -219,7 +219,7 @@ export default class ConnectCommand extends Command {
         }
       });
 
-      server.listen(port, host, () => undefined);
+      server.listen(port, host, () => {});
     });
   }
 

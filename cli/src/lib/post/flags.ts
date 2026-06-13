@@ -9,7 +9,8 @@ export const postFlags = {
   }),
   account: Flags.string({
     multiple: true,
-    description: "Stored account selection in the form <platform>:<alias>. Repeat to post through multiple connected accounts.",
+    description:
+      "Stored account selection in the form <platform>:<alias>. Repeat to post through multiple connected accounts.",
     helpGroup: "Targets",
   }),
   text: Flags.string({

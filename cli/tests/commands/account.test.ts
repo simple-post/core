@@ -105,10 +105,10 @@ describe("account commands", () => {
       });
     });
 
-    expect(allAccountsStdout).toContain("Platform");
+    expect(allAccountsStdout).toContain("Service");
     expect(allAccountsStdout).toContain("X");
-    expect(allAccountsStdout).toContain("main");
-    expect(xAccountsStdout).toContain("Alias");
+    expect(allAccountsStdout).toContain("@alice");
+    expect(xAccountsStdout).toContain("Account");
     expect(xAccountsStdout).toContain("@alice");
 
     await new Promise<void>((resolve, reject) => {

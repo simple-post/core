@@ -1,9 +1,10 @@
 import { getAccountPlatformConfig, getAccountPlatformValues, isAccountPlatform } from "./platforms.js";
+
 import { stdoutColors } from "../ux/colors.js";
 
 import type { AccountPlatform } from "./platforms.js";
-import type { CliConfigV1, StoredAccount } from "../types.js";
 import type { RemoteAccount } from "../scheduler/client.js";
+import type { CliConfigV1, StoredAccount } from "../types.js";
 
 export type AccountSource = "local" | "app";
 
@@ -33,7 +34,10 @@ function formatDate(value: string): string {
 function renderRow(row: string[], widths: number[], rawWidths?: number[]): string {
   // rawWidths lets us pad by visual width when cells contain ANSI codes
   const w = rawWidths ?? widths;
-  return row.map((cell, index) => cell + " ".repeat(Math.max(0, w[index] - widths[index]))).join("  ").trimEnd();
+  return row
+    .map((cell, index) => cell + " ".repeat(Math.max(0, w[index] - widths[index])))
+    .join("  ")
+    .trimEnd();
 }
 
 function renderTable(header: string[], rows: string[][]): string {
@@ -104,9 +108,7 @@ export function parseAccountPlatform(value?: string): AccountPlatform | undefine
   }
 
   if (!isAccountPlatform(value)) {
-    throw new Error(
-      `Unsupported platform "${value}". Supported platforms: ${getAccountPlatformValuesForMessage()}.`,
-    );
+    throw new Error(`Unsupported platform "${value}". Supported platforms: ${getAccountPlatformValuesForMessage()}.`);
   }
 
   return value;
@@ -125,8 +127,12 @@ export function renderUnifiedAccounts(accounts: UnifiedAccountRecord[]): string 
   const rows = accounts.map((account) => {
     const service = getAccountPlatformConfig(account.platform).displayName;
     const accountLabel = isAppAccount(account)
-      ? (account.username ? `@${account.username}` : (account.displayName ?? "-"))
-      : (account.username ? `@${account.username}` : account.alias);
+      ? account.username
+        ? `@${account.username}`
+        : (account.displayName ?? "-")
+      : account.username
+        ? `@${account.username}`
+        : account.alias;
     return [service, accountLabel] as const;
   });
 
@@ -176,7 +182,7 @@ export function findStoredAccount(config: CliConfigV1, selector: string): Stored
   }
 
   const separatorIndex = trimmed.indexOf(":");
-  if (separatorIndex >= 0) {
+  if (separatorIndex !== -1) {
     const platformPart = trimmed.slice(0, separatorIndex).trim();
     const alias = trimmed.slice(separatorIndex + 1).trim();
     if (!platformPart || !alias) {
@@ -189,7 +195,9 @@ export function findStoredAccount(config: CliConfigV1, selector: string): Stored
 
     const exactMatch = getStoredAccounts(config, platform).find((account) => account.alias === alias);
     if (!exactMatch) {
-      throw new Error(`No stored ${getAccountPlatformConfig(platform).displayName} account named "${alias}" was found.`);
+      throw new Error(
+        `No stored ${getAccountPlatformConfig(platform).displayName} account named "${alias}" was found.`,
+      );
     }
 
     return exactMatch;

@@ -7,7 +7,9 @@ interface LinkedInProfileResponse {
   sub?: string;
 }
 
-async function fetchLinkedInUser(accessToken: string): Promise<{ displayName?: string; userId: string; username?: string }> {
+async function fetchLinkedInUser(
+  accessToken: string,
+): Promise<{ displayName?: string; userId: string; username?: string }> {
   const response = await fetchJson<LinkedInProfileResponse>(
     "https://api.linkedin.com/v2/userinfo",
     {

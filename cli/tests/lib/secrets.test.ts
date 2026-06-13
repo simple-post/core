@@ -17,11 +17,7 @@ describe("secret stores", () => {
       secret: jest.fn(),
     } as any;
 
-    const store = createSecretStore(
-      paths,
-      { backend: "file-encrypted" },
-      prompt,
-    );
+    const store = createSecretStore(paths, { backend: "file-encrypted" }, prompt);
 
     await store.write("secret-1", { value: "hello" });
     await expect(store.read("secret-1")).resolves.toEqual({ value: "hello" });
@@ -36,11 +32,7 @@ describe("secret stores", () => {
       secret: jest.fn().mockResolvedValue("typed-password"),
     } as any;
 
-    const store = createSecretStore(
-      paths,
-      { backend: "file-encrypted" },
-      prompt,
-    );
+    const store = createSecretStore(paths, { backend: "file-encrypted" }, prompt);
 
     await store.write("secret-1", { value: "hello" });
     expect(prompt.secret).toHaveBeenCalled();
@@ -59,11 +51,7 @@ describe("secret stores", () => {
     } as any;
 
     process.env.SIMPLE_POST_CONFIG_PASSWORD = "password-one";
-    const store = createSecretStore(
-      paths,
-      { backend: "file-encrypted" },
-      prompt,
-    );
+    const store = createSecretStore(paths, { backend: "file-encrypted" }, prompt);
 
     await store.write("secret-1", { value: "hello" });
     clearSecretPasswordCache();

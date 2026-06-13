@@ -28,6 +28,16 @@ export async function ensureStorageDir(): Promise<string> {
   return storageDir;
 }
 
+/**
+ * Directory for in-flight multipart uploads. Lives inside the storage dir so
+ * finalizing an upload is an atomic same-filesystem rename instead of a copy.
+ */
+export async function ensureUploadTmpDir(): Promise<string> {
+  const tmpDir = path.join(getStorageDir(), "tmp");
+  await fs.mkdir(tmpDir, { recursive: true });
+  return tmpDir;
+}
+
 export function sanitizeFilename(filename: string): string | null {
   const trimmed = filename.trim();
   if (!trimmed) return null;

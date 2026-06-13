@@ -1,12 +1,12 @@
 import crypto from "node:crypto";
 
-import { fetchJson } from "./oauth.js";
-import { resolveStoredAccountAlias } from "./oauth.js";
+import { fetchJson, resolveStoredAccountAlias } from "./oauth.js";
+
 import { getAccountPlatformConfig } from "../account/platforms.js";
 
 import type { AuthProvider, AuthProviderContext } from "./provider.js";
-import type { CliConfigV1, OAuthAccountSecretPayload } from "../types.js";
 import type { AccountPlatform } from "../account/platforms.js";
+import type { CliConfigV1, OAuthAccountSecretPayload } from "../types.js";
 
 interface TelegramBotInfo {
   ok: boolean;
@@ -68,15 +68,13 @@ export class TelegramAuthProvider implements AuthProvider<TelegramLoginFlags> {
   public async login(flags: TelegramLoginFlags, context: AuthProviderContext): Promise<CliConfigV1> {
     const { config, prompt, secretStore } = context;
 
-    const botToken =
-      flags.botToken?.trim() ??
-      (prompt.interactive ? await prompt.secret("Bot token") : undefined);
+    const botToken = flags.botToken?.trim() ?? (prompt.interactive ? await prompt.secret("Bot token") : undefined);
     const chatId =
       flags.chatId?.trim() ??
       (prompt.interactive ? await prompt.text("Chat ID (numeric ID or @channel)", { required: true }) : undefined);
 
     if (!botToken || !chatId) {
-      throw new Error('Bot token and chat ID are required. Use --bot-token and --chat-id in non-interactive mode.');
+      throw new Error("Bot token and chat ID are required. Use --bot-token and --chat-id in non-interactive mode.");
     }
 
     const { numericChatId, chatTitle, chatUsername } = await validateTelegramCredentials(botToken, chatId);
@@ -92,8 +90,7 @@ export class TelegramAuthProvider implements AuthProvider<TelegramLoginFlags> {
 
     const existingAccount = config.telegram.accounts.find((account) => account.userId === numericChatId);
     const now = new Date().toISOString();
-    const secretRef =
-      existingAccount?.secretRef ?? `telegram-account-${crypto.randomUUID()}`;
+    const secretRef = existingAccount?.secretRef ?? `telegram-account-${crypto.randomUUID()}`;
 
     const updatedAccounts = config.telegram.accounts.filter((account) => account.userId !== numericChatId);
     updatedAccounts.push({

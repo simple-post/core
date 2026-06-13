@@ -9,10 +9,12 @@ describe("collectPostInput interactive mode", () => {
       multiSelect: jest.fn().mockResolvedValue(["account:x:main"]),
       text: jest.fn(async (message: string) => {
         switch (message) {
-          case "Post text (optional)":
+          case "Post text (optional)": {
             return "Hello world";
-          default:
+          }
+          default: {
             return "";
+          }
         }
       }),
     } as any;
@@ -28,6 +30,7 @@ describe("collectPostInput interactive mode", () => {
             alias: "main",
             displayName: "Alice",
             platform: "x",
+            source: "local",
             username: "alice",
           },
         ],

@@ -3,6 +3,7 @@
 import type React from "react";
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 
+import { normalizeContentType } from "@simple-post/sdk/media-types";
 import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,18 +30,6 @@ export interface MediaUploadHandle {
   processFiles: (files: FileList | File[]) => Promise<void>;
 }
 
-const EXTENSION_TO_TYPE: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  mp4: "video/mp4",
-  m4v: "video/mp4",
-  mov: "video/quicktime",
-  webm: "video/webm",
-};
-
 const IMAGE_TYPE_TO_EXTENSION: Record<string, string> = {
   "image/gif": "gif",
   "image/jpeg": "jpg",
@@ -48,29 +37,17 @@ const IMAGE_TYPE_TO_EXTENSION: Record<string, string> = {
   "image/webp": "webp",
 };
 
-const normalizeContentType = (contentType: string) => {
-  if (contentType === "image/jpg") {
-    return "image/jpeg";
-  }
-  return contentType;
-};
+const resolveContentType = (file: File) => normalizeContentType(file.type || "", file.name);
 
-const resolveContentType = (file: File) => {
-  const normalized = normalizeContentType(file.type || "");
-  if (normalized) {
-    return normalized;
-  }
-
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  return EXTENSION_TO_TYPE[ext];
-};
+// Like normalizeContentType, but always yields a string for startsWith checks.
+const contentTypeOf = (type: string, name = "") => normalizeContentType(type, name) ?? "";
 
 const withClipboardImageName = (file: File, index: number) => {
   if (file.name) {
     return file;
   }
 
-  const contentType = normalizeContentType(file.type || "image/png");
+  const contentType = contentTypeOf(file.type || "image/png", file.name) || "image/png";
   const extension = IMAGE_TYPE_TO_EXTENSION[contentType] ?? "png";
 
   return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, {
@@ -109,7 +86,7 @@ async function getVideoDurationSec(file: File, contentType: string): Promise<num
 
 export function getClipboardImageFiles(clipboardData: DataTransfer): File[] {
   const itemFiles = [...clipboardData.items]
-    .filter((item) => item.kind === "file" && normalizeContentType(item.type).startsWith("image/"))
+    .filter((item) => item.kind === "file" && contentTypeOf(item.type).startsWith("image/"))
     .map((item, index) => {
       const file = item.getAsFile();
       return file ? withClipboardImageName(file, index) : null;
@@ -121,7 +98,7 @@ export function getClipboardImageFiles(clipboardData: DataTransfer): File[] {
   }
 
   return [...clipboardData.files]
-    .filter((file) => normalizeContentType(file.type).startsWith("image/"))
+    .filter((file) => contentTypeOf(file.type, file.name).startsWith("image/"))
     .map((file, index) => withClipboardImageName(file, index));
 }
 

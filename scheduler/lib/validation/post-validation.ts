@@ -1,7 +1,7 @@
+import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "@simple-post/sdk/validation";
 
 import { getPlatformById } from "@/lib/config";
-import { mapPlatformName } from "@/lib/utils/platforms";
 import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type {

@@ -7,7 +7,9 @@ interface PinterestUserAccountResponse {
   business_name?: string;
 }
 
-async function fetchPinterestUser(accessToken: string): Promise<{ displayName?: string; userId: string; username?: string }> {
+async function fetchPinterestUser(
+  accessToken: string,
+): Promise<{ displayName?: string; userId: string; username?: string }> {
   const response = await fetchJson<PinterestUserAccountResponse>(
     "https://api.pinterest.com/v5/user_account",
     {

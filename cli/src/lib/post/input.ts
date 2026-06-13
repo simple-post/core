@@ -3,11 +3,11 @@ import { access, readFile } from "node:fs/promises";
 import { PlatformSchema, PostSchema } from "@simple-post/sdk";
 
 import { parseAccountSelections } from "../credentials.js";
-import { PromptSession } from "../ux/prompt.js";
 
-import type { AccountSelections } from "../credentials.js";
-import type { Platform, Post, PostOptions } from "@simple-post/sdk";
 import type { AccountPlatform } from "../account/platforms.js";
+import type { AccountSelections } from "../credentials.js";
+import type { PromptSession } from "../ux/prompt.js";
+import type { Platform, Post, PostOptions } from "@simple-post/sdk";
 
 interface InteractiveAccount {
   alias: string;
@@ -98,12 +98,12 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
   if (flags["log-level"] || strictMode !== undefined) {
     options.common = {
       ...(flags["log-level"] ? { logLevel: flags["log-level"] as NonNullable<PostOptions["common"]>["logLevel"] } : {}),
-      ...(strictMode !== undefined ? { strictMode } : {}),
+      ...(strictMode === undefined ? {} : { strictMode }),
     };
   }
 
   if (flags["x-reply-to-id"]) {
-    options.x = { ...(options.x ?? {}), replyToId: flags["x-reply-to-id"] };
+    options.x = { ...options.x, replyToId: flags["x-reply-to-id"] };
   }
 
   if (flags["telegram-chat-id"] || flags["telegram-parse-mode"]) {
@@ -115,7 +115,10 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
     };
   }
 
-  const youtubeTags = flags["youtube-tags"]?.split(",").map((tag) => tag.trim()).filter(Boolean);
+  const youtubeTags = flags["youtube-tags"]
+    ?.split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
   if (
     youtubeTags?.length ||
     flags["youtube-category-id"] ||
@@ -128,9 +131,9 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(youtubeTags?.length ? { tags: youtubeTags } : {}),
       ...(flags["youtube-category-id"] ? { categoryId: flags["youtube-category-id"] } : {}),
       ...(flags["youtube-playlist-id"] ? { playlistId: flags["youtube-playlist-id"] } : {}),
-      ...(flags["youtube-made-for-kids"] !== undefined
-        ? { selfDeclaredMadeForKids: parseBoolean(flags["youtube-made-for-kids"], "--youtube-made-for-kids") }
-        : {}),
+      ...(flags["youtube-made-for-kids"] === undefined
+        ? {}
+        : { selfDeclaredMadeForKids: parseBoolean(flags["youtube-made-for-kids"], "--youtube-made-for-kids") }),
       ...(flags["youtube-publish-at"] ? { publishAt: flags["youtube-publish-at"] } : {}),
       ...(flags["youtube-privacy-status"]
         ? {
@@ -158,15 +161,15 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["tiktok-visibility"]
         ? { visibility: flags["tiktok-visibility"] as NonNullable<PostOptions["tiktok"]>["visibility"] }
         : {}),
-      ...(flags["tiktok-allow-comment"] !== undefined
-        ? { allowComment: parseBoolean(flags["tiktok-allow-comment"], "--tiktok-allow-comment") }
-        : {}),
-      ...(flags["tiktok-allow-duet"] !== undefined
-        ? { allowDuet: parseBoolean(flags["tiktok-allow-duet"], "--tiktok-allow-duet") }
-        : {}),
-      ...(flags["tiktok-allow-stitch"] !== undefined
-        ? { allowStitch: parseBoolean(flags["tiktok-allow-stitch"], "--tiktok-allow-stitch") }
-        : {}),
+      ...(flags["tiktok-allow-comment"] === undefined
+        ? {}
+        : { allowComment: parseBoolean(flags["tiktok-allow-comment"], "--tiktok-allow-comment") }),
+      ...(flags["tiktok-allow-duet"] === undefined
+        ? {}
+        : { allowDuet: parseBoolean(flags["tiktok-allow-duet"], "--tiktok-allow-duet") }),
+      ...(flags["tiktok-allow-stitch"] === undefined
+        ? {}
+        : { allowStitch: parseBoolean(flags["tiktok-allow-stitch"], "--tiktok-allow-stitch") }),
     };
   }
 
@@ -474,7 +477,7 @@ async function collectInteractivePlatformOptions(
     ).trim();
     if (replyToId) {
       options.x = {
-        ...(options.x ?? {}),
+        ...options.x,
         replyToId,
       };
     }
@@ -489,11 +492,7 @@ async function collectInteractivePlatformOptions(
         storedChatIds.length === 1
           ? `${storedChatIds[0].alias} (${storedChatIds[0].chatId})`
           : storedChatIds.map((c) => `${c.alias} (${c.chatId})`).join(", ");
-      logInteractiveSection(
-        prompt,
-        "Telegram",
-        `Post to connected chat(s): ${chatLabel}`,
-      );
+      logInteractiveSection(prompt, "Telegram", `Post to connected chat(s): ${chatLabel}`);
       const useStoredChat = await prompt.confirm("Use the connected chat(s) for this post?", true);
       if (!useStoredChat) {
         const chatId = (
@@ -517,15 +516,20 @@ async function collectInteractivePlatformOptions(
 
     let parseMode: NonNullable<PostOptions["telegram"]>["parseMode"] | undefined;
     if (await prompt.confirm("Set a parse mode?", false)) {
-      parseMode = await prompt.select<Exclude<NonNullable<PostOptions["telegram"]>["parseMode"], undefined>>("Parse mode", [
-        { label: "HTML", value: "HTML" },
-        { label: "Markdown", value: "Markdown" },
-        { label: "MarkdownV2", value: "MarkdownV2" },
-      ], currentOptions?.telegram?.parseMode);
+      parseMode = await prompt.select<Exclude<NonNullable<PostOptions["telegram"]>["parseMode"], undefined>>(
+        "Parse mode",
+        [
+          { label: "HTML", value: "HTML" },
+          { label: "Markdown", value: "Markdown" },
+          { label: "MarkdownV2", value: "MarkdownV2" },
+        ],
+        currentOptions?.telegram?.parseMode,
+      );
     }
     if (parseMode) {
       const base = options.telegram ?? {};
-      const chatId = (base as { chatId?: string }).chatId ?? (storedChatIds.length === 1 ? storedChatIds[0]!.chatId : undefined);
+      const chatId =
+        (base as { chatId?: string }).chatId ?? (storedChatIds.length === 1 ? storedChatIds[0]!.chatId : undefined);
       options.telegram = {
         ...base,
         parseMode,
@@ -568,11 +572,20 @@ async function collectInteractivePlatformOptions(
     );
 
     options.youtube = {
-      ...(tags ? { tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean) } : {}),
+      ...(tags
+        ? {
+            tags: tags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+          }
+        : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(playlistId ? { playlistId } : {}),
       ...(publishAt ? { publishAt } : {}),
-      ...(privacyStatus !== "skip" ? { privacyStatus: privacyStatus as NonNullable<PostOptions["youtube"]>["privacyStatus"] } : {}),
+      ...(privacyStatus === "skip"
+        ? {}
+        : { privacyStatus: privacyStatus as NonNullable<PostOptions["youtube"]>["privacyStatus"] }),
     };
   }
 
@@ -611,8 +624,10 @@ async function collectInteractivePlatformOptions(
     );
 
     options.tiktok = {
-      ...(publishMode !== "skip" ? { publishMode: publishMode as NonNullable<PostOptions["tiktok"]>["publishMode"] } : {}),
-      ...(visibility !== "skip" ? { visibility: visibility as NonNullable<PostOptions["tiktok"]>["visibility"] } : {}),
+      ...(publishMode === "skip"
+        ? {}
+        : { publishMode: publishMode as NonNullable<PostOptions["tiktok"]>["publishMode"] }),
+      ...(visibility === "skip" ? {} : { visibility: visibility as NonNullable<PostOptions["tiktok"]>["visibility"] }),
     };
   }
 
@@ -671,22 +686,29 @@ async function askInteractivePost(
   existingSelections: AccountSelections,
 ): Promise<{ accountSelections: AccountSelections; appAccountIds: string[]; post: Post }> {
   if (availableAccounts.accounts.length === 0) {
-    throw new Error('No connected accounts are available yet. Run "simplepost account add" or "simplepost connect" first.');
+    throw new Error(
+      'No connected accounts are available yet. Run "simplepost account add" or "simplepost connect" first.',
+    );
   }
 
   const targetOptions = buildInteractiveTargetOptions({
     accounts: availableAccounts.accounts,
     selectedAccounts: existingSelections,
   });
-  const selectedTargets = await prompt.multiSelect("Which connected accounts should receive this post?", targetOptions.options, {
-    defaultValues: targetOptions.defaultValues,
-    minSelections: 1,
-  });
+  const selectedTargets = await prompt.multiSelect(
+    "Which connected accounts should receive this post?",
+    targetOptions.options,
+    {
+      defaultValues: targetOptions.defaultValues,
+      minSelections: 1,
+    },
+  );
   const targetSelection = resolveInteractiveTargets(selectedTargets, targetOptions.options);
 
   // Only collect platform options for local accounts (app accounts are handled server-side)
   const localPlatforms = targetSelection.platforms.filter(
-    (platform) => (targetSelection.accountSelections[platform]?.length ?? 0) > 0 || targetSelection.appAccountIds.length === 0,
+    (platform) =>
+      (targetSelection.accountSelections[platform]?.length ?? 0) > 0 || targetSelection.appAccountIds.length === 0,
   );
   const selectedAccountInfos: SelectedAccountInfo[] = localPlatforms.flatMap((platform) => {
     const aliases = targetSelection.accountSelections[platform] ?? [];
@@ -698,7 +720,9 @@ async function askInteractivePost(
   const text = (await prompt.text("Post text (optional)")).trim();
   const media = await collectInteractiveMedia(prompt, []);
 
-  const hasLocalAccounts = Object.values(targetSelection.accountSelections).some((aliases) => (aliases?.length ?? 0) > 0);
+  const hasLocalAccounts = Object.values(targetSelection.accountSelections).some(
+    (aliases) => (aliases?.length ?? 0) > 0,
+  );
   const postOptions = hasLocalAccounts
     ? await collectInteractivePlatformOptions(prompt, localPlatforms, undefined, selectedAccountInfos)
     : undefined;
@@ -727,7 +751,7 @@ async function buildPostFromFlags(flags: PostFlagValues, accountSelections: Acco
 
   const platforms = inferPlatformsFromAccountSelections(accountSelections);
   if (platforms.length === 0) {
-    throw new Error('Choose at least one target with --account, or provide a full payload with --post-json.');
+    throw new Error("Choose at least one target with --account, or provide a full payload with --post-json.");
   }
 
   const media: NonNullable<Post["content"]["media"]> = [];
@@ -743,7 +767,7 @@ async function buildPostFromFlags(flags: PostFlagValues, accountSelections: Acco
   if (flags["media-json"]) {
     const parsedMedia = await parseJsonInput(flags["media-json"]);
     if (!Array.isArray(parsedMedia)) {
-      throw new Error("--media-json must parse to an array.");
+      throw new TypeError("--media-json must parse to an array.");
     }
 
     media.push(...(parsedMedia as NonNullable<Post["content"]["media"]>));
@@ -752,7 +776,7 @@ async function buildPostFromFlags(flags: PostFlagValues, accountSelections: Acco
   let options = buildOptions(flags);
   if (flags["options-json"]) {
     const parsedOptions = await parseJsonInput(flags["options-json"]);
-    options = { ...(options ?? {}), ...(parsedOptions as PostOptions) };
+    options = { ...options, ...(parsedOptions as PostOptions) };
   }
 
   return PostSchema.parse({

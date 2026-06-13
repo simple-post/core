@@ -1,10 +1,18 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CONFIG_FILE_NAME, CLI_CONFIG_SCHEMA_VERSION } from "./constants.js";
 import { getAccountPlatformValues } from "./account/platforms.js";
+import { CONFIG_FILE_NAME, CLI_CONFIG_SCHEMA_VERSION } from "./constants.js";
 
-import type { CliConfigV1, CliPaths, PlatformAccounts, PlatformKey, SchedulerConnection, SecretBackend, StoredAccount } from "./types.js";
+import type {
+  CliConfigV1,
+  CliPaths,
+  PlatformAccounts,
+  PlatformKey,
+  SchedulerConnection,
+  SecretBackend,
+  StoredAccount,
+} from "./types.js";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -29,8 +37,9 @@ function normalizeStoredAccount(raw: unknown): StoredAccount | null {
     return null;
   }
 
-  const settings =
-    isObject(raw.settings) ? Object.fromEntries(Object.entries(raw.settings).filter(([, value]) => value !== undefined)) : undefined;
+  const settings = isObject(raw.settings)
+    ? Object.fromEntries(Object.entries(raw.settings).filter(([, value]) => value !== undefined))
+    : undefined;
 
   return {
     alias: raw.alias,
@@ -72,10 +81,9 @@ function normalizeSchedulerConnection(raw: unknown): SchedulerConnection | undef
 }
 
 function createEmptyAccountCollections(): Record<PlatformKey, PlatformAccounts> {
-  return Object.fromEntries(getAccountPlatformValues().map((platform) => [platform, { accounts: [] }])) as unknown as Record<
-    PlatformKey,
-    PlatformAccounts
-  >;
+  return Object.fromEntries(
+    getAccountPlatformValues().map((platform) => [platform, { accounts: [] }]),
+  ) as unknown as Record<PlatformKey, PlatformAccounts>;
 }
 
 function normalizeConfig(raw: unknown): CliConfigV1 {
@@ -143,7 +151,7 @@ export async function loadCliConfig(paths: CliPaths): Promise<CliConfigV1> {
     }
 
     if (error instanceof SyntaxError) {
-      throw new Error(`Failed to parse CLI config at ${paths.configFile}: ${error.message}`);
+      throw new TypeError(`Failed to parse CLI config at ${paths.configFile}: ${error.message}`);
     }
 
     throw error;

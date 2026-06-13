@@ -6,7 +6,9 @@ interface GoogleUserInfoResponse {
   name?: string;
 }
 
-async function fetchYouTubeUser(accessToken: string): Promise<{ displayName?: string; userId: string; username?: string }> {
+async function fetchYouTubeUser(
+  accessToken: string,
+): Promise<{ displayName?: string; userId: string; username?: string }> {
   const response = await fetchJson<GoogleUserInfoResponse>(
     "https://www.googleapis.com/oauth2/v2/userinfo",
     {

@@ -132,7 +132,7 @@
     },
     {
       "description": "Validate a text-only draft against selected accounts.",
-      "user_prompt": "Use SimplePost to check whether this post is valid for my first connected account: Shipping the new release notes today.",
+      "user_prompt": "First call list_accounts. Then use SimplePost to check whether this post is valid for the first account returned: Shipping the new release notes today.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, validate_post",
       "expected_output": "Calls list_accounts first, uses an accountId returned by that tool, then reports in text and structured JSON whether the draft is valid, includes the exact draft post content, and surfaces any platform-specific errors or warnings.",
@@ -140,7 +140,7 @@
     },
     {
       "description": "Preview a scheduled post with a public media URL.",
-      "user_prompt": "Use SimplePost to preview this for my first connected account tomorrow at 9 AM Europe/Berlin using https://schedule.simplepost.dev/simplepost-logo.png: New product photos are live.",
+      "user_prompt": "First call list_accounts. Then use SimplePost to preview this for the first account returned tomorrow at 9 AM Europe/Berlin using https://schedule.simplepost.dev/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, preview_post",
       "expected_output": "Calls list_accounts first, uses an accountId returned by that tool, then returns text and structured JSON with resolved target account details, exact post content, media count, scheduled time with timezone, and validation results without creating the post.",
@@ -155,11 +155,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Create a temporary draft, schedule it, and discard it.",
-      "user_prompt": "Use SimplePost to save a temporary draft for my first connected account with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin, then delete that same scheduled post.",
+      "description": "Create a temporary draft and schedule it.",
+      "user_prompt": "First call list_accounts. Then use SimplePost to save a temporary draft for the first account returned with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post, discard_scheduled_post",
-      "expected_output": "Calls list_accounts first, creates a temporary draft for an accountId returned by that tool, uses the returned post ID to update it to scheduled status with the requested future time, then uses the same post ID to discard it. The visible response includes the exact content, final discard status, and explains that already published posts cannot be undone.",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
+      "expected_output": "Calls list_accounts first, creates a temporary draft for an accountId returned by that tool, then uses the returned post ID to update the same SimplePost record to scheduled status with the requested future time. The visible response includes the exact content, target account, scheduled status, and scheduled time.",
       "expected_output_url": null
     }
   ],

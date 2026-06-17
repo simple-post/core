@@ -12,96 +12,112 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Only retrieves the authenticated user's connected SimplePost account metadata.",
         "open_world_justification": "Does not change public internet state or external third-party systems.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
+        "idempotent_justification": "Calling it repeatedly only re-reads the current connected account list and has no side effects."
       }
     },
     "upload_media": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Downloads a user-provided ChatGPT file parameter to the authenticated user's SimplePost storage and returns a new media URL.",
-        "open_world_justification": "Creates a publicly fetchable media URL that can be used outside ChatGPT and by social platforms when posting.",
-        "destructive_justification": "Does not delete, overwrite, revoke access, publish a post, or perform an irreversible platform action."
+        "open_world_justification": "Creates a publicly fetchable media URL in SimplePost storage that can be used outside ChatGPT and by social platforms when posting.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, publish a social post, or perform an irreversible external platform action.",
+        "idempotent_justification": "Calling it again with the same file creates another stored object and another media URL."
       }
     },
     "validate_post": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Checks draft text and media URLs against platform validation rules without creating records or posting.",
         "open_world_justification": "Does not write to public internet state or external third-party systems.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
+        "idempotent_justification": "Calling it repeatedly recomputes validation against current account rules and does not change stored data."
       }
     },
     "preview_post": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Resolves targets, media count, scheduled time when applicable, and validation status without creating or publishing a post.",
         "open_world_justification": "Does not write to SimplePost, public internet state, or external third-party systems.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
+        "idempotent_justification": "Calling it repeatedly recomputes the same preview and validation result without changing stored data."
       }
     },
     "create_post": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Creates a SimplePost post record as a draft, scheduled post, or immediate post and may update its status after attempting platform posting.",
         "open_world_justification": "Can publish user-confirmed content to connected external social platforms, schedule it for later publication, or store it as a SimplePost draft.",
-        "destructive_justification": "Immediate posting sends public social content to external platforms, which may not be reversible through this app."
+        "destructive_justification": "Immediate posting sends public social content to external platforms, which may not be reversible through this app.",
+        "idempotent_justification": "Calling it again with the same arguments can create another draft, scheduled post, or immediate platform posting unless the optional idempotencyKey is supplied."
       }
     },
     "inspect_posts": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Only retrieves the authenticated user's SimplePost post records and connected account metadata.",
         "open_world_justification": "Does not publish content, update public internet state, or call external social platform write APIs.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions."
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
+        "idempotent_justification": "Calling it repeatedly only re-reads the current SimplePost post records and has no side effects."
       }
     },
     "update_scheduled_post": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Updates an existing draft or future scheduled SimplePost post record and validates the result when scheduling.",
-        "open_world_justification": "Can change content or timing that SimplePost will later publish to connected external social platforms.",
-        "destructive_justification": "Can overwrite draft or scheduled post content, targets, media, thread segments, scheduled time, or draft/scheduled status."
+        "read_only_justification": "Updates an existing draft or future scheduled SimplePost post record, may delete replaced stored media, and validates the result when scheduling.",
+        "open_world_justification": "Can move a draft into the scheduled publishing queue or change content/timing that SimplePost will later publish to connected external social platforms.",
+        "destructive_justification": "Can overwrite draft or scheduled post content, targets, media, thread segments, scheduled time, or draft/scheduled status.",
+        "idempotent_justification": "Calling it again still performs an update workflow and may change bookkeeping such as updated timestamps or media cleanup state."
       }
     },
     "discard_scheduled_post": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Deletes a draft or future scheduled SimplePost post record and best-effort deletes its stored media.",
         "open_world_justification": "Can remove publicly fetchable SimplePost media URLs and prevents scheduled content from being published externally.",
-        "destructive_justification": "Permanently deletes the selected draft or scheduled post record and stored media from SimplePost."
+        "destructive_justification": "Permanently deletes the selected draft or scheduled post record and stored media from SimplePost.",
+        "idempotent_justification": "Calling it again with the same post ID returns a not-found error after the first successful deletion instead of returning the same successful result."
       }
     }
   },
@@ -116,18 +132,18 @@
     },
     {
       "description": "Validate a text-only draft against selected accounts.",
-      "user_prompt": "Check whether this post is valid for my connected X and LinkedIn accounts: Shipping the new release notes today.",
+      "user_prompt": "Use SimplePost to check whether this post is valid for my first connected account: Shipping the new release notes today.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, validate_post",
-      "expected_output": "Reports in text and structured JSON whether the draft is valid, includes the exact draft post content, and surfaces any platform-specific errors or warnings.",
+      "expected_output": "Calls list_accounts first, uses an accountId returned by that tool, then reports in text and structured JSON whether the draft is valid, includes the exact draft post content, and surfaces any platform-specific errors or warnings.",
       "expected_output_url": null
     },
     {
       "description": "Preview a scheduled post with a public media URL.",
-      "user_prompt": "Preview this for my Instagram account tomorrow at 9 AM Berlin time using https://schedule.simplepost.dev/simplepost-logo.png: New product photos are live.",
+      "user_prompt": "Use SimplePost to preview this for my first connected account tomorrow at 9 AM Europe/Berlin using https://schedule.simplepost.dev/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, preview_post",
-      "expected_output": "Returns text and structured JSON with resolved target account details, exact post content, media count, scheduled time with timezone, and validation results without creating the post.",
+      "expected_output": "Calls list_accounts first, uses an accountId returned by that tool, then returns text and structured JSON with resolved target account details, exact post content, media count, scheduled time with timezone, and validation results without creating the post.",
       "expected_output_url": null
     },
     {
@@ -135,23 +151,23 @@
       "user_prompt": "Upload the attached image as launch.png so I can attach it to a SimplePost draft.",
       "file_attachment_urls": ["https://schedule.simplepost.dev/simplepost-logo.png"],
       "tools_triggered": "upload_media",
-      "expected_output": "Returns a publicly fetchable SimplePost media URL for an image named launch.png, including file type, filename, size, and MIME type, ready to attach to a post via the media field.",
+      "expected_output": "Uses the ChatGPT file parameter for the attached image, not base64 data or a raw media URL argument, and returns a publicly fetchable SimplePost media URL for an image named launch.png with file type, filename, size, and MIME type.",
       "expected_output_url": null
     },
     {
       "description": "Schedule a confirmed post for later publication.",
-      "user_prompt": "Schedule the confirmed post 'Office hours start at 16:00' for my X account tomorrow at 16:00 Europe/Berlin.",
+      "user_prompt": "Use SimplePost to schedule the confirmed post 'Office hours start at 16:00' for my first connected account tomorrow at 16:00 Europe/Berlin.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Creates a scheduled SimplePost post after internal validation, then returns the exact scheduled content, scheduled status, and posting summary.",
+      "expected_output": "Calls list_accounts first, creates a scheduled SimplePost post for an accountId returned by that tool after internal validation, then returns the exact scheduled content, scheduled status, future scheduled time, and posting summary.",
       "expected_output_url": null
     },
     {
       "description": "Save a confirmed post as a draft without scheduling or publishing it.",
-      "user_prompt": "Save this as a SimplePost draft for my LinkedIn account: We are preparing the launch announcement, but do not publish or schedule it yet.",
+      "user_prompt": "Use SimplePost to save this as a draft for my first connected account: We are preparing the launch announcement, but do not publish or schedule it yet.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Creates a SimplePost draft without publishing or scheduling it, then returns the exact draft content, target account details, draft status, and posting summary.",
+      "expected_output": "Calls list_accounts first, creates a SimplePost draft for an accountId returned by that tool without publishing or scheduling it, then returns the exact draft content, target account details, draft status, and posting summary.",
       "expected_output_url": null
     },
     {
@@ -164,50 +180,50 @@
     },
     {
       "description": "Create a temporary draft and move it to the scheduled queue.",
-      "user_prompt": "Save a temporary SimplePost draft for my LinkedIn account with text 'Review scheduling draft', then schedule that same draft for tomorrow at 18:00 Europe/Berlin.",
+      "user_prompt": "Use SimplePost to save a temporary draft for my first connected account with text 'Review scheduling draft', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Creates a temporary draft, uses the returned post ID to validate and update it to scheduled status with the requested future time, and returns the exact updated content and post details.",
+      "expected_output": "Calls list_accounts first, creates a temporary draft, uses the returned post ID to validate and update it to scheduled status with the requested future time, and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
       "description": "Create a scheduled post and update its scheduled time.",
-      "user_prompt": "Create a scheduled SimplePost post for my LinkedIn account tomorrow at 17:00 Europe/Berlin with text 'Review reschedule test', then move that same scheduled post to tomorrow at 18:00 Europe/Berlin.",
+      "user_prompt": "Use SimplePost to create a scheduled post for my first connected account tomorrow at 17:00 Europe/Berlin with text 'Review reschedule test', then move that same returned scheduled post to tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Creates a scheduled SimplePost post, uses the returned post ID to validate and update the future scheduled time, and returns the exact updated content and post details.",
+      "expected_output": "Calls list_accounts first, creates a scheduled SimplePost post, uses the returned post ID to validate and update the future scheduled time, and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
       "description": "Create a scheduled post and move it back to drafts.",
-      "user_prompt": "Create a scheduled SimplePost post for my LinkedIn account tomorrow at 19:00 Europe/Berlin with text 'Review draft rollback test', then move that same scheduled post back to drafts for now.",
+      "user_prompt": "Use SimplePost to create a scheduled post for my first connected account tomorrow at 19:00 Europe/Berlin with text 'Review draft rollback test', then move that same returned scheduled post back to drafts for now.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Creates a future scheduled post, then uses the returned post ID to update it to draft status without publishing it and returns the exact updated content and post details.",
+      "expected_output": "Calls list_accounts first, creates a future scheduled post, then uses the returned post ID to update it to draft status without publishing it and returns the exact updated content and post details.",
       "expected_output_url": null
     },
     {
       "description": "Create and discard a temporary draft.",
-      "user_prompt": "Create a temporary SimplePost draft for my LinkedIn account with text 'Review discard test', then delete that same draft.",
+      "user_prompt": "Use SimplePost to create a temporary draft for my first connected account with text 'Review discard test', then delete that same returned draft.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, discard_scheduled_post",
-      "expected_output": "Creates a temporary draft, uses the returned post ID to delete that draft, returns the exact discarded content, and explains that already published posts cannot be undone.",
+      "expected_output": "Calls list_accounts first, creates a temporary draft, uses the returned post ID to delete that draft, returns the exact discarded content, and explains that already published posts cannot be undone.",
       "expected_output_url": null
     },
     {
-      "description": "Publish a confirmed multi-post thread to a thread-capable account.",
-      "user_prompt": "Post this confirmed two-part thread now to my X account. Root: We shipped media uploads for ChatGPT-generated images. Reply: You can now attach generated images and videos to your posts directly from the chat.",
+      "description": "Save a confirmed multi-post thread as a draft without publishing.",
+      "user_prompt": "Use SimplePost to save this confirmed two-part thread as a draft for my first connected account without publishing it. Root: We shipped media uploads for ChatGPT-generated images. Reply: You can now attach generated images and videos to your posts directly from the chat.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Creates the root post and follow-up thread segment after internal validation, then returns the exact root and reply content plus per-account posting and thread results.",
+      "expected_output": "Calls list_accounts first, creates a draft containing the root post and follow-up thread segment without publishing externally, then returns the exact root and reply content plus draft post details.",
       "expected_output_url": null
     },
     {
-      "description": "Publish a confirmed post immediately and inspect platform results.",
-      "user_prompt": "Post this now to my X account: We just shipped the latest SimplePost update. I confirm the content and target account.",
+      "description": "Preview an immediate post without creating it.",
+      "user_prompt": "Use SimplePost to preview this immediate post for my first connected account without creating it: We just shipped the latest SimplePost update.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Creates the post after internal validation, attempts immediate publication, and returns the exact posted content plus per-platform success or failure results.",
+      "tools_triggered": "list_accounts, preview_post",
+      "expected_output": "Calls list_accounts first, uses preview_post only, returns the exact post content with validation details for an immediate posting mode, and does not create, schedule, save, or publish a post.",
       "expected_output_url": null
     }
   ],

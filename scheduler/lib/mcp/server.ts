@@ -3,6 +3,7 @@ import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
+import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import {
@@ -399,13 +400,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `List the social media accounts the authenticated user has connected to SimplePost. Call this first in any posting workflow. The returned accountId values are required by validate_post, preview_post, and create_post, and account IDs are not guessable.`,
       inputSchema: listAccountsSchema.shape,
       outputSchema: listAccountsOutputSchema.shape,
-      annotations: {
-        title: "List connected SimplePost accounts",
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
       _meta: toolMeta("Checking your connected accounts", "Found your accounts"),
     },
     async () => {
@@ -441,13 +436,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Upload a ChatGPT generated or attached image/video file to SimplePost storage and get back a public URL you can pass into validate_post, preview_post, or create_post through the media field. This tool requires the file parameter; do not pass base64 media data. If the user already gave a fetchable URL, skip this tool and use the URL directly.`,
       inputSchema: uploadMediaSchema.shape,
       outputSchema: uploadMediaOutputSchema.shape,
-      annotations: {
-        title: "Upload media to SimplePost",
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.upload_media,
       _meta: {
         ...toolMeta("Uploading your media", "Media uploaded"),
         "openai/fileParams": ["file"],
@@ -484,13 +473,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Validate post text and optional media against the rules of each selected connected account without creating or publishing anything. Use this only when the user explicitly asks to validate, check, test, or troubleshoot a draft. Do not call it as a default preflight before create_post because create_post validates internally.`,
       inputSchema: validatePostSchema.shape,
       outputSchema: validatePostOutputSchema.shape,
-      annotations: {
-        title: "Validate a SimplePost draft",
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.validate_post,
       _meta: toolMeta("Checking your post", "Check complete"),
     },
     async (input) => {
@@ -531,13 +514,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Preview a post before it is created. This resolves target accounts, optional media count, optional thread segment count, scheduled time when applicable, and validation result without writing to SimplePost or publishing to social platforms. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Draft previews do not need scheduledFor. Use it when the user explicitly asks for a preview or when essential posting details are missing; do not use it as a default preflight for already-confirmed posts.`,
       inputSchema: previewPostSchema.shape,
       outputSchema: previewPostOutputSchema.shape,
-      annotations: {
-        title: "Preview a SimplePost draft",
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.preview_post,
       _meta: toolMeta("Preparing a preview", "Preview ready"),
     },
     async (input) => {
@@ -580,13 +557,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Create a SimplePost post with text plus optional images/videos and optional multi-segment thread (thread field: follow-up messages after the root). Use postingMode "now" to publish immediately, "schedule" with a future scheduledFor in full ISO 8601 format with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z), or "draft" to save without publishing. Do not send date-only or local time without timezone when scheduling. This is a write action that can publish public content on connected social platforms and it performs blocking validation internally for now/schedule, so do not call validate_post first unless the user requested validation-only feedback. Always call list_accounts first to get account IDs.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
-      annotations: {
-        title: "Create or publish a SimplePost post",
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.create_post,
       _meta: toolMeta("Working on your post", "Finished working on your post"),
     },
     async (input) => {
@@ -638,13 +609,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Use this when the user asks to review SimplePost posts that are drafts, currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a draft or scheduled post. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
       inputSchema: inspectPostsSchema.shape,
       outputSchema: inspectPostsOutputSchema.shape,
-      annotations: {
-        title: "Inspect SimplePost posts",
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
       _meta: toolMeta("Looking up your posts", "Found your posts"),
     },
     async (input) => {
@@ -691,13 +656,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Use this when the user asks to edit a draft or future scheduled SimplePost post. Provide the postId from inspect_posts and only the fields that should change: message, accountIds, media, thread, postingMode, or scheduledFor. Set postingMode to "draft" to move a scheduled post to drafts, or "schedule" with scheduledFor to move a draft to scheduled. This validates the final scheduled post before saving and cannot edit already posted, failed, pending, or due posts.`,
       inputSchema: updateScheduledPostSchema.shape,
       outputSchema: updateScheduledPostOutputSchema.shape,
-      annotations: {
-        title: "Update a scheduled SimplePost post",
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,
       _meta: toolMeta("Updating your post", "Post updated"),
     },
     async (input) => {
@@ -734,13 +693,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post. Provide the postId from inspect_posts. This permanently deletes the SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
       inputSchema: discardScheduledPostSchema.shape,
       outputSchema: discardScheduledPostOutputSchema.shape,
-      annotations: {
-        title: "Discard a scheduled SimplePost post",
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.discard_scheduled_post,
       _meta: toolMeta("Deleting your post", "Post deleted"),
     },
     async (input) => {

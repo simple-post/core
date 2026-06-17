@@ -148,10 +148,10 @@
     },
     {
       "description": "Upload an attached ChatGPT image when no public URL is available.",
-      "user_prompt": "Upload the attached image as launch.png so I can attach it to a SimplePost draft.",
+      "user_prompt": "Upload the attached image with SimplePost so I can attach it to a draft.",
       "file_attachment_urls": ["https://schedule.simplepost.dev/simplepost-logo.png"],
       "tools_triggered": "upload_media",
-      "expected_output": "Uses the ChatGPT file parameter for the attached image, not base64 data or a raw media URL argument, and returns a publicly fetchable SimplePost media URL for an image named launch.png with file type, filename, size, and MIME type.",
+      "expected_output": "Uses the ChatGPT file parameter for the attached PNG image, not base64 data or a raw media URL argument, and returns a publicly fetchable SimplePost media URL with media type image, filename, size, and MIME type.",
       "expected_output_url": null
     },
     {

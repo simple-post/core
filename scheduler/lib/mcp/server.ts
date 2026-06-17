@@ -27,6 +27,13 @@ import { validatePost, validatePostOutputSchema, validatePostSchema } from "./to
 
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule posts to multiple social media platforms (X, Telegram, Facebook, Instagram, YouTube, Meta Threads, ...) from a single tool call. Only call tools for SimplePost posting workflows. Do not call tools for generic writing help, connecting accounts, or editing/deleting social posts that were already published externally; explain those are unsupported and direct the user to the SimplePost web app or social platform.
 
+# No-tool routing rules
+
+- If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call any tool. Tell them account management must happen in the SimplePost web app.
+- If the user asks to delete, edit, undo, remove, or take down a post already published on a social platform such as X, Instagram, Facebook, YouTube, Threads, Telegram, or Bluesky, do not call any tool. Explain that SimplePost tools can only manage drafts and future scheduled posts, and direct them to the social platform.
+- Do not inspect accounts or posts merely to confirm that an unsupported action is unsupported.
+- If the user asks for writing, brainstorming, translation, arithmetic, calendar scheduling, or other non-SimplePost work, do not call any SimplePost tool.
+
 # Recommended workflow
 
 1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, tell the user they need to connect an account in the SimplePost web app before posting — there is no MCP tool to add accounts.
@@ -397,7 +404,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "list_accounts",
     {
       title: "List Connected Accounts",
-      description: `List the social media accounts the authenticated user has connected to SimplePost. Call this first in any posting workflow. The returned accountId values are required by validate_post, preview_post, and create_post, and account IDs are not guessable.`,
+      description: `List the social media accounts the authenticated user has connected to SimplePost. Call this first in posting workflows that need target account IDs. Do not call this for requests to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for accounts; account management happens in the SimplePost web app. The returned accountId values are required by validate_post, preview_post, and create_post, and account IDs are not guessable.`,
       inputSchema: listAccountsSchema.shape,
       outputSchema: listAccountsOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
@@ -606,7 +613,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: "Inspect Posts",
-      description: `Use this when the user asks to review SimplePost posts that are drafts, currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a draft or scheduled post. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
+      description: `Use this when the user asks to review SimplePost records that are drafts, currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a draft or scheduled post. Do not call this to handle requests to delete, edit, undo, or remove content already published on external social platforms; those actions are unsupported. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
       inputSchema: inspectPostsSchema.shape,
       outputSchema: inspectPostsOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
@@ -690,7 +697,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "discard_scheduled_post",
     {
       title: "Discard Scheduled Post",
-      description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post. Provide the postId from inspect_posts. This permanently deletes the SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
+      description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post. Provide the postId from inspect_posts. Do not call this for tweets or posts already published on external social platforms. This permanently deletes the SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
       inputSchema: discardScheduledPostSchema.shape,
       outputSchema: discardScheduledPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.discard_scheduled_post,

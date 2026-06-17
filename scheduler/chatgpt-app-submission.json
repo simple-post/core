@@ -127,7 +127,7 @@
       "user_prompt": "Which SimplePost accounts can I post from?",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts",
-      "expected_output": "Returns text and structured JSON with the user's connected accounts, account IDs, platform names, and display metadata for selecting targets.",
+      "expected_output": "Returns all of the user's connected accounts with social media platform, the account name and handle",
       "expected_output_url": null
     },
     {
@@ -165,19 +165,19 @@
   ],
   "negative_test_cases": [
     {
-      "description": "Do not trigger for connecting or reauthorizing accounts.",
-      "user_prompt": "Connect my new Instagram account to SimplePost.",
+      "description": "Do not trigger for unrelated calendar scheduling.",
+      "user_prompt": "Schedule a team meeting tomorrow at 10 AM.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not invoke MCP tools because account connection and reauthorization must happen in the SimplePost web app.",
+      "expected_output": "The app should not invoke SimplePost MCP tools because meeting scheduling is outside SimplePost's supported social posting workflows.",
       "expected_output_url": null
     },
     {
-      "description": "Do not trigger for undoing already published social posts.",
-      "user_prompt": "Delete yesterday's tweet from my X account.",
+      "description": "Do not trigger for unrelated arithmetic.",
+      "user_prompt": "What is 23 + 19?",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not invoke MCP tools because it cannot delete or undo content that was already published to external social platforms.",
+      "expected_output": "The app should answer directly without invoking SimplePost MCP tools.",
       "expected_output_url": null
     },
     {

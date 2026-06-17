@@ -147,11 +147,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Upload an attached ChatGPT image when no public URL is available.",
-      "user_prompt": "Upload the attached image with SimplePost so I can attach it to a draft.",
-      "file_attachment_urls": ["https://schedule.simplepost.dev/simplepost-logo.png"],
-      "tools_triggered": "upload_media",
-      "expected_output": "Uses the ChatGPT file parameter for the attached PNG image, not base64 data or a raw media URL argument, and returns a publicly fetchable SimplePost media URL with media type image, filename, size, and MIME type.",
+      "description": "Inspect drafts and future scheduled posts.",
+      "user_prompt": "Show me my SimplePost drafts and posts that are currently scheduled.",
+      "file_attachment_urls": null,
+      "tools_triggered": "inspect_posts",
+      "expected_output": "Calls inspect_posts and returns matching SimplePost records with IDs, status, target account metadata, exact content, media count, thread count, and scheduled time when present. The visible response distinguishes drafts from future scheduled posts.",
       "expected_output_url": null
     },
     {

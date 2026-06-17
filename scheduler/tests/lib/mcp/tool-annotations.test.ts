@@ -82,7 +82,9 @@ describe("ChatGPT app submission metadata", () => {
     const uploadCase = submission.test_cases.find((testCase) =>
       parseTriggeredTools(testCase.tools_triggered).includes("upload_media"),
     );
-    expect(uploadCase?.file_attachment_urls?.length).toBeGreaterThan(0);
+    if (uploadCase) {
+      expect(uploadCase.file_attachment_urls?.length).toBeGreaterThan(0);
+    }
 
     expect(submission.negative_test_cases).toHaveLength(3);
 

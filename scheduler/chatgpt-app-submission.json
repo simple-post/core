@@ -155,75 +155,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Schedule a confirmed post for later publication.",
-      "user_prompt": "Use SimplePost to schedule the confirmed post 'Office hours start at 16:00' for my first connected account tomorrow at 16:00 Europe/Berlin.",
+      "description": "Create a temporary draft, schedule it, and discard it.",
+      "user_prompt": "Use SimplePost to save a temporary draft for my first connected account with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin, then delete that same scheduled post.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Calls list_accounts first, creates a scheduled SimplePost post for an accountId returned by that tool after internal validation, then returns the exact scheduled content, scheduled status, future scheduled time, and posting summary.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Save a confirmed post as a draft without scheduling or publishing it.",
-      "user_prompt": "Use SimplePost to save this as a draft for my first connected account: We are preparing the launch announcement, but do not publish or schedule it yet.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Calls list_accounts first, creates a SimplePost draft for an accountId returned by that tool without publishing or scheduling it, then returns the exact draft content, target account details, draft status, and posting summary.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Inspect drafts and future scheduled posts before making changes.",
-      "user_prompt": "Show me my SimplePost drafts and posts that are currently scheduled.",
-      "file_attachment_urls": null,
-      "tools_triggered": "inspect_posts",
-      "expected_output": "Returns SimplePost posts with IDs, status, target account metadata, exact content, media count, thread count, and scheduled time when present, and the answer highlights the drafts and future scheduled posts. The tool may be called once for all statuses or separately for drafts and scheduled posts.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Create a temporary draft and move it to the scheduled queue.",
-      "user_prompt": "Use SimplePost to save a temporary draft for my first connected account with text 'Review scheduling draft', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Calls list_accounts first, creates a temporary draft, uses the returned post ID to validate and update it to scheduled status with the requested future time, and returns the exact updated content and post details.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Create a scheduled post and update its scheduled time.",
-      "user_prompt": "Use SimplePost to create a scheduled post for my first connected account tomorrow at 17:00 Europe/Berlin with text 'Review reschedule test', then move that same returned scheduled post to tomorrow at 18:00 Europe/Berlin.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Calls list_accounts first, creates a scheduled SimplePost post, uses the returned post ID to validate and update the future scheduled time, and returns the exact updated content and post details.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Create a scheduled post and move it back to drafts.",
-      "user_prompt": "Use SimplePost to create a scheduled post for my first connected account tomorrow at 19:00 Europe/Berlin with text 'Review draft rollback test', then move that same returned scheduled post back to drafts for now.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Calls list_accounts first, creates a future scheduled post, then uses the returned post ID to update it to draft status without publishing it and returns the exact updated content and post details.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Create and discard a temporary draft.",
-      "user_prompt": "Use SimplePost to create a temporary draft for my first connected account with text 'Review discard test', then delete that same returned draft.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, discard_scheduled_post",
-      "expected_output": "Calls list_accounts first, creates a temporary draft, uses the returned post ID to delete that draft, returns the exact discarded content, and explains that already published posts cannot be undone.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Save a confirmed multi-post thread as a draft without publishing.",
-      "user_prompt": "Use SimplePost to save this confirmed two-part thread as a draft for my first connected account without publishing it. Root: We shipped media uploads for ChatGPT-generated images. Reply: You can now attach generated images and videos to your posts directly from the chat.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Calls list_accounts first, creates a draft containing the root post and follow-up thread segment without publishing externally, then returns the exact root and reply content plus draft post details.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Preview an immediate post without creating it.",
-      "user_prompt": "Use SimplePost to preview this immediate post for my first connected account without creating it: We just shipped the latest SimplePost update.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, preview_post",
-      "expected_output": "Calls list_accounts first, uses preview_post only, returns the exact post content with validation details for an immediate posting mode, and does not create, schedule, save, or publish a post.",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post, discard_scheduled_post",
+      "expected_output": "Calls list_accounts first, creates a temporary draft for an accountId returned by that tool, uses the returned post ID to update it to scheduled status with the requested future time, then uses the same post ID to discard it. The visible response includes the exact content, final discard status, and explains that already published posts cannot be undone.",
       "expected_output_url": null
     }
   ],

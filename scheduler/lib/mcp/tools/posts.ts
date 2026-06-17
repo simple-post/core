@@ -179,7 +179,7 @@ export const updateScheduledPostSchema = z.object({
     .nullable()
     .optional()
     .describe(
-      'Replacement follow-up thread segments. Each segment is {"message":"...","media"?}; each segment media item is {"type":"image"|"video","url":"https://...","thumbnailUrl"?}. Omit to keep current thread; pass null or [] to clear all follow-up segments.',
+      'Replacement follow-up text-only thread segments. Each segment is {"message":"..."}. Omit to keep current thread; pass null or [] to clear all follow-up segments.',
     ),
   scheduledFor: z
     .string()

@@ -21,7 +21,7 @@ type JsonSchemaObject = {
   properties?: Record<string, JsonSchemaObject>;
   required?: string[];
   $ref?: string;
-  type?: string;
+  type?: string | string[];
 };
 
 const TOOL_INPUT_SCHEMAS = {
@@ -42,6 +42,13 @@ const THREAD_INPUT_SCHEMAS = {
   update_scheduled_post: updateScheduledPostSchema,
 };
 
+const ROOT_MEDIA_INPUT_SCHEMAS = {
+  validate_post: validatePostSchema,
+  preview_post: previewPostSchema,
+  create_post: createPostSchema,
+  update_scheduled_post: updateScheduledPostSchema,
+};
+
 function toInputJsonSchema(schema: { shape: unknown }): JsonSchemaObject {
   const objectSchema = normalizeObjectSchema(schema.shape as AnySchema | ZodRawShapeCompat | undefined);
   if (!objectSchema) return { type: "object", properties: {} };
@@ -53,7 +60,7 @@ function toInputJsonSchema(schema: { shape: unknown }): JsonSchemaObject {
 }
 
 function findArraySchema(schema: JsonSchemaObject): JsonSchemaObject {
-  if (schema.type === "array") return schema;
+  if (schema.type === "array" || (Array.isArray(schema.type) && schema.type.includes("array"))) return schema;
   const nestedArray = schema.anyOf
     ?.map((candidate) => {
       try {
@@ -89,21 +96,25 @@ function collectOpaqueArrays(schema: JsonSchemaObject, path: string, issues: str
   }
 }
 
-function assertThreadMediaItems(schema: JsonSchemaObject): void {
-  const threadSchema = schema.properties?.thread;
-  expect(threadSchema).toBeDefined();
-
-  const threadArray = findArraySchema(threadSchema!);
-  const segmentSchema = threadArray.items;
-  const mediaSchema = segmentSchema?.properties?.media;
-  expect(mediaSchema).toBeDefined();
-
-  const mediaArray = findArraySchema(mediaSchema!);
+function assertMediaItems(schema: JsonSchemaObject): void {
+  const mediaArray = findArraySchema(schema);
   const mediaItem = mediaArray.items;
   expect(mediaItem?.type).toBe("object");
   expect(mediaItem?.required).toEqual(expect.arrayContaining(["type", "url"]));
   expect(mediaItem?.properties?.type.enum).toEqual(["image", "video"]);
   expect(mediaItem?.properties?.url.type).toBe("string");
+}
+
+function assertTextOnlyThreadSegments(schema: JsonSchemaObject): void {
+  const threadSchema = schema.properties?.thread;
+  expect(threadSchema).toBeDefined();
+
+  const threadArray = findArraySchema(threadSchema!);
+  const segmentSchema = threadArray.items;
+  expect(segmentSchema?.type).toBe("object");
+  expect(segmentSchema?.required).toEqual(expect.arrayContaining(["message"]));
+  expect(segmentSchema?.properties?.message?.type).toBe("string");
+  expect(segmentSchema?.properties?.media).toBeUndefined();
 }
 
 describe("MCP tool JSON schemas", () => {
@@ -117,9 +128,17 @@ describe("MCP tool JSON schemas", () => {
     expect(issues).toEqual([]);
   });
 
-  it("describes thread segment media items wherever thread input is accepted", () => {
+  it("describes root media items wherever root media input is accepted", () => {
+    for (const schema of Object.values(ROOT_MEDIA_INPUT_SCHEMAS)) {
+      const mediaSchema = toInputJsonSchema(schema).properties?.media;
+      expect(mediaSchema).toBeDefined();
+      assertMediaItems(mediaSchema!);
+    }
+  });
+
+  it("keeps thread segment inputs text-only to avoid nested opaque media arrays", () => {
     for (const schema of Object.values(THREAD_INPUT_SCHEMAS)) {
-      assertThreadMediaItems(toInputJsonSchema(schema));
+      assertTextOnlyThreadSegments(toInputJsonSchema(schema));
     }
   });
 });

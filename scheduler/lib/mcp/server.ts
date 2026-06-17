@@ -64,11 +64,11 @@ Notes:
 
 # Multi-segment threads (reply chains)
 
-Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_post\` when the user wants more than one connected post: the root is always \`message\` plus optional root \`media\`, and \`thread\` is an ordered array of follow-up segments \`{ message, media? }\`. Segment \`media\` has the same object format as root media: \`{ type: "image" | "video", url, thumbnailUrl? }\`.
+Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_post\` when the user wants more than one connected post: the root is always \`message\` plus optional root \`media\`, and \`thread\` is an ordered array of text-only follow-up segments \`{ message }\`. Use root \`media\` for image/video attachments; the ChatGPT app tools do not accept media on individual follow-up segments.
 
 - **Thread-capable platforms** (native reply chains): \`x\`, \`bluesky\`, \`threads\` (Meta Threads), \`telegram\`. Each segment is published in order as a reply to the previous one. There is a short delay between segments so APIs can resolve parent ids (especially Meta Threads).
 - **Other platforms** in the same \`create_post\` call still receive only the **root** segment; validation surfaces a **warning** (not a hard error) that extra segments are dropped for those accounts.
-- **Limits**: at most 24 follow-up segments after the root (25 posts total on X). Each segment has its own text and optional \`media\`; per-segment media uses the same URL rules as the root.
+- **Limits**: at most 24 follow-up segments after the root (25 posts total on X). Each follow-up segment has its own text. Images/videos can be attached through the root \`media\` field.
 - **When to validate**: do not call \`validate_post\` automatically just because \`thread\` is non-empty. \`create_post\` validates every segment before creating or publishing. Use \`validate_post\` only when the user asks for validation-only feedback, and use \`preview_post\` only when the user asks for a preview or details are missing.
 - After \`create_post\` with \`postingMode: "now"\`, inspect \`postingResults[].threadResults\` for per-segment success, \`postId\`, and \`postUrl\` when the platform returned them.
 
@@ -81,7 +81,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 # Managing existing posts
 
 - \`inspect_posts\` can list drafts, future scheduled posts, already posted posts, and failed posts. Pass a \`postId\` to inspect a single post before editing or discarding it.
-- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`postingMode: "draft"\` moves a scheduled post to drafts, and \`postingMode: "schedule"\` plus \`scheduledFor\` moves a draft to scheduled (sending \`scheduledFor\` for a draft without \`postingMode\` also moves it to scheduled). Root \`media: null\` or \`media: []\` clears root media. \`thread: null\` or \`thread: []\` clears all follow-up segments. To keep a thread segment but remove only that segment's media, include the segment with \`media: []\`; segment media items use \`{ type, url, thumbnailUrl? }\`.
+- \`update_scheduled_post\` accepts partial updates. Omitted fields keep their current values; \`postingMode: "draft"\` moves a scheduled post to drafts, and \`postingMode: "schedule"\` plus \`scheduledFor\` moves a draft to scheduled (sending \`scheduledFor\` for a draft without \`postingMode\` also moves it to scheduled). Root \`media: null\` or \`media: []\` clears root media. \`thread: null\` or \`thread: []\` clears all follow-up segments. Replacement thread segments are text-only objects: \`{ message }\`.
 - \`update_scheduled_post\` validates the resulting scheduled post before saving changes. Draft saves are allowed even if platform validation would block publishing. If validation fails for a scheduled result, surface the per-account errors and do not call \`create_post\`.
 - \`discard_scheduled_post\` deletes a draft or future scheduled post and its stored media from SimplePost. It cannot undo posts that were already published to social platforms.
 

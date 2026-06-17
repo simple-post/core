@@ -20,6 +20,7 @@ import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/
 
 import { listAccounts, mcpAccountSchema } from "./accounts";
 import {
+  mcpMediaArraySchema,
   mcpMediaItemSchema,
   mcpThreadArraySchema,
   mcpThreadSchema,
@@ -35,8 +36,7 @@ export const createPostSchema = z.object({
     .array(z.string())
     .min(1)
     .describe("IDs of connected accounts to post to. Use list_accounts to get available IDs."),
-  media: z
-    .array(mcpMediaItemSchema)
+  media: mcpMediaArraySchema
     .optional()
     .describe(
       "Optional images/videos to attach. Each item must have a public URL, either one the user provided or one returned by upload_media. Some platforms, such as Instagram, require media; YouTube requires a video.",
@@ -169,17 +169,18 @@ export const updateScheduledPostSchema = z.object({
     .min(1)
     .optional()
     .describe("Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets."),
-  media: z
-    .array(mcpMediaItemSchema)
+  media: mcpMediaArraySchema
     .nullable()
     .optional()
     .describe(
-      "Replacement root media array. Each item must have a public URL or upload_media URL. Omit to keep current media; pass null or [] to clear root media.",
+      'Replacement root media array. Each item is {"type":"image"|"video","url":"https://...","thumbnailUrl"?}. Omit to keep current root media; pass null or [] to clear root media.',
     ),
   thread: mcpThreadArraySchema
     .nullable()
     .optional()
-    .describe("Replacement follow-up thread segments. Omit to keep current thread; pass null or [] to clear it."),
+    .describe(
+      'Replacement follow-up thread segments. Each segment is {"message":"...","media"?}; each segment media item is {"type":"image"|"video","url":"https://...","thumbnailUrl"?}. Omit to keep current thread; pass null or [] to clear all follow-up segments.',
+    ),
   scheduledFor: z
     .string()
     .datetime({ offset: true })

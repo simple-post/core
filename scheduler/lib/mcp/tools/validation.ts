@@ -3,7 +3,7 @@ import { z } from "zod";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 import { mcpAccountSchema } from "./accounts";
-import { mcpMediaItemSchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
+import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
 
 export const validatePostSchema = z.object({
   message: z.string().describe("The post text content"),
@@ -11,8 +11,7 @@ export const validatePostSchema = z.object({
     .array(z.string())
     .min(1)
     .describe("IDs of connected accounts to validate against. Use list_accounts to get available IDs."),
-  media: z
-    .array(mcpMediaItemSchema)
+  media: mcpMediaArraySchema
     .optional()
     .describe(
       "Optional images/videos to validate alongside the text. Each item needs a public URL (user-provided or returned by upload_media).",

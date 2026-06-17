@@ -84,6 +84,8 @@ describe("ChatGPT app submission metadata", () => {
     );
     expect(uploadCase?.file_attachment_urls?.length).toBeGreaterThan(0);
 
+    expect(submission.negative_test_cases).toHaveLength(3);
+
     for (const testCase of submission.negative_test_cases) {
       expect(testCase.tools_triggered).toBeNull();
     }

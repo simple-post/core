@@ -181,14 +181,6 @@
       "expected_output_url": null
     },
     {
-      "description": "Do not trigger for unrelated calendar scheduling.",
-      "user_prompt": "Schedule a team meeting tomorrow at 10 AM.",
-      "file_attachment_urls": null,
-      "tools_triggered": null,
-      "expected_output": "The app should not be invoked because meeting scheduling is outside SimplePost's supported social posting workflows.",
-      "expected_output_url": null
-    },
-    {
       "description": "Do not trigger for generic writing help with no intent to use SimplePost.",
       "user_prompt": "Write three short caption ideas for a product launch.",
       "file_attachment_urls": null,

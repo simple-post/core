@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { assertCanCreatePost } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
@@ -755,6 +756,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       }
     }
   }
+
+  await assertCanCreatePost(userId);
 
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";

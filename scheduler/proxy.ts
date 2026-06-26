@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_API_PREFIXES = ["/api/v1/", "/api/connect/"];
+const PROTECTED_API_PREFIXES = ["/api/v1/", "/api/connect/", "/api/billing/"];
 
 const MCP_CORS_PREFIXES = ["/mcp", "/.well-known/oauth-", "/api/oauth/"];
 
@@ -64,5 +64,12 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/v1/:path*", "/api/connect/:path*", "/mcp", "/.well-known/:path*", "/api/oauth/:path*"],
+  matcher: [
+    "/api/v1/:path*",
+    "/api/connect/:path*",
+    "/api/billing/:path*",
+    "/mcp",
+    "/.well-known/:path*",
+    "/api/oauth/:path*",
+  ],
 };

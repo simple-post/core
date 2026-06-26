@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { type NextRequest } from "next/server";
 
 import { auth } from "@/lib/auth/auth";
+import { assertActiveSubscription, assertPlanFeature } from "@/lib/billing/subscriptions";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 import { hashApiKey, isApiKey } from "@/lib/security/api-keys";
@@ -125,18 +126,21 @@ export async function requireAuth(req: NextRequest) {
   // Try CLI bearer token first
   const cliSession = await authenticateCliToken(req);
   if (cliSession) {
+    await assertPlanFeature(cliSession.user.id, "cliAccess");
     return cliSession;
   }
 
   // Try MCP bearer token
   const mcpSession = await authenticateMcpBearerToken(req);
   if (mcpSession) {
+    await assertActiveSubscription(mcpSession.user.id);
     return mcpSession;
   }
 
   // Try API key bearer token
   const apiKeySession = await authenticateApiKey(req);
   if (apiKeySession) {
+    await assertPlanFeature(apiKeySession.user.id, "apiAccess");
     return apiKeySession;
   }
 
@@ -146,6 +150,8 @@ export async function requireAuth(req: NextRequest) {
   if (!session?.user?.id) {
     throw new UnauthorizedError("Authentication required");
   }
+
+  await assertActiveSubscription(session.user.id);
 
   return session;
 }

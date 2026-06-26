@@ -84,6 +84,15 @@ export class UnauthorizedError extends ApiError {
 }
 
 /**
+ * Payment required error (402)
+ */
+export class PaymentRequiredError extends ApiError {
+  constructor(message: string = "An active subscription is required") {
+    super(message, 402, "PAYMENT_REQUIRED");
+  }
+}
+
+/**
  * Forbidden error (403)
  */
 export class ForbiddenError extends ApiError {

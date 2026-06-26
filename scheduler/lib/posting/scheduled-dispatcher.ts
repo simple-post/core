@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { isThreadCapable } from "@simple-post/sdk";
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
+import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { createLogger } from "@/lib/logger";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
@@ -219,6 +220,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   }
 
   try {
+    await assertActiveSubscription(post.userId);
+
     const postingResults = await postToAccounts(
       post.userId,
       post.message,

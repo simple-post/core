@@ -2,6 +2,7 @@
 
 import type React from "react";
 
+import { SubscriptionGate } from "@/components/billing/subscription-gate";
 import { LoginForm } from "@/components/login-form";
 import { useSession } from "@/lib/auth/auth-client";
 
@@ -22,6 +23,6 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     return <LoginForm />;
   }
 
-  // Render protected content when authenticated
-  return <>{children}</>;
+  // Render protected content only after subscription status is known.
+  return <SubscriptionGate>{children}</SubscriptionGate>;
 }

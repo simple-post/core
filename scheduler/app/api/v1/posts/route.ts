@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 
+import { assertCanCreatePost } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -126,6 +127,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
       }
     }
+
+    await assertCanCreatePost(userId);
 
     const postingMode = validated.postingMode;
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);

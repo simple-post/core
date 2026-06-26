@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { assertPlanFeature } from "@/lib/billing/subscriptions";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { generateApiKey, getApiKeyPrefix, hashApiKey } from "@/lib/security/api-keys";
@@ -29,6 +30,7 @@ function serializeApiKey(apiKey: {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireBrowserSession(req);
+    await assertPlanFeature(session.user.id, "apiAccess");
     const { id } = await params;
     const currentKey = await prisma.apiKey.findUnique({ where: { id } });
 

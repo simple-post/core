@@ -10,7 +10,7 @@ import { configureStorage } from "../lib/setup-storage.js";
 import { openExternalUrl } from "../lib/ux/browser.js";
 import { PromptSession } from "../lib/ux/prompt.js";
 
-const DEFAULT_SCHEDULER_URL = "https://schedule.simplepost.dev";
+const DEFAULT_SCHEDULER_URL = "https://app.simplepost.social";
 const CLI_CALLBACK_PATH = "/cli/callback";
 const DEFAULT_CALLBACK_PORT = 5000;
 const CALLBACK_TIMEOUT_MS = 90_000;

@@ -23,7 +23,7 @@ interface OpenAITestUserLoginConfigResponse {
   enabled?: boolean;
 }
 
-const OPENAI_TEST_USER_EMAIL = "openai@simplepost.dev";
+const OPENAI_TEST_USER_EMAIL = "openai@simplepost.social";
 
 async function fetchOpenAITestUserLoginEnabled(): Promise<boolean> {
   const response = await fetch("/api/auth/sign-in/openai-test-user", {
@@ -191,11 +191,11 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
           <p className="text-base text-muted-foreground leading-relaxed max-w-lg mx-auto mb-6">
             One line of code. 10 platforms. Part of the{" "}
             <a
-              href="https://simplepost.dev"
+              href="https://simplepost.social"
               target="_blank"
               rel="noopener noreferrer"
               className="text-foreground hover:text-primary transition-colors">
-              simplepost.dev
+              simplepost.social
             </a>{" "}
             ecosystem.
           </p>

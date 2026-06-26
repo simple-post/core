@@ -140,7 +140,7 @@
     },
     {
       "description": "Preview a scheduled Instagram post with a public media URL.",
-      "user_prompt": "Use SimplePost to preview this on my Instagram account edmundclompton tomorrow at 9 AM Europe/Berlin using https://schedule.simplepost.dev/simplepost-logo.png: New product photos are live.",
+      "user_prompt": "Use SimplePost to preview this on my Instagram account edmundclompton tomorrow at 9 AM Europe/Berlin using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, preview_post",
       "expected_output": "Calls list_accounts to resolve the matching Instagram account edmundclompton, then uses preview_post with that accountId. Returns text and structured JSON with resolved target account details, exact post content, media count, scheduled time with timezone, and validation results without creating the post.",

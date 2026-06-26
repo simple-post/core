@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://schedule.simplepost.dev";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social";
 
 interface ApiKeyRecord {
   id: string;

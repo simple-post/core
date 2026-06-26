@@ -38,17 +38,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "account.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "account.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "account"
-      ]
+      "permutations": ["account"]
     },
     "connect": {
       "aliases": [],
@@ -74,7 +66,7 @@
           "type": "option"
         },
         "url": {
-          "description": "Scheduler URL (default: https://schedule.simplepost.dev)",
+          "description": "Scheduler URL (default: https://app.simplepost.social)",
           "env": "SIMPLE_POST_SCHEDULER_URL",
           "name": "url",
           "hasDynamicHelp": false,
@@ -91,17 +83,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "connect.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "connect.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "connect"
-      ]
+      "permutations": ["connect"]
     },
     "disconnect": {
       "aliases": [],
@@ -117,17 +101,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "disconnect.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "disconnect.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "disconnect"
-      ]
+      "permutations": ["disconnect"]
     },
     "post": {
       "aliases": [],
@@ -392,17 +368,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "post.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "post.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "post"
-      ]
+      "permutations": ["post"]
     },
     "setup": {
       "aliases": [],
@@ -414,11 +382,7 @@
           "name": "backend",
           "hasDynamicHelp": false,
           "multiple": false,
-          "options": [
-            "keychain",
-            "file-plain",
-            "file-encrypted"
-          ],
+          "options": ["keychain", "file-plain", "file-encrypted"],
           "type": "option"
         }
       },
@@ -431,17 +395,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "setup.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "setup.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "setup"
-      ]
+      "permutations": ["setup"]
     },
     "account:add": {
       "aliases": [],
@@ -517,19 +473,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "account",
-        "add.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "account", "add.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "account:add",
-        "add:account"
-      ]
+      "permutations": ["account:add", "add:account"]
     },
     "account:remove": {
       "aliases": [],
@@ -551,19 +497,9 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": [
-        "dist",
-        "cli",
-        "src",
-        "commands",
-        "account",
-        "remove.js"
-      ],
+      "relativePath": ["dist", "cli", "src", "commands", "account", "remove.js"],
       "aliasPermutations": [],
-      "permutations": [
-        "account:remove",
-        "remove:account"
-      ]
+      "permutations": ["account:remove", "remove:account"]
     }
   },
   "version": "0.1.0"

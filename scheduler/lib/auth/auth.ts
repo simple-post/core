@@ -9,7 +9,7 @@ import { env } from "../env";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
 
-const OPENAI_TEST_USER_EMAIL = "openai@simplepost.dev";
+const OPENAI_TEST_USER_EMAIL = "openai@simplepost.social";
 const OPENAI_TEST_USER_PASSWORD = "openai";
 
 function openAITestUserLogin() {

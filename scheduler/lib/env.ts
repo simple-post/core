@@ -46,7 +46,7 @@ export const env = {
     return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   },
   get RESEND_FROM_ADDRESS() {
-    return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.dev";
+    return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.social";
   },
   get ENABLE_OPENAI_TEST_LOGIN() {
     return getBoolean("ENABLE_OPENAI_TEST_LOGIN");

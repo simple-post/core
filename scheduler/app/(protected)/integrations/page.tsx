@@ -8,7 +8,7 @@ import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { TerminalBlock } from "@/components/terminal-block";
 
-const MCP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://schedule.simplepost.dev";
+const MCP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social";
 
 interface IntegrationProps {
   icon: React.ReactNode;

@@ -4,19 +4,12 @@
   "description": "Agent skill for using SimplePost through MCP, CLI, HTTP API, Scheduler app, or TypeScript SDK.",
   "author": {
     "name": "SimplePost",
-    "url": "https://simplepost.dev"
+    "url": "https://simplepost.social"
   },
-  "homepage": "https://docs.simplepost.dev",
+  "homepage": "https://docs.simplepost.social",
   "repository": "https://github.com/simple-post/core",
   "license": "MIT",
-  "keywords": [
-    "simplepost",
-    "social-media",
-    "posting",
-    "mcp",
-    "cli",
-    "sdk"
-  ],
+  "keywords": ["simplepost", "social-media", "posting", "mcp", "cli", "sdk"],
   "skills": "./skills/",
   "interface": {
     "displayName": "SimplePost",
@@ -24,12 +17,8 @@
     "longDescription": "Guides Codex and ChatGPT-style agents through choosing and using the right SimplePost interface: MCP for Scheduler-connected accounts, CLI for terminal automation, HTTP API for service integrations, Scheduler app for account and scheduling workflows, and TypeScript SDK for in-process integrations.",
     "developerName": "SimplePost",
     "category": "Productivity",
-    "capabilities": [
-      "Interactive",
-      "Read",
-      "Write"
-    ],
-    "websiteURL": "https://simplepost.dev",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://simplepost.social",
     "defaultPrompt": [
       "Use SimplePost to publish this post.",
       "Set up SimplePost MCP for this agent.",
@@ -39,4 +28,3 @@
     "screenshots": []
   }
 }
-

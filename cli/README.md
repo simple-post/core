@@ -17,7 +17,7 @@ node cli/bin/run.js --help
 node cli/bin/run.js setup
 node cli/bin/run.js account
 node cli/bin/run.js account add x --alias main
-node cli/bin/run.js connect --url https://schedule.simplepost.dev
+node cli/bin/run.js connect --url https://app.simplepost.social
 node cli/bin/run.js post --interactive
 node cli/bin/run.js post --account x:main --text "Hello world"
 ```

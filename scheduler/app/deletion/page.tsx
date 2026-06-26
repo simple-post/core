@@ -140,8 +140,8 @@ export default function DataDeletionPage() {
                 <div className="ml-8 space-y-4">
                   <p className="text-muted-foreground">
                     Send an email to{" "}
-                    <a href="mailto:support@simplepost.dev" className="text-primary hover:underline font-medium">
-                      support@simplepost.dev
+                    <a href="mailto:support@simplepost.social" className="text-primary hover:underline font-medium">
+                      support@simplepost.social
                     </a>{" "}
                     with:
                   </p>
@@ -247,7 +247,7 @@ export default function DataDeletionPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <Button asChild className="gap-2 w-full sm:w-auto">
-                  <a href="mailto:support@simplepost.dev">
+                  <a href="mailto:support@simplepost.social">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -256,7 +256,7 @@ export default function DataDeletionPage() {
                         d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                       />
                     </svg>
-                    support@simplepost.dev
+                    support@simplepost.social
                   </a>
                 </Button>
                 <Link href="/privacy">

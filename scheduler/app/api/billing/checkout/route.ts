@@ -53,6 +53,9 @@ export async function POST(req: NextRequest) {
 
     if (billing.active) {
       const portalSession = await stripe.billingPortal.sessions.create({
+        ...(process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID
+          ? { configuration: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID }
+          : {}),
         customer: customerId,
         return_url: `${appUrl}/billing`,
       });

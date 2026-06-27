@@ -7,9 +7,11 @@ import { usePathname } from "next/navigation";
 import { PlanSelection } from "@/components/billing/plan-selection";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
+import { type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 
 interface BillingStatusResponse {
   active: boolean;
+  displayCurrency: BillingDisplayCurrency;
 }
 
 async function parseApiError(response: Response): Promise<string> {
@@ -94,7 +96,7 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <PlanSelection />
+        <PlanSelection displayCurrency={billing?.displayCurrency} />
       </div>
     );
   }

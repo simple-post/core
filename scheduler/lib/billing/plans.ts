@@ -1,3 +1,5 @@
+import type { BillingDisplayCurrency } from "@/lib/billing/display-currency";
+
 export const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 export const PLAN_KEYS = ["basic", "advanced", "pro"] as const;
@@ -20,6 +22,7 @@ export interface BillingPlan {
   key: PlanKey;
   name: string;
   price: string;
+  prices: Record<BillingDisplayCurrency, string>;
   priceMonthly: number;
   description: string;
   featured?: boolean;
@@ -33,6 +36,7 @@ export const BILLING_PLANS: BillingPlan[] = [
     key: "basic",
     name: "Basic",
     price: "$9",
+    prices: { usd: "$9", eur: "€9" },
     priceMonthly: 9,
     description: "For solo creators posting weekly.",
     stripePriceEnv: "STRIPE_BASIC_PRICE_ID",
@@ -56,6 +60,7 @@ export const BILLING_PLANS: BillingPlan[] = [
     key: "advanced",
     name: "Advanced",
     price: "$19",
+    prices: { usd: "$19", eur: "€19" },
     priceMonthly: 19,
     description: "For creators and small teams publishing regularly.",
     featured: true,
@@ -80,6 +85,7 @@ export const BILLING_PLANS: BillingPlan[] = [
     key: "pro",
     name: "Pro",
     price: "$29",
+    prices: { usd: "$29", eur: "€29" },
     priceMonthly: 29,
     description: "For power users, agents, and automated workflows.",
     stripePriceEnv: "STRIPE_PRO_PRICE_ID",
@@ -133,6 +139,16 @@ export function requireStripePriceId(planKey: PlanKey): string {
 export function getPlanByStripePriceId(priceId: string | null | undefined): BillingPlan | null {
   if (!priceId) return null;
   return BILLING_PLANS.find((plan) => process.env[plan.stripePriceEnv] === priceId) ?? null;
+}
+
+export function getBillingPlanPrice(
+  plan: {
+    price: string;
+    prices?: Partial<Record<BillingDisplayCurrency, string>>;
+  },
+  displayCurrency: BillingDisplayCurrency,
+): string {
+  return plan.prices?.[displayCurrency] ?? plan.price;
 }
 
 export function formatAccountLimit(plan: BillingPlan): string {

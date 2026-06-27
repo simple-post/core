@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
     }
 
     const portalSession = await getStripe().billingPortal.sessions.create({
+      ...(process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID
+        ? { configuration: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID }
+        : {}),
       customer: customerId,
       return_url: `${getAppUrl()}/billing`,
     });

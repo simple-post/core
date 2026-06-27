@@ -14,11 +14,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
+import { getBillingPlanPrice } from "@/lib/billing/plans";
 
 interface BillingPlan {
   key: string;
   name: string;
   price: string;
+  prices: Record<BillingDisplayCurrency, string>;
   limits: {
     socialAccounts: number | null;
     postsPerMonth: number;
@@ -29,6 +32,7 @@ interface BillingPlan {
 
 interface BillingStatus {
   active: boolean;
+  displayCurrency: BillingDisplayCurrency;
   plan: BillingPlan | null;
   subscription: {
     status: string;
@@ -112,6 +116,7 @@ export default function BillingPage() {
   };
 
   const plan = billing?.plan ?? null;
+  const displayCurrency = billing?.displayCurrency ?? DEFAULT_BILLING_DISPLAY_CURRENCY;
   const accountLimit = plan?.limits.socialAccounts ?? null;
   const postLimit = plan?.limits.postsPerMonth ?? null;
 
@@ -195,7 +200,7 @@ export default function BillingPage() {
                     ) : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {plan.price} / month · Current period ends{" "}
+                    {getBillingPlanPrice(plan, displayCurrency)} / month · Current period ends{" "}
                     {formatDate(billing.subscription?.currentPeriodEnd ?? null)}
                   </p>
                 </div>

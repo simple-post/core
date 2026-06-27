@@ -7,7 +7,8 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BILLING_PLANS, type PlanKey } from "@/lib/billing/plans";
+import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
+import { BILLING_PLANS, getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
 
 async function parseApiError(response: Response): Promise<string> {
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
@@ -17,11 +18,13 @@ async function parseApiError(response: Response): Promise<string> {
 interface PlanSelectionProps {
   title?: string;
   description?: string;
+  displayCurrency?: BillingDisplayCurrency;
 }
 
 export function PlanSelection({
   title = "Choose your SimplePost plan",
   description = "A subscription is required to use the scheduler. Pick a monthly plan to continue in Stripe Checkout.",
+  displayCurrency = DEFAULT_BILLING_DISPLAY_CURRENCY,
 }: PlanSelectionProps) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
 
@@ -80,7 +83,9 @@ export function PlanSelection({
               <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground">{plan.name}</h2>
               <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{plan.description}</p>
               <p className="mt-6 flex items-baseline gap-1.5">
-                <span className="text-4xl font-semibold tracking-[-0.04em] text-foreground">{plan.price}</span>
+                <span className="text-4xl font-semibold tracking-[-0.04em] text-foreground">
+                  {getBillingPlanPrice(plan, displayCurrency)}
+                </span>
                 <span className="text-sm text-muted-foreground">/ month</span>
               </p>
 

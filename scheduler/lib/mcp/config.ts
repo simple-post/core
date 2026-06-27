@@ -94,5 +94,5 @@ export function isAllowedMcpRedirectUri(uri: string): boolean {
   }
 
   const isLoopback = LOOPBACK_HOSTS.has(parsed.hostname) || LOOPBACK_HOSTS.has(parsed.host);
-  return process.env.NODE_ENV !== "production" && isLoopback && parsed.protocol === "http:";
+  return isLoopback && parsed.protocol === "http:";
 }

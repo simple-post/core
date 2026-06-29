@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
-import { getAppUrl, getStripe } from "@/lib/billing/stripe";
+import { getAppUrl, getOrCreateStripeCustomer, getStripe } from "@/lib/billing/stripe";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
+        id: true,
+        email: true,
+        name: true,
         stripeCustomerId: true,
         subscription: {
           select: {
@@ -38,10 +41,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const customerId = user?.stripeCustomerId ?? user?.subscription?.stripeCustomerId;
-    if (!customerId) {
-      throw new BadRequestError("No Stripe customer found for this account");
+    if (!user) {
+      throw new BadRequestError("User not found");
     }
+
+    const customerId = await getOrCreateStripeCustomer({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      stripeCustomerId: user.stripeCustomerId ?? user.subscription?.stripeCustomerId,
+    });
 
     const portalSession = await getStripe().billingPortal.sessions.create({
       ...(process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID

@@ -2,19 +2,19 @@ import { isAllowedMcpRedirectUri } from "@/lib/mcp/config";
 
 const originalNodeEnv = process.env.NODE_ENV;
 
+function setNodeEnv(value: typeof process.env.NODE_ENV) {
+  Object.defineProperty(process.env, "NODE_ENV", { value, writable: true, configurable: true });
+}
+
 afterEach(() => {
-  if (originalNodeEnv === undefined) {
-    delete process.env.NODE_ENV;
-  } else {
-    process.env.NODE_ENV = originalNodeEnv;
-  }
+  setNodeEnv(originalNodeEnv);
 });
 
 describe("isAllowedMcpRedirectUri", () => {
   it.each(["http://localhost:58749/callback", "http://127.0.0.1:58749/callback", "http://[::1]:58749/callback"])(
     "allows HTTP loopback redirects in production: %s",
     (uri) => {
-      process.env.NODE_ENV = "production";
+      setNodeEnv("production");
 
       expect(isAllowedMcpRedirectUri(uri)).toBe(true);
     },

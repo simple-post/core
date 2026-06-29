@@ -48,19 +48,12 @@ export async function POST(req: NextRequest) {
     }
 
     const appUrl = getAppUrl();
+    if (billing.active) {
+      return NextResponse.json({ url: `${appUrl}/billing/plans` });
+    }
+
     const stripe = getStripe();
     const customerId = await getOrCreateStripeCustomer(user);
-
-    if (billing.active) {
-      const portalSession = await stripe.billingPortal.sessions.create({
-        ...(process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID
-          ? { configuration: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID }
-          : {}),
-        customer: customerId,
-        return_url: `${appUrl}/billing`,
-      });
-      return NextResponse.json({ url: portalSession.url });
-    }
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -88,8 +81,8 @@ export async function POST(req: NextRequest) {
           planKey: plan.key,
         },
       },
-      success_url: `${appUrl}/billing?checkout=success`,
-      cancel_url: `${appUrl}/subscribe?checkout=cancelled`,
+      success_url: `${appUrl}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/subscribe?checkout=cancelled&plan=${encodeURIComponent(plan.key)}`,
     });
 
     if (!checkoutSession.url) {

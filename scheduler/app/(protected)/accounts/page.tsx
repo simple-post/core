@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 
-import Link from "next/link";
-
 import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -95,16 +93,7 @@ export default function AccountsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar
-        actions={
-          <Link href="/schedule">
-            <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create post</span>
-            </Button>
-          </Link>
-        }
-      />
+      <Navbar />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <div className="mb-6 flex items-center justify-between gap-3 animate-reveal">

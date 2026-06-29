@@ -9,7 +9,6 @@ import { format } from "date-fns";
 import { Trash2, Calendar, Clock, Edit, AlertCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 
-import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
 import {
@@ -117,8 +116,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         />
 
         <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-          <div className="space-y-3 animate-reveal">
-            <BackLink />
+          <div className="animate-reveal">
             <div className="flex flex-wrap items-center gap-3">
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />

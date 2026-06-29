@@ -63,7 +63,7 @@ export function UserMenu() {
         <DropdownMenuItem asChild>
           <Link href="/billing" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            Billing
+            Subscription
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

@@ -4,7 +4,6 @@ import Link from "next/link";
 
 import { Bot, Cpu, Terminal as TerminalIcon, Sparkles } from "lucide-react";
 
-import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { TerminalBlock } from "@/components/terminal-block";
 
@@ -45,8 +44,7 @@ export default function IntegrationsPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="max-w-3xl mx-auto px-[clamp(18px,4vw,48px)] py-6 space-y-5">
-        <div className="space-y-3 animate-reveal">
-          <BackLink />
+        <div className="animate-reveal">
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />

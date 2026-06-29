@@ -5,23 +5,24 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { CreditCard, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, ExternalLink, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
-import { getBillingPlanPrice } from "@/lib/billing/plans";
+import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
 
 interface BillingPlan {
-  key: string;
+  key: PlanKey;
   name: string;
   price: string;
   prices: Record<BillingDisplayCurrency, string>;
+  priceMonthly: number;
+  description: string;
+  featured?: boolean;
   limits: {
     socialAccounts: number | null;
     postsPerMonth: number;
@@ -53,6 +54,10 @@ async function parseApiError(response: Response): Promise<string> {
   return data.error || data.message || `Request failed with status ${response.status}`;
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function formatDate(value: string | null) {
   if (!value) return "Not available";
   return new Date(value).toLocaleDateString(undefined, {
@@ -70,34 +75,102 @@ function usagePercent(value: number, limit: number | null) {
 export default function BillingPage() {
   const searchParams = useSearchParams();
   const checkout = searchParams.get("checkout");
+  const checkoutSessionId = searchParams.get("session_id");
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [portalLoading, setPortalLoading] = useState(false);
+  const [finalizingCheckout, setFinalizingCheckout] = useState(false);
+  const [portalLoading, setPortalLoading] = useState<"manage" | "invoices" | null>(null);
+
+  const loadBillingStatus = useCallback(async (): Promise<BillingStatus> => {
+    const response = await fetch("/api/billing/subscription", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    return (await response.json()) as BillingStatus;
+  }, []);
+
+  const finalizeCheckoutSession = useCallback(async (sessionId: string): Promise<BillingStatus> => {
+    const response = await fetch("/api/billing/finalize-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    return (await response.json()) as BillingStatus;
+  }, []);
 
   const fetchBilling = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/billing/subscription", { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(await parseApiError(response));
-      }
-      setBilling((await response.json()) as BillingStatus);
+      setBilling(await loadBillingStatus());
     } catch (error) {
       console.error("Failed to load billing:", error);
       toast.error(error instanceof Error ? error.message : "Failed to load billing");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadBillingStatus]);
 
   useEffect(() => {
-    fetchBilling();
-  }, [fetchBilling]);
+    let cancelled = false;
 
-  const openPortal = async () => {
-    setPortalLoading(true);
+    async function loadInitialBilling() {
+      const shouldFinalizeCheckout = checkout === "success";
+      setLoading(true);
+      setFinalizingCheckout(shouldFinalizeCheckout);
+
+      try {
+        const attempts = shouldFinalizeCheckout ? 6 : 1;
+        let latestBilling: BillingStatus | null = null;
+
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          if (shouldFinalizeCheckout && checkoutSessionId && attempt === 0) {
+            try {
+              latestBilling = await finalizeCheckoutSession(checkoutSessionId);
+            } catch (finalizeError) {
+              console.error("Failed to finalize Checkout Session:", finalizeError);
+              latestBilling = await loadBillingStatus();
+            }
+          } else {
+            latestBilling = await loadBillingStatus();
+          }
+          if (cancelled) return;
+
+          setBilling(latestBilling);
+          if (latestBilling.active) break;
+
+          if (attempt < attempts - 1) {
+            await delay(attempt === 0 ? 650 : 900);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load billing:", error);
+        toast.error(error instanceof Error ? error.message : "Failed to load billing");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setFinalizingCheckout(false);
+        }
+      }
+    }
+
+    void loadInitialBilling();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkout, checkoutSessionId, finalizeCheckoutSession, loadBillingStatus]);
+
+  const openPortal = async (purpose: "manage" | "invoices") => {
+    setPortalLoading(purpose);
     try {
-      const response = await fetch("/api/billing/portal", { method: "POST" });
+      const response = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purpose }),
+      });
       if (!response.ok) {
         throw new Error(await parseApiError(response));
       }
@@ -111,7 +184,7 @@ export default function BillingPage() {
     } catch (error) {
       console.error("Failed to open Stripe portal:", error);
       toast.error(error instanceof Error ? error.message : "Failed to open Stripe portal");
-      setPortalLoading(false);
+      setPortalLoading(null);
     }
   };
 
@@ -124,17 +197,16 @@ export default function BillingPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-4xl px-[clamp(18px,4vw,48px)] py-6">
-        <div className="mb-6 space-y-3 animate-reveal">
-          <BackLink />
+        <div className="mb-6 animate-reveal">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
-                <span className="section-kicker-label">Billing</span>
+                <span className="section-kicker-label">Subscription</span>
               </div>
               <span className="h-3 w-px bg-border" />
               <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-                Plan <span className="text-primary">and billing</span>
+                Plan and <span className="text-primary">billing</span>
               </h1>
             </div>
             <Button
@@ -150,21 +222,24 @@ export default function BillingPage() {
           </div>
         </div>
 
-        {checkout === "success" ? (
-          <Alert className="mb-5 border-primary/40 bg-primary/10">
-            <AlertTitle>Checkout complete</AlertTitle>
-            <AlertDescription>
-              Stripe is confirming your subscription. If this page has not updated yet, refresh in a few seconds.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
         {loading ? (
-          <div className="rounded-2xl border border-border bg-card p-8 animate-pulse">
-            <div className="h-5 w-32 rounded bg-secondary" />
-            <div className="mt-5 h-10 w-56 rounded bg-secondary" />
-            <div className="mt-8 h-24 rounded bg-secondary" />
-          </div>
+          finalizingCheckout ? (
+            <div className="rounded-2xl border border-border bg-card p-8">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold tracking-[-0.025em]">Finishing setup</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Your plan will be ready in a moment.</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card p-8 animate-pulse">
+              <div className="h-5 w-32 rounded bg-secondary" />
+              <div className="mt-5 h-10 w-56 rounded bg-secondary" />
+              <div className="mt-8 h-24 rounded bg-secondary" />
+            </div>
+          )
         ) : !billing?.active || !plan ? (
           <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
             <div className="section-kicker">
@@ -189,7 +264,7 @@ export default function BillingPage() {
                     <span className="section-kicker-label">Current plan</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-3xl font-semibold tracking-[-0.04em]">{plan.name}</h2>
+                    <h2 className="text-2xl font-semibold tracking-[-0.025em]">{plan.name}</h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       {billing.subscription?.status ?? "active"}
                     </Badge>
@@ -205,10 +280,40 @@ export default function BillingPage() {
                   </p>
                 </div>
 
-                <Button type="button" onClick={openPortal} disabled={portalLoading} className="gap-2">
-                  {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                  {portalLoading ? "Opening..." : "Manage in Stripe"}
-                </Button>
+                <div className="grid gap-2 sm:min-w-56">
+                  <Button asChild className="justify-start gap-2">
+                    <Link href="/billing/plans">
+                      <ArrowLeftRight className="h-4 w-4" />
+                      Change plan
+                    </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openPortal("manage")}
+                    disabled={portalLoading !== null}
+                    className="justify-start gap-2">
+                    {portalLoading === "manage" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4" />
+                    )}
+                    {portalLoading === "manage" ? "Opening..." : "Manage subscription"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openPortal("invoices")}
+                    disabled={portalLoading !== null}
+                    className="justify-start gap-2">
+                    {portalLoading === "invoices" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4" />
+                    )}
+                    {portalLoading === "invoices" ? "Opening..." : "Invoices"}
+                  </Button>
+                </div>
               </div>
             </section>
 
@@ -236,28 +341,6 @@ export default function BillingPage() {
                   </div>
                   <Progress value={usagePercent(billing.usage.postsThisPeriod, postLimit)} />
                 </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-3">
-              <div className="section-kicker">
-                <span className="section-kicker-dot" />
-                <span className="section-kicker-label">Included</span>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  ["Web app", "Included"],
-                  ["CLI", plan.limits.cliAccess ? "Included" : "Not included"],
-                  ["API", plan.limits.apiAccess ? "Included" : "Pro only"],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl border border-border bg-secondary p-4">
-                    <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card">
-                      <CreditCard className="h-4 w-4" />
-                    </div>
-                    <p className="text-sm font-medium">{label}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{value}</p>
-                  </div>
-                ))}
               </div>
             </section>
           </div>

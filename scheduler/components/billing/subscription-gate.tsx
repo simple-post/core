@@ -19,7 +19,7 @@ async function parseApiError(response: Response): Promise<string> {
   return data.error || data.message || `Request failed with status ${response.status}`;
 }
 
-const UNGATED_PATHS = new Set(["/subscribe", "/billing"]);
+const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans"]);
 
 export function SubscriptionGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();

@@ -11,17 +11,10 @@ import {
   deleteStorageUrls,
   getRemovedAccountOptionThumbnailUrls,
 } from "@/lib/utils/media-cleanup";
-import { checkRateLimits } from "@/lib/utils/rate-limit";
-import {
-  checkAndDeductXCredits,
-  refundXCreditsForAccountIds,
-  refundXCreditsForDiscardedPost,
-  refundXCreditsForFailedResults,
-} from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
-import type { AccountResultsMap, MediaFile, PostingMode, SocialPost, ThreadSegmentResult } from "@/types";
+import type { AccountResultsMap, MediaFile, PostingMode, ThreadSegmentResult } from "@/types";
 
 function resolveScheduledFor(
   postingMode: PostingMode,
@@ -52,26 +45,6 @@ function resolveScheduledFor(
   }
 
   return scheduledFor;
-}
-
-function getAccountIdsNeedingWriteChecks(currentPost: SocialPost, nextMode: PostingMode, nextAccountIds: string[]) {
-  if (nextMode === "draft") {
-    return [];
-  }
-
-  if (currentPost.status !== "scheduled") {
-    // Retrying a failed post: accounts that already published successfully
-    // will be skipped at publish time and must not be charged again.
-    const alreadySucceeded = new Set(
-      Object.values(currentPost.accountResults ?? {})
-        .filter((result) => result.success)
-        .map((result) => result.accountId),
-    );
-    return nextAccountIds.filter((accountId) => !alreadySucceeded.has(accountId));
-  }
-
-  const currentAccountIds = new Set(currentPost.accountIds);
-  return nextAccountIds.filter((accountId) => !currentAccountIds.has(accountId));
 }
 
 // GET /api/v1/posts/[id] - Get a single post by ID
@@ -133,18 +106,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (postingMode !== "draft" && !validation.summary.isValid) {
       throw new ValidationError(validation);
-    }
-
-    const checkedAccountIds = getAccountIdsNeedingWriteChecks(currentPost, postingMode, validated.accountIds);
-    if (checkedAccountIds.length > 0) {
-      await checkRateLimits(session.user.id, checkedAccountIds);
-      await checkAndDeductXCredits(session.user.id, checkedAccountIds);
-    }
-
-    // Moving a scheduled post back to draft returns its X credits (drafts
-    // are not charged; scheduling it again will deduct anew).
-    if (postingMode === "draft") {
-      await refundXCreditsForDiscardedPost(session.user.id, currentPost);
     }
 
     // Capture removed media before update for R2 cleanup. Include media from
@@ -229,7 +190,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           accountResults,
         });
       } else {
-        await refundXCreditsForFailedResults(session.user.id, results);
         const failedResults = results.filter((result) => !result.success);
         const errorMessage =
           failedResults.length === 1
@@ -295,8 +255,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         stack: postingError instanceof Error ? postingError.stack : undefined,
       };
 
-      await refundXCreditsForAccountIds(session.user.id, validated.accountIds);
-
       await repository.updatePost(post.id, {
         status: "failed",
         errorMessage,
@@ -329,7 +287,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await Promise.all([deleteMediaFiles(postMedia), deleteAccountOptionFiles(post.accountOptions)]);
 
     await repository.deletePost(id);
-    await refundXCreditsForDiscardedPost(session.user.id, post);
 
     return NextResponse.json({ success: true });
   } catch (error) {

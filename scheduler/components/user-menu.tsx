@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { Cpu, KeyRound } from "lucide-react";
+import { Cpu, CreditCard, KeyRound } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -60,6 +60,12 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/billing" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Subscription
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/api-keys" className="flex items-center gap-2">
             <KeyRound className="h-4 w-4" />

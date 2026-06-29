@@ -1,6 +1,5 @@
 "use client";
 
-import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { SchedulePostForm } from "@/components/schedule-post-form";
 
@@ -10,8 +9,7 @@ export default function SchedulePage() {
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-        <div className="mb-6 space-y-3 animate-reveal">
-          <BackLink />
+        <div className="mb-6 animate-reveal">
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />

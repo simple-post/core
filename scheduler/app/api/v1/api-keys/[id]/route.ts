@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { assertPlanFeature } from "@/lib/billing/subscriptions";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, handleApiError, NotFoundError } from "@/lib/utils/errors";
@@ -28,6 +29,7 @@ function serializeApiKey(apiKey: {
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireBrowserSession(req);
+    await assertPlanFeature(session.user.id, "apiAccess");
     const { id } = await params;
     const apiKey = await prisma.apiKey.findUnique({ where: { id } });
 

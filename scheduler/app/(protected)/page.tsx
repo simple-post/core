@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react";
 
-import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { Calendar, CheckCircle, AlertCircle, Users, Plus, FileText, KeyRound } from "lucide-react";
+import { Calendar, CheckCircle, AlertCircle, FileText } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type TabType = "drafts" | "scheduled" | "past" | "failed";
@@ -46,30 +44,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar
-        actions={
-          <>
-            <Link href="/api-keys">
-              <Button variant="outline" size="sm" className="gap-2">
-                <KeyRound className="h-4 w-4" />
-                <span className="hidden sm:inline">API</span>
-              </Button>
-            </Link>
-            <Link href="/accounts">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Accounts</span>
-              </Button>
-            </Link>
-            <Link href="/schedule">
-              <Button size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create post</span>
-              </Button>
-            </Link>
-          </>
-        }
-      />
+      <Navbar />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <div className="mb-6 flex items-center gap-3 animate-reveal">

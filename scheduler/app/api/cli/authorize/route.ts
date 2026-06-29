@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { NextResponse, type NextRequest } from "next/server";
 
+import { assertPlanFeature } from "@/lib/billing/subscriptions";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
@@ -20,6 +21,7 @@ function hashToken(token: string): string {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
+    await assertPlanFeature(session.user.id, "cliAccess");
     const body = await req.json();
     const { state, redirectUri } = body;
 

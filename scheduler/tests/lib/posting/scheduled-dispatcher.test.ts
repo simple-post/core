@@ -12,6 +12,12 @@ jest.mock("@/lib/prisma", () => ({
       update: jest.fn(),
       count: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
+    connectedAccount: {
+      count: jest.fn(),
+    },
     webhookEndpoint: {
       findMany: jest.fn(),
       update: jest.fn(),
@@ -37,6 +43,12 @@ const prismaMock = prisma as unknown as {
     findMany: jest.Mock;
     updateMany: jest.Mock;
     update: jest.Mock;
+    count: jest.Mock;
+  };
+  user: {
+    findUnique: jest.Mock;
+  };
+  connectedAccount: {
     count: jest.Mock;
   };
   webhookEndpoint: {
@@ -116,6 +128,21 @@ function mockFindMany({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  prismaMock.user.findUnique.mockResolvedValue({
+    subscription: {
+      status: "active",
+      planKey: "pro",
+      stripeCustomerId: "cus_test",
+      stripeSubscriptionId: "sub_test",
+      stripePriceId: "price_pro",
+      currentPeriodStart: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      currentPeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      trialEndsAt: null,
+    },
+  });
+  prismaMock.connectedAccount.count.mockResolvedValue(1);
   prismaMock.webhookEndpoint.findMany.mockResolvedValue([]);
   mockFindMany({});
   prismaMock.post.count.mockResolvedValue(0);

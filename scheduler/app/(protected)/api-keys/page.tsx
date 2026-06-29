@@ -2,12 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import Link from "next/link";
-
 import { Ban, Check, Copy, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { TerminalBlock } from "@/components/terminal-block";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -161,20 +158,10 @@ export default function ApiKeysPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar
-        actions={
-          <Link href="/integrations">
-            <Button variant="outline" size="sm" className="gap-2">
-              <KeyRound className="h-4 w-4" />
-              <span className="hidden sm:inline">Integrations</span>
-            </Button>
-          </Link>
-        }
-      />
+      <Navbar />
 
       <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6 space-y-5">
-        <div className="space-y-3 animate-reveal">
-          <BackLink />
+        <div className="animate-reveal">
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />

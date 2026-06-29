@@ -153,7 +153,6 @@ export function useSubmitPost() {
     mutationFn: submitPost,
     onSuccess: (_data: PostMutationResult, variables: PostMutationParams) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.xCredits });
       if (variables.postId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.post(variables.postId) });
       }

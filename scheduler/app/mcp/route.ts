@@ -3,9 +3,11 @@ import { type NextRequest } from "next/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
+import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { registerTools, SERVER_INSTRUCTIONS, type McpToolAuthContext } from "@/lib/mcp/server";
+import { PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
 
@@ -22,6 +24,8 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
 
   const session = await authenticateMcpToken(token, getMcpResourceUrl());
   if (!session?.user?.id) return null;
+
+  await assertActiveSubscription(session.user.id);
 
   return {
     userId: session.user.id,
@@ -43,6 +47,26 @@ function unauthorizedResponse(): Response {
       "Content-Type": "application/json",
     },
   });
+}
+
+function paymentRequiredResponse(): Response {
+  return new Response(JSON.stringify({ error: "subscription_required" }), {
+    status: 402,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContext | Response | null> {
+  try {
+    return await authenticateRequest(req);
+  } catch (error) {
+    if (error instanceof PaymentRequiredError) {
+      return paymentRequiredResponse();
+    }
+    throw error;
+  }
 }
 
 /**
@@ -75,7 +99,10 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
  * POST /mcp — Handle MCP JSON-RPC requests via Streamable HTTP.
  */
 export async function POST(req: NextRequest) {
-  const authContext = await authenticateRequest(req);
+  const authContext = await getAuthContextOrResponse(req);
+  if (authContext instanceof Response) {
+    return authContext;
+  }
   if (!authContext) {
     return unauthorizedResponse();
   }
@@ -99,7 +126,10 @@ export async function POST(req: NextRequest) {
  * GET /mcp — SSE endpoint (not used in stateless mode).
  */
 export async function GET(req: NextRequest) {
-  const authContext = await authenticateRequest(req);
+  const authContext = await getAuthContextOrResponse(req);
+  if (authContext instanceof Response) {
+    return authContext;
+  }
   if (!authContext) {
     return unauthorizedResponse();
   }

@@ -84,6 +84,15 @@ export class UnauthorizedError extends ApiError {
 }
 
 /**
+ * Payment required error (402)
+ */
+export class PaymentRequiredError extends ApiError {
+  constructor(message: string = "An active subscription is required") {
+    super(message, 402, "PAYMENT_REQUIRED");
+  }
+}
+
+/**
  * Forbidden error (403)
  */
 export class ForbiddenError extends ApiError {
@@ -119,15 +128,6 @@ export class ValidationError extends ApiError {
     message: string = "Validation failed",
   ) {
     super(message, 400, "VALIDATION_ERROR");
-  }
-}
-
-/**
- * Rate limit error (429)
- */
-export class RateLimitError extends ApiError {
-  constructor(message: string = "Rate limit exceeded") {
-    super(message, 429, "RATE_LIMIT_EXCEEDED");
   }
 }
 

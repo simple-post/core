@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import { assertPlanFeature } from "@/lib/billing/subscriptions";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { generateApiKey, getApiKeyPrefix, hashApiKey } from "@/lib/security/api-keys";
@@ -43,6 +44,7 @@ async function readJsonBody(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
+    await assertPlanFeature(session.user.id, "apiAccess");
     const apiKeys = await prisma.apiKey.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
+    await assertPlanFeature(session.user.id, "apiAccess");
     const body = await readJsonBody(req);
     const validated = createApiKeySchema.parse(body);
     const apiKey = generateApiKey();

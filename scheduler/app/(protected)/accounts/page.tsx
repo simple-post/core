@@ -16,13 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
-import { useXCredits } from "@/hooks/use-x-credits";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { ConnectedAccount } from "@/types";
 
 export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
-  const { data: xCredits } = useXCredits();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
 
@@ -166,17 +164,6 @@ export default function AccountsPage() {
                           <Badge variant="secondary" className="border-primary/30 bg-primary/10 text-primary">
                             Active
                           </Badge>
-                          {account.platform === "x" && xCredits !== undefined && (
-                            <Badge
-                              variant="secondary"
-                              className={
-                                xCredits === 0
-                                  ? "border-destructive/30 bg-destructive/10 text-destructive"
-                                  : "border-border"
-                              }>
-                              {xCredits} post{xCredits === 1 ? "" : "s"} remaining
-                            </Badge>
-                          )}
                         </div>
                         <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                           <span>{platformConfig.name}</span>

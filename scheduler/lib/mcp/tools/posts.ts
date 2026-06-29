@@ -8,13 +8,6 @@ import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
-import { checkRateLimits } from "@/lib/utils/rate-limit";
-import {
-  checkAndDeductXCredits,
-  refundXCreditsForAccountIds,
-  refundXCreditsForDiscardedPost,
-  refundXCreditsForFailedResults,
-} from "@/lib/utils/x-credits";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
@@ -604,22 +597,6 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
   }
 
-  // Credit/rate-limit parity with the REST API: scheduling a draft (or
-  // adding accounts to a scheduled post) deducts X credits; moving a
-  // scheduled post back to draft returns them.
-  if (targetPostingMode === "schedule") {
-    const chargeableAccountIds =
-      currentPost.status === "scheduled"
-        ? accountIds.filter((accountId) => !currentPost.accountIds.includes(accountId))
-        : accountIds;
-    if (chargeableAccountIds.length > 0) {
-      await checkRateLimits(userId, chargeableAccountIds);
-      await checkAndDeductXCredits(userId, chargeableAccountIds);
-    }
-  } else if (currentPost.status === "scheduled") {
-    await refundXCreditsForDiscardedPost(userId, currentPost);
-  }
-
   const updates: Partial<SocialPost> = {};
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
@@ -668,7 +645,6 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const media = collectMediaForCleanup(post);
 
   await repository.deletePost(input.postId);
-  await refundXCreditsForDiscardedPost(userId, post);
   if (media.length > 0) {
     await deleteMediaFiles(media);
   }
@@ -789,13 +765,6 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     );
   }
 
-  // Same pre-flight checks as the REST API: MCP clients must not bypass
-  // rate limits or X posting credits.
-  if (postingMode !== "draft") {
-    await checkRateLimits(userId, input.accountIds);
-    await checkAndDeductXCredits(userId, input.accountIds);
-  }
-
   // Create the post record
   let post: SocialPost;
   try {
@@ -812,16 +781,13 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       userId,
     );
   } catch (createError) {
-    // A concurrent call with the same idempotency key won the insert: undo
-    // this call's deduction and return the winner's post.
+    // A concurrent call with the same idempotency key won the insert: return
+    // the winner's post.
     if (
       input.idempotencyKey &&
       createError instanceof Prisma.PrismaClientKnownRequestError &&
       createError.code === "P2002"
     ) {
-      if (postingMode !== "draft") {
-        await refundXCreditsForAccountIds(userId, input.accountIds);
-      }
       const existing = await prisma.post.findUnique({
         where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
         select: { id: true },
@@ -870,7 +836,6 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           accountResults,
         });
       } else {
-        await refundXCreditsForFailedResults(userId, results);
         const failedResults = results.filter((r) => !r.success);
         const errorMessage =
           failedResults.length === 1
@@ -925,7 +890,6 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       };
     } catch (postingError) {
       const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
-      await refundXCreditsForAccountIds(userId, input.accountIds);
       await repository.updatePost(post.id, { status: "failed", errorMessage });
       throw new Error(`Something went wrong while publishing the post: ${errorMessage}`);
     }

@@ -8,7 +8,6 @@ import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
-import { refundXCreditsForAccountIds, refundXCreditsForFailedResults } from "@/lib/utils/x-credits";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 
@@ -273,8 +272,6 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       };
     }
 
-    await refundXCreditsForFailedResults(post.userId, postingResults);
-
     const failedResults = postingResults.filter((result) => !result.success);
     const errorMessage =
       failedResults.length === 1
@@ -321,8 +318,6 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error while publishing scheduled post";
-
-    await refundXCreditsForAccountIds(post.userId, accountIds);
 
     await prisma.post.update({
       where: { id: post.id },

@@ -132,15 +132,6 @@ export class ValidationError extends ApiError {
 }
 
 /**
- * Rate limit error (429)
- */
-export class RateLimitError extends ApiError {
-  constructor(message: string = "Rate limit exceeded") {
-    super(message, 429, "RATE_LIMIT_EXCEEDED");
-  }
-}
-
-/**
  * Gone error (410)
  */
 export class GoneError extends ApiError {

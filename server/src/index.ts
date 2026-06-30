@@ -1,4 +1,6 @@
 import express from "express";
+import { rateLimit } from "express-rate-limit";
+import helmet from "helmet";
 
 import { loadAccounts } from "./config/accounts.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
@@ -49,7 +51,49 @@ try {
 
 const app = express();
 
-const TIMEOUT_MS = 10 * 60 * 1000;
+app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY : 1);
+
+// Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // API server does not serve browser-rendered content
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31_536_000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: "no-referrer" },
+  })
+);
+
+// IP-based rate limiting
+const globalRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: Number(process.env.RATE_LIMIT_MAX_REQUESTS || 300),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    error: "Too many requests",
+    message: "Too many requests from this IP, please try again later.",
+  },
+});
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS || 100),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    error: "Too many authentication attempts",
+    message: "Too many authentication attempts from this IP, please try again later.",
+  },
+});
+
+app.use(globalRateLimiter);
+
+// Configure timeouts (10 minutes for long-running social media operations)
+const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 app.use((req, res, next) => {
   req.setTimeout(TIMEOUT_MS);
   res.setTimeout(TIMEOUT_MS);
@@ -65,6 +109,9 @@ app.use("/openapi.json", openApiRoutes);
 // Public media endpoint — platforms fetch URLs returned from /api/v1/upload here.
 // No auth: filenames are random UUIDs (security through unguessable identifiers).
 app.use("/media", mediaRoutes);
+
+// Apply stricter rate limit for authenticated API usage
+app.use(authRateLimiter);
 
 // All API endpoints below require x-api-key.
 app.use(createAuthMiddleware(API_KEY));

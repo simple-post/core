@@ -33,13 +33,16 @@ Endpoints the scheduler exposes that this server **does not**: `/api/v1/posts/[i
 
 ### Environment variables
 
-| Variable                    | Required    | Description                                                                                                  |
-| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
-| `SIMPLE_POST_API_KEY`       | Yes         | Shared secret clients pass in the `x-api-key` header.                                                        |
-| `SIMPLE_POST_ACCOUNTS_FILE` | Yes\*       | Path to the JSON file describing your connected accounts. Without it, `/api/v1/posts` rejects everything.    |
-| `SIMPLE_POST_PUBLIC_URL`    | Recommended | Public URL where this server is reachable. Used to build media URLs. Defaults to `http://localhost:${PORT}`. |
-| `SIMPLE_POST_STORAGE_DIR`   | No          | Local directory for uploaded files. Defaults to `./data` next to the binary.                                 |
-| `PORT`                      | No          | HTTP port. Defaults to `3000`.                                                                               |
+| Variable                       | Required    | Description                                                                                                  |
+| ------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `SIMPLE_POST_API_KEY`          | Yes         | Shared secret clients pass in the `x-api-key` header.                                                        |
+| `SIMPLE_POST_ACCOUNTS_FILE`    | Yes\*       | Path to the JSON file describing your connected accounts. Without it, `/api/v1/posts` rejects everything.    |
+| `SIMPLE_POST_PUBLIC_URL`       | Recommended | Public URL where this server is reachable. Used to build media URLs. Defaults to `http://localhost:${PORT}`. |
+| `SIMPLE_POST_STORAGE_DIR`      | No          | Local directory for uploaded files. Defaults to `./data` next to the binary.                                 |
+| `PORT`                         | No          | HTTP port. Defaults to `3000`.                                                                               |
+| `TRUST_PROXY`                  | No          | Express `trust proxy` setting for deployments behind a reverse proxy/load balancer. Defaults to `1`.         |
+| `RATE_LIMIT_MAX_REQUESTS`      | No          | Max requests per IP in a 15-minute window for all routes. Defaults to `300`.                                 |
+| `RATE_LIMIT_AUTH_MAX_REQUESTS` | No          | Max requests per IP in a 15-minute window for authenticated API routes. Defaults to `100`.                   |
 
 \* The server boots without it, but only `/health`, `/api/v1/accounts` (returning `{accounts: []}`), and `/media/*` are useful in that state.
 

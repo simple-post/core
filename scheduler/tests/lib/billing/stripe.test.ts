@@ -35,13 +35,43 @@ function stripeResponse<T extends object>(value: T): Stripe.Response<T> {
 function missingStripeCustomerError(): Stripe.errors.StripeInvalidRequestError {
   return {
     type: "StripeInvalidRequestError",
+    message: "No such customer: 'cus_stale'",
     code: "resource_missing",
     raw: {
       type: "invalid_request_error",
       code: "resource_missing",
+      message: "No such customer: 'cus_stale'",
       param: "customer",
     },
     param: "customer",
+  } as unknown as Stripe.errors.StripeInvalidRequestError;
+}
+
+function missingStripeCustomerErrorWithParam(param?: string): Stripe.errors.StripeInvalidRequestError {
+  return {
+    type: "StripeInvalidRequestError",
+    message: "No such customer: 'cus_stale'",
+    code: "resource_missing",
+    raw: {
+      type: "invalid_request_error",
+      code: "resource_missing",
+      message: "No such customer: 'cus_stale'",
+      ...(param ? { param } : {}),
+    },
+    ...(param ? { param } : {}),
+  } as unknown as Stripe.errors.StripeInvalidRequestError;
+}
+
+function missingStripeSubscriptionError(): Stripe.errors.StripeInvalidRequestError {
+  return {
+    type: "StripeInvalidRequestError",
+    message: "No such subscription: 'sub_stale'",
+    code: "resource_missing",
+    raw: {
+      type: "invalid_request_error",
+      code: "resource_missing",
+      message: "No such subscription: 'sub_stale'",
+    },
   } as unknown as Stripe.errors.StripeInvalidRequestError;
 }
 
@@ -73,7 +103,10 @@ beforeEach(() => {
 describe("isMissingStripeResourceError", () => {
   it("detects Stripe resource_missing errors for the requested resource", () => {
     expect(isMissingStripeResourceError(missingStripeCustomerError(), "customer")).toBe(true);
+    expect(isMissingStripeResourceError(missingStripeCustomerErrorWithParam(), "customer")).toBe(true);
+    expect(isMissingStripeResourceError(missingStripeCustomerErrorWithParam("id"), "customer")).toBe(true);
     expect(isMissingStripeResourceError(missingStripeCustomerError(), "subscription")).toBe(false);
+    expect(isMissingStripeResourceError(missingStripeSubscriptionError(), "customer")).toBe(false);
     expect(isMissingStripeResourceError(new Error("No such customer"), "customer")).toBe(false);
   });
 });

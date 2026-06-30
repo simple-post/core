@@ -53,9 +53,11 @@ export function isMissingStripeResourceError(error: unknown, resource?: string):
 
   const stripeError = error as {
     code?: string;
+    message?: string;
     type?: string;
     raw?: {
       code?: string;
+      message?: string;
       param?: string;
       type?: string;
     };
@@ -65,12 +67,14 @@ export function isMissingStripeResourceError(error: unknown, resource?: string):
   const code = stripeError.code ?? stripeError.raw?.code;
   const type = stripeError.type ?? stripeError.raw?.type;
   const param = stripeError.param ?? stripeError.raw?.param;
+  const message = stripeError.message ?? stripeError.raw?.message ?? "";
 
-  return (
-    code === "resource_missing" &&
-    (!type || type === "invalid_request_error" || type === "StripeInvalidRequestError") &&
-    (!resource || param === resource)
-  );
+  if (code !== "resource_missing") return false;
+  if (type && type !== "invalid_request_error" && type !== "StripeInvalidRequestError") return false;
+  if (!resource || param === resource) return true;
+
+  const lowerMessage = message.toLowerCase();
+  return (!param || param === "id") && lowerMessage.includes(`no such ${resource}`);
 }
 
 async function createStripeCustomer(

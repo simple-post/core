@@ -303,6 +303,10 @@ export function AccountOptionsComponent({
     () => accounts.filter((acc: { id: string }) => selectedAccountIds.includes(acc.id)),
     [accounts, selectedAccountIds],
   );
+  const selectedTikTokAccounts = useMemo(
+    () => selectedAccounts.filter((account: ConnectedAccount) => account.platform.toLowerCase() === "tiktok"),
+    [selectedAccounts],
+  );
   const hasTikTokVideo = media.some((file) => file.type === "video");
   const hasTikTokPhotoOnly = media.length > 0 && media.every((file) => file.type === "image");
   const maxSelectedVideoDurationSec = media
@@ -426,6 +430,10 @@ export function AccountOptionsComponent({
     return null;
   }
 
+  if (selectedTikTokAccounts.length === 0) {
+    return null;
+  }
+
   const handleThumbnailFile = async (accountId: string, file: File | undefined) => {
     if (!file) return;
 
@@ -450,13 +458,14 @@ export function AccountOptionsComponent({
       <div>
         <div className="section-kicker">
           <span className="section-kicker-dot" />
-          <span className="section-kicker-label">Per-account options</span>
+          <span className="section-kicker-label">TikTok options</span>
         </div>
-        <p className="text-xs text-muted-foreground">Configure additional settings for each connected account.</p>
+        <p className="text-xs text-muted-foreground">Configure required TikTok settings for each selected account.</p>
       </div>
 
-      {selectedAccounts.map((account: ConnectedAccount) => {
-        const platformConfig = getPlatformById(account.platform);
+      {selectedTikTokAccounts.map((account: ConnectedAccount) => {
+        const platformId = account.platform.toLowerCase();
+        const platformConfig = getPlatformById(platformId);
         if (!platformConfig) return null;
 
         const accountOptions = (options[account.id] ?? {}) as Record<string, unknown>;
@@ -725,7 +734,7 @@ export function AccountOptionsComponent({
             )}
 
             {/* TikTok Options */}
-            {account.platform === "tiktok" && (
+            {platformId === "tiktok" && (
               <>
                 <div className="rounded-lg border border-border bg-secondary/30 p-3 text-sm">
                   <div className="flex items-center gap-3">

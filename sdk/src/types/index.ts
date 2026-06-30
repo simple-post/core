@@ -8,9 +8,9 @@ export enum PostErrorType {
 
 export class PostError extends Error {
   public errorType: PostErrorType;
-  public details?: any;
+  public details?: unknown;
 
-  constructor(errorType: PostErrorType, message: string, details?: any) {
+  constructor(errorType: PostErrorType, message: string, details?: unknown) {
     super(message);
     this.name = "PostError";
     this.errorType = errorType;
@@ -21,14 +21,22 @@ export class PostError extends Error {
 
 export interface PostResult {
   id?: string;
+  /**
+   * Canonical public URL of the published post when the platform exposes one
+   * (e.g. Instagram/Threads permalink, TikTok video URL). Publishers should
+   * populate this whenever they have authoritative data; consumers should
+   * prefer it over manually constructing URLs from `id`.
+   */
+  url?: string;
   error: PostErrorType;
   message?: string;
-  details?: any;
+  details?: unknown;
   extraData?: {
     refreshedCredentials?: {
       accessToken?: string;
       refreshToken?: string;
       expiresAt?: number;
     };
+    platformData?: Record<string, unknown>;
   };
 }

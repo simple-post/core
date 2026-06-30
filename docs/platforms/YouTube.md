@@ -31,6 +31,7 @@ await post({
       tags: ["tutorial", "education"],
       categoryId: "27",
       playlistId: "PL1234567890",
+      thumbnailPath: "./thumbnail.jpg",
       selfDeclaredMadeForKids: true,
       publishAt: "2024-12-31T12:00:00Z",
     },
@@ -89,6 +90,10 @@ The category ID for the video. Category IDs vary and must be fetched from the Yo
 
 The playlist ID to add the video to. Find your playlist ID by going to [YouTube Studio](https://studio.youtube.com/), clicking on your playlist, and checking the URL: `https://studio.youtube.com/playlist/<PLAYLIST_ID>/edit`.
 
+### `thumbnailPath` / `thumbnailUrl`
+
+Custom thumbnail image for the uploaded YouTube video. Use `thumbnailPath` for a local JPG/PNG file in SDK or self-hosted server contexts, or `thumbnailUrl` for a public thumbnail URL such as a Scheduler upload URL. When both a media thumbnail and an option thumbnail are present, the YouTube option wins.
+
 ### `selfDeclaredMadeForKids`
 
 Set to `true` if the video is made for kids. Defaults to `false`.
@@ -124,7 +129,6 @@ const content = {
       path: "./video.mp4",
       title: "My Video",
       description: "Full description",
-      thumbnailPath: "./thumb.jpg",
     },
   ],
 };
@@ -134,6 +138,7 @@ const options = {
     privacyStatus: "unlisted",
     tags: ["tutorial", "education"],
     categoryId: "27",
+    thumbnailPath: "./thumb.jpg",
     publishAt: "2024-12-31T12:00:00Z",
   },
 };

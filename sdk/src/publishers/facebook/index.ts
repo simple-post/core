@@ -4,20 +4,26 @@ import path from "node:path";
 import axios from "axios";
 import FormData from "form-data";
 
+import { FACEBOOK_MAX_MEDIA_COUNT, FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { getContentType, hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Image, Media, PostOptionsWithCredentials, Video } from "../../types/post";
+import type { Content, Image, PostOptionsWithCredentials, Video } from "../../types/post";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
-const FACEBOOK_API_VERSION = "v23.0";
-
-const MAX_MEDIA_COUNT = 10;
-const MAX_TEXT_LENGTH = 63_206;
+const FACEBOOK_API_VERSION = "v25.0";
 
 export class FacebookPublisher extends Publisher {
+  static readonly mediaRequirement = "path" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return FACEBOOK_VALIDATION_RULES;
+  }
+
   private client: AxiosInstance;
   private pageAccessToken: string;
   private pageId: string;
@@ -67,59 +73,20 @@ export class FacebookPublisher extends Publisher {
       });
 
       return response.data.id;
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to upload image: ${error.response?.data?.error?.message || error.message}`,
-        error.response?.data,
+        `Failed to upload image: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     }
   }
 
-  private validate(content: Content): asserts content is (Content & { media: Media[] }) | (Content & { text: string }) {
-    // Check for empty post
-    if (!content.text && !content.media) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Facebook");
-    }
-
-    // Validate media if present
-    if (content.media && content.media.length > 0) {
-      // Check for videos - they can only be single media posts
-      const videos = content.media.filter((m) => m.type === "video");
-      if (videos.length > 0 && content.media.length > 1) {
-        throw new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Video posts can only contain a single video, no other media",
-        );
-      }
-
-      // Check for too many images in multi-media posts
-      this.strictCheck(
-        content.media.length > MAX_MEDIA_COUNT,
-        `Facebook supports maximum of ${MAX_MEDIA_COUNT} images in a single post`,
-      );
-
-      // Validate each media item has a valid source (path or url)
-      for (const media of content.media) {
-        if (!hasValidSource(media)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-        }
-        // If path is provided, check it exists
-        if (media.path && !fs.existsSync(media.path)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-        }
-      }
-    }
-
-    // Validate text length
-    if (content.text && content.text.length > MAX_TEXT_LENGTH) {
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        `Facebook text posts cannot exceed ${MAX_TEXT_LENGTH.toLocaleString()} characters. Current length: ${content.text.length}`,
-      );
-    }
+  static validate(content: Content): ValidationResult {
+    return validateFacebookContent(content);
   }
 
   private async postVideo(
@@ -159,24 +126,31 @@ export class FacebookPublisher extends Publisher {
         id: response.data.id,
         error: PostErrorType.NO_ERROR,
       };
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
       let errorMessage = "An unknown error occurred while posting video.";
 
-      if (error.response && error.response.data && error.response.data.error) {
-        errorMessage = error.response.data.error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      if (err.response?.data?.error?.message) {
+        errorMessage = err.response.data.error.message;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
-      throw new PostError(PostErrorType.API_ERROR, errorMessage, error);
+      throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
     }
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
-    this.validate(content);
+    const validation = FacebookPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
 
     const tempFileManager = new TempFileManager();
 
@@ -190,7 +164,7 @@ export class FacebookPublisher extends Publisher {
         return await this.postVideo(video, resolvedPath, options);
       }
 
-      const postData: any = {
+      const postData: Record<string, unknown> = {
         access_token: this.pageAccessToken,
       };
 
@@ -207,7 +181,7 @@ export class FacebookPublisher extends Publisher {
       // Add the media
       if (content.media && content.media.length > 0) {
         const attachedMedia = [];
-        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
+        for (const media of content.media.slice(0, FACEBOOK_MAX_MEDIA_COUNT)) {
           // Resolve media path (download if URL)
           const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
           tempFileManager.add(cleanup);
@@ -230,13 +204,14 @@ export class FacebookPublisher extends Publisher {
         id: response.data.id,
         error: PostErrorType.NO_ERROR,
       };
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to post content: ${error.response?.data?.error?.message || error.message}`,
-        error.response?.data,
+        `Failed to post content: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     } finally {
       await tempFileManager.cleanup();

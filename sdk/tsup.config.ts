@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/validation.ts", "src/media-types.ts", "src/platform-names.ts"],
   format: ["cjs", "esm"],
   dts: true,
   splitting: false,
@@ -14,6 +14,7 @@ export default defineConfig({
   external: [
     "@aws-sdk/client-s3",
     "@aws-sdk/lib-storage",
+    "@aws-sdk/s3-request-presigner",
     "axios",
     "form-data",
     "googleapis",

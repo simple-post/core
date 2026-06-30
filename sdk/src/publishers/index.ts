@@ -1,6 +1,10 @@
+import { BlueskyPublisher } from "./bluesky";
 import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";
+import { LinkedInPublisher } from "./linkedin";
+import { PinterestPublisher } from "./pinterest";
 import { TelegramPublisher } from "./telegram";
+import { ThreadsPublisher } from "./threads";
 import { TikTokPublisher } from "./tiktok";
 import { XPublisher } from "./x";
 import { YouTubePublisher } from "./youtube";
@@ -27,6 +31,18 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "tiktok": {
       return new TikTokPublisher(options);
+    }
+    case "bluesky": {
+      return new BlueskyPublisher(options);
+    }
+    case "threads": {
+      return new ThreadsPublisher(options);
+    }
+    case "linkedin": {
+      return new LinkedInPublisher(options);
+    }
+    case "pinterest": {
+      return new PinterestPublisher(options);
     }
   }
 

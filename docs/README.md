@@ -1,66 +1,104 @@
 # SimplePost Documentation
 
-Let's get you started with posting to social media with SimplePost.
+SimplePost is a posting toolkit for AI agents, apps, and humans. The same TypeScript SDK powers every interface, so you can start with the interface that matches your use case and ignore the rest until you need it.
 
-## Quick Start
+You own the code. The default path is self-hosted software with full source access and your own social platform credentials, not a subscription-only hosted dependency.
 
-Get posting in under 5 minutes:
+## Start Here
 
-```bash
-# Install the package
-npm install @simple-post/sdk
+| If you want to...                                                     | Use this interface | Read this                                  |
+| --------------------------------------------------------------------- | ------------------ | ------------------------------------------ |
+| Add posting directly to a TypeScript app or agent                     | TypeScript SDK     | [TypeScript SDK](typescript-sdk/README.md) |
+| Post from another language, service, or backend over HTTP             | HTTP API server    | [HTTP API server](http-server/README.md)   |
+| Give humans a web UI for writing, previewing, posting, and scheduling | Scheduler app      | [Scheduler app](scheduler-app/README.md)   |
+| Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                       |
+| Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)         |
 
-# Set your credentials (get them at docs.simplepost.dev)
-export X_API_KEY="your_api_key_here"
-export X_API_SECRET="your_api_secret_here"
-export X_ACCESS_TOKEN="your_access_token_here"
-export X_ACCESS_SECRET="your_access_secret_here"
+Most users only need one row. The common concepts below explain how the pieces fit together.
+
+## How The Pieces Fit
+
+```text
+AI agent      App/backend      Human web user      Terminal/script
+   |              |                 |                    |
+ MCP server    HTTP API        Scheduler app            CLI
+   |              |                 |                    |
+   +--------------+-----------------+--------------------+
+                         |
+                  TypeScript SDK
+                         |
+       X, Telegram, Instagram, Facebook, Threads,
+       TikTok, YouTube, Pinterest, LinkedIn, Bluesky
 ```
+
+The SDK contains the shared posting model, platform adapters, media handling, validation types, and credential resolution. The other interfaces wrap it for different workflows.
+
+## Common Posting Model
+
+Every interface ultimately creates a post with the same shape:
 
 ```typescript
-import { post } from "@simple-post/sdk";
-
-// Post to multiple platforms with one call
-const results = await post({
-  content: { text: "Hello from SimplePost!" },
-  platforms: ["x"],
-});
+{
+  content: {
+    text: "Launch day",
+    media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }],
+  },
+  platforms: ["x", "instagram", "linkedin"],
+  options: {
+    common: { logLevel: "info" },
+    x: { replyToId: "1234567890" },
+  },
+}
 ```
 
-Follow the interactive [X credentials guide](https://docs.simplepost.dev/x) to get your API keys, and that's it! Check the results to see your post IDs.
+- `content.text` is the shared message or caption.
+- `content.media` accepts images and videos, either from local paths where supported or public URLs.
+- `platforms` selects one or more social platforms.
+- `options` carries platform-specific fields such as Telegram chat IDs, YouTube privacy, Pinterest board IDs, or X replies.
+- Results are returned per platform or per connected account so partial failures are visible.
 
-## Integration Options
+## Platform Guides
 
-Choose how you want to integrate SimplePost:
+SimplePost supports these platform keys in the SDK and the interfaces built on top of it:
 
-| Method                                         | Best For                         | Status           |
-| ---------------------------------------------- | -------------------------------- | ---------------- |
-| **[TypeScript SDK](typescript-sdk/README.md)** | Direct integration, full control | ✅ **Available** |
-| **[HTTP API](http-server/README.md)**          | Language agnostic, microservices | 🚧 Coming soon   |
-| **[N8N Node](n8n-node/README.md)**             | No-code workflows, automation    | 🚧 Coming soon   |
+| Platform  | Key         | Guide                               |
+| --------- | ----------- | ----------------------------------- |
+| X         | `x`         | [X](platforms/X.md)                 |
+| Telegram  | `telegram`  | [Telegram](platforms/Telegram.md)   |
+| Instagram | `instagram` | [Instagram](platforms/Instagram.md) |
+| Facebook  | `facebook`  | [Facebook](platforms/Facebook.md)   |
+| Threads   | `threads`   | [Threads](platforms/Threads.md)     |
+| TikTok    | `tiktok`    | [TikTok](platforms/TikTok.md)       |
+| YouTube   | `youtube`   | [YouTube](platforms/YouTube.md)     |
+| Pinterest | `pinterest` | [Pinterest](platforms/Pinterest.md) |
+| LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
+| Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
 
-## Setup & Configuration
+Use [docs.simplepost.dev](https://docs.simplepost.dev) for guided credential setup. The platform guides in this repo explain what each platform needs and how SimplePost expects those credentials.
 
-### 1. Get Your Credentials
+## Choosing A Credential Strategy
 
-Use our interactive tool to get the credentials for each platform: **[docs.simplepost.dev](https://docs.simplepost.dev)**
+You have three common options:
 
-### 2. Choose Your Integration
+- Use environment variables with the SDK or HTTP API server.
+- Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, and Scheduler API keys use them.
+- Store accounts locally in the CLI for terminal-only workflows.
 
-- **Just want to code?** → [TypeScript SDK](typescript-sdk/README.md)
-- **Building an API?** → [HTTP Server](http-server/README.md) (coming soon)
-- **Using N8N?** → [N8N Node](n8n-node/README.md) (coming soon)
+The one-time license model matters here: you can set up your own apps on each social platform and run the code yourself. SimplePost should simplify the setup, not make you dependent on a hosted account you cannot inspect or replace.
 
-### 3. Start Building
+## Repository Map
 
-Each integration method has detailed guides, examples, and troubleshooting tips.
-
-## Examples
-
-Check out the examples in the [`examples/`](../examples/) directory.
+| Path                            | Purpose                                                              |
+| ------------------------------- | -------------------------------------------------------------------- |
+| [`sdk/`](../sdk/)               | TypeScript SDK and platform publishers                               |
+| [`server/`](../server/)         | Express HTTP API wrapper around the SDK                              |
+| [`scheduler/`](../scheduler/)   | Next.js scheduler app, connected accounts, hosted UI, and MCP server |
+| [`cli/`](../cli/)               | oclif command line tool                                              |
+| [`examples/`](../examples/)     | Per-platform SDK examples                                            |
+| [`docs/platforms/`](platforms/) | Platform credential and behavior notes                               |
 
 ## Support
 
-- **Issues & Bugs:** [GitHub Issues](https://github.com/simple-post/core/issues)
-- **Questions & Discussions:** [GitHub Discussions](https://github.com/simple-post/core/discussions)
-- **Credentials Setup:** [docs.simplepost.dev](https://docs.simplepost.dev)
+- Issues and bugs: [GitHub Issues](https://github.com/simple-post/core/issues)
+- Questions and discussions: [GitHub Discussions](https://github.com/simple-post/core/discussions)
+- Credential setup: [docs.simplepost.dev](https://docs.simplepost.dev)

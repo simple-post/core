@@ -11,7 +11,7 @@ async function main() {
       media: [
         {
           type: "image",
-          url: "https://simplepost.dev/simplepost-logo.png",
+          url: "https://simplepost.social/simplepost-logo.png",
           caption: "SimplePost logo loaded from URL",
         },
       ],

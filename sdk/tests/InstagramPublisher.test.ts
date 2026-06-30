@@ -56,13 +56,35 @@ describe("InstagramPublisher", () => {
   describe("constructor", () => {
     it("should initialize with valid credentials", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
-        baseURL: "https://graph.facebook.com/v23.0",
+        baseURL: "https://graph.instagram.com/v25.0",
         timeout: 30_000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer test_access_token",
+        },
+      });
+    });
+
+    it("should initialize with Facebook Graph settings when graphApi is facebook", () => {
+      new InstagramPublisher({
+        instagram: {
+          credentials: {
+            accessToken: "test_access_token",
+            businessAccountId: "test_business_account_id",
+            graphApi: "facebook",
+          },
+        },
+      });
+
+      expect(mockedAxios.create).toHaveBeenCalledWith({
+        baseURL: "https://graph.facebook.com/v25.0",
+        timeout: 30_000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        headers: {
+          "Content-Type": "application/json",
         },
       });
     });
@@ -111,10 +133,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_123" } }) // createMediaObject
         .mockResolvedValueOnce({ data: { id: "post_id_456" } }); // publishMediaContainer
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_456/" } });
 
       const result = await publisher.postContent(content, options);
 
@@ -127,7 +149,49 @@ describe("InstagramPublisher", () => {
           is_carousel_item: false,
         }),
       );
-      expect(result).toEqual({ id: "post_id_456", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_456",
+        url: "https://www.instagram.com/p/SHORTCODE_456/",
+        error: PostErrorType.NO_ERROR,
+      });
+    });
+
+    it("should attach access_token for Facebook Graph requests", async () => {
+      const facebookPublisher = new InstagramPublisher({
+        instagram: {
+          credentials: {
+            accessToken: "test_access_token",
+            businessAccountId: "test_business_account_id",
+            graphApi: "facebook",
+          },
+        },
+      });
+
+      const content: Content = {
+        text: "Single image post",
+        media: [{ type: "image", path: "/path/to/image.jpg" }],
+      };
+
+      const mockS3Uploader = facebookPublisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/media1.jpg");
+
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_123" } })
+        .mockResolvedValueOnce({ data: { id: "post_id_456" } });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_FB/" } });
+
+      await facebookPublisher.postContent(content, options);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/test_business_account_id/media?access_token=test_access_token",
+        expect.objectContaining({
+          image_url: "https://s3.example.com/media1.jpg",
+          caption: "Single image post",
+          is_carousel_item: false,
+        }),
+      );
     });
 
     it("should post single video successfully", async () => {
@@ -145,10 +209,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_789" } }) // createMediaObject
         .mockResolvedValueOnce({ data: { id: "post_id_012" } }); // publishMediaContainer
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_012/" } });
 
       const result = await publisher.postContent(content, options);
 
@@ -162,7 +226,11 @@ describe("InstagramPublisher", () => {
           is_carousel_item: false,
         }),
       );
-      expect(result).toEqual({ id: "post_id_012", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_012",
+        url: "https://www.instagram.com/p/SHORTCODE_012/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should post carousel with multiple images successfully", async () => {
@@ -187,10 +255,10 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "carousel_id" } }) // createMediaContainer for carousel
         .mockResolvedValueOnce({ data: { id: "post_id_345" } }); // publishMediaContainer
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_345/" } });
 
       const result = await publisher.postContent(content, options);
 
@@ -203,7 +271,11 @@ describe("InstagramPublisher", () => {
           children: "item1_id,item2_id",
         }),
       );
-      expect(result).toEqual({ id: "post_id_345", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_345",
+        url: "https://www.instagram.com/p/SHORTCODE_345/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should throw error for content without media", async () => {
@@ -211,12 +283,8 @@ describe("InstagramPublisher", () => {
         text: "Text only post",
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(
-          PostErrorType.INVALID_CONTENT,
-          "Instagram posts require at least one media item (image or video).",
-        ),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("Instagram content validation failed");
     });
 
     it("should handle API errors during media creation", async () => {
@@ -242,7 +310,7 @@ describe("InstagramPublisher", () => {
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
       await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Failed to create media object: undefined", apiError),
+        new PostError(PostErrorType.API_ERROR, "Failed to create media object: Invalid media URL", apiError),
       );
     });
 
@@ -287,15 +355,58 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_cleanup" } })
         .mockResolvedValueOnce({ data: { id: "post_id_cleanup" } });
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_CLEANUP/" } });
 
       await publisher.postContent(content, options);
 
       // Verify cleanup was called
       expect(mockS3Uploader.deleteFile).toHaveBeenCalled();
+    });
+  });
+
+  describe("validate", () => {
+    const options: PostOptionsWithCredentials = {
+      instagram: {
+        credentials: {
+          accessToken: "test_access_token",
+          businessAccountId: "test_business_account_id",
+        },
+      },
+    };
+
+    beforeEach(() => {
+      publisher = new InstagramPublisher(options);
+    });
+
+    it("should warn when too many media items are provided", () => {
+      const content: Content = {
+        text: "Too many items",
+        media: Array.from({ length: 12 }, (_, index) => ({
+          type: "image" as const,
+          path: `/path/${index}.jpg`,
+        })),
+      };
+
+      const result = InstagramPublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_media");
+    });
+
+    it("should error when caption is too long", () => {
+      const content: Content = {
+        text: "a".repeat(2500),
+        media: [{ type: "image", path: "/path/1.jpg" }],
+      };
+
+      const result = InstagramPublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("caption_too_long");
     });
   });
 
@@ -324,14 +435,18 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "container_id_test" } })
         .mockResolvedValueOnce({ data: { id: "post_id_test" } });
 
-      // Mock waitForMediaReady
-      mockAxiosInstance.get.mockResolvedValue({
-        data: { status_code: "FINISHED" },
-      });
+      // Mock waitForMediaReady, then permalink fetch
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_TEST/" } });
 
       const result = await publisher.post(content, options);
 
-      expect(result).toEqual({ id: "post_id_test", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "post_id_test",
+        url: "https://www.instagram.com/p/SHORTCODE_TEST/",
+        error: PostErrorType.NO_ERROR,
+      });
     });
 
     it("should handle errors and return PostResult with error", async () => {
@@ -343,8 +458,8 @@ describe("InstagramPublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "Instagram posts require at least one media item (image or video).",
-        details: undefined,
+        message: "Instagram content validation failed",
+        details: expect.anything(),
       });
     });
   });

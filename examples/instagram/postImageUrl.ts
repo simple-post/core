@@ -8,7 +8,7 @@ async function main() {
   const results = await post({
     content: {
       text: "Beautiful image from URL! 🌅 #simplepost #automation",
-      media: [{ type: "image", url: "https://simplepost.dev/simplepost-logo.png" }],
+      media: [{ type: "image", url: "https://simplepost.social/simplepost-logo.png" }],
     },
     platforms: ["instagram"],
   });

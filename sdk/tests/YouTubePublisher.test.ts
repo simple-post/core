@@ -20,6 +20,14 @@ jest.mock("googleapis", () => ({
 jest.mock("fs", () => ({
   existsSync: jest.fn(),
   createReadStream: jest.fn(),
+  statSync: jest.fn(),
+}));
+
+jest.mock("../src/utils/s3", () => ({
+  S3MediaUploader: jest.fn().mockImplementation(() => ({
+    uploadFile: jest.fn(),
+    deleteFile: jest.fn(),
+  })),
 }));
 
 const mockedGoogle = google as jest.Mocked<typeof google>;
@@ -42,6 +50,7 @@ describe("YouTubePublisher", () => {
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
+    mockedFs.statSync.mockReturnValue({ size: 1024 * 1024 } as any); // 1 MB mock file
 
     // Create mock YouTube client
     mockYouTubeClient = {
@@ -184,6 +193,47 @@ describe("YouTubePublisher", () => {
       expect(result).toEqual({ id: "video_id_456", error: PostErrorType.NO_ERROR });
     });
 
+    it("should use YouTube-specific thumbnail over media thumbnail", async () => {
+      const content: Content = {
+        text: "Video with custom thumbnail option",
+        media: [
+          {
+            type: "video",
+            path: "/path/to/video.mp4",
+            title: "Test Video",
+            thumbnailPath: "/path/to/generated-thumbnail.jpg",
+          },
+        ],
+      };
+
+      const optionsWithThumbnail: PostOptionsWithCredentials = {
+        youtube: {
+          thumbnailPath: "/path/to/custom-thumbnail.jpg",
+          credentials: {
+            clientId: "test_client_id",
+            clientSecret: "test_client_secret",
+            refreshToken: "test_refresh_token",
+          },
+        },
+      };
+
+      mockYouTubeClient.videos.insert.mockResolvedValue({
+        data: { id: "video_id_custom_thumbnail" },
+      });
+      mockYouTubeClient.thumbnails.set.mockResolvedValue({});
+
+      const result = await publisher.postContent(content, optionsWithThumbnail);
+
+      expect(mockedFs.createReadStream).toHaveBeenCalledWith("/path/to/custom-thumbnail.jpg");
+      expect(mockYouTubeClient.thumbnails.set).toHaveBeenCalledWith({
+        videoId: "video_id_custom_thumbnail",
+        media: {
+          body: "mock-stream",
+        },
+      });
+      expect(result).toEqual({ id: "video_id_custom_thumbnail", error: PostErrorType.NO_ERROR });
+    });
+
     it("should post video with YouTube-specific options", async () => {
       const content: Content = {
         text: "Video with options",
@@ -198,6 +248,8 @@ describe("YouTubePublisher", () => {
 
       const optionsWithYouTube: PostOptionsWithCredentials = {
         youtube: {
+          title: "Custom upload title",
+          description: "Custom upload description",
           privacyStatus: "private",
           tags: ["tag1", "tag2"],
           categoryId: "22",
@@ -221,13 +273,14 @@ describe("YouTubePublisher", () => {
         part: ["snippet", "status"],
         requestBody: {
           snippet: {
-            title: "Test Video",
-            description: undefined,
+            title: "Custom upload title",
+            description: "Custom upload description",
             tags: ["tag1", "tag2"],
             categoryId: "22",
           },
           status: {
             privacyStatus: "private",
+            publishAt: undefined,
             selfDeclaredMadeForKids: false,
           },
         },
@@ -255,9 +308,8 @@ describe("YouTubePublisher", () => {
         text: "No video content",
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("YouTube content validation failed");
     });
 
     it("should handle content with image instead of video", async () => {
@@ -271,9 +323,8 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.INVALID_CONTENT, "A video is required for a YouTube post."),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toThrow(PostError);
+      await expect(publisher.postContent(content, options)).rejects.toThrow("YouTube content validation failed");
     });
 
     it("should handle API errors during video upload", async () => {
@@ -469,7 +520,7 @@ describe("YouTubePublisher", () => {
         requestBody: {
           snippet: {
             title: "Regular Video",
-            description: undefined,
+            description: "Regular video",
             tags: undefined,
             categoryId: undefined,
           },
@@ -484,6 +535,51 @@ describe("YouTubePublisher", () => {
         },
       });
       expect(result).toEqual({ id: "regular_video_123", error: PostErrorType.NO_ERROR });
+    });
+  });
+
+  describe("validate", () => {
+    const options: PostOptionsWithCredentials = {
+      youtube: {
+        credentials: {
+          accessToken: "test_access_token",
+        },
+      },
+    };
+
+    beforeEach(() => {
+      publisher = new YouTubePublisher(options);
+    });
+
+    it("should warn when title will be truncated", () => {
+      const content: Content = {
+        text: "a".repeat(150),
+        media: [{ type: "video", path: "/path/video.mp4" }],
+      };
+
+      const result = YouTubePublisher.validate(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("title_truncated");
+    });
+
+    it("should error when description is too long", () => {
+      const content: Content = {
+        media: [
+          {
+            type: "video",
+            path: "/path/video.mp4",
+            title: "Valid title",
+            description: "a".repeat(6000),
+          },
+        ],
+      };
+
+      const result = YouTubePublisher.validate(content);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("description_too_long");
     });
   });
 
@@ -528,8 +624,8 @@ describe("YouTubePublisher", () => {
 
       expect(result).toEqual({
         error: PostErrorType.INVALID_CONTENT,
-        message: "A video is required for a YouTube post.",
-        details: undefined,
+        message: "YouTube content validation failed",
+        details: expect.anything(),
       });
     });
   });

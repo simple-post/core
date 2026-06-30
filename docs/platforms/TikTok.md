@@ -9,21 +9,27 @@ The TikTok publisher allows you to post videos and photos to TikTok using the Ti
 - **Dual Publishing Modes**:
   - **Direct Post**: Automatically publishes content immediately
   - **Draft Upload**: Uploads content to your TikTok inbox for later review and publishing
-- **Privacy Controls**: Set visibility to public, friends only, or private
-- **Interaction Settings**: Control comments, duets, and stitching
+- **Creator Info Checks**: Queries TikTok creator info before Direct Post
+- **Privacy Controls**: Uses the privacy options returned by TikTok creator info
+- **Interaction Settings**: Control comments, duets, and stitching when available
 - **Chunked Upload**: Handles large files with efficient chunked uploading
 
 ## Platform-Specific Options
 
 ### TikTok-Specific Options
 
-| Option         | Type                                 | Default    | Description                                                        |
-| -------------- | ------------------------------------ | ---------- | ------------------------------------------------------------------ |
-| `publishMode`  | `"draft" \| "public"`                | `"public"` | `"public"` for immediate publishing, `"draft"` for inbox upload    |
-| `visibility`   | `"public" \| "friends" \| "private"` | `"public"` | Who can view the content (only for `publishMode: "public"`)        |
-| `allowComment` | `boolean`                            | `true`     | Allow users to comment (only for `publishMode: "public"`)          |
-| `allowDuet`    | `boolean`                            | `true`     | Allow users to create duets (only for `publishMode: "public"`)     |
-| `allowStitch`  | `boolean`                            | `true`     | Allow users to stitch the video (only for `publishMode: "public"`) |
+| Option                        | Type                                                                                      | Default | Description                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------- |
+| `title`                       | `string`                                                                                  | none    | TikTok title/caption. If omitted, the post text is used.                     |
+| `publishMode`                 | `"draft" \| "public"`                                                                     | public  | `"public"` for immediate publishing, `"draft"` for inbox upload              |
+| `privacyLevel`                | `"PUBLIC_TO_EVERYONE" \| "MUTUAL_FOLLOW_FRIENDS" \| "FOLLOWER_OF_CREATOR" \| "SELF_ONLY"` | none    | Required for Direct Post. Must be selected from TikTok creator info options. |
+| `visibility`                  | `"public" \| "friends" \| "private"`                                                      | none    | Legacy alias for `privacyLevel`. Prefer `privacyLevel` for new integrations. |
+| `allowComment`                | `boolean`                                                                                 | `false` | Allow users to comment. Must be manually enabled for Direct Post.            |
+| `allowDuet`                   | `boolean`                                                                                 | `false` | Allow users to create duets. Videos only. Must be manually enabled.          |
+| `allowStitch`                 | `boolean`                                                                                 | `false` | Allow users to stitch the video. Videos only. Must be manually enabled.      |
+| `commercialContentDisclosure` | `boolean`                                                                                 | `false` | Turn on when the post promotes yourself, a brand, product, or service.       |
+| `discloseYourBrand`           | `boolean`                                                                                 | `false` | Marks creator-owned promotional content.                                     |
+| `discloseBrandedContent`      | `boolean`                                                                                 | `false` | Marks third-party branded content or paid partnership content.               |
 
 ## Important Notes for Unaudited Apps
 
@@ -78,11 +84,11 @@ const result = await post({
   options: {
     tiktok: {
       publishMode: "public", // Publish immediately
-      // Note: Use "private" for unaudited apps
-      visibility: "private", // "public", "friends", or "private"
+      // Must be one of the privacy_level_options returned by creator_info/query.
+      privacyLevel: "SELF_ONLY",
       allowComment: true,
-      allowDuet: true,
-      allowStitch: true,
+      allowDuet: false,
+      allowStitch: false,
     },
   },
 });
@@ -133,7 +139,7 @@ const result = await post({
   options: {
     tiktok: {
       publishMode: "public", // Publish immediately
-      visibility: "private", // Use "private" for unaudited apps
+      privacyLevel: "SELF_ONLY",
       allowComment: true,
     },
   },
@@ -174,6 +180,12 @@ const result = await post({
     media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }],
   },
   platforms: ["tiktok"],
+  options: {
+    tiktok: {
+      publishMode: "public",
+      privacyLevel: "SELF_ONLY",
+    },
+  },
 });
 ```
 

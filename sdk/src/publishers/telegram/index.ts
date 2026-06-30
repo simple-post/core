@@ -3,15 +3,24 @@ import fs from "node:fs";
 import axios from "axios";
 import FormData from "form-data";
 
+import { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./validation";
+
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 export class TelegramPublisher extends Publisher {
+  static readonly mediaRequirement = "either" as const; // prefers url but accepts path
+
+  static getValidationRules(): PlatformValidationRules {
+    return TELEGRAM_VALIDATION_RULES;
+  }
+
   private client: AxiosInstance;
   private botToken: string;
 
@@ -39,6 +48,7 @@ export class TelegramPublisher extends Publisher {
     media: Media,
     caption?: string,
     parseMode?: string,
+    replyTo?: string,
   ): Promise<{ messageId: string; cleanup: () => Promise<void> }> {
     const tempFileManager = new TempFileManager();
 
@@ -48,7 +58,7 @@ export class TelegramPublisher extends Publisher {
 
       // Telegram API can accept URLs directly - no need to download
       if (media.url) {
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           chat_id: chatId,
           [mediaField]: media.url,
         };
@@ -58,6 +68,10 @@ export class TelegramPublisher extends Publisher {
           if (parseMode) {
             payload.parse_mode = parseMode;
           }
+        }
+
+        if (replyTo) {
+          payload.reply_to_message_id = Number.parseInt(replyTo);
         }
 
         const response = await this.client.post(endpoint, payload);
@@ -83,6 +97,10 @@ export class TelegramPublisher extends Publisher {
         }
       }
 
+      if (replyTo) {
+        formData.append("reply_to_message_id", replyTo);
+      }
+
       const response = await this.client.post(endpoint, formData, {
         headers: {
           ...formData.getHeaders(),
@@ -90,20 +108,21 @@ export class TelegramPublisher extends Publisher {
       });
 
       return { messageId: response.data.result.message_id.toString(), cleanup: () => tempFileManager.cleanup() };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { description?: string } }; message?: string };
       await tempFileManager.cleanup();
-      this.logger.error(error);
+      this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to send ${media.type}: ${error.response?.data?.description || error.message}`,
-        error.response?.data,
+        `Failed to send ${media.type}: ${err.response?.data?.description || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     }
   }
 
   private async sendMessage(chatId: string, text: string, parseMode?: string, replyTo?: string): Promise<string> {
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         chat_id: chatId,
         text: text,
         parse_mode: parseMode || "HTML",
@@ -116,12 +135,13 @@ export class TelegramPublisher extends Publisher {
       const response = await this.client.post("/sendMessage", payload);
 
       return response.data.result.message_id.toString();
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { description?: string } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to send message: ${error.response?.data?.description || error.message}`,
-        error.response?.data,
+        `Failed to send message: ${err.response?.data?.description || err.message || "Unknown error"}`,
+        err.response?.data,
       );
     }
   }
@@ -134,51 +154,36 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  private validateContent(
-    content: Content,
-  ): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
-    if (!content.text && (!content.media || content.media.length === 0)) {
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported by Telegram");
-    }
-
-    this.strictCheck(
-      content.media && content.media.length > 1,
-      "Telegram supports only one media per message, only the first media will be sent",
-    );
-
-    // Validate each media has a valid source (path or url)
-    if (content.media) {
-      for (const media of content.media) {
-        if (!hasValidSource(media)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-        }
-        // If path is provided, check it exists
-        if (media.path && !fs.existsSync(media.path)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-        }
-      }
-    }
+  static validate(content: Content): ValidationResult {
+    return validateTelegramContent(content);
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content and the options
-    this.validateContent(content);
+    const validation = TelegramPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Telegram content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
     this.validateOptions(options);
 
     const chatId = options.telegram.chatId;
     const parseMode = options.telegram.parseMode;
+    const replyTo = options.telegram.replyTo;
 
     // If there's media, send with caption
     if (content.media && content.media.length > 0) {
       const media = content.media[0];
 
-      const { messageId, cleanup } = await this.sendMedia(chatId, media, content.text, parseMode);
+      const { messageId, cleanup } = await this.sendMedia(chatId, media, content.text, parseMode, replyTo);
       await cleanup();
       return { id: messageId, error: PostErrorType.NO_ERROR };
     }
 
     // Otherwise send as text message
-    const messageId = await this.sendMessage(chatId, content.text!, parseMode);
+    const messageId = await this.sendMessage(chatId, content.text!, parseMode, replyTo);
     return { id: messageId, error: PostErrorType.NO_ERROR };
   }
 }

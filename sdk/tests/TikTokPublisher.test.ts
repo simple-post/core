@@ -52,6 +52,36 @@ describe("TikTokPublisher", () => {
     });
   });
 
+  function mockCreatorInfoOnce(overrides: Record<string, unknown> = {}) {
+    mockAxiosInstance.post.mockResolvedValueOnce({
+      data: {
+        data: {
+          creator_username: "simplepost",
+          creator_nickname: "SimplePost",
+          privacy_level_options: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
+          comment_disabled: false,
+          duet_disabled: false,
+          stitch_disabled: false,
+          max_video_post_duration_sec: 300,
+          ...overrides,
+        },
+        error: { code: "ok", message: "" },
+      },
+    });
+  }
+
+  const directOptions: PostOptionsWithCredentials = {
+    tiktok: {
+      privacyLevel: "PUBLIC_TO_EVERYONE",
+      allowComment: false,
+      allowDuet: false,
+      allowStitch: false,
+      credentials: {
+        accessToken: "test_access_token",
+      },
+    },
+  };
+
   describe("constructor", () => {
     it("should throw an error if credentials are missing", () => {
       expect(() => {
@@ -77,14 +107,25 @@ describe("TikTokPublisher", () => {
 
     it("should successfully post a video", async () => {
       // Mock the Direct Post API init response (includes publish_id directly)
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockCreatorInfoOnce();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_123",
-            upload_url: "https://upload.tiktok.com/video?upload_id=123",
+            data: {
+              publish_id: "publish_123",
+              upload_url: "https://upload.tiktok.com/video?upload_id=123",
+            },
           },
-        },
-      });
+        })
+        // Status poll resolves the public post id used in the URL
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876543"],
+            },
+          },
+        });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -98,12 +139,13 @@ describe("TikTokPublisher", () => {
       };
       jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
 
-      const result = await publisher.postContent(videoContent);
+      const result = await publisher.postContent(videoContent, directOptions);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("publish_123");
-      // Direct Post API only requires 1 POST (init) - no complete or publish steps
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(result.id).toBe("7298765432109876543");
+      // 3 POSTs expected: creator info + init + status fetch (resolves on first attempt)
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/v2/post/publish/creator_info/query/");
       // Verify the init call includes post_info
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/v2/post/publish/video/init/",
@@ -115,18 +157,32 @@ describe("TikTokPublisher", () => {
           source_info: expect.any(Object),
         }),
       );
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/v2/post/publish/status/fetch/",
+        expect.objectContaining({ publish_id: "publish_123" }),
+      );
     });
 
     it("should successfully post a photo", async () => {
       // Mock the Direct Post API init response for photos
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockCreatorInfoOnce();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_456",
-            upload_url: "https://upload.tiktok.com/photo?upload_id=456",
+            data: {
+              publish_id: "publish_456",
+              upload_url: "https://upload.tiktok.com/photo?upload_id=456",
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876544"],
+            },
+          },
+        });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -139,12 +195,12 @@ describe("TikTokPublisher", () => {
       };
       jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
 
-      const result = await publisher.postContent(photoContent);
+      const result = await publisher.postContent(photoContent, directOptions);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("publish_456");
-      // Direct Post API only requires 1 POST (init)
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(result.id).toBe("7298765432109876544");
+      // 3 POSTs expected: creator info + init + status fetch
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
       // Verify photo endpoint is used
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/v2/post/publish/photo/init/",
@@ -157,14 +213,24 @@ describe("TikTokPublisher", () => {
 
     it("should handle different visibility settings", async () => {
       // Mock the Direct Post API response
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockCreatorInfoOnce();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_789",
-            upload_url: "https://upload.tiktok.com/video?upload_id=789",
+            data: {
+              publish_id: "publish_789",
+              upload_url: "https://upload.tiktok.com/video?upload_id=789",
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876545"],
+            },
+          },
+        });
 
       // Mock axios PUT for file upload
       mockedAxios.put.mockResolvedValue({ status: 200 });
@@ -192,7 +258,7 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(videoContent, options);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("publish_789");
+      expect(result.id).toBe("7298765432109876545");
 
       // Verify the init call includes the privacy settings
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
@@ -295,14 +361,24 @@ describe("TikTokPublisher", () => {
       });
 
       // Mock successful upload for the first image using Direct Post API
-      mockAxiosInstance.post.mockResolvedValueOnce({
-        data: {
+      mockCreatorInfoOnce();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
           data: {
-            publish_id: "publish_multi",
-            upload_url: "https://upload.tiktok.com/photo?upload_id=multi",
+            data: {
+              publish_id: "publish_multi",
+              upload_url: "https://upload.tiktok.com/photo?upload_id=multi",
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          data: {
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["7298765432109876546"],
+            },
+          },
+        });
 
       mockedAxios.put.mockResolvedValue({ status: 200 });
 
@@ -313,11 +389,11 @@ describe("TikTokPublisher", () => {
       };
       jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
 
-      const result = await strictPublisher.postContent(contentWithMultipleMedia);
+      const result = await strictPublisher.postContent(contentWithMultipleMedia, directOptions);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      // Direct Post API - should only have 1 POST call (init)
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      // 3 POSTs expected: creator info + init + status fetch
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
     });
 
     it("should handle API errors gracefully", async () => {
@@ -336,46 +412,33 @@ describe("TikTokPublisher", () => {
   });
 
   describe("validation", () => {
-    it("should validate caption length", async () => {
-      const longCaption = "a".repeat(200); // Exceeds 150 character limit
+    it("should error when caption is too long for video", () => {
+      const longCaption = "a".repeat(2300);
       const contentWithLongCaption: Content = {
         text: longCaption,
         media: [{ type: "video", path: "./test-video.mp4" }],
       };
 
-      // Create publisher in strict mode
-      const strictPublisher = new TikTokPublisher({
-        common: { strictMode: false },
-        tiktok: {
-          credentials: {
-            accessToken: "test_access_token",
-          },
-        },
-      });
+      const result = TikTokPublisher.validate(contentWithLongCaption);
 
-      // Should not throw but may warn
-      await expect(async () => {
-        // Mock successful response using Direct Post API
-        mockAxiosInstance.post.mockResolvedValueOnce({
-          data: {
-            data: {
-              publish_id: "publish_long",
-              upload_url: "https://upload.tiktok.com/video?upload_id=long",
-            },
-          },
-        });
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].code).toBe("caption_too_long");
+    });
 
-        mockedAxios.put.mockResolvedValue({ status: 200 });
+    it("should warn when multiple media items are provided", () => {
+      const contentWithMultipleMedia: Content = {
+        text: "Multiple media",
+        media: [
+          { type: "image", path: "./test-image-1.jpg" },
+          { type: "image", path: "./test-image-2.jpg" },
+        ],
+      };
 
-        const mockStream = {
-          [Symbol.asyncIterator]: async function* () {
-            yield Buffer.from("chunk1");
-          },
-        };
-        jest.spyOn(fs, "createReadStream").mockReturnValue(mockStream as any);
+      const result = TikTokPublisher.validate(contentWithMultipleMedia);
 
-        await strictPublisher.postContent(contentWithLongCaption);
-      }).not.toThrow();
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].code).toBe("too_many_media");
     });
   });
 });

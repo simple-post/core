@@ -1,0 +1,82 @@
+{
+  "name": "@simple-post/cli",
+  "version": "0.1.0",
+  "description": "SimplePost CLI for cross-platform posting",
+  "type": "module",
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "bin": {
+    "simplepost": "./bin/run.js"
+  },
+  "scripts": {
+    "clean": "rm -rf dist oclif.manifest.json",
+    "build": "yarn clean && tsc -p tsconfig.json && node ./scripts/generate-manifest.mjs",
+    "compile": "tsc --noEmit -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json && eslint . && prettier --check .",
+    "test": "yarn workspace @simple-post/sdk build && yarn build && jest -c jest.config.cjs --runInBand --verbose",
+    "prepack": "yarn build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write ."
+  },
+  "oclif": {
+    "bin": "simplepost",
+    "dirname": "simplepost",
+    "topicSeparator": " ",
+    "flexibleTaxonomy": true,
+    "topics": {
+      "account": {
+        "description": "Manage connected accounts.",
+        "hidden": true
+      }
+    },
+    "commands": {
+      "strategy": "pattern",
+      "target": "./dist/cli/src/commands"
+    },
+    "theme": {
+      "bin": "#c6f432",
+      "command": "#c6f432",
+      "commandSummary": "#b8b8b8",
+      "dollarSign": "#555555",
+      "flag": "#c6f432",
+      "flagDefaultValue": "#555555",
+      "flagOptions": "#858585",
+      "flagSeparator": "#555555",
+      "sectionDescription": "#b8b8b8",
+      "sectionHeader": "bold",
+      "topic": "#c6f432",
+      "version": "#555555"
+    }
+  },
+  "dependencies": {
+    "@oclif/core": "^4.9.0",
+    "@simple-post/sdk": "*",
+    "selfsigned": "^5.5.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@oclif/test": "^4.1.16",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.30.1",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-unicorn": "^59.0.1",
+    "globals": "^15.0.0",
+    "jest": "^30.0.0",
+    "prettier": "^3.4.2",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.1"
+  }
+}

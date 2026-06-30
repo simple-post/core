@@ -10,7 +10,9 @@
     "moduleResolution": "Node",
     "baseUrl": ".",
     "paths": {
-      "@simple-post/sdk": ["../sdk/src/index.ts"]
+      "@simple-post/sdk": ["../sdk/src/index.ts"],
+      "@simple-post/sdk/media-types": ["../sdk/src/media-types.ts"],
+      "@simple-post/sdk/platform-names": ["../sdk/src/platform-names.ts"]
     }
   },
   "include": ["src/**/*"],

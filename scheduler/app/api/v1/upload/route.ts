@@ -1,0 +1,59 @@
+import { type NextRequest, NextResponse } from "next/server";
+
+import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
+import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
+
+import { requireAuth } from "@/lib/middleware/auth";
+import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+
+// Maximum file size: 500MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024;
+
+// POST /api/v1/upload - Upload a file directly through the server (fallback for CORS issues)
+export async function POST(req: NextRequest) {
+  try {
+    const session = await requireAuth(req);
+    const userId = session.user.id;
+
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+
+    if (!file) {
+      throw new BadRequestError("No file provided");
+    }
+
+    const resolvedType = normalizeContentType(file.type, file.name);
+
+    if (!resolvedType) {
+      throw new BadRequestError("Invalid file type");
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestError(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+    }
+
+    if (!ALLOWED_MEDIA_TYPES.has(resolvedType)) {
+      throw new BadRequestError(`Invalid file type: ${resolvedType}`);
+    }
+
+    // Convert File to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Generate a unique key for the file
+    const key = generateFileKey(userId, file.name);
+
+    // Upload to S3-compatible storage
+    const url = await uploadFromBuffer(buffer, key, resolvedType);
+
+    return NextResponse.json({
+      url,
+      key,
+      filename: file.name,
+      size: file.size,
+      type: resolvedType,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

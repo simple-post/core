@@ -9,6 +9,8 @@ export const PlatformSchema = z.enum([
   "facebook",
   "instagram",
   "tiktok",
+  "bluesky",
+  "threads",
   "linkedin",
   "pinterest",
 ]);
@@ -32,6 +34,7 @@ const BaseVideoSchema = z.object({
   description: z.string().optional(),
   thumbnailPath: z.string().optional(),
   thumbnailUrl: z.url().optional(),
+  durationSec: z.number().nonnegative().optional(),
 });
 
 export const VideoSchema = BaseVideoSchema.refine((data) => data.path || data.url, {
@@ -45,23 +48,17 @@ export const CommonOptionsSchema = z.object({
   strictMode: z.boolean().optional(),
 });
 
-export const XAppCredentialsSchema = z.object({
-  apiKey: z.string(),
-  apiSecret: z.string(),
-  accessToken: z.string(),
-  accessSecret: z.string(),
-});
-
-export const XUserCredentialsSchema = z.object({
-  clientId: z.string(),
-  clientSecret: z.string(),
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  expiresAt: z.number(), // Unix timestamp
-});
-
-// Union of the two credential types
-export const XCredentialsSchema = z.union([XAppCredentialsSchema, XUserCredentialsSchema]);
+export const XCredentialsSchema = z
+  .object({
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
+    accessToken: z.string().optional(),
+    refreshToken: z.string().optional(),
+    expiresAt: z.number().optional(), // Unix timestamp
+  })
+  .refine((data) => Boolean(data.accessToken) || Boolean(data.clientId && data.refreshToken), {
+    message: "X credentials require either accessToken, or clientId + refreshToken (or both)",
+  });
 
 export const XOptionsSchema = z.object({
   replyToId: z.string().optional(),
@@ -71,6 +68,7 @@ export const XOptionsSchema = z.object({
 export const TelegramOptionsSchema = z.object({
   chatId: z.string(),
   parseMode: z.enum(["HTML", "Markdown", "MarkdownV2"]).optional(),
+  replyTo: z.string().optional(),
   credentials: z
     .object({
       botToken: z.string(),
@@ -79,18 +77,29 @@ export const TelegramOptionsSchema = z.object({
 });
 
 export const YouTubeOptionsSchema = z.object({
+  title: z.string().max(100).optional(),
+  description: z.string().max(5000).optional(),
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
   playlistId: z.string().optional(),
+  thumbnailPath: z.string().optional(),
+  thumbnailUrl: z.url().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),
   publishAt: z.string().optional(),
   privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
   credentials: z
-    .object({
-      clientId: z.string(),
-      clientSecret: z.string(),
-      refreshToken: z.string(),
-    })
+    .union([
+      // Option 1: OAuth2 with refresh token (for long-term access)
+      z.object({
+        clientId: z.string(),
+        clientSecret: z.string(),
+        refreshToken: z.string(),
+      }),
+      // Option 2: Direct access token (for short-term access)
+      z.object({
+        accessToken: z.string(),
+      }),
+    ])
     .optional(),
 });
 
@@ -109,16 +118,99 @@ export const InstagramOptionsSchema = z.object({
     .object({
       accessToken: z.string(),
       businessAccountId: z.string(),
+      graphApi: z.enum(["instagram", "facebook"]).optional(),
+      expiresAt: z.number().optional(),
     })
     .optional(),
 });
 
+export const TikTokPrivacyLevelSchema = z.enum([
+  "PUBLIC_TO_EVERYONE",
+  "MUTUAL_FOLLOW_FRIENDS",
+  "FOLLOWER_OF_CREATOR",
+  "SELF_ONLY",
+]);
+
 export const TikTokOptionsSchema = z.object({
+  title: z.string().max(2200).optional(),
   publishMode: z.enum(["draft", "public"]).optional(),
+  privacyLevel: TikTokPrivacyLevelSchema.optional(),
   visibility: z.enum(["public", "friends", "private"]).optional(),
   allowComment: z.boolean().optional(),
   allowDuet: z.boolean().optional(),
   allowStitch: z.boolean().optional(),
+  commercialContentDisclosure: z.boolean().optional(),
+  discloseYourBrand: z.boolean().optional(),
+  discloseBrandedContent: z.boolean().optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+    })
+    .optional(),
+});
+
+export const BlueskyOAuthCredentialsSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string().optional(),
+  expiresAt: z.number().optional(),
+  did: z.string(),
+  pdsUrl: z.url(),
+  tokenUrl: z.string().optional(),
+  clientId: z.string().optional(),
+  dpopPublicJwk: z.record(z.string(), z.unknown()).optional(),
+  dpopPrivateJwk: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const BlueskyAppPasswordCredentialsSchema = z.object({
+  identifier: z.string(),
+  appPassword: z.string(),
+  pdsUrl: z.url().optional(),
+});
+
+export const BlueskyCredentialsSchema = z.union([BlueskyAppPasswordCredentialsSchema, BlueskyOAuthCredentialsSchema]);
+
+export const BlueskyPostRefSchema = z.object({
+  uri: z.string(),
+  cid: z.string(),
+});
+
+export const BlueskyReplyRefSchema = z.object({
+  root: BlueskyPostRefSchema,
+  parent: BlueskyPostRefSchema,
+});
+
+export const BlueskyOptionsSchema = z.object({
+  replyTo: BlueskyReplyRefSchema.optional(),
+  credentials: BlueskyCredentialsSchema.optional(),
+});
+
+export const ThreadsOptionsSchema = z.object({
+  replyToId: z.string().optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      userId: z.string(),
+      expiresAt: z.number().optional(),
+    })
+    .optional(),
+});
+
+export const LinkedInOptionsSchema = z.object({
+  visibility: z.enum(["PUBLIC", "CONNECTIONS"]).optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      memberId: z.string(),
+    })
+    .optional(),
+});
+
+export const PinterestOptionsSchema = z.object({
+  boardId: z.string(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  link: z.url().optional(),
+  altText: z.string().optional(),
   credentials: z
     .object({
       accessToken: z.string(),
@@ -139,6 +231,10 @@ export const PostOptionsSchema = z.object({
   facebook: FacebookOptionsSchema.optional(),
   instagram: InstagramOptionsSchema.optional(),
   tiktok: TikTokOptionsSchema.optional(),
+  bluesky: BlueskyOptionsSchema.optional(),
+  threads: ThreadsOptionsSchema.optional(),
+  linkedin: LinkedInOptionsSchema.optional(),
+  pinterest: PinterestOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -152,8 +248,6 @@ export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
 export type Media = z.infer<typeof MediaSchema>;
 export type CommonOptions = z.infer<typeof CommonOptionsSchema>;
-export type XAppCredentials = z.infer<typeof XAppCredentialsSchema>;
-export type XUserCredentials = z.infer<typeof XUserCredentialsSchema>;
 export type XCredentials = z.infer<typeof XCredentialsSchema>;
 export type XOptions = z.infer<typeof XOptionsSchema>;
 export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;
@@ -161,6 +255,16 @@ export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
 export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
+export type TikTokPrivacyLevel = z.infer<typeof TikTokPrivacyLevelSchema>;
+export type BlueskyOAuthCredentials = z.infer<typeof BlueskyOAuthCredentialsSchema>;
+export type BlueskyAppPasswordCredentials = z.infer<typeof BlueskyAppPasswordCredentialsSchema>;
+export type BlueskyCredentials = z.infer<typeof BlueskyCredentialsSchema>;
+export type BlueskyPostRef = z.infer<typeof BlueskyPostRefSchema>;
+export type BlueskyReplyRef = z.infer<typeof BlueskyReplyRefSchema>;
+export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
+export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
+export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
+export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -182,6 +286,18 @@ export type InstagramOptionsWithCredentials = InstagramOptions & {
 export type TikTokOptionsWithCredentials = TikTokOptions & {
   credentials: NonNullable<TikTokOptions["credentials"]>;
 };
+export type BlueskyOptionsWithCredentials = BlueskyOptions & {
+  credentials: NonNullable<BlueskyOptions["credentials"]>;
+};
+export type ThreadsOptionsWithCredentials = ThreadsOptions & {
+  credentials: NonNullable<ThreadsOptions["credentials"]>;
+};
+export type LinkedInOptionsWithCredentials = LinkedInOptions & {
+  credentials: NonNullable<LinkedInOptions["credentials"]>;
+};
+export type PinterestOptionsWithCredentials = PinterestOptions & {
+  credentials: NonNullable<PinterestOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -190,4 +306,8 @@ export type PostOptionsWithCredentials = PostOptions & {
   facebook?: FacebookOptionsWithCredentials;
   instagram?: InstagramOptionsWithCredentials;
   tiktok?: TikTokOptionsWithCredentials;
+  bluesky?: BlueskyOptionsWithCredentials;
+  threads?: ThreadsOptionsWithCredentials;
+  linkedin?: LinkedInOptionsWithCredentials;
+  pinterest?: PinterestOptionsWithCredentials;
 };

@@ -4,9 +4,19 @@ import { Logger } from "../../utils/logger";
 import type { PostResult } from "../../types";
 import type { Content, PostOptions, PostOptionsWithCredentials } from "../../types/post";
 
+export type MediaRequirement = "path" | "url" | "either";
+
 export abstract class Publisher {
   readonly logger: Logger;
   readonly strictMode: boolean;
+
+  /**
+   * Static property defining the media requirement for this publisher
+   * - "path": Platform requires a local file path (downloads URLs)
+   * - "url": Platform requires a public URL (uploads paths to S3/public storage)
+   * - "either": Platform accepts both, but may prefer one
+   */
+  static readonly mediaRequirement: MediaRequirement;
 
   constructor(name: string, options?: PostOptions) {
     this.logger = new Logger(name, options?.common?.logLevel);
@@ -39,16 +49,20 @@ export abstract class Publisher {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle PostErrors and generic errors
 
-      this.logger.info(`Post failed: ${error.message}`);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const data =
+        typeof error === "object" && error && "data" in error ? (error as { data?: unknown }).data : undefined;
+
+      this.logger.info(`Post failed: ${message}`);
 
       if (error instanceof PostError) {
         return { error: error.errorType, message: error.message, details: error.details };
       } else {
-        this.logger.error(error);
-        return { error: PostErrorType.OTHER, message: `Error posting: ${error.message}`, details: error.data };
+        this.logger.error(error instanceof Error ? error : message);
+        return { error: PostErrorType.OTHER, message: `Error posting: ${message}`, details: data };
       }
     }
   }

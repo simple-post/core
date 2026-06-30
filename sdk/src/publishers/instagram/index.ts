@@ -1,27 +1,47 @@
-import fs from "node:fs";
+import axios, { type AxiosError, type AxiosInstance } from "axios";
 
-import axios from "axios";
+import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaUrl } from "../../utils";
+import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
 import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
-import type { AxiosInstance } from "axios";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
-const FACEBOOK_API_VERSION = "v23.0";
-const MAX_MEDIA_COUNT = 10;
-const MAX_CAPTION_LENGTH = 2200;
+const INSTAGRAM_API_VERSION = "v25.0";
+const FACEBOOK_GRAPH_API_VERSION = "v25.0";
 const PROCESSING_POLL_INTERVAL = 3000;
+const PROACTIVE_REFRESH_DAYS = 7;
+
+interface InstagramRefreshResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}
 
 export class InstagramPublisher extends Publisher {
+  static readonly mediaRequirement = "url" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return INSTAGRAM_VALIDATION_RULES;
+  }
+
   private client: AxiosInstance;
   private businessAccountId: string;
+  private accessToken: string;
+  private expiresAt?: number;
+  private graphApi: "instagram" | "facebook";
 
   private s3MediaUploader: S3MediaUploader;
   private s3TempFileKeys: string[] = [];
+
+  private refreshedCredentials?: {
+    accessToken: string;
+    expiresAt: number;
+  };
 
   constructor(options?: PostOptionsWithCredentials) {
     super("Instagram", options);
@@ -33,23 +53,138 @@ export class InstagramPublisher extends Publisher {
         "Instagram credentials are required in options.instagram.credentials",
       );
     }
-    const { accessToken, businessAccountId } = options.instagram.credentials;
+    const { accessToken, businessAccountId, expiresAt, graphApi } = options.instagram.credentials;
     this.businessAccountId = businessAccountId;
+    this.accessToken = accessToken;
+    this.expiresAt = expiresAt;
+    this.graphApi = graphApi ?? "instagram";
 
-    // Create axios client with base configuration
+    // Create axios client - graph.instagram.com for Instagram Login tokens, graph.facebook.com for Page access tokens
+    const baseURL =
+      this.graphApi === "facebook"
+        ? `https://graph.facebook.com/${FACEBOOK_GRAPH_API_VERSION}`
+        : `https://graph.instagram.com/${INSTAGRAM_API_VERSION}`;
     this.client = axios.create({
-      baseURL: `https://graph.facebook.com/${FACEBOOK_API_VERSION}`,
+      baseURL,
       timeout: 30_000, // 30 seconds timeout
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        ...(this.graphApi === "instagram" ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
     });
 
     // Create S3 media uploader
     this.s3MediaUploader = new S3MediaUploader();
+  }
+
+  private isTokenExpiringSoon(): boolean {
+    if (!this.expiresAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDays = PROACTIVE_REFRESH_DAYS * 24 * 60 * 60;
+    return now >= this.expiresAt - sevenDays;
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (this.graphApi !== "instagram") {
+      return;
+    }
+    const currentToken = this.refreshedCredentials?.accessToken || this.accessToken;
+
+    try {
+      this.logger.info("Refreshing Instagram access token...");
+
+      const url = new URL("https://graph.instagram.com/refresh_access_token");
+      url.searchParams.set("grant_type", "ig_refresh_token");
+      url.searchParams.set("access_token", currentToken);
+
+      const response = await axios.get<InstagramRefreshResponse>(url.toString());
+      const { access_token, expires_in } = response.data;
+      const expiresAt = Math.floor(Date.now() / 1000) + expires_in;
+
+      this.refreshedCredentials = { accessToken: access_token, expiresAt };
+      this.accessToken = access_token;
+      this.expiresAt = expiresAt;
+
+      this.client.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      this.logger.info("Instagram access token refreshed successfully");
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(`Failed to refresh Instagram token: ${err.message || error}`);
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Instagram access token has expired. Please reconnect your Instagram account in account settings.",
+        err.response?.data?.error?.message || err.message,
+      );
+    }
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (this.graphApi === "instagram" && this.isTokenExpiringSoon()) {
+      await this.refreshAccessToken();
+    }
+  }
+
+  private withAccessToken(url: string): string {
+    if (this.graphApi !== "facebook") {
+      return url;
+    }
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
+  }
+
+  private async apiRequest<T>(method: "get" | "post", url: string, data?: unknown): Promise<{ data: T }> {
+    const doRequest = () => {
+      const requestUrl = this.withAccessToken(url);
+      return method === "get" ? this.client.get<T>(requestUrl) : this.client.post<T>(requestUrl, data);
+    };
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      const axiosError = error as AxiosError<{ error?: { message?: string } }>;
+      if (axiosError.response?.status === 401 && this.graphApi === "instagram") {
+        this.logger.warn("Received 401, attempting token refresh...");
+        await this.refreshAccessToken();
+        return doRequest();
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches the public permalink for a freshly-published Instagram media id.
+   *
+   * The Graph API may briefly omit `permalink` while the post is being
+   * indexed right after `media_publish`, so we retry a few times. Returns
+   * `undefined` if the permalink cannot be obtained — callers should treat
+   * the URL as unavailable rather than fabricating one from the numeric id.
+   */
+  private async fetchPermalinkWithRetry(mediaId: string): Promise<string | undefined> {
+    const maxAttempts = 5;
+    const delayMs = 1500;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const permalinkRes = await this.apiRequest<{ permalink?: string }>("get", `/${mediaId}?fields=permalink`);
+        if (permalinkRes.data.permalink) {
+          return permalinkRes.data.permalink;
+        }
+      } catch (permalinkError) {
+        const err = permalinkError as { message?: string };
+        this.logger.warn(
+          `Failed to fetch Instagram permalink (attempt ${attempt + 1}/${maxAttempts}): ${err.message || String(permalinkError)}`,
+        );
+      }
+
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    this.logger.warn(`Instagram permalink unavailable after ${maxAttempts} attempts for media ${mediaId}`);
+    return undefined;
   }
 
   private async cleanupS3Files(): Promise<void> {
@@ -58,7 +193,10 @@ export class InstagramPublisher extends Publisher {
 
   private async waitForMediaReady(containerId: string): Promise<void> {
     while (true) {
-      const statusRes = await this.client.get(`/${containerId}?fields=status_code,status`);
+      const statusRes = await this.apiRequest<{ status_code: string; status: string }>(
+        "get",
+        `/${containerId}?fields=status_code,status`,
+      );
       const statusCode = statusRes.data.status_code;
       const status = statusRes.data.status;
 
@@ -92,7 +230,7 @@ export class InstagramPublisher extends Publisher {
 
     try {
       // Create media object using the URL
-      const response = await this.client.post(`/${this.businessAccountId}/media`, {
+      const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
         media_type: mediaType,
         caption: isCarousel ? undefined : caption,
         is_carousel_item: isCarousel,
@@ -100,10 +238,12 @@ export class InstagramPublisher extends Publisher {
       });
 
       return response.data.id;
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { data?: { error?: { message?: string } } } };
+      this.logger.error(error instanceof Error ? error : String(error));
+      const apiMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
-      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${error.message}`, error);
+      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${apiMessage}`, err);
     }
   }
 
@@ -121,7 +261,7 @@ export class InstagramPublisher extends Publisher {
 
       // If there are multiple media objects, create a carousel post
       if (content.media!.length > 1) {
-        const response = await this.client.post(`/${this.businessAccountId}/media`, {
+        const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
           media_type: "CAROUSEL",
           caption: content.text,
           children: mediaObjectIds.join(","),
@@ -131,68 +271,79 @@ export class InstagramPublisher extends Publisher {
       }
 
       return containerId;
-    } catch (error: any) {
-      this.logger.error(error);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
 
-      throw new PostError(PostErrorType.API_ERROR, `Failed to create media container: ${error.message}`, error);
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to create media container: ${err.message || "Unknown error"}`,
+        err,
+      );
     }
   }
 
-  private validate(content: Content): void {
-    if (!content.media || content.media.length === 0)
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        "Instagram posts require at least one media item (image or video).",
-      );
-
-    // Validate the number of media files
-    this.strictCheck(
-      content.media.length > MAX_MEDIA_COUNT,
-      `Instagram posts support maximum ${MAX_MEDIA_COUNT} media items.`,
-    );
-
-    // Validate each media has a valid source (path or url)
-    for (const media of content.media) {
-      if (!hasValidSource(media)) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-      }
-      // If path is provided, check it exists
-      if (media.path && !fs.existsSync(media.path)) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-      }
-    }
-
-    // Caption length validation (Instagram limit is 2200 characters)
-    this.strictCheck(
-      Boolean(content.text && content.text.length > MAX_CAPTION_LENGTH),
-      `Instagram caption cannot exceed ${MAX_CAPTION_LENGTH} characters.`,
-    );
+  static validate(content: Content): ValidationResult {
+    return validateInstagramContent(content);
   }
 
   async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
+    await this.ensureValidToken();
+
     // Validate the content
-    this.validate(content);
+    const validation = InstagramPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "Instagram content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
+    const normalizedContent: Content = {
+      ...content,
+      media: content.media ? content.media.slice(0, INSTAGRAM_MAX_MEDIA_COUNT) : undefined,
+    };
 
     try {
       // Create media container
-      const containerId = await this.createMediaContainer(content);
+      const containerId = await this.createMediaContainer(normalizedContent);
 
       // Wait for the container to be ready
       await this.waitForMediaReady(containerId);
 
       // Publish the container
-      const response = await this.client.post(`/${this.businessAccountId}/media_publish`, { creation_id: containerId });
+      const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media_publish`, {
+        creation_id: containerId,
+      });
 
-      return { id: response.data.id, error: PostErrorType.NO_ERROR };
-    } catch (error: any) {
+      const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
+
+      // Fetch the canonical permalink. Instagram post URLs require shortcodes
+      // that are not derivable from the numeric media ID, so we have to ask
+      // the API. Immediately after media_publish the permalink can briefly
+      // be missing while the post is being indexed, so retry a few times
+      // with a small backoff. Best-effort — failures here should not fail
+      // the publish.
+      result.url = await this.fetchPermalinkWithRetry(response.data.id);
+
+      if (this.refreshedCredentials) {
+        result.extraData = {
+          refreshedCredentials: {
+            accessToken: this.refreshedCredentials.accessToken,
+            expiresAt: this.refreshedCredentials.expiresAt,
+          },
+        };
+      }
+      return result;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       if (error instanceof PostError) throw error;
 
-      this.logger.error(error);
+      this.logger.error(error instanceof Error ? error : String(error));
 
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to publish post: ${error.response?.data?.error?.message || error.message}`,
-        error,
+        `Failed to publish post: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err,
       );
     } finally {
       await this.cleanupS3Files();

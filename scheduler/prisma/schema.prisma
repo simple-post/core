@@ -1,0 +1,326 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     String                   @id
+  name                   String
+  email                  String
+  emailVerified          Boolean                  @default(false)
+  image                  String?
+  stripeCustomerId       String?                  @unique
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
+  sessions               Session[]
+  accounts               Account[] // For authentication
+  connectedAccounts      ConnectedAccount[] // For social media posting
+  webhookEndpoints       WebhookEndpoint[]
+  posts                  Post[]
+  PendingOAuthConnection PendingOAuthConnection[]
+  cliTokens              CliToken[]
+  mcpAccessTokens        McpAccessToken[]
+  apiKeys                ApiKey[]
+  subscription           UserSubscription?
+
+  @@unique([email])
+  @@map("user")
+}
+
+model UserSubscription {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId       String
+  stripeSubscriptionId   String?   @unique
+  stripePriceId          String?
+  stripeProductId        String?
+  planKey                String?
+  status                 String    @default("incomplete")
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean   @default(false)
+  canceledAt             DateTime?
+  trialEndsAt            DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([stripeCustomerId])
+  @@index([status])
+  @@map("user_subscription")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  // Store account profile information (username, display name, email, etc.)
+  profile               String?
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@map("verification")
+}
+
+// Separate model for connected social media accounts (for posting)
+// This is different from the Account model which is used for authentication
+model ConnectedAccount {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Platform information
+  platform          String // "facebook", "instagram", "tiktok", "youtube", "twitter"
+  platformAccountId String // The user's ID on that platform
+
+  // OAuth tokens for API access
+  accessToken   String
+  refreshToken  String?
+  tokenType     String?   @default("Bearer")
+  expiresAt     DateTime?
+  scope         String?
+  tokenMetadata Json?
+
+  // Account profile information
+  username       String? // @handle or username
+  displayName    String? // Full name or display name
+  email          String?
+  profilePicture String?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  posts Post[]
+
+  @@unique([userId, platform, platformAccountId])
+  @@index([userId])
+  @@map("connected_account")
+}
+
+// Pending OAuth connections (used for Facebook/Instagram account pickers)
+model PendingOAuthConnection {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  String
+  data      Json
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@index([userId, platform])
+  @@index([expiresAt])
+  @@map("pending_oauth_connection")
+}
+
+// Posts saved as drafts, scheduled for dispatch, or already processed
+model Post {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message      String
+  scheduledFor DateTime?
+  status       String    @default("scheduled") // "draft", "scheduled", "pending", "published", "failed"
+  errorMessage String? // Human-readable error message when status is "failed"
+  errorDetails Json? // Detailed error info (stack trace, API response, etc.)
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Account-specific options stored as JSON
+  accountOptions   Json?
+  accountOverrides Json?
+
+  // Thread support: additional segments after the root post (whose content is
+  // Post.message + Post.media). Stored as ThreadSegment[] (see SDK types).
+  thread        Json?
+  // Per-account thread results captured at publish time. Map of accountId →
+  // ThreadSegmentResult[] for accounts that posted as a thread.
+  threadResults Json?
+
+  // Per-account publish outcomes captured at publish time. Map of accountId →
+  // AccountPublishResult (see scheduler types). Lets retries of partially
+  // failed posts skip accounts that already published.
+  accountResults Json?
+
+  // Client-supplied key making post creation idempotent: a retried create
+  // request (agent timeout, network blip) returns the original post instead
+  // of publishing twice.
+  idempotencyKey String?
+
+  // Relations
+  accounts ConnectedAccount[]
+  media    MediaFile[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status])
+  @@index([userId, scheduledFor])
+  @@map("post")
+}
+
+// Webhook endpoints notified on post lifecycle events (post.published,
+// post.failed) so API consumers don't have to poll.
+model WebhookEndpoint {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url           String
+  // HMAC-SHA256 signing secret; shown to the user once at creation.
+  secret        String
+  // Subscribed events ("post.published", "post.failed")
+  events        String[]
+  active        Boolean   @default(true)
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("webhook_endpoint")
+}
+
+// CLI tokens for authenticating the CLI with the scheduler API
+model CliToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique // SHA-256 hash of the bearer token
+  name       String    @default("CLI")
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("cli_token")
+}
+
+// API keys for direct Scheduler API access
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String    @default("API Key")
+  tokenHash  String    @unique // SHA-256 hash of the bearer token
+  keyPrefix  String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("api_key")
+}
+
+// Media files stored in Cloudflare R2
+model MediaFile {
+  id           String   @id @default(cuid())
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url          String // R2 URL
+  thumbnailUrl String? // R2 thumbnail URL
+  type         String // "image" or "video"
+  filename     String
+  size         Int
+  durationSec  Float?
+  createdAt    DateTime @default(now())
+
+  @@index([postId])
+  @@map("media_file")
+}
+
+// MCP OAuth clients (registered via Dynamic Client Registration)
+model McpOAuthClient {
+  id           String   @id @default(cuid())
+  clientId     String   @unique
+  clientSecret String? // Hashed; null for public clients
+  name         String
+  redirectUris String[] // Allowed redirect URIs
+  scope        String?
+  createdAt    DateTime @default(now())
+
+  accessTokens       McpAccessToken[]
+  authorizationCodes McpAuthorizationCode[]
+
+  @@map("mcp_oauth_client")
+}
+
+// Temporary authorization codes for OAuth flow
+model McpAuthorizationCode {
+  id                  String         @id @default(cuid())
+  codeHash            String         @unique
+  clientId            String
+  client              McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId              String
+  redirectUri         String
+  resource            String?
+  codeChallenge       String // PKCE S256
+  codeChallengeMethod String         @default("S256")
+  scope               String?
+  expiresAt           DateTime
+  createdAt           DateTime       @default(now())
+
+  @@index([expiresAt])
+  @@map("mcp_authorization_code")
+}
+
+// MCP access tokens issued via OAuth
+model McpAccessToken {
+  id         String         @id @default(cuid())
+  tokenHash  String         @unique
+  clientId   String
+  client     McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope      String?
+  resource   String?
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("mcp_access_token")
+}

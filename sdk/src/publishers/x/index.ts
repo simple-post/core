@@ -1,24 +1,17 @@
 import fs from "node:fs";
 
 import axios from "axios";
-import { TwitterApi } from "twitter-api-v2";
+import { EUploadMimeType, TwitterApi } from "twitter-api-v2";
+
+import { X_MAX_MEDIA_COUNT, X_VALIDATION_RULES, validateXContent } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
-import { hasValidSource, resolveMediaPath, TempFileManager } from "../../utils";
+import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type {
-  Content,
-  Media,
-  PostOptionsWithCredentials,
-  XAppCredentials,
-  XCredentials,
-  XUserCredentials,
-} from "../../types/post";
-import type { TwitterApiv1 } from "twitter-api-v2";
-
-const MAX_MEDIA_COUNT = 4;
+import type { Content, PostOptionsWithCredentials, XCredentials } from "../../types/post";
+import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 interface RefreshTokenResponse {
   access_token: string;
@@ -27,12 +20,15 @@ interface RefreshTokenResponse {
 }
 
 export class XPublisher extends Publisher {
+  static readonly mediaRequirement = "path" as const;
+
+  static getValidationRules(): PlatformValidationRules {
+    return X_VALIDATION_RULES;
+  }
+
   private client: TwitterApi;
-  private clientV1: TwitterApiv1;
 
   private credentials: XCredentials;
-
-  private isUserCredentials: boolean;
 
   private refreshedCredentials?: {
     accessToken: string;
@@ -43,39 +39,50 @@ export class XPublisher extends Publisher {
   constructor(options?: PostOptionsWithCredentials) {
     super("X", options);
 
-    // Validate the credentials
     if (!options?.x?.credentials) {
       throw new PostError(PostErrorType.CREDENTIALS_ERROR, "X credentials are required in options.x.credentials");
     }
 
-    // Check if the credentials are user credentials or app credentials
     this.credentials = options.x.credentials;
-    this.isUserCredentials = "refreshToken" in options.x.credentials;
 
-    // Initialize the clients
-    this.client = this.isUserCredentials
-      ? (this.client = new TwitterApi(this.credentials.accessToken))
-      : (this.client = new TwitterApi({
-          appKey: (this.credentials as XAppCredentials).apiKey,
-          appSecret: (this.credentials as XAppCredentials).apiSecret,
-          accessToken: this.credentials.accessToken,
-          accessSecret: (this.credentials as XAppCredentials).accessSecret,
-        }));
+    const canRefresh = Boolean(this.credentials.clientId && this.credentials.refreshToken);
+    if (!this.credentials.accessToken && !canRefresh) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "X credentials require either accessToken, or clientId + refreshToken (or both)",
+      );
+    }
 
-    this.clientV1 = this.client.v1;
+    // If no cached access token is provided, isTokenExpired() will force a refresh on first use.
+    this.client = new TwitterApi(this.credentials.accessToken ?? "");
+  }
+
+  private canRefresh(): boolean {
+    return Boolean(
+      this.credentials.clientId && (this.refreshedCredentials?.refreshToken || this.credentials.refreshToken),
+    );
   }
 
   private isTokenExpired(): boolean {
-    // App credentials don't expire
-    if (!this.isUserCredentials) {
+    // No way to refresh — treat the supplied access token as fresh and let X reject it
+    // with a 401 if it has actually expired. The caller controls token lifecycle.
+    if (!this.canRefresh()) {
       return false;
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    const expiresAt = this.refreshedCredentials?.expiresAt || (this.credentials as XUserCredentials).expiresAt;
+    // We've already refreshed within this publisher's lifetime — use that expiry.
+    if (this.refreshedCredentials) {
+      const now = Math.floor(Date.now() / 1000);
+      return now >= this.refreshedCredentials.expiresAt - 60;
+    }
 
-    // Consider token expired if it expires within the next 1 minute
-    return now >= expiresAt - 60;
+    // No cached access token / expiry → must refresh before first call.
+    if (!this.credentials.accessToken || !this.credentials.expiresAt) {
+      return true;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    return now >= this.credentials.expiresAt - 60;
   }
 
   private async ensureValidToken(): Promise<void> {
@@ -85,13 +92,15 @@ export class XPublisher extends Publisher {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    // No need to refresh app credentials
-    if (!this.isUserCredentials) {
-      return;
-    }
-
-    const { clientId, clientSecret, refreshToken } = this.credentials as XUserCredentials;
+    const { clientId, clientSecret, refreshToken } = this.credentials;
     const currentRefreshToken = this.refreshedCredentials?.refreshToken || refreshToken;
+
+    if (!clientId || !currentRefreshToken) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Cannot refresh X access token: clientId and refreshToken are required",
+      );
+    }
 
     try {
       this.logger.info("Refreshing X access token...");
@@ -106,7 +115,11 @@ export class XPublisher extends Publisher {
         {
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+            ...(clientSecret
+              ? {
+                  Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+                }
+              : {}),
           },
         },
       );
@@ -122,17 +135,31 @@ export class XPublisher extends Publisher {
 
       // Re-initialize client with new access token
       this.client = new TwitterApi(access_token);
-      this.clientV1 = this.client.v1;
 
       this.logger.info("X access token refreshed successfully");
-    } catch (error: any) {
-      this.logger.error(`Failed to refresh X access token: ${error.message || error}`);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: unknown }; message?: string };
+      this.logger.error(`Failed to refresh X access token: ${err.message || error}`);
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
         "Failed to refresh X access token",
-        error.response?.data || error.message,
+        err.response?.data || err.message,
       );
     }
+  }
+
+  private static getMimeType(filePath: string): EUploadMimeType {
+    const ext = filePath.split(".").pop()?.toLowerCase();
+    const mimeTypes: Record<string, EUploadMimeType> = {
+      jpg: EUploadMimeType.Jpeg,
+      jpeg: EUploadMimeType.Jpeg,
+      png: EUploadMimeType.Png,
+      gif: EUploadMimeType.Gif,
+      webp: EUploadMimeType.Webp,
+      mp4: EUploadMimeType.Mp4,
+      mov: EUploadMimeType.Mov,
+    };
+    return mimeTypes[ext ?? ""] ?? EUploadMimeType.Jpeg;
   }
 
   private async uploadMedia(resolvedPath: string): Promise<string> {
@@ -141,47 +168,38 @@ export class XPublisher extends Publisher {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${resolvedPath}`);
     }
 
-    // Upload the media using the Twitter V1 API
+    const mimeType = XPublisher.getMimeType(resolvedPath);
+    const buffer = fs.readFileSync(resolvedPath);
+
+    // Upload the media using the X V2 API
     try {
-      const mediaId = await this.clientV1.uploadMedia(resolvedPath);
+      const mediaId = await this.client.v2.uploadMedia(buffer, { media_type: mimeType });
 
       this.logger.info(`Media uploaded: ${mediaId}`);
 
       return mediaId;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, error.data);
+    } catch (error: unknown) {
+      const err = error as { data?: unknown };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, err.data);
     }
   }
 
-  private validate(content: Content): asserts content is (Content & { text: string }) | (Content & { media: Media[] }) {
-    if (!content.text && (!content.media || content.media.length === 0))
-      throw new PostError(PostErrorType.INVALID_CONTENT, "Empty posts are not supported");
-
-    this.strictCheck(
-      content.media && content.media.length > MAX_MEDIA_COUNT,
-      `X supports up to ${MAX_MEDIA_COUNT} media files, only the first ${MAX_MEDIA_COUNT} will be uploaded`,
-    );
-
-    // Validate each media has a valid source (path or url)
-    if (content.media) {
-      for (const media of content.media) {
-        if (!hasValidSource(media)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, "Media must have either a path or url");
-        }
-        // If path is provided, check it exists
-        if (media.path && !fs.existsSync(media.path)) {
-          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${media.path}`);
-        }
-      }
-    }
+  static validate(content: Content): ValidationResult {
+    return validateXContent(content);
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const replyToId = options?.x?.replyToId;
 
     // Validate the content
-    this.validate(content);
+    const validation = XPublisher.validate(content);
+    if (!validation.isValid) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "X content validation failed", validation);
+    }
+    for (const warning of validation.warnings) {
+      this.logger.warn(warning.message);
+    }
 
     // Ensure we have a valid token before posting
     await this.ensureValidToken();
@@ -192,7 +210,7 @@ export class XPublisher extends Publisher {
       // Upload all media files if any
       const mediaIds: string[] = [];
       if (content.media) {
-        for (const media of content.media.slice(0, MAX_MEDIA_COUNT)) {
+        for (const media of content.media.slice(0, X_MAX_MEDIA_COUNT)) {
           // Resolve media path (download if URL)
           const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
           tempFileManager.add(cleanup);
@@ -221,9 +239,10 @@ export class XPublisher extends Publisher {
       }
 
       return result;
-    } catch (error: any) {
-      this.logger.error(error);
-      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, error.data);
+    } catch (error: unknown) {
+      const err = error as { data?: unknown };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, err.data);
     } finally {
       await tempFileManager.cleanup();
     }

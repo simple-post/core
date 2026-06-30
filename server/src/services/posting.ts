@@ -6,12 +6,12 @@ import {
   prepareMedia,
   PostErrorType,
 } from "@simple-post/sdk";
+import { generatePostUrl } from "@simple-post/sdk/platform-names";
 
 import { buildPostOptions } from "./credentials.js";
 import { rewriteOwnUrlToPath } from "./uploads.js";
 
 import { getAccountsByIds, type ConfiguredAccount } from "../config/accounts.js";
-import { generatePostUrl } from "@simple-post/sdk/platform-names";
 
 import type {
   AccountOptionsMap,

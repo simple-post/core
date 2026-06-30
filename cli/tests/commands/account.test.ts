@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 
-import { getExpectedCliPaths, CLI_ROOT, makeTempHome } from "../helpers.js";
+import { getExpectedCliPaths, CLI_ROOT, createCliTestEnv, makeTempHome } from "../helpers.js";
 
 describe("account commands", () => {
   const originalHome = process.env.HOME;
@@ -13,6 +13,7 @@ describe("account commands", () => {
 
   it("lists all accounts, filters by platform, and removes accounts", async () => {
     const home = await makeTempHome();
+    const env = createCliTestEnv(home);
     process.env.HOME = home;
     const paths = getExpectedCliPaths(home);
     await fs.mkdir(paths.configDir, { recursive: true });
@@ -58,7 +59,7 @@ describe("account commands", () => {
     const allAccountsStdout = await new Promise<string>((resolve, reject) => {
       const child = spawn("node", ["bin/run.js", "account"], {
         cwd: CLI_ROOT,
-        env: { ...process.env, HOME: home },
+        env,
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -83,7 +84,7 @@ describe("account commands", () => {
     const xAccountsStdout = await new Promise<string>((resolve, reject) => {
       const child = spawn("node", ["bin/run.js", "account", "x"], {
         cwd: CLI_ROOT,
-        env: { ...process.env, HOME: home },
+        env,
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -114,7 +115,7 @@ describe("account commands", () => {
     await new Promise<void>((resolve, reject) => {
       const child = spawn("node", ["bin/run.js", "account", "remove", "main"], {
         cwd: CLI_ROOT,
-        env: { ...process.env, HOME: home },
+        env,
         stdio: ["ignore", "pipe", "pipe"],
       });
 

@@ -13,11 +13,19 @@ export async function makeTempHome(): Promise<string> {
 export function getExpectedConfigDir(home: string): string {
   // Keep in sync with `oclif.dirname` in package.json — oclif derives the
   // CLI config directory from it.
-  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "simplepost");
+  return path.join(home, ".config", "simplepost");
 }
 
 export function getExpectedCliPaths(home: string) {
   return getCliPaths(getExpectedConfigDir(home));
+}
+
+export function createCliTestEnv(home: string): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    HOME: home,
+    XDG_CONFIG_HOME: path.join(home, ".config"),
+  };
 }
 
 export function createPromptStub(

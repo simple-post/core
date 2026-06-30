@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 
-import { getExpectedCliPaths, CLI_ROOT, makeTempHome } from "../helpers.js";
+import { getExpectedCliPaths, CLI_ROOT, createCliTestEnv, makeTempHome } from "../helpers.js";
 
 describe("setup command", () => {
   const originalHome = process.env.HOME;
@@ -12,13 +12,14 @@ describe("setup command", () => {
 
   it("supports non-interactive backend selection", async () => {
     const home = await makeTempHome();
+    const env = createCliTestEnv(home);
     process.env.HOME = home;
     const paths = getExpectedCliPaths(home);
 
     await new Promise<void>((resolve, reject) => {
       const child = spawn("node", ["bin/run.js", "setup", "--backend", "file-plain"], {
         cwd: CLI_ROOT,
-        env: { ...process.env, HOME: home },
+        env,
         stdio: ["ignore", "pipe", "pipe"],
       });
 

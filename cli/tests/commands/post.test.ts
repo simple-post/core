@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
 
-import { CLI_ROOT } from "../helpers.js";
+import { CLI_ROOT, createCliTestEnv, makeTempHome } from "../helpers.js";
 
 async function runCli(args: string[]): Promise<{ stderr: string; stdout: string }> {
+  const home = await makeTempHome();
   return await new Promise((resolve, reject) => {
     const child = spawn("node", ["bin/run.js", ...args], {
       cwd: CLI_ROOT,
-      env: process.env,
+      env: createCliTestEnv(home),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

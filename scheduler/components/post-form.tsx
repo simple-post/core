@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getPlatformById } from "@/lib/config";
+import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
@@ -319,7 +320,11 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         }
       }
     } catch (error) {
-      console.error(`Failed to ${mode} post:`, error);
+      logClientError(error, `Failed to ${mode} post`, {
+        postId: existingPost.id,
+        postingMode,
+        accountCount: selectedAccountIds.length,
+      });
       toast.error(`Failed to ${mode} post. Please try again.`);
     }
   };

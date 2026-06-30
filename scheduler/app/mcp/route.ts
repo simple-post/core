@@ -4,12 +4,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { registerTools, SERVER_INSTRUCTIONS, type McpToolAuthContext } from "@/lib/mcp/server";
 import { PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
+const log = createLogger("api:mcp");
 
 /**
  * Extract and authenticate the MCP bearer token from the request.
@@ -110,7 +112,7 @@ export async function POST(req: NextRequest) {
   try {
     return await handleMcpRequest(req, authContext);
   } catch (error) {
-    console.error("MCP request error:", error);
+    log.error({ err: serializeError(error), userId: authContext.userId }, "MCP request error");
     return new Response(
       JSON.stringify({
         jsonrpc: "2.0",

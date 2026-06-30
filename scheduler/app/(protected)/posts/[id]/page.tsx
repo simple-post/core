@@ -26,6 +26,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount, MediaFile } from "@/types";
 
 type FailedPlatform = {
@@ -49,7 +50,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       await deletePostMutation.mutateAsync(id);
       router.push("/");
     } catch (error) {
-      console.error("Failed to delete post:", error);
+      logClientError(error, "Failed to delete post", { postId: id });
       toast.error("Failed to delete post. Please try again.");
     }
   };

@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession, authClient } from "@/lib/auth/auth-client";
+import { logClientError } from "@/lib/logger/client";
 
 export function UserMenu() {
   const { data: session } = useSession();
@@ -32,7 +33,7 @@ export function UserMenu() {
         },
       });
     } catch (error) {
-      console.error("Sign out error:", error);
+      logClientError(error, "Sign out error");
     } finally {
       setIsLoading(false);
     }

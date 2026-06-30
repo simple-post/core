@@ -155,10 +155,12 @@ export class InternalServerError extends ApiError {
 export function handleApiError(error: unknown): NextResponse {
   // Log error with structured logging
   if (error instanceof ApiError) {
-    apiLogger.warn(
-      { err: serializeError(error), statusCode: error.statusCode, code: error.code },
-      "API error occurred",
-    );
+    const payload = { err: serializeError(error), statusCode: error.statusCode, code: error.code };
+    if (error.statusCode >= 500) {
+      apiLogger.error(payload, "API error occurred");
+    } else {
+      apiLogger.warn(payload, "API error occurred");
+    }
   } else {
     apiLogger.error({ err: serializeError(error) }, "Unexpected API error");
   }

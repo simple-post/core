@@ -3,10 +3,11 @@
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
+import { logClientError } from "@/lib/logger/client";
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error("Unhandled error:", error);
+    logClientError(error, "Unhandled React error boundary error", { digest: error.digest });
   }, [error]);
 
   return (

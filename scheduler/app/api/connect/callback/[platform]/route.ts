@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { env } from "@/lib/env";
-import { authLogger } from "@/lib/logger";
+import { authLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import {
   getPlatformOAuthConfig,
@@ -123,6 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return response;
   } catch (error) {
     const code = mapErrorToCode(error);
+    authLogger.error({ err: serializeError(error), code }, "OAuth callback failed");
     return NextResponse.redirect(getErrorRedirectUrl(code, baseURL));
   }
 }

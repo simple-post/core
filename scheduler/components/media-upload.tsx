@@ -7,6 +7,7 @@ import { normalizeContentType } from "@simple-post/sdk/media-types";
 import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { logClientError, logClientWarning } from "@/lib/logger/client";
 import { generateThumbnail } from "@/lib/utils/client-thumbnail";
 import type { MediaFile } from "@/types";
 
@@ -285,13 +286,16 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
             await uploadToR2(thumbUploadUrl, thumbnailBlob, "image/jpeg");
             thumbnailUrl = thumbPublicUrl;
           }
-        } catch {
+        } catch (error) {
           // Thumbnail generation failed, continue without it
-          console.warn("Thumbnail generation failed for", file.name);
+          logClientWarning("Thumbnail generation failed", { filename: file.name, error });
         }
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Unknown error";
-        console.warn(`Direct upload failed (${reason}). Falling back to server upload.`);
+        logClientWarning("Direct upload failed. Falling back to server upload.", {
+          filename: file.name,
+          reason,
+        });
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
         const result = await uploadViaServer(file, file.name);
         publicUrl = result.url;
@@ -352,6 +356,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
         try {
           return await uploadFile(file);
         } catch (error) {
+          logClientError(error, "Failed to upload media file", { filename: file.name, size: file.size });
           setErrors((prev) => [...prev, `Failed to upload ${file.name}: ${(error as Error).message}`]);
           return null;
         }

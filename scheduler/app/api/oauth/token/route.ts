@@ -1,8 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { createLogger, serializeError } from "@/lib/logger";
 import { resolveMcpResource } from "@/lib/mcp/config";
 import { exchangeCodeForToken, hashValue } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
+
+const log = createLogger("api:oauth:token");
 
 const ERROR_DESCRIPTIONS: Record<string, string> = {
   code_not_found: "Authorization code not found or already used",
@@ -123,7 +126,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.ok) {
-      console.error("Token exchange failed:", result.error, { client_id, redirect_uri });
+      log.warn({ error: result.error, clientId: client_id, redirectUri: redirect_uri }, "Token exchange failed");
       return NextResponse.json(
         { error: "invalid_grant", error_description: ERROR_DESCRIPTIONS[result.error] || result.error },
         { status: 400 },
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Token endpoint error:", message, error);
+    log.error({ err: serializeError(error) }, "Token endpoint error");
     return NextResponse.json(
       { error: "server_error", error_description: `Token exchange failed: ${message}` },
       { status: 500 },

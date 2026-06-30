@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { cn } from "@/lib/utils";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
@@ -367,7 +368,7 @@ export function CreatePostForm() {
         router.push("/?tab=scheduled");
       }
     } catch (error) {
-      console.error("Failed to create post:", error);
+      logClientError(error, "Failed to create post", { postingMode, accountCount: selectedAccountIds.length });
       toast.error("Failed to create post. Please try again.");
     }
   };

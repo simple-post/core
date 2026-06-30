@@ -33,6 +33,12 @@ const mockedFs = fs as jest.Mocked<typeof fs>;
 const mockedOs = os as jest.Mocked<typeof os>;
 const mockedPipeline = pipeline as jest.MockedFunction<typeof pipeline>;
 
+type DnsLookupForTest = (
+  hostname: string,
+  options: unknown,
+  callback: (err: Error | null, addresses: unknown) => void,
+) => void;
+
 describe("Media Utilities", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -381,7 +387,7 @@ describe("Media Utilities", () => {
             cb: (err: Error | null, addresses?: unknown) => void,
           ) => void;
 
-          const dns = jest.requireActual("node:dns") as typeof import("node:dns");
+          const dns = jest.requireActual<{ lookup: DnsLookupForTest }>("node:dns");
           const lookupSpy = jest.spyOn(dns, "lookup").mockImplementation(((
             _hostname: string,
             _options: unknown,

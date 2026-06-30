@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { logClientError } from "@/lib/logger/client";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social";
 
@@ -70,7 +71,7 @@ export default function ApiKeysPage() {
   useEffect(() => {
     fetchKeys()
       .catch((error) => {
-        console.error("Failed to load API keys:", error);
+        logClientError(error, "Failed to load API keys");
         toast.error(error instanceof Error ? error.message : "Failed to load API keys");
       })
       .finally(() => setLoading(false));
@@ -103,7 +104,7 @@ export default function ApiKeysPage() {
       setName("Default API key");
       await fetchKeys();
     } catch (error) {
-      console.error("Failed to create API key:", error);
+      logClientError(error, "Failed to create API key");
       toast.error(error instanceof Error ? error.message : "Failed to create API key");
     } finally {
       setCreating(false);
@@ -125,7 +126,7 @@ export default function ApiKeysPage() {
       await fetchKeys();
       toast.success("API key deactivated");
     } catch (error) {
-      console.error("Failed to deactivate API key:", error);
+      logClientError(error, "Failed to deactivate API key", { keyId: key.id });
       toast.error(error instanceof Error ? error.message : "Failed to deactivate API key");
     } finally {
       setBusyKeyId(null);
@@ -149,7 +150,7 @@ export default function ApiKeysPage() {
       await fetchKeys();
       toast.success("API key rotated");
     } catch (error) {
-      console.error("Failed to rotate API key:", error);
+      logClientError(error, "Failed to rotate API key", { keyId: key.id });
       toast.error(error instanceof Error ? error.message : "Failed to rotate API key");
     } finally {
       setBusyKeyId(null);

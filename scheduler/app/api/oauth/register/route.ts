@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { createLogger, serializeError } from "@/lib/logger";
 import { isAllowedMcpRedirectUri, validateMcpScope } from "@/lib/mcp/config";
 import { registerClient } from "@/lib/mcp/oauth";
+
+const log = createLogger("api:oauth:register");
 
 /**
  * POST /oauth/register — Dynamic Client Registration (RFC 7591).
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Client registration error:", message, error);
+    log.error({ err: serializeError(error) }, "Client registration error");
     return NextResponse.json(
       { error: "server_error", error_description: `Registration failed: ${message}` },
       { status: 500 },

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
 
 export default function AccountsPage() {
@@ -66,7 +67,7 @@ export default function AccountsPage() {
       setTelegramChatId("");
       setTelegramChannelName("");
     } catch (error) {
-      console.error("Telegram connection error:", error);
+      logClientError(error, "Telegram connection error");
       setTelegramError(error instanceof Error ? error.message : "Failed to connect Telegram account");
     }
   };
@@ -84,7 +85,7 @@ export default function AccountsPage() {
       setShowDisconnectDialog(false);
       setAccountToDisconnect(null);
     } catch (error) {
-      console.error("Disconnect error:", error);
+      logClientError(error, "Disconnect error", { accountId: accountToDisconnect.id });
       toast.error("An error occurred while disconnecting the account.");
     }
   };

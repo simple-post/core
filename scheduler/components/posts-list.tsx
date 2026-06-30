@@ -31,6 +31,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { logClientError } from "@/lib/logger/client";
 import type { SocialPost, ConnectedAccount } from "@/types";
 
 interface PostsListProps {
@@ -275,7 +276,7 @@ function PostCard({
         onDeleted();
       }
     } catch (error) {
-      console.error("Failed to delete post:", error);
+      logClientError(error, "Failed to delete post", { postId: post.id });
       toast.error("Failed to delete post. Please try again.");
     }
   };

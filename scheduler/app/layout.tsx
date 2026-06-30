@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { Inter, JetBrains_Mono } from "next/font/google";
 
+import { ClientErrorLogger } from "@/components/client-error-logger";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryClientProvider } from "@/lib/query-client";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased">
         <QueryClientProvider>
+          <ClientErrorLogger />
           <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
           <Toaster />
         </QueryClientProvider>

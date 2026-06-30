@@ -1,7 +1,11 @@
+"use client";
+
 /**
  * Client-side thumbnail generation utilities
  * Uses Canvas API for images and video element for video frame capture
  */
+
+import { logClientError } from "@/lib/logger/client";
 
 const THUMBNAIL_SIZE = 400;
 const THUMBNAIL_QUALITY = 0.8;
@@ -161,7 +165,11 @@ export async function generateThumbnail(file: File): Promise<Blob | null> {
     }
     return null;
   } catch (error) {
-    console.error("Failed to generate thumbnail:", error);
+    logClientError(error, "Failed to generate thumbnail", {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    });
     return null;
   }
 }

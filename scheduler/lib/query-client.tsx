@@ -2,10 +2,26 @@
 
 import { type ReactNode } from "react";
 
-import { QueryClient, QueryClientProvider as TanstackQueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider as TanstackQueryClientProvider } from "@tanstack/react-query";
+
+import { logClientError } from "@/lib/logger/client";
 
 function makeQueryClient() {
   return new QueryClient({
+    // Catch-all for query failures, which are not handled (or logged) at the
+    // call site. Mutation errors are intentionally NOT logged here: every
+    // mutation is awaited in a component try/catch that logs with curated,
+    // non-sensitive context, so a MutationCache handler would only duplicate
+    // those logs (and leak raw mutation variables). We log queryKey/hash only
+    // — structural identifiers, never request values.
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        logClientError(error, "React Query request failed", {
+          queryHash: query.queryHash,
+          queryKey: query.queryKey,
+        });
+      },
+    }),
     defaultOptions: {
       queries: {
         // With SSR, we usually want to set some default staleTime

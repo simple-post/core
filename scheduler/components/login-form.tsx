@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/auth-client";
+import { logClientError } from "@/lib/logger/client";
 
 interface LoginFormProps {
   callbackURL?: string;
@@ -98,7 +99,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
         callbackURL,
       });
     } catch (error_) {
-      console.error("Google sign-in error:", error_);
+      logClientError(error_, "Google sign-in error");
       setError("Failed to sign in with Google. Please ensure your credentials are configured correctly.");
     } finally {
       setIsLoading(false);
@@ -133,7 +134,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
 
       setError("Invalid email or password. Use the email link option if this is not the reviewer account.");
     } catch (error_) {
-      console.error("Password sign-in error:", error_);
+      logClientError(error_, "Password sign-in error");
       setError("Failed to sign in. Please try again.");
     } finally {
       setIsLoading(false);
@@ -163,7 +164,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       setEmail("");
       setPassword("");
     } catch (error_) {
-      console.error("Email link error:", error_);
+      logClientError(error_, "Email link error");
       setError("Failed to send email link. Please try again.");
     } finally {
       setIsLoading(false);

@@ -88,6 +88,8 @@ export function CreatePostForm() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
   const [tiktokConsent, setTikTokConsent] = useState(false);
+  const [contentTouched, setContentTouched] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const enabledOverrides = useMemo<AccountOverridesMap>(() => {
     if (selectedAccountIds.length === 0) {
@@ -245,6 +247,21 @@ export function CreatePostForm() {
     [maxTextLength, message.length, validation?.results],
   );
 
+  const hasComposedContent = useMemo(
+    () =>
+      message.trim().length > 0 ||
+      media.length > 0 ||
+      thread.some((segment) => segment.message.trim().length > 0 || (segment.media?.length ?? 0) > 0) ||
+      Object.values(enabledOverrides).some(
+        (override) => (override.message ?? "").trim().length > 0 || (override.media?.length ?? 0) > 0,
+      ),
+    [enabledOverrides, media.length, message, thread],
+  );
+  const shouldShowValidationFeedback =
+    postingMode !== "draft" && (submitAttempted || contentTouched || hasComposedContent);
+  const visibleValidationErrors = shouldShowValidationFeedback ? (validation?.summary.errors ?? []) : [];
+  const visibleValidationWarnings = shouldShowValidationFeedback ? (validation?.summary.warnings ?? []) : [];
+
   const timeSlots = useMemo(() => {
     const slots: { value: string; label: string }[] = [];
     for (let h = 0; h < 24; h++) {
@@ -274,6 +291,7 @@ export function CreatePostForm() {
   const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const imageFiles = getClipboardImageFiles(event.clipboardData);
     if (imageFiles.length > 0) {
+      setContentTouched(true);
       void mediaUploadRef.current?.processFiles(imageFiles);
     }
   }, []);
@@ -281,12 +299,63 @@ export function CreatePostForm() {
   const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const imageFiles = getClipboardImageFiles(event.clipboardData);
     if (imageFiles.length > 0) {
+      setContentTouched(true);
       void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
     }
   }, []);
 
+  const handleMessageChange = useCallback(
+    (value: string) => {
+      setContentTouched(true);
+      setMessage(value);
+    },
+    [setMessage],
+  );
+
+  const handleMediaChange = useCallback(
+    (nextMedia: MediaFile[]) => {
+      if (nextMedia.length > 0 || media.length > 0) {
+        setContentTouched(true);
+      }
+      setMedia(nextMedia);
+    },
+    [media.length, setMedia],
+  );
+
+  const handleAddThreadSegment = useCallback(() => {
+    setContentTouched(true);
+    addThreadSegment();
+  }, [addThreadSegment]);
+
+  const handleRemoveThreadSegment = useCallback(
+    (index: number) => {
+      setContentTouched(true);
+      removeThreadSegment(index);
+    },
+    [removeThreadSegment],
+  );
+
+  const handleThreadSegmentMessageChange = useCallback(
+    (index: number, value: string) => {
+      setContentTouched(true);
+      updateThreadSegmentMessage(index, value);
+    },
+    [updateThreadSegmentMessage],
+  );
+
+  const handleThreadSegmentMediaChange = useCallback(
+    (index: number, nextMedia: MediaFile[]) => {
+      if (nextMedia.length > 0 || (thread[index]?.media?.length ?? 0) > 0) {
+        setContentTouched(true);
+      }
+      updateThreadSegmentMedia(index, nextMedia);
+    },
+    [thread, updateThreadSegmentMedia],
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
     if (selectedAccountIds.length === 0) {
       return;
@@ -394,6 +463,8 @@ export function CreatePostForm() {
             disabled={!hasDraftContent}
             className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
             onClick={() => {
+              setContentTouched(false);
+              setSubmitAttempted(false);
               resetDraft();
               toast.success("Draft cleared");
             }}>
@@ -428,13 +499,13 @@ export function CreatePostForm() {
               id="message"
               placeholder="What's on your mind?"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => handleMessageChange(e.target.value)}
               onPaste={handleMessagePaste}
               className="min-h-32 resize-none mt-2"
               maxLength={maxTextLength}
             />
             <div className="mt-1">
-              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={setMedia} compact />
+              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={handleMediaChange} compact />
             </div>
             {maxTextLength ? (
               <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
@@ -464,14 +535,14 @@ export function CreatePostForm() {
                         variant="ghost"
                         size="sm"
                         className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => removeThreadSegment(index)}>
+                        onClick={() => handleRemoveThreadSegment(index)}>
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                     <Textarea
                       placeholder="Continue your thread…"
                       value={segment.message}
-                      onChange={(e) => updateThreadSegmentMessage(index, e.target.value)}
+                      onChange={(e) => handleThreadSegmentMessageChange(index, e.target.value)}
                       onPaste={(event) => handleThreadSegmentPaste(index, event)}
                       className="min-h-20 resize-none text-sm"
                     />
@@ -480,7 +551,7 @@ export function CreatePostForm() {
                         threadMediaUploadRefs.current[index] = node;
                       }}
                       media={segment.media ?? []}
-                      onMediaChange={(m) => updateThreadSegmentMedia(index, m)}
+                      onMediaChange={(m) => handleThreadSegmentMediaChange(index, m)}
                       compact
                     />
                   </div>
@@ -494,7 +565,7 @@ export function CreatePostForm() {
             variant="outline"
             size="sm"
             className="gap-2 text-muted-foreground"
-            onClick={addThreadSegment}>
+            onClick={handleAddThreadSegment}>
             <Plus className="h-3.5 w-3.5" />
             Add to thread
           </Button>
@@ -696,7 +767,7 @@ export function CreatePostForm() {
             </div>
           )}
 
-          {validationError && (
+          {shouldShowValidationFeedback && validationError && (
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -706,13 +777,13 @@ export function CreatePostForm() {
             </div>
           )}
 
-          {validation?.summary.errors.length ? (
+          {visibleValidationErrors.length > 0 ? (
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm space-y-1">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 <p className="font-medium">Before you can post</p>
               </div>
-              {validation.summary.errors.map((issue, index) => (
+              {visibleValidationErrors.map((issue, index) => (
                 <p key={`${issue.code}-${index}`} className="text-muted-foreground">
                   {formattedIssue(issue)}
                 </p>
@@ -720,13 +791,13 @@ export function CreatePostForm() {
             </div>
           ) : null}
 
-          {validation?.summary.warnings.length ? (
+          {visibleValidationWarnings.length > 0 ? (
             <div className="p-3 rounded-lg border border-border bg-card text-sm space-y-1">
               <div className="flex items-center gap-1.5 text-foreground">
                 <Info className="h-3.5 w-3.5" />
                 <p className="font-medium">Tips</p>
               </div>
-              {validation.summary.warnings.map((issue, index) => (
+              {visibleValidationWarnings.map((issue, index) => (
                 <p key={`${issue.code}-${index}`} className="text-muted-foreground">
                   {formattedIssue(issue)}
                 </p>

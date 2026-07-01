@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +30,7 @@ import { CreatePostForm } from "./create-post-form";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
 import { PostPreview } from "./post-preview";
+import { ScheduleDateTimePicker } from "./schedule-date-time-picker";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -514,47 +514,12 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
         {/* Schedule Settings - Only show when scheduling */}
         {postingMode === "schedule" && (
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium">Schedule</Label>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="date" className="text-sm text-muted-foreground">
-                  Date
-                </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
-                  min={format(new Date(), "yyyy-MM-dd")}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="time" className="text-sm text-muted-foreground">
-                  Time
-                </Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-
-            {scheduledDate && scheduledTime && (
-              <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 text-sm text-muted-foreground">
-                Publishing on{" "}
-                <span className="font-medium text-foreground">
-                  {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-                </span>
-              </div>
-            )}
-          </div>
+          <ScheduleDateTimePicker
+            scheduledDate={scheduledDate}
+            scheduledTime={scheduledTime}
+            onScheduledDateChange={setScheduledDate}
+            onScheduledTimeChange={setScheduledTime}
+          />
         )}
 
         {tiktokConsentRequired && (

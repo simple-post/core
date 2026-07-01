@@ -5,24 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { format } from "date-fns";
-import { AlertTriangle, CalendarIcon, Clock, Info, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Info, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
-import { cn } from "@/lib/utils";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
@@ -33,6 +28,7 @@ import { GenericPostPreview } from "./generic-post-preview";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
+import { ScheduleDateTimePicker } from "./schedule-date-time-picker";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -598,75 +594,12 @@ export function CreatePostForm() {
         </div>
 
         {postingMode === "schedule" && (
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium">Schedule</Label>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm text-muted-foreground mb-1 block">Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !scheduledDate && "text-muted-foreground",
-                      )}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {scheduledDate ? format(new Date(`${scheduledDate}T00:00:00`), "MMM d, yyyy") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={scheduledDate ? new Date(`${scheduledDate}T00:00:00`) : undefined}
-                      onSelect={(date) => {
-                        if (date) setScheduledDate(format(date, "yyyy-MM-dd"));
-                      }}
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground mb-1 block">Time</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !scheduledTime && "text-muted-foreground",
-                      )}>
-                      <Clock className="mr-2 h-4 w-4" />
-                      {scheduledTime ? format(new Date(`2000-01-01T${scheduledTime}`), "h:mm a") : "Pick a time"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-48 p-0" align="start">
-                    <ScrollArea className="h-60">
-                      <div className="p-1">
-                        {timeSlots.map((slot) => (
-                          <button
-                            key={slot.value}
-                            type="button"
-                            className={cn(
-                              "w-full text-left px-3 py-1.5 text-sm rounded-sm hover:bg-secondary hover:text-foreground transition-colors",
-                              scheduledTime === slot.value && "bg-secondary text-foreground font-medium",
-                            )}
-                            onClick={() => setScheduledTime(slot.value)}>
-                            {slot.label}
-                          </button>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </div>
+          <ScheduleDateTimePicker
+            scheduledDate={scheduledDate}
+            scheduledTime={scheduledTime}
+            onScheduledDateChange={setScheduledDate}
+            onScheduledTimeChange={setScheduledTime}
+          />
         )}
 
         {tiktokConsentRequired && (
@@ -804,15 +737,6 @@ export function CreatePostForm() {
               ))}
             </div>
           ) : null}
-
-          {postingMode === "schedule" && scheduledDate && scheduledTime && (
-            <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 text-sm text-muted-foreground">
-              Publishing on{" "}
-              <span className="font-medium text-foreground">
-                {format(new Date(`${scheduledDate}T${scheduledTime}`), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-              </span>
-            </div>
-          )}
         </div>
 
         <GenericPostPreview message={message} media={media} thread={thread} />

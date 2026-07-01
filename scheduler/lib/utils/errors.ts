@@ -132,6 +132,15 @@ export class ValidationError extends ApiError {
 }
 
 /**
+ * Conflict error (409)
+ */
+export class ConflictError extends ApiError {
+  constructor(message: string = "Resource conflict") {
+    super(message, 409, "CONFLICT");
+  }
+}
+
+/**
  * Gone error (410)
  */
 export class GoneError extends ApiError {

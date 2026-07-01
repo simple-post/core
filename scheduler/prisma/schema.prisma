@@ -29,6 +29,7 @@ model User {
   mcpAccessTokens        McpAccessToken[]
   apiKeys                ApiKey[]
   subscription           UserSubscription?
+  repostSettings         UserRepostSettings?
 
   @@unique([email])
   @@map("user")
@@ -55,6 +56,18 @@ model UserSubscription {
   @@index([stripeCustomerId])
   @@index([status])
   @@map("user_subscription")
+}
+
+model UserRepostSettings {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled    Boolean  @default(false)
+  delayHours Int      @default(12)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("user_repost_settings")
 }
 
 model Session {
@@ -174,6 +187,16 @@ model Post {
   accountOptions   Json?
   accountOverrides Json?
 
+  // Auto-repost configuration and execution state.
+  repostEnabled      Boolean   @default(false)
+  repostDelayHours   Int       @default(12)
+  repostDueAt        DateTime?
+  repostStatus       String    @default("not_applicable") // "not_applicable", "scheduled", "pending", "completed", "failed"
+  repostedAt         DateTime?
+  repostResults      Json?
+  repostErrorMessage String?
+  repostErrorDetails Json?
+
   // Thread support: additional segments after the root post (whose content is
   // Post.message + Post.media). Stored as ThreadSegment[] (see SDK types).
   thread        Json?
@@ -198,6 +221,7 @@ model Post {
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
   @@index([userId, scheduledFor])
+  @@index([repostStatus, repostDueAt])
   @@map("post")
 }
 

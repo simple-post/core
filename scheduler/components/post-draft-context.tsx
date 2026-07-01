@@ -14,6 +14,11 @@ export interface DraftAccountOverride {
 
 export type DraftAccountOverridesMap = Record<string, DraftAccountOverride>;
 
+export interface DraftRepostSettings {
+  enabled: boolean;
+  delayHours: number;
+}
+
 interface PostDraftState {
   message: string;
   media: MediaFile[];
@@ -23,6 +28,7 @@ interface PostDraftState {
   scheduledTime: string;
   accountOptions: AccountOptionsMap;
   accountOverrides: DraftAccountOverridesMap;
+  repostSettings: DraftRepostSettings;
   thread: ThreadSegment[];
 }
 
@@ -37,6 +43,7 @@ interface PostDraftContextValue extends PostDraftState {
   setScheduledTime: (value: string) => void;
   setAccountOptions: (value: AccountOptionsMap) => void;
   setAccountOverrides: (value: DraftAccountOverridesMap) => void;
+  setRepostSettings: (value: DraftRepostSettings) => void;
   updateAccountOverride: (accountId: string, updates: Partial<DraftAccountOverride>) => void;
   setAccountOverrideEnabled: (accountId: string, enabled: boolean) => void;
   setAccountOverrideMessage: (accountId: string, message: string) => void;
@@ -58,6 +65,10 @@ const DEFAULT_DRAFT: PostDraftState = {
   scheduledTime: "",
   accountOptions: {},
   accountOverrides: {},
+  repostSettings: {
+    enabled: false,
+    delayHours: 12,
+  },
   thread: [],
 };
 
@@ -157,6 +168,20 @@ function normalizeAccountOverrides(value: unknown): DraftAccountOverridesMap {
   }, {});
 }
 
+function normalizeRepostSettings(value: unknown): DraftRepostSettings {
+  if (!isRecord(value)) {
+    return DEFAULT_DRAFT.repostSettings;
+  }
+
+  return {
+    enabled: value.enabled === true,
+    delayHours:
+      typeof value.delayHours === "number" && Number.isFinite(value.delayHours) && value.delayHours > 0
+        ? value.delayHours
+        : DEFAULT_DRAFT.repostSettings.delayHours,
+  };
+}
+
 function normalizeStoredDraft(value: unknown): PostDraftState | null {
   const candidate = isRecord(value) && isRecord(value.draft) ? value.draft : value;
   if (!isRecord(candidate)) {
@@ -174,6 +199,7 @@ function normalizeStoredDraft(value: unknown): PostDraftState | null {
     scheduledTime: typeof candidate.scheduledTime === "string" ? candidate.scheduledTime : DEFAULT_DRAFT.scheduledTime,
     accountOptions: isRecord(candidate.accountOptions) ? (candidate.accountOptions as AccountOptionsMap) : {},
     accountOverrides: normalizeAccountOverrides(candidate.accountOverrides),
+    repostSettings: normalizeRepostSettings(candidate.repostSettings),
     thread: normalizeThread(candidate.thread),
   };
 }
@@ -228,6 +254,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
   const [accountOverrides, setAccountOverridesState] = useState<DraftAccountOverridesMap>(
     DEFAULT_DRAFT.accountOverrides,
   );
+  const [repostSettings, setRepostSettingsState] = useState<DraftRepostSettings>(DEFAULT_DRAFT.repostSettings);
   const [thread, setThreadState] = useState<ThreadSegment[]>(DEFAULT_DRAFT.thread);
 
   const setDraftState = useCallback((draft: PostDraftState) => {
@@ -240,6 +267,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     setScheduledTimeState(draft.scheduledTime);
     setAccountOptionsState(draft.accountOptions);
     setAccountOverridesState(draft.accountOverrides);
+    setRepostSettingsState(draft.repostSettings);
     setThreadState(draft.thread);
   }, []);
 
@@ -289,6 +317,10 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     (value: DraftAccountOverridesMap) => updateDraft({ accountOverrides: value }),
     [updateDraft],
   );
+  const setRepostSettings = useCallback(
+    (value: DraftRepostSettings) => updateDraft({ repostSettings: value }),
+    [updateDraft],
+  );
   const setThread = useCallback((value: ThreadSegment[]) => updateDraft({ thread: value }), [updateDraft]);
 
   const draft = useMemo<PostDraftState>(
@@ -301,6 +333,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       scheduledTime,
       accountOptions,
       accountOverrides,
+      repostSettings,
       thread,
     }),
     [
@@ -309,6 +342,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       message,
       media,
       postingMode,
+      repostSettings,
       scheduledDate,
       scheduledTime,
       selectedAccountIds,
@@ -444,6 +478,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       scheduledTime,
       accountOptions,
       accountOverrides,
+      repostSettings,
       thread,
       setMessage,
       setMedia,
@@ -453,6 +488,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setScheduledTime,
       setAccountOptions,
       setAccountOverrides,
+      setRepostSettings,
       setThread,
       updateAccountOverride,
       setAccountOverrideEnabled,
@@ -471,6 +507,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       message,
       media,
       postingMode,
+      repostSettings,
       scheduledDate,
       scheduledTime,
       selectedAccountIds,
@@ -484,6 +521,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setScheduledTime,
       setAccountOptions,
       setAccountOverrides,
+      setRepostSettings,
       setThread,
       updateAccountOverride,
       setAccountOverrideEnabled,

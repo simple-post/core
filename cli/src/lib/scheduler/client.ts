@@ -47,6 +47,16 @@ export interface RemotePostResponse {
   };
 }
 
+export interface RemoteRepostResponse {
+  post: Record<string, unknown> | null;
+  repostingResults: RemotePostResult[];
+  summary: {
+    failureCount: number;
+    overallSuccess: boolean;
+    successCount: number;
+  };
+}
+
 export async function getSchedulerContext(configDir: string, prompt: PromptSession): Promise<SchedulerContext> {
   const paths = getCliPaths(configDir);
   const config = await loadCliConfig(paths);

@@ -9,6 +9,7 @@ import healthRoutes from "./routes/health.js";
 import mediaRoutes from "./routes/media.js";
 import openApiRoutes from "./routes/openapi.js";
 import postsRoutes from "./routes/posts.js";
+import repostsRoutes from "./routes/reposts.js";
 import uploadRoutes from "./routes/upload.js";
 import validationRoutes from "./routes/validation.js";
 import { ensureStorageDir, getStorageDir } from "./utils/files.js";
@@ -120,6 +121,7 @@ app.use("/api/v1/accounts", accountsRoutes);
 app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/validation", validationRoutes);
 app.use("/api/v1/posts", postsRoutes);
+app.use("/api/v1/reposts", repostsRoutes);
 
 app.use("*", (req, res) => {
   res.status(404).json({

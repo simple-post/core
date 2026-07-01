@@ -7,8 +7,8 @@ import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
-import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PostResult, RepostResult } from "../../types";
+import type { Content, Media, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -368,6 +368,42 @@ export class ThreadsPublisher extends Publisher {
       );
     } finally {
       await this.cleanupS3Files();
+    }
+  }
+
+  async repostContent(target: RepostTarget): Promise<RepostResult> {
+    await this.ensureValidToken();
+
+    try {
+      const response = await this.withTokenRefresh(() =>
+        this.client.post(`/${target.postId}/repost`, undefined, {
+          params: {
+            access_token: this.accessToken,
+          },
+        }),
+      );
+
+      return {
+        id: String(response.data?.id || target.postId),
+        error: PostErrorType.NO_ERROR,
+        ...(this.refreshedCredentials && {
+          extraData: {
+            refreshedCredentials: {
+              accessToken: this.refreshedCredentials.accessToken,
+              expiresAt: this.refreshedCredentials.expiresAt,
+            },
+          },
+        }),
+      };
+    } catch (error: unknown) {
+      if (error instanceof PostError) throw error;
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to repost on Threads: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
+        err.response?.data,
+      );
     }
   }
 }

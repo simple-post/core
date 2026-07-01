@@ -5,16 +5,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
-import { AlertTriangle, Info, Plus, Trash2, X } from "lucide-react";
+import { REPOST_CAPABLE_PLATFORMS } from "@simple-post/sdk/platform-names";
+import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
+import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
@@ -34,10 +39,18 @@ import type { ValidationIssue } from "@simple-post/sdk";
 
 type ValidationResponse = ValidationResultByPlatform;
 
+const REPOST_CAPABLE_PLATFORM_IDS = new Set<string>([...REPOST_CAPABLE_PLATFORMS, "twitter"]);
+
+function normalizeDelayHours(value: number) {
+  if (!Number.isFinite(value)) return 12;
+  return Math.min(720, Math.max(1, Math.round(value)));
+}
+
 export function CreatePostForm() {
   const router = useRouter();
   const submitPostMutation = useSubmitPost();
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+  const { data: defaultRepostSettings } = useRepostSettings();
 
   const {
     message,
@@ -48,6 +61,7 @@ export function CreatePostForm() {
     scheduledTime,
     accountOptions,
     accountOverrides,
+    repostSettings,
     thread,
     hasDraftContent,
     storageError,
@@ -55,6 +69,7 @@ export function CreatePostForm() {
     setMedia,
     setSelectedAccountIds,
     setAccountOptions,
+    setRepostSettings,
     setPostingMode,
     setScheduledDate,
     setScheduledTime,
@@ -67,6 +82,7 @@ export function CreatePostForm() {
 
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
   const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
+  const defaultRepostAppliedRef = useRef(false);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -112,6 +128,10 @@ export function CreatePostForm() {
     () => selectedAccounts.filter((account) => account.platform.toLowerCase() === "tiktok"),
     [selectedAccounts],
   );
+  const hasSelectedRepostCapableAccount = useMemo(
+    () => selectedAccounts.some((account) => REPOST_CAPABLE_PLATFORM_IDS.has(account.platform.toLowerCase())),
+    [selectedAccounts],
+  );
   const hasSelectedTikTok = selectedTikTokAccounts.length > 0;
   const tiktokConsentRequired = hasSelectedTikTok && postingMode !== "draft";
   const hasTikTokBrandedContent = selectedTikTokAccounts.some((account) => {
@@ -124,6 +144,18 @@ export function CreatePostForm() {
       setTikTokConsent(false);
     }
   }, [tiktokConsentRequired]);
+
+  useEffect(() => {
+    if (defaultRepostAppliedRef.current || !defaultRepostSettings) {
+      return;
+    }
+
+    if (!hasDraftContent) {
+      setRepostSettings(defaultRepostSettings);
+    }
+
+    defaultRepostAppliedRef.current = true;
+  }, [defaultRepostSettings, hasDraftContent, setRepostSettings]);
 
   const localValidation = useMemo<ValidationResponse | null>(() => {
     if (selectedAccountIds.length === 0 || selectedAccounts.length !== selectedAccountIds.length) {
@@ -336,6 +368,16 @@ export function CreatePostForm() {
     [thread, updateThreadSegmentMedia],
   );
 
+  const resetDraftToDefaults = useCallback(() => {
+    resetDraft();
+    if (defaultRepostSettings) {
+      setRepostSettings(defaultRepostSettings);
+      defaultRepostAppliedRef.current = true;
+    } else {
+      defaultRepostAppliedRef.current = false;
+    }
+  }, [defaultRepostSettings, resetDraft, setRepostSettings]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
@@ -363,6 +405,10 @@ export function CreatePostForm() {
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
         accountOverrides?: AccountOverridesMap;
+        repost?: {
+          enabled: boolean;
+          delayHours: number;
+        };
         media: MediaFile[];
         thread?: ThreadSegment[];
       } = {
@@ -370,6 +416,11 @@ export function CreatePostForm() {
         accountIds: selectedAccountIds,
         postingMode,
         media,
+      };
+
+      body.repost = {
+        enabled: repostSettings.enabled,
+        delayHours: normalizeDelayHours(repostSettings.delayHours),
       };
 
       if (postingMode === "schedule") {
@@ -408,15 +459,15 @@ export function CreatePostForm() {
         const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
         setPostingSucceeded(allSucceeded);
         if (allSucceeded) {
-          resetDraft();
+          resetDraftToDefaults();
         }
 
         setShowPostLinksModal(true);
       } else if (postingMode === "draft") {
-        resetDraft();
+        resetDraftToDefaults();
         router.push("/?tab=drafts");
       } else {
-        resetDraft();
+        resetDraftToDefaults();
         router.push("/?tab=scheduled");
       }
     } catch (error) {
@@ -448,7 +499,7 @@ export function CreatePostForm() {
             onClick={() => {
               setContentTouched(false);
               setSubmitAttempted(false);
-              resetDraft();
+              resetDraftToDefaults();
               toast.success("Draft cleared");
             }}>
             <Trash2 className="h-3.5 w-3.5" />
@@ -588,6 +639,53 @@ export function CreatePostForm() {
             onScheduledTimeChange={setScheduledTime}
           />
         )}
+
+        {hasSelectedRepostCapableAccount ? (
+          <div className="grid grid-cols-3 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Repeat2 className="h-4 w-4 shrink-0 text-primary" />
+              <Label htmlFor="auto-repost-create" className="text-sm font-medium">
+                Auto-repost
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About auto-repost"
+                    className="text-muted-foreground transition-colors hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Default from settings</TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5">
+              {repostSettings.enabled ? (
+                <>
+                  <span className="text-xs text-muted-foreground">after</span>
+                  <NumberInput
+                    id="auto-repost-delay-hours"
+                    min={1}
+                    max={720}
+                    value={repostSettings.delayHours}
+                    onChange={(value) => setRepostSettings({ ...repostSettings, delayHours: value })}
+                    className="h-7 w-14 px-2"
+                  />
+                  <span className="text-xs text-muted-foreground">h</span>
+                </>
+              ) : null}
+            </div>
+
+            <div className="flex justify-end">
+              <Switch
+                id="auto-repost-create"
+                checked={repostSettings.enabled}
+                onCheckedChange={(checked) => setRepostSettings({ ...repostSettings, enabled: checked })}
+              />
+            </div>
+          </div>
+        ) : null}
 
         {tiktokConsentRequired && (
           <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">

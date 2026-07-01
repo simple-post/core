@@ -1,10 +1,12 @@
 import {
   buildReplyOverlay,
   extractChainStep,
+  isRepostCapablePlatform,
   isThreadCapable,
   MediaResolver,
   PostErrorType,
   post as sdkPost,
+  repost as sdkRepost,
 } from "@simple-post/sdk";
 import { generatePostUrl, mapPlatformName } from "@simple-post/sdk/platform-names";
 
@@ -21,7 +23,7 @@ import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
 import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
-import type { Post, Media, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
+import type { Post, Media, RepostTarget, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
 import type { Logger } from "pino";
 
 export interface PostingResult {
@@ -34,6 +36,7 @@ export interface PostingResult {
   message?: string;
   details?: unknown;
   threadResults?: ThreadSegmentResult[];
+  platformData?: Record<string, unknown>;
   extraData?: {
     refreshedCredentials?: {
       accessToken?: string;
@@ -41,6 +44,11 @@ export interface PostingResult {
       expiresAt?: number;
     };
   };
+}
+
+export interface AccountRepostTarget extends RepostTarget {
+  accountId: string;
+  postUrl?: string;
 }
 
 function applyYouTubeDefaults(media: Media[], message: string, platform: string): Media[] {
@@ -192,6 +200,7 @@ async function postSingleSegment(
         postId: result.id,
         message: result.message,
         details: result.details,
+        platformData: result.extraData?.platformData,
         extraData: result.extraData,
       };
     }
@@ -215,6 +224,7 @@ async function postSingleSegment(
       error: errorMsg,
       message: errorMessage,
       details: result?.details,
+      platformData: result?.extraData?.platformData,
       extraData: result?.extraData,
     };
   } catch (error) {
@@ -516,6 +526,127 @@ export async function postToAccounts(
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");
     throw error;
   }
+}
+
+async function repostSingleTarget(
+  account: ConnectedAccount,
+  target: AccountRepostTarget,
+  accountOptions: AccountOptionsMap | undefined,
+  log: Logger,
+): Promise<PostingResult> {
+  const platform = mapPlatformName(account.platform);
+  if (!isRepostCapablePlatform(platform)) {
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: PostErrorType.INVALID_CONTENT,
+      message: `${account.platform} does not support reposting through SimplePost.`,
+    };
+  }
+
+  return withAccountLock(account.id, async () => {
+    const freshAccount = await reloadAccountSecrets(account);
+    const options = buildPostOptions(freshAccount, accountOptions);
+
+    const results = await sdkRepost({
+      target,
+      platforms: [platform],
+      options,
+    });
+    const result = results.get(platform);
+
+    if (result?.extraData?.refreshedCredentials) {
+      applyRefreshedCredentialsToAccount(freshAccount, result.extraData.refreshedCredentials);
+      await persistRefreshedCredentials(freshAccount, result.extraData.refreshedCredentials, log);
+    }
+
+    if (result?.error === PostErrorType.NO_ERROR) {
+      const repostId = result.id ?? target.postId;
+      const postUrl =
+        result.url ??
+        target.postUrl ??
+        (repostId
+          ? generatePostUrl(platform, repostId, {
+              username: freshAccount.username ?? undefined,
+              platformAccountId: freshAccount.platformAccountId ?? undefined,
+            })
+          : undefined);
+
+      return {
+        accountId: account.id,
+        platform: account.platform,
+        success: true,
+        postId: repostId,
+        postUrl,
+        message: result.message,
+        details: result.details,
+        platformData: result.extraData?.platformData,
+        extraData: result.extraData,
+      };
+    }
+
+    const errorMsg = result?.error || "Unknown error occurred";
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: errorMsg,
+      message: result?.message ?? errorMsg,
+      details: result?.details,
+      platformData: result?.extraData?.platformData,
+      extraData: result?.extraData,
+    };
+  });
+}
+
+export async function repostToAccounts(
+  userId: string,
+  targets: AccountRepostTarget[],
+  accountOptions?: AccountOptionsMap,
+): Promise<PostingResult[]> {
+  const log = postingLogger.child({ fn: "repostToAccounts" });
+  const targetByAccountId = new Map(targets.map((target) => [target.accountId, target]));
+  const accountIds = [...targetByAccountId.keys()];
+
+  const storedAccounts = await prisma.connectedAccount.findMany({
+    where: {
+      id: { in: accountIds },
+      userId,
+    },
+  });
+
+  const accounts = storedAccounts.map((account) => decryptConnectedAccountSecrets(account));
+  const foundIds = new Set(accounts.map((account) => account.id));
+  const missingResults: PostingResult[] = accountIds
+    .filter((accountId) => !foundIds.has(accountId))
+    .map((accountId) => ({
+      accountId,
+      platform: "unknown",
+      success: false,
+      error: "ACCOUNT_NOT_FOUND",
+      message: "Account was not found or no longer belongs to this user.",
+    }));
+
+  const results = await Promise.all(
+    accounts.map((account) => {
+      const target = targetByAccountId.get(account.id);
+      if (!target) {
+        return Promise.resolve({
+          accountId: account.id,
+          platform: account.platform,
+          success: false,
+          error: PostErrorType.INVALID_CONTENT,
+          message: "No repost target was provided for this account.",
+        });
+      }
+
+      const accountLog = log.child({ accountId: account.id, platform: account.platform });
+      return repostSingleTarget(account, target, accountOptions, accountLog);
+    }),
+  );
+
+  return [...missingResults, ...results];
 }
 
 /**

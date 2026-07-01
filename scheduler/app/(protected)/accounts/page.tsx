@@ -106,10 +106,12 @@ export default function AccountsPage() {
               Connected <span className="text-primary">accounts</span>
             </h1>
           </div>
-          <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Connect account</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Connect account</span>
+            </Button>
+          </div>
         </div>
 
         {loading ? (

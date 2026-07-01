@@ -7,7 +7,7 @@ import type {
   ZodOpenApiSchemaObject,
 } from "zod-openapi";
 
-export type OpenApiMethod = "get" | "post" | "patch" | "delete";
+export type OpenApiMethod = "get" | "post" | "put" | "patch" | "delete";
 
 export interface OpenApiRoute {
   path: string;

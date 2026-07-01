@@ -2,9 +2,11 @@ import {
   buildReplyOverlay,
   extractChainStep,
   isThreadCapable,
+  isRepostCapablePlatform,
   post as sdkPost,
   prepareMedia,
   PostErrorType,
+  repost as sdkRepost,
 } from "@simple-post/sdk";
 import { generatePostUrl } from "@simple-post/sdk/platform-names";
 
@@ -22,6 +24,8 @@ import type {
   Post,
   PostingResult,
   PostingSummary,
+  RepostTarget,
+  RepostTargetsMap,
   ThreadChainState,
   ThreadSegment,
   ThreadSegmentResult,
@@ -356,4 +360,94 @@ export function getPostingSummary(results: PostingResult[]): PostingSummary {
     failureCount,
     overallSuccess: successCount > 0 && failureCount === 0,
   };
+}
+
+async function repostToAccount(
+  account: ConfiguredAccount,
+  target: RepostTarget,
+  accountOptions?: AccountOptionsMap
+): Promise<PostingResult> {
+  if (!isRepostCapablePlatform(account.platform)) {
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: PostErrorType.INVALID_CONTENT,
+      message: `${account.platform} does not support reposting through SimplePost.`,
+    };
+  }
+
+  try {
+    const results = await sdkRepost({
+      target,
+      platforms: [account.platform],
+      options: buildPostOptions(account, accountOptions),
+    });
+    const result = results.get(account.platform);
+
+    if (result?.error === PostErrorType.NO_ERROR) {
+      const postUrl =
+        result.url ??
+        (result.id
+          ? generatePostUrl(account.platform, result.id, {
+              username: account.username,
+              platformAccountId: account.platformAccountId,
+            })
+          : undefined);
+      return {
+        accountId: account.id,
+        platform: account.platform,
+        success: true,
+        postId: result.id,
+        postUrl,
+        message: result.message,
+        details: result.details,
+      };
+    }
+
+    const errorMsg = result?.error || "Unknown error occurred";
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: errorMsg,
+      message: result?.message ?? errorMsg,
+      details: result?.details,
+    };
+  } catch (error) {
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+export async function repostToAccounts(
+  accountIds: string[],
+  target?: RepostTarget,
+  accountTargets?: RepostTargetsMap,
+  accountOptions?: AccountOptionsMap
+): Promise<PostingResult[]> {
+  const accounts = getAccountsByIds(accountIds);
+  if (accounts.length === 0) {
+    throw new Error("No accounts found");
+  }
+
+  return Promise.all(
+    accounts.map((account) => {
+      const accountTarget = accountTargets?.[account.id] ?? target;
+      if (!accountTarget) {
+        return Promise.resolve({
+          accountId: account.id,
+          platform: account.platform,
+          success: false,
+          error: PostErrorType.INVALID_CONTENT,
+          message: "No repost target was provided for this account.",
+        });
+      }
+      return repostToAccount(account, accountTarget, accountOptions);
+    })
+  );
 }

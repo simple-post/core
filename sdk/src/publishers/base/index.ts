@@ -1,8 +1,8 @@
 import { PostError, PostErrorType } from "../../types";
 import { Logger } from "../../utils/logger";
 
-import type { PostResult } from "../../types";
-import type { Content, PostOptions, PostOptionsWithCredentials } from "../../types/post";
+import type { PostResult, RepostResult } from "../../types";
+import type { Content, PostOptions, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
 
 export type MediaRequirement = "path" | "url" | "either";
 
@@ -24,6 +24,10 @@ export abstract class Publisher {
   }
 
   protected abstract postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult>;
+
+  protected async repostContent(_target: RepostTarget, _options?: PostOptionsWithCredentials): Promise<RepostResult> {
+    throw new PostError(PostErrorType.INVALID_CONTENT, "This platform does not support reposting through SimplePost");
+  }
 
   protected strictCheck(condition: boolean | undefined, message: string): asserts condition {
     if (condition) {
@@ -63,6 +67,35 @@ export abstract class Publisher {
       } else {
         this.logger.error(error instanceof Error ? error : message);
         return { error: PostErrorType.OTHER, message: `Error posting: ${message}`, details: data };
+      }
+    }
+  }
+
+  async repost(target: RepostTarget, options?: PostOptionsWithCredentials): Promise<RepostResult> {
+    try {
+      this.logger.info(`Reposting content...`);
+
+      const result = await this.repostContent(target, options);
+
+      if (result.error === PostErrorType.NO_ERROR) {
+        this.logger.info(`Repost successful: ${result.id}`);
+      } else {
+        this.logger.info(`Repost failed: ${result.error} - ${result.message}`);
+      }
+
+      return result;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const data =
+        typeof error === "object" && error && "data" in error ? (error as { data?: unknown }).data : undefined;
+
+      this.logger.info(`Repost failed: ${message}`);
+
+      if (error instanceof PostError) {
+        return { error: error.errorType, message: error.message, details: error.details };
+      } else {
+        this.logger.error(error instanceof Error ? error : message);
+        return { error: PostErrorType.OTHER, message: `Error reposting: ${message}`, details: data };
       }
     }
   }

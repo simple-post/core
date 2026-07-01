@@ -2,6 +2,7 @@ import {
   AccountOptionsMapSchema,
   AccountOverridesMapSchema,
   MediaFileSchema,
+  RepostSettingsSchema,
   ThreadSchema,
   createPostSchema as sdkCreatePostSchema,
 } from "@simple-post/sdk";
@@ -28,6 +29,7 @@ export const updatePostSchema = z.object({
   scheduledFor: z.iso.datetime().optional(),
   accountOptions: AccountOptionsMapSchema.optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
+  repost: RepostSettingsSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
   thread: ThreadSchema.optional(),
 });

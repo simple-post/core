@@ -13,8 +13,8 @@ import { PostError, PostErrorType } from "../../types";
 import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
-import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PostResult, RepostResult } from "../../types";
+import type { Content, Media, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -22,6 +22,8 @@ interface LinkedInUploadInfo {
   uploadUrl: string;
   headers?: Record<string, string>;
 }
+
+const LINKEDIN_REST_VERSION = "202606";
 
 export class LinkedInPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
@@ -219,6 +221,52 @@ export class LinkedInPublisher extends Publisher {
       );
     } finally {
       await tempFileManager.cleanup();
+    }
+  }
+
+  async repostContent(target: RepostTarget, options?: PostOptionsWithCredentials): Promise<RepostResult> {
+    const visibility = options?.linkedin?.visibility ?? "PUBLIC";
+
+    try {
+      const response = await axios.post(
+        "https://api.linkedin.com/rest/posts",
+        {
+          author: `urn:li:person:${this.memberId}`,
+          commentary: "",
+          visibility,
+          distribution: {
+            feedDistribution: "MAIN_FEED",
+            targetEntities: [],
+            thirdPartyDistributionChannels: [],
+          },
+          lifecycleState: "PUBLISHED",
+          isReshareDisabledByAuthor: false,
+          reshareContext: {
+            parent: target.postId,
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            "X-Restli-Protocol-Version": "2.0.0",
+            "Linkedin-Version": LINKEDIN_REST_VERSION,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      return {
+        id: response.data?.id || response.headers?.["x-restli-id"],
+        error: PostErrorType.NO_ERROR,
+      };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to repost on LinkedIn: ${err.response?.data?.message || err.message || "Unknown error"}`,
+        err.response?.data,
+      );
     }
   }
 }

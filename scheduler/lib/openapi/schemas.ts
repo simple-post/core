@@ -3,6 +3,7 @@ import {
   AccountOverridesMapSchema,
   MediaFileSchema,
   PlatformSchema,
+  RepostSettingsSchema,
   ThreadSchema,
   validationRequestSchema,
 } from "@simple-post/sdk";
@@ -37,6 +38,14 @@ export const SuccessSchema = z
 export const MediaFileResponseSchema = MediaFileSchema.meta({ id: "MediaFile" });
 
 export const CreatePostRequestSchema = createPostSchema.meta({ id: "CreatePostRequest" });
+
+export const RepostSettingsRequestSchema = RepostSettingsSchema.meta({ id: "RepostSettingsRequest" });
+
+export const RepostSettingsEnvelopeSchema = z
+  .object({
+    settings: RepostSettingsSchema,
+  })
+  .meta({ id: "RepostSettingsEnvelope" });
 
 export const UpdatePostRequestSchema = updatePostSchema.meta({ id: "UpdatePostRequest" });
 
@@ -79,8 +88,17 @@ export const PostSchema = z
     publishedAt: z.iso.datetime().optional(),
     accountOptions: AccountOptionsMapSchema.optional(),
     accountOverrides: AccountOverridesMapSchema.optional(),
+    repostEnabled: z.boolean().optional(),
+    repostDelayHours: z.number().int().positive().optional(),
+    repostDueAt: z.iso.datetime().nullable().optional(),
+    repostStatus: z.enum(["not_applicable", "scheduled", "pending", "completed", "failed"]).optional(),
+    repostedAt: z.iso.datetime().nullable().optional(),
+    repostResults: z.record(z.string(), JsonValueSchema).nullable().optional(),
+    repostErrorMessage: z.string().optional(),
+    repostErrorDetails: z.record(z.string(), JsonValueSchema).optional(),
     thread: ThreadSchema.optional(),
     threadResults: z.record(z.string(), z.array(ThreadSegmentResultSchema)).optional(),
+    accountResults: z.record(z.string(), JsonValueSchema).nullable().optional(),
   })
   .meta({ id: "Post" });
 
@@ -107,6 +125,7 @@ export const PostingResultSchema = z
     postId: z.string().optional(),
     postUrl: z.url().optional(),
     details: JsonValueSchema.optional(),
+    platformData: z.record(z.string(), JsonValueSchema).optional(),
     threadResults: z.array(ThreadSegmentResultSchema).optional(),
   })
   .meta({ id: "PostingResult" });
@@ -126,6 +145,20 @@ export const CreatePostResponseSchema = z
     summary: PostingSummarySchema.optional(),
   })
   .meta({ id: "CreatePostResponse" });
+
+export const ManualRepostPostRequestSchema = z
+  .object({
+    accountIds: z.array(z.string()).min(1).optional(),
+  })
+  .meta({ id: "ManualRepostPostRequest" });
+
+export const RepostPostResponseSchema = z
+  .object({
+    post: PostSchema.nullable(),
+    repostingResults: z.array(PostingResultSchema),
+    summary: PostingSummarySchema,
+  })
+  .meta({ id: "RepostPostResponse" });
 
 export const ConnectedAccountSchema = z
   .object({
@@ -507,6 +540,11 @@ export const DispatchScheduledPostsResponseSchema = z
     failedPosts: z.number().int().nonnegative(),
     skippedPosts: z.number().int().nonnegative(),
     staleRecoveredPosts: z.number().int().nonnegative(),
+    processedReposts: z.number().int().nonnegative(),
+    completedReposts: z.number().int().nonnegative(),
+    failedReposts: z.number().int().nonnegative(),
+    skippedReposts: z.number().int().nonnegative(),
+    staleRecoveredReposts: z.number().int().nonnegative(),
     platformSummary: z.array(
       z.object({
         platform: z.string(),
@@ -520,6 +558,14 @@ export const DispatchScheduledPostsResponseSchema = z
       }),
     ),
     postResults: z.array(
+      z.object({
+        postId: z.string(),
+        success: z.boolean(),
+        status: z.enum(["published", "failed"]),
+        errorMessage: z.string().optional(),
+      }),
+    ),
+    repostResults: z.array(
       z.object({
         postId: z.string(),
         success: z.boolean(),

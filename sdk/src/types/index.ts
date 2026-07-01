@@ -40,3 +40,5 @@ export interface PostResult {
     platformData?: Record<string, unknown>;
   };
 }
+
+export type RepostResult = PostResult;

@@ -9,8 +9,8 @@ import { PostError, PostErrorType } from "../../types";
 import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
-import type { PostResult } from "../../types";
-import type { Content, Image, PostOptionsWithCredentials } from "../../types/post";
+import type { PostResult, RepostResult } from "../../types";
+import type { Content, Image, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -645,6 +645,92 @@ export class BlueskyPublisher extends Publisher {
       );
     } finally {
       await tempFileManager.cleanup();
+    }
+  }
+
+  async repostContent(target: RepostTarget): Promise<RepostResult> {
+    if (!target.uri || !target.cid) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "Bluesky reposts require both uri and cid for the target post.",
+      );
+    }
+
+    await this.ensureValidToken();
+
+    const path = "/xrpc/com.atproto.repo.createRecord";
+    const body = {
+      repo: this.did,
+      collection: "app.bsky.feed.repost",
+      record: {
+        $type: "app.bsky.feed.repost",
+        subject: {
+          uri: target.uri,
+          cid: target.cid,
+        },
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    const makeRequest = async (nonce?: string) => {
+      return this.client.post(path, body, {
+        headers: {
+          ...this.buildAuthHeaders("POST", path, nonce),
+        },
+      });
+    };
+
+    const sendWithNonce = async () => {
+      try {
+        return await makeRequest(this.dpopNonce);
+      } catch (error: unknown) {
+        if (this.isNonceError(error)) {
+          const nonce = this.extractNonce(error);
+          if (nonce) {
+            this.dpopNonce = nonce;
+            return makeRequest(nonce);
+          }
+        }
+        throw error;
+      }
+    };
+
+    try {
+      const response = await this.withTokenRefresh(sendWithNonce);
+      const uri: string | undefined = response.data.uri;
+      const cid: string | undefined = response.data.cid;
+
+      const result: RepostResult = {
+        id: uri || target.uri,
+        error: PostErrorType.NO_ERROR,
+        extraData: {
+          platformData: {
+            uri,
+            cid,
+            repostedPostUri: target.uri,
+            repostedPostCid: target.cid,
+          },
+        },
+      };
+
+      if (this.refreshedCredentials) {
+        result.extraData!.refreshedCredentials = {
+          accessToken: this.refreshedCredentials.accessToken,
+          refreshToken: this.refreshedCredentials.refreshToken,
+          expiresAt: this.refreshedCredentials.expiresAt,
+        };
+      }
+
+      return result;
+    } catch (error: unknown) {
+      if (error instanceof PostError) throw error;
+      const err = error as AxiosErrorLike;
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to repost on Bluesky: ${err.response?.data?.message || err.message || "Unknown error"}`,
+        err.response?.data,
+      );
     }
   }
 }

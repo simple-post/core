@@ -2,8 +2,8 @@ import { getPublisher } from "./publishers";
 import { getCredentialsFromEnv, mergeOptions } from "./utils/credentials";
 import { MediaResolver } from "./utils/media-resolver";
 
-import type { PostResult } from "./types";
-import type { Content, Platform, Post } from "./types/post";
+import type { PostResult, RepostResult } from "./types";
+import type { Content, Platform, Post, Repost } from "./types/post";
 
 export interface PreparedPost {
   post: Post;
@@ -78,6 +78,19 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
   return results;
 }
 
+export async function repost(repostRequest: Repost): Promise<Map<Platform, RepostResult>> {
+  const results = new Map<Platform, RepostResult>();
+  const envCredentials = getCredentialsFromEnv();
+  const mergedOptions = mergeOptions(envCredentials, repostRequest.options);
+
+  for (const platform of repostRequest.platforms) {
+    const publisher = getPublisher(platform, mergedOptions);
+    results.set(platform, await publisher.repost(repostRequest.target, mergedOptions));
+  }
+
+  return results;
+}
+
 // Export publisher classes - use static methods for validation
 export { XPublisher } from "./publishers/x";
 export { BlueskyPublisher } from "./publishers/bluesky";
@@ -94,6 +107,8 @@ export { PinterestPublisher } from "./publishers/pinterest";
 export type {
   Platform,
   Post,
+  Repost,
+  RepostTarget,
   Content,
   Media,
   Image,
@@ -116,7 +131,7 @@ export type {
   LogLevel,
 } from "./types/post";
 
-export type { PostResult } from "./types";
+export type { PostResult, RepostResult } from "./types";
 export { PostError, PostErrorType } from "./types";
 export type { PlatformValidationRules, ValidationIssue, ValidationResult } from "./types/validation";
 
@@ -135,6 +150,10 @@ export {
   MAX_THREAD_SEGMENTS,
   THREAD_CAPABLE_PLATFORMS,
   isThreadCapablePlatform,
+  RepostSettingsSchema,
+  repostPostSchema,
+  REPOST_CAPABLE_PLATFORMS,
+  isRepostCapablePlatform,
 } from "./types/api";
 export type {
   MediaFile,
@@ -148,6 +167,10 @@ export type {
   ThreadSegment,
   ThreadSegmentResult,
   ThreadCapablePlatform,
+  RepostSettings,
+  RepostPostInput,
+  RepostTargetsMap,
+  RepostCapablePlatform,
 } from "./types/api";
 
 // Shared platform-name aliasing, post URL construction, and accepted media
@@ -169,6 +192,8 @@ export { getValidationRulesForPlatform, validateContentForPlatform } from "./val
 export {
   PlatformSchema,
   PostSchema,
+  RepostSchema,
+  RepostTargetSchema,
   ContentSchema,
   MediaSchema,
   ImageSchema,

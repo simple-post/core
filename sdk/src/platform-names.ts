@@ -25,6 +25,20 @@ export function mapPlatformName(platform: string): Platform {
   return PLATFORM_MAP[platform.toLowerCase()] || (platform.toLowerCase() as Platform);
 }
 
+/**
+ * Platforms where SimplePost can issue a native repost/reshare of an
+ * already-published post (retweet, Bluesky repost, Threads repost, LinkedIn
+ * reshare). Lives here — rather than in the Zod-based types/api module — so
+ * browser bundles can import it without pulling in the Node-only parts of the
+ * SDK barrel (e.g. the S3/`node:fs` utilities).
+ */
+export const REPOST_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "linkedin"] as const;
+export type RepostCapablePlatform = (typeof REPOST_CAPABLE_PLATFORMS)[number];
+
+export function isRepostCapablePlatform(platform: string): platform is RepostCapablePlatform {
+  return (REPOST_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
+}
+
 export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;

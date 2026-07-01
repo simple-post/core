@@ -92,6 +92,10 @@ interface PostMutationParams {
     scheduledFor?: string;
     accountOptions?: Record<string, unknown>;
     accountOverrides?: Record<string, unknown>;
+    repost?: {
+      enabled: boolean;
+      delayHours: number;
+    };
     media: Array<{
       id: string;
       url: string;

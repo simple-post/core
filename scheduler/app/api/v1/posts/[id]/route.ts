@@ -4,6 +4,7 @@ import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
 import { handleApiError, NotFoundError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import {
   deleteAccountOptionFiles,
@@ -108,6 +109,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new ValidationError(validation);
     }
 
+    const repostSettings = validated.repost
+      ? normalizeRepostSettings(validated.repost)
+      : normalizeRepostSettings({
+          enabled: currentPost.repostEnabled,
+          delayHours: currentPost.repostDelayHours,
+        });
+
     // Capture removed media before update for R2 cleanup. Include media from
     // every thread segment in the comparison, otherwise removing a segment
     // would orphan its media in R2.
@@ -138,8 +146,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       errorDetails: null,
       publishedAt: null,
       threadResults: null,
+      accountResults: null,
       accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
+      repostEnabled: repostSettings.enabled,
+      repostDelayHours: repostSettings.delayHours,
+      repostDueAt: null,
+      repostStatus: "not_applicable",
+      repostedAt: null,
+      repostResults: null,
+      repostErrorMessage: null,
+      repostErrorDetails: null,
       media: finalMedia,
       thread: validated.thread,
     });
@@ -176,17 +193,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
       if (summary.overallSuccess) {
+        const publishedAt = new Date();
+        const repostState = buildPublishedRepostState({
+          enabled: repostSettings.enabled,
+          delayHours: repostSettings.delayHours,
+          accountResults,
+          publishedAt,
+        });
         await repository.updatePost(post.id, {
           status: "published",
-          publishedAt: new Date(),
+          publishedAt,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
+          repostDueAt: repostState.repostDueAt,
+          repostStatus: repostState.repostStatus,
+          repostResults: null,
+          repostErrorMessage: null,
+          repostErrorDetails: null,
         });
         await dispatchPostWebhooks(session.user.id, "post.published", {
           id: post.id,
           status: "published",
           message: validated.message,
-          publishedAt: new Date().toISOString(),
+          publishedAt: publishedAt.toISOString(),
           accountResults,
         });
       } else {
@@ -212,6 +241,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
         });
         await dispatchPostWebhooks(session.user.id, "post.failed", {
           id: post.id,
@@ -259,6 +290,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         status: "failed",
         errorMessage,
         errorDetails,
+        repostDueAt: null,
+        repostStatus: "not_applicable",
       });
 
       throw new BadRequestError("Failed to post to platforms");

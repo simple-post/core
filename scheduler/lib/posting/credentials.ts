@@ -27,6 +27,9 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
     accessToken: account.accessToken,
     refreshToken: account.refreshToken || "",
     expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0,
+    // Numeric X user id captured at connect time. Lets repost skip the
+    // rate-limited users/me lookup.
+    userId: account.platformAccountId || undefined,
   }),
   twitter: (account: ConnectedAccount) => credentialBuilders.x(account),
   youtube: (account: ConnectedAccount) => {

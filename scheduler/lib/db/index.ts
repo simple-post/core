@@ -261,6 +261,10 @@ export class PostsModel {
         publishedAt: postData.publishedAt,
         accountOptions: (postData.accountOptions as object) || undefined,
         accountOverrides: (postData.accountOverrides as object) || undefined,
+        repostEnabled: postData.repostEnabled ?? false,
+        repostDelayHours: postData.repostDelayHours ?? 12,
+        repostDueAt: postData.repostDueAt,
+        repostStatus: postData.repostStatus ?? "not_applicable",
         thread: postData.thread ? (postData.thread as unknown as object) : undefined,
         accounts: {
           connect: postData.accountIds.map((id) => ({ id })),
@@ -295,6 +299,14 @@ export class PostsModel {
       publishedAt?: Date | null;
       accountOptions?: unknown | null;
       accountOverrides?: unknown | null;
+      repostEnabled?: boolean;
+      repostDelayHours?: number;
+      repostDueAt?: Date | null;
+      repostStatus?: string;
+      repostedAt?: Date | null;
+      repostResults?: unknown | null;
+      repostErrorMessage?: string | null;
+      repostErrorDetails?: unknown | null;
       thread?: unknown | null;
       threadResults?: unknown | null;
       accountResults?: unknown | null;
@@ -310,6 +322,14 @@ export class PostsModel {
     if (updates.publishedAt !== undefined) updateData.publishedAt = updates.publishedAt;
     if (updates.accountOptions !== undefined) updateData.accountOptions = updates.accountOptions || null;
     if (updates.accountOverrides !== undefined) updateData.accountOverrides = updates.accountOverrides || null;
+    if (updates.repostEnabled !== undefined) updateData.repostEnabled = updates.repostEnabled;
+    if (updates.repostDelayHours !== undefined) updateData.repostDelayHours = updates.repostDelayHours;
+    if (updates.repostDueAt !== undefined) updateData.repostDueAt = updates.repostDueAt;
+    if (updates.repostStatus !== undefined) updateData.repostStatus = updates.repostStatus;
+    if (updates.repostedAt !== undefined) updateData.repostedAt = updates.repostedAt;
+    if (updates.repostResults !== undefined) updateData.repostResults = updates.repostResults ?? null;
+    if (updates.repostErrorMessage !== undefined) updateData.repostErrorMessage = updates.repostErrorMessage || null;
+    if (updates.repostErrorDetails !== undefined) updateData.repostErrorDetails = updates.repostErrorDetails || null;
     if (updates.thread !== undefined) updateData.thread = updates.thread ?? null;
     if (updates.threadResults !== undefined) updateData.threadResults = updates.threadResults ?? null;
     if (updates.accountResults !== undefined) updateData.accountResults = updates.accountResults ?? null;
@@ -385,6 +405,14 @@ export class PostsModel {
     publishedAt: Date | null;
     accountOptions: unknown;
     accountOverrides?: unknown;
+    repostEnabled: boolean;
+    repostDelayHours: number;
+    repostDueAt: Date | null;
+    repostStatus: string;
+    repostedAt: Date | null;
+    repostResults?: unknown;
+    repostErrorMessage: string | null;
+    repostErrorDetails: unknown;
     thread?: unknown;
     threadResults?: unknown;
     accountResults?: unknown;
@@ -420,6 +448,14 @@ export class PostsModel {
       publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
       accountOptions: (post.accountOptions as AccountOptionsMap | null) || undefined,
       accountOverrides: (post.accountOverrides as AccountOverridesMap | null) || undefined,
+      repostEnabled: post.repostEnabled,
+      repostDelayHours: post.repostDelayHours,
+      repostDueAt: post.repostDueAt ? new Date(post.repostDueAt) : null,
+      repostStatus: post.repostStatus as SocialPost["repostStatus"],
+      repostedAt: post.repostedAt ? new Date(post.repostedAt) : null,
+      repostResults: (post.repostResults as AccountResultsMap | null) ?? undefined,
+      repostErrorMessage: post.repostErrorMessage ?? undefined,
+      repostErrorDetails: (post.repostErrorDetails as Record<string, unknown> | null) ?? undefined,
       thread: (post.thread as ThreadSegment[] | null) ?? undefined,
       threadResults: (post.threadResults as Record<string, ThreadSegmentResult[]> | null) ?? undefined,
       accountResults: (post.accountResults as AccountResultsMap | null) ?? undefined,

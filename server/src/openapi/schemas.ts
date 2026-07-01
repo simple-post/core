@@ -5,6 +5,7 @@ import {
   PlatformSchema,
   ThreadSchema,
   createPostSchema,
+  repostPostSchema,
   validationRequestSchema,
 } from "@simple-post/sdk";
 import * as z from "zod/v4";
@@ -39,6 +40,8 @@ export const CreatePostRequestSchema = createPostSchema
     postingMode: z.literal("now").default("now"),
   })
   .meta({ id: "ServerCreatePostRequest" });
+
+export const RepostRequestSchema = repostPostSchema.meta({ id: "ServerRepostRequest" });
 
 export const ValidationRequestSchema = validationRequestSchema.meta({ id: "ServerValidationRequest" });
 
@@ -116,6 +119,13 @@ export const CreatePostResponseSchema = z
     summary: PostingSummarySchema,
   })
   .meta({ id: "ServerCreatePostResponse" });
+
+export const RepostResponseSchema = z
+  .object({
+    repostingResults: z.array(PostingResultSchema),
+    summary: PostingSummarySchema,
+  })
+  .meta({ id: "ServerRepostResponse" });
 
 export const ValidationIssueSchema = z
   .object({

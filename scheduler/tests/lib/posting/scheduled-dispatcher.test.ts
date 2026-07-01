@@ -1,4 +1,4 @@
-import { postToAccounts } from "@/lib/posting";
+import { postToAccounts, repostToAccounts } from "@/lib/posting";
 import type { PostingResult } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
@@ -27,6 +27,7 @@ jest.mock("@/lib/prisma", () => ({
 
 jest.mock("@/lib/posting", () => ({
   postToAccounts: jest.fn(),
+  repostToAccounts: jest.fn(),
   getPostingSummary: (results: Array<{ success: boolean }>) => {
     const successCount = results.filter((r) => r.success).length;
     const failureCount = results.length - successCount;
@@ -36,6 +37,8 @@ jest.mock("@/lib/posting", () => ({
 
 jest.mock("@simple-post/sdk", () => ({
   isThreadCapable: (platform: string) => ["x", "threads", "bluesky", "mastodon"].includes(platform),
+  isRepostCapablePlatform: (platform: string) =>
+    ["x", "bluesky", "threads", "linkedin"].includes(platform),
 }));
 
 const prismaMock = prisma as unknown as {
@@ -57,6 +60,7 @@ const prismaMock = prisma as unknown as {
   };
 };
 const postToAccountsMock = postToAccounts as jest.Mock;
+const repostToAccountsMock = repostToAccounts as jest.Mock;
 
 interface DuePostFixture {
   id: string;
@@ -77,7 +81,20 @@ function duePost(fixture: DuePostFixture) {
     accountOverrides: null,
     thread: null,
     accountResults: null,
+    repostEnabled: false,
+    repostDelayHours: 12,
     media: [],
+    ...fixture,
+  };
+}
+
+function dueRepost(fixture: DuePostFixture) {
+  return {
+    userId: "user-1",
+    message: "hello",
+    accountOptions: null,
+    accountResults: null,
+    repostDelayHours: 12,
     ...fixture,
   };
 }
@@ -95,17 +112,32 @@ function successFor(accountIds: string[], platform = "x"): PostingResult[] {
  * Routes prisma.post.updateMany calls: the stale-pending sweep matches
  * `where.status === "pending"`, claims match `where.status === "scheduled"`.
  */
-function mockUpdateMany({ claims = {} }: { claims?: Record<string, number> }) {
-  prismaMock.post.updateMany.mockImplementation(({ where }: { where: { status: string; id?: unknown } }) => {
-    if (where.status === "pending") {
-      const ids = (where.id as { in?: string[] } | undefined)?.in ?? [];
-      return Promise.resolve({ count: ids.length });
-    }
-    if (where.status === "scheduled" && typeof where.id === "string") {
-      return Promise.resolve({ count: claims[where.id] ?? 1 });
-    }
-    throw new Error(`Unexpected updateMany where: ${JSON.stringify(where)}`);
-  });
+function mockUpdateMany({
+  claims = {},
+  repostClaims = {},
+}: {
+  claims?: Record<string, number>;
+  repostClaims?: Record<string, number>;
+}) {
+  prismaMock.post.updateMany.mockImplementation(
+    ({ where }: { where: { status?: string; repostStatus?: string; id?: unknown } }) => {
+      if (where.status === "pending") {
+        const ids = (where.id as { in?: string[] } | undefined)?.in ?? [];
+        return Promise.resolve({ count: ids.length });
+      }
+      if (where.repostStatus === "pending") {
+        const ids = (where.id as { in?: string[] } | undefined)?.in ?? [];
+        return Promise.resolve({ count: ids.length });
+      }
+      if (where.status === "scheduled" && typeof where.id === "string") {
+        return Promise.resolve({ count: claims[where.id] ?? 1 });
+      }
+      if (where.repostStatus === "scheduled" && typeof where.id === "string") {
+        return Promise.resolve({ count: repostClaims[where.id] ?? 1 });
+      }
+      throw new Error(`Unexpected updateMany where: ${JSON.stringify(where)}`);
+    },
+  );
 }
 
 /**
@@ -114,14 +146,20 @@ function mockUpdateMany({ claims = {} }: { claims?: Record<string, number> }) {
  */
 function mockFindMany({
   due = [],
+  dueReposts = [],
   stale = [],
+  staleReposts = [],
 }: {
   due?: unknown[];
+  dueReposts?: unknown[];
   stale?: Array<{ id: string; userId: string; message: string }>;
+  staleReposts?: Array<{ id: string }>;
 }) {
-  prismaMock.post.findMany.mockImplementation(({ where }: { where: { status: string } }) => {
+  prismaMock.post.findMany.mockImplementation(({ where }: { where: { status?: string; repostStatus?: string } }) => {
     if (where.status === "pending") return Promise.resolve(stale);
+    if (where.repostStatus === "pending") return Promise.resolve(staleReposts);
     if (where.status === "scheduled") return Promise.resolve(due);
+    if (where.status === "published" && where.repostStatus === "scheduled") return Promise.resolve(dueReposts);
     throw new Error(`Unexpected findMany where: ${JSON.stringify(where)}`);
   });
 }
@@ -158,7 +196,12 @@ describe("dispatchDueScheduledPosts", () => {
     expect(result.publishedPosts).toBe(0);
     expect(result.failedPosts).toBe(0);
     expect(result.skippedPosts).toBe(0);
+    expect(result.processedReposts).toBe(0);
+    expect(result.completedReposts).toBe(0);
+    expect(result.failedReposts).toBe(0);
+    expect(result.skippedReposts).toBe(0);
     expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(repostToAccountsMock).not.toHaveBeenCalled();
   });
 
   it("recovers stale pending posts and reports the count", async () => {
@@ -173,6 +216,16 @@ describe("dispatchDueScheduledPosts", () => {
     const result = await dispatchDueScheduledPosts();
 
     expect(result.staleRecoveredPosts).toBe(3);
+  });
+
+  it("recovers stale pending reposts and reports the count", async () => {
+    mockFindMany({
+      staleReposts: [{ id: "r1" }, { id: "r2" }],
+    });
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(result.staleRecoveredReposts).toBe(2);
   });
 
   it("publishes claimed posts and skips posts another run already claimed", async () => {
@@ -195,6 +248,35 @@ describe("dispatchDueScheduledPosts", () => {
       expect.objectContaining({
         where: { id: "p1" },
         data: expect.objectContaining({ status: "published" }),
+      }),
+    );
+  });
+
+  it("dispatches due reposts for successful repost-capable account results", async () => {
+    mockFindMany({
+      dueReposts: [
+        dueRepost({
+          id: "p1",
+          accounts: [{ id: "a1", platform: "x" }],
+          accountResults: toAccountResultsMap([{ accountId: "a1", platform: "x", success: true, postId: "tweet-1" }]),
+        }),
+      ],
+    });
+    repostToAccountsMock.mockResolvedValue(successFor(["a1"]));
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(repostToAccountsMock).toHaveBeenCalledWith(
+      "user-1",
+      [expect.objectContaining({ accountId: "a1", postId: "tweet-1" })],
+      undefined,
+    );
+    expect(result.processedReposts).toBe(1);
+    expect(result.completedReposts).toBe(1);
+    expect(prismaMock.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "p1" },
+        data: expect.objectContaining({ repostStatus: "completed" }),
       }),
     );
   });

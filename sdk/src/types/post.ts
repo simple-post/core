@@ -55,6 +55,7 @@ export const XCredentialsSchema = z
     accessToken: z.string().optional(),
     refreshToken: z.string().optional(),
     expiresAt: z.number().optional(), // Unix timestamp
+    userId: z.string().optional(), // Numeric X user id; lets repost skip the users/me lookup
   })
   .refine((data) => Boolean(data.accessToken) || Boolean(data.clientId && data.refreshToken), {
     message: "X credentials require either accessToken, or clientId + refreshToken (or both)",
@@ -243,6 +244,18 @@ export const PostSchema = z.object({
   options: PostOptionsSchema.optional(),
 });
 
+export const RepostTargetSchema = z.object({
+  postId: z.string().min(1),
+  uri: z.string().optional(),
+  cid: z.string().optional(),
+});
+
+export const RepostSchema = z.object({
+  target: RepostTargetSchema,
+  platforms: z.array(PlatformSchema),
+  options: PostOptionsSchema.optional(),
+});
+
 export type Platform = z.infer<typeof PlatformSchema>;
 export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
@@ -268,6 +281,8 @@ export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
+export type RepostTarget = z.infer<typeof RepostTargetSchema>;
+export type Repost = z.infer<typeof RepostSchema>;
 
 // Internal types for publishers that require credentials
 export type XOptionsWithCredentials = XOptions & { credentials: NonNullable<XOptions["credentials"]> };

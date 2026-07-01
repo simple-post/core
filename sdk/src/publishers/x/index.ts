@@ -9,8 +9,8 @@ import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
-import type { PostResult } from "../../types";
-import type { Content, PostOptionsWithCredentials, XCredentials } from "../../types/post";
+import type { PostResult, RepostResult } from "../../types";
+import type { Content, PostOptionsWithCredentials, RepostTarget, XCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 interface RefreshTokenResponse {
@@ -36,6 +36,11 @@ export class XPublisher extends Publisher {
     expiresAt: number;
   };
 
+  // Cached authenticated user id. Seeded from credentials.userId when the
+  // caller already knows it (avoiding a users/me round-trip entirely) and
+  // otherwise populated on first lookup so repeated calls don't re-fetch.
+  private cachedUserId?: string;
+
   constructor(options?: PostOptionsWithCredentials) {
     super("X", options);
 
@@ -44,6 +49,7 @@ export class XPublisher extends Publisher {
     }
 
     this.credentials = options.x.credentials;
+    this.cachedUserId = this.credentials.userId;
 
     const canRefresh = Boolean(this.credentials.clientId && this.credentials.refreshToken);
     if (!this.credentials.accessToken && !canRefresh) {
@@ -89,6 +95,14 @@ export class XPublisher extends Publisher {
     if (this.isTokenExpired()) {
       await this.refreshAccessToken();
     }
+  }
+
+  private getCurrentAccessToken(): string {
+    const accessToken = this.refreshedCredentials?.accessToken ?? this.credentials.accessToken;
+    if (!accessToken) {
+      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "X access token is required");
+    }
+    return accessToken;
   }
 
   private async refreshAccessToken(): Promise<void> {
@@ -245,6 +259,68 @@ export class XPublisher extends Publisher {
       throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, err.data);
     } finally {
       await tempFileManager.cleanup();
+    }
+  }
+
+  private async resolveUserId(): Promise<string> {
+    if (this.cachedUserId) {
+      return this.cachedUserId;
+    }
+
+    const accessToken = this.getCurrentAccessToken();
+    const meResponse = await axios.get<{ data?: { id?: string } }>("https://api.x.com/2/users/me", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    const userId = meResponse.data?.data?.id;
+    if (!userId) {
+      throw new PostError(PostErrorType.API_ERROR, "X API did not return the authenticated user id.");
+    }
+
+    this.cachedUserId = userId;
+    return userId;
+  }
+
+  async repostContent(target: RepostTarget): Promise<RepostResult> {
+    await this.ensureValidToken();
+    const accessToken = this.getCurrentAccessToken();
+
+    try {
+      const userId = await this.resolveUserId();
+
+      await axios.post(
+        `https://api.x.com/2/users/${userId}/retweets`,
+        { tweet_id: target.postId },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const result: RepostResult = {
+        id: target.postId,
+        error: PostErrorType.NO_ERROR,
+      };
+
+      if (this.refreshedCredentials) {
+        result.extraData = {
+          refreshedCredentials: this.refreshedCredentials,
+        };
+      }
+
+      return result;
+    } catch (error: unknown) {
+      if (error instanceof PostError) throw error;
+      const err = error as { response?: { data?: unknown }; message?: string };
+      this.logger.error(error instanceof Error ? error : String(error));
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to repost on X: ${err.message || "Unknown error"}`,
+        err.response?.data || err.message,
+      );
     }
   }
 }

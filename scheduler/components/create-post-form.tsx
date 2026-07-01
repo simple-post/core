@@ -258,19 +258,6 @@ export function CreatePostForm() {
   const visibleValidationErrors = shouldShowValidationFeedback ? (validation?.summary.errors ?? []) : [];
   const visibleValidationWarnings = shouldShowValidationFeedback ? (validation?.summary.warnings ?? []) : [];
 
-  const timeSlots = useMemo(() => {
-    const slots: { value: string; label: string }[] = [];
-    for (let h = 0; h < 24; h++) {
-      for (let m = 0; m < 60; m += 15) {
-        const value = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-        const date = new Date(2000, 0, 1, h, m);
-        const label = format(date, "h:mm a");
-        slots.push({ value, label });
-      }
-    }
-    return slots;
-  }, []);
-
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
     const accountId =

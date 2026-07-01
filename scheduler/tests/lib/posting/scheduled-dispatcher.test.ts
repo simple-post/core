@@ -37,8 +37,7 @@ jest.mock("@/lib/posting", () => ({
 
 jest.mock("@simple-post/sdk", () => ({
   isThreadCapable: (platform: string) => ["x", "threads", "bluesky", "mastodon"].includes(platform),
-  isRepostCapablePlatform: (platform: string) =>
-    ["x", "bluesky", "threads", "linkedin"].includes(platform),
+  isRepostCapablePlatform: (platform: string) => ["x", "bluesky", "threads", "linkedin"].includes(platform),
 }));
 
 const prismaMock = prisma as unknown as {

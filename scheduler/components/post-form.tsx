@@ -22,6 +22,7 @@ import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
+import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
 import type { MediaFile, AccountOptionsMap, PostingMode, SocialPost, ThreadSegment } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
@@ -84,6 +85,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
   const [tiktokConsent, setTikTokConsent] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
   const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
 
@@ -110,6 +112,10 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       setTikTokConsent(false);
     }
   }, [tiktokConsentRequired]);
+
+  useEffect(() => {
+    setScheduleError(null);
+  }, [postingMode, scheduledDate, scheduledTime]);
 
   const localValidation = useMemo<ValidationResponse | null>(() => {
     if (selectedAccountIds.length === 0 || selectedAccounts.length !== selectedAccountIds.length) {
@@ -253,6 +259,15 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       return;
     }
 
+    if (postingMode === "schedule") {
+      const nextScheduleError = getLocalScheduledDateTimeError(scheduledDate, scheduledTime);
+      if (nextScheduleError) {
+        setScheduleError(nextScheduleError);
+        toast.error(nextScheduleError);
+        return;
+      }
+    }
+
     try {
       if (postingMode !== "draft") {
         const latestValidation = await runBackendValidation();
@@ -279,7 +294,11 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
       // Only add schedule info if scheduling
       if (postingMode === "schedule") {
-        const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
+        const scheduledFor = parseLocalScheduledDateTime(scheduledDate, scheduledTime);
+        if (!scheduledFor) {
+          setScheduleError("Choose a valid date and time before scheduling this post.");
+          return;
+        }
         body.scheduledFor = scheduledFor.toISOString();
       }
 
@@ -320,12 +339,16 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         }
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${mode} post. Please try again.`;
+      if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
+        setScheduleError(errorMessage);
+      }
       logClientError(error, `Failed to ${mode} post`, {
         postId: existingPost.id,
         postingMode,
         accountCount: selectedAccountIds.length,
       });
-      toast.error(`Failed to ${mode} post. Please try again.`);
+      toast.error(errorMessage);
     }
   };
 
@@ -337,7 +360,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
     (postingMode === "draft" || !validationLoading) &&
     (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&
-    (postingMode !== "schedule" || (scheduledDate && scheduledTime));
+    (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -514,12 +537,19 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
 
         {/* Schedule Settings - Only show when scheduling */}
         {postingMode === "schedule" && (
-          <ScheduleDateTimePicker
-            scheduledDate={scheduledDate}
-            scheduledTime={scheduledTime}
-            onScheduledDateChange={setScheduledDate}
-            onScheduledTimeChange={setScheduledTime}
-          />
+          <div className="space-y-2">
+            <ScheduleDateTimePicker
+              scheduledDate={scheduledDate}
+              scheduledTime={scheduledTime}
+              onScheduledDateChange={setScheduledDate}
+              onScheduledTimeChange={setScheduledTime}
+            />
+            {scheduleError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {scheduleError}
+              </p>
+            ) : null}
+          </div>
         )}
 
         {tiktokConsentRequired && (

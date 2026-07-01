@@ -144,7 +144,9 @@ async function submitPost({ body, mode, postId }: PostMutationParams): Promise<P
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to ${mode} post`);
+    const data = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    const message = typeof data?.error === "string" ? data.error : `Failed to ${mode} post`;
+    throw new Error(message);
   }
 
   return response.json();

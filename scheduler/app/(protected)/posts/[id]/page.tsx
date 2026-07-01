@@ -35,6 +35,70 @@ type FailedPlatform = {
   error?: string;
 };
 
+function MediaGallery({ media }: { media: MediaFile[] }) {
+  if (media.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      {media.map((item) => (
+        <div key={`${item.id}-${item.url}`} className="rounded-xl overflow-hidden border border-border bg-secondary">
+          {item.type === "image" ? (
+            <img
+              src={item.url}
+              alt={item.filename}
+              className="w-full h-auto max-h-[600px] object-contain"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = "/broken-image.png";
+              }}
+            />
+          ) : (
+            <div className="relative w-full bg-black">
+              <video
+                src={item.url}
+                controls
+                playsInline
+                className="w-full h-auto max-h-[600px] object-contain"
+                poster={item.thumbnailUrl}
+              />
+            </div>
+          )}
+          <div className="px-4 py-2 border-t border-border font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground flex items-center justify-between gap-3">
+            <span className="truncate normal-case tracking-normal">{item.filename}</span>
+            <span className="shrink-0">{(item.size / 1024 / 1024).toFixed(2)} MB</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PostContentSegment({
+  label,
+  message,
+  media,
+  showLabel = false,
+}: {
+  label: string;
+  message: string;
+  media: MediaFile[];
+  showLabel?: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      {showLabel ? (
+        <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      ) : null}
+      {message ? (
+        <p className="whitespace-pre-wrap break-words text-base leading-relaxed text-foreground">{message}</p>
+      ) : null}
+      <MediaGallery media={media} />
+    </div>
+  );
+}
+
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -90,6 +154,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const isDraft = post.status === "draft";
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
+  const thread = post.thread ?? [];
+  const hasThread = thread.length > 0;
   const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
     ? (post.errorDetails.failedPlatforms as FailedPlatform[])
     : [];
@@ -179,45 +245,27 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
             {/* Post Content */}
             <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
-              {/* Message */}
-              {post.message && (
-                <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground">{post.message}</p>
-              )}
+              <PostContentSegment label="Post 1" message={post.message} media={post.media} showLabel={hasThread} />
 
-              {/* Media */}
-              {post.media.length > 0 && (
-                <div className="space-y-3">
-                  {post.media.map((media: MediaFile) => (
-                    <div key={media.id} className="rounded-xl overflow-hidden border border-border bg-secondary">
-                      {media.type === "image" ? (
-                        <img
-                          src={media.url}
-                          alt={media.filename}
-                          className="w-full h-auto max-h-[600px] object-contain"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = "/broken-image.png";
-                          }}
+              {hasThread ? (
+                <div className="space-y-0">
+                  {thread.map((segment, index) => (
+                    <div key={index} className="flex gap-3">
+                      <div className="flex flex-col items-center pt-1">
+                        <div className="w-px bg-border flex-1" />
+                      </div>
+                      <div className="flex-1 pb-2 pt-4">
+                        <PostContentSegment
+                          label={`Post ${index + 2}`}
+                          message={segment.message}
+                          media={segment.media ?? []}
+                          showLabel
                         />
-                      ) : (
-                        <div className="relative w-full bg-black">
-                          <video
-                            src={media.url}
-                            controls
-                            playsInline
-                            className="w-full h-auto max-h-[600px] object-contain"
-                            poster={media.thumbnailUrl}
-                          />
-                        </div>
-                      )}
-                      <div className="px-4 py-2 border-t border-border font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground flex items-center justify-between">
-                        <span className="truncate normal-case tracking-normal">{media.filename}</span>
-                        <span>{(media.size / 1024 / 1024).toFixed(2)} MB</span>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* Accounts */}

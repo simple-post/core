@@ -14,6 +14,11 @@ import {
 } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
+import {
+  SCHEDULED_TIME_PAST_MESSAGE,
+  getScheduledForValueError,
+  parseScheduledForValue,
+} from "@/lib/validations/scheduled-time";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, PostingMode, ThreadSegmentResult } from "@/types";
 
@@ -32,20 +37,20 @@ function resolveScheduledFor(
 
   if (!scheduledForValue) {
     if (currentScheduledFor) {
+      if (currentScheduledFor <= new Date()) {
+        throw new BadRequestError(SCHEDULED_TIME_PAST_MESSAGE);
+      }
       return currentScheduledFor;
     }
-    throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
+    throw new BadRequestError("Choose a date and time before scheduling this post.");
   }
 
-  const scheduledFor = new Date(scheduledForValue);
-  if (Number.isNaN(scheduledFor.getTime())) {
-    throw new BadRequestError("scheduledFor must be a valid ISO 8601 datetime");
-  }
-  if (scheduledFor <= new Date()) {
-    throw new BadRequestError("scheduledFor must be in the future");
+  const scheduledForError = getScheduledForValueError(scheduledForValue);
+  if (scheduledForError) {
+    throw new BadRequestError(scheduledForError);
   }
 
-  return scheduledFor;
+  return parseScheduledForValue(scheduledForValue)!;
 }
 
 // GET /api/v1/posts/[id] - Get a single post by ID

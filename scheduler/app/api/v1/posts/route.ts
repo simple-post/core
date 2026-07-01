@@ -13,6 +13,7 @@ import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repo
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
+import { getScheduledForValueError, parseScheduledForValue } from "@/lib/validations/scheduled-time";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types";
 
@@ -30,18 +31,15 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
   }
 
   if (!scheduledForValue) {
-    throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
+    throw new BadRequestError("Choose a date and time before scheduling this post.");
   }
 
-  const scheduledFor = new Date(scheduledForValue);
-  if (Number.isNaN(scheduledFor.getTime())) {
-    throw new BadRequestError("scheduledFor must be a valid ISO 8601 datetime");
-  }
-  if (scheduledFor <= new Date()) {
-    throw new BadRequestError("scheduledFor must be in the future");
+  const scheduledForError = getScheduledForValueError(scheduledForValue);
+  if (scheduledForError) {
+    throw new BadRequestError(scheduledForError);
   }
 
-  return scheduledFor;
+  return parseScheduledForValue(scheduledForValue)!;
 }
 
 // GET /api/v1/posts - Get all posts (drafts, scheduled, past, and failed) with pagination

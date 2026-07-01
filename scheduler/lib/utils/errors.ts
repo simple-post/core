@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { ZodError } from "zod/v4";
+
 import { apiLogger, serializeError } from "@/lib/logger";
 
 /**
@@ -158,6 +160,16 @@ export class InternalServerError extends ApiError {
   }
 }
 
+function formatZodErrorMessage(error: ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) {
+    return "Invalid request";
+  }
+
+  const path = issue.path.length > 0 ? issue.path.join(".") : "";
+  return path ? `${path}: ${issue.message}` : issue.message;
+}
+
 /**
  * Handles errors and returns appropriate NextResponse
  */
@@ -170,6 +182,8 @@ export function handleApiError(error: unknown): NextResponse {
     } else {
       apiLogger.warn(payload, "API error occurred");
     }
+  } else if (error instanceof ZodError) {
+    apiLogger.warn({ err: serializeError(error), statusCode: 400, code: "VALIDATION_ERROR" }, "API error occurred");
   } else {
     apiLogger.error({ err: serializeError(error) }, "Unexpected API error");
   }
@@ -182,6 +196,17 @@ export function handleApiError(error: unknown): NextResponse {
         ...(error instanceof ValidationError && { details: error.details }),
       },
       { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof ZodError) {
+    return NextResponse.json(
+      {
+        error: formatZodErrorMessage(error),
+        code: "VALIDATION_ERROR",
+        details: error.issues,
+      },
+      { status: 400 },
     );
   }
 

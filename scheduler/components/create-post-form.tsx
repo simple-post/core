@@ -25,6 +25,7 @@ import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
+import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
@@ -102,6 +103,7 @@ export function CreatePostForm() {
   const [tiktokConsent, setTikTokConsent] = useState(false);
   const [contentTouched, setContentTouched] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const enabledOverrides = useMemo<AccountOverridesMap>(() => {
     if (selectedAccountIds.length === 0) {
@@ -144,6 +146,10 @@ export function CreatePostForm() {
       setTikTokConsent(false);
     }
   }, [tiktokConsentRequired]);
+
+  useEffect(() => {
+    setScheduleError(null);
+  }, [postingMode, scheduledDate, scheduledTime]);
 
   useEffect(() => {
     if (defaultRepostAppliedRef.current || !defaultRepostSettings) {
@@ -390,6 +396,15 @@ export function CreatePostForm() {
       return;
     }
 
+    if (postingMode === "schedule") {
+      const nextScheduleError = getLocalScheduledDateTimeError(scheduledDate, scheduledTime);
+      if (nextScheduleError) {
+        setScheduleError(nextScheduleError);
+        toast.error(nextScheduleError);
+        return;
+      }
+    }
+
     try {
       if (postingMode !== "draft") {
         const latestValidation = await runBackendValidation();
@@ -424,7 +439,11 @@ export function CreatePostForm() {
       };
 
       if (postingMode === "schedule") {
-        const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
+        const scheduledFor = parseLocalScheduledDateTime(scheduledDate, scheduledTime);
+        if (!scheduledFor) {
+          setScheduleError("Choose a valid date and time before scheduling this post.");
+          return;
+        }
         body.scheduledFor = scheduledFor.toISOString();
       }
 
@@ -471,8 +490,12 @@ export function CreatePostForm() {
         router.push("/?tab=scheduled");
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to create post. Please try again.";
+      if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
+        setScheduleError(errorMessage);
+      }
       logClientError(error, "Failed to create post", { postingMode, accountCount: selectedAccountIds.length });
-      toast.error("Failed to create post. Please try again.");
+      toast.error(errorMessage);
     }
   };
 
@@ -484,7 +507,7 @@ export function CreatePostForm() {
     (postingMode === "draft" || !validationLoading) &&
     (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&
-    (postingMode !== "schedule" || (scheduledDate && scheduledTime));
+    (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -632,12 +655,19 @@ export function CreatePostForm() {
         </div>
 
         {postingMode === "schedule" && (
-          <ScheduleDateTimePicker
-            scheduledDate={scheduledDate}
-            scheduledTime={scheduledTime}
-            onScheduledDateChange={setScheduledDate}
-            onScheduledTimeChange={setScheduledTime}
-          />
+          <div className="space-y-2">
+            <ScheduleDateTimePicker
+              scheduledDate={scheduledDate}
+              scheduledTime={scheduledTime}
+              onScheduledDateChange={setScheduledDate}
+              onScheduledTimeChange={setScheduledTime}
+            />
+            {scheduleError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {scheduleError}
+              </p>
+            ) : null}
+          </div>
         )}
 
         {hasSelectedRepostCapableAccount ? (

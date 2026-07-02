@@ -35,14 +35,14 @@ describe("post command", () => {
     const { stdout } = await runCli(["post", "--help"]);
 
     expect(stdout).toContain("--account");
+    expect(stdout).toContain("--app-account-id");
     expect(stdout).not.toContain("--platforms");
     expect(stdout).not.toContain("--prepare-media");
   });
 
   it("keeps root help on the top-level command", async () => {
-    const { stderr, stdout } = await runCli(["--help"]);
+    const { stdout } = await runCli(["--help"]);
 
-    expect(stderr).not.toContain("compatibility mode enabled");
     expect(stdout).toContain("USAGE");
     expect(stdout).toContain("$ simplepost [COMMAND]");
     expect(stdout).toContain("account");
@@ -51,11 +51,11 @@ describe("post command", () => {
     expect(stdout).not.toContain("--account");
   });
 
-  it("still rewrites legacy post flags before help", async () => {
-    const { stderr, stdout } = await runCli(["--text", "hello", "--help"]);
+  it("reports a fresh install through the status command", async () => {
+    const { stdout } = await runCli(["status"]);
 
-    expect(stderr).toContain("compatibility mode enabled");
-    expect(stdout).toContain("--account");
-    expect(stdout).toContain("--text");
+    expect(stdout).toContain("SimplePost CLI status");
+    expect(stdout).toContain("not connected");
+    expect(stdout).toContain("Secret storage: not configured");
   });
 });

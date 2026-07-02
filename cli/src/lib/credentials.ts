@@ -1,4 +1,9 @@
-import { getAccountPlatformConfig, isAccountPlatform } from "./account/platforms.js";
+import {
+  getAccountPlatformConfig,
+  getClientIdEnvVar,
+  getClientSecretEnvVar,
+  isAccountPlatform,
+} from "./account/platforms.js";
 
 import type { AccountPlatform } from "./account/platforms.js";
 import type { SecretStore } from "./secrets.js";
@@ -29,8 +34,18 @@ function parseOAuthAccountSecret(payload: unknown, platform: AccountPlatform): O
 
 function getStoredClientId(platform: AccountPlatform, secret: OAuthAccountSecretPayload): string {
   const stored = secret.tokenMetadata?.clientId;
-  const oauthApp = getAccountPlatformConfig(platform).oauthApp!;
-  return typeof stored === "string" && stored ? stored : oauthApp.clientId;
+  if (typeof stored === "string" && stored) {
+    return stored;
+  }
+
+  const fromEnv = process.env[getClientIdEnvVar(platform)];
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  throw new Error(
+    `The stored ${getAccountPlatformConfig(platform).displayName} account does not record its OAuth client ID. Set ${getClientIdEnvVar(platform)} or reconnect the account.`,
+  );
 }
 
 function buildStoredAccountPostOptions(
@@ -59,11 +74,7 @@ function buildStoredAccountPostOptions(
     }
     case "youtube": {
       const nowSec = Math.floor(Date.now() / 1000);
-      const clientId = getStoredClientId("youtube", secret);
-      const clientSecret =
-        getAccountPlatformConfig("youtube").oauthApp?.clientSecret ??
-        process.env.YOUTUBE_CLIENT_SECRET ??
-        process.env.GOOGLE_CLIENT_SECRET;
+      const clientSecret = process.env[getClientSecretEnvVar("youtube")];
       const accessTokenValid =
         typeof secret.expiresAt === "number" ? secret.expiresAt > nowSec + YOUTUBE_TOKEN_BUFFER_SEC : true;
 
@@ -81,7 +92,7 @@ function buildStoredAccountPostOptions(
         return {
           youtube: {
             credentials: {
-              clientId,
+              clientId: getStoredClientId("youtube", secret),
               clientSecret,
               refreshToken: secret.refreshToken,
             },
@@ -228,12 +239,6 @@ export function parseAccountSelections(rawValues?: string[]): AccountSelections 
   }
 
   return selections;
-}
-
-export function hasLegacyXEnvCredentials(): boolean {
-  return Boolean(
-    process.env.X_API_KEY && process.env.X_API_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_SECRET,
-  );
 }
 
 export class CredentialResolver {

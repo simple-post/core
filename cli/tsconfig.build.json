@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    // Resolve @simple-post/sdk through node_modules (its built dist) instead
+    // of the source mapping used for fast type checks, so the emitted output
+    // contains only the CLI code.
+    "paths": {}
+  },
+  "include": ["src/**/*"]
+}

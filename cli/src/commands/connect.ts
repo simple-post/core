@@ -3,8 +3,8 @@ import http from "node:http";
 
 import { Command, Flags } from "@oclif/core";
 
-import { fetchJson } from "../lib/auth/oauth.js";
 import { getCliPaths, loadCliConfig, saveCliConfig, SCHEDULER_SECRET_REF } from "../lib/config.js";
+import { fetchJson } from "../lib/http.js";
 import { createSecretStore } from "../lib/secrets.js";
 import { configureStorage } from "../lib/setup-storage.js";
 import { openExternalUrl } from "../lib/ux/browser.js";
@@ -50,12 +50,9 @@ export default class ConnectCommand extends Command {
     const paths = getCliPaths(this.config.configDir);
     let config = await loadCliConfig(paths);
 
-    // Ensure secret storage is configured
+    // Ensure secret storage is configured. Non-interactively this succeeds
+    // when SIMPLE_POST_CONFIG_PASSWORD is set (encrypted file backend).
     if (!config.storage) {
-      if (!prompt.interactive) {
-        throw new Error('Secret storage is not configured. Run "simplepost setup --backend <backend>" first.');
-      }
-
       const setupResult = await configureStorage({
         cliConfig: config,
         paths,

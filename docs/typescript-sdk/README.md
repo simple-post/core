@@ -46,41 +46,7 @@ await post({
 
 ## Installation
 
-Since this is a private package, you'll need to set up GitHub access first.
-
-### 1. Create GitHub Personal Access Token
-
-Go to [GitHub settings](https://github.com/settings/tokens) → Generate new token (classic):
-
-- **Name:** "SimplePost NPM Access"
-- **Expiration:** No expiration
-- **Permissions:** `read:packages` only
-
-Store the token as `GITHUB_TOKEN` in your `.env` file or shell environment.
-
-### 2. Configure Package Manager
-
-#### npm / yarn v1 / pnpm
-
-Add to `.npmrc`:
-
-```bash
-@simple-post:registry=https://npm.pkg.github.com/
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-#### yarn v2+
-
-Add to `.yarnrc.yml`:
-
-```yaml
-npmScopes:
-  simple-post:
-    npmRegistryServer: "https://npm.pkg.github.com"
-    npmAuthToken: "${GITHUB_TOKEN}"
-```
-
-### 3. Install
+The package is published on the public npm registry:
 
 ```bash
 npm install @simple-post/sdk
@@ -89,6 +55,8 @@ yarn add @simple-post/sdk
 # or
 pnpm add @simple-post/sdk
 ```
+
+> Versions before 0.5.1 were distributed through GitHub Packages and required a `read:packages` token with an `@simple-post` registry entry in `.npmrc` / `.yarnrc.yml`. That setup is no longer needed.
 
 ## Usage
 

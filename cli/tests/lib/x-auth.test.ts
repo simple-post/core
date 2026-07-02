@@ -1,4 +1,3 @@
-import { getAccountPlatformConfig } from "../../src/lib/account/platforms.js";
 import {
   XAuthProvider,
   generatePkcePair,
@@ -13,6 +12,7 @@ import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 describe("X auth helpers", () => {
   afterEach(() => {
     delete process.env.SIMPLE_POST_OAUTH_TIMEOUT_MS;
+    delete process.env.SIMPLE_POST_X_CLIENT_ID;
     delete (globalThis as any).fetch;
   });
 
@@ -79,7 +79,29 @@ describe("X auth helpers", () => {
     expect(callbackUrl).toContain("code=abc");
   });
 
+  it("requires the client ID environment variable", async () => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const provider = new XAuthProvider();
+    const prompt = { interactive: false, log: jest.fn() } as any;
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+
+    await expect(
+      provider.login(
+        { alias: "main" },
+        {
+          config,
+          paths,
+          prompt,
+          secretStore: createSecretStore(paths, { backend: "file-plain" }, prompt),
+        },
+      ),
+    ).rejects.toThrow(/SIMPLE_POST_X_CLIENT_ID/);
+  });
+
   it("logs in successfully through the provider", async () => {
+    process.env.SIMPLE_POST_X_CLIENT_ID = "x-client-id";
     const home = await makeTempHome();
     const paths = getExpectedCliPaths(home);
     const provider = new XAuthProvider({
@@ -139,12 +161,12 @@ describe("X auth helpers", () => {
       expiresAt: expect.any(Number),
       refreshToken: "refresh-token",
       tokenMetadata: {
-        clientId: getAccountPlatformConfig("x").oauthApp!.clientId,
+        clientId: "x-client-id",
       },
     });
 
     const firstFetchCall = (globalThis as any).fetch.mock.calls[0];
     expect(firstFetchCall[1].headers.Authorization).toBeUndefined();
-    expect(firstFetchCall[1].body.get("client_id")).toBe(getAccountPlatformConfig("x").oauthApp!.clientId);
+    expect(firstFetchCall[1].body.get("client_id")).toBe("x-client-id");
   });
 });

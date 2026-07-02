@@ -13,6 +13,12 @@ export const postFlags = {
       "Stored account selection in the form <platform>:<alias>. Repeat to post through multiple connected accounts.",
     helpGroup: "Targets",
   }),
+  "app-account-id": Flags.string({
+    multiple: true,
+    description:
+      'SimplePost app account ID, shown by "simplepost account". Repeat to post through multiple app accounts.',
+    helpGroup: "Targets",
+  }),
   text: Flags.string({
     description: "Text content",
     helpGroup: "Content",

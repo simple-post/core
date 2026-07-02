@@ -217,7 +217,8 @@ async function postCurlForm<T>(options: {
 }
 
 async function validateBlueskyClientMetadata(appConfig: ResolvedOAuthAppConfig): Promise<void> {
-  const metadataUrl = appConfig.tokenMetadataUrl ?? appConfig.clientId;
+  // For atproto OAuth the client ID is the URL of the hosted client metadata.
+  const metadataUrl = appConfig.clientId;
   if (!/^https?:\/\//i.test(metadataUrl)) {
     return;
   }
@@ -230,7 +231,7 @@ async function validateBlueskyClientMetadata(appConfig: ResolvedOAuthAppConfig):
   const redirectUris = metadata.redirect_uris ?? [];
   if (!redirectUris.includes(appConfig.redirectUri)) {
     throw new Error(
-      `The Bluesky client metadata at ${metadataUrl} does not include ${appConfig.redirectUri} in redirect_uris. Update the hosted metadata or override the client ID with SIMPLE_POST_BLUESKY_CLIENT_ID.`,
+      `The Bluesky client metadata at ${metadataUrl} does not include ${appConfig.redirectUri} in redirect_uris. Update your hosted client metadata to match.`,
     );
   }
 }

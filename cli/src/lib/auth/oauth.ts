@@ -4,14 +4,23 @@ import https from "node:https";
 
 import selfsigned from "selfsigned";
 
-import { getAccountPlatformConfig, type AccountPlatform, type EmbeddedOAuthAppConfig } from "../account/platforms.js";
+import {
+  getAccountPlatformConfig,
+  getClientIdEnvVar,
+  getClientSecretEnvVar,
+  getRedirectUriEnvVar,
+  type AccountPlatform,
+  type OAuthAppConfig,
+} from "../account/platforms.js";
 import { DEFAULT_OAUTH_TIMEOUT_MS } from "../constants.js";
+import { extractErrorMessage, fetchJson } from "../http.js";
 import { openExternalUrl } from "../ux/browser.js";
 
 import type { AuthProvider, AuthProviderContext, OAuthLoginFlags } from "./provider.js";
 import type { CliConfigV1, OAuthAccountSecretPayload, StoredAccount } from "../types.js";
 
-export interface ResolvedOAuthAppConfig extends EmbeddedOAuthAppConfig {
+export interface ResolvedOAuthAppConfig extends OAuthAppConfig {
+  clientId: string;
   clientSecret?: string;
 }
 
@@ -73,67 +82,6 @@ interface OAuthProviderDefinition {
     flags: OAuthLoginFlags;
     platform: AccountPlatform;
   }) => Promise<OAuthAuthorizationSession>;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function extractErrorMessage(data: unknown, fallback: string): string {
-  if (typeof data === "string" && data.trim()) {
-    return data;
-  }
-
-  if (isObject(data)) {
-    // TikTok OAuth: { error: "invalid_request", error_description: "...", log_id }
-    const ttDesc = typeof data.error_description === "string" ? data.error_description : undefined;
-    const ttCode = typeof data.error === "string" ? data.error : undefined;
-    if (ttDesc && ttCode) {
-      return `${ttCode}: ${ttDesc}`;
-    }
-    if (ttDesc) {
-      return ttDesc;
-    }
-
-    // Facebook/Meta returns { error: { message: "...", type: "...", code: N } }
-    if (isObject(data.error)) {
-      const nested = data.error;
-      const msg = typeof nested.message === "string" ? nested.message : undefined;
-      const type = typeof nested.type === "string" ? nested.type : undefined;
-      if (msg) {
-        return type ? `${type}: ${msg}` : msg;
-      }
-    }
-
-    // Instagram OAuth: { error_type, code, error_message }
-    const igMsg = typeof data.error_message === "string" ? data.error_message : undefined;
-    const igType = typeof data.error_type === "string" ? data.error_type : undefined;
-    if (igMsg) {
-      return igType ? `${igType}: ${igMsg}` : igMsg;
-    }
-
-    for (const key of ["error_description", "detail", "message", "title", "error"]) {
-      const value = data[key];
-      if (typeof value === "string" && value.trim()) {
-        return value;
-      }
-    }
-  }
-
-  return fallback;
-}
-
-export async function fetchJson<T>(input: string, init: RequestInit, label: string): Promise<T> {
-  const response = await fetch(input, init);
-  const raw = await response.text();
-  const data = raw ? (JSON.parse(raw) as unknown) : undefined;
-
-  if (!response.ok) {
-    const message = extractErrorMessage(data, response.statusText);
-    throw new Error(`${label} failed (${response.status}): ${message}`);
-  }
-
-  return data as T;
 }
 
 export function ensureLoopbackRedirectUri(redirectUri: string): URL {
@@ -488,58 +436,46 @@ export async function resolveOAuthCallbackUrl(
   }
 }
 
-function getClientIdOverrideEnvVar(platform: AccountPlatform): string {
-  return `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_ID`;
-}
+function buildMissingOAuthAppError(platform: AccountPlatform, appConfig: OAuthAppConfig): Error {
+  const platformName = getAccountPlatformConfig(platform).displayName;
+  const clientIdEnvVar = getClientIdEnvVar(platform);
+  const secretEnvVar = getClientSecretEnvVar(platform);
 
-function getRedirectOverrideEnvVar(platform: AccountPlatform, appConfig: EmbeddedOAuthAppConfig): string {
-  return appConfig.redirectUriEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_REDIRECT_URI`;
+  // Only mention the secret when the platform's token exchange can use one.
+  const usesClientSecret = appConfig.clientSecretRequired || Boolean(appConfig.tokenAuthMethod);
+  const secretLine = appConfig.clientSecretRequired
+    ? `\n  ${secretEnvVar}  your app's client secret`
+    : usesClientSecret
+      ? `\n  ${secretEnvVar}  your app's client secret (only if your app is a confidential client)`
+      : "";
+
+  return new Error(
+    `Connecting ${platformName} directly requires your own ${platformName} developer app.\n\n` +
+      `Set these environment variables, then try again:\n` +
+      `  ${clientIdEnvVar}      your app's client ID` +
+      `${secretLine}\n\n` +
+      `Register an app at ${appConfig.developerPortalUrl}\n\n` +
+      `Prefer not to manage a developer app? Run "simplepost connect" to use the accounts already connected to your SimplePost account instead.`,
+  );
 }
 
 export function resolveOAuthAppInputs(
   platform: AccountPlatform,
   flags: OAuthLoginFlags,
-  embeddedAppConfig: EmbeddedOAuthAppConfig,
+  appConfig: OAuthAppConfig,
 ): ResolvedOAuthAppConfig {
-  const clientIdEnvVar = getClientIdOverrideEnvVar(platform);
-  const clientId = process.env[clientIdEnvVar] ?? embeddedAppConfig.clientId;
-  if (!clientId) {
-    const platformName = getAccountPlatformConfig(platform).displayName;
-    if (embeddedAppConfig.clientSecretRequired) {
-      const secretEnvVar =
-        embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
-      throw new Error(
-        `${platformName} does not allow apps to share public OAuth credentials, so you need to register your own ${platformName} developer app.\n\n` +
-          `Set these environment variables before connecting:\n` +
-          `  ${clientIdEnvVar}      your app's client ID\n` +
-          `  ${secretEnvVar}  your app's client secret`,
-      );
-    }
-    throw new Error(
-      `This CLI build does not embed a ${platformName} OAuth client ID. Set ${clientIdEnvVar} in your environment.`,
-    );
+  const clientId = process.env[getClientIdEnvVar(platform)];
+  const clientSecret = process.env[getClientSecretEnvVar(platform)];
+
+  if (!clientId || (appConfig.clientSecretRequired && !clientSecret)) {
+    throw buildMissingOAuthAppError(platform, appConfig);
   }
 
-  const redirectUri =
-    flags.redirectUri ??
-    process.env[getRedirectOverrideEnvVar(platform, embeddedAppConfig)] ??
-    embeddedAppConfig.redirectUri;
+  const redirectUri = flags.redirectUri ?? process.env[getRedirectUriEnvVar(platform)] ?? appConfig.redirectUri;
   ensureLoopbackRedirectUri(redirectUri);
 
-  const clientSecret =
-    embeddedAppConfig.clientSecret ??
-    (embeddedAppConfig.clientSecretEnvVar ? process.env[embeddedAppConfig.clientSecretEnvVar] : undefined);
-
-  if (embeddedAppConfig.clientSecretRequired && !clientSecret) {
-    const secretEnvVar = embeddedAppConfig.clientSecretEnvVar ?? `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
-    throw new Error(
-      `${getAccountPlatformConfig(platform).displayName} requires a client secret for OAuth token exchange.\n\n` +
-        `Set ${secretEnvVar} in your environment (found in your developer app settings).`,
-    );
-  }
-
   return {
-    ...embeddedAppConfig,
+    ...appConfig,
     clientId,
     ...(clientSecret ? { clientSecret } : {}),
     redirectUri,
@@ -559,7 +495,11 @@ export async function exchangeAuthorizationCode(input: {
     redirect_uri: input.appConfig.redirectUri,
   });
 
-  const tokenAuthMethod = input.appConfig.tokenAuthMethod ?? "none";
+  // Without a secret the app is a public client and authenticates with PKCE
+  // alone; with one, use the platform's configured client authentication.
+  const tokenAuthMethod = input.appConfig.clientSecret
+    ? (input.appConfig.tokenAuthMethod ?? "client_secret_post")
+    : "none";
   if (tokenAuthMethod !== "basic") {
     body.set(input.appConfig.clientIdTokenParameter ?? "client_id", input.appConfig.clientId);
   }
@@ -577,11 +517,6 @@ export async function exchangeAuthorizationCode(input: {
   };
 
   if (tokenAuthMethod === "basic") {
-    if (!input.appConfig.clientSecret) {
-      throw new Error(
-        `Connecting ${getAccountPlatformConfig(input.platform).displayName} requires ${input.appConfig.clientSecretEnvVar} in the environment for token exchange.`,
-      );
-    }
     headers.Authorization = `Basic ${Buffer.from(`${input.appConfig.clientId}:${input.appConfig.clientSecret}`).toString("base64")}`;
   }
 
@@ -780,3 +715,5 @@ export class OAuthAccountProvider implements AuthProvider<OAuthLoginFlags> {
     };
   }
 }
+
+export { fetchJson } from "../http.js";

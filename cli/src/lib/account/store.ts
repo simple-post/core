@@ -133,11 +133,15 @@ export function renderUnifiedAccounts(accounts: UnifiedAccountRecord[]): string 
       : account.username
         ? `@${account.username}`
         : account.alias;
-    return [service, accountLabel] as const;
+    // What the user passes to `post`: --account <platform>:<alias> for local
+    // accounts, --app-account-id <id> for SimplePost app accounts.
+    const target = isAppAccount(account) ? account.appAccountId : `${account.platform}:${account.alias}`;
+    return [service, accountLabel, target] as const;
   });
 
   const col1 = Math.max(COL_SERVICE_MIN, "Service".length, ...rows.map(([s]) => s.length));
   const col2 = Math.max(COL_ACCOUNT_MIN, "Account".length, ...rows.map(([, a]) => a.length));
+  const col3 = Math.max("Target".length, ...rows.map((row) => row[2].length));
 
   // Pad using raw (uncolored) length so ANSI codes don't skew alignment
   function cell(raw: string, styled: string, width: number): string {
@@ -146,11 +150,19 @@ export function renderUnifiedAccounts(accounts: UnifiedAccountRecord[]): string 
 
   const sep1 = "─".repeat(col1);
   const sep2 = "─".repeat(col2);
+  const sep3 = "─".repeat(col3);
 
   return [
-    cell("Service", c.bold(c.lime("Service")), col1) + "  " + c.bold(c.lime("Account")),
-    cell(sep1, c.dim(sep1), col1) + "  " + c.dim(sep2),
-    ...rows.map(([service, account]) => cell(service, c.lime(service), col1) + "  " + account),
+    cell("Service", c.bold(c.lime("Service")), col1) +
+      "  " +
+      cell("Account", c.bold(c.lime("Account")), col2) +
+      "  " +
+      c.bold(c.lime("Target")),
+    cell(sep1, c.dim(sep1), col1) + "  " + cell(sep2, c.dim(sep2), col2) + "  " + c.dim(sep3),
+    ...rows.map(
+      ([service, account, target]) =>
+        cell(service, c.lime(service), col1) + "  " + cell(account, account, col2) + "  " + c.dim(target),
+    ),
   ].join("\n");
 }
 

@@ -1,5 +1,5 @@
-import { fetchJson } from "../auth/oauth.js";
 import { getCliPaths, loadCliConfig, SCHEDULER_SECRET_REF } from "../config.js";
+import { fetchJson } from "../http.js";
 import { createSecretStore } from "../secrets.js";
 
 import type { CliConfigV1, CliPaths } from "../types.js";

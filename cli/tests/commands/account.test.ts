@@ -109,6 +109,8 @@ describe("account commands", () => {
     expect(allAccountsStdout).toContain("Service");
     expect(allAccountsStdout).toContain("X");
     expect(allAccountsStdout).toContain("@alice");
+    expect(allAccountsStdout).toContain("Target");
+    expect(allAccountsStdout).toContain("x:main");
     expect(xAccountsStdout).toContain("Account");
     expect(xAccountsStdout).toContain("@alice");
 

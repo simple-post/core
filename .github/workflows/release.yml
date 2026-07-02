@@ -8,7 +8,10 @@ name: Release to npm
 #
 # The dist-tag is derived from the prerelease identifier: a stable version is
 # published as "latest", "1.2.3-beta.1" as "beta", "1.2.3-rc.0" as "rc", etc.
-# Requires the NPM_TOKEN repository secret (npm automation token).
+#
+# Authentication uses npm trusted publishing (OIDC) — no token secret needed.
+# Each package must be configured on npmjs.com (package Settings -> Trusted
+# Publisher) with this repository and the "release.yml" workflow.
 
 on:
   push:
@@ -18,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   release:
@@ -31,7 +35,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing requires npm >= 11.5.1; Node 22 bundles an older npm.
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Enable Corepack
         run: corepack enable
@@ -79,9 +86,25 @@ jobs:
         if: steps.tag.outputs.workspace == 'cli'
         run: |
           SDK_RANGE="$(node -p "require('./cli/package.json').dependencies['@simple-post/sdk']")"
-          if ! npm view "@simple-post/sdk@$SDK_RANGE" version --registry https://registry.npmjs.org > /dev/null 2>&1; then
+          SDK_VERSION="$(node -p "require('./sdk/package.json').version")"
+          PUBLISHED_VERSIONS="$(npm view "@simple-post/sdk@$SDK_RANGE" version --json --registry https://registry.npmjs.org 2>/dev/null || true)"
+
+          if [[ -z "$PUBLISHED_VERSIONS" ]]; then
             echo "No published @simple-post/sdk version satisfies \"$SDK_RANGE\" on npm." >&2
             echo "Publish the SDK first by pushing an sdk-v* tag." >&2
+            exit 1
+          fi
+
+          if ! PUBLISHED_VERSIONS="$PUBLISHED_VERSIONS" SDK_VERSION="$SDK_VERSION" node <<'NODE'
+          const published = JSON.parse(process.env.PUBLISHED_VERSIONS || "null");
+          const versions = Array.isArray(published) ? published : [published].filter(Boolean);
+          if (!versions.includes(process.env.SDK_VERSION)) {
+            process.exit(1);
+          }
+          NODE
+          then
+            echo "The CLI was tested against workspace @simple-post/sdk@$SDK_VERSION, but that exact version is not published within dependency range \"$SDK_RANGE\"." >&2
+            echo "Publish the SDK first by pushing an sdk-v$SDK_VERSION tag, then release the CLI." >&2
             exit 1
           fi
 
@@ -97,6 +120,4 @@ jobs:
 
       - name: Publish to npm
         working-directory: ${{ steps.tag.outputs.workspace }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag "${{ steps.tag.outputs.dist_tag }}"

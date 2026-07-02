@@ -9,5 +9,6 @@ module.exports = {
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
+  openHandlesTimeout: 5000,
   verbose: true,
 };

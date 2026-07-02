@@ -4978,7 +4978,7 @@ __metadata:
     "@eslint/js": "npm:^9.30.1"
     "@oclif/core": "npm:^4.9.0"
     "@oclif/test": "npm:^4.1.16"
-    "@simple-post/sdk": "npm:^0.5.1"
+    "@simple-post/sdk": "npm:^1.0.0"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^24.0.0"
     eslint: "npm:^9.30.1"
@@ -5133,7 +5133,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@simple-post/sdk@npm:*, @simple-post/sdk@npm:^0.5.1, @simple-post/sdk@workspace:*, @simple-post/sdk@workspace:sdk":
+"@simple-post/sdk@npm:*, @simple-post/sdk@npm:^1.0.0, @simple-post/sdk@workspace:*, @simple-post/sdk@workspace:sdk":
   version: 0.0.0-use.local
   resolution: "@simple-post/sdk@workspace:sdk"
   dependencies:
@@ -5142,8 +5142,6 @@ __metadata:
     "@aws-sdk/s3-request-presigner": "npm:3.842.0"
     "@eslint/eslintrc": "npm:^3.3.1"
     "@eslint/js": "npm:^9.30.1"
-    "@types/axios": "npm:^0.14.4"
-    "@types/form-data": "npm:^2.5.2"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^24.0.0"
     "@types/uuid": "npm:^10.0.0"
@@ -6060,15 +6058,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/axios@npm:^0.14.4":
-  version: 0.14.4
-  resolution: "@types/axios@npm:0.14.4"
-  dependencies:
-    axios: "npm:*"
-  checksum: 10c0/945ef9d9d493b7292d33cf55679af90ffb60fe85475ce79327494480d517e8263f3f0c2f262396a1ada3ef4d66f3b05ea16b1f3c40680aa2b8399c36f6a92dfa
-  languageName: node
-  linkType: hard
-
 "@types/babel__core@npm:^7.20.5":
   version: 7.20.5
   resolution: "@types/babel__core@npm:7.20.5"
@@ -6234,15 +6223,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10c0/2362e7d240d4d8a0b775b5abf9ab5f26a85b17dc335276f0c3ff3bf935f913ccc9e1e10e756a6a3cebf78c1cd1eff835a253f73a3cd1bbcb343b28089a9957f3
-  languageName: node
-  linkType: hard
-
-"@types/form-data@npm:^2.5.2":
-  version: 2.5.2
-  resolution: "@types/form-data@npm:2.5.2"
-  dependencies:
-    form-data: "npm:*"
-  checksum: 10c0/d781239cec80c2e4a33c845f4adc6a25883e982e8ae4f472d38e9928a197f62b6a3e24fc9e28407b1be01c8ad22baeb5053e904af77344e9caa9909cbdccbd0b
   languageName: node
   linkType: hard
 
@@ -7333,7 +7313,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:*, axios@npm:^1.10.0":
+"axios@npm:^1.10.0":
   version: 1.10.0
   resolution: "axios@npm:1.10.0"
   dependencies:
@@ -10446,7 +10426,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"form-data@npm:*, form-data@npm:^4.0.0, form-data@npm:^4.0.3":
+"form-data@npm:^4.0.0, form-data@npm:^4.0.3":
   version: 4.0.3
   resolution: "form-data@npm:4.0.3"
   dependencies:

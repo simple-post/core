@@ -5,8 +5,9 @@ import { z } from "zod";
 import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-currency";
 import { getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus, syncCheckoutSession } from "@/lib/billing/subscriptions";
+import { env } from "@/lib/env";
 import { requireBrowserSession } from "@/lib/middleware/auth";
-import { BadRequestError, ForbiddenError, handleApiError } from "@/lib/utils/errors";
+import { BadRequestError, ForbiddenError, NotFoundError, handleApiError } from "@/lib/utils/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,10 @@ async function readJsonBody(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (env.SELF_HOSTED) {
+      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+    }
+
     const browserSession = await requireBrowserSession(req);
     const parsed = finalizeCheckoutSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {

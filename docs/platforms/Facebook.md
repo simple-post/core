@@ -86,4 +86,4 @@ FACEBOOK_PAGE_ACCESS_TOKEN=
 FACEBOOK_PAGE_ID=
 ```
 
-Follow the [Facebook credentials guide](https://docs.simplepost.dev/facebook) to get your API keys.
+Follow the [Facebook credentials guide](https://docs.simplepost.social/facebook) to get your API keys.

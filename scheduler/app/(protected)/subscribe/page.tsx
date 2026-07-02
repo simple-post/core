@@ -1,10 +1,12 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { PlanSelection } from "@/components/billing/plan-selection";
 import { Navbar } from "@/components/navbar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-currency";
 import { getPlanByKey } from "@/lib/billing/plans";
+import { env } from "@/lib/env";
 
 interface SubscribePageProps {
   searchParams?: Promise<{
@@ -14,6 +16,10 @@ interface SubscribePageProps {
 }
 
 export default async function SubscribePage({ searchParams }: SubscribePageProps) {
+  if (env.SELF_HOSTED) {
+    redirect("/");
+  }
+
   const params = (await searchParams) ?? {};
   const checkout = Array.isArray(params.checkout) ? params.checkout[0] : params.checkout;
   const planParam = Array.isArray(params.plan) ? params.plan[0] : params.plan;

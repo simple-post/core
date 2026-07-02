@@ -2,7 +2,7 @@
 
 SimplePost is a platform for AI agents, apps, and humans to post on social media. It gives you one TypeScript-powered posting layer and five ways to use it: SDK, HTTP API, Scheduler app, CLI, and MCP server.
 
-You have access to this repository because you purchased SimplePost on [simplepost.dev](https://simplepost.dev). The product model is ownership first: pay once, get the code, run it yourself, modify it, and connect it to your own social platform apps and credentials.
+SimplePost is open source and ownership first: get the code, run it yourself, modify it, and connect it to your own social platform apps and credentials. Learn more at [simplepost.social](https://simplepost.social).
 
 ## What You Can Build With It
 
@@ -34,7 +34,7 @@ const results = await post({
 });
 ```
 
-Set up platform credentials with [docs.simplepost.dev](https://docs.simplepost.dev), or use the Scheduler app / CLI account connection flows when you do not want to manage raw tokens directly.
+Set up platform credentials with [docs.simplepost.social](https://docs.simplepost.social), or use the Scheduler app / CLI account connection flows when you do not want to manage raw tokens directly.
 
 ## Why SimplePost Exists
 
@@ -79,3 +79,11 @@ The main use cases are:
 Start with [docs/README.md](docs/README.md). It routes you to the interface you need and explains the common posting model shared by the SDK, server, app, CLI, and MCP server.
 
 Found a bug or have a feature request? Open an [issue](https://github.com/simple-post/core/issues) or start a thread in [Discussions](https://github.com/simple-post/core/discussions).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up the repo and submit changes, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+
+## License
+
+Everything in this repository is licensed under the [MIT License](LICENSE).

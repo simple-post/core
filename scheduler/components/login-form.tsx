@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Link from "next/link";
 
@@ -16,77 +16,11 @@ interface LoginFormProps {
   callbackURL?: string;
 }
 
-interface OpenAITestUserLoginResponse {
-  authenticated?: boolean;
-}
-
-interface OpenAITestUserLoginConfigResponse {
-  enabled?: boolean;
-}
-
-const OPENAI_TEST_USER_EMAIL = "openai@simplepost.social";
-
-async function fetchOpenAITestUserLoginEnabled(): Promise<boolean> {
-  const response = await fetch("/api/auth/sign-in/openai-test-user", {
-    method: "GET",
-  });
-
-  if (!response.ok) {
-    return false;
-  }
-
-  const data = (await response.json()) as OpenAITestUserLoginConfigResponse;
-  return data.enabled === true;
-}
-
-async function tryOpenAITestUserLogin(email: string, password: string): Promise<boolean> {
-  if (email !== OPENAI_TEST_USER_EMAIL) {
-    return false;
-  }
-
-  const response = await fetch("/api/auth/sign-in/openai-test-user", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!response.ok) {
-    throw new Error("OpenAI test user login failed");
-  }
-
-  const data = (await response.json()) as OpenAITestUserLoginResponse;
-  return data.authenticated === true;
-}
-
 export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [openAITestLoginEnabled, setOpenAITestLoginEnabled] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    fetchOpenAITestUserLoginEnabled()
-      .then((enabled) => {
-        if (active) {
-          setOpenAITestLoginEnabled(enabled);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setOpenAITestLoginEnabled(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -101,41 +35,6 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     } catch (error_) {
       logClientError(error_, "Google sign-in error");
       setError("Failed to sign in with Google. Please ensure your credentials are configured correctly.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePasswordSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      setError("Please enter a valid email address");
-      setIsLoading(false);
-      return;
-    }
-
-    if (!password) {
-      setError("Please enter your password");
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      if (await tryOpenAITestUserLogin(normalizedEmail, password)) {
-        window.location.assign(callbackURL);
-        return;
-      }
-
-      setError("Invalid email or password. Use the email link option if this is not the reviewer account.");
-    } catch (error_) {
-      logClientError(error_, "Password sign-in error");
-      setError("Failed to sign in. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -162,7 +61,6 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       });
       setSuccess("Email link sent! Check your email to sign in.");
       setEmail("");
-      setPassword("");
     } catch (error_) {
       logClientError(error_, "Email link error");
       setError("Failed to send email link. Please try again.");
@@ -268,93 +166,36 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
               </div>
             </div>
 
-            {openAITestLoginEnabled ? (
-              <form onSubmit={handlePasswordSignIn} className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="email"
-                    className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                    Email address
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
-                    className="h-11"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="password"
-                    className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                    Password
-                  </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    className="h-11"
-                  />
-                </div>
-                <Button type="submit" disabled={isLoading} className="w-full h-11">
-                  {isLoading ? "Signing in..." : "Sign in"}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleMagicLinkSignIn}
+            <form onSubmit={handleMagicLinkSignIn} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="email"
+                  className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Email address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
-                  variant="outline"
-                  className="w-full h-11">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                  Sign in with email link
-                </Button>
-              </form>
-            ) : (
-              <form onSubmit={handleMagicLinkSignIn} className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="email"
-                    className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                    Email address
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
-                    className="h-11"
-                    required
+                  className="h-11"
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={isLoading} className="w-full h-11">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                   />
-                </div>
-                <Button type="submit" disabled={isLoading} className="w-full h-11">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                  {isLoading ? "Sending..." : "Send Magic Link"}
-                </Button>
-              </form>
-            )}
+                </svg>
+                {isLoading ? "Sending..." : "Send Magic Link"}
+              </Button>
+            </form>
 
             <div className="pt-5 border-t border-border text-center text-xs text-muted-foreground">
               <p>

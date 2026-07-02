@@ -48,7 +48,12 @@ export const env = {
   get RESEND_FROM_ADDRESS() {
     return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.social";
   },
-  get ENABLE_OPENAI_TEST_LOGIN() {
-    return getBoolean("ENABLE_OPENAI_TEST_LOGIN");
+  /**
+   * Self-hosted mode: disables all billing and Stripe integration. Every user
+   * gets unrestricted access, billing UI is hidden, and Stripe environment
+   * variables are not required.
+   */
+  get SELF_HOSTED() {
+    return getBoolean("SELF_HOSTED");
   },
 };

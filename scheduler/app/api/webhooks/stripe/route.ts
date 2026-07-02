@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
 import { syncCheckoutSession, syncStripeSubscription } from "@/lib/billing/subscriptions";
+import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
 
 import type Stripe from "stripe";
@@ -11,6 +12,10 @@ export const dynamic = "force-dynamic";
 const log = createLogger("stripe:webhook");
 
 export async function POST(req: NextRequest) {
+  if (env.SELF_HOSTED) {
+    return NextResponse.json({ error: "Billing is disabled on this self-hosted instance" }, { status: 404 });
+  }
+
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
     return NextResponse.json({ error: "Missing Stripe signature" }, { status: 400 });

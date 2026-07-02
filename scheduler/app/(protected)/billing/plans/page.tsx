@@ -20,6 +20,7 @@ interface BillingStatus {
   plan: {
     key: PlanKey;
   } | null;
+  selfHosted?: boolean;
 }
 
 async function parseApiError(response: Response): Promise<string> {
@@ -80,6 +81,18 @@ export default function BillingPlansPage() {
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Loading plans...</p>
               </div>
+            </div>
+          </section>
+        ) : billing?.selfHosted ? (
+          <section className="mx-auto w-full max-w-2xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
+            <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+              <h1 className="text-xl font-semibold tracking-[-0.025em]">Billing is disabled</h1>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                This instance runs in self-hosted mode, so there are no plans to manage.
+              </p>
+              <Button asChild className="mt-5">
+                <Link href="/">Back to the app</Link>
+              </Button>
             </div>
           </section>
         ) : !billing?.active || !billing.plan ? (

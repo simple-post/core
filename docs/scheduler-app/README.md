@@ -61,6 +61,10 @@ The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:300
 
 See [`scheduler/.env.example`](../../scheduler/.env.example) for the full list of environment variables.
 
+## Self-Hosted Mode
+
+Set `SELF_HOSTED=true` to disable all billing and Stripe integration. Every user gets unrestricted access (no plan limits on accounts, posts, CLI, or API), the billing UI is hidden, and no `STRIPE_*` environment variables are required. This is the recommended setup when you run the Scheduler app for yourself. It is off by default.
+
 ## Main Workflows
 
 ### Connect accounts

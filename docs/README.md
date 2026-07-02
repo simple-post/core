@@ -74,7 +74,7 @@ SimplePost supports these platform keys in the SDK and the interfaces built on t
 | LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
 | Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
 
-Use [docs.simplepost.dev](https://docs.simplepost.dev) for guided credential setup. The platform guides in this repo explain what each platform needs and how SimplePost expects those credentials.
+Use [docs.simplepost.social](https://docs.simplepost.social) for guided credential setup. The platform guides in this repo explain what each platform needs and how SimplePost expects those credentials.
 
 ## Choosing A Credential Strategy
 
@@ -84,7 +84,7 @@ You have three common options:
 - Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, and Scheduler API keys use them.
 - Store accounts locally in the CLI for terminal-only workflows.
 
-The one-time license model matters here: you can set up your own apps on each social platform and run the code yourself. SimplePost should simplify the setup, not make you dependent on a hosted account you cannot inspect or replace.
+Ownership matters here: you can set up your own apps on each social platform and run the code yourself. SimplePost should simplify the setup, not make you dependent on a hosted account you cannot inspect or replace.
 
 ## Repository Map
 
@@ -101,4 +101,4 @@ The one-time license model matters here: you can set up your own apps on each so
 
 - Issues and bugs: [GitHub Issues](https://github.com/simple-post/core/issues)
 - Questions and discussions: [GitHub Discussions](https://github.com/simple-post/core/discussions)
-- Credential setup: [docs.simplepost.dev](https://docs.simplepost.dev)
+- Credential setup: [docs.simplepost.social](https://docs.simplepost.social)

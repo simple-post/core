@@ -9,9 +9,11 @@ import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
+import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
+import { getScheduledForValueError, parseScheduledForValue } from "@/lib/validations/scheduled-time";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types";
 
@@ -29,18 +31,15 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
   }
 
   if (!scheduledForValue) {
-    throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
+    throw new BadRequestError("Choose a date and time before scheduling this post.");
   }
 
-  const scheduledFor = new Date(scheduledForValue);
-  if (Number.isNaN(scheduledFor.getTime())) {
-    throw new BadRequestError("scheduledFor must be a valid ISO 8601 datetime");
-  }
-  if (scheduledFor <= new Date()) {
-    throw new BadRequestError("scheduledFor must be in the future");
+  const scheduledForError = getScheduledForValueError(scheduledForValue);
+  if (scheduledForError) {
+    throw new BadRequestError(scheduledForError);
   }
 
-  return scheduledFor;
+  return parseScheduledForValue(scheduledForValue)!;
 }
 
 // GET /api/v1/posts - Get all posts (drafts, scheduled, past, and failed) with pagination
@@ -153,6 +152,8 @@ export async function POST(req: NextRequest) {
       throw new ValidationError(validation);
     }
 
+    const repostSettings = await resolvePostRepostSettings(userId, validated.repost);
+
     // Create the post first
     log.debug("Creating post record in database");
     let post;
@@ -166,6 +167,10 @@ export async function POST(req: NextRequest) {
           status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
           accountOptions: validated.accountOptions,
           accountOverrides: validated.accountOverrides,
+          repostEnabled: repostSettings.enabled,
+          repostDelayHours: repostSettings.delayHours,
+          repostStatus: "not_applicable",
+          repostDueAt: null,
           thread: validated.thread,
           idempotencyKey: validated.idempotencyKey,
         },
@@ -225,18 +230,30 @@ export async function POST(req: NextRequest) {
 
         // Update post status based on results
         if (summary.overallSuccess) {
+          const publishedAt = new Date();
+          const repostState = buildPublishedRepostState({
+            enabled: repostSettings.enabled,
+            delayHours: repostSettings.delayHours,
+            accountResults,
+            publishedAt,
+          });
           log.debug({ postId: post.id }, "Updating post status to published");
           await repository.updatePost(post.id, {
             status: "published",
-            publishedAt: new Date(),
+            publishedAt,
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
             accountResults,
+            repostDueAt: repostState.repostDueAt,
+            repostStatus: repostState.repostStatus,
+            repostResults: null,
+            repostErrorMessage: null,
+            repostErrorDetails: null,
           });
           await dispatchPostWebhooks(userId, "post.published", {
             id: post.id,
             status: "published",
             message: validated.message,
-            publishedAt: new Date().toISOString(),
+            publishedAt: publishedAt.toISOString(),
             accountResults,
           });
         } else {
@@ -264,6 +281,8 @@ export async function POST(req: NextRequest) {
             errorDetails,
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
             accountResults,
+            repostDueAt: null,
+            repostStatus: "not_applicable",
           });
           await dispatchPostWebhooks(userId, "post.failed", {
             id: post.id,
@@ -319,6 +338,8 @@ export async function POST(req: NextRequest) {
           status: "failed",
           errorMessage,
           errorDetails,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
         });
 
         const durationMs = Date.now() - startTime;

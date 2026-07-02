@@ -46,6 +46,8 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 5. Use \`postingMode: "now"\` for immediate publishing (the call blocks until each platform responds and returns \`postingResults\` per account). Use \`postingMode: "schedule"\` together with \`scheduledFor\` to schedule for later — the call returns immediately with \`status: "scheduled"\` and the scheduler will publish at that time. Use \`postingMode: "draft"\` to save the post in SimplePost without publishing or scheduling it.
 
+   \`create_post\` applies the user's SimplePost auto-repost default automatically. Inspect \`post.repostEnabled\`, \`post.repostDueAt\`, and \`post.repostStatus\` in tool results when reporting whether a repost is scheduled.
+
 6. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, scheduled time, or move between draft and scheduled. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
 
 # Visible text responses

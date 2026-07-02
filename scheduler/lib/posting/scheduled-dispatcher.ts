@@ -4,9 +4,12 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { createLogger } from "@/lib/logger";
-import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
+import { summarizeRepostOutcome } from "@/lib/repost/results";
+import { buildPublishedRepostState } from "@/lib/repost/settings";
+import { buildRepostTargets } from "@/lib/repost/targets";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
@@ -71,7 +74,22 @@ interface DuePost {
   accountOverrides: unknown;
   thread: ThreadSegment[] | null;
   accountResults: unknown;
+  repostEnabled: boolean;
+  repostDelayHours: number;
   media: MediaFile[];
+  accounts: Array<{
+    id: string;
+    platform: string;
+  }>;
+}
+
+interface DueRepostPost {
+  id: string;
+  userId: string;
+  message: string;
+  accountOptions: unknown;
+  accountResults: unknown;
+  repostDelayHours: number;
   accounts: Array<{
     id: string;
     platform: string;
@@ -86,8 +104,14 @@ export interface DispatchDuePostsResult {
   failedPosts: number;
   skippedPosts: number;
   staleRecoveredPosts: number;
+  processedReposts: number;
+  completedReposts: number;
+  failedReposts: number;
+  skippedReposts: number;
+  staleRecoveredReposts: number;
   platformSummary: DispatchPlatformSummary[];
   postResults: DispatchPostResult[];
+  repostResults: DispatchPostResult[];
 }
 
 /**
@@ -135,6 +159,34 @@ async function recoverStalePendingPosts(): Promise<number> {
   return count;
 }
 
+async function recoverStalePendingReposts(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_PENDING_MINUTES * 60 * 1000);
+  const errorMessage = "Reposting was interrupted before completion. Use the repost action to try again.";
+
+  const stalePosts = await prisma.post.findMany({
+    where: {
+      repostStatus: "pending",
+      updatedAt: { lt: cutoff },
+    },
+    select: { id: true },
+  });
+
+  if (stalePosts.length === 0) {
+    return 0;
+  }
+
+  const { count } = await prisma.post.updateMany({
+    where: { id: { in: stalePosts.map((post) => post.id) }, repostStatus: "pending" },
+    data: {
+      repostStatus: "failed",
+      repostErrorMessage: errorMessage,
+    },
+  });
+
+  log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending reposts");
+  return count;
+}
+
 /**
  * Atomically claims posts for this dispatch run by flipping them from
  * "scheduled" to "pending". A post whose status already changed (claimed by a
@@ -160,6 +212,25 @@ async function claimPosts(posts: DuePost[]): Promise<DuePost[]> {
   return claimed;
 }
 
+async function claimReposts(posts: DueRepostPost[]): Promise<DueRepostPost[]> {
+  const claimed: DueRepostPost[] = [];
+
+  for (const post of posts) {
+    const { count } = await prisma.post.updateMany({
+      where: { id: post.id, repostStatus: "scheduled" },
+      data: { repostStatus: "pending" },
+    });
+
+    if (count === 1) {
+      claimed.push(post);
+    } else {
+      log.info({ postId: post.id }, "Repost no longer claimable — skipping");
+    }
+  }
+
+  return claimed;
+}
+
 function getRateLimit(platform: string): PlatformRateLimit {
   return PLATFORM_RATE_LIMITS[platform.toLowerCase()] ?? DEFAULT_RATE_LIMIT;
 }
@@ -169,10 +240,7 @@ async function getSentCountForPlatform(platform: string, intervalMinutes: number
 
   return await prisma.post.count({
     where: {
-      status: "published",
-      publishedAt: {
-        gte: windowStart,
-      },
+      OR: [{ publishedAt: { gte: windowStart } }, { repostedAt: { gte: windowStart } }],
       accounts: {
         some: {
           platform,
@@ -198,20 +266,32 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   }
 
   if (accountIds.length === 0) {
+    const publishedAt = new Date();
+    const repostState = buildPublishedRepostState({
+      enabled: post.repostEnabled,
+      delayHours: post.repostDelayHours,
+      accountResults: previousResults,
+      publishedAt,
+    });
     await prisma.post.update({
       where: { id: post.id },
       data: {
         status: "published",
-        publishedAt: new Date(),
+        publishedAt,
         errorMessage: null,
         errorDetails: Prisma.DbNull,
+        repostDueAt: repostState.repostDueAt,
+        repostStatus: repostState.repostStatus,
+        repostResults: Prisma.DbNull,
+        repostErrorMessage: null,
+        repostErrorDetails: Prisma.DbNull,
       },
     });
     await dispatchPostWebhooks(post.userId, "post.published", {
       id: post.id,
       status: "published",
       message: post.message,
-      publishedAt: new Date().toISOString(),
+      publishedAt: publishedAt.toISOString(),
       accountResults: previousResults,
     });
 
@@ -243,17 +323,29 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
 
     if (summary.overallSuccess) {
+      const publishedAt = new Date();
+      const repostState = buildPublishedRepostState({
+        enabled: post.repostEnabled,
+        delayHours: post.repostDelayHours,
+        accountResults,
+        publishedAt,
+      });
       await prisma.post.update({
         where: { id: post.id },
         data: {
           status: "published",
-          publishedAt: new Date(),
+          publishedAt,
           errorMessage: null,
           errorDetails: Prisma.DbNull,
           accountResults: sanitizedAccountResults,
           threadResults: hasThreadResults
             ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
             : Prisma.DbNull,
+          repostDueAt: repostState.repostDueAt,
+          repostStatus: repostState.repostStatus,
+          repostResults: Prisma.DbNull,
+          repostErrorMessage: null,
+          repostErrorDetails: Prisma.DbNull,
         },
       });
 
@@ -261,7 +353,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         id: post.id,
         status: "published",
         message: post.message,
-        publishedAt: new Date().toISOString(),
+        publishedAt: publishedAt.toISOString(),
         accountResults,
       });
 
@@ -299,6 +391,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         threadResults: hasThreadResults
           ? (sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue)
           : Prisma.DbNull,
+        repostDueAt: null,
+        repostStatus: "not_applicable",
       },
     });
 
@@ -328,6 +422,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
         }) as Prisma.InputJsonValue,
+        repostDueAt: null,
+        repostStatus: "not_applicable",
       },
     });
 
@@ -347,35 +443,135 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   }
 }
 
+async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResult> {
+  const targets = buildRepostTargets(post);
+
+  if (targets.length === 0) {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        repostStatus: "not_applicable",
+        repostDueAt: null,
+        repostErrorMessage: null,
+        repostErrorDetails: Prisma.DbNull,
+      },
+    });
+    return { postId: post.id, success: true, status: "published" };
+  }
+
+  try {
+    await assertActiveSubscription(post.userId);
+
+    const results = await repostToAccounts(
+      post.userId,
+      targets,
+      (post.accountOptions as AccountOptionsMap | null) ?? undefined,
+    );
+    const outcome = summarizeRepostOutcome(results);
+    const repostResults = outcome.repostResults as unknown as Prisma.InputJsonValue;
+
+    if (outcome.summary.overallSuccess) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: {
+          repostStatus: "completed",
+          repostedAt: new Date(),
+          repostResults,
+          repostErrorMessage: null,
+          repostErrorDetails: Prisma.DbNull,
+        },
+      });
+
+      return { postId: post.id, success: true, status: "published" };
+    }
+
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        repostStatus: "failed",
+        repostResults,
+        repostErrorMessage: outcome.errorMessage,
+        repostErrorDetails: (outcome.errorDetails ?? Prisma.DbNull) as Prisma.InputJsonValue,
+      },
+    });
+
+    return { postId: post.id, success: false, status: "failed", errorMessage: outcome.errorMessage ?? undefined };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error while reposting";
+
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        repostStatus: "failed",
+        repostErrorMessage: errorMessage,
+        repostErrorDetails: sanitizeForJson({
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        }) as Prisma.InputJsonValue,
+      },
+    });
+
+    return { postId: post.id, success: false, status: "failed", errorMessage };
+  }
+}
+
 export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResult> {
   const startedAt = new Date();
   const now = new Date();
 
-  const staleRecoveredPosts = await recoverStalePendingPosts();
+  const [staleRecoveredPosts, staleRecoveredReposts] = await Promise.all([
+    recoverStalePendingPosts(),
+    recoverStalePendingReposts(),
+  ]);
 
-  const duePosts = (await prisma.post.findMany({
-    where: {
-      status: "scheduled",
-      scheduledFor: {
-        lte: now,
-      },
-    },
-    include: {
-      media: true,
-      accounts: {
-        select: {
-          id: true,
-          platform: true,
+  const [duePosts, dueReposts] = (await Promise.all([
+    prisma.post.findMany({
+      where: {
+        status: "scheduled",
+        scheduledFor: {
+          lte: now,
         },
       },
-    },
-    orderBy: {
-      scheduledFor: "asc",
-    },
-    take: MAX_POSTS_PER_RUN,
-  })) as DuePost[];
+      include: {
+        media: true,
+        accounts: {
+          select: {
+            id: true,
+            platform: true,
+          },
+        },
+      },
+      orderBy: {
+        scheduledFor: "asc",
+      },
+      take: MAX_POSTS_PER_RUN,
+    }),
+    prisma.post.findMany({
+      where: {
+        status: "published",
+        repostStatus: "scheduled",
+        repostDueAt: {
+          lte: now,
+        },
+      },
+      include: {
+        accounts: {
+          select: {
+            id: true,
+            platform: true,
+          },
+        },
+      },
+      orderBy: {
+        repostDueAt: "asc",
+      },
+      take: MAX_POSTS_PER_RUN,
+    }),
+  ])) as [DuePost[], DueRepostPost[]];
 
-  if (duePosts.length === 0) {
+  const repostTargetsByPostId = new Map(dueReposts.map((post) => [post.id, buildRepostTargets(post)]));
+
+  if (duePosts.length === 0 && dueReposts.length === 0) {
     return {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
@@ -384,13 +580,27 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       failedPosts: 0,
       skippedPosts: 0,
       staleRecoveredPosts,
+      processedReposts: 0,
+      completedReposts: 0,
+      failedReposts: 0,
+      skippedReposts: 0,
+      staleRecoveredReposts,
       platformSummary: [],
       postResults: [],
+      repostResults: [],
     };
   }
 
   const uniquePlatforms = [
-    ...new Set<string>(duePosts.flatMap((post) => post.accounts.map((account) => account.platform.toLowerCase()))),
+    ...new Set<string>([
+      ...duePosts.flatMap((post) => post.accounts.map((account) => account.platform.toLowerCase())),
+      ...dueReposts.flatMap((post) => {
+        const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
+        return (repostTargetsByPostId.get(post.id) ?? [])
+          .map((target) => accountById.get(target.accountId))
+          .filter((platform): platform is string => typeof platform === "string");
+      }),
+    ]),
   ];
 
   const platformBudgets = new Map<string, { sent: number; availableSlots: number; rateLimit: PlatformRateLimit }>();
@@ -410,6 +620,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   );
 
   const postsToProcess: DuePost[] = [];
+  const repostsToProcess: DueRepostPost[] = [];
   const skippedByPlatform = new Map<string, number>();
 
   for (const post of duePosts) {
@@ -444,12 +655,64 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     }
   }
 
-  const claimedPosts = await claimPosts(postsToProcess);
+  for (const post of dueReposts) {
+    const targets = repostTargetsByPostId.get(post.id) ?? [];
+    const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
+    const costs = new Map<string, number>();
 
-  const postResults = await Promise.all(claimedPosts.map((post) => publishScheduledPost(post)));
+    for (const target of targets) {
+      const platform = accountById.get(target.accountId);
+      if (platform) {
+        costs.set(platform, (costs.get(platform) ?? 0) + 1);
+      }
+    }
+
+    // No billable targets (e.g. the only repost-capable account lost its
+    // publish result): enqueue so dispatchAutoRepost can settle it to
+    // "not_applicable" without consuming any rate-limit budget. Every real
+    // target maps to an account in post.accounts, so a non-empty target set
+    // always produces costs above.
+    if (costs.size === 0) {
+      repostsToProcess.push(post);
+      continue;
+    }
+
+    const canSend = [...costs].every(([platform, cost]) => {
+      const budget = platformBudgets.get(platform);
+      return !!budget && budget.availableSlots - budget.sent >= cost;
+    });
+
+    if (!canSend) {
+      for (const [platform, cost] of costs) {
+        const budget = platformBudgets.get(platform);
+        if (!budget || budget.availableSlots - budget.sent < cost) {
+          skippedByPlatform.set(platform, (skippedByPlatform.get(platform) ?? 0) + 1);
+        }
+      }
+      continue;
+    }
+
+    repostsToProcess.push(post);
+    for (const [platform, cost] of costs) {
+      const budget = platformBudgets.get(platform);
+      if (budget) {
+        budget.sent += cost;
+      }
+    }
+  }
+
+  const claimedPosts = await claimPosts(postsToProcess);
+  const claimedReposts = await claimReposts(repostsToProcess);
+
+  const [postResults, repostResults] = await Promise.all([
+    Promise.all(claimedPosts.map((post) => publishScheduledPost(post))),
+    Promise.all(claimedReposts.map((post) => dispatchAutoRepost(post))),
+  ]);
 
   const publishedPosts = postResults.filter((result) => result.status === "published").length;
   const failedPosts = postResults.filter((result) => result.status === "failed").length;
+  const completedReposts = repostResults.filter((result) => result.success).length;
+  const failedReposts = repostResults.filter((result) => !result.success).length;
 
   const platformSummary: DispatchPlatformSummary[] = uniquePlatforms
     .map((platform) => {
@@ -474,11 +737,17 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   log.info(
     {
       duePosts: duePosts.length,
+      dueReposts: dueReposts.length,
       processedPosts: claimedPosts.length,
+      processedReposts: claimedReposts.length,
       skippedPosts: duePosts.length - claimedPosts.length,
+      skippedReposts: dueReposts.length - claimedReposts.length,
       staleRecoveredPosts,
+      staleRecoveredReposts,
       publishedPosts,
       failedPosts,
+      completedReposts,
+      failedReposts,
       platformSummary,
     },
     "Scheduled posts dispatch completed",
@@ -492,7 +761,13 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     failedPosts,
     skippedPosts: duePosts.length - claimedPosts.length,
     staleRecoveredPosts,
+    processedReposts: claimedReposts.length,
+    completedReposts,
+    failedReposts,
+    skippedReposts: dueReposts.length - claimedReposts.length,
+    staleRecoveredReposts,
     platformSummary,
     postResults,
+    repostResults,
   };
 }

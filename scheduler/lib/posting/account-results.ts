@@ -22,6 +22,7 @@ export function toAccountResultsMap(results: PostingResult[]): AccountResultsMap
       error: result.error,
       message: result.message,
       completedAt,
+      platformData: result.platformData,
     } satisfies AccountPublishResult;
   }
 

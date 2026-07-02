@@ -62,6 +62,7 @@ export function QueryClientProvider({ children }: { children: ReactNode }) {
 // Export query keys for cache invalidation
 export const queryKeys = {
   accounts: ["accounts"],
+  repostSettings: ["repost-settings"],
   posts: (type?: string) => (type ? ["posts", type] : ["posts"]),
   paginatedPosts: (type: string, page: number, limit: number) => ["posts", type, { page, limit }],
   post: (id: string) => ["posts", "detail", id],

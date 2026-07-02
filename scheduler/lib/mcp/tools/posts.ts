@@ -6,6 +6,7 @@ import { PostsModel } from "@/lib/db";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
+import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -66,6 +67,10 @@ const mcpPostSchema = z.object({
   scheduledFor: z.string().nullable(),
   status: z.string(),
   publishedAt: z.string().nullable(),
+  repostEnabled: z.boolean(),
+  repostDelayHours: z.number(),
+  repostDueAt: z.string().nullable(),
+  repostStatus: z.string(),
 });
 
 const threadSegmentResultSchema = z.object({
@@ -214,6 +219,12 @@ const managedPostSchema = z.object({
   publishedAt: z.string().nullable(),
   status: managedPostStatusSchema,
   errorMessage: z.string().nullable(),
+  repostEnabled: z.boolean(),
+  repostDelayHours: z.number(),
+  repostDueAt: z.string().nullable(),
+  repostStatus: z.string().nullable(),
+  repostedAt: z.string().nullable(),
+  repostErrorMessage: z.string().nullable(),
   mediaCount: z.number(),
   threadSegmentCount: z.number(),
 });
@@ -314,6 +325,10 @@ function mapPost(post: {
   scheduledFor: Date | null;
   status: string;
   publishedAt?: Date | null;
+  repostEnabled?: boolean;
+  repostDelayHours?: number;
+  repostDueAt?: Date | null;
+  repostStatus?: string;
 }) {
   return {
     id: post.id,
@@ -322,6 +337,10 @@ function mapPost(post: {
     scheduledFor: post.scheduledFor?.toISOString() ?? null,
     status: post.status,
     publishedAt: post.publishedAt?.toISOString() ?? null,
+    repostEnabled: post.repostEnabled ?? false,
+    repostDelayHours: post.repostDelayHours ?? 12,
+    repostDueAt: post.repostDueAt?.toISOString() ?? null,
+    repostStatus: post.repostStatus ?? "not_applicable",
   };
 }
 
@@ -370,6 +389,12 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
     publishedAt: post.publishedAt?.toISOString() ?? null,
     status: mapManagedStatus(post.status),
     errorMessage: post.errorMessage ?? null,
+    repostEnabled: post.repostEnabled ?? false,
+    repostDelayHours: post.repostDelayHours ?? 12,
+    repostDueAt: post.repostDueAt?.toISOString() ?? null,
+    repostStatus: post.repostStatus ?? "not_applicable",
+    repostedAt: post.repostedAt?.toISOString() ?? null,
+    repostErrorMessage: post.repostErrorMessage ?? null,
     mediaCount: post.media.length,
     threadSegmentCount: thread.length,
   };
@@ -741,6 +766,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   const threadSegments = toThreadSegments(input.thread);
   const threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
   const threadSegmentCount = threadSegments.length;
+  const repostSettings = await resolvePostRepostSettings(userId, undefined);
 
   // Validate content
   const validation = await validatePostForAccounts({
@@ -775,6 +801,10 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         media: mediaFiles,
         scheduledFor,
         status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+        repostEnabled: repostSettings.enabled,
+        repostDelayHours: repostSettings.delayHours,
+        repostStatus: "not_applicable",
+        repostDueAt: null,
         thread: threadForPersistence,
         idempotencyKey: input.idempotencyKey,
       },
@@ -822,17 +852,29 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
       if (summary.overallSuccess) {
+        const publishedAt = new Date();
+        const repostState = buildPublishedRepostState({
+          enabled: repostSettings.enabled,
+          delayHours: repostSettings.delayHours,
+          accountResults,
+          publishedAt,
+        });
         await repository.updatePost(post.id, {
           status: "published",
-          publishedAt: new Date(),
+          publishedAt,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
+          repostDueAt: repostState.repostDueAt,
+          repostStatus: repostState.repostStatus,
+          repostResults: null,
+          repostErrorMessage: null,
+          repostErrorDetails: null,
         });
         await dispatchPostWebhooks(userId, "post.published", {
           id: post.id,
           status: "published",
           message: input.message,
-          publishedAt: new Date().toISOString(),
+          publishedAt: publishedAt.toISOString(),
           accountResults,
         });
       } else {
@@ -857,6 +899,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
         });
         await dispatchPostWebhooks(userId, "post.failed", {
           id: post.id,
@@ -890,7 +934,12 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       };
     } catch (postingError) {
       const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
-      await repository.updatePost(post.id, { status: "failed", errorMessage });
+      await repository.updatePost(post.id, {
+        status: "failed",
+        errorMessage,
+        repostDueAt: null,
+        repostStatus: "not_applicable",
+      });
       throw new Error(`Something went wrong while publishing the post: ${errorMessage}`);
     }
   }

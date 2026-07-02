@@ -4,6 +4,7 @@ import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
 import { handleApiError, NotFoundError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import {
   deleteAccountOptionFiles,
@@ -13,6 +14,11 @@ import {
 } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
+import {
+  SCHEDULED_TIME_PAST_MESSAGE,
+  getScheduledForValueError,
+  parseScheduledForValue,
+} from "@/lib/validations/scheduled-time";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, PostingMode, ThreadSegmentResult } from "@/types";
 
@@ -31,20 +37,20 @@ function resolveScheduledFor(
 
   if (!scheduledForValue) {
     if (currentScheduledFor) {
+      if (currentScheduledFor <= new Date()) {
+        throw new BadRequestError(SCHEDULED_TIME_PAST_MESSAGE);
+      }
       return currentScheduledFor;
     }
-    throw new BadRequestError("scheduledFor is required when postingMode is 'schedule'");
+    throw new BadRequestError("Choose a date and time before scheduling this post.");
   }
 
-  const scheduledFor = new Date(scheduledForValue);
-  if (Number.isNaN(scheduledFor.getTime())) {
-    throw new BadRequestError("scheduledFor must be a valid ISO 8601 datetime");
-  }
-  if (scheduledFor <= new Date()) {
-    throw new BadRequestError("scheduledFor must be in the future");
+  const scheduledForError = getScheduledForValueError(scheduledForValue);
+  if (scheduledForError) {
+    throw new BadRequestError(scheduledForError);
   }
 
-  return scheduledFor;
+  return parseScheduledForValue(scheduledForValue)!;
 }
 
 // GET /api/v1/posts/[id] - Get a single post by ID
@@ -108,6 +114,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new ValidationError(validation);
     }
 
+    const repostSettings = validated.repost
+      ? normalizeRepostSettings(validated.repost)
+      : normalizeRepostSettings({
+          enabled: currentPost.repostEnabled,
+          delayHours: currentPost.repostDelayHours,
+        });
+
     // Capture removed media before update for R2 cleanup. Include media from
     // every thread segment in the comparison, otherwise removing a segment
     // would orphan its media in R2.
@@ -138,8 +151,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       errorDetails: null,
       publishedAt: null,
       threadResults: null,
+      accountResults: null,
       accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
+      repostEnabled: repostSettings.enabled,
+      repostDelayHours: repostSettings.delayHours,
+      repostDueAt: null,
+      repostStatus: "not_applicable",
+      repostedAt: null,
+      repostResults: null,
+      repostErrorMessage: null,
+      repostErrorDetails: null,
       media: finalMedia,
       thread: validated.thread,
     });
@@ -176,17 +198,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
       if (summary.overallSuccess) {
+        const publishedAt = new Date();
+        const repostState = buildPublishedRepostState({
+          enabled: repostSettings.enabled,
+          delayHours: repostSettings.delayHours,
+          accountResults,
+          publishedAt,
+        });
         await repository.updatePost(post.id, {
           status: "published",
-          publishedAt: new Date(),
+          publishedAt,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
+          repostDueAt: repostState.repostDueAt,
+          repostStatus: repostState.repostStatus,
+          repostResults: null,
+          repostErrorMessage: null,
+          repostErrorDetails: null,
         });
         await dispatchPostWebhooks(session.user.id, "post.published", {
           id: post.id,
           status: "published",
           message: validated.message,
-          publishedAt: new Date().toISOString(),
+          publishedAt: publishedAt.toISOString(),
           accountResults,
         });
       } else {
@@ -212,6 +246,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           errorDetails,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
         });
         await dispatchPostWebhooks(session.user.id, "post.failed", {
           id: post.id,
@@ -259,6 +295,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         status: "failed",
         errorMessage,
         errorDetails,
+        repostDueAt: null,
+        repostStatus: "not_applicable",
       });
 
       throw new BadRequestError("Failed to post to platforms");

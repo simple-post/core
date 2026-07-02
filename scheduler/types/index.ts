@@ -19,6 +19,7 @@ export type {
 
 export type PostingMode = "now" | "schedule" | "draft";
 export type PostStatus = "draft" | "scheduled" | "pending" | "published" | "failed";
+export type RepostStatus = "not_applicable" | "scheduled" | "pending" | "completed" | "failed";
 
 export interface AccountPlatformOptions {
   x?: {
@@ -81,6 +82,14 @@ export interface SocialPost {
   publishedAt?: Date | null;
   accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
+  repostEnabled?: boolean;
+  repostDelayHours?: number;
+  repostDueAt?: Date | null;
+  repostStatus?: RepostStatus;
+  repostedAt?: Date | null;
+  repostResults?: AccountResultsMap | null;
+  repostErrorMessage?: string | null;
+  repostErrorDetails?: Record<string, unknown> | null;
   thread?: ThreadSegment[];
   threadResults?: Record<string, ThreadSegmentResult[]> | null;
   accountResults?: AccountResultsMap | null;
@@ -99,6 +108,7 @@ export interface AccountPublishResult {
   error?: string;
   message?: string;
   completedAt: string;
+  platformData?: Record<string, unknown>;
 }
 
 export type AccountResultsMap = Record<string, AccountPublishResult>;

@@ -83,6 +83,53 @@ export const AccountOverridesMapSchema = z.record(z.string(), AccountContentOver
 
 export type AccountOverridesMap = z.infer<typeof AccountOverridesMapSchema>;
 
+export const RepostSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  delayHours: z
+    .number()
+    .int()
+    .positive()
+    .max(24 * 30)
+    .default(12),
+});
+
+export type RepostSettings = z.infer<typeof RepostSettingsSchema>;
+
+export const RepostTargetSchema = z.object({
+  postId: z.string().min(1),
+  uri: z.string().optional(),
+  cid: z.string().optional(),
+  postUrl: z.url().optional(),
+});
+
+export type RepostTarget = z.infer<typeof RepostTargetSchema>;
+
+export const RepostTargetsMapSchema = z.record(z.string(), RepostTargetSchema);
+
+export type RepostTargetsMap = z.infer<typeof RepostTargetsMapSchema>;
+
+export const repostPostSchema = z
+  .object({
+    accountIds: z.array(z.string()).min(1, "At least one account is required").optional(),
+    target: RepostTargetSchema.optional(),
+    accountTargets: RepostTargetsMapSchema.optional(),
+    accountOptions: AccountOptionsMapSchema.optional(),
+  })
+  .refine((data) => data.target || data.accountTargets, {
+    message: "Either target or accountTargets is required",
+  })
+  .refine((data) => data.accountTargets || (data.target && data.accountIds && data.accountIds.length > 0), {
+    message: "accountIds is required when using a shared target",
+  });
+
+export type RepostPostInput = z.infer<typeof repostPostSchema>;
+
+// Repost capability lives in the browser-safe platform-names module so client
+// bundles can import it without dragging in the Node-only SDK barrel. Re-exported
+// here to keep the `@simple-post/sdk` barrel surface unchanged for server callers.
+export { REPOST_CAPABLE_PLATFORMS, isRepostCapablePlatform } from "../platform-names";
+export type { RepostCapablePlatform } from "../platform-names";
+
 export const createPostSchema = z.object({
   message: z.string().default(""),
   accountIds: z.array(z.string()).min(1, "At least one account is required"),
@@ -90,6 +137,7 @@ export const createPostSchema = z.object({
   scheduledFor: z.iso.datetime().optional(),
   accountOptions: AccountOptionsMapSchema.optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
+  repost: RepostSettingsSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
   thread: ThreadSchema.optional(),
   idempotencyKey: z

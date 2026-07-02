@@ -61,11 +61,8 @@ export default class AccountAddCommand extends Command {
     const paths = getCliPaths(this.config.configDir);
     let config = await loadCliConfig(paths);
 
+    // Non-interactively this succeeds when SIMPLE_POST_CONFIG_PASSWORD is set.
     if (!config.storage) {
-      if (!prompt.interactive) {
-        throw new Error('Secret storage is not configured. Run "simplepost setup --backend <backend>" first.');
-      }
-
       const setupResult = await configureStorage({
         cliConfig: config,
         paths,

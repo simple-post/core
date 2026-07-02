@@ -5,7 +5,7 @@ import { collectPostInput } from "./input.js";
 import { getAccountPlatformValues } from "../account/platforms.js";
 import { remoteAccountsToAppRecords } from "../account/store.js";
 import { loadCliConfig, getCliPaths } from "../config.js";
-import { CredentialResolver, hasLegacyXEnvCredentials } from "../credentials.js";
+import { CredentialResolver } from "../credentials.js";
 import {
   getSchedulerContextFromConfig,
   fetchSchedulerApi,
@@ -48,8 +48,9 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   pinterest: "Pinterest",
 };
 
-function hasExplicitXCredentials(post: Post): boolean {
-  return Boolean(post.options?.x?.credentials);
+function hasExplicitCredentials(post: Post, platform: Platform): boolean {
+  const platformOptions = post.options?.[platform];
+  return Boolean(platformOptions && "credentials" in platformOptions && platformOptions.credentials);
 }
 
 function getPlatformLabel(platform: Platform): string {
@@ -166,6 +167,12 @@ async function buildExecutionTargets(options: {
     const aliases = options.selections[platform] ?? [];
 
     if (aliases.length === 0) {
+      if (!hasExplicitCredentials(options.post, platform)) {
+        throw new Error(
+          `No account was selected for ${getPlatformLabel(platform)}. Use --account ${platform}:<alias> or provide credentials in the post options.`,
+        );
+      }
+
       targets.push({
         platform,
         post: clonePostForPlatform(options.post, platform),
@@ -272,6 +279,7 @@ export async function runPostWorkflow(options: {
     })),
   );
 
+  const wantsAppAccounts = (options.flags["app-account-id"]?.length ?? 0) > 0;
   let schedulerCtx: SchedulerContext | undefined;
   let appAccounts: AccountEntry[] = [];
 
@@ -287,9 +295,14 @@ export async function runPostWorkflow(options: {
         source: "app" as const,
         username: record.username ?? undefined,
       }));
-    } catch {
-      // Silently continue without app accounts if scheduler is unreachable
+    } catch (error) {
+      // App accounts are optional extras unless they were explicitly targeted.
+      if (wantsAppAccounts) {
+        throw error;
+      }
     }
+  } else if (wantsAppAccounts) {
+    throw new Error('Using --app-account-id requires a SimplePost connection. Run "simplepost connect" first.');
   }
 
   const allAccounts = [...localAccounts, ...appAccounts];
@@ -309,15 +322,6 @@ export async function runPostWorkflow(options: {
 
   // Handle local account posting
   if (hasLocalSelections) {
-    if (
-      postInput.post.platforms.includes("x") &&
-      (postInput.accountSelections.x?.length ?? 0) === 0 &&
-      !hasExplicitXCredentials(postInput.post) &&
-      !hasLegacyXEnvCredentials()
-    ) {
-      throw new Error("Posting to X requires either --account x:<alias> or legacy X_* environment credentials.");
-    }
-
     const executionPlan = await buildExecutionTargets({
       cliConfig,
       paths,

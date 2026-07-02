@@ -3,6 +3,7 @@
   "version": "0.5.1",
   "description": "Post to all social platforms with one TypeScript library.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
@@ -34,7 +35,8 @@
     "url": "git+https://github.com/simple-post/core.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "files": [
     "dist/**/*",

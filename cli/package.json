@@ -1,23 +1,58 @@
 {
   "name": "@simple-post/cli",
   "version": "0.1.0",
-  "description": "SimplePost CLI for cross-platform posting",
+  "description": "Post to X, Telegram, YouTube, Instagram, and more from your terminal.",
+  "author": "Vladimir Haltakov <vlad@creafexlab.com>",
+  "license": "MIT",
   "type": "module",
+  "homepage": "https://github.com/simple-post/core/tree/main/cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simple-post/core.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/simple-post/core/issues"
+  },
+  "keywords": [
+    "cli",
+    "social-media",
+    "posting",
+    "scheduler",
+    "x",
+    "twitter",
+    "telegram",
+    "youtube",
+    "instagram",
+    "facebook",
+    "tiktok",
+    "bluesky",
+    "threads",
+    "linkedin",
+    "pinterest"
+  ],
   "files": [
     "bin",
     "dist",
-    "README.md",
-    "package.json"
+    "oclif.manifest.json",
+    "README.md"
   ],
   "bin": {
     "simplepost": "./bin/run.js"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "clean": "rm -rf dist oclif.manifest.json",
-    "build": "yarn clean && tsc -p tsconfig.json && node ./scripts/generate-manifest.mjs",
+    "build": "yarn clean && yarn workspace @simple-post/sdk build && tsc -p tsconfig.build.json && node ./scripts/generate-manifest.mjs",
     "compile": "tsc --noEmit -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json && eslint . && prettier --check .",
-    "test": "yarn workspace @simple-post/sdk build && yarn build && jest -c jest.config.cjs --runInBand --verbose",
+    "test": "yarn build && jest -c jest.config.cjs --runInBand --verbose",
     "prepack": "yarn build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -31,13 +66,12 @@
     "flexibleTaxonomy": true,
     "topics": {
       "account": {
-        "description": "Manage connected accounts.",
-        "hidden": true
+        "description": "List, add, and remove connected accounts."
       }
     },
     "commands": {
       "strategy": "pattern",
-      "target": "./dist/cli/src/commands"
+      "target": "./dist/commands"
     },
     "theme": {
       "bin": "#c6f432",
@@ -56,7 +90,7 @@
   },
   "dependencies": {
     "@oclif/core": "^4.9.0",
-    "@simple-post/sdk": "*",
+    "@simple-post/sdk": "^0.5.1",
     "selfsigned": "^5.5.0"
   },
   "optionalDependencies": {

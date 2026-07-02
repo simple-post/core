@@ -57,6 +57,29 @@ describe("configureStorage", () => {
     });
   });
 
+  it("defaults to encrypted file storage non-interactively when the password env var is set", async () => {
+    process.env.SIMPLE_POST_CONFIG_PASSWORD = "ci-password";
+
+    const result = await configureStorage({
+      cliConfig: createEmptyCliConfig(),
+      paths: getExpectedCliPaths(await makeTempHome()),
+      prompt: { interactive: false } as any,
+    });
+
+    expect(result.changed).toBe(true);
+    expect(result.config.storage).toEqual({ backend: "file-encrypted" });
+  });
+
+  it("fails non-interactively without a backend or password env var", async () => {
+    await expect(
+      configureStorage({
+        cliConfig: createEmptyCliConfig(),
+        paths: getExpectedCliPaths(await makeTempHome()),
+        prompt: { interactive: false } as any,
+      }),
+    ).rejects.toThrow(/SIMPLE_POST_CONFIG_PASSWORD/);
+  });
+
   it("reports keychain failures when explicitly selected", async () => {
     jest.spyOn(secretsModule, "probeKeychain").mockResolvedValue({
       available: false,

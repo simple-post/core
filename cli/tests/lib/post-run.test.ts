@@ -1,4 +1,3 @@
-import { getAccountPlatformConfig } from "../../src/lib/account/platforms.js";
 import { createEmptyCliConfig, saveCliConfig } from "../../src/lib/config.js";
 import { runPostWorkflow } from "../../src/lib/post/run.js";
 import { createSecretStore, clearSecretPasswordCache } from "../../src/lib/secrets.js";
@@ -17,10 +16,7 @@ describe("runPostWorkflow", () => {
   afterEach(() => {
     clearSecretPasswordCache();
     sdk.post.mockReset();
-    delete process.env.X_API_KEY;
-    delete process.env.X_API_SECRET;
-    delete process.env.X_ACCESS_TOKEN;
-    delete process.env.X_ACCESS_SECRET;
+    delete (globalThis as any).fetch;
   });
 
   it("posts to multiple stored X accounts, prints a summary, and persists refreshed credentials", async () => {
@@ -60,17 +56,14 @@ describe("runPostWorkflow", () => {
       accessToken: "stored-access",
       expiresAt: 10,
       refreshToken: "stored-refresh",
+      tokenMetadata: { clientId: "x-client-id" },
     });
     await store.write("x-account-2", {
       accessToken: "stored-access-2",
       expiresAt: 20,
       refreshToken: "stored-refresh-2",
+      tokenMetadata: { clientId: "x-client-id" },
     });
-
-    process.env.X_API_KEY = "env-app-key";
-    process.env.X_API_SECRET = "env-app-secret";
-    process.env.X_ACCESS_TOKEN = "env-access-token";
-    process.env.X_ACCESS_SECRET = "env-access-secret";
 
     sdk.post.mockResolvedValueOnce(
       new Map([
@@ -118,7 +111,7 @@ describe("runPostWorkflow", () => {
     expect(sdk.post).toHaveBeenCalledTimes(2);
     const postArg = sdk.post.mock.calls[0][0];
     expect(postArg.options.x.credentials.accessToken).toBe("stored-access");
-    expect(postArg.options.x.credentials.clientId).toBe(getAccountPlatformConfig("x").oauthApp!.clientId);
+    expect(postArg.options.x.credentials.clientId).toBe("x-client-id");
     expect(postArg.options.x.credentials.clientSecret).toBeUndefined();
     const backupPostArg = sdk.post.mock.calls[1][0];
     expect(backupPostArg.options.x.credentials.accessToken).toBe("stored-access-2");
@@ -131,7 +124,132 @@ describe("runPostWorkflow", () => {
       accessToken: "new-access",
       expiresAt: 99,
       refreshToken: "new-refresh",
+      tokenMetadata: { clientId: "x-client-id" },
     });
+  });
+
+  it("posts through a SimplePost app account non-interactively with --app-account-id", async () => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = { interactive: false, log: jest.fn() } as any;
+
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    config.scheduler = {
+      url: "https://schedule.example.com",
+      userId: "user-1",
+      connectedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await saveCliConfig(paths, config);
+
+    const store = createSecretStore(paths, { backend: "file-plain" }, prompt);
+    await store.write("scheduler-token", { token: "cli-token" });
+
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accounts: [
+              {
+                id: "app-account-1",
+                platform: "x",
+                platformAccountId: "pa-1",
+                username: "alice",
+                displayName: "Alice",
+                email: null,
+                profilePicture: null,
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            post: {},
+            postingResults: [{ accountId: "app-account-1", platform: "x", success: true, postId: "post-1" }],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const outputs: string[] = [];
+    await runPostWorkflow({
+      config: { configDir: paths.configDir } as any,
+      flags: {
+        "app-account-id": ["app-account-1"],
+        text: "hello",
+      },
+      prompt,
+      writeOutput: (message) => outputs.push(message),
+    });
+
+    const fetchMock = (globalThis as any).fetch as jest.Mock;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe("https://schedule.example.com/api/v1/posts");
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer cli-token");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      accountIds: ["app-account-1"],
+      message: "hello",
+      postingMode: "now",
+    });
+    expect(outputs[0]).toContain("Succeeded (1)");
+    expect(sdk.post).not.toHaveBeenCalled();
+  });
+
+  it("rejects --app-account-id when the CLI is not connected to SimplePost", async () => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+
+    await expect(
+      runPostWorkflow({
+        config: { configDir: paths.configDir } as any,
+        flags: {
+          "app-account-id": ["app-account-1"],
+          text: "hello",
+        },
+        prompt: { interactive: false } as any,
+        writeOutput: jest.fn(),
+      }),
+    ).rejects.toThrow(/simplepost connect/i);
+  });
+
+  it("rejects unknown --app-account-id values", async () => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = { interactive: false, log: jest.fn() } as any;
+
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    config.scheduler = {
+      url: "https://schedule.example.com",
+      userId: "user-1",
+      connectedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await saveCliConfig(paths, config);
+
+    const store = createSecretStore(paths, { backend: "file-plain" }, prompt);
+    await store.write("scheduler-token", { token: "cli-token" });
+
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ accounts: [] }), { status: 200 }));
+
+    await expect(
+      runPostWorkflow({
+        config: { configDir: paths.configDir } as any,
+        flags: {
+          "app-account-id": ["missing-account"],
+          text: "hello",
+        },
+        prompt,
+        writeOutput: jest.fn(),
+      }),
+    ).rejects.toThrow(/No SimplePost app account with ID "missing-account"/);
   });
 
   it("fails early when posting to X without env credentials or a stored account", async () => {

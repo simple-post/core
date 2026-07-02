@@ -1,4 +1,5 @@
 import { collectSecretRefs } from "./config.js";
+import { DEFAULT_PASSWORD_ENV_VAR } from "./constants.js";
 import { copySecretRef, createSecretStore, probeKeychain } from "./secrets.js";
 
 import type { CliConfigV1, CliPaths, CliStorageConfig, SecretBackend } from "./types.js";
@@ -53,11 +54,17 @@ async function resolveTargetStorage(options: {
 }): Promise<CliStorageConfig> {
   let backend = options.backend;
   if (!backend) {
-    if (!options.prompt.interactive) {
-      throw new Error('Storage backend is not configured. Run "simplepost setup --backend <backend>" first.');
+    if (options.prompt.interactive) {
+      backend = await chooseBackend(options.prompt, options.current?.backend);
+    } else if (process.env[DEFAULT_PASSWORD_ENV_VAR]) {
+      // Non-interactive with a storage password available: default to the
+      // encrypted file backend so CI can run without a prior setup step.
+      backend = "file-encrypted";
+    } else {
+      throw new Error(
+        `Storage backend is not configured. Run "simplepost setup --backend <backend>" first, or set ${DEFAULT_PASSWORD_ENV_VAR} to use encrypted file storage automatically.`,
+      );
     }
-
-    backend = await chooseBackend(options.prompt, options.current?.backend);
   }
 
   if (backend === "keychain") {

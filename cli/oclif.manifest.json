@@ -38,9 +38,15 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "account.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "account.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["account"]
+      "permutations": [
+        "account"
+      ]
     },
     "connect": {
       "aliases": [],
@@ -83,9 +89,15 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "connect.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "connect.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["connect"]
+      "permutations": [
+        "connect"
+      ]
     },
     "disconnect": {
       "aliases": [],
@@ -101,9 +113,15 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "disconnect.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "disconnect.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["disconnect"]
+      "permutations": [
+        "disconnect"
+      ]
     },
     "post": {
       "aliases": [],
@@ -122,6 +140,14 @@
           "description": "Stored account selection in the form <platform>:<alias>. Repeat to post through multiple connected accounts.",
           "helpGroup": "Targets",
           "name": "account",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "app-account-id": {
+          "description": "SimplePost app account ID, shown by \"simplepost account\". Repeat to post through multiple app accounts.",
+          "helpGroup": "Targets",
+          "name": "app-account-id",
           "hasDynamicHelp": false,
           "multiple": true,
           "type": "option"
@@ -368,9 +394,96 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "post.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "post.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["post"]
+      "permutations": [
+        "post"
+      ]
+    },
+    "repost": {
+      "aliases": [],
+      "args": {},
+      "description": "Repost previously published content on platforms that support native reposts.",
+      "flags": {
+        "account": {
+          "description": "Stored local account selection in the form <platform>:<alias>.",
+          "helpGroup": "Targets",
+          "name": "account",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "app-account-id": {
+          "description": "Scheduler app account ID to use with --simplepost-post-id. Repeat to narrow the repost.",
+          "helpGroup": "Targets",
+          "name": "app-account-id",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "simplepost-post-id": {
+          "description": "Published scheduler post ID to repost using the connected SimplePost app.",
+          "helpGroup": "Targets",
+          "name": "simplepost-post-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "post-id": {
+          "description": "Platform content ID to repost locally, such as a Tweet ID, Threads ID, LinkedIn URN, or Pin ID.",
+          "helpGroup": "Content",
+          "name": "post-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "uri": {
+          "description": "Original Bluesky post URI. Required for local Bluesky reposts.",
+          "helpGroup": "Bluesky",
+          "name": "uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "cid": {
+          "description": "Original Bluesky post CID. Required for local Bluesky reposts.",
+          "helpGroup": "Bluesky",
+          "name": "cid",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "post-url": {
+          "description": "Optional canonical URL for the original post.",
+          "helpGroup": "Content",
+          "name": "post-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "repost",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "repost.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "repost"
+      ]
     },
     "setup": {
       "aliases": [],
@@ -382,7 +495,11 @@
           "name": "backend",
           "hasDynamicHelp": false,
           "multiple": false,
-          "options": ["keychain", "file-plain", "file-encrypted"],
+          "options": [
+            "keychain",
+            "file-plain",
+            "file-encrypted"
+          ],
           "type": "option"
         }
       },
@@ -395,9 +512,42 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "setup.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "setup.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["setup"]
+      "permutations": [
+        "setup"
+      ]
+    },
+    "status": {
+      "aliases": [],
+      "args": {},
+      "description": "Show the CLI connection and configuration status.",
+      "examples": [
+        "<%= config.bin %> status"
+      ],
+      "flags": {},
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "status",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "status.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "status"
+      ]
     },
     "account:add": {
       "aliases": [],
@@ -473,9 +623,17 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "account", "add.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "account",
+        "add.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["account:add", "add:account"]
+      "permutations": [
+        "account:add",
+        "add:account"
+      ]
     },
     "account:remove": {
       "aliases": [],
@@ -497,9 +655,17 @@
       "strict": true,
       "enableJsonFlag": false,
       "isESM": true,
-      "relativePath": ["dist", "cli", "src", "commands", "account", "remove.js"],
+      "relativePath": [
+        "dist",
+        "commands",
+        "account",
+        "remove.js"
+      ],
       "aliasPermutations": [],
-      "permutations": ["account:remove", "remove:account"]
+      "permutations": [
+        "account:remove",
+        "remove:account"
+      ]
     }
   },
   "version": "0.1.0"

@@ -35,6 +35,7 @@ interface InteractiveTargetOption {
 export type PostFlagValues = {
   interactive?: boolean;
   account?: string[];
+  "app-account-id"?: string[];
   text?: string;
   image?: string[];
   video?: string[];
@@ -744,14 +745,53 @@ async function askInteractivePost(
   };
 }
 
-async function buildPostFromFlags(flags: PostFlagValues, accountSelections: AccountSelections): Promise<Post> {
+function resolveAppAccountSelection(
+  requestedIds: string[],
+  accounts: InteractiveAccount[],
+): { appAccountIds: string[]; platforms: Platform[] } {
+  const appAccountIds: string[] = [];
+  const platforms: Platform[] = [];
+
+  for (const raw of requestedIds) {
+    const id = raw.trim();
+    if (!id) {
+      throw new Error("Invalid empty --app-account-id value.");
+    }
+
+    if (appAccountIds.includes(id)) {
+      throw new Error(`Duplicate --app-account-id selection "${id}".`);
+    }
+
+    const account = accounts.find((candidate) => candidate.source === "app" && candidate.appAccountId === id);
+    if (!account) {
+      throw new Error(
+        `No SimplePost app account with ID "${id}" was found. Run "simplepost account" to list the available IDs.`,
+      );
+    }
+
+    appAccountIds.push(id);
+    if (!platforms.includes(account.platform)) {
+      platforms.push(account.platform);
+    }
+  }
+
+  return { appAccountIds, platforms };
+}
+
+async function buildPostFromFlags(
+  flags: PostFlagValues,
+  accountSelections: AccountSelections,
+  appPlatforms: Platform[] = [],
+): Promise<Post> {
   if (flags["post-json"]) {
     return PostSchema.parse(await parseJsonInput(flags["post-json"]));
   }
 
-  const platforms = inferPlatformsFromAccountSelections(accountSelections);
+  const platforms = [...new Set([...inferPlatformsFromAccountSelections(accountSelections), ...appPlatforms])];
   if (platforms.length === 0) {
-    throw new Error("Choose at least one target with --account, or provide a full payload with --post-json.");
+    throw new Error(
+      "Choose at least one target with --account or --app-account-id, or provide a full payload with --post-json.",
+    );
   }
 
   const media: NonNullable<Post["content"]["media"]> = [];
@@ -804,9 +844,10 @@ export async function collectPostInput(
     };
   }
 
+  const appSelection = resolveAppAccountSelection(flags["app-account-id"] ?? [], options.accounts);
   return {
     accountSelections: existingSelections,
-    appAccountIds: [],
-    post: await buildPostFromFlags(flags, existingSelections),
+    appAccountIds: appSelection.appAccountIds,
+    post: await buildPostFromFlags(flags, existingSelections, appSelection.platforms),
   };
 }

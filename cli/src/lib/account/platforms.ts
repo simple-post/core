@@ -1,60 +1,69 @@
-import { DEFAULT_OAUTH_REDIRECT_URI, META_OAUTH_REDIRECT_URI, DEFAULT_X_SCOPES } from "../constants.js";
+import { DEFAULT_OAUTH_REDIRECT_URI, META_OAUTH_REDIRECT_URI } from "../constants.js";
 
 import type { Platform } from "@simple-post/sdk";
 
 export type AccountPlatform = Platform;
 
-export interface EmbeddedOAuthAppConfig {
+/**
+ * Protocol description of a platform's OAuth flow. The CLI never ships its
+ * own client credentials: the client ID and (when needed) client secret
+ * always come from the user's environment. See `resolveOAuthAppInputs`.
+ */
+export interface OAuthAppConfig {
   authorizationUrl: string;
-  clientId: string;
   clientIdAuthorizeParameter?: string;
   clientIdTokenParameter?: string;
-  clientSecret?: string;
-  clientSecretEnvVar?: string;
-  clientSecretRequired?: boolean;
+  /** Whether the platform's token endpoint requires a client secret. */
+  clientSecretRequired: boolean;
+  /** Where the user registers their own developer app. */
+  developerPortalUrl: string;
   extraAuthorizationParams?: Record<string, string>;
   pkce: boolean;
   /** RFC 7636 uses base64url; TikTok Login Kit for desktop expects hex-encoded SHA-256. */
   pkceChallengeEncoding?: "base64url" | "hex";
   redirectUri: string;
-  redirectUriEnvVar?: string;
   scopeSeparator?: " " | ",";
   scopes: string[];
-  tokenAuthMethod?: "basic" | "client_secret_post" | "none";
-  tokenMetadataUrl?: string;
+  /**
+   * How the client secret is sent when one is available. Platforms without
+   * it (custom exchanges like Meta OIDC + PKCE or Bluesky) never use a secret.
+   */
+  tokenAuthMethod?: "basic" | "client_secret_post";
   tokenUrl: string;
 }
 
 export interface AccountPlatformConfig {
   connectDescription: string;
   displayName: string;
-  oauthApp?: EmbeddedOAuthAppConfig;
+  oauthApp?: OAuthAppConfig;
   platform: AccountPlatform;
 }
 
+const DEFAULT_X_SCOPES = ["tweet.read", "tweet.write", "users.read", "offline.access", "media.write"];
+
 const ACCOUNT_PLATFORM_CONFIGS = {
   x: {
-    connectDescription: "Post and refresh tokens with the bundled X native app.",
+    connectDescription: "Connect X with your own X developer app.",
     displayName: "X",
     oauthApp: {
       authorizationUrl: "https://x.com/i/oauth2/authorize",
-      clientId: "TEhja1ZudE1iOV9FX05zZ0Fta0E6MTpjaQ",
+      clientSecretRequired: false,
+      developerPortalUrl: "https://developer.x.com/en/portal/dashboard",
       pkce: true,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      redirectUriEnvVar: "SIMPLE_POST_X_REDIRECT_URI",
       scopes: DEFAULT_X_SCOPES,
-      tokenAuthMethod: "none",
+      tokenAuthMethod: "basic",
       tokenUrl: "https://api.x.com/2/oauth2/token",
     },
     platform: "x",
   },
   youtube: {
-    connectDescription: "Upload to YouTube with the bundled Google app.",
+    connectDescription: "Upload to YouTube with your own Google Cloud OAuth app.",
     displayName: "YouTube",
     oauthApp: {
       authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-      clientId: "555578778355-27at3vf6abehns8l6lgnt2rppvc3lah1.apps.googleusercontent.com",
-      clientSecret: "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",
+      clientSecretRequired: true,
+      developerPortalUrl: "https://console.cloud.google.com/apis/credentials",
       extraAuthorizationParams: {
         access_type: "offline",
         prompt: "consent",
@@ -72,29 +81,28 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "youtube",
   },
   facebook: {
-    connectDescription: "Connect a Facebook Page and store the page access token locally.",
+    connectDescription: "Connect a Facebook Page with your own Meta developer app.",
     displayName: "Facebook",
     oauthApp: {
       authorizationUrl: "https://www.facebook.com/v25.0/dialog/oauth",
-      clientId: "2183098135767797",
+      clientSecretRequired: false,
+      developerPortalUrl: "https://developers.facebook.com/apps",
       pkce: true,
       redirectUri: META_OAUTH_REDIRECT_URI,
-      redirectUriEnvVar: "SIMPLE_POST_FACEBOOK_REDIRECT_URI",
       scopes: ["openid", "public_profile", "pages_show_list", "pages_manage_posts", "business_management"],
-      tokenAuthMethod: "none",
       tokenUrl: "https://graph.facebook.com/v25.0/oauth/access_token",
     },
     platform: "facebook",
   },
   instagram: {
-    connectDescription: "Connect Instagram via Facebook Login and select a linked business account.",
+    connectDescription: "Connect Instagram via Facebook Login with your own Meta developer app.",
     displayName: "Instagram",
     oauthApp: {
       authorizationUrl: "https://www.facebook.com/v25.0/dialog/oauth",
-      clientId: "2183098135767797",
+      clientSecretRequired: false,
+      developerPortalUrl: "https://developers.facebook.com/apps",
       pkce: true,
       redirectUri: META_OAUTH_REDIRECT_URI,
-      redirectUriEnvVar: "SIMPLE_POST_INSTAGRAM_REDIRECT_URI",
       scopes: [
         "openid",
         "public_profile",
@@ -105,25 +113,22 @@ const ACCOUNT_PLATFORM_CONFIGS = {
         "instagram_content_publish",
         "pages_read_engagement",
       ],
-      tokenAuthMethod: "none",
       tokenUrl: "https://graph.facebook.com/v25.0/oauth/access_token",
     },
     platform: "instagram",
   },
   tiktok: {
-    connectDescription: "Connect TikTok for direct publishing (requires your own TikTok developer app).",
+    connectDescription: "Connect TikTok with your own TikTok developer app.",
     displayName: "TikTok",
     oauthApp: {
       authorizationUrl: "https://www.tiktok.com/v2/auth/authorize/",
-      clientId: "",
       clientIdAuthorizeParameter: "client_key",
       clientIdTokenParameter: "client_key",
-      clientSecretEnvVar: "SIMPLE_POST_TIKTOK_CLIENT_SECRET",
       clientSecretRequired: true,
+      developerPortalUrl: "https://developers.tiktok.com/apps",
       pkce: true,
       pkceChallengeEncoding: "hex",
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      redirectUriEnvVar: "SIMPLE_POST_TIKTOK_REDIRECT_URI",
       scopeSeparator: ",",
       scopes: ["video.upload", "video.publish"],
       tokenAuthMethod: "client_secret_post",
@@ -132,32 +137,28 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "tiktok",
   },
   bluesky: {
-    connectDescription: "Connect Bluesky with the bundled OAuth client metadata.",
+    connectDescription: "Connect Bluesky with your own hosted OAuth client metadata.",
     displayName: "Bluesky",
     oauthApp: {
       authorizationUrl: "https://bsky.social/oauth/authorize",
-      clientId: "https://simplepost.social/oauth/client-native-metadata.json",
+      clientSecretRequired: false,
+      developerPortalUrl: "https://atproto.com/specs/oauth",
       pkce: true,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      redirectUriEnvVar: "SIMPLE_POST_BLUESKY_REDIRECT_URI",
       scopes: ["atproto", "transition:generic"],
-      tokenAuthMethod: "none",
-      tokenMetadataUrl: "https://simplepost.social/oauth/client-native-metadata.json",
       tokenUrl: "https://bsky.social/oauth/token",
     },
     platform: "bluesky",
   },
   threads: {
-    connectDescription: "Connect Threads for text and media publishing (requires your own Meta developer app).",
+    connectDescription: "Connect Threads with your own Meta developer app.",
     displayName: "Threads",
     oauthApp: {
       authorizationUrl: "https://threads.net/oauth/authorize",
-      clientId: "",
-      clientSecretEnvVar: "SIMPLE_POST_THREADS_CLIENT_SECRET",
       clientSecretRequired: true,
+      developerPortalUrl: "https://developers.facebook.com/apps",
       pkce: false,
       redirectUri: META_OAUTH_REDIRECT_URI,
-      redirectUriEnvVar: "SIMPLE_POST_THREADS_REDIRECT_URI",
       scopes: ["threads_basic", "threads_content_publish"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://graph.threads.net/oauth/access_token",
@@ -165,13 +166,12 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "threads",
   },
   linkedin: {
-    connectDescription: "Connect LinkedIn for member posts (requires your own LinkedIn developer app).",
+    connectDescription: "Connect LinkedIn with your own LinkedIn developer app.",
     displayName: "LinkedIn",
     oauthApp: {
       authorizationUrl: "https://www.linkedin.com/oauth/v2/authorization",
-      clientId: "",
-      clientSecretEnvVar: "SIMPLE_POST_LINKEDIN_CLIENT_SECRET",
       clientSecretRequired: true,
+      developerPortalUrl: "https://www.linkedin.com/developers/apps",
       pkce: false,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
       scopes: ["openid", "profile", "email", "w_member_social"],
@@ -181,13 +181,12 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "linkedin",
   },
   pinterest: {
-    connectDescription: "Connect Pinterest for pin publishing (requires your own Pinterest developer app).",
+    connectDescription: "Connect Pinterest with your own Pinterest developer app.",
     displayName: "Pinterest",
     oauthApp: {
       authorizationUrl: "https://www.pinterest.com/oauth/",
-      clientId: "",
-      clientSecretEnvVar: "SIMPLE_POST_PINTEREST_CLIENT_SECRET",
       clientSecretRequired: true,
+      developerPortalUrl: "https://developers.pinterest.com/apps",
       pkce: false,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
       scopes: ["pins:write", "boards:read", "user_accounts:read"],
@@ -197,7 +196,7 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "pinterest",
   },
   telegram: {
-    connectDescription: "Connect a Telegram bot and chat/channel with bot token and chat ID.",
+    connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",
     platform: "telegram",
   },
@@ -225,4 +224,30 @@ export function getAccountPlatformValues(): AccountPlatform[] {
 
 export function isAccountPlatform(value: string): value is AccountPlatform {
   return value in ACCOUNT_PLATFORM_CONFIGS;
+}
+
+export function getClientIdEnvVar(platform: AccountPlatform): string {
+  return `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_ID`;
+}
+
+export function getClientSecretEnvVar(platform: AccountPlatform): string {
+  return `SIMPLE_POST_${platform.toUpperCase()}_CLIENT_SECRET`;
+}
+
+export function getRedirectUriEnvVar(platform: AccountPlatform): string {
+  return `SIMPLE_POST_${platform.toUpperCase()}_REDIRECT_URI`;
+}
+
+/** True when the environment carries the user's own OAuth app for the platform. */
+export function hasOAuthAppEnvConfig(platform: AccountPlatform): boolean {
+  const config = getAccountPlatformConfig(platform).oauthApp;
+  if (!config) {
+    return false;
+  }
+
+  if (!process.env[getClientIdEnvVar(platform)]) {
+    return false;
+  }
+
+  return config.clientSecretRequired ? Boolean(process.env[getClientSecretEnvVar(platform)]) : true;
 }

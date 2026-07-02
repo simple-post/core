@@ -8,7 +8,10 @@ name: Release to npm
 #
 # The dist-tag is derived from the prerelease identifier: a stable version is
 # published as "latest", "1.2.3-beta.1" as "beta", "1.2.3-rc.0" as "rc", etc.
-# Requires the NPM_TOKEN repository secret (npm automation token).
+#
+# Authentication uses npm trusted publishing (OIDC) — no token secret needed.
+# Each package must be configured on npmjs.com (package Settings -> Trusted
+# Publisher) with this repository and the "release.yml" workflow.
 
 on:
   push:
@@ -18,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   release:
@@ -31,7 +35,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing requires npm >= 11.5.1; Node 22 bundles an older npm.
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Enable Corepack
         run: corepack enable
@@ -97,6 +104,4 @@ jobs:
 
       - name: Publish to npm
         working-directory: ${{ steps.tag.outputs.workspace }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag "${{ steps.tag.outputs.dist_tag }}"

@@ -5,9 +5,10 @@ import { z } from "zod";
 import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getAppUrl, getOrCreateStripeCustomer, getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
+import { env } from "@/lib/env";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
-import { BadRequestError, handleApiError } from "@/lib/utils/errors";
+import { BadRequestError, NotFoundError, handleApiError } from "@/lib/utils/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,10 @@ async function readJsonBody(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (env.SELF_HOSTED) {
+      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+    }
+
     const session = await requireBrowserSession(req);
     const body = checkoutSchema.parse(await readJsonBody(req));
     const plan = getPlanByKey(body.planKey);

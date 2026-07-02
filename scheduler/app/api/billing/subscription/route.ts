@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-currency";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
+import { env } from "@/lib/env";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
     const displayCurrency = getBillingDisplayCurrencyFromHeaders(req.headers);
 
     return NextResponse.json(
-      { ...billing, displayCurrency },
+      { ...billing, displayCurrency, selfHosted: env.SELF_HOSTED },
       {
         headers: {
           "Cache-Control": "private, no-store",

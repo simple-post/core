@@ -47,6 +47,7 @@ interface BillingStatus {
     connectedAccounts: number;
     postsThisPeriod: number;
   };
+  selfHosted?: boolean;
 }
 
 async function parseApiError(response: Response): Promise<string> {
@@ -192,6 +193,25 @@ export default function BillingPage() {
   const displayCurrency = billing?.displayCurrency ?? DEFAULT_BILLING_DISPLAY_CURRENCY;
   const accountLimit = plan?.limits.socialAccounts ?? null;
   const postLimit = plan?.limits.postsPerMonth ?? null;
+
+  if (billing?.selfHosted) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-xl flex-col items-center justify-center px-6 text-center">
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <h1 className="text-lg font-semibold tracking-[-0.025em]">Billing is disabled</h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              This instance runs in self-hosted mode, so there is no subscription to manage.
+            </p>
+            <Button asChild className="mt-5">
+              <Link href="/">Back to the app</Link>
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

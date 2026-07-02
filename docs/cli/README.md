@@ -25,7 +25,7 @@ The published binary name is `simplepost`. In the repo, examples use `node cli/b
 ## SimplePost Mode
 
 ```bash
-node cli/bin/run.js connect --url https://schedule.simplepost.dev
+node cli/bin/run.js connect --url https://schedule.simplepost.social
 node cli/bin/run.js account
 node cli/bin/run.js post
 ```
@@ -140,18 +140,18 @@ Run `node cli/bin/run.js post --help` for the complete flag list.
 
 ## Releasing To npm
 
-Publishing is automated by [`.github/workflows/release.yml`](../../.github/workflows/release.yml) and driven by git tags. The `NPM_TOKEN` repository secret must hold an npm automation token with publish rights for the `@simple-post` scope.
+Publishing is automated by [`.github/workflows/release.yml`](../../.github/workflows/release.yml) and driven by git tags. Authentication uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC) — no token secret. Each package must be configured on npmjs.com with this repository and the `release.yml` workflow as its trusted publisher.
 
 1. Bump `version` in `cli/package.json` (and `sdk/package.json` if the SDK changed).
 2. Commit, then tag and push:
 
    ```bash
-   git tag sdk-v0.5.1 && git push origin sdk-v0.5.1   # only when the SDK changed
-   git tag cli-v0.2.0 && git push origin cli-v0.2.0
+   git tag sdk-v1.0.1 && git push origin sdk-v1.0.1   # only when the SDK changed
+   git tag cli-v1.1.0 && git push origin cli-v1.1.0
    ```
 
 3. CI verifies the tag matches the package version, runs checks and tests, and publishes.
 
-The npm dist-tag is derived from the version: stable versions publish as `latest`, prerelease versions publish under their prerelease identifier (`cli-v0.2.0-beta.1` → `@simple-post/cli@0.2.0-beta.1` with dist-tag `beta`, installable via `npm i -g @simple-post/cli@beta`).
+The npm dist-tag is derived from the version: stable versions publish as `latest`, prerelease versions publish under their prerelease identifier (`cli-v1.1.0-beta.1` → `@simple-post/cli@1.1.0-beta.1` with dist-tag `beta`, installable via `npm i -g @simple-post/cli@beta`).
 
 The CLI depends on `@simple-post/sdk` from the public npm registry, so a matching SDK version must be published before the first CLI release.

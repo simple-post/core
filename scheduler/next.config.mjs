@@ -6,7 +6,7 @@ const nextConfig = {
   // Enable Turbopack (default in Next.js 16)
   turbopack: {},
 
-  allowedDevOrigins: ["http://localhost:3000", "vlad.creafexlab.com"],
+  allowedDevOrigins: ["http://localhost:3000"],
 };
 
 export default nextConfig;

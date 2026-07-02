@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { Cpu, CreditCard, KeyRound, Settings2 } from "lucide-react";
 
+import { useSelfHosted } from "@/components/billing/subscription-gate";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ import { logClientError } from "@/lib/logger/client";
 
 export function UserMenu() {
   const { data: session } = useSession();
+  const selfHosted = useSelfHosted();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignOut = async () => {
@@ -67,12 +69,14 @@ export function UserMenu() {
             Settings
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/billing" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Subscription
-          </Link>
-        </DropdownMenuItem>
+        {!selfHosted && (
+          <DropdownMenuItem asChild>
+            <Link href="/billing" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Subscription
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="/api-keys" className="flex items-center gap-2">
             <KeyRound className="h-4 w-4" />

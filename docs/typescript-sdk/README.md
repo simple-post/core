@@ -42,7 +42,7 @@ await post({
 });
 ```
 
-**Need credentials?** Get them at [docs.simplepost.dev](https://docs.simplepost.dev), then continue below.
+**Need credentials?** Get them at [docs.simplepost.social](https://docs.simplepost.social), then continue below.
 
 ## Installation
 
@@ -56,13 +56,11 @@ yarn add @simple-post/sdk
 pnpm add @simple-post/sdk
 ```
 
-> Versions before 0.5.1 were distributed through GitHub Packages and required a `read:packages` token with an `@simple-post` registry entry in `.npmrc` / `.yarnrc.yml`. That setup is no longer needed.
-
 ## Usage
 
 ### Credentials Setup
 
-Set up credentials using environment variables. Get platform-specific tokens at [docs.simplepost.dev](https://docs.simplepost.dev).
+Set up credentials using environment variables. Get platform-specific tokens at [docs.simplepost.social](https://docs.simplepost.social).
 
 ### Basic Posting
 
@@ -260,7 +258,7 @@ For more examples, check out the [`/examples`](../../examples) directory.
 
 ## What's Next?
 
-- **Need help with credentials?** → [docs.simplepost.dev](https://docs.simplepost.dev)
+- **Need help with credentials?** → [docs.simplepost.social](https://docs.simplepost.social)
 - **Want an HTTP API?** → [HTTP API server docs](../http-server/README.md)
 - **Need a web UI?** → [Scheduler app docs](../scheduler-app/README.md)
 - **Need terminal posting?** → [CLI docs](../cli/README.md)

@@ -6,8 +6,9 @@ import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-curr
 import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus, syncStripeSubscription } from "@/lib/billing/subscriptions";
+import { env } from "@/lib/env";
 import { requireBrowserSession } from "@/lib/middleware/auth";
-import { BadRequestError, PaymentRequiredError, handleApiError } from "@/lib/utils/errors";
+import { BadRequestError, NotFoundError, PaymentRequiredError, handleApiError } from "@/lib/utils/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,10 @@ async function readJsonBody(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (env.SELF_HOSTED) {
+      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+    }
+
     const session = await requireBrowserSession(req);
     const parsed = changePlanSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {

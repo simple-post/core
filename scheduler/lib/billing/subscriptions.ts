@@ -5,6 +5,7 @@ import {
   type BillingPlan,
 } from "@/lib/billing/plans";
 import { getStripe } from "@/lib/billing/stripe";
+import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, PaymentRequiredError } from "@/lib/utils/errors";
 
@@ -199,6 +200,19 @@ export async function syncCheckoutSession(session: Stripe.Checkout.Session) {
 }
 
 export async function getBillingStatus(userId: string, client: BillingClient = prisma): Promise<BillingStatus> {
+  if (env.SELF_HOSTED) {
+    const connectedAccounts = await client.connectedAccount.count({ where: { userId } });
+    return {
+      active: true,
+      plan: null,
+      subscription: null,
+      usage: {
+        connectedAccounts,
+        postsThisPeriod: 0,
+      },
+    };
+  }
+
   const user = await client.user.findUnique({
     where: { id: userId },
     select: {
@@ -252,6 +266,10 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
 export async function assertActiveSubscription(userId: string): Promise<BillingStatus> {
   const status = await getBillingStatus(userId);
 
+  if (env.SELF_HOSTED) {
+    return status;
+  }
+
   if (!status.active || !status.plan) {
     throw new PaymentRequiredError("An active SimplePost subscription is required");
   }
@@ -260,6 +278,10 @@ export async function assertActiveSubscription(userId: string): Promise<BillingS
 }
 
 export async function assertPlanFeature(userId: string, feature: SubscriptionFeature): Promise<void> {
+  if (env.SELF_HOSTED) {
+    return;
+  }
+
   const status = await assertActiveSubscription(userId);
 
   if (!status.plan?.limits[feature]) {
@@ -269,6 +291,10 @@ export async function assertPlanFeature(userId: string, feature: SubscriptionFea
 }
 
 export async function assertCanCreatePost(userId: string): Promise<void> {
+  if (env.SELF_HOSTED) {
+    return;
+  }
+
   const status = await assertActiveSubscription(userId);
   const limit = status.plan?.limits.postsPerMonth;
 
@@ -287,6 +313,10 @@ export async function assertCanConnectAccount(
   },
   client: BillingClient = prisma,
 ): Promise<void> {
+  if (env.SELF_HOSTED) {
+    return;
+  }
+
   const existingAccount = await client.connectedAccount.findUnique({
     where: {
       userId_platform_platformAccountId: {

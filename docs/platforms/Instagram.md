@@ -15,7 +15,7 @@ S3_STORAGE_BASE_URL=
 S3_STORAGE_ENDPOINT=
 ```
 
-Check out the [Temporary Storage](https://docs.simplepost.dev/s3) documentation for setup instructions.
+Check out the [Temporary Storage](https://docs.simplepost.social/s3) documentation for setup instructions.
 
 ## Content Support
 
@@ -77,4 +77,4 @@ INSTAGRAM_BUSINESS_ACCESS_TOKEN=
 INSTAGRAM_BUSINESS_ACCOUNT_ID=
 ```
 
-Follow the [Instagram credentials guide](https://docs.simplepost.dev/instagram) to get your API keys.
+Follow the [Instagram credentials guide](https://docs.simplepost.social/instagram) to get your API keys.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { usePathname } from "next/navigation";
 
@@ -12,6 +12,14 @@ import { type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 interface BillingStatusResponse {
   active: boolean;
   displayCurrency: BillingDisplayCurrency;
+  selfHosted?: boolean;
+}
+
+const SelfHostedContext = createContext(false);
+
+/** True when the instance runs with SELF_HOSTED=true and billing is disabled. */
+export function useSelfHosted(): boolean {
+  return useContext(SelfHostedContext);
 }
 
 async function parseApiError(response: Response): Promise<string> {
@@ -63,8 +71,10 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const selfHosted = billing?.selfHosted === true;
+
   if (UNGATED_PATHS.has(pathname)) {
-    return <>{children}</>;
+    return <SelfHostedContext.Provider value={selfHosted}>{children}</SelfHostedContext.Provider>;
   }
 
   if (loading) {
@@ -101,5 +111,5 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <SelfHostedContext.Provider value={selfHosted}>{children}</SelfHostedContext.Provider>;
 }

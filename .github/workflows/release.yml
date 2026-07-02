@@ -86,9 +86,25 @@ jobs:
         if: steps.tag.outputs.workspace == 'cli'
         run: |
           SDK_RANGE="$(node -p "require('./cli/package.json').dependencies['@simple-post/sdk']")"
-          if ! npm view "@simple-post/sdk@$SDK_RANGE" version --registry https://registry.npmjs.org > /dev/null 2>&1; then
+          SDK_VERSION="$(node -p "require('./sdk/package.json').version")"
+          PUBLISHED_VERSIONS="$(npm view "@simple-post/sdk@$SDK_RANGE" version --json --registry https://registry.npmjs.org 2>/dev/null || true)"
+
+          if [[ -z "$PUBLISHED_VERSIONS" ]]; then
             echo "No published @simple-post/sdk version satisfies \"$SDK_RANGE\" on npm." >&2
             echo "Publish the SDK first by pushing an sdk-v* tag." >&2
+            exit 1
+          fi
+
+          if ! PUBLISHED_VERSIONS="$PUBLISHED_VERSIONS" SDK_VERSION="$SDK_VERSION" node <<'NODE'
+          const published = JSON.parse(process.env.PUBLISHED_VERSIONS || "null");
+          const versions = Array.isArray(published) ? published : [published].filter(Boolean);
+          if (!versions.includes(process.env.SDK_VERSION)) {
+            process.exit(1);
+          }
+          NODE
+          then
+            echo "The CLI was tested against workspace @simple-post/sdk@$SDK_VERSION, but that exact version is not published within dependency range \"$SDK_RANGE\"." >&2
+            echo "Publish the SDK first by pushing an sdk-v$SDK_VERSION tag, then release the CLI." >&2
             exit 1
           fi
 

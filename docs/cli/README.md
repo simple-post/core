@@ -25,7 +25,7 @@ The published binary name is `simplepost`. In the repo, examples use `node cli/b
 ## SimplePost Mode
 
 ```bash
-node cli/bin/run.js connect --url https://schedule.simplepost.social
+node cli/bin/run.js connect --url https://app.simplepost.social
 node cli/bin/run.js account
 node cli/bin/run.js post
 ```
@@ -154,4 +154,4 @@ Publishing is automated by [`.github/workflows/release.yml`](../../.github/workf
 
 The npm dist-tag is derived from the version: stable versions publish as `latest`, prerelease versions publish under their prerelease identifier (`cli-v1.1.0-beta.1` → `@simple-post/cli@1.1.0-beta.1` with dist-tag `beta`, installable via `npm i -g @simple-post/cli@beta`).
 
-The CLI depends on `@simple-post/sdk` from the public npm registry, so a matching SDK version must be published before the first CLI release.
+The CLI depends on `@simple-post/sdk` from the public npm registry, so the SDK version tested by the workspace must already be published and must satisfy the CLI dependency range before a CLI release is tagged.

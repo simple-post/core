@@ -86,4 +86,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up the repo and submit cha
 
 ## License
 
-Everything in this repository is licensed under the [MIT License](LICENSE), with one exception: the Scheduler app in [`scheduler/`](scheduler/) is licensed under the [O'Saasy License](scheduler/LICENSE) — MIT-style, but it may not be offered to third parties as a competing hosted/SaaS product. See [osaasy.dev](https://osaasy.dev/) for details.
+Everything in this repository is licensed under the [MIT License](LICENSE).

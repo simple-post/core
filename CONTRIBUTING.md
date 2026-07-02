@@ -58,4 +58,4 @@ Commit messages follow the conventional style used in the history: `feat: ...`, 
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the license of the part of the repository they touch: [MIT](LICENSE) for everything except the Scheduler app, and the [O'Saasy License](scheduler/LICENSE) for code in `scheduler/`.
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).

@@ -7,10 +7,12 @@ import { Repeat2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
+import { createSlotRows, PostingSlotsSection, type PostingSlotRow } from "@/components/posting-slots-settings";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
+import { usePostingSlots, useUpdatePostingSlots } from "@/hooks/use-posting-slots";
 import { useRepostSettings, useUpdateRepostSettings } from "@/hooks/use-repost-settings";
 import { logClientError } from "@/lib/logger/client";
 
@@ -73,8 +75,11 @@ function RepostDefaultsSection({
 export default function SettingsPage() {
   const { data: settings, isLoading } = useRepostSettings();
   const updateSettings = useUpdateRepostSettings();
+  const { data: savedSlots, isLoading: slotsLoading } = usePostingSlots();
+  const updateSlots = useUpdatePostingSlots();
   const [enabled, setEnabled] = useState(false);
   const [delayHours, setDelayHours] = useState(12);
+  const [slots, setSlots] = useState<PostingSlotRow[]>([]);
 
   useEffect(() => {
     if (!settings) return;
@@ -82,16 +87,29 @@ export default function SettingsPage() {
     setDelayHours(settings.delayHours);
   }, [settings]);
 
-  const disabled = isLoading || updateSettings.isPending;
+  useEffect(() => {
+    if (!savedSlots) return;
+    setSlots(createSlotRows(savedSlots));
+  }, [savedSlots]);
+
+  const disabled = isLoading || slotsLoading || updateSettings.isPending || updateSlots.isPending;
+  const saving = updateSettings.isPending || updateSlots.isPending;
 
   const handleSave = async () => {
     try {
-      const saved = await updateSettings.mutateAsync({
-        enabled,
-        delayHours: clampDelayHours(delayHours),
-      });
+      const [saved, savedSlotList] = await Promise.all([
+        updateSettings.mutateAsync({
+          enabled,
+          delayHours: clampDelayHours(delayHours),
+        }),
+        // Rows the user never gave a time can't be saved; drop them silently.
+        updateSlots.mutateAsync(
+          slots.filter((slot) => slot.time.length > 0).map(({ time, weekdays }) => ({ time, weekdays })),
+        ),
+      ]);
       setEnabled(saved.enabled);
       setDelayHours(saved.delayHours);
+      setSlots(createSlotRows(savedSlotList));
       toast.success("Settings saved");
     } catch (error) {
       logClientError(error, "Failed to save settings");
@@ -125,9 +143,11 @@ export default function SettingsPage() {
           disabled={disabled}
         />
 
+        <PostingSlotsSection slots={slots} onChange={setSlots} disabled={disabled} />
+
         <div className="flex justify-center">
           <Button onClick={handleSave} disabled={disabled}>
-            {updateSettings.isPending ? "Saving..." : "Save settings"}
+            {saving ? "Saving..." : "Save settings"}
           </Button>
         </div>
       </main>

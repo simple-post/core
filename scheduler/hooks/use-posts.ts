@@ -71,6 +71,16 @@ async function fetchPaginatedPosts(type: PostsListType, page: number, limit: num
   };
 }
 
+async function fetchCalendarPosts(from: Date, to: Date): Promise<SocialPost[]> {
+  const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+  const response = await fetch(`/api/v1/posts/calendar?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch calendar posts");
+  }
+  const data: PostsResponse = await response.json();
+  return (data.posts || []).map((post) => parsePost(post));
+}
+
 async function fetchPost(id: string): Promise<SocialPost | null> {
   const response = await fetch(`/api/v1/posts/${id}`);
   if (response.status === 404) {
@@ -104,6 +114,14 @@ export function usePostCounts() {
     queryKey: queryKeys.postCounts,
     queryFn: fetchPostCounts,
     refetchInterval: 30_000,
+  });
+}
+
+export function useCalendarPosts(from: Date, to: Date) {
+  return useQuery({
+    queryKey: queryKeys.calendarPosts(from.toISOString(), to.toISOString()),
+    queryFn: () => fetchCalendarPosts(from, to),
+    placeholderData: keepPreviousData,
   });
 }
 

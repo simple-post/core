@@ -76,6 +76,31 @@ export class PostsModel {
     };
   }
 
+  // Non-draft posts scheduled inside [start, end), used by the dashboard
+  // calendar. Not paginated: the range is capped by the API route and a
+  // month of posts is small.
+  async getPostsBetween(start: Date, end: Date): Promise<SocialPost[]> {
+    const posts = await prisma.post.findMany({
+      where: {
+        userId: this.userId,
+        status: { not: "draft" },
+        scheduledFor: {
+          gte: start,
+          lt: end,
+        },
+      },
+      include: {
+        media: true,
+        accounts: true,
+      },
+      orderBy: {
+        scheduledFor: "asc",
+      },
+    });
+
+    return posts.map((post) => this.mapPostToSocialPost(post));
+  }
+
   async getDraftPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;

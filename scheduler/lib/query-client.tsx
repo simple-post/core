@@ -63,8 +63,10 @@ export function QueryClientProvider({ children }: { children: ReactNode }) {
 export const queryKeys = {
   accounts: ["accounts"],
   repostSettings: ["repost-settings"],
+  postingSlots: ["posting-slots"],
   posts: (type?: string) => (type ? ["posts", type] : ["posts"]),
   postCounts: ["posts", "counts"],
   paginatedPosts: (type: string, page: number, limit: number) => ["posts", type, { page, limit }],
+  calendarPosts: (from: string, to: string) => ["posts", "calendar", { from, to }],
   post: (id: string) => ["posts", "detail", id],
 } as const;

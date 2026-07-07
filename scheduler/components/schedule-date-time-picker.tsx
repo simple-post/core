@@ -28,6 +28,8 @@ interface ScheduleDateTimePickerProps {
   onScheduledDateChange: (value: string) => void;
   onScheduledTimeChange: (value: string) => void;
   className?: string;
+  /** Hide the built-in "Schedule" label when a parent (e.g. SchedulePicker) renders its own. */
+  hideLabel?: boolean;
 }
 
 interface SchedulePickerContentProps extends ScheduleDateTimePickerProps {
@@ -49,6 +51,7 @@ function ScheduleDateTimePicker({
   onScheduledDateChange,
   onScheduledTimeChange,
   className,
+  hideLabel,
 }: ScheduleDateTimePickerProps) {
   const labelId = useId();
   const isMobile = useIsMobile();
@@ -107,16 +110,18 @@ function ScheduleDateTimePicker({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <Label id={labelId} className="text-sm font-medium">
-        Schedule
-      </Label>
+      {hideLabel ? null : (
+        <Label id={labelId} className="text-sm font-medium">
+          Schedule
+        </Label>
+      )}
 
       {isMobile ? (
         <Drawer open={open} onOpenChange={setOpen}>
           <DrawerTrigger asChild>
             <ScheduleTrigger label={triggerLabel} timeZoneLabel={timeZoneLabel} isPastSelection={isPastSelection} />
           </DrawerTrigger>
-          <DrawerContent aria-labelledby={labelId}>
+          <DrawerContent aria-labelledby={hideLabel ? undefined : labelId}>
             <DrawerHeader className="text-left">
               <DrawerTitle>Schedule</DrawerTitle>
               <DrawerDescription>

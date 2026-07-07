@@ -30,6 +30,16 @@ export interface PaginatedPostsResult {
   pagination: PaginationInfo;
 }
 
+export interface PostCountsResult {
+  counts: {
+    drafts: number;
+    failed: number;
+    past: number;
+    scheduled: number;
+  };
+  latestFailedAt: string | null;
+}
+
 function parsePost(post: RawSocialPost): SocialPost {
   return {
     ...post,
@@ -73,11 +83,27 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
   return data.post ? parsePost(data.post) : null;
 }
 
+async function fetchPostCounts(): Promise<PostCountsResult> {
+  const response = await fetch("/api/v1/posts?type=counts");
+  if (!response.ok) {
+    throw new Error("Failed to fetch post counts");
+  }
+  return (await response.json()) as PostCountsResult;
+}
+
 export function usePaginatedPosts(type: PostsListType, page: number = 1, limit: number = 25) {
   return useQuery({
     queryKey: queryKeys.paginatedPosts(type, page, limit),
     queryFn: () => fetchPaginatedPosts(type, page, limit),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function usePostCounts() {
+  return useQuery({
+    queryKey: queryKeys.postCounts,
+    queryFn: fetchPostCounts,
+    refetchInterval: 30_000,
   });
 }
 

@@ -11,6 +11,7 @@ import {
 import { generatePostUrl, mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
+import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -21,7 +22,6 @@ import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFil
 
 import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
-import { refreshTikTokTokenIfNeeded } from "./tiktok-refresh";
 
 import type { Post, Media, RepostTarget, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
 import type { Logger } from "pino";
@@ -81,15 +81,6 @@ async function persistRefreshedCredentials(
   refreshedCredentials: NonNullable<NonNullable<PostingResult["extraData"]>["refreshedCredentials"]>,
   log: Logger,
 ) {
-  const platformLower = account.platform.toLowerCase();
-  if (
-    platformLower !== "x" &&
-    platformLower !== "instagram" &&
-    platformLower !== "bluesky" &&
-    platformLower !== "threads"
-  )
-    return;
-
   try {
     await prisma.connectedAccount.update({
       where: { id: account.id },
@@ -271,12 +262,28 @@ async function postSegmentsToAccount(
   let rootResult: PostingResult | undefined;
 
   // Hold the account lock for the whole thread so segments of concurrent
-  // posts to the same account don't interleave and token refreshes (which
-  // rotate refresh tokens on X/TikTok) stay serialized. Credentials are
+  // posts to the same account don't interleave and token refreshes (some
+  // providers rotate refresh tokens) stay serialized. Credentials are
   // reloaded inside the lock to pick up tokens persisted by a publish this
   // one waited on.
+  let credentialFailure: PostingResult | undefined;
   await withAccountLock(account.id, async () => {
-    const freshAccount = await reloadAccountSecrets(account);
+    let freshAccount = await reloadAccountSecrets(account);
+    const refreshResult = await refreshConnectedAccountIfNeeded(freshAccount, {
+      minValidityMs: POST_CREDENTIAL_MIN_VALIDITY_MS,
+      reason: "post",
+    });
+    if (refreshResult.error) {
+      credentialFailure = {
+        accountId: account.id,
+        error: "CREDENTIALS_ERROR",
+        message: refreshResult.error,
+        platform: account.platform,
+        success: false,
+      };
+      return;
+    }
+    freshAccount = refreshResult.account;
 
     for (const [i, segment] of effectiveSegments.entries()) {
       const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
@@ -331,6 +338,10 @@ async function postSegmentsToAccount(
       }
     }
   });
+
+  if (credentialFailure) {
+    return credentialFailure;
+  }
 
   // Fill in skipped segments so the UI can show the correct X/Y total
   for (let i = segmentResults.length; i < effectiveSegments.length; i++) {
@@ -445,32 +456,6 @@ export async function postToAccounts(
       );
     });
 
-    // Refresh TikTok tokens if expired (access tokens expire after 24 hours).
-    // Accounts whose token is expired and could not be refreshed fail fast
-    // with an actionable message instead of attempting a doomed publish.
-    const refreshResults = await Promise.all(accounts.map((account) => refreshTikTokTokenIfNeeded(account)));
-    const refreshFailures: PostingResult[] = refreshResults
-      .filter((result) => result.error)
-      .map((result) => ({
-        accountId: result.account.id,
-        platform: result.account.platform,
-        success: false,
-        error: "CREDENTIALS_ERROR",
-        message: result.error,
-      }));
-    const refreshedAccounts = refreshResults.filter((result) => !result.error).map((result) => result.account);
-
-    if (refreshFailures.length > 0) {
-      log.error(
-        { failedAccountIds: refreshFailures.map((failure) => failure.accountId) },
-        "Skipping accounts whose token refresh failed",
-      );
-    }
-
-    if (refreshedAccounts.length === 0) {
-      return refreshFailures;
-    }
-
     const sharedThread = thread ?? [];
 
     // Every post is a list of segments per account (a plain post is a thread
@@ -482,7 +467,7 @@ export async function postToAccounts(
     let results: PostingResult[];
     try {
       results = await Promise.all(
-        refreshedAccounts.map((account) => {
+        accounts.map((account) => {
           const segments = buildAccountSegments(account.id, message, mediaFiles, sharedThread, accountOverrides);
           return postSegmentsToAccount(segments, account, resolver, accountOptions);
         }),
@@ -520,7 +505,7 @@ export async function postToAccounts(
       }
     });
 
-    return [...refreshFailures, ...results];
+    return results;
   } catch (error) {
     const durationMs = Date.now() - startTime;
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");
@@ -546,7 +531,21 @@ async function repostSingleTarget(
   }
 
   return withAccountLock(account.id, async () => {
-    const freshAccount = await reloadAccountSecrets(account);
+    let freshAccount = await reloadAccountSecrets(account);
+    const refreshResult = await refreshConnectedAccountIfNeeded(freshAccount, {
+      minValidityMs: POST_CREDENTIAL_MIN_VALIDITY_MS,
+      reason: "post",
+    });
+    if (refreshResult.error) {
+      return {
+        accountId: account.id,
+        error: "CREDENTIALS_ERROR",
+        message: refreshResult.error,
+        platform: account.platform,
+        success: false,
+      };
+    }
+    freshAccount = refreshResult.account;
     const options = buildPostOptions(freshAccount, accountOptions);
 
     const results = await sdkRepost({

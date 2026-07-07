@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
+import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
@@ -112,6 +113,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (postingMode !== "draft" && !validation.summary.isValid) {
       throw new ValidationError(validation);
+    }
+
+    if (postingMode !== "draft" && scheduledFor) {
+      const credentialIssues = await getCredentialIssuesForPublishTime({
+        accountIds: validated.accountIds,
+        publishAt: scheduledFor,
+        userId: session.user.id,
+      });
+      if (credentialIssues.length > 0) {
+        throw new BadRequestError(credentialIssues.map((issue) => issue.message).join(" "));
+      }
     }
 
     const repostSettings = validated.repost

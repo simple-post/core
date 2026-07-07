@@ -17,6 +17,7 @@ jest.mock("@/lib/prisma", () => ({
     },
     connectedAccount: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     webhookEndpoint: {
       findMany: jest.fn(),
@@ -52,6 +53,7 @@ const prismaMock = prisma as unknown as {
   };
   connectedAccount: {
     count: jest.Mock;
+    findMany: jest.Mock;
   };
   webhookEndpoint: {
     findMany: jest.Mock;
@@ -180,6 +182,7 @@ beforeEach(() => {
     },
   });
   prismaMock.connectedAccount.count.mockResolvedValue(1);
+  prismaMock.connectedAccount.findMany.mockResolvedValue([]);
   prismaMock.webhookEndpoint.findMany.mockResolvedValue([]);
   mockFindMany({});
   prismaMock.post.count.mockResolvedValue(0);

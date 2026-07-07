@@ -434,7 +434,7 @@ function PostCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {(isScheduled || isDraft) && (
+                    {(isScheduled || isDraft || isFailed) && (
                       <Link href={`/posts/${post.id}/edit`}>
                         <DropdownMenuItem
                           onClick={(e) => {
@@ -442,7 +442,7 @@ function PostCard({
                           }}
                           className="cursor-pointer">
                           <Edit className="h-4 w-4 mr-2" />
-                          Edit
+                          {isFailed ? "Edit and Retry" : "Edit"}
                         </DropdownMenuItem>
                       </Link>
                     )}

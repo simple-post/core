@@ -14,9 +14,28 @@ import {
   exchangeCodeForBlueskyToken,
   handlePlatformCallback,
 } from "@/lib/oauth";
+import { getRefreshTokenExpiresAt } from "@/lib/oauth/credential-health";
 import { OAuthStateError } from "@/lib/oauth/state";
 
 import type { Prisma } from "@prisma/client";
+
+function mergeTokenMetadata(
+  current: Prisma.InputJsonValue | null,
+  tokenData: Record<string, unknown>,
+): Prisma.InputJsonValue | null {
+  const refreshTokenExpiresAt = getRefreshTokenExpiresAt(tokenData, new Date());
+  if (!refreshTokenExpiresAt) {
+    return current;
+  }
+
+  const base =
+    current && typeof current === "object" && !Array.isArray(current) ? (current as Record<string, unknown>) : {};
+
+  return {
+    ...base,
+    refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString(),
+  } as Prisma.InputJsonObject;
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const baseURL = env.NEXT_PUBLIC_APP_URL;
@@ -101,6 +120,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!accessToken) {
       return NextResponse.redirect(getErrorRedirectUrl("no_access_token", baseURL));
     }
+    tokenMetadata = mergeTokenMetadata(tokenMetadata, tokenData);
 
     // Dispatch to platform-specific handler
     const response = await handlePlatformCallback({

@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
-import { refreshTikTokTokenIfNeeded } from "@/lib/posting/tiktok-refresh";
+import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
+import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { fetchTikTokCreatorInfo } from "@/lib/tiktok/creator-info";
@@ -29,7 +30,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new BadRequestError("This endpoint only supports TikTok accounts");
     }
 
-    const refreshResult = await refreshTikTokTokenIfNeeded(account);
+    // TikTok rotates refresh tokens; the lock keeps this refresh from racing
+    // a concurrent publish for the same account.
+    const refreshResult = await withAccountLock(account.id, async () => {
+      const freshAccount = await reloadAccountSecrets(account);
+      return refreshConnectedAccountIfNeeded(freshAccount, {
+        minValidityMs: POST_CREDENTIAL_MIN_VALIDITY_MS,
+        reason: "post",
+      });
+    });
     if (refreshResult.error) {
       throw new BadRequestError(refreshResult.error);
     }

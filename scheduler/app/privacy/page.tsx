@@ -180,11 +180,11 @@ export default function PrivacyPage() {
             <p className="text-muted-foreground leading-relaxed mt-4">
               For YouTube API Services data, we retain OAuth tokens, scopes, account identifiers, and basic account
               metadata only while the YouTube account remains connected or while needed to complete posts you create or
-              schedule. We refresh OAuth access on demand when Google requires a fresh access token for an authorized
-              upload or account action, and we update stored YouTube account metadata when you reconnect the account.
-              When you disconnect YouTube, the active connection record and stored tokens are deleted immediately.
-              Account deletion and support deletion requests are processed within 30 days unless retention is required
-              by law or security obligations.
+              schedule. We refresh OAuth access as needed before scheduled or requested YouTube upload and account
+              actions, and we update stored YouTube account metadata when you reconnect the account. When you disconnect
+              YouTube, the active connection record and stored tokens are deleted immediately. Account deletion and
+              support deletion requests are processed within 30 days unless retention is required by law or security
+              obligations.
             </p>
           </section>
 

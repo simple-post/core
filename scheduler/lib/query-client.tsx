@@ -64,6 +64,7 @@ export const queryKeys = {
   accounts: ["accounts"],
   repostSettings: ["repost-settings"],
   posts: (type?: string) => (type ? ["posts", type] : ["posts"]),
+  postCounts: ["posts", "counts"],
   paginatedPosts: (type: string, page: number, limit: number) => ["posts", type, { page, limit }],
   post: (id: string) => ["posts", "detail", id],
 } as const;

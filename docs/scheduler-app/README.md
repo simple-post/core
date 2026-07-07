@@ -88,7 +88,7 @@ The form validates content against the selected accounts. It blocks publishing w
 
 ### Schedule dispatch
 
-Scheduled posts are stored in the database. A separate cron or worker should call the internal dispatch route:
+Scheduled posts are stored in the database. A separate cron or worker should call the internal dispatch route. Each run also refreshes connected-account credentials that are nearing expiry, so run it regularly even when few posts are due:
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_APP_URL/api/internal/scheduled-posts/dispatch" \

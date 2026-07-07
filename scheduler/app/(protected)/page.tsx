@@ -9,16 +9,45 @@ import { Calendar, CheckCircle, AlertCircle, FileText } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePostCounts } from "@/hooks/use-posts";
+import { useSession } from "@/lib/auth/auth-client";
+import { cn } from "@/lib/utils";
 
 type TabType = "drafts" | "scheduled" | "past" | "failed";
 const TABS = new Set<TabType>(["drafts", "scheduled", "past", "failed"]);
+const FAILED_SEEN_STORAGE_KEY_PREFIX = "simplepost:dashboard:last-seen-failed-at:v1";
+
+function TabCountBadge({
+  count,
+  tone = "default",
+}: {
+  count: number | undefined;
+  tone?: "default" | "danger" | "danger-muted";
+}) {
+  const displayCount = typeof count === "number" ? count : 0;
+
+  return (
+    <span
+      className={cn(
+        "ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] leading-none tracking-normal",
+        tone === "danger" && "bg-destructive text-destructive-foreground shadow-[0_0_0_3px_rgba(239,68,68,0.18)]",
+        tone === "danger-muted" && "bg-destructive/15 text-destructive",
+        tone === "default" && "bg-secondary text-muted-foreground",
+      )}>
+      {displayCount > 99 ? "99+" : displayCount}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab") as TabType | null;
+  const { data: session } = useSession();
+  const { data: postCounts } = usePostCounts();
 
   const [activeTab, setActiveTab] = useState<TabType>(tabParam && TABS.has(tabParam) ? tabParam : "scheduled");
+  const [lastSeenFailedAt, setLastSeenFailedAt] = useState<string | null>(null);
   const [draftsPage, setDraftsPage] = useState(1);
   const [scheduledPage, setScheduledPage] = useState(1);
   const [postedPage, setPostedPage] = useState(1);
@@ -27,6 +56,22 @@ export default function Dashboard() {
   const [scheduledPageSize, setScheduledPageSize] = useState(25);
   const [postedPageSize, setPostedPageSize] = useState(25);
   const [failedPageSize, setFailedPageSize] = useState(25);
+  const failedSeenStorageKey = session?.user?.id ? `${FAILED_SEEN_STORAGE_KEY_PREFIX}:${session.user.id}` : null;
+  const latestFailedAt = postCounts?.latestFailedAt ?? null;
+  const failedCount = postCounts?.counts.failed ?? 0;
+  const hasUnseenFailed =
+    activeTab !== "failed" &&
+    failedCount > 0 &&
+    Boolean(latestFailedAt && (!lastSeenFailedAt || latestFailedAt > lastSeenFailedAt));
+
+  useEffect(() => {
+    if (!failedSeenStorageKey) {
+      setLastSeenFailedAt(null);
+      return;
+    }
+
+    setLastSeenFailedAt(window.localStorage.getItem(failedSeenStorageKey));
+  }, [failedSeenStorageKey]);
 
   // Update tab when URL param changes
   useEffect(() => {
@@ -36,6 +81,15 @@ export default function Dashboard() {
       router.replace("/", { scroll: false });
     }
   }, [tabParam, router]);
+
+  useEffect(() => {
+    if (activeTab !== "failed" || !failedSeenStorageKey || !latestFailedAt) {
+      return;
+    }
+
+    window.localStorage.setItem(failedSeenStorageKey, latestFailedAt);
+    setLastSeenFailedAt(latestFailedAt);
+  }, [activeTab, failedSeenStorageKey, latestFailedAt]);
 
   // Reset page to 1 when switching tabs
   const handleTabChange = (value: string) => {
@@ -66,10 +120,12 @@ export default function Dashboard() {
             <TabsTrigger value="drafts" className="gap-2">
               <FileText className="h-3.5 w-3.5" />
               Drafts
+              <TabCountBadge count={postCounts?.counts.drafts} />
             </TabsTrigger>
             <TabsTrigger value="scheduled" className="gap-2">
               <Calendar className="h-3.5 w-3.5" />
               Scheduled
+              <TabCountBadge count={postCounts?.counts.scheduled} />
             </TabsTrigger>
             <TabsTrigger value="past" className="gap-2">
               <CheckCircle className="h-3.5 w-3.5" />
@@ -78,6 +134,13 @@ export default function Dashboard() {
             <TabsTrigger value="failed" className="gap-2">
               <AlertCircle className="h-3.5 w-3.5" />
               Failed
+              <TabCountBadge
+                count={failedCount}
+                tone={hasUnseenFailed ? "danger" : failedCount > 0 ? "danger-muted" : "default"}
+              />
+              {hasUnseenFailed ? (
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.22)]" />
+              ) : null}
             </TabsTrigger>
           </TabsList>
 

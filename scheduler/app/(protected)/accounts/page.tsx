@@ -20,6 +20,33 @@ import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
 
+function getCredentialBadge(account: ConnectedAccount): {
+  className: string;
+  label: string;
+  variant: "secondary" | "destructive" | "outline";
+} {
+  const status = account.credentialStatus;
+  if (!status || status.severity === "ok") {
+    return {
+      className: "border-primary/30 bg-primary/10 text-primary",
+      label: status?.label ?? "Active",
+      variant: "secondary",
+    };
+  }
+  if (status.severity === "error") {
+    return {
+      className: "",
+      label: status.label,
+      variant: "destructive",
+    };
+  }
+  return {
+    className: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    label: status.label,
+    variant: "outline",
+  };
+}
+
 export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
@@ -147,6 +174,7 @@ export default function AccountsPage() {
             {accounts.map((account: ConnectedAccount) => {
               const platformConfig = getPlatformById(account.platform);
               if (!platformConfig) return null;
+              const credentialBadge = getCredentialBadge(account);
 
               return (
                 <div key={account.id} className="rounded-2xl border border-border bg-card p-5 card-accent-hover">
@@ -164,8 +192,8 @@ export default function AccountsPage() {
                           <h3 className="font-semibold text-base text-foreground truncate">
                             {getAccountDisplayName(account)}
                           </h3>
-                          <Badge variant="secondary" className="border-primary/30 bg-primary/10 text-primary">
-                            Active
+                          <Badge variant={credentialBadge.variant} className={credentialBadge.className}>
+                            {credentialBadge.label}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -175,6 +203,11 @@ export default function AccountsPage() {
                         </div>
                         {account.email && (
                           <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>
+                        )}
+                        {account.credentialStatus && account.credentialStatus.severity !== "ok" && (
+                          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+                            {account.credentialStatus.message}
+                          </p>
                         )}
                       </div>
                     </div>

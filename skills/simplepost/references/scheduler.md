@@ -26,7 +26,7 @@ yarn workspace @simple-post/scheduler dev
 
 ## Scheduled Dispatch
 
-Scheduled posts require a trusted worker or cron to call:
+Scheduled posts require a trusted worker or cron to call. Each run also refreshes connected-account credentials nearing expiry, so it should run regularly even if no posts are expected:
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_APP_URL/api/internal/scheduled-posts/dispatch" \

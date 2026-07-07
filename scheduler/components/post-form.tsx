@@ -31,7 +31,7 @@ import { CreatePostForm } from "./create-post-form";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
 import { PostPreview } from "./post-preview";
-import { ScheduleDateTimePicker } from "./schedule-date-time-picker";
+import { SchedulePicker } from "./schedule-picker";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -538,11 +538,12 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         {/* Schedule Settings - Only show when scheduling */}
         {postingMode === "schedule" && (
           <div className="space-y-2">
-            <ScheduleDateTimePicker
+            <SchedulePicker
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}
               onScheduledDateChange={setScheduledDate}
               onScheduledTimeChange={setScheduledTime}
+              excludePostId={existingPost.id}
             />
             {scheduleError ? (
               <p role="alert" className="text-sm text-destructive">

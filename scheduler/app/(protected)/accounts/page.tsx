@@ -9,7 +9,6 @@ import { AccountAvatar } from "@/components/account-avatar";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -23,27 +22,20 @@ import type { ConnectedAccount } from "@/types";
 function getCredentialBadge(account: ConnectedAccount): {
   className: string;
   label: string;
-  variant: "secondary" | "destructive" | "outline";
-} {
+} | null {
   const status = account.credentialStatus;
-  if (!status || status.severity === "ok") {
-    return {
-      className: "border-primary/30 bg-primary/10 text-primary",
-      label: status?.label ?? "Active",
-      variant: "secondary",
-    };
+  if (!status || status.severity === "ok" || status.state === "refreshing_soon") {
+    return null;
   }
   if (status.severity === "error") {
     return {
-      className: "",
+      className: "border-destructive/20 bg-destructive/10 text-destructive",
       label: status.label,
-      variant: "destructive",
     };
   }
   return {
-    className: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     label: status.label,
-    variant: "outline",
   };
 }
 
@@ -192,9 +184,12 @@ export default function AccountsPage() {
                           <h3 className="font-semibold text-base text-foreground truncate">
                             {getAccountDisplayName(account)}
                           </h3>
-                          <Badge variant={credentialBadge.variant} className={credentialBadge.className}>
-                            {credentialBadge.label}
-                          </Badge>
+                          {credentialBadge ? (
+                            <span
+                              className={`inline-flex w-fit shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${credentialBadge.className}`}>
+                              {credentialBadge.label}
+                            </span>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                           <span>{platformConfig.name}</span>
@@ -204,7 +199,7 @@ export default function AccountsPage() {
                         {account.email && (
                           <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>
                         )}
-                        {account.credentialStatus && account.credentialStatus.severity !== "ok" && (
+                        {credentialBadge && account.credentialStatus && (
                           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
                             {account.credentialStatus.message}
                           </p>

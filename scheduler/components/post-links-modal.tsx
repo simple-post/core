@@ -48,6 +48,10 @@ function getPlatformDisplayName(platform: string): string {
   return config?.name || platform;
 }
 
+function getPrimaryPostUrl(result: PostingResult): string | undefined {
+  return result.postUrl || result.threadResults?.find((segment) => segment.success && segment.postUrl)?.postUrl;
+}
+
 export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalProps) {
   const successfulPosts = results.filter((r) => r.success);
   const failedPosts = results.filter((r) => !r.success);
@@ -55,7 +59,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
         <DialogHeader>
           <div className="section-kicker">
             <span className="section-kicker-dot" />
@@ -69,7 +73,7 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
+        <div className="max-w-full space-y-2 overflow-hidden">
           {results.map((result) => {
             const isThread = result.threadResults && result.threadResults.length > 0;
             const totalSegments = isThread ? result.threadResults!.length : 1;
@@ -78,11 +82,12 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
               : result.success
                 ? 1
                 : 0;
+            const postUrl = getPrimaryPostUrl(result);
 
             return (
               <div
                 key={result.accountId}
-                className="flex items-start gap-3 rounded-lg border border-border bg-secondary/40 p-3">
+                className="flex min-w-0 items-start gap-3 overflow-hidden rounded-lg border border-border bg-secondary/40 p-3">
                 <div className="mt-0.5 flex-shrink-0">
                   {result.success ? (
                     <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -102,12 +107,12 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
                         </span>
                       )}
                     </div>
-                    {result.postUrl && (
+                    {postUrl && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="gap-2 flex-shrink-0 h-7"
-                        onClick={() => window.open(result.postUrl, "_blank", "noopener,noreferrer")}>
+                        onClick={() => window.open(postUrl, "_blank", "noopener,noreferrer")}>
                         <ExternalLink className="h-4 w-4" />
                         View
                       </Button>
@@ -115,10 +120,19 @@ export function PostLinksModal({ open, onOpenChange, results }: PostLinksModalPr
                   </div>
 
                   {result.postId && !isThread && (
-                    <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">id: {result.postId}</p>
+                    <p className="mt-0.5 break-all font-mono text-xs text-muted-foreground">id: {result.postId}</p>
+                  )}
+                  {postUrl && (
+                    <a
+                      href={postUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block max-w-full overflow-hidden break-all text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+                      {postUrl}
+                    </a>
                   )}
                   {!result.success && (
-                    <p className="text-xs text-destructive mt-1 line-clamp-2 break-words">
+                    <p className="text-xs text-destructive mt-1 line-clamp-2 break-all">
                       {result.message || result.error}
                     </p>
                   )}

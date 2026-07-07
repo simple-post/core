@@ -56,4 +56,11 @@ export const env = {
   get SELF_HOSTED() {
     return getBoolean("SELF_HOSTED");
   },
+  /**
+   * Enables the hard-coded OpenAI reviewer account password login
+   * (openai@simplepost.social). Should only be set in review/staging environments.
+   */
+  get ENABLE_OPENAI_TEST_LOGIN() {
+    return getBoolean("ENABLE_OPENAI_TEST_LOGIN");
+  },
 };

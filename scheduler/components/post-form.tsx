@@ -434,9 +434,24 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Message Input */}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <AccountSelector
+          selectedAccountIds={selectedAccountIds}
+          onSelectionChange={setSelectedAccountIds}
+          title="Post to"
+          showAdvancedButton
+          getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
+          layout="row"
+        />
+
+        <AccountOptionsComponent
+          selectedAccountIds={selectedAccountIds}
+          options={accountOptions}
+          onOptionsChange={setAccountOptions}
+          media={media}
+          onBlockingChange={setAccountOptionsBlocked}
+        />
+
         <div className="space-y-4">
           <div>
             <Label htmlFor="message" className="text-sm font-medium">
@@ -561,24 +576,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           ) : null}
         </div>
 
-        {/* Account Selection */}
-        <AccountSelector
-          selectedAccountIds={selectedAccountIds}
-          onSelectionChange={setSelectedAccountIds}
-          title="Accounts"
-          description="Choose which accounts to publish your content to"
-        />
-
-        {/* Account-Specific Options */}
-        <AccountOptionsComponent
-          selectedAccountIds={selectedAccountIds}
-          options={accountOptions}
-          onOptionsChange={setAccountOptions}
-          media={media}
-          onBlockingChange={setAccountOptionsBlocked}
-        />
-
-        {/* Posting Mode Selection */}
         <div className="space-y-4">
           <div>
             <Label className="text-sm font-medium">When to Post</Label>
@@ -605,7 +602,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           </RadioGroup>
         </div>
 
-        {/* Schedule Settings - Only show when scheduling */}
         {postingMode === "schedule" && (
           <div className="space-y-2">
             <SchedulePicker
@@ -711,7 +707,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         </div>
       </form>
 
-      {/* Preview */}
       <div className="lg:sticky lg:top-24 self-start">
         <PostPreview
           message={message}
@@ -723,7 +718,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         />
       </div>
 
-      {/* Post Links Modal */}
       <PostLinksModal
         open={showPostLinksModal}
         onOpenChange={(open) => {

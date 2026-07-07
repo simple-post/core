@@ -30,6 +30,7 @@ model User {
   apiKeys                ApiKey[]
   subscription           UserSubscription?
   repostSettings         UserRepostSettings?
+  postingSlots           PostingSlot[]
 
   @@unique([email])
   @@map("user")
@@ -68,6 +69,24 @@ model UserRepostSettings {
   updatedAt  DateTime @updatedAt
 
   @@map("user_repost_settings")
+}
+
+// Recurring weekly posting time slots ("every weekday at 17:00"). Times are
+// wall-clock values in the user's local timezone; the client turns them into
+// concrete datetimes when scheduling.
+model PostingSlot {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  time     String // "HH:mm" (24h)
+  weekdays Int[] // enabled days of week, 0 = Sunday … 6 = Saturday (JS Date#getDay)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, time])
+  @@index([userId])
+  @@map("posting_slot")
 }
 
 model Session {

@@ -3,9 +3,10 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { REPOST_CAPABLE_PLATFORMS } from "@simple-post/sdk/platform-names";
+import { format } from "date-fns";
 import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +24,7 @@ import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
@@ -34,7 +36,7 @@ import { GenericPostPreview } from "./generic-post-preview";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
-import { ScheduleDateTimePicker } from "./schedule-date-time-picker";
+import { SchedulePicker } from "./schedule-picker";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -49,6 +51,7 @@ function normalizeDelayHours(value: number) {
 
 export function CreatePostForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const submitPostMutation = useSubmitPost();
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const { data: defaultRepostSettings } = useRepostSettings();
@@ -65,6 +68,7 @@ export function CreatePostForm() {
     repostSettings,
     thread,
     hasDraftContent,
+    isHydrated,
     storageError,
     setMessage,
     setMedia,
@@ -146,6 +150,23 @@ export function CreatePostForm() {
       setTikTokConsent(false);
     }
   }, [tiktokConsentRequired]);
+
+  // Calendar click-through: /schedule?slot=YYYY-MM-DDTHH:mm preselects
+  // schedule mode at that slot's time. Applied only after the stored draft
+  // hydrates, so hydration doesn't overwrite it.
+  const slotParam = searchParams.get("slot");
+  useEffect(() => {
+    if (!isHydrated || !slotParam) return;
+
+    const slotDate = parseSlotOccurrenceKey(slotParam);
+    router.replace("/schedule", { scroll: false });
+
+    if (slotDate && slotDate > new Date()) {
+      setPostingMode("schedule");
+      setScheduledDate(format(slotDate, "yyyy-MM-dd"));
+      setScheduledTime(format(slotDate, "HH:mm"));
+    }
+  }, [isHydrated, router, setPostingMode, setScheduledDate, setScheduledTime, slotParam]);
 
   useEffect(() => {
     setScheduleError(null);
@@ -656,7 +677,7 @@ export function CreatePostForm() {
 
         {postingMode === "schedule" && (
           <div className="space-y-2">
-            <ScheduleDateTimePicker
+            <SchedulePicker
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}
               onScheduledDateChange={setScheduledDate}

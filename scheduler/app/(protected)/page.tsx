@@ -4,14 +4,15 @@ import { useState, useEffect } from "react";
 
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { Calendar, CheckCircle, AlertCircle, FileText } from "lucide-react";
+import { Calendar, CalendarDays, CheckCircle, AlertCircle, FileText } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
+import { ScheduleCalendar } from "@/components/schedule-calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type TabType = "drafts" | "scheduled" | "past" | "failed";
-const TABS = new Set<TabType>(["drafts", "scheduled", "past", "failed"]);
+type TabType = "drafts" | "scheduled" | "calendar" | "past" | "failed";
+const TABS = new Set<TabType>(["drafts", "scheduled", "calendar", "past", "failed"]);
 
 export default function Dashboard() {
   const searchParams = useSearchParams();
@@ -71,6 +72,10 @@ export default function Dashboard() {
               <Calendar className="h-3.5 w-3.5" />
               Scheduled
             </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-2">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Calendar
+            </TabsTrigger>
             <TabsTrigger value="past" className="gap-2">
               <CheckCircle className="h-3.5 w-3.5" />
               Posted
@@ -99,6 +104,10 @@ export default function Dashboard() {
               onPageChange={setScheduledPage}
               onPageSizeChange={setScheduledPageSize}
             />
+          </TabsContent>
+
+          <TabsContent value="calendar" className="mt-0">
+            <ScheduleCalendar />
           </TabsContent>
 
           <TabsContent value="past" className="mt-0">

@@ -34,6 +34,8 @@ interface PostDraftState {
 
 interface PostDraftContextValue extends PostDraftState {
   hasDraftContent: boolean;
+  /** True once the draft has been loaded from localStorage; writes before that are dropped. */
+  isHydrated: boolean;
   storageError: string | null;
   setMessage: (value: string) => void;
   setMedia: (value: MediaFile[]) => void;
@@ -243,6 +245,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
   const storageKey = session?.user?.id ? `${DRAFT_STORAGE_KEY_PREFIX}:${session.user.id}` : null;
   const hydratedStorageKeyRef = useRef<string | null>(null);
   const draftRef = useRef<PostDraftState>(DEFAULT_DRAFT);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [message, setMessageState] = useState(DEFAULT_DRAFT.message);
   const [media, setMediaState] = useState<MediaFile[]>(DEFAULT_DRAFT.media);
@@ -365,6 +368,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
         setDraftState(DEFAULT_DRAFT);
         setStorageError(null);
         hydratedStorageKeyRef.current = storageKey;
+        setIsHydrated(true);
         return;
       }
 
@@ -382,6 +386,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setStorageError("Draft could not be loaded from this browser.");
     } finally {
       hydratedStorageKeyRef.current = storageKey;
+      setIsHydrated(true);
     }
   }, [setDraftState, storageKey]);
 
@@ -469,6 +474,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<PostDraftContextValue>(
     () => ({
       hasDraftContent,
+      isHydrated,
       storageError,
       message,
       media,
@@ -504,6 +510,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       accountOptions,
       accountOverrides,
       hasDraftContent,
+      isHydrated,
       message,
       media,
       postingMode,

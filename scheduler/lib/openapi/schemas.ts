@@ -9,6 +9,7 @@ import {
 } from "@simple-post/sdk";
 import * as z from "zod/v4";
 
+import { postingSlotSchema, postingSlotsRequestSchema } from "@/lib/posting-slots/settings";
 import { createPostSchema, updatePostSchema } from "@/lib/validations/posts";
 
 export const JsonValueSchema = z.unknown();
@@ -46,6 +47,16 @@ export const RepostSettingsEnvelopeSchema = z
     settings: RepostSettingsSchema,
   })
   .meta({ id: "RepostSettingsEnvelope" });
+
+export const PostingSlotSchema = postingSlotSchema.meta({ id: "PostingSlot" });
+
+export const PostingSlotsRequestSchema = postingSlotsRequestSchema.meta({ id: "PostingSlotsRequest" });
+
+export const PostingSlotsEnvelopeSchema = z
+  .object({
+    slots: z.array(PostingSlotSchema),
+  })
+  .meta({ id: "PostingSlotsEnvelope" });
 
 export const UpdatePostRequestSchema = updatePostSchema.meta({ id: "UpdatePostRequest" });
 

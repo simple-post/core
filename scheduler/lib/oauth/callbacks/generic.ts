@@ -338,6 +338,7 @@ export async function handleGenericCallback(ctx: CallbackContext): Promise<NextR
     displayName,
     email,
     profilePicture,
+    tokenMetadata: ctx.tokenMetadata ?? undefined,
   });
 
   return NextResponse.redirect(`${ctx.baseURL}/accounts?success=true&platform=${ctx.platform}`);

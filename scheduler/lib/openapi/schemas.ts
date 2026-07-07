@@ -126,6 +126,18 @@ export const PostsEnvelopeSchema = z
   })
   .meta({ id: "PostsEnvelope" });
 
+export const PostCountsEnvelopeSchema = z
+  .object({
+    counts: z.object({
+      drafts: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      past: z.number().int().nonnegative(),
+      scheduled: z.number().int().nonnegative(),
+    }),
+    latestFailedAt: z.iso.datetime().nullable(),
+  })
+  .meta({ id: "PostCountsEnvelope" });
+
 export const PostingResultSchema = z
   .object({
     accountId: z.string(),
@@ -186,9 +198,27 @@ export const ConnectedAccountSchema = z
     profilePicture: z.url().nullable().optional(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
-    accessToken: z.string().optional(),
-    refreshToken: z.string().nullable().optional(),
-    tokenMetadata: JsonValueSchema.optional(),
+    credentialStatus: z
+      .object({
+        action: z.enum(["none", "refresh", "reconnect"]),
+        canRefresh: z.boolean(),
+        expiresAt: z.iso.datetime().nullable(),
+        label: z.string(),
+        lastRefreshAttemptAt: z.iso.datetime().nullable(),
+        lastRefreshError: z.string().nullable(),
+        message: z.string(),
+        refreshTokenExpiresAt: z.iso.datetime().nullable(),
+        severity: z.enum(["ok", "warning", "error"]),
+        state: z.enum([
+          "healthy",
+          "non_expiring",
+          "refreshing_soon",
+          "refresh_unavailable",
+          "reauth_required",
+          "unknown",
+        ]),
+      })
+      .optional(),
   })
   .meta({ id: "ConnectedAccount" });
 
@@ -551,6 +581,12 @@ export const DispatchScheduledPostsResponseSchema = z
     failedPosts: z.number().int().nonnegative(),
     skippedPosts: z.number().int().nonnegative(),
     staleRecoveredPosts: z.number().int().nonnegative(),
+    credentialRefresh: z.object({
+      checked: z.number().int().nonnegative(),
+      refreshed: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      skipped: z.number().int().nonnegative(),
+    }),
     processedReposts: z.number().int().nonnegative(),
     completedReposts: z.number().int().nonnegative(),
     failedReposts: z.number().int().nonnegative(),

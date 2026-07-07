@@ -6,6 +6,7 @@ import { assertCanCreatePost } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
+import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +21,29 @@ import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types"
 const log = createLogger("api:posts");
 
 type PostingMode = "now" | "schedule" | "draft";
+
+async function getPostCounts(userId: string) {
+  const [drafts, scheduled, past, failed, failedLatest] = await Promise.all([
+    prisma.post.count({ where: { userId, status: "draft" } }),
+    prisma.post.count({ where: { userId, status: "scheduled" } }),
+    prisma.post.count({ where: { userId, status: "published" } }),
+    prisma.post.count({ where: { userId, status: "failed" } }),
+    prisma.post.aggregate({
+      _max: { updatedAt: true },
+      where: { userId, status: "failed" },
+    }),
+  ]);
+
+  return {
+    counts: {
+      drafts,
+      failed,
+      past,
+      scheduled,
+    },
+    latestFailedAt: failedLatest._max.updatedAt?.toISOString() ?? null,
+  };
+}
 
 function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: string): Date | null {
   if (postingMode === "draft") {
@@ -55,6 +79,13 @@ export async function GET(req: NextRequest) {
     const paginationOptions = { page, limit };
 
     switch (type) {
+      case "counts": {
+        return NextResponse.json(await getPostCounts(session.user.id), {
+          headers: {
+            "Cache-Control": "private, no-store",
+          },
+        });
+      }
       case "scheduled": {
         const result = await repository.getScheduledPosts(paginationOptions);
         return NextResponse.json({ posts: result.data, pagination: result.pagination });
@@ -150,6 +181,17 @@ export async function POST(req: NextRequest) {
 
     if (postingMode !== "draft" && !validation.summary.isValid) {
       throw new ValidationError(validation);
+    }
+
+    if (postingMode !== "draft" && scheduledFor) {
+      const credentialIssues = await getCredentialIssuesForPublishTime({
+        accountIds: validated.accountIds,
+        publishAt: scheduledFor,
+        userId,
+      });
+      if (credentialIssues.length > 0) {
+        throw new BadRequestError(credentialIssues.map((issue) => issue.message).join(" "));
+      }
     }
 
     const repostSettings = await resolvePostRepostSettings(userId, validated.repost);

@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
 export const listAccountsSchema = z.object({});
 
@@ -14,6 +16,17 @@ export const mcpAccountSchema = z.object({
     .nullable()
     .optional()
     .describe("Public URL for the account's profile picture, when available."),
+  credentialStatus: z
+    .object({
+      state: z.string(),
+      severity: z.enum(["ok", "warning", "error"]),
+      label: z.string(),
+      message: z.string(),
+      action: z.enum(["none", "refresh", "reconnect"]),
+      expiresAt: z.string().nullable(),
+      refreshTokenExpiresAt: z.string().nullable(),
+    })
+    .describe("Safe credential health summary. If action is reconnect, ask the user to reconnect before posting."),
 });
 
 export const listAccountsOutputSchema = z.object({
@@ -28,24 +41,29 @@ export const listAccountsOutputSchema = z.object({
 export async function listAccounts(userId: string) {
   const accounts = await prisma.connectedAccount.findMany({
     where: { userId },
-    select: {
-      id: true,
-      platform: true,
-      username: true,
-      displayName: true,
-      profilePicture: true,
-      createdAt: true,
-    },
     orderBy: { createdAt: "desc" },
   });
 
-  const mappedAccounts = accounts.map((account) => ({
-    accountId: account.id,
-    platform: account.platform,
-    username: account.username,
-    displayName: account.displayName,
-    profilePicture: account.profilePicture,
-  }));
+  const mappedAccounts = accounts.map((storedAccount) => {
+    const account = decryptConnectedAccountSecrets(storedAccount);
+    const credentialStatus = getConnectedAccountCredentialStatus(account);
+    return {
+      accountId: account.id,
+      credentialStatus: {
+        action: credentialStatus.action,
+        expiresAt: credentialStatus.expiresAt,
+        label: credentialStatus.label,
+        message: credentialStatus.message,
+        refreshTokenExpiresAt: credentialStatus.refreshTokenExpiresAt,
+        severity: credentialStatus.severity,
+        state: credentialStatus.state,
+      },
+      displayName: account.displayName,
+      platform: account.platform,
+      profilePicture: account.profilePicture,
+      username: account.username,
+    };
+  });
 
   return {
     kind: "accounts" as const,

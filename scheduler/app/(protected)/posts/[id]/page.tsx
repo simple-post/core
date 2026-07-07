@@ -166,11 +166,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <Navbar
           actions={
             <>
-              {(isScheduled || isDraft) && (
+              {(isScheduled || isDraft || isFailed) && (
                 <Link href={`/posts/${id}/edit`}>
                   <Button variant="outline" size="sm" className="gap-2">
                     <Edit className="h-4 w-4" />
-                    <span className="hidden sm:inline">Edit</span>
+                    <span className="hidden sm:inline">{isFailed ? "Edit and Retry" : "Edit"}</span>
                   </Button>
                 </Link>
               )}

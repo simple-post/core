@@ -4,6 +4,8 @@ export type OAuthTokenResponse = Record<string, unknown> & {
   access_token?: string;
   refresh_token?: string | null;
   expires_in?: number;
+  refresh_token_expires_in?: number;
+  refresh_expires_in?: number;
   open_id?: string;
   scope?: string;
   sub?: string;

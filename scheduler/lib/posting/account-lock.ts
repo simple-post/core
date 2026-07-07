@@ -5,7 +5,7 @@ import type { ConnectedAccount } from "@/types";
 /**
  * In-process serialization of publishing per connected account.
  *
- * X and TikTok rotate refresh tokens on every refresh: two concurrent
+ * Some providers rotate refresh tokens on every refresh: two concurrent
  * publishes for the same account would both refresh with the same (stale)
  * refresh token, which the platforms treat as token reuse and may answer by
  * invalidating the whole token family — silently disconnecting the account.

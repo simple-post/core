@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { assertCanCreatePost } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
@@ -462,6 +463,26 @@ function collectMediaForCleanup(post: Pick<SocialPost, "media" | "thread">): Med
   return [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
 }
 
+async function assertCredentialsReadyForPublish(params: {
+  accountIds: string[];
+  postingMode: "now" | "schedule" | "draft";
+  scheduledFor: Date | null;
+  userId: string;
+}): Promise<void> {
+  if (params.postingMode === "draft" || !params.scheduledFor) {
+    return;
+  }
+
+  const issues = await getCredentialIssuesForPublishTime({
+    accountIds: params.accountIds,
+    publishAt: params.scheduledFor,
+    userId: params.userId,
+  });
+  if (issues.length > 0) {
+    throw new Error(issues.map((issue) => issue.message).join(" "));
+  }
+}
+
 function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
   const keptUrls = new Set([
     ...newMedia.map((media) => media.url),
@@ -621,6 +642,13 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       .join("; ");
     throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
   }
+
+  await assertCredentialsReadyForPublish({
+    accountIds,
+    postingMode: targetPostingMode,
+    scheduledFor,
+    userId,
+  });
 
   const updates: Partial<SocialPost> = {};
   if (input.message !== undefined) updates.message = message;
@@ -790,6 +818,13 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
     );
   }
+
+  await assertCredentialsReadyForPublish({
+    accountIds: input.accountIds,
+    postingMode,
+    scheduledFor,
+    userId,
+  });
 
   // Create the post record
   let post: SocialPost;

@@ -23,7 +23,14 @@ import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
-import type { MediaFile, AccountOptionsMap, PostingMode, SocialPost, ThreadSegment } from "@/types";
+import type {
+  AccountOptionsMap,
+  AccountOverridesMap,
+  MediaFile,
+  PostingMode,
+  SocialPost,
+  ThreadSegment,
+} from "@/types";
 
 import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
@@ -36,7 +43,7 @@ import { SchedulePicker } from "./schedule-picker";
 import type { ValidationIssue } from "@simple-post/sdk";
 
 interface PostFormProps {
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "retry";
   existingPost?: SocialPost;
 }
 
@@ -51,24 +58,58 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
     return null;
   }
 
-  return <EditPostForm existingPost={existingPost} />;
+  return <EditPostForm existingPost={existingPost} mode={mode} />;
 }
 
-function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
-  const mode = "edit";
+function normalizeDelayHours(value: number | undefined) {
+  if (!Number.isFinite(value)) return 12;
+  return Math.min(720, Math.max(1, Math.round(value ?? 12)));
+}
+
+function getFailedRetryAccountIds(post: SocialPost): string[] {
+  const originalAccountIds = new Set(post.accountIds);
+  const failedFromAccountResults = Object.values(post.accountResults ?? {})
+    .filter((result) => !result.success && originalAccountIds.has(result.accountId))
+    .map((result) => result.accountId);
+
+  if (failedFromAccountResults.length > 0) {
+    return [...new Set(failedFromAccountResults)];
+  }
+
+  const failedPlatforms = Array.isArray(post.errorDetails?.failedPlatforms)
+    ? (post.errorDetails.failedPlatforms as Array<{ accountId?: unknown; platform?: unknown }>)
+    : [];
+  const failedAccountIds = failedPlatforms
+    .map((failure) => (typeof failure.accountId === "string" ? failure.accountId : null))
+    .filter((accountId): accountId is string => accountId !== null && originalAccountIds.has(accountId));
+
+  if (failedAccountIds.length > 0) {
+    return [...new Set(failedAccountIds)];
+  }
+
+  return post.accountIds;
+}
+
+function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: "edit" | "retry" }) {
+  const isRetry = mode === "retry";
   const router = useRouter();
   const [message, setMessage] = useState(existingPost.message || "");
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(existingPost.accountIds || []);
-  const [postingMode, setPostingMode] = useState<PostingMode>(existingPost.status === "draft" ? "draft" : "schedule");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
+    isRetry ? getFailedRetryAccountIds(existingPost) : existingPost.accountIds || [],
+  );
+  const [postingMode, setPostingMode] = useState<PostingMode>(
+    isRetry ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
+  );
   const [scheduledDate, setScheduledDate] = useState(
-    existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
+    !isRetry && existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
   );
   const [scheduledTime, setScheduledTime] = useState(
-    existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
+    !isRetry && existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
   );
   const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
   const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
+  const [accountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -95,6 +136,14 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
   const selectedAccounts = useMemo(
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
     [accounts, selectedAccountIds],
+  );
+  const selectedAccountIdSet = useMemo(() => new Set(selectedAccountIds), [selectedAccountIds]);
+  const enabledOverrides = useMemo<AccountOverridesMap>(
+    () =>
+      Object.fromEntries(
+        Object.entries(accountOverrides).filter(([accountId]) => selectedAccountIdSet.has(accountId)),
+      ) as AccountOverridesMap,
+    [accountOverrides, selectedAccountIdSet],
   );
   const selectedTikTokAccounts = useMemo(
     () => selectedAccounts.filter((account) => account.platform.toLowerCase() === "tiktok"),
@@ -126,9 +175,10 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       message,
       media,
       accounts: selectedAccounts,
+      accountOverrides: enabledOverrides,
       thread: thread.length > 0 ? thread : undefined,
     });
-  }, [media, message, selectedAccountIds, selectedAccounts, thread]);
+  }, [enabledOverrides, media, message, selectedAccountIds, selectedAccounts, thread]);
 
   useEffect(() => {
     setServerValidation(null);
@@ -154,6 +204,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             message,
             media,
             accountIds: selectedAccountIds,
+            accountOverrides: enabledOverrides,
             thread: thread.length > 0 ? thread : undefined,
           }),
           signal,
@@ -179,7 +230,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         setValidationLoading(false);
       }
     },
-    [media, message, selectedAccountIds, thread],
+    [enabledOverrides, media, message, selectedAccountIds, thread],
   );
 
   const maxTextLength = useMemo(() => {
@@ -283,6 +334,11 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         postingMode: PostingMode;
         scheduledFor?: string;
         accountOptions?: AccountOptionsMap;
+        accountOverrides?: AccountOverridesMap;
+        repost?: {
+          enabled: boolean;
+          delayHours: number;
+        };
         media: MediaFile[];
         thread?: ThreadSegment[];
       } = {
@@ -303,18 +359,35 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
       }
 
       if (Object.keys(accountOptions).length > 0) {
-        body.accountOptions = accountOptions;
+        body.accountOptions = selectedAccountIds.reduce((acc, accountId) => {
+          const options = accountOptions[accountId];
+          if (options) {
+            acc[accountId] = options;
+          }
+          return acc;
+        }, {} as AccountOptionsMap);
+      }
+
+      if (Object.keys(enabledOverrides).length > 0) {
+        body.accountOverrides = enabledOverrides;
       }
 
       if (thread.length > 0) {
         body.thread = thread;
       }
 
+      if (isRetry) {
+        body.repost = {
+          enabled: existingPost.repostEnabled === true,
+          delayHours: normalizeDelayHours(existingPost.repostDelayHours),
+        };
+      }
+
       // Submit using mutation
       const data = await submitPostMutation.mutateAsync({
         body,
-        mode,
-        postId: existingPost.id,
+        mode: isRetry ? "create" : "edit",
+        postId: isRetry ? undefined : existingPost.id,
       });
 
       // If posting now and we have posting results, show the modal
@@ -329,21 +402,18 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
         // Navigation will happen when modal closes (see onOpenChange below)
         // If failed, user can close modal and retry
       } else {
-        // Scheduled or draft post - navigate to the updated post
-        if (mode === "edit") {
-          router.push(`/posts/${existingPost.id}`);
-        } else if (postingMode === "draft") {
-          router.push("/?tab=drafts");
+        if (isRetry) {
+          router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
         } else {
-          router.push("/?tab=scheduled");
+          router.push(`/posts/${existingPost.id}`);
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : `Failed to ${mode} post. Please try again.`;
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${isRetry ? "retry" : mode} post.`;
       if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
         setScheduleError(errorMessage);
       }
-      logClientError(error, `Failed to ${mode} post`, {
+      logClientError(error, `Failed to ${isRetry ? "retry" : mode} post`, {
         postId: existingPost.id,
         postingMode,
         accountCount: selectedAccountIds.length,
@@ -610,11 +680,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
             type="button"
             variant="outline"
             onClick={() => {
-              if (mode === "edit") {
-                router.push(`/posts/${existingPost.id}`);
-              } else {
-                router.push("/");
-              }
+              router.push(`/posts/${existingPost.id}`);
             }}
             className="flex-1">
             Cancel
@@ -625,18 +691,22 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
                 ? "Posting..."
                 : postingMode === "draft"
                   ? "Saving..."
-                  : mode === "edit"
-                    ? "Updating..."
-                    : "Scheduling..."
+                  : isRetry
+                    ? "Scheduling..."
+                    : mode === "edit"
+                      ? "Updating..."
+                      : "Scheduling..."
               : postingMode === "draft"
                 ? "Save Draft"
                 : validationLoading
                   ? "Validating..."
                   : postingMode === "now"
                     ? "Post Now"
-                    : mode === "edit"
-                      ? "Update Post"
-                      : "Schedule Post"}
+                    : isRetry
+                      ? "Schedule Post"
+                      : mode === "edit"
+                        ? "Update Post"
+                        : "Schedule Post"}
           </Button>
         </div>
       </form>
@@ -660,12 +730,7 @@ function EditPostForm({ existingPost }: { existingPost: SocialPost }) {
           setShowPostLinksModal(open);
           // Navigate when modal is closed
           if (!open && postingSucceeded) {
-            // Navigate to Posted tab on success
-            if (mode === "edit") {
-              router.push(`/posts/${existingPost.id}`);
-            } else {
-              router.push("/?tab=past");
-            }
+            router.push(isRetry ? "/?tab=past" : `/posts/${existingPost.id}`);
           }
           // If posting failed, stay on the page to let user retry
         }}

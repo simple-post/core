@@ -4,6 +4,7 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { createLogger } from "@/lib/logger";
+import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
@@ -109,6 +110,12 @@ export interface DispatchDuePostsResult {
   failedReposts: number;
   skippedReposts: number;
   staleRecoveredReposts: number;
+  credentialRefresh: {
+    checked: number;
+    refreshed: number;
+    failed: number;
+    skipped: number;
+  };
   platformSummary: DispatchPlatformSummary[];
   postResults: DispatchPostResult[];
   repostResults: DispatchPostResult[];
@@ -519,6 +526,11 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   const startedAt = new Date();
   const now = new Date();
 
+  // Runs concurrently with the dispatch below so a slow provider can't delay
+  // due posts; per-account locks prevent races with publish-time refreshes.
+  // The sweep never rejects, so this is only awaited for the run summary.
+  const credentialRefreshPromise = refreshExpiringConnectedAccounts();
+
   const [staleRecoveredPosts, staleRecoveredReposts] = await Promise.all([
     recoverStalePendingPosts(),
     recoverStalePendingReposts(),
@@ -572,6 +584,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   const repostTargetsByPostId = new Map(dueReposts.map((post) => [post.id, buildRepostTargets(post)]));
 
   if (duePosts.length === 0 && dueReposts.length === 0) {
+    const credentialRefresh = await credentialRefreshPromise;
     return {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
@@ -580,6 +593,12 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       failedPosts: 0,
       skippedPosts: 0,
       staleRecoveredPosts,
+      credentialRefresh: {
+        checked: credentialRefresh.checked,
+        failed: credentialRefresh.failed,
+        refreshed: credentialRefresh.refreshed,
+        skipped: credentialRefresh.skipped,
+      },
       processedReposts: 0,
       completedReposts: 0,
       failedReposts: 0,
@@ -732,6 +751,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     .filter((value): value is DispatchPlatformSummary => value !== null)
     .sort((left, right) => left.platform.localeCompare(right.platform));
 
+  const credentialRefresh = await credentialRefreshPromise;
   const finishedAt = new Date();
 
   log.info(
@@ -743,6 +763,12 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       skippedPosts: duePosts.length - claimedPosts.length,
       skippedReposts: dueReposts.length - claimedReposts.length,
       staleRecoveredPosts,
+      credentialRefresh: {
+        checked: credentialRefresh.checked,
+        failed: credentialRefresh.failed,
+        refreshed: credentialRefresh.refreshed,
+        skipped: credentialRefresh.skipped,
+      },
       staleRecoveredReposts,
       publishedPosts,
       failedPosts,
@@ -761,6 +787,12 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     failedPosts,
     skippedPosts: duePosts.length - claimedPosts.length,
     staleRecoveredPosts,
+    credentialRefresh: {
+      checked: credentialRefresh.checked,
+      failed: credentialRefresh.failed,
+      refreshed: credentialRefresh.refreshed,
+      skipped: credentialRefresh.skipped,
+    },
     processedReposts: claimedReposts.length,
     completedReposts,
     failedReposts,

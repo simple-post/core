@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
+import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError } from "@/lib/utils/errors";
 
 export const dynamic = "force-dynamic";
@@ -11,28 +13,26 @@ export async function GET(req: NextRequest) {
     const session = await requireAuth(req);
 
     // Fetch user's connected social media accounts (for posting)
-    const connectedAccounts = await prisma.connectedAccount.findMany({
+    const storedAccounts = await prisma.connectedAccount.findMany({
       where: {
         userId: session.user.id,
-      },
-      select: {
-        id: true,
-        userId: true,
-        platform: true,
-        platformAccountId: true,
-        tokenType: true,
-        expiresAt: true,
-        scope: true,
-        username: true,
-        displayName: true,
-        email: true,
-        profilePicture: true,
-        createdAt: true,
-        updatedAt: true,
       },
       orderBy: {
         createdAt: "desc",
       },
+    });
+    const connectedAccounts = storedAccounts.map((storedAccount) => {
+      const account = decryptConnectedAccountSecrets(storedAccount);
+      const {
+        accessToken: _accessToken,
+        refreshToken: _refreshToken,
+        tokenMetadata: _tokenMetadata,
+        ...safeAccount
+      } = account;
+      return {
+        ...safeAccount,
+        credentialStatus: getConnectedAccountCredentialStatus(account),
+      };
     });
 
     return NextResponse.json(

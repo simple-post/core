@@ -20,6 +20,26 @@ export type {
 export type PostingMode = "now" | "schedule" | "draft";
 export type PostStatus = "draft" | "scheduled" | "pending" | "published" | "failed";
 export type RepostStatus = "not_applicable" | "scheduled" | "pending" | "completed" | "failed";
+export type ConnectedAccountCredentialState =
+  | "healthy"
+  | "non_expiring"
+  | "refreshing_soon"
+  | "refresh_unavailable"
+  | "reauth_required"
+  | "unknown";
+
+export interface ConnectedAccountCredentialStatus {
+  state: ConnectedAccountCredentialState;
+  severity: "ok" | "warning" | "error";
+  label: string;
+  message: string;
+  action: "none" | "refresh" | "reconnect";
+  canRefresh: boolean;
+  expiresAt: string | null;
+  refreshTokenExpiresAt: string | null;
+  lastRefreshAttemptAt: string | null;
+  lastRefreshError: string | null;
+}
 
 export interface AccountPlatformOptions {
   x?: {
@@ -179,4 +199,5 @@ export interface ConnectedAccount {
   profilePicture: string | null;
   createdAt: Date;
   updatedAt: Date;
+  credentialStatus?: ConnectedAccountCredentialStatus;
 }

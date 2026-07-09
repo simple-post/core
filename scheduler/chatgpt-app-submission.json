@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "SimplePost",
     "subtitle": "Post to social media",
-    "description": "SimplePost helps users work with their connected social media accounts directly from ChatGPT: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing, publish immediately, schedule posts for later, save posts as drafts, and manage drafts or future scheduled posts. The app replies in plain text and does not render a custom widget.",
+    "description": "SimplePost helps users work with their connected social media accounts directly from ChatGPT: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing, publish immediately, schedule posts for later, quote published or scheduled posts, save drafts, and manage drafts or future scheduled posts. The app replies in plain text and does not render a custom widget.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -160,6 +160,14 @@
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, update_scheduled_post",
       "expected_output": "Calls list_accounts to resolve the matching LinkedIn account edmund.clompton@gmail.com, creates a temporary draft for that accountId, then uses the returned post ID to update the same SimplePost record to scheduled status with the requested future time. The visible response includes the exact content, target account, scheduled status, and scheduled time.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Resolve a natural-language quote source and schedule a new post.",
+      "user_prompt": "Use SimplePost to schedule a new post tomorrow at 18:00 Europe/Berlin about my workout and quote my last post about the gym.",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_accounts, inspect_posts, create_post",
+      "expected_output": "Calls list_accounts for destination account IDs, inspect_posts to identify the most recent published or scheduled post whose content is about the gym, and create_post with that exact SimplePost ID as quotePostId plus a timezone-aware scheduledFor. The visible response includes the new content, quote source, accounts, and scheduled time.",
       "expected_output_url": null
     }
   ],

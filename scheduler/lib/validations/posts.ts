@@ -18,6 +18,7 @@ export const postingModeSchema = z.enum(["now", "schedule", "draft"]);
 export const createPostSchema = sdkCreatePostSchema.extend({
   postingMode: postingModeSchema.default("schedule"),
   scheduledFor: z.iso.datetime().optional(),
+  quotePostId: z.string().min(1).optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
@@ -32,6 +33,7 @@ export const updatePostSchema = z.object({
   repost: RepostSettingsSchema.optional(),
   media: z.array(MediaFileSchema).optional(),
   thread: ThreadSchema.optional(),
+  quotePostId: z.string().min(1).nullable().optional(),
 });
 
 export type UpdatePostInput = z.infer<typeof updatePostSchema>;

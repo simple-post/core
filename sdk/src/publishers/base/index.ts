@@ -1,8 +1,8 @@
 import { PostError, PostErrorType } from "../../types";
 import { Logger } from "../../utils/logger";
 
-import type { PostResult, RepostResult } from "../../types";
-import type { Content, PostOptions, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
+import type { PostResult, QuoteResult, RepostResult } from "../../types";
+import type { Content, PostOptions, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
 
 export type MediaRequirement = "path" | "url" | "either";
 
@@ -27,6 +27,19 @@ export abstract class Publisher {
 
   protected async repostContent(_target: RepostTarget, _options?: PostOptionsWithCredentials): Promise<RepostResult> {
     throw new PostError(PostErrorType.INVALID_CONTENT, "This platform does not support reposting through SimplePost");
+  }
+
+  /**
+   * Platforms without native quote support intentionally fall back to an
+   * ordinary post. This lets one multi-platform quote request preserve native
+   * quotes where available without failing the remaining destinations.
+   */
+  protected async quoteContent(
+    content: Content,
+    _target: QuoteTarget,
+    options?: PostOptionsWithCredentials,
+  ): Promise<QuoteResult> {
+    return this.postContent(content, options);
   }
 
   protected strictCheck(condition: boolean | undefined, message: string): asserts condition {
@@ -96,6 +109,35 @@ export abstract class Publisher {
       } else {
         this.logger.error(error instanceof Error ? error : message);
         return { error: PostErrorType.OTHER, message: `Error reposting: ${message}`, details: data };
+      }
+    }
+  }
+
+  async quote(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<QuoteResult> {
+    try {
+      this.logger.info(`Quoting content...`);
+
+      const result = await this.quoteContent(content, target, options);
+
+      if (result.error === PostErrorType.NO_ERROR) {
+        this.logger.info(`Quote successful: ${result.id}`);
+      } else {
+        this.logger.info(`Quote failed: ${result.error} - ${result.message}`);
+      }
+
+      return result;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const data =
+        typeof error === "object" && error && "data" in error ? (error as { data?: unknown }).data : undefined;
+
+      this.logger.info(`Quote failed: ${message}`);
+
+      if (error instanceof PostError) {
+        return { error: error.errorType, message: error.message, details: error.details };
+      } else {
+        this.logger.error(error instanceof Error ? error : message);
+        return { error: PostErrorType.OTHER, message: `Error quoting: ${message}`, details: data };
       }
     }
   }

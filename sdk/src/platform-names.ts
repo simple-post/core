@@ -39,6 +39,14 @@ export function isRepostCapablePlatform(platform: string): platform is RepostCap
   return (REPOST_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
 }
 
+/** Platforms where SimplePost can attach a native quoted post to new content. */
+export const QUOTE_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "linkedin"] as const;
+export type QuoteCapablePlatform = (typeof QUOTE_CAPABLE_PLATFORMS)[number];
+
+export function isQuoteCapablePlatform(platform: string): platform is QuoteCapablePlatform {
+  return (QUOTE_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
+}
+
 export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;

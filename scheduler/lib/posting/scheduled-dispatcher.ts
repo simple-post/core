@@ -8,6 +8,7 @@ import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health"
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
+import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/targets";
 import { summarizeRepostOutcome } from "@/lib/repost/results";
 import { buildPublishedRepostState } from "@/lib/repost/settings";
 import { buildRepostTargets } from "@/lib/repost/targets";
@@ -77,6 +78,8 @@ interface DuePost {
   accountResults: unknown;
   repostEnabled: boolean;
   repostDelayHours: number;
+  quotePostId: string | null;
+  quotePost: { status: string } | null;
   media: MediaFile[];
   accounts: Array<{
     id: string;
@@ -95,6 +98,32 @@ interface DueRepostPost {
     id: string;
     platform: string;
   }>;
+}
+
+/**
+ * Keeps the database's scheduled-time order while ensuring a due source is
+ * always handled before another due post that quotes it. The validation layer
+ * prevents cycles; if corrupted data contains one, the remaining posts retain
+ * their original order and are deferred by the dependency checks below.
+ */
+function orderPostsByQuoteDependencies(posts: DuePost[]): DuePost[] {
+  const remaining = [...posts];
+  const remainingIds = new Set(remaining.map((post) => post.id));
+  const ordered: DuePost[] = [];
+
+  while (remaining.length > 0) {
+    const readyIndex = remaining.findIndex((post) => !post.quotePostId || !remainingIds.has(post.quotePostId));
+    if (readyIndex === -1) {
+      ordered.push(...remaining);
+      break;
+    }
+
+    const [ready] = remaining.splice(readyIndex, 1);
+    remainingIds.delete(ready.id);
+    ordered.push(ready);
+  }
+
+  return ordered;
 }
 
 export interface DispatchDuePostsResult {
@@ -202,8 +231,17 @@ async function recoverStalePendingReposts(): Promise<number> {
  */
 async function claimPosts(posts: DuePost[]): Promise<DuePost[]> {
   const claimed: DuePost[] = [];
+  const claimedIds = new Set<string>();
 
   for (const post of posts) {
+    if (post.quotePostId && post.quotePost?.status === "scheduled" && !claimedIds.has(post.quotePostId)) {
+      log.info(
+        { postId: post.id, quotePostId: post.quotePostId },
+        "Quote source was not claimed in this run — deferring quote",
+      );
+      continue;
+    }
+
     const { count } = await prisma.post.updateMany({
       where: { id: post.id, status: "scheduled" },
       data: { status: "pending" },
@@ -211,12 +249,50 @@ async function claimPosts(posts: DuePost[]): Promise<DuePost[]> {
 
     if (count === 1) {
       claimed.push(post);
+      claimedIds.add(post.id);
     } else {
       log.info({ postId: post.id }, "Post no longer claimable — skipping (claimed elsewhere or edited)");
     }
   }
 
   return claimed;
+}
+
+/**
+ * Publishes claimed posts in dependency waves. Independent posts in a wave
+ * still run concurrently, while a quote waits for a source claimed in the
+ * same dispatch run to finish and persist its platform IDs first.
+ */
+async function publishClaimedPosts(posts: DuePost[]): Promise<DispatchPostResult[]> {
+  const claimedIds = new Set(posts.map((post) => post.id));
+  const completedIds = new Set<string>();
+  const remaining = [...posts];
+  const results: DispatchPostResult[] = [];
+
+  while (remaining.length > 0) {
+    let ready = remaining.filter(
+      (post) => !post.quotePostId || !claimedIds.has(post.quotePostId) || completedIds.has(post.quotePostId),
+    );
+
+    if (ready.length === 0) {
+      log.error(
+        { postIds: remaining.map((post) => post.id) },
+        "Cyclic quote dependencies detected; publishing will fail them with a source-state error",
+      );
+      ready = [...remaining];
+    }
+
+    const waveResults = await Promise.all(ready.map((post) => publishScheduledPost(post)));
+    results.push(...waveResults);
+
+    const readyIds = new Set(ready.map((post) => post.id));
+    for (const post of ready) completedIds.add(post.id);
+    for (let index = remaining.length - 1; index >= 0; index -= 1) {
+      if (readyIds.has(remaining[index].id)) remaining.splice(index, 1);
+    }
+  }
+
+  return results;
 }
 
 async function claimReposts(posts: DueRepostPost[]): Promise<DueRepostPost[]> {
@@ -308,6 +384,31 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   try {
     await assertActiveSubscription(post.userId);
 
+    let quoteTargets;
+    if (post.quotePostId) {
+      const quoteSource = await prisma.post.findFirst({
+        where: { id: post.quotePostId, userId: post.userId },
+        select: {
+          status: true,
+          accountResults: true,
+          accounts: { select: { id: true, platform: true } },
+        },
+      });
+
+      if (!quoteSource) {
+        throw new Error("The post selected for quoting no longer exists.");
+      }
+      if (["draft", "scheduled", "pending"].includes(quoteSource.status)) {
+        throw new Error("The post selected for quoting has not been published yet.");
+      }
+      if (quoteSource.status === "failed" && !hasSuccessfulQuoteSourceResult(quoteSource)) {
+        throw new Error("The post selected for quoting failed before it produced any platform posts.");
+      }
+
+      const destinationAccounts = post.accounts.filter((account) => accountIds.includes(account.id));
+      quoteTargets = buildQuoteTargets(quoteSource, destinationAccounts);
+    }
+
     const postingResults = await postToAccounts(
       post.userId,
       post.message,
@@ -316,6 +417,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       (post.accountOptions as AccountOptionsMap | null) ?? undefined,
       (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
       post.thread ?? undefined,
+      quoteTargets,
     );
 
     const summary = getPostingSummary(postingResults);
@@ -546,6 +648,11 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       },
       include: {
         media: true,
+        quotePost: {
+          select: {
+            status: true,
+          },
+        },
         accounts: {
           select: {
             id: true,
@@ -582,6 +689,24 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   ])) as [DuePost[], DueRepostPost[]];
 
   const repostTargetsByPostId = new Map(dueReposts.map((post) => [post.id, buildRepostTargets(post)]));
+  const duePostIds = new Set(duePosts.map((post) => post.id));
+  const dispatchableDuePosts = orderPostsByQuoteDependencies(
+    duePosts.filter((post) => {
+      const sourceStatus = post.quotePost?.status;
+      const sourceIsDueThisRun = !!post.quotePostId && sourceStatus === "scheduled" && duePostIds.has(post.quotePostId);
+      const waiting =
+        !!post.quotePostId &&
+        !!sourceStatus &&
+        (["draft", "pending"].includes(sourceStatus) || (sourceStatus === "scheduled" && !sourceIsDueThisRun));
+      if (waiting) {
+        log.info(
+          { postId: post.id, quotePostId: post.quotePostId, sourceStatus },
+          "Deferring quote until its source post is published",
+        );
+      }
+      return !waiting;
+    }),
+  );
 
   if (duePosts.length === 0 && dueReposts.length === 0) {
     const credentialRefresh = await credentialRefreshPromise;
@@ -612,7 +737,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
 
   const uniquePlatforms = [
     ...new Set<string>([
-      ...duePosts.flatMap((post) => post.accounts.map((account) => account.platform.toLowerCase())),
+      ...dispatchableDuePosts.flatMap((post) => post.accounts.map((account) => account.platform.toLowerCase())),
       ...dueReposts.flatMap((post) => {
         const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
         return (repostTargetsByPostId.get(post.id) ?? [])
@@ -639,10 +764,19 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   );
 
   const postsToProcess: DuePost[] = [];
+  const postsToProcessIds = new Set<string>();
   const repostsToProcess: DueRepostPost[] = [];
   const skippedByPlatform = new Map<string, number>();
 
-  for (const post of duePosts) {
+  for (const post of dispatchableDuePosts) {
+    if (post.quotePostId && post.quotePost?.status === "scheduled" && !postsToProcessIds.has(post.quotePostId)) {
+      log.info(
+        { postId: post.id, quotePostId: post.quotePostId },
+        "Quote source could not be dispatched in this run — deferring quote",
+      );
+      continue;
+    }
+
     const platforms = [...new Set(post.accounts.map((account) => account.platform.toLowerCase()))];
 
     // Per-platform cost: thread-capable platforms post N segments;
@@ -666,6 +800,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     }
 
     postsToProcess.push(post);
+    postsToProcessIds.add(post.id);
     for (const platform of platforms) {
       const budget = platformBudgets.get(platform);
       if (budget) {
@@ -724,7 +859,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   const claimedReposts = await claimReposts(repostsToProcess);
 
   const [postResults, repostResults] = await Promise.all([
-    Promise.all(claimedPosts.map((post) => publishScheduledPost(post))),
+    publishClaimedPosts(claimedPosts),
     Promise.all(claimedReposts.map((post) => dispatchAutoRepost(post))),
   ]);
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight, FileText, Quote } from "lucide-react";
 import { toast } from "sonner";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
@@ -267,6 +267,7 @@ function PostCard({
   const isDraft = post.status === "draft";
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
+  const canQuote = isScheduled || post.status === "published";
 
   const handleDelete = async () => {
     try {
@@ -378,6 +379,12 @@ function PostCard({
                         Draft
                       </Badge>
                     )}
+                    {post.quotePostId && (
+                      <Badge variant="outline" className="flex-shrink-0 text-xs">
+                        <Quote className="h-3 w-3 mr-1" />
+                        Quote
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -443,6 +450,18 @@ function PostCard({
                           className="cursor-pointer">
                           <Edit className="h-4 w-4 mr-2" />
                           {isFailed ? "Edit and Retry" : "Edit"}
+                        </DropdownMenuItem>
+                      </Link>
+                    )}
+                    {canQuote && (
+                      <Link href={`/schedule?quotePostId=${post.id}`}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className="cursor-pointer">
+                          <Quote className="h-4 w-4 mr-2" />
+                          Quote
                         </DropdownMenuItem>
                       </Link>
                     )}

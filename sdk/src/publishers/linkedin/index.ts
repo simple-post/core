@@ -14,7 +14,7 @@ import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -224,7 +224,12 @@ export class LinkedInPublisher extends Publisher {
     }
   }
 
-  async repostContent(target: RepostTarget, options?: PostOptionsWithCredentials): Promise<RepostResult> {
+  private async publishReshare(
+    targetPostId: string,
+    commentary: string,
+    options: PostOptionsWithCredentials | undefined,
+    action: "quote" | "repost",
+  ): Promise<PostResult> {
     const visibility = options?.linkedin?.visibility ?? "PUBLIC";
 
     try {
@@ -232,7 +237,7 @@ export class LinkedInPublisher extends Publisher {
         "https://api.linkedin.com/rest/posts",
         {
           author: `urn:li:person:${this.memberId}`,
-          commentary: "",
+          commentary,
           visibility,
           distribution: {
             feedDistribution: "MAIN_FEED",
@@ -242,7 +247,7 @@ export class LinkedInPublisher extends Publisher {
           lifecycleState: "PUBLISHED",
           isReshareDisabledByAuthor: false,
           reshareContext: {
-            parent: target.postId,
+            parent: targetPostId,
           },
         },
         {
@@ -264,9 +269,21 @@ export class LinkedInPublisher extends Publisher {
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to repost on LinkedIn: ${err.response?.data?.message || err.message || "Unknown error"}`,
+        `Failed to ${action} on LinkedIn: ${err.response?.data?.message || err.message || "Unknown error"}`,
         err.response?.data,
       );
     }
+  }
+
+  async quoteContent(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    if (content.media?.length) {
+      this.logger.warn("LinkedIn quote posts cannot include new media; posting the commentary-only reshare.");
+    }
+
+    return this.publishReshare(target.postId, content.text ?? "", options, "quote");
+  }
+
+  async repostContent(target: RepostTarget, options?: PostOptionsWithCredentials): Promise<RepostResult> {
+    return this.publishReshare(target.postId, "", options, "repost");
   }
 }

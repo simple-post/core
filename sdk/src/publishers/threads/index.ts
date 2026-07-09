@@ -8,7 +8,7 @@ import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
+import type { Content, Media, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -235,7 +235,11 @@ export class ThreadsPublisher extends Publisher {
     };
   }
 
-  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+  async postContent(
+    content: Content,
+    options?: PostOptionsWithCredentials,
+    quoteTarget?: QuoteTarget,
+  ): Promise<PostResult> {
     const replyToId = options?.threads?.replyToId;
     const validation = ThreadsPublisher.validate(content);
     if (!validation.isValid) {
@@ -273,6 +277,10 @@ export class ThreadsPublisher extends Publisher {
 
       if (replyToId) {
         basePayload.reply_to_id = replyToId;
+      }
+
+      if (quoteTarget) {
+        basePayload.quote_post_id = quoteTarget.postId;
       }
 
       if (media) {
@@ -369,6 +377,10 @@ export class ThreadsPublisher extends Publisher {
     } finally {
       await this.cleanupS3Files();
     }
+  }
+
+  async quoteContent(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    return this.postContent(content, options, target);
   }
 
   async repostContent(target: RepostTarget): Promise<RepostResult> {

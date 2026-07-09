@@ -115,6 +115,7 @@ interface PostMutationParams {
         size: number;
       }>;
     }>;
+    quotePostId?: string | null;
   };
   mode: "create" | "edit";
   postId?: string;

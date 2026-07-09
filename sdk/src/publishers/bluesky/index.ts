@@ -10,7 +10,7 @@ import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, Image, PostOptionsWithCredentials, RepostTarget } from "../../types/post";
+import type { Content, Image, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -534,8 +534,18 @@ export class BlueskyPublisher extends Publisher {
     return validateBlueskyContent(content);
   }
 
-  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+  async postContent(
+    content: Content,
+    options?: PostOptionsWithCredentials,
+    quoteTarget?: QuoteTarget,
+  ): Promise<PostResult> {
     const replyTo = options?.bluesky?.replyTo;
+    if (quoteTarget && (!quoteTarget.uri || !quoteTarget.cid)) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "Bluesky quotes require both uri and cid for the target post.",
+      );
+    }
     const validation = BlueskyPublisher.validate(content);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Bluesky content validation failed", validation);
@@ -552,7 +562,7 @@ export class BlueskyPublisher extends Publisher {
       const images = (content.media ?? [])
         .filter((item): item is Image => item.type === "image")
         .slice(0, BLUESKY_MAX_IMAGES);
-      let embed: Record<string, unknown> | undefined;
+      let mediaEmbed: Record<string, unknown> | undefined;
 
       if (images.length > 0) {
         const uploadedImages = [];
@@ -567,11 +577,26 @@ export class BlueskyPublisher extends Publisher {
           });
         }
 
-        embed = {
+        mediaEmbed = {
           $type: "app.bsky.embed.images",
           images: uploadedImages,
         };
       }
+
+      const quoteEmbed = quoteTarget
+        ? {
+            $type: "app.bsky.embed.record",
+            record: { uri: quoteTarget.uri!, cid: quoteTarget.cid! },
+          }
+        : undefined;
+      const embed =
+        quoteEmbed && mediaEmbed
+          ? {
+              $type: "app.bsky.embed.recordWithMedia",
+              record: quoteEmbed,
+              media: mediaEmbed,
+            }
+          : (quoteEmbed ?? mediaEmbed);
 
       const record = {
         $type: "app.bsky.feed.post",
@@ -646,6 +671,10 @@ export class BlueskyPublisher extends Publisher {
     } finally {
       await tempFileManager.cleanup();
     }
+  }
+
+  async quoteContent(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    return this.postContent(content, options, target);
   }
 
   async repostContent(target: RepostTarget): Promise<RepostResult> {

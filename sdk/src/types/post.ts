@@ -256,6 +256,23 @@ export const RepostSchema = z.object({
   options: PostOptionsSchema.optional(),
 });
 
+// Quote targets use the same platform identifiers as reposts. Bluesky needs
+// the record uri/cid pair in addition to the public post id; other platforms
+// use postId directly.
+export const QuoteTargetSchema = RepostTargetSchema;
+
+export const QuoteSchema = z
+  .object({
+    content: ContentSchema,
+    target: QuoteTargetSchema.optional(),
+    targets: z.partialRecord(PlatformSchema, QuoteTargetSchema).optional(),
+    platforms: z.array(PlatformSchema),
+    options: PostOptionsSchema.optional(),
+  })
+  .refine((data) => data.target || (data.targets && Object.keys(data.targets).length > 0), {
+    message: "Either target or targets is required",
+  });
+
 export type Platform = z.infer<typeof PlatformSchema>;
 export type Image = z.infer<typeof ImageSchema>;
 export type Video = z.infer<typeof VideoSchema>;
@@ -283,6 +300,9 @@ export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
 export type RepostTarget = z.infer<typeof RepostTargetSchema>;
 export type Repost = z.infer<typeof RepostSchema>;
+export type QuoteTarget = z.infer<typeof QuoteTargetSchema>;
+export type QuoteTargets = Partial<Record<Platform, QuoteTarget>>;
+export type Quote = z.infer<typeof QuoteSchema>;
 
 // Internal types for publishers that require credentials
 export type XOptionsWithCredentials = XOptions & { credentials: NonNullable<XOptions["credentials"]> };

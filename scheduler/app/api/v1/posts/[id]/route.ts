@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
+import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
 import { handleApiError, NotFoundError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import {
@@ -94,6 +96,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const currentPostingMode: PostingMode = currentPost.status === "draft" ? "draft" : "schedule";
     const postingMode = validated.postingMode ?? (validated.scheduledFor ? "schedule" : currentPostingMode);
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor, currentPost.scheduledFor);
+    const quotePostId = validated.quotePostId === undefined ? currentPost.quotePostId : validated.quotePostId;
+    const quoteSource = await validateQuoteSource({
+      userId: session.user.id,
+      quotePostId: quotePostId ?? undefined,
+      postingMode,
+      scheduledFor,
+      currentPostId: id,
+    });
 
     // Media is already uploaded to R2, just use the provided array
     const finalMedia: MediaFile[] = validated.media || [];
@@ -176,6 +186,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       repostErrorDetails: null,
       media: finalMedia,
       thread: validated.thread,
+      quotePostId,
     });
 
     // Clean up removed media from R2 (best-effort, don't fail the request)
@@ -191,6 +202,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     try {
+      const quoteTargets = quoteSource ? buildQuoteTargets(quoteSource, validation.accounts) : undefined;
       const results = await postToAccounts(
         session.user.id,
         validated.message,
@@ -199,6 +211,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         validated.accountOptions,
         validated.accountOverrides,
         validated.thread,
+        quoteTargets,
       );
       const summary = getPostingSummary(results);
 
@@ -330,6 +343,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!post) {
       throw new NotFoundError("Post not found");
     }
+
+    await assertNoUnresolvedQuotes(session.user.id, id);
 
     const postMedia = [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
 

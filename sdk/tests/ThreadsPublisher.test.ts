@@ -153,5 +153,21 @@ describe("ThreadsPublisher", () => {
       });
       expect(result.extraData?.refreshedCredentials?.accessToken).toBe("retry_access_token");
     });
+
+    it("should pass the source post id when creating a native quote", async () => {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "creation_quote" } })
+        .mockResolvedValueOnce({ data: { id: "post_quote" } });
+      mockSuccessfulGetSequence("post_quote");
+
+      const result = await publisher.quote({ text: "My take" }, { postId: "source_thread" });
+
+      expect(mockAxiosInstance.post.mock.calls[0][1]).toMatchObject({
+        text: "My take",
+        media_type: "TEXT",
+        quote_post_id: "source_thread",
+      });
+      expect(result).toMatchObject({ id: "post_quote", error: PostErrorType.NO_ERROR });
+    });
   });
 });

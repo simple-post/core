@@ -64,7 +64,7 @@ describe("ChatGPT app submission metadata", () => {
   });
 
   it("keeps submitted test cases self-contained and tied to registered tools", () => {
-    expect(submission.test_cases).toHaveLength(5);
+    expect(submission.test_cases).toHaveLength(6);
 
     for (const testCase of submission.test_cases) {
       const triggeredTools = parseTriggeredTools(testCase.tools_triggered);

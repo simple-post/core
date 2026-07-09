@@ -42,3 +42,4 @@ export interface PostResult {
 }
 
 export type RepostResult = PostResult;
+export type QuoteResult = PostResult;

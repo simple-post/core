@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { Trash2, Calendar, Clock, Edit, AlertCircle, FileText } from "lucide-react";
+import { Trash2, Calendar, Clock, Edit, AlertCircle, FileText, Quote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
@@ -103,6 +103,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const router = useRouter();
   const { data: post, isLoading: postLoading } = usePost(id);
+  const { data: quotePost } = usePost(post?.quotePostId ?? "");
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const deletePostMutation = useDeletePost();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -154,6 +155,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const isDraft = post.status === "draft";
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
+  const canQuote = isScheduled || post.status === "published";
   const thread = post.thread ?? [];
   const hasThread = thread.length > 0;
   const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
@@ -166,6 +168,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <Navbar
           actions={
             <>
+              {canQuote && (
+                <Link href={`/schedule?quotePostId=${id}`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Quote className="h-4 w-4" />
+                    <span className="hidden sm:inline">Quote</span>
+                  </Button>
+                </Link>
+              )}
               {(isScheduled || isDraft || isFailed) && (
                 <Link href={`/posts/${id}/edit`}>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -213,6 +223,22 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
           <div className="space-y-4 mt-5 animate-reveal animate-reveal-delay-1">
+            {post.quotePostId ? (
+              <Link href={`/posts/${post.quotePostId}`}>
+                <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
+                  <div className="flex items-start gap-3">
+                    <Quote className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Quotes another SimplePost post</p>
+                      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {quotePost?.message || "Open the source post"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ) : null}
+
             {/* Error Message for Failed Posts */}
             {isFailed && (post.errorMessage || post.errorDetails) && (
               <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">

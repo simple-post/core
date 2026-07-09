@@ -3,7 +3,14 @@
 import { CheckCircle2, ExternalLink, LoaderCircle, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { getPlatformById } from "@/lib/config";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
@@ -34,7 +41,7 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
   const completedPosts = successfulPosts.length + failedPosts.length;
   const isPosting = posting || pendingPosts.length > 0;
   const progress = results.length > 0 ? (completedPosts / results.length) * 100 : 0;
-  const hasSuccessfulTikTokPost = successfulPosts.some((result) => result.platform.toLowerCase() === "tiktok");
+  const hasTikTokTarget = results.some((result) => result.platform.toLowerCase() === "tiktok");
 
   return (
     <Dialog
@@ -87,8 +94,8 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
             return (
               <div
                 key={result.accountId}
-                className="flex min-w-0 items-start gap-3 overflow-hidden rounded-lg border border-border bg-secondary/40 p-3">
-                <div className="mt-0.5 flex-shrink-0">
+                className="flex h-14 min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-border bg-secondary/40 px-3">
+                <div className="flex w-5 flex-shrink-0 items-center justify-center">
                   {result.success === undefined ? (
                     <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : result.success ? (
@@ -98,52 +105,40 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1 overflow-hidden">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                      <PlatformIcon platform={result.platform} className="h-4 w-4 flex-shrink-0" />
-                      <span className="text-sm font-medium truncate">{getPlatformDisplayName(result.platform)}</span>
-                      {result.accountName && (
-                        <span className="truncate text-xs text-muted-foreground">{result.accountName}</span>
-                      )}
-                      {isThread && (
-                        <span className="text-xs text-muted-foreground font-mono flex-shrink-0">
-                          {succeededSegments}/{totalSegments} posts
-                        </span>
-                      )}
-                    </div>
-                    {postUrl && (
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden">
+                  <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                    <PlatformIcon platform={result.platform} className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate text-sm font-medium">{getPlatformDisplayName(result.platform)}</span>
+                    {result.accountName && (
+                      <span className="truncate text-xs text-muted-foreground">{result.accountName}</span>
+                    )}
+                    {isThread && (
+                      <span className="flex-shrink-0 font-mono text-xs text-muted-foreground">
+                        {succeededSegments}/{totalSegments} posts
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex h-8 w-20 flex-shrink-0 items-center justify-end">
+                    {result.success === undefined ? (
+                      <span className="text-xs text-muted-foreground">Posting…</span>
+                    ) : result.success && postUrl ? (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-2 flex-shrink-0 h-7"
+                        className="h-8 w-20 justify-end gap-2 px-0"
                         onClick={() => window.open(postUrl, "_blank", "noopener,noreferrer")}>
                         <ExternalLink className="h-4 w-4" />
                         View
                       </Button>
+                    ) : result.success ? (
+                      <span className="text-xs text-primary">Posted</span>
+                    ) : (
+                      <span className="text-xs text-destructive" title={result.message || result.error}>
+                        Failed
+                      </span>
                     )}
                   </div>
-
-                  {result.postId && !isThread && (
-                    <p className="mt-0.5 break-all font-mono text-xs text-muted-foreground">id: {result.postId}</p>
-                  )}
-                  {postUrl && (
-                    <a
-                      href={postUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 block max-w-full overflow-hidden break-all text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
-                      {postUrl}
-                    </a>
-                  )}
-                  {!result.success &&
-                    (result.success === undefined ? (
-                      <p className="mt-1 text-xs text-muted-foreground">Posting…</p>
-                    ) : (
-                      <p className="text-xs text-destructive mt-1 line-clamp-2 break-all">
-                        {result.message || result.error}
-                      </p>
-                    ))}
                 </div>
               </div>
             );
@@ -159,12 +154,22 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
             </div>
           </div>
 
-          {hasSuccessfulTikTokPost && (
+          {hasTikTokTarget && (
             <p className="rounded-lg border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
               TikTok may take a few minutes to process your content before it is visible on your profile.
             </p>
           )}
         </div>
+
+        <DialogFooter className="h-9 flex-row justify-center sm:justify-center">
+          <Button
+            className={isPosting ? "invisible" : undefined}
+            aria-hidden={isPosting}
+            tabIndex={isPosting ? -1 : 0}
+            onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

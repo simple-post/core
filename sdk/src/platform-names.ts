@@ -107,7 +107,7 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     case "bluesky": {
       if (postId.startsWith("at://")) {
         const parts = postId.split("/");
-        const recordKey = parts.at(-1);
+        const recordKey = parts.pop();
         if (!recordKey) return undefined;
         const handleOrDid = ctx.username || ctx.platformAccountId || "";
         return handleOrDid ? `https://bsky.app/profile/${handleOrDid.replace("@", "")}/post/${recordKey}` : undefined;

@@ -14,9 +14,30 @@ import { usePostCounts } from "@/hooks/use-posts";
 import { useSession } from "@/lib/auth/auth-client";
 import { cn } from "@/lib/utils";
 
-type TabType = "drafts" | "scheduled" | "calendar" | "past" | "failed";
-const TABS = new Set<TabType>(["drafts", "scheduled", "calendar", "past", "failed"]);
+type TimelineTabType = "scheduled" | "past" | "failed";
+type DashboardTabParam = TimelineTabType | "published" | "posted" | "drafts" | "calendar";
+
+const TIMELINE_TABS = new Set<TimelineTabType>(["scheduled", "past", "failed"]);
+const DASHBOARD_TAB_PARAMS = new Set<DashboardTabParam>([
+  "scheduled",
+  "past",
+  "failed",
+  "published",
+  "posted",
+  "drafts",
+  "calendar",
+]);
 const FAILED_SEEN_STORAGE_KEY_PREFIX = "simplepost:dashboard:last-seen-failed-at:v1";
+
+function getTimelineTabFromParam(value: string | null): TimelineTabType | null {
+  if (!value) return null;
+  if (value === "published" || value === "posted") return "past";
+  return TIMELINE_TABS.has(value as TimelineTabType) ? (value as TimelineTabType) : null;
+}
+
+function isKnownDashboardTabParam(value: string | null): value is DashboardTabParam {
+  return Boolean(value && DASHBOARD_TAB_PARAMS.has(value as DashboardTabParam));
+}
 
 function TabCountBadge({
   count,
@@ -43,11 +64,11 @@ function TabCountBadge({
 export default function Dashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tabParam = searchParams.get("tab") as TabType | null;
+  const tabParam = searchParams.get("tab");
   const { data: session } = useSession();
   const { data: postCounts } = usePostCounts();
 
-  const [activeTab, setActiveTab] = useState<TabType>(tabParam && TABS.has(tabParam) ? tabParam : "scheduled");
+  const [activeTab, setActiveTab] = useState<TimelineTabType>(getTimelineTabFromParam(tabParam) ?? "scheduled");
   const [lastSeenFailedAt, setLastSeenFailedAt] = useState<string | null>(null);
   const [draftsPage, setDraftsPage] = useState(1);
   const [scheduledPage, setScheduledPage] = useState(1);
@@ -74,11 +95,12 @@ export default function Dashboard() {
     setLastSeenFailedAt(window.localStorage.getItem(failedSeenStorageKey));
   }, [failedSeenStorageKey]);
 
-  // Update tab when URL param changes
   useEffect(() => {
-    if (tabParam && TABS.has(tabParam)) {
-      setActiveTab(tabParam);
-      // Clean up URL by removing the tab param
+    if (isKnownDashboardTabParam(tabParam)) {
+      const timelineTab = getTimelineTabFromParam(tabParam);
+      if (timelineTab) {
+        setActiveTab(timelineTab);
+      }
       router.replace("/", { scroll: false });
     }
   }, [tabParam, router]);
@@ -92,9 +114,8 @@ export default function Dashboard() {
     setLastSeenFailedAt(latestFailedAt);
   }, [activeTab, failedSeenStorageKey, latestFailedAt]);
 
-  // Reset page to 1 when switching tabs
   const handleTabChange = (value: string) => {
-    setActiveTab(value as TabType);
+    setActiveTab(value as TimelineTabType);
   };
 
   return (
@@ -113,86 +134,92 @@ export default function Dashboard() {
           </h1>
         </div>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={handleTabChange}
-          className="w-full animate-reveal animate-reveal-delay-1">
-          <TabsList className="mb-6">
-            <TabsTrigger value="drafts" className="gap-2">
+        <section className="animate-reveal animate-reveal-delay-1">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-primary">
+              <CalendarDays className="h-3.5 w-3.5" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground">Calendar</h2>
+          </div>
+          <ScheduleCalendar />
+        </section>
+
+        <section className="mt-8 animate-reveal animate-reveal-delay-2">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-primary">
               <FileText className="h-3.5 w-3.5" />
+            </div>
+            <h2 className="flex items-center text-lg font-semibold text-foreground">
               Drafts
               <TabCountBadge count={postCounts?.counts.drafts} />
-            </TabsTrigger>
-            <TabsTrigger value="scheduled" className="gap-2">
-              <Calendar className="h-3.5 w-3.5" />
-              Scheduled
-              <TabCountBadge count={postCounts?.counts.scheduled} />
-            </TabsTrigger>
-            <TabsTrigger value="calendar" className="gap-2">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Calendar
-            </TabsTrigger>
-            <TabsTrigger value="past" className="gap-2">
-              <CheckCircle className="h-3.5 w-3.5" />
-              Posted
-            </TabsTrigger>
-            <TabsTrigger value="failed" className="gap-2">
-              <AlertCircle className="h-3.5 w-3.5" />
-              Failed
-              <TabCountBadge
-                count={failedCount}
-                tone={hasUnseenFailed ? "danger" : failedCount > 0 ? "danger-muted" : "default"}
+            </h2>
+          </div>
+          <PostsList
+            type="drafts"
+            page={draftsPage}
+            pageSize={draftsPageSize}
+            onPageChange={setDraftsPage}
+            onPageSizeChange={setDraftsPageSize}
+          />
+        </section>
+
+        <section className="mt-8 animate-reveal animate-reveal-delay-2">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="scheduled" className="gap-2">
+                <Calendar className="h-3.5 w-3.5" />
+                Scheduled
+                <TabCountBadge count={postCounts?.counts.scheduled} />
+              </TabsTrigger>
+              <TabsTrigger value="past" className="gap-2">
+                <CheckCircle className="h-3.5 w-3.5" />
+                Published
+                <TabCountBadge count={postCounts?.counts.past} />
+              </TabsTrigger>
+              <TabsTrigger value="failed" className="gap-2">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Failed
+                <TabCountBadge
+                  count={failedCount}
+                  tone={hasUnseenFailed ? "danger" : failedCount > 0 ? "danger-muted" : "default"}
+                />
+                {hasUnseenFailed ? (
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.22)]" />
+                ) : null}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="scheduled" className="mt-0">
+              <PostsList
+                type="scheduled"
+                page={scheduledPage}
+                pageSize={scheduledPageSize}
+                onPageChange={setScheduledPage}
+                onPageSizeChange={setScheduledPageSize}
               />
-              {hasUnseenFailed ? (
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.22)]" />
-              ) : null}
-            </TabsTrigger>
-          </TabsList>
+            </TabsContent>
 
-          <TabsContent value="drafts" className="mt-0">
-            <PostsList
-              type="drafts"
-              page={draftsPage}
-              pageSize={draftsPageSize}
-              onPageChange={setDraftsPage}
-              onPageSizeChange={setDraftsPageSize}
-            />
-          </TabsContent>
+            <TabsContent value="past" className="mt-0">
+              <PostsList
+                type="past"
+                page={postedPage}
+                pageSize={postedPageSize}
+                onPageChange={setPostedPage}
+                onPageSizeChange={setPostedPageSize}
+              />
+            </TabsContent>
 
-          <TabsContent value="scheduled" className="mt-0">
-            <PostsList
-              type="scheduled"
-              page={scheduledPage}
-              pageSize={scheduledPageSize}
-              onPageChange={setScheduledPage}
-              onPageSizeChange={setScheduledPageSize}
-            />
-          </TabsContent>
-
-          <TabsContent value="calendar" className="mt-0">
-            <ScheduleCalendar />
-          </TabsContent>
-
-          <TabsContent value="past" className="mt-0">
-            <PostsList
-              type="past"
-              page={postedPage}
-              pageSize={postedPageSize}
-              onPageChange={setPostedPage}
-              onPageSizeChange={setPostedPageSize}
-            />
-          </TabsContent>
-
-          <TabsContent value="failed" className="mt-0">
-            <PostsList
-              type="failed"
-              page={failedPage}
-              pageSize={failedPageSize}
-              onPageChange={setFailedPage}
-              onPageSizeChange={setFailedPageSize}
-            />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="failed" className="mt-0">
+              <PostsList
+                type="failed"
+                page={failedPage}
+                pageSize={failedPageSize}
+                onPageChange={setFailedPage}
+                onPageSizeChange={setFailedPageSize}
+              />
+            </TabsContent>
+          </Tabs>
+        </section>
       </main>
     </div>
   );

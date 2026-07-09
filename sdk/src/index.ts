@@ -2,8 +2,8 @@ import { getPublisher } from "./publishers";
 import { getCredentialsFromEnv, mergeOptions } from "./utils/credentials";
 import { MediaResolver } from "./utils/media-resolver";
 
-import type { PostResult, RepostResult } from "./types";
-import type { Content, Platform, Post, Repost } from "./types/post";
+import type { PostResult, QuoteResult, RepostResult } from "./types";
+import type { Content, Platform, Post, Quote, Repost } from "./types/post";
 
 export interface PreparedPost {
   post: Post;
@@ -91,6 +91,29 @@ export async function repost(repostRequest: Repost): Promise<Map<Platform, Repos
   return results;
 }
 
+/**
+ * Publishes content as a native quote on supported platforms. Publishers that
+ * do not support native quotes deliberately fall back to an ordinary post.
+ */
+export async function quote(quoteRequest: Quote): Promise<Map<Platform, QuoteResult>> {
+  const results = new Map<Platform, QuoteResult>();
+  const envCredentials = getCredentialsFromEnv();
+  const mergedOptions = mergeOptions(envCredentials, quoteRequest.options);
+
+  for (const platform of quoteRequest.platforms) {
+    const publisher = getPublisher(platform, mergedOptions);
+    const target = quoteRequest.targets?.[platform] ?? quoteRequest.target;
+    results.set(
+      platform,
+      target
+        ? await publisher.quote(quoteRequest.content, target, mergedOptions)
+        : await publisher.post(quoteRequest.content, mergedOptions),
+    );
+  }
+
+  return results;
+}
+
 // Export publisher classes - use static methods for validation
 export { XPublisher } from "./publishers/x";
 export { BlueskyPublisher } from "./publishers/bluesky";
@@ -109,6 +132,9 @@ export type {
   Post,
   Repost,
   RepostTarget,
+  Quote,
+  QuoteTarget,
+  QuoteTargets,
   Content,
   Media,
   Image,
@@ -131,7 +157,7 @@ export type {
   LogLevel,
 } from "./types/post";
 
-export type { PostResult, RepostResult } from "./types";
+export type { PostResult, QuoteResult, RepostResult } from "./types";
 export { PostError, PostErrorType } from "./types";
 export type { PlatformValidationRules, ValidationIssue, ValidationResult } from "./types/validation";
 
@@ -176,8 +202,8 @@ export type {
 // Shared platform-name aliasing, post URL construction, and accepted media
 // content types (also available as browser-safe subpath exports
 // @simple-post/sdk/platform-names and @simple-post/sdk/media-types).
-export { mapPlatformName, generatePostUrl } from "./platform-names";
-export type { PostUrlContext } from "./platform-names";
+export { mapPlatformName, generatePostUrl, QUOTE_CAPABLE_PLATFORMS, isQuoteCapablePlatform } from "./platform-names";
+export type { PostUrlContext, QuoteCapablePlatform } from "./platform-names";
 export { ALLOWED_MEDIA_TYPES, EXTENSION_TO_TYPE, normalizeContentType } from "./media-types";
 export { MediaResolver } from "./utils/media-resolver";
 
@@ -194,6 +220,8 @@ export {
   PostSchema,
   RepostSchema,
   RepostTargetSchema,
+  QuoteSchema,
+  QuoteTargetSchema,
   ContentSchema,
   MediaSchema,
   ImageSchema,

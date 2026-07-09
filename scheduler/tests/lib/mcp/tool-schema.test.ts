@@ -141,4 +141,10 @@ describe("MCP tool JSON schemas", () => {
       assertTextOnlyThreadSegments(toInputJsonSchema(schema));
     }
   });
+
+  it("exposes SimplePost quote references on create, preview, and scheduled updates", () => {
+    expect(toInputJsonSchema(createPostSchema).properties?.quotePostId?.type).toBe("string");
+    expect(toInputJsonSchema(previewPostSchema).properties?.quotePostId?.type).toBe("string");
+    expect(toInputJsonSchema(updateScheduledPostSchema).properties?.quotePostId).toBeDefined();
+  });
 });

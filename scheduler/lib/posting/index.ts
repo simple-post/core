@@ -6,6 +6,7 @@ import {
   MediaResolver,
   PostErrorType,
   post as sdkPost,
+  quote as sdkQuote,
   repost as sdkRepost,
 } from "@simple-post/sdk";
 import { generatePostUrl, mapPlatformName } from "@simple-post/sdk/platform-names";
@@ -23,7 +24,15 @@ import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFil
 import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
 
-import type { Post, Media, RepostTarget, ThreadChainState, ThreadSegment, ThreadSegmentResult } from "@simple-post/sdk";
+import type {
+  Post,
+  Media,
+  QuoteTarget,
+  RepostTarget,
+  ThreadChainState,
+  ThreadSegment,
+  ThreadSegmentResult,
+} from "@simple-post/sdk";
 import type { Logger } from "pino";
 
 export interface PostingResult {
@@ -47,6 +56,11 @@ export interface PostingResult {
 }
 
 export interface AccountRepostTarget extends RepostTarget {
+  accountId: string;
+  postUrl?: string;
+}
+
+export interface AccountQuoteTarget extends QuoteTarget {
   accountId: string;
   postUrl?: string;
 }
@@ -124,6 +138,7 @@ async function postSingleSegment(
   accountOptions: AccountOptionsMap | undefined,
   replyOverlay: ReturnType<typeof buildReplyOverlay>,
   log: Logger,
+  quoteTarget?: AccountQuoteTarget,
 ): Promise<PostingResult> {
   const startTime = Date.now();
   try {
@@ -153,9 +168,12 @@ async function postSingleSegment(
       platforms: postData.platforms,
       options: options ? redact(options as Record<string, unknown>) : undefined,
     };
-    log.debug({ postData: sanitizedPostData, hasReplyOverlay: !!replyOverlay }, "SDK post() call data");
+    log.debug(
+      { postData: sanitizedPostData, hasReplyOverlay: !!replyOverlay, hasQuoteTarget: !!quoteTarget },
+      quoteTarget ? "SDK quote() call data" : "SDK post() call data",
+    );
 
-    const results = await sdkPost(postData);
+    const results = quoteTarget ? await sdkQuote({ ...postData, target: quoteTarget }) : await sdkPost(postData);
     const result = results.get(platform);
 
     if (result?.extraData?.refreshedCredentials) {
@@ -241,6 +259,7 @@ async function postSegmentsToAccount(
   account: ConnectedAccount,
   resolver: MediaResolver,
   accountOptions?: AccountOptionsMap,
+  quoteTarget?: AccountQuoteTarget,
 ): Promise<PostingResult> {
   const log = postingLogger.child({
     fn: "postSegmentsToAccount",
@@ -301,6 +320,7 @@ async function postSegmentsToAccount(
         accountOptions,
         overlay,
         segmentLog,
+        i === 0 ? quoteTarget : undefined,
       );
 
       if (segmentResult.success) {
@@ -413,6 +433,7 @@ export async function postToAccounts(
   accountOptions?: AccountOptionsMap,
   accountOverrides?: AccountOverridesMap,
   thread?: ThreadSegment[],
+  quoteTargets?: AccountQuoteTarget[],
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
   const log = postingLogger.child({ fn: "postToAccounts" });
@@ -457,6 +478,7 @@ export async function postToAccounts(
     });
 
     const sharedThread = thread ?? [];
+    const quoteTargetByAccountId = new Map((quoteTargets ?? []).map((target) => [target.accountId, target]));
 
     // Every post is a list of segments per account (a plain post is a thread
     // of length 1; overrides swap in per-account message/media/thread). One
@@ -469,7 +491,13 @@ export async function postToAccounts(
       results = await Promise.all(
         accounts.map((account) => {
           const segments = buildAccountSegments(account.id, message, mediaFiles, sharedThread, accountOverrides);
-          return postSegmentsToAccount(segments, account, resolver, accountOptions);
+          return postSegmentsToAccount(
+            segments,
+            account,
+            resolver,
+            accountOptions,
+            quoteTargetByAccountId.get(account.id),
+          );
         }),
       );
     } finally {

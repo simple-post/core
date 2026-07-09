@@ -193,6 +193,19 @@ describe("XPublisher", () => {
         new PostError(PostErrorType.API_ERROR, "Failed to post content: Error: API Error", undefined),
       );
     });
+
+    it("should create a native quote post", async () => {
+      mockV2Client.tweet.mockResolvedValue({ data: { id: "quote_tweet_id" } });
+
+      const result = await publisher.quote({ text: "My take" }, { postId: "original_tweet_id" }, options);
+
+      expect(mockV2Client.tweet).toHaveBeenCalledWith("My take", {
+        media: undefined,
+        reply: undefined,
+        quote_tweet_id: "original_tweet_id",
+      });
+      expect(result).toEqual({ id: "quote_tweet_id", error: PostErrorType.NO_ERROR });
+    });
   });
 
   describe("token refresh", () => {

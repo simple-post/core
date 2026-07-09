@@ -10,7 +10,7 @@ import { resolveMediaPath, TempFileManager } from "../../utils";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, PostOptionsWithCredentials, RepostTarget, XCredentials } from "../../types/post";
+import type { Content, PostOptionsWithCredentials, QuoteTarget, RepostTarget, XCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 interface RefreshTokenResponse {
@@ -203,7 +203,11 @@ export class XPublisher extends Publisher {
     return validateXContent(content);
   }
 
-  async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+  async postContent(
+    content: Content,
+    options?: PostOptionsWithCredentials,
+    quoteTarget?: QuoteTarget,
+  ): Promise<PostResult> {
     const replyToId = options?.x?.replyToId;
 
     // Validate the content
@@ -238,6 +242,7 @@ export class XPublisher extends Publisher {
       const { data: createdTweet } = await this.client.v2.tweet(content.text || "", {
         media: mediaIds.length > 0 ? { media_ids: mediaIds as [string, string, string, string] } : undefined,
         reply: replyToId ? { in_reply_to_tweet_id: replyToId } : undefined,
+        ...(quoteTarget ? { quote_tweet_id: quoteTarget.postId } : {}),
       });
 
       const result: PostResult = {
@@ -260,6 +265,10 @@ export class XPublisher extends Publisher {
     } finally {
       await tempFileManager.cleanup();
     }
+  }
+
+  async quoteContent(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    return this.postContent(content, options, target);
   }
 
   private async resolveUserId(): Promise<string> {

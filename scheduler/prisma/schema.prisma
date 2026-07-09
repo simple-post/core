@@ -228,6 +228,13 @@ model Post {
   // failed posts skip accounts that already published.
   accountResults Json?
 
+  // Optional SimplePost source being quoted. The source may still be
+  // scheduled; its per-platform post IDs are resolved from accountResults at
+  // dispatch time.
+  quotePostId String?
+  quotePost   Post?   @relation("PostQuotes", fields: [quotePostId], references: [id], onDelete: SetNull)
+  quotes      Post[]  @relation("PostQuotes")
+
   // Client-supplied key making post creation idempotent: a retried create
   // request (agent timeout, network blip) returns the original post instead
   // of publishing twice.
@@ -240,6 +247,7 @@ model Post {
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
   @@index([userId, scheduledFor])
+  @@index([quotePostId])
   @@index([repostStatus, repostDueAt])
   @@map("post")
 }

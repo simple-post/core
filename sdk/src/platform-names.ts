@@ -39,6 +39,14 @@ export function isRepostCapablePlatform(platform: string): platform is RepostCap
   return (REPOST_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
 }
 
+/** Platforms where SimplePost can attach a native quoted post to new content. */
+export const QUOTE_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "linkedin"] as const;
+export type QuoteCapablePlatform = (typeof QUOTE_CAPABLE_PLATFORMS)[number];
+
+export function isQuoteCapablePlatform(platform: string): platform is QuoteCapablePlatform {
+  return (QUOTE_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
+}
+
 export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;
@@ -99,7 +107,7 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     case "bluesky": {
       if (postId.startsWith("at://")) {
         const parts = postId.split("/");
-        const recordKey = parts.at(-1);
+        const recordKey = parts.pop();
         if (!recordKey) return undefined;
         const handleOrDid = ctx.username || ctx.platformAccountId || "";
         return handleOrDid ? `https://bsky.app/profile/${handleOrDid.replace("@", "")}/post/${recordKey}` : undefined;

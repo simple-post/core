@@ -10,6 +10,8 @@ import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
+import { validateQuoteSource } from "@/lib/quote/source";
+import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -166,6 +168,13 @@ export async function POST(req: NextRequest) {
 
     const mediaFiles: MediaFile[] = validated.media || [];
 
+    const quoteSource = await validateQuoteSource({
+      userId,
+      quotePostId: validated.quotePostId,
+      postingMode,
+      scheduledFor,
+    });
+
     const validation = await validatePostForAccounts({
       userId,
       message: validated.message,
@@ -214,6 +223,7 @@ export async function POST(req: NextRequest) {
           repostStatus: "not_applicable",
           repostDueAt: null,
           thread: validated.thread,
+          quotePostId: validated.quotePostId,
           idempotencyKey: validated.idempotencyKey,
         },
         userId,
@@ -242,6 +252,7 @@ export async function POST(req: NextRequest) {
     if (postingMode === "now") {
       log.info({ postId: post.id }, "Starting platform posting (immediate mode)");
       try {
+        const quoteTargets = quoteSource ? buildQuoteTargets(quoteSource, validation.accounts) : undefined;
         const results = await postToAccounts(
           userId,
           validated.message,
@@ -250,6 +261,7 @@ export async function POST(req: NextRequest) {
           validated.accountOptions,
           validated.accountOverrides,
           validated.thread,
+          quoteTargets,
         );
         const summary = getPostingSummary(results);
 

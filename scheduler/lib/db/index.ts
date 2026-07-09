@@ -291,6 +291,7 @@ export class PostsModel {
         repostDueAt: postData.repostDueAt,
         repostStatus: postData.repostStatus ?? "not_applicable",
         thread: postData.thread ? (postData.thread as unknown as object) : undefined,
+        quotePostId: postData.quotePostId ?? undefined,
         accounts: {
           connect: postData.accountIds.map((id) => ({ id })),
         },
@@ -335,6 +336,7 @@ export class PostsModel {
       thread?: unknown | null;
       threadResults?: unknown | null;
       accountResults?: unknown | null;
+      quotePostId?: string | null;
       accounts?: { set: Array<{ id: string }> };
       media?: { deleteMany: Record<string, never>; create: Array<Record<string, unknown>> };
     } = {};
@@ -358,6 +360,7 @@ export class PostsModel {
     if (updates.thread !== undefined) updateData.thread = updates.thread ?? null;
     if (updates.threadResults !== undefined) updateData.threadResults = updates.threadResults ?? null;
     if (updates.accountResults !== undefined) updateData.accountResults = updates.accountResults ?? null;
+    if (updates.quotePostId !== undefined) updateData.quotePostId = updates.quotePostId;
 
     // Handle account updates
     if (updates.accountIds !== undefined) {
@@ -441,6 +444,7 @@ export class PostsModel {
     thread?: unknown;
     threadResults?: unknown;
     accountResults?: unknown;
+    quotePostId: string | null;
     accounts: Array<{ id: string }>;
     media: Array<{
       id: string;
@@ -484,6 +488,7 @@ export class PostsModel {
       thread: (post.thread as ThreadSegment[] | null) ?? undefined,
       threadResults: (post.threadResults as Record<string, ThreadSegmentResult[]> | null) ?? undefined,
       accountResults: (post.accountResults as AccountResultsMap | null) ?? undefined,
+      quotePostId: post.quotePostId,
     };
   }
 }

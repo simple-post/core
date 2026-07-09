@@ -83,5 +83,41 @@ describe("LinkedInPublisher", () => {
       expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.put).toHaveBeenCalled();
     });
+
+    it("should create a reshare with commentary for a native quote", async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { id: "urn:li:share:quote" },
+        headers: {},
+      });
+
+      const result = await publisher.quote({ text: "My take" }, { postId: "urn:li:share:source" });
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        "https://api.linkedin.com/rest/posts",
+        expect.objectContaining({
+          commentary: "My take",
+          reshareContext: { parent: "urn:li:share:source" },
+        }),
+        expect.anything(),
+      );
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      expect(result).toEqual({ id: "urn:li:share:quote", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should omit new media from a LinkedIn quote", async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { id: "urn:li:share:quote-without-media" },
+        headers: {},
+      });
+
+      await publisher.quote(
+        { text: "My take", media: [{ type: "image", path: "./image.jpg" }] },
+        { postId: "urn:li:share:source" },
+      );
+
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      expect(mockedAxios.put).not.toHaveBeenCalled();
+    });
   });
 });

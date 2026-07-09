@@ -8,6 +8,7 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     post: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       updateMany: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
@@ -39,11 +40,13 @@ jest.mock("@/lib/posting", () => ({
 jest.mock("@simple-post/sdk", () => ({
   isThreadCapable: (platform: string) => ["x", "threads", "bluesky", "mastodon"].includes(platform),
   isRepostCapablePlatform: (platform: string) => ["x", "bluesky", "threads", "linkedin"].includes(platform),
+  isQuoteCapablePlatform: (platform: string) => ["x", "bluesky", "threads", "linkedin"].includes(platform),
 }));
 
 const prismaMock = prisma as unknown as {
   post: {
     findMany: jest.Mock;
+    findFirst: jest.Mock;
     updateMany: jest.Mock;
     update: jest.Mock;
     count: jest.Mock;
@@ -72,6 +75,8 @@ interface DuePostFixture {
   accountResults?: unknown;
   media?: unknown[];
   accounts: Array<{ id: string; platform: string }>;
+  quotePostId?: string | null;
+  quotePost?: { status: string } | null;
 }
 
 function duePost(fixture: DuePostFixture) {
@@ -84,6 +89,8 @@ function duePost(fixture: DuePostFixture) {
     accountResults: null,
     repostEnabled: false,
     repostDelayHours: 12,
+    quotePostId: null,
+    quotePost: null,
     media: [],
     ...fixture,
   };
@@ -187,6 +194,7 @@ beforeEach(() => {
   mockFindMany({});
   prismaMock.post.count.mockResolvedValue(0);
   prismaMock.post.update.mockResolvedValue({});
+  prismaMock.post.findFirst.mockResolvedValue(null);
   mockUpdateMany({});
 });
 
@@ -252,6 +260,139 @@ describe("dispatchDueScheduledPosts", () => {
         data: expect.objectContaining({ status: "published" }),
       }),
     );
+  });
+
+  it("defers a scheduled quote until its source post is published", async () => {
+    mockFindMany({
+      due: [
+        duePost({
+          id: "quote-1",
+          quotePostId: "source-1",
+          quotePost: { status: "scheduled" },
+          accounts: [{ id: "a1", platform: "x" }],
+        }),
+      ],
+    });
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(result.processedPosts).toBe(0);
+    expect(result.skippedPosts).toBe(1);
+  });
+
+  it("publishes a due source before its quote in the same dispatch run", async () => {
+    mockFindMany({
+      due: [
+        duePost({
+          id: "quote-1",
+          quotePostId: "source-1",
+          quotePost: { status: "scheduled" },
+          accounts: [{ id: "quote-account", platform: "x" }],
+        }),
+        duePost({
+          id: "source-1",
+          accounts: [{ id: "source-account", platform: "x" }],
+        }),
+      ],
+    });
+    prismaMock.post.findFirst.mockResolvedValue({
+      status: "published",
+      accounts: [{ id: "source-account", platform: "x" }],
+      accountResults: toAccountResultsMap([
+        { accountId: "source-account", platform: "x", success: true, postId: "source-tweet" },
+      ]),
+    });
+    const publishOrder: string[] = [];
+    postToAccountsMock.mockImplementation(
+      async (_userId: string, _message: string, _media: unknown[], accountIds: string[]) => {
+        publishOrder.push(accountIds[0]);
+        return successFor(accountIds);
+      },
+    );
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(publishOrder).toEqual(["source-account", "quote-account"]);
+    expect(result.processedPosts).toBe(2);
+    expect(result.publishedPosts).toBe(2);
+  });
+
+  it("does not claim a quote when another run claimed its due source first", async () => {
+    mockFindMany({
+      due: [
+        duePost({ id: "source-1", accounts: [{ id: "source-account", platform: "x" }] }),
+        duePost({
+          id: "quote-1",
+          quotePostId: "source-1",
+          quotePost: { status: "scheduled" },
+          accounts: [{ id: "quote-account", platform: "x" }],
+        }),
+      ],
+    });
+    mockUpdateMany({ claims: { "source-1": 0, "quote-1": 1 } });
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(result.processedPosts).toBe(0);
+    expect(result.skippedPosts).toBe(2);
+    expect(prismaMock.post.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: "quote-1" }) }),
+    );
+  });
+
+  it("resolves platform targets when dispatching a quote", async () => {
+    mockFindMany({
+      due: [
+        duePost({
+          id: "quote-1",
+          quotePostId: "source-1",
+          quotePost: { status: "published" },
+          accounts: [{ id: "a1", platform: "x" }],
+        }),
+      ],
+    });
+    prismaMock.post.findFirst.mockResolvedValue({
+      status: "published",
+      accounts: [{ id: "a1", platform: "x" }],
+      accountResults: toAccountResultsMap([{ accountId: "a1", platform: "x", success: true, postId: "source-tweet" }]),
+    });
+    postToAccountsMock.mockResolvedValue(successFor(["a1"]));
+
+    await dispatchDueScheduledPosts();
+
+    expect(postToAccountsMock).toHaveBeenCalledWith("user-1", "hello", [], ["a1"], undefined, undefined, undefined, [
+      expect.objectContaining({ accountId: "a1", postId: "source-tweet" }),
+    ]);
+  });
+
+  it("quotes successful platform results from a partially failed source", async () => {
+    mockFindMany({
+      due: [
+        duePost({
+          id: "quote-1",
+          quotePostId: "source-1",
+          quotePost: { status: "failed" },
+          accounts: [{ id: "a1", platform: "x" }],
+        }),
+      ],
+    });
+    prismaMock.post.findFirst.mockResolvedValue({
+      status: "failed",
+      accounts: [{ id: "a1", platform: "x" }],
+      accountResults: toAccountResultsMap([
+        { accountId: "a1", platform: "x", success: true, postId: "successful-source-tweet" },
+      ]),
+    });
+    postToAccountsMock.mockResolvedValue(successFor(["a1"]));
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(postToAccountsMock).toHaveBeenCalledWith("user-1", "hello", [], ["a1"], undefined, undefined, undefined, [
+      expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" }),
+    ]);
+    expect(result.publishedPosts).toBe(1);
   });
 
   it("dispatches due reposts for successful repost-capable account results", async () => {

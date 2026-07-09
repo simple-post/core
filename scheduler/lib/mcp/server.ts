@@ -48,7 +48,9 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
    \`create_post\` applies the user's SimplePost auto-repost default automatically. Inspect \`post.repostEnabled\`, \`post.repostDueAt\`, and \`post.repostStatus\` in tool results when reporting whether a repost is scheduled.
 
-6. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, scheduled time, or move between draft and scheduled. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
+6. When the user asks to quote an earlier post in natural language (for example, "quote my last post about the gym"), call \`inspect_posts\` to find the matching published or scheduled SimplePost record, then pass its exact \`id\` as \`quotePostId\` to \`preview_post\` or \`create_post\`. Never infer or invent a post ID. Native quotes are used on X, Bluesky, Threads, and LinkedIn; other selected platforms publish the new content as an ordinary post. If the source is scheduled, schedule the quote after it so SimplePost can resolve the platform IDs at dispatch time.
+
+7. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, quote source, scheduled time, or move between draft and scheduled. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
 
 # Visible text responses
 
@@ -86,6 +88,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 - \`scheduledFor\` must be an ISO 8601 datetime (e.g. \`2026-05-01T14:30:00Z\` or \`2026-05-01T16:30:00+02:00\`). Always include a timezone offset or \`Z\`; never send a naive local time.
 - When the user says things like "tomorrow at 9am" or "next Monday", resolve to an absolute datetime in the user's timezone before calling the tool. If you don't know their timezone, ask.
 - \`scheduledFor\` must be in the future when \`postingMode: "schedule"\`. Past times are rejected. Drafts do not need \`scheduledFor\`.
+- A quote of a scheduled source must itself be scheduled after the source. SimplePost stores the source \`quotePostId\` and resolves native platform post IDs only after the source publishes.
 
 # Managing existing posts
 
@@ -237,6 +240,7 @@ function formatPreviewDetails(result: {
   postingMode: string;
   scheduledFor: string | null;
   mediaCount: number;
+  quotePostId: string | null;
   accounts: AccountSummary[];
   validation: { accounts: ValidationAccount[]; summary: { errorCount: number; warningCount: number } };
   summary: { threadSegmentCount: number };
@@ -245,6 +249,7 @@ function formatPreviewDetails(result: {
     "Preview details:",
     formatTiming(result.postingMode, result.scheduledFor),
     result.mediaCount > 0 ? `Media: ${plural(result.mediaCount, "item")}` : "",
+    result.quotePostId ? `Quotes SimplePost post: ${result.quotePostId}` : "",
     result.summary.threadSegmentCount > 0
       ? `Thread: ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
       : "",
@@ -317,7 +322,14 @@ function formatPostingResults(
 function formatCreatedPostDetails(result: {
   postingMode: string;
   mediaCount: number;
-  post: { id: string; status: string; accountIds: string[]; scheduledFor: string | null; publishedAt: string | null };
+  post: {
+    id: string;
+    status: string;
+    accountIds: string[];
+    scheduledFor: string | null;
+    publishedAt: string | null;
+    quotePostId: string | null;
+  };
   postingResults: Parameters<typeof formatPostingResults>[0];
   summary: {
     accountCount: number;
@@ -349,6 +361,7 @@ function formatCreatedPostDetails(result: {
     result.postingResults.length === 0 ? `Account IDs: ${post.accountIds.join(", ")}` : "",
     post.scheduledFor ? `Scheduled for: ${formatDateTime(post.scheduledFor)}` : "",
     post.publishedAt ? `Published at: ${formatDateTime(post.publishedAt)}` : "",
+    post.quotePostId ? `Quotes SimplePost post: ${post.quotePostId}` : "",
     result.mediaCount > 0 ? `Media: ${plural(result.mediaCount, "item")}` : "",
     summary.threadSegmentCount > 0
       ? `Thread: ${plural(summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
@@ -371,6 +384,7 @@ function formatManagedPostDetails(post: {
   mediaCount: number;
   threadSegmentCount: number;
   errorMessage: string | null;
+  quotePostId: string | null;
 }): string {
   return [
     `Post ${post.id} (${post.status})`,
@@ -384,6 +398,7 @@ function formatManagedPostDetails(post: {
       : "",
     post.scheduledFor ? `Scheduled for: ${formatDateTime(post.scheduledFor)}` : "",
     post.publishedAt ? `Published at: ${formatDateTime(post.publishedAt)}` : "",
+    post.quotePostId ? `Quotes SimplePost post: ${post.quotePostId}` : "",
     post.errorMessage ? `Last error: ${post.errorMessage}` : "",
   ]
     .filter(Boolean)
@@ -520,7 +535,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Preview a post before it is created. This resolves target accounts, optional media count, optional thread segment count, scheduled time when applicable, and validation result without writing to SimplePost or publishing to social platforms. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z). Draft previews do not need scheduledFor. Use it when the user explicitly asks for a preview or when essential posting details are missing; do not use it as a default preflight for already-confirmed posts.`,
+      description: `Preview a post before it is created. This resolves target accounts, optional media, thread, quotePostId, scheduled time, and validation without writing to SimplePost. For a natural-language quote request, call inspect_posts first and pass the matching published or scheduled post's exact ID as quotePostId. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone. A scheduled source must be quoted by a post scheduled after it. Use this only when the user asks for a preview or essential posting details are missing.`,
       inputSchema: previewPostSchema.shape,
       outputSchema: previewPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.preview_post,
@@ -563,7 +578,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Create a SimplePost post with text plus optional images/videos and optional multi-segment thread (thread field: follow-up messages after the root). Use postingMode "now" to publish immediately, "schedule" with a future scheduledFor in full ISO 8601 format with timezone (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm, e.g. 2026-05-01T14:30:00Z), or "draft" to save without publishing. Do not send date-only or local time without timezone when scheduling. This is a write action that can publish public content on connected social platforms and it performs blocking validation internally for now/schedule, so do not call validate_post first unless the user requested validation-only feedback. Always call list_accounts first to get account IDs.`,
+      description: `Create a SimplePost post with text plus optional images/videos, a thread, and quotePostId. For natural-language quote requests, call inspect_posts first and pass the exact ID of the matching published or scheduled source; never invent it. Native quotes are used on supported platforms and other destinations publish normally. Use postingMode "now" to publish immediately, "schedule" with a future timezone-aware scheduledFor, or "draft" to save. A scheduled source can only be quoted by a post scheduled after it. This write action validates internally, so do not call validate_post first unless requested. Always call list_accounts first for account IDs.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
@@ -615,7 +630,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: "Inspect Posts",
-      description: `Use this when the user asks to review SimplePost records that are drafts, currently scheduled, already posted, or failed. It can list posts by status or inspect a specific postId before editing or discarding a draft or scheduled post. Do not call this to handle requests to delete, edit, undo, or remove content already published on external social platforms; those actions are unsupported. This tool only reads SimplePost data and does not publish, edit, or delete anything.`,
+      description: `Use this when the user asks to review SimplePost records that are drafts, scheduled, already posted, or failed, and whenever a quote source is described in natural language (for example, "my last post about the gym"). Match the source by message, status, and recency, then pass its exact id as quotePostId to create_post. It can also inspect an exact postId before editing or discarding a draft or scheduled post. This tool only reads SimplePost data.`,
       inputSchema: inspectPostsSchema.shape,
       outputSchema: inspectPostsOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,

@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
+import { usePost } from "@/hooks/use-posts";
 import { getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
@@ -38,6 +39,7 @@ import { CreatePostForm } from "./create-post-form";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
 import { PostPreview } from "./post-preview";
+import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
 
 import type { ValidationIssue } from "@simple-post/sdk";
@@ -110,6 +112,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
   const [accountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
+  const [quotePostId, setQuotePostId] = useState<string | null>(existingPost.quotePostId ?? null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -132,6 +135,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
   const submitPostMutation = useSubmitPost();
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+  const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
   const selectedAccounts = useMemo(
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
@@ -341,6 +345,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         };
         media: MediaFile[];
         thread?: ThreadSegment[];
+        quotePostId?: string | null;
       } = {
         message: message.trim(),
         accountIds: selectedAccountIds,
@@ -381,6 +386,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           enabled: existingPost.repostEnabled === true,
           delayHours: normalizeDelayHours(existingPost.repostDelayHours),
         };
+        if (quotePostId) {
+          body.quotePostId = quotePostId;
+        }
+      } else if (quotePostId !== (existingPost.quotePostId ?? null)) {
+        body.quotePostId = quotePostId;
       }
 
       // Submit using mutation
@@ -435,6 +445,16 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {quotePostId ? (
+          <QuotePostCard
+            sourcePost={quotePost}
+            isLoading={quotePostLoading}
+            isError={quotePostError}
+            selectedPlatforms={selectedAccounts.map((account) => account.platform)}
+            onRemove={() => setQuotePostId(null)}
+          />
+        ) : null}
+
         <AccountSelector
           selectedAccountIds={selectedAccountIds}
           onSelectionChange={setSelectedAccountIds}

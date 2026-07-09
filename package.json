@@ -13,8 +13,8 @@
   },
   "scripts": {
     "check": "yarn workspaces foreach --all --parallel run check",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
     "test:watch": "jest --watch"
   },
   "engines": {

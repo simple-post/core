@@ -223,6 +223,49 @@ describe("BlueskyPublisher", () => {
         expiresAt: expect.any(Number),
       });
     });
+
+    it("should create a quote post with a record-with-media embed", async () => {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: {
+            blob: {
+              $type: "blob",
+              ref: { $link: "blob_ref" },
+              mimeType: "image/jpeg",
+              size: 1234,
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          data: { uri: "at://did:plc:123/app.bsky.feed.post/quote", cid: "quote-cid" },
+        });
+
+      const result = await publisher.quote(
+        { text: "My take", media: [{ type: "image", path: "./test.jpg" }] },
+        { postId: "source", uri: "at://did:plc:source/app.bsky.feed.post/source", cid: "source-cid" },
+      );
+
+      const createRecordBody = mockAxiosInstance.post.mock.calls[1][1];
+      expect(createRecordBody.record.embed).toEqual({
+        $type: "app.bsky.embed.recordWithMedia",
+        record: {
+          $type: "app.bsky.embed.record",
+          record: { uri: "at://did:plc:source/app.bsky.feed.post/source", cid: "source-cid" },
+        },
+        media: expect.objectContaining({ $type: "app.bsky.embed.images" }),
+      });
+      expect(result).toMatchObject({ id: "at://did:plc:123/app.bsky.feed.post/quote", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should reject a quote target without the Bluesky uri/cid pair", async () => {
+      const result = await publisher.quote({ text: "My take" }, { postId: "source" });
+
+      expect(result).toMatchObject({
+        error: PostErrorType.INVALID_CONTENT,
+        message: "Bluesky quotes require both uri and cid for the target post.",
+      });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
   });
 
   describe("app password mode", () => {

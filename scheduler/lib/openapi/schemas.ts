@@ -110,6 +110,7 @@ export const PostSchema = z
     thread: ThreadSchema.optional(),
     threadResults: z.record(z.string(), z.array(ThreadSegmentResultSchema)).optional(),
     accountResults: z.record(z.string(), JsonValueSchema).nullable().optional(),
+    quotePostId: z.string().nullable().optional(),
   })
   .meta({ id: "Post" });
 

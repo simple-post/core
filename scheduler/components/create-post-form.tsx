@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
+import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
@@ -36,6 +37,7 @@ import { GenericPostPreview } from "./generic-post-preview";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
+import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
 
 import type { ValidationIssue } from "@simple-post/sdk";
@@ -67,6 +69,7 @@ export function CreatePostForm() {
     accountOverrides,
     repostSettings,
     thread,
+    quotePostId,
     hasDraftContent,
     isHydrated,
     storageError,
@@ -75,6 +78,7 @@ export function CreatePostForm() {
     setSelectedAccountIds,
     setAccountOptions,
     setRepostSettings,
+    setQuotePostId,
     setPostingMode,
     setScheduledDate,
     setScheduledTime,
@@ -84,10 +88,12 @@ export function CreatePostForm() {
     updateThreadSegmentMedia,
     resetDraft,
   } = usePostDraft();
+  const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
   const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
   const defaultRepostAppliedRef = useRef(false);
+  const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<
     Array<{
@@ -155,6 +161,40 @@ export function CreatePostForm() {
   // schedule mode at that slot's time. Applied only after the stored draft
   // hydrates, so hydration doesn't overwrite it.
   const slotParam = searchParams.get("slot");
+  const quotePostParam = searchParams.get("quotePostId");
+  useEffect(() => {
+    if (!isHydrated || !quotePostParam) return;
+    router.replace("/schedule", { scroll: false });
+    setQuotePostId(quotePostParam);
+  }, [isHydrated, quotePostParam, router, setQuotePostId]);
+
+  useEffect(() => {
+    if (accountsLoading || !quotePost || quoteAccountsAppliedRef.current === quotePost.id) return;
+    quoteAccountsAppliedRef.current = quotePost.id;
+
+    if (selectedAccountIds.length === 0) {
+      const availableIds = new Set(accounts.map((account) => account.id));
+      setSelectedAccountIds(quotePost.accountIds.filter((accountId) => availableIds.has(accountId)));
+    }
+
+    if (quotePost.status === "scheduled" && quotePost.scheduledFor && postingMode === "now") {
+      const quoteTime = new Date(quotePost.scheduledFor.getTime() + 60_000);
+      setPostingMode("schedule");
+      setScheduledDate(format(quoteTime, "yyyy-MM-dd"));
+      setScheduledTime(format(quoteTime, "HH:mm"));
+    }
+  }, [
+    accounts,
+    accountsLoading,
+    postingMode,
+    quotePost,
+    selectedAccountIds.length,
+    setPostingMode,
+    setScheduledDate,
+    setScheduledTime,
+    setSelectedAccountIds,
+  ]);
+
   useEffect(() => {
     if (!isHydrated || !slotParam) return;
 
@@ -447,6 +487,7 @@ export function CreatePostForm() {
         };
         media: MediaFile[];
         thread?: ThreadSegment[];
+        quotePostId?: string;
       } = {
         message: message.trim(),
         accountIds: selectedAccountIds,
@@ -486,6 +527,10 @@ export function CreatePostForm() {
 
       if (thread.length > 0) {
         body.thread = thread;
+      }
+
+      if (quotePostId) {
+        body.quotePostId = quotePostId;
       }
 
       const data = await submitPostMutation.mutateAsync({
@@ -550,6 +595,16 @@ export function CreatePostForm() {
             Clear all
           </Button>
         </div>
+
+        {quotePostId ? (
+          <QuotePostCard
+            sourcePost={quotePost}
+            isLoading={quotePostLoading}
+            isError={quotePostError}
+            selectedPlatforms={selectedAccounts.map((account) => account.platform)}
+            onRemove={() => setQuotePostId(null)}
+          />
+        ) : null}
 
         <AccountSelector
           selectedAccountIds={selectedAccountIds}

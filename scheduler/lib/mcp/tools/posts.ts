@@ -7,6 +7,8 @@ import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
+import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
+import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
@@ -49,6 +51,13 @@ export const createPostSchema = z.object({
     .describe(
       "Required when postingMode is 'schedule'; ignored for 'draft'. Use a full ISO 8601 datetime with timezone: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+HH:mm (examples: 2026-05-01T14:30:00Z, 2026-05-01T16:30:00+02:00). Never send date-only or local time without timezone.",
     ),
+  quotePostId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Optional SimplePost post ID to quote. Use inspect_posts to find the user's published or scheduled source post; never invent this ID. Scheduled sources may only be quoted by a post scheduled after them.",
+    ),
   idempotencyKey: z
     .string()
     .min(1)
@@ -72,6 +81,7 @@ const mcpPostSchema = z.object({
   repostDelayHours: z.number(),
   repostDueAt: z.string().nullable(),
   repostStatus: z.string(),
+  quotePostId: z.string().nullable(),
 });
 
 const threadSegmentResultSchema = z.object({
@@ -99,6 +109,7 @@ export const previewPostOutputSchema = z.object({
   message: z.string(),
   postingMode: z.enum(["now", "schedule", "draft"]),
   scheduledFor: z.string().nullable(),
+  quotePostId: z.string().nullable(),
   mediaCount: z.number(),
   accounts: z.array(mcpAccountSchema),
   validation: validatePostOutputSchema,
@@ -188,6 +199,14 @@ export const updateScheduledPostSchema = z.object({
     .describe(
       "Replacement future scheduled time as a full ISO 8601 datetime with timezone. Omit to keep the current scheduled time. Providing this for a draft moves it to scheduled.",
     ),
+  quotePostId: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe(
+      "Replacement SimplePost source to quote. Use inspect_posts to find a published or scheduled post ID; pass null to remove the quote relationship, or omit to keep it.",
+    ),
 });
 
 export const discardScheduledPostSchema = z.object({
@@ -226,6 +245,7 @@ const managedPostSchema = z.object({
   repostStatus: z.string().nullable(),
   repostedAt: z.string().nullable(),
   repostErrorMessage: z.string().nullable(),
+  quotePostId: z.string().nullable(),
   mediaCount: z.number(),
   threadSegmentCount: z.number(),
 });
@@ -267,6 +287,7 @@ export const updateScheduledPostOutputSchema = z.object({
     threadChanged: z.boolean(),
     statusChanged: z.boolean(),
     scheduledForChanged: z.boolean(),
+    quoteChanged: z.boolean(),
   }),
 });
 
@@ -330,6 +351,7 @@ function mapPost(post: {
   repostDelayHours?: number;
   repostDueAt?: Date | null;
   repostStatus?: string;
+  quotePostId?: string | null;
 }) {
   return {
     id: post.id,
@@ -342,6 +364,7 @@ function mapPost(post: {
     repostDelayHours: post.repostDelayHours ?? 12,
     repostDueAt: post.repostDueAt?.toISOString() ?? null,
     repostStatus: post.repostStatus ?? "not_applicable",
+    quotePostId: post.quotePostId ?? null,
   };
 }
 
@@ -396,6 +419,7 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
     repostStatus: post.repostStatus ?? "not_applicable",
     repostedAt: post.repostedAt?.toISOString() ?? null,
     repostErrorMessage: post.repostErrorMessage ?? null,
+    quotePostId: post.quotePostId ?? null,
     mediaCount: post.media.length,
     threadSegmentCount: thread.length,
   };
@@ -496,6 +520,12 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
   const scheduledFor = postingMode === "schedule" ? resolveScheduledFor(input) : null;
   const mediaCount = input.media?.length ?? 0;
   const threadSegmentCount = input.thread?.length ?? 0;
+  await validateQuoteSource({
+    userId,
+    quotePostId: input.quotePostId,
+    postingMode,
+    scheduledFor,
+  });
   const validation = await validatePost(userId, {
     message: input.message,
     accountIds: input.accountIds,
@@ -515,6 +545,7 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
     message: input.message,
     postingMode,
     scheduledFor: scheduledFor?.toISOString() ?? null,
+    quotePostId: input.quotePostId ?? null,
     mediaCount,
     accounts: validation.accounts.map((account) => ({
       accountId: account.accountId,
@@ -596,7 +627,8 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.media !== undefined ||
     input.thread !== undefined ||
     input.postingMode !== undefined ||
-    input.scheduledFor !== undefined;
+    input.scheduledFor !== undefined ||
+    input.quotePostId !== undefined;
 
   if (!hasChanges) {
     throw new Error(
@@ -621,6 +653,14 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const targetPostingMode = input.postingMode ?? (input.scheduledFor === undefined ? currentPostingMode : "schedule");
   const scheduledFor =
     targetPostingMode === "schedule" ? resolveUpdatedScheduledFor(input.scheduledFor, currentPost.scheduledFor) : null;
+  const quotePostId = input.quotePostId === undefined ? currentPost.quotePostId : input.quotePostId;
+  await validateQuoteSource({
+    userId,
+    quotePostId: quotePostId ?? undefined,
+    postingMode: targetPostingMode,
+    scheduledFor,
+    currentPostId: input.postId,
+  });
 
   const validation = await validatePost(userId, {
     message,
@@ -658,6 +698,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (targetPostingMode !== currentPostingMode)
     updates.status = targetPostingMode === "schedule" ? "scheduled" : "draft";
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
+  if (input.quotePostId !== undefined) updates.quotePostId = quotePostId;
 
   const updatedPost = await repository.updatePost(input.postId, updates);
 
@@ -681,6 +722,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       threadChanged: input.thread !== undefined,
       statusChanged: targetPostingMode !== currentPostingMode,
       scheduledForChanged: input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode,
+      quoteChanged: input.quotePostId !== undefined,
     },
   };
 }
@@ -692,6 +734,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
     throw new Error(POST_NOT_FOUND_MESSAGE);
   }
   assertEditableManagedPost(post);
+  await assertNoUnresolvedQuotes(userId, input.postId);
 
   const accountMap = await getAccountMap(userId);
   const mappedPost = mapManagedPost(post, accountMap);
@@ -795,6 +838,12 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   const threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
   const threadSegmentCount = threadSegments.length;
   const repostSettings = await resolvePostRepostSettings(userId, undefined);
+  const quoteSource = await validateQuoteSource({
+    userId,
+    quotePostId: input.quotePostId,
+    postingMode,
+    scheduledFor,
+  });
 
   // Validate content
   const validation = await validatePostForAccounts({
@@ -841,6 +890,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         repostStatus: "not_applicable",
         repostDueAt: null,
         thread: threadForPersistence,
+        quotePostId: input.quotePostId,
         idempotencyKey: input.idempotencyKey,
       },
       userId,
@@ -868,6 +918,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   // If posting now, dispatch immediately
   if (postingMode === "now") {
     try {
+      const quoteTargets = quoteSource ? buildQuoteTargets(quoteSource, validation.accounts) : undefined;
       const results = await postToAccounts(
         userId,
         input.message,
@@ -876,6 +927,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         undefined,
         undefined,
         threadForPersistence,
+        quoteTargets,
       );
       const summary = getPostingSummary(results);
 

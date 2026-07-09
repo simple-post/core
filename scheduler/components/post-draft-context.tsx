@@ -30,6 +30,7 @@ interface PostDraftState {
   accountOverrides: DraftAccountOverridesMap;
   repostSettings: DraftRepostSettings;
   thread: ThreadSegment[];
+  quotePostId: string | null;
 }
 
 interface PostDraftContextValue extends PostDraftState {
@@ -51,6 +52,7 @@ interface PostDraftContextValue extends PostDraftState {
   setAccountOverrideMessage: (accountId: string, message: string) => void;
   setAccountOverrideMedia: (accountId: string, media: MediaFile[]) => void;
   setThread: (value: ThreadSegment[]) => void;
+  setQuotePostId: (value: string | null) => void;
   addThreadSegment: () => void;
   removeThreadSegment: (index: number) => void;
   updateThreadSegmentMessage: (index: number, message: string) => void;
@@ -72,6 +74,7 @@ const DEFAULT_DRAFT: PostDraftState = {
     delayHours: 12,
   },
   thread: [],
+  quotePostId: null,
 };
 
 const DRAFT_STORAGE_KEY_PREFIX = "simplepost:create-post-draft:v1";
@@ -203,6 +206,7 @@ function normalizeStoredDraft(value: unknown): PostDraftState | null {
     accountOverrides: normalizeAccountOverrides(candidate.accountOverrides),
     repostSettings: normalizeRepostSettings(candidate.repostSettings),
     thread: normalizeThread(candidate.thread),
+    quotePostId: typeof candidate.quotePostId === "string" ? candidate.quotePostId : null,
   };
 }
 
@@ -216,7 +220,8 @@ function hasPersistableDraft(draft: PostDraftState) {
     draft.scheduledTime.length > 0 ||
     Object.keys(draft.accountOptions).length > 0 ||
     Object.keys(draft.accountOverrides).length > 0 ||
-    draft.thread.length > 0
+    draft.thread.length > 0 ||
+    draft.quotePostId !== null
   );
 }
 
@@ -259,6 +264,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
   );
   const [repostSettings, setRepostSettingsState] = useState<DraftRepostSettings>(DEFAULT_DRAFT.repostSettings);
   const [thread, setThreadState] = useState<ThreadSegment[]>(DEFAULT_DRAFT.thread);
+  const [quotePostId, setQuotePostIdState] = useState<string | null>(DEFAULT_DRAFT.quotePostId);
 
   const setDraftState = useCallback((draft: PostDraftState) => {
     draftRef.current = draft;
@@ -272,6 +278,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     setAccountOverridesState(draft.accountOverrides);
     setRepostSettingsState(draft.repostSettings);
     setThreadState(draft.thread);
+    setQuotePostIdState(draft.quotePostId);
   }, []);
 
   const persistDraft = useCallback(
@@ -325,6 +332,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     [updateDraft],
   );
   const setThread = useCallback((value: ThreadSegment[]) => updateDraft({ thread: value }), [updateDraft]);
+  const setQuotePostId = useCallback((value: string | null) => updateDraft({ quotePostId: value }), [updateDraft]);
 
   const draft = useMemo<PostDraftState>(
     () => ({
@@ -338,6 +346,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       accountOverrides,
       repostSettings,
       thread,
+      quotePostId,
     }),
     [
       accountOptions,
@@ -350,6 +359,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       scheduledTime,
       selectedAccountIds,
       thread,
+      quotePostId,
     ],
   );
 
@@ -486,6 +496,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       accountOverrides,
       repostSettings,
       thread,
+      quotePostId,
       setMessage,
       setMedia,
       setSelectedAccountIds,
@@ -496,6 +507,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setAccountOverrides,
       setRepostSettings,
       setThread,
+      setQuotePostId,
       updateAccountOverride,
       setAccountOverrideEnabled,
       setAccountOverrideMessage,
@@ -520,6 +532,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       selectedAccountIds,
       storageError,
       thread,
+      quotePostId,
       setMessage,
       setMedia,
       setSelectedAccountIds,
@@ -530,6 +543,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setAccountOverrides,
       setRepostSettings,
       setThread,
+      setQuotePostId,
       updateAccountOverride,
       setAccountOverrideEnabled,
       setAccountOverrideMedia,

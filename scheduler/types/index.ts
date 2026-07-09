@@ -113,6 +113,7 @@ export interface SocialPost {
   thread?: ThreadSegment[];
   threadResults?: Record<string, ThreadSegmentResult[]> | null;
   accountResults?: AccountResultsMap | null;
+  quotePostId?: string | null;
   idempotencyKey?: string | null;
 }
 

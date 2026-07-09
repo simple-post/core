@@ -55,6 +55,8 @@ export interface PostingResult {
   };
 }
 
+export type PostingResultCallback = (result: PostingResult) => void;
+
 export interface AccountRepostTarget extends RepostTarget {
   accountId: string;
   postUrl?: string;
@@ -434,6 +436,7 @@ export async function postToAccounts(
   accountOverrides?: AccountOverridesMap,
   thread?: ThreadSegment[],
   quoteTargets?: AccountQuoteTarget[],
+  onResult?: PostingResultCallback,
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
   const log = postingLogger.child({ fn: "postToAccounts" });
@@ -489,15 +492,28 @@ export async function postToAccounts(
     let results: PostingResult[];
     try {
       results = await Promise.all(
-        accounts.map((account) => {
+        accounts.map(async (account) => {
           const segments = buildAccountSegments(account.id, message, mediaFiles, sharedThread, accountOverrides);
-          return postSegmentsToAccount(
+          const result = await postSegmentsToAccount(
             segments,
             account,
             resolver,
             accountOptions,
             quoteTargetByAccountId.get(account.id),
           );
+
+          // Progress reporting is best-effort. A disconnected streaming client
+          // must never turn a successful platform publish into a failed one.
+          try {
+            onResult?.(result);
+          } catch (progressError) {
+            log.warn(
+              { err: serializeError(progressError), accountId: result.accountId },
+              "Failed to report platform posting progress",
+            );
+          }
+
+          return result;
         }),
       );
     } finally {

@@ -5,6 +5,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-client";
 import type { PostingMode, SocialPost } from "@/types";
 
+const POSTING_PROGRESS_CONTENT_TYPE = "application/x-ndjson";
+
 // Delete post mutation
 async function deletePost(postId: string): Promise<void> {
   const response = await fetch(`/api/v1/posts/${postId}`, {
@@ -119,26 +121,100 @@ interface PostMutationParams {
   };
   mode: "create" | "edit";
   postId?: string;
+  onPostingResult?: (result: PostingResult) => void;
+}
+
+export interface PostingResult {
+  accountId: string;
+  platform: string;
+  success: boolean;
+  error?: string;
+  message?: string;
+  postUrl?: string;
+  postId?: string;
+  details?: unknown;
+  threadResults?: Array<{
+    index: number;
+    success: boolean;
+    postId?: string;
+    postUrl?: string;
+    error?: string;
+    message?: string;
+    details?: unknown;
+  }>;
 }
 
 interface PostMutationResult {
   post: SocialPost;
-  postingResults?: Array<{
-    accountId: string;
-    platform: string;
-    success: boolean;
-    error?: string;
-    postUrl?: string;
-  }>;
+  postingResults?: PostingResult[];
 }
 
-async function submitPost({ body, mode, postId }: PostMutationParams): Promise<PostMutationResult> {
+type PostingProgressEvent =
+  | { type: "result"; result: PostingResult }
+  | { type: "complete"; data: PostMutationResult }
+  | { type: "error"; error: string };
+
+async function readPostingProgress(
+  response: Response,
+  onPostingResult: (result: PostingResult) => void,
+): Promise<PostMutationResult> {
+  if (!response.body) {
+    throw new Error("Posting progress stream was unavailable");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed: PostMutationResult | undefined;
+
+  const processLine = (line: string) => {
+    if (!line.trim()) return;
+
+    const event = JSON.parse(line) as PostingProgressEvent;
+    switch (event.type) {
+      case "result": {
+        onPostingResult(event.result);
+        break;
+      }
+      case "complete": {
+        completed = event.data;
+        break;
+      }
+      case "error": {
+        throw new Error(event.error);
+      }
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) processLine(line);
+
+    if (done) break;
+  }
+
+  processLine(buffer);
+
+  if (!completed) {
+    throw new Error("Posting finished without a final response");
+  }
+
+  return completed;
+}
+
+async function submitPost({ body, mode, postId, onPostingResult }: PostMutationParams): Promise<PostMutationResult> {
   const url = mode === "edit" ? `/api/v1/posts/${postId}` : "/api/v1/posts";
   const method = mode === "edit" ? "PATCH" : "POST";
+  const streamProgress = body.postingMode === "now" && typeof onPostingResult === "function";
 
   const response = await fetch(url, {
     method,
     headers: {
+      ...(streamProgress ? { Accept: POSTING_PROGRESS_CONTENT_TYPE } : {}),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -150,7 +226,15 @@ async function submitPost({ body, mode, postId }: PostMutationParams): Promise<P
     throw new Error(message);
   }
 
-  return response.json();
+  if (streamProgress && response.headers.get("content-type")?.includes(POSTING_PROGRESS_CONTENT_TYPE)) {
+    return readPostingProgress(response, onPostingResult);
+  }
+
+  const result = (await response.json()) as PostMutationResult;
+  if (streamProgress) {
+    result.postingResults?.forEach(onPostingResult);
+  }
+  return result;
 }
 
 export function useSubmitPost() {

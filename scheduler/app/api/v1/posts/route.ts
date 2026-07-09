@@ -8,7 +8,13 @@ import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import type { PostingResultCallback } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import {
+  createPostingProgressStream,
+  sanitizePostingResult,
+  wantsPostingProgress,
+} from "@/lib/posting/progress-stream";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -121,8 +127,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/v1/posts - Create a new post
-export async function POST(req: NextRequest) {
+async function createPost(req: NextRequest, onPostingResult?: PostingResultCallback) {
   const startTime = Date.now();
   log.info("Received post creation request");
 
@@ -262,6 +267,7 @@ export async function POST(req: NextRequest) {
           validated.accountOverrides,
           validated.thread,
           quoteTargets,
+          onPostingResult,
         );
         const summary = getPostingSummary(results);
 
@@ -351,25 +357,7 @@ export async function POST(req: NextRequest) {
         const durationMs = Date.now() - startTime;
         log.info({ postId: post.id, durationMs }, "Request completed successfully");
 
-        const sanitizedResults = results.map((r) => ({
-          accountId: r.accountId,
-          platform: r.platform,
-          success: r.success,
-          error: r.error,
-          message: r.message,
-          postId: r.postId,
-          postUrl: r.postUrl,
-          details: r.details ? (sanitizeForJson(r.details) as Record<string, unknown>) : undefined,
-          threadResults: r.threadResults?.map((s) => ({
-            index: s.index,
-            success: s.success,
-            postId: s.postId,
-            postUrl: s.postUrl,
-            error: s.error,
-            message: s.message,
-            details: s.details ? (sanitizeForJson(s.details) as Record<string, unknown>) : undefined,
-          })),
-        }));
+        const sanitizedResults = results.map((result) => sanitizePostingResult(result));
 
         return NextResponse.json(
           {
@@ -410,4 +398,13 @@ export async function POST(req: NextRequest) {
     log.error({ err: serializeError(error), durationMs }, "Request failed");
     return handleApiError(error);
   }
+}
+
+// POST /api/v1/posts - Create a new post
+export async function POST(req: NextRequest) {
+  if (wantsPostingProgress(req)) {
+    return createPostingProgressStream((onResult) => createPost(req, onResult));
+  }
+
+  return createPost(req);
 }

@@ -4,7 +4,13 @@ import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
+import type { PostingResultCallback } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import {
+  createPostingProgressStream,
+  sanitizePostingResult,
+  wantsPostingProgress,
+} from "@/lib/posting/progress-stream";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
@@ -74,8 +80,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-// PATCH /api/v1/posts/[id] - Update a post
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function updatePost(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+  onPostingResult?: PostingResultCallback,
+) {
   try {
     const { id } = await params;
     const session = await requireAuth(req);
@@ -212,6 +221,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         validated.accountOverrides,
         validated.thread,
         quoteTargets,
+        onPostingResult,
       );
       const summary = getPostingSummary(results);
 
@@ -284,25 +294,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
 
       const updatedPost = await repository.getPostById(post.id);
-      const sanitizedResults = results.map((result) => ({
-        accountId: result.accountId,
-        platform: result.platform,
-        success: result.success,
-        error: result.error,
-        message: result.message,
-        postId: result.postId,
-        postUrl: result.postUrl,
-        details: result.details ? (sanitizeForJson(result.details) as Record<string, unknown>) : undefined,
-        threadResults: result.threadResults?.map((segment) => ({
-          index: segment.index,
-          success: segment.success,
-          postId: segment.postId,
-          postUrl: segment.postUrl,
-          error: segment.error,
-          message: segment.message,
-          details: segment.details ? (sanitizeForJson(segment.details) as Record<string, unknown>) : undefined,
-        })),
-      }));
+      const sanitizedResults = results.map((result) => sanitizePostingResult(result));
 
       return NextResponse.json({
         post: updatedPost,
@@ -329,6 +321,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+// PATCH /api/v1/posts/[id] - Update a post
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  if (wantsPostingProgress(req)) {
+    return createPostingProgressStream((onResult) => updatePost(req, context, onResult));
+  }
+
+  return updatePost(req, context);
 }
 
 // DELETE /api/v1/posts/[id] - Delete a post

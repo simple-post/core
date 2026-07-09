@@ -25,6 +25,12 @@ import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import {
+  failPendingPostingResults,
+  mergePostingProgressResult,
+  mergePostingProgressResults,
+} from "@/lib/posting/progress-client";
+import type { PostingProgressResult } from "@/lib/posting/progress-client";
 import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
@@ -95,16 +101,7 @@ export function CreatePostForm() {
   const defaultRepostAppliedRef = useRef(false);
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
-  const [postingResults, setPostingResults] = useState<
-    Array<{
-      accountId: string;
-      platform: string;
-      success: boolean;
-      error?: string;
-      postUrl?: string;
-      threadResults?: Array<{ index: number; success: boolean; postId?: string; postUrl?: string }>;
-    }>
-  >([]);
+  const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -466,10 +463,26 @@ export function CreatePostForm() {
       }
     }
 
+    if (postingMode === "now") {
+      setPostingResults(
+        selectedAccounts.map((account) => ({
+          accountId: account.id,
+          platform: account.platform,
+          accountName: getAccountDisplayName(account),
+        })),
+      );
+      setPostingSucceeded(false);
+      setShowPostLinksModal(true);
+    }
+
     try {
       if (postingMode !== "draft") {
         const latestValidation = await runBackendValidation();
         if (!latestValidation?.summary.isValid) {
+          if (postingMode === "now") {
+            setShowPostLinksModal(false);
+            setPostingResults([]);
+          }
           return;
         }
       }
@@ -536,12 +549,19 @@ export function CreatePostForm() {
       const data = await submitPostMutation.mutateAsync({
         body,
         mode: "create",
+        onPostingResult:
+          postingMode === "now"
+            ? (result) => {
+                setPostingResults((current) => mergePostingProgressResult(current, result));
+              }
+            : undefined,
       });
 
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
-        setPostingResults(data.postingResults);
+        const completedResults = data.postingResults;
+        setPostingResults((current) => mergePostingProgressResults(current, completedResults));
 
-        const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
+        const allSucceeded = completedResults.every((result) => result.success);
         setPostingSucceeded(allSucceeded);
         if (allSucceeded) {
           resetDraftToDefaults();
@@ -559,6 +579,10 @@ export function CreatePostForm() {
       const errorMessage = error instanceof Error ? error.message : "Failed to create post. Please try again.";
       if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
         setScheduleError(errorMessage);
+      }
+      if (postingMode === "now") {
+        setPostingSucceeded(false);
+        setPostingResults((current) => failPendingPostingResults(current, errorMessage));
       }
       logClientError(error, "Failed to create post", { postingMode, accountCount: selectedAccountIds.length });
       toast.error(errorMessage);
@@ -935,6 +959,7 @@ export function CreatePostForm() {
 
       <PostLinksModal
         open={showPostLinksModal}
+        posting={submitPostMutation.isPending}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           if (!open && postingSucceeded) {

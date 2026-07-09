@@ -18,9 +18,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
-import { getPlatformById } from "@/lib/config";
+import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import {
+  failPendingPostingResults,
+  mergePostingProgressResult,
+  mergePostingProgressResults,
+} from "@/lib/posting/progress-client";
+import type { PostingProgressResult } from "@/lib/posting/progress-client";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
@@ -114,15 +120,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [accountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
   const [quotePostId, setQuotePostId] = useState<string | null>(existingPost.quotePostId ?? null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
-  const [postingResults, setPostingResults] = useState<
-    Array<{
-      accountId: string;
-      platform: string;
-      success: boolean;
-      error?: string;
-      postUrl?: string;
-    }>
-  >([]);
+  const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -323,10 +321,26 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       }
     }
 
+    if (postingMode === "now") {
+      setPostingResults(
+        selectedAccounts.map((account) => ({
+          accountId: account.id,
+          platform: account.platform,
+          accountName: getAccountDisplayName(account),
+        })),
+      );
+      setPostingSucceeded(false);
+      setShowPostLinksModal(true);
+    }
+
     try {
       if (postingMode !== "draft") {
         const latestValidation = await runBackendValidation();
         if (!latestValidation?.summary.isValid) {
+          if (postingMode === "now") {
+            setShowPostLinksModal(false);
+            setPostingResults([]);
+          }
           return;
         }
       }
@@ -398,14 +412,21 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         body,
         mode: isRetry ? "create" : "edit",
         postId: isRetry ? undefined : existingPost.id,
+        onPostingResult:
+          postingMode === "now"
+            ? (result) => {
+                setPostingResults((current) => mergePostingProgressResult(current, result));
+              }
+            : undefined,
       });
 
       // If posting now and we have posting results, show the modal
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
-        setPostingResults(data.postingResults);
+        const completedResults = data.postingResults;
+        setPostingResults((current) => mergePostingProgressResults(current, completedResults));
 
         // Check if all posts succeeded
-        const allSucceeded = data.postingResults.every((r: { success: boolean }) => r.success);
+        const allSucceeded = completedResults.every((result) => result.success);
         setPostingSucceeded(allSucceeded);
 
         setShowPostLinksModal(true);
@@ -422,6 +443,10 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       const errorMessage = error instanceof Error ? error.message : `Failed to ${isRetry ? "retry" : mode} post.`;
       if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
         setScheduleError(errorMessage);
+      }
+      if (postingMode === "now") {
+        setPostingSucceeded(false);
+        setPostingResults((current) => failPendingPostingResults(current, errorMessage));
       }
       logClientError(error, `Failed to ${isRetry ? "retry" : mode} post`, {
         postId: existingPost.id,
@@ -740,6 +765,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
       <PostLinksModal
         open={showPostLinksModal}
+        posting={submitPostMutation.isPending}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           // Navigate when modal is closed

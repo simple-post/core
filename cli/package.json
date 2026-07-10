@@ -1,6 +1,6 @@
 {
   "name": "@simple-post/cli",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Post to X, Telegram, YouTube, Instagram, and more from your terminal.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
   "license": "MIT",
@@ -90,7 +90,7 @@
   },
   "dependencies": {
     "@oclif/core": "^4.9.0",
-    "@simple-post/sdk": "^1.0.0",
+    "@simple-post/sdk": "^1.1.0",
     "selfsigned": "^5.5.0"
   },
   "optionalDependencies": {

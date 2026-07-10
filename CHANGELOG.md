@@ -6,6 +6,8 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-10
+
 ### Added
 
 - One-time CLI authorization codes, expiring CLI tokens, remote CLI revocation,
@@ -66,5 +68,6 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 - Self-hosted HTTP server, Scheduler application, and remote MCP server.
 - Public MIT-licensed source, examples, platform guides, and release tooling.
 
-[Unreleased]: https://github.com/simple-post/core/compare/sdk-v1.0.0...HEAD
+[Unreleased]: https://github.com/simple-post/core/compare/sdk-v1.1.0...HEAD
+[1.1.0]: https://github.com/simple-post/core/compare/sdk-v1.0.0...sdk-v1.1.0
 [1.0.0]: https://github.com/simple-post/core/tree/sdk-v1.0.0

@@ -4,7 +4,7 @@ This document lists deployment and client changes that require an explicit
 action when upgrading SimplePost. Read it together with the
 [changelog](../../CHANGELOG.md).
 
-## Unreleased
+## 1.1.0
 
 ### Install the updated dependencies
 

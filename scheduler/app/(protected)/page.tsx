@@ -14,10 +14,10 @@ import { usePostCounts } from "@/hooks/use-posts";
 import { useSession } from "@/lib/auth/auth-client";
 import { cn } from "@/lib/utils";
 
-type TimelineTabType = "scheduled" | "past" | "failed";
-type DashboardTabParam = TimelineTabType | "published" | "posted" | "drafts" | "calendar";
+type TimelineTabType = "drafts" | "scheduled" | "past" | "failed";
+type DashboardTabParam = TimelineTabType | "published" | "posted" | "calendar";
 
-const TIMELINE_TABS = new Set<TimelineTabType>(["scheduled", "past", "failed"]);
+const TIMELINE_TABS = new Set<TimelineTabType>(["drafts", "scheduled", "past", "failed"]);
 const DASHBOARD_TAB_PARAMS = new Set<DashboardTabParam>([
   "scheduled",
   "past",
@@ -28,6 +28,8 @@ const DASHBOARD_TAB_PARAMS = new Set<DashboardTabParam>([
   "calendar",
 ]);
 const FAILED_SEEN_STORAGE_KEY_PREFIX = "simplepost:dashboard:last-seen-failed-at:v1";
+const TIMELINE_TAB_TRIGGER_CLASS =
+  "h-14 min-w-0 flex-col gap-1 rounded-lg px-1 font-sans normal-case tracking-normal after:hidden data-[state=active]:bg-secondary data-[state=active]:shadow-sm sm:h-10 sm:flex-row sm:gap-2 sm:rounded-none sm:px-3 sm:font-mono sm:uppercase sm:tracking-[0.12em] sm:after:block sm:data-[state=active]:bg-transparent sm:data-[state=active]:shadow-none";
 
 function getTimelineTabFromParam(value: string | null): TimelineTabType | null {
   if (!value) return null;
@@ -42,9 +44,11 @@ function isKnownDashboardTabParam(value: string | null): value is DashboardTabPa
 function TabCountBadge({
   count,
   tone = "default",
+  className,
 }: {
   count: number | undefined;
   tone?: "default" | "danger" | "danger-muted";
+  className?: string;
 }) {
   const displayCount = typeof count === "number" ? count : 0;
 
@@ -55,6 +59,7 @@ function TabCountBadge({
         tone === "danger" && "bg-destructive text-destructive-foreground shadow-[0_0_0_3px_rgba(239,68,68,0.18)]",
         tone === "danger-muted" && "bg-destructive/15 text-destructive",
         tone === "default" && "bg-secondary text-muted-foreground",
+        className,
       )}>
       {displayCount > 99 ? "99+" : displayCount}
     </span>
@@ -68,7 +73,7 @@ export default function Dashboard() {
   const { data: session } = useSession();
   const { data: postCounts } = usePostCounts();
 
-  const [activeTab, setActiveTab] = useState<TimelineTabType>(getTimelineTabFromParam(tabParam) ?? "scheduled");
+  const [activeTab, setActiveTab] = useState<TimelineTabType>(getTimelineTabFromParam(tabParam) ?? "drafts");
   const [lastSeenFailedAt, setLastSeenFailedAt] = useState<string | null>(null);
   const [draftsPage, setDraftsPage] = useState(1);
   const [scheduledPage, setScheduledPage] = useState(1);
@@ -145,49 +150,48 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-8 animate-reveal animate-reveal-delay-2">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-primary">
-              <FileText className="h-3.5 w-3.5" />
-            </div>
-            <h2 className="flex items-center text-lg font-semibold text-foreground">
-              Drafts
-              <TabCountBadge count={postCounts?.counts.drafts} />
-            </h2>
-          </div>
-          <PostsList
-            type="drafts"
-            page={draftsPage}
-            pageSize={draftsPageSize}
-            onPageChange={setDraftsPage}
-            onPageSizeChange={setDraftsPageSize}
-          />
-        </section>
-
-        <section className="mt-8 animate-reveal animate-reveal-delay-2">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="mb-6">
-              <TabsTrigger value="scheduled" className="gap-2">
-                <Calendar className="h-3.5 w-3.5" />
+            <TabsList
+              aria-label="Post status"
+              className="mb-6 grid h-auto w-full grid-cols-4 items-stretch gap-1 rounded-xl border border-border bg-card p-1 sm:inline-flex sm:h-10 sm:w-auto sm:items-center sm:justify-start sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:p-0">
+              <TabsTrigger value="drafts" className={TIMELINE_TAB_TRIGGER_CLASS}>
+                <FileText className="hidden h-3.5 w-3.5 sm:block" />
+                Drafts
+                <TabCountBadge count={postCounts?.counts.drafts} className="ml-0 sm:ml-1" />
+              </TabsTrigger>
+              <TabsTrigger value="scheduled" className={TIMELINE_TAB_TRIGGER_CLASS}>
+                <Calendar className="hidden h-3.5 w-3.5 sm:block" />
                 Scheduled
-                <TabCountBadge count={postCounts?.counts.scheduled} />
+                <TabCountBadge count={postCounts?.counts.scheduled} className="ml-0 sm:ml-1" />
               </TabsTrigger>
-              <TabsTrigger value="past" className="gap-2">
-                <CheckCircle className="h-3.5 w-3.5" />
+              <TabsTrigger value="past" className={TIMELINE_TAB_TRIGGER_CLASS}>
+                <CheckCircle className="hidden h-3.5 w-3.5 sm:block" />
                 Published
-                <TabCountBadge count={postCounts?.counts.past} />
+                <TabCountBadge count={postCounts?.counts.past} className="ml-0 sm:ml-1" />
               </TabsTrigger>
-              <TabsTrigger value="failed" className="gap-2">
-                <AlertCircle className="h-3.5 w-3.5" />
+              <TabsTrigger value="failed" className={TIMELINE_TAB_TRIGGER_CLASS}>
+                <AlertCircle className="hidden h-3.5 w-3.5 sm:block" />
                 Failed
                 <TabCountBadge
                   count={failedCount}
                   tone={hasUnseenFailed ? "danger" : failedCount > 0 ? "danger-muted" : "default"}
+                  className="ml-0 sm:ml-1"
                 />
                 {hasUnseenFailed ? (
                   <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.22)]" />
                 ) : null}
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="drafts" className="mt-0">
+              <PostsList
+                type="drafts"
+                page={draftsPage}
+                pageSize={draftsPageSize}
+                onPageChange={setDraftsPage}
+                onPageSizeChange={setDraftsPageSize}
+              />
+            </TabsContent>
 
             <TabsContent value="scheduled" className="mt-0">
               <PostsList

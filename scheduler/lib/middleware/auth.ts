@@ -1,19 +1,12 @@
-import crypto from "node:crypto";
-
 import { type NextRequest } from "next/server";
 
 import { auth } from "@/lib/auth/auth";
 import { assertActiveSubscription, assertPlanFeature } from "@/lib/billing/subscriptions";
+import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 import { hashApiKey, isApiKey } from "@/lib/security/api-keys";
 import { UnauthorizedError } from "@/lib/utils/errors";
-
-const CLI_TOKEN_PREFIX = "sp_cli_";
-
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
 
 /**
  * Authenticate via CLI bearer token (Authorization: Bearer sp_cli_...).
@@ -21,19 +14,20 @@ function hashToken(token: string): string {
  */
 async function authenticateCliToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith(`Bearer ${CLI_TOKEN_PREFIX}`)) {
+  if (!authHeader?.startsWith("Bearer ")) {
     return null;
   }
 
   const token = authHeader.slice("Bearer ".length);
-  const tokenHash = hashToken(token);
+  if (!isCliToken(token)) return null;
+  const tokenHash = hashCliCredential(token);
 
   const cliToken = await prisma.cliToken.findUnique({
     where: { tokenHash },
     include: { user: true },
   });
 
-  if (!cliToken) {
+  if (!cliToken || cliToken.revokedAt || cliToken.expiresAt < new Date()) {
     return null;
   }
 
@@ -55,7 +49,7 @@ async function authenticateCliToken(req: NextRequest) {
     session: {
       id: cliToken.id,
       token: "cli",
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      expiresAt: cliToken.expiresAt,
     },
   };
 }

@@ -4,7 +4,7 @@ import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/medi
 import { Router } from "express";
 import multer from "multer";
 
-import { storeUpload } from "../services/uploads.js";
+import { assertUploadMatchesContentType, storeUpload } from "../services/uploads.js";
 import { BadRequestError, handleApiError } from "../utils/errors.js";
 import { ensureUploadTmpDir } from "../utils/files.js";
 
@@ -22,7 +22,18 @@ const upload = multer({
         .catch((error: Error) => callback(error, ""));
     },
   }),
-  limits: { fileSize: MAX_FILE_SIZE, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const resolvedType = normalizeContentType(file.mimetype, file.originalname);
+    callback(null, Boolean(resolvedType && ALLOWED_MEDIA_TYPES.has(resolvedType)));
+  },
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: 1,
+    fields: 8,
+    parts: 10,
+    fieldSize: 64 * 1024,
+    headerPairs: 200,
+  },
 });
 
 const router = Router();
@@ -37,6 +48,12 @@ router.post("/", upload.single("file"), async (req: Request, res: Response): Pro
     const resolvedType = normalizeContentType(file.mimetype, file.originalname);
     if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
       throw new BadRequestError(`Invalid file type: ${file.mimetype || "(unknown)"}`);
+    }
+
+    try {
+      await assertUploadMatchesContentType(file.path, resolvedType);
+    } catch {
+      throw new BadRequestError(`File contents do not match the declared type: ${resolvedType}`);
     }
 
     const stored = await storeUpload({

@@ -26,6 +26,7 @@ model User {
   posts                  Post[]
   PendingOAuthConnection PendingOAuthConnection[]
   cliTokens              CliToken[]
+  cliAuthorizationCodes  CliAuthorizationCode[]
   mcpAccessTokens        McpAccessToken[]
   apiKeys                ApiKey[]
   subscription           UserSubscription?
@@ -57,6 +58,23 @@ model UserSubscription {
   @@index([stripeCustomerId])
   @@index([status])
   @@map("user_subscription")
+}
+
+// Stripe webhook events are recorded before processing so duplicate deliveries
+// and retries cannot apply subscription changes more than once.
+model StripeEvent {
+  id          String    @id
+  type        String
+  status      String    @default("processing") // "processing", "succeeded", "failed"
+  attempts    Int       @default(0)
+  processedAt DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("stripe_event")
 }
 
 model UserRepostSettings {
@@ -281,11 +299,30 @@ model CliToken {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash  String    @unique // SHA-256 hash of the bearer token
   name       String    @default("CLI")
+  expiresAt  DateTime
+  revokedAt  DateTime?
   lastUsedAt DateTime?
   createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([userId])
+  @@index([expiresAt])
   @@map("cli_token")
+}
+
+// One-time loopback codes used to exchange browser approval for a CLI token.
+// Raw CLI bearer tokens are never placed in browser URLs.
+model CliAuthorizationCode {
+  id          String   @id @default(cuid())
+  codeHash    String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("cli_authorization_code")
 }
 
 // API keys for direct Scheduler API access
@@ -368,6 +405,7 @@ model McpAccessToken {
   scope      String?
   resource   String?
   expiresAt  DateTime
+  revokedAt  DateTime?
   lastUsedAt DateTime?
   createdAt  DateTime       @default(now())
 

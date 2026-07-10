@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import type { Request, Response, NextFunction } from "express";
 
 export interface AuthenticatedRequest extends Request {
@@ -16,7 +18,19 @@ export function createAuthMiddleware(apiKey: string) {
       return;
     }
 
-    if (providedKey !== apiKey) {
+    if (typeof providedKey !== "string") {
+      res.status(401).json({
+        error: "Invalid API key",
+        message: "The provided API key is not valid",
+      });
+      return;
+    }
+
+    const providedBuffer = Buffer.from(providedKey, "utf8");
+    const expectedBuffer = Buffer.from(apiKey, "utf8");
+    const isValid = providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
+
+    if (!isValid) {
       res.status(401).json({
         error: "Invalid API key",
         message: "The provided API key is not valid",

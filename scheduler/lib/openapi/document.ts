@@ -10,7 +10,7 @@ export function createSchedulerOpenApiDocument() {
     {
       openapi: "3.1.0",
       info: {
-        title: "SimplePost API",
+        title: "SimplePost Scheduler API",
         version: "1.0.0",
         description:
           "OpenAPI reference for the Scheduler app API, OAuth/MCP support endpoints, and internal scheduler operations.",

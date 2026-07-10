@@ -7,7 +7,7 @@ import {
   ThreadSchema,
   validationRequestSchema,
 } from "@simple-post/sdk";
-import * as z from "zod/v4";
+import * as z from "zod";
 
 import { postingSlotSchema, postingSlotsRequestSchema } from "@/lib/posting-slots/settings";
 import { createPostSchema, updatePostSchema } from "@/lib/validations/posts";
@@ -298,6 +298,31 @@ export const PinterestBoardsEnvelopeSchema = z
   })
   .meta({ id: "PinterestBoardsEnvelope" });
 
+export const TikTokCreatorInfoSchema = z
+  .object({
+    creatorAvatarUrl: z.url().nullable(),
+    creatorUsername: z.string().nullable(),
+    creatorNickname: z.string().nullable(),
+    privacyLevelOptions: z.array(
+      z.enum(["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"]),
+    ),
+    commentDisabled: z.boolean(),
+    duetDisabled: z.boolean(),
+    stitchDisabled: z.boolean(),
+    maxVideoPostDurationSec: z.number().nonnegative().nullable(),
+    canPost: z.boolean(),
+    blockReason: z.string().nullable(),
+    errorCode: z.string().nullable(),
+    fetchedAt: z.iso.datetime(),
+  })
+  .meta({ id: "TikTokCreatorInfo" });
+
+export const TikTokCreatorInfoEnvelopeSchema = z
+  .object({
+    creatorInfo: TikTokCreatorInfoSchema,
+  })
+  .meta({ id: "TikTokCreatorInfoEnvelope" });
+
 export const ValidationIssueSchema = z
   .object({
     platform: z.union([PlatformSchema, z.literal("common")]),
@@ -392,6 +417,11 @@ export const PresignUploadRequestSchema = z
   .object({
     filename: z.string().min(1),
     contentType: z.string().min(1),
+    size: z
+      .number()
+      .int()
+      .positive()
+      .max(500 * 1024 * 1024),
     isThumbnail: z.boolean().optional(),
   })
   .meta({ id: "PresignUploadRequest" });
@@ -401,6 +431,7 @@ export const PresignUploadResponseSchema = z
     uploadUrl: z.url(),
     publicUrl: z.url(),
     key: z.string(),
+    expiresIn: z.number().int().positive(),
   })
   .meta({ id: "PresignUploadResponse" });
 
@@ -410,6 +441,26 @@ export const CliAuthorizeRequestSchema = z
     redirectUri: z.url(),
   })
   .meta({ id: "CliAuthorizeRequest" });
+
+export const CliTokenExchangeRequestSchema = z
+  .object({
+    code: z.string().min(1),
+    redirect_uri: z.url(),
+  })
+  .meta({ id: "CliTokenExchangeRequest" });
+
+export const CliTokenResponseSchema = z
+  .object({
+    access_token: z.string(),
+    token_type: z.literal("Bearer"),
+    expires_in: z.number().int().positive(),
+    user: z.object({
+      id: z.string(),
+      email: z.email(),
+      name: z.string(),
+    }),
+  })
+  .meta({ id: "CliTokenResponse" });
 
 export const RedirectUrlResponseSchema = z
   .object({
@@ -522,6 +573,15 @@ export const OAuthTokenResponseSchema = z
     scope: z.string(),
   })
   .meta({ id: "OAuthTokenResponse" });
+
+export const OAuthRevokeRequestSchema = z
+  .object({
+    token: z.string(),
+    token_type_hint: z.literal("access_token").optional(),
+    client_id: z.string().optional(),
+    client_secret: z.string().optional(),
+  })
+  .meta({ id: "OAuthRevokeRequest" });
 
 export const WebhookEventSchema = z.enum(["post.published", "post.failed"]).meta({ id: "WebhookEvent" });
 

@@ -57,8 +57,8 @@ const getExtensionFromSource = (source: string): string => {
  */
 const cleanupTempFile = (filePath: string): void => {
   try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (fs.existsSync(/* turbopackIgnore: true */ filePath)) {
+      fs.unlinkSync(/* turbopackIgnore: true */ filePath);
     }
   } catch {
     // Ignore cleanup errors
@@ -238,7 +238,9 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
   // Create temp file path before making the request
   const tempDir = os.tmpdir();
   const tempFilename = `simplepost_${uuidv7()}${extension || ".tmp"}`;
-  let tempFilePath = path.join(tempDir, tempFilename);
+  // The path is runtime-only and must not be interpreted as a build-time file
+  // dependency by Next.js/Turbopack's NFT tracing.
+  let tempFilePath = path.join(/* turbopackIgnore: true */ tempDir, tempFilename);
 
   try {
     const response = await axios.get<Readable>(url, {
@@ -294,7 +296,7 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
 
     // Write the stream to temp file, enforcing the size cap while streaming
     // (the content-length header is optional and can lie).
-    const writer = fs.createWriteStream(tempFilePath);
+    const writer = fs.createWriteStream(/* turbopackIgnore: true */ tempFilePath);
     let receivedBytes = 0;
     const sizeLimiter = new Transform({
       transform(chunk: Buffer, _encoding, transformCallback) {
@@ -344,8 +346,8 @@ export const resolveMediaPath = async (
       path: tempPath,
       cleanup: async () => {
         try {
-          if (fs.existsSync(tempPath)) {
-            fs.unlinkSync(tempPath);
+          if (fs.existsSync(/* turbopackIgnore: true */ tempPath)) {
+            fs.unlinkSync(/* turbopackIgnore: true */ tempPath);
           }
         } catch {
           // Ignore cleanup errors
@@ -375,8 +377,8 @@ export const resolveThumbnailPath = async (
       path: tempPath,
       cleanup: async () => {
         try {
-          if (fs.existsSync(tempPath)) {
-            fs.unlinkSync(tempPath);
+          if (fs.existsSync(/* turbopackIgnore: true */ tempPath)) {
+            fs.unlinkSync(/* turbopackIgnore: true */ tempPath);
           }
         } catch {
           // Ignore cleanup errors

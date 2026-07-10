@@ -5,6 +5,7 @@ import type { PromptSession } from "../ux/prompt.js";
 
 export interface OAuthLoginFlags {
   alias?: string;
+  callbackPort?: number;
   callbackUrl?: string;
   noBrowser?: boolean;
   redirectUri?: string;

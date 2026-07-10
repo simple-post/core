@@ -1,10 +1,10 @@
-import { deleteFromStorage, getKeyFromUrl } from "@simple-post/sdk";
+import { deleteFromStorage, getOwnedStorageKeyFromUrl } from "@simple-post/sdk";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
 import type { AccountOptionsMap, MediaFile } from "@/types";
 
-async function deleteStorageUrl(url: string, context: string): Promise<void> {
-  const key = getKeyFromUrl(url);
+async function deleteStorageUrl(userId: string, url: string, context: string): Promise<void> {
+  const key = getOwnedStorageKeyFromUrl(url, userId);
   if (!key) {
     return;
   }
@@ -20,13 +20,13 @@ async function deleteStorageUrl(url: string, context: string): Promise<void> {
  * Deletes a single media file and its thumbnail from S3-compatible storage
  * @param media - MediaFile to delete
  */
-export async function deleteMediaFile(media: MediaFile): Promise<void> {
+export async function deleteMediaFile(userId: string, media: MediaFile): Promise<void> {
   // Delete main media file
-  await deleteStorageUrl(media.url, "media");
+  await deleteStorageUrl(userId, media.url, "media");
 
   // Delete thumbnail if it exists
   if (media.thumbnailUrl) {
-    await deleteStorageUrl(media.thumbnailUrl, "media-thumbnail");
+    await deleteStorageUrl(userId, media.thumbnailUrl, "media-thumbnail");
   }
 }
 
@@ -34,8 +34,8 @@ export async function deleteMediaFile(media: MediaFile): Promise<void> {
  * Deletes multiple media files from S3-compatible storage
  * @param mediaFiles - Array of MediaFile objects to delete
  */
-export async function deleteMediaFiles(mediaFiles: MediaFile[]): Promise<void> {
-  await Promise.all(mediaFiles.map((media) => deleteMediaFile(media)));
+export async function deleteMediaFiles(userId: string, mediaFiles: MediaFile[]): Promise<void> {
+  await Promise.all(mediaFiles.map((media) => deleteMediaFile(userId, media)));
 }
 
 function collectAccountOptionThumbnailUrls(accountOptions?: AccountOptionsMap | null): string[] {
@@ -48,12 +48,15 @@ function collectAccountOptionThumbnailUrls(accountOptions?: AccountOptionsMap | 
     .filter((url): url is string => typeof url === "string" && url.length > 0);
 }
 
-export async function deleteStorageUrls(urls: string[], context: string): Promise<void> {
-  await Promise.all([...new Set(urls)].map((url) => deleteStorageUrl(url, context)));
+export async function deleteStorageUrls(userId: string, urls: string[], context: string): Promise<void> {
+  await Promise.all([...new Set(urls)].map((url) => deleteStorageUrl(userId, url, context)));
 }
 
-export async function deleteAccountOptionFiles(accountOptions?: AccountOptionsMap | null): Promise<void> {
-  await deleteStorageUrls(collectAccountOptionThumbnailUrls(accountOptions), "account-option-thumbnail");
+export async function deleteAccountOptionFiles(
+  userId: string,
+  accountOptions?: AccountOptionsMap | null,
+): Promise<void> {
+  await deleteStorageUrls(userId, collectAccountOptionThumbnailUrls(accountOptions), "account-option-thumbnail");
 }
 
 export function getRemovedAccountOptionThumbnailUrls(

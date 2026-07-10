@@ -4,6 +4,7 @@ import http from "node:http";
 import { Command, Flags } from "@oclif/core";
 
 import { getCliPaths, loadCliConfig, saveCliConfig, SCHEDULER_SECRET_REF } from "../lib/config.js";
+import { DEFAULT_CALLBACK_PORT } from "../lib/constants.js";
 import { fetchJson } from "../lib/http.js";
 import { createSecretStore } from "../lib/secrets.js";
 import { configureStorage } from "../lib/setup-storage.js";
@@ -12,13 +13,19 @@ import { PromptSession } from "../lib/ux/prompt.js";
 
 const DEFAULT_SCHEDULER_URL = "https://app.simplepost.social";
 const CLI_CALLBACK_PATH = "/cli/callback";
-const DEFAULT_CALLBACK_PORT = 5000;
 const CALLBACK_TIMEOUT_MS = 90_000;
 
 interface SchedulerUser {
   email?: string;
   id: string;
   name?: string;
+}
+
+interface CliTokenResponse {
+  access_token: string;
+  expires_in: number;
+  token_type: "Bearer";
+  user: SchedulerUser;
 }
 
 export default class ConnectCommand extends Command {
@@ -31,12 +38,19 @@ export default class ConnectCommand extends Command {
   ];
 
   public static override flags = {
+    "callback-port": Flags.integer({
+      description: `Loopback callback port (default: ${DEFAULT_CALLBACK_PORT})`,
+      env: "SIMPLE_POST_CALLBACK_PORT",
+      min: 1,
+      max: 65_535,
+    }),
     "no-browser": Flags.boolean({
       default: false,
       description: "Do not try to open the browser automatically",
     }),
     token: Flags.string({
       description: "Provide a CLI token directly (for CI/non-interactive use)",
+      env: "SIMPLE_POST_CLI_TOKEN",
     }),
     url: Flags.string({
       description: `Scheduler URL (default: ${DEFAULT_SCHEDULER_URL})`,
@@ -70,7 +84,12 @@ export default class ConnectCommand extends Command {
     if (flags.token) {
       token = flags.token;
     } else {
-      const result = await this.browserFlow(schedulerUrl, prompt, flags["no-browser"]);
+      const result = await this.browserFlow(
+        schedulerUrl,
+        prompt,
+        flags["no-browser"],
+        flags["callback-port"] ?? DEFAULT_CALLBACK_PORT,
+      );
       token = result.token;
       user = result.user;
     }
@@ -108,9 +127,10 @@ export default class ConnectCommand extends Command {
     schedulerUrl: string,
     prompt: PromptSession,
     noBrowser: boolean,
-  ): Promise<{ token: string; user?: SchedulerUser }> {
+    callbackPort: number,
+  ): Promise<{ token: string; user: SchedulerUser }> {
     const state = crypto.randomUUID();
-    const redirectUri = `http://127.0.0.1:${DEFAULT_CALLBACK_PORT}${CLI_CALLBACK_PATH}`;
+    const redirectUri = `http://127.0.0.1:${callbackPort}${CLI_CALLBACK_PATH}`;
     const authUrl = `${schedulerUrl}/cli/authorize?state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
     prompt.log("");
@@ -146,21 +166,26 @@ export default class ConnectCommand extends Command {
       throw new Error("State validation failed. Please try again.");
     }
 
-    const token = parsed.searchParams.get("token");
-    if (!token) {
-      throw new Error("No token received from scheduler. Please try again.");
+    const code = parsed.searchParams.get("code");
+    if (!code) {
+      throw new Error("No authorization code received from scheduler. Please try again.");
     }
 
-    const userId = parsed.searchParams.get("user_id");
-    const user: SchedulerUser | undefined = userId
-      ? {
-          id: userId,
-          ...(parsed.searchParams.get("user_email") ? { email: parsed.searchParams.get("user_email")! } : {}),
-          ...(parsed.searchParams.get("user_name") ? { name: parsed.searchParams.get("user_name")! } : {}),
-        }
-      : undefined;
+    const exchanged = await fetchJson<CliTokenResponse>(
+      `${schedulerUrl}/api/cli/token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, redirect_uri: redirectUri }),
+      },
+      "CLI token exchange",
+    );
 
-    return { token, user };
+    if (!exchanged.access_token || exchanged.token_type !== "Bearer" || !exchanged.user?.id) {
+      throw new Error("Scheduler returned an invalid CLI token response.");
+    }
+
+    return { token: exchanged.access_token, user: exchanged.user };
   }
 
   private waitForCallback(redirectUri: string): Promise<string> {
@@ -184,6 +209,8 @@ export default class ConnectCommand extends Command {
 
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Referrer-Policy", "no-referrer");
         res.end(
           "<html><body><h1>SimplePost CLI connected.</h1><p>You can close this browser tab and return to the terminal.</p></body></html>",
         );

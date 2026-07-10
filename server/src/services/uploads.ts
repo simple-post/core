@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { mediaHeaderMatchesContentType } from "@simple-post/sdk/media-types";
+
 import { ensureStorageDir, getStorageDir, sanitizeFilename } from "../utils/files.js";
 
 import type { MediaFile } from "@simple-post/sdk";
@@ -33,6 +35,19 @@ function safeExtension(originalName: string): string {
   if (dot === -1) return "";
   const ext = sanitized.slice(dot).toLowerCase();
   return /^\.[a-z0-9]{1,8}$/.test(ext) ? ext : "";
+}
+
+export async function assertUploadMatchesContentType(filePath: string, mimeType: string): Promise<void> {
+  const handle = await fs.open(filePath, "r");
+  try {
+    const header = Buffer.alloc(16);
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    if (!mediaHeaderMatchesContentType(header.subarray(0, bytesRead), mimeType)) {
+      throw new Error(`Uploaded bytes do not match declared media type ${mimeType}`);
+    }
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function storeUpload(params: {

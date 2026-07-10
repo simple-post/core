@@ -10,6 +10,8 @@ import { QueryClientProvider } from "@/lib/query-client";
 import type { Metadata } from "next";
 import "./globals.css";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -23,21 +25,19 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SimplePost - Schedule Posts Across All Platforms",
-  description:
-    "Schedule and publish content across X, Instagram, YouTube, TikTok, Facebook, and more. Part of the SimplePost ecosystem.",
+  metadataBase: new URL(appUrl),
+  title: "SimplePost Scheduler",
+  description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
   openGraph: {
-    title: "SimplePost - Schedule Posts Across All Platforms",
-    description:
-      "Schedule and publish content across X, Instagram, YouTube, TikTok, Facebook, and more. Part of the SimplePost ecosystem.",
+    title: "SimplePost Scheduler",
+    description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
     images: [{ url: "/simplepost-card.png", width: 1200, height: 630, alt: "SimplePost" }],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SimplePost - Schedule Posts Across All Platforms",
-    description:
-      "Schedule and publish content across X, Instagram, YouTube, TikTok, Facebook, and more. Part of the SimplePost ecosystem.",
+    title: "SimplePost Scheduler",
+    description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
     images: ["/simplepost-card.png"],
   },
 };

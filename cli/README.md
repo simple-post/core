@@ -15,7 +15,7 @@ The CLI supports exactly two modes — pick whichever fits you:
 
 ### 1. Use your SimplePost account (recommended)
 
-If you use [SimplePost](https://simplepost.social), your social accounts are already connected there. Link the CLI to it once and post through those accounts — no developer apps, no API keys:
+If you use the hosted [SimplePost Scheduler](https://app.simplepost.social), your social accounts are already connected there. Link the CLI to it once and post through those accounts — no developer apps, no API keys:
 
 ```bash
 simplepost connect          # opens the browser to authorize the CLI
@@ -23,11 +23,12 @@ simplepost account          # lists the accounts connected to SimplePost
 simplepost post             # interactive posting flow
 ```
 
-For CI or other non-interactive environments, create a CLI token in the SimplePost app and pass it directly. Set `SIMPLE_POST_CONFIG_PASSWORD` so the token can be stored without an interactive setup step (encrypted file storage is configured automatically):
+For CI or other non-interactive environments, provide an existing CLI token through the environment. Set `SIMPLE_POST_CONFIG_PASSWORD` so the token can be stored without an interactive setup step (encrypted file storage is configured automatically). Environment variables avoid exposing the token in the process list or shell history:
 
 ```bash
 export SIMPLE_POST_CONFIG_PASSWORD="..."
-simplepost connect --token "$SIMPLE_POST_CLI_TOKEN"
+export SIMPLE_POST_CLI_TOKEN="sp_cli_..."
+simplepost connect
 ```
 
 Scripted posting works too: `simplepost account` prints a target ID for every app account, which you pass to `post`:
@@ -56,6 +57,8 @@ Every platform uses the same variable names:
 | `SIMPLE_POST_<PLATFORM>_REDIRECT_URI`  | Optional loopback redirect override              |
 
 `<PLATFORM>` is one of `X`, `YOUTUBE`, `FACEBOOK`, `INSTAGRAM`, `TIKTOK`, `BLUESKY`, `THREADS`, `LINKEDIN`, `PINTEREST`.
+
+OAuth callbacks use port `5000` by default. If that port is occupied, pass `--callback-port 6123` to `connect` or `account add`, or set `SIMPLE_POST_CALLBACK_PORT=6123`. For your own platform app, register the resulting loopback redirect URI exactly; a platform-specific `SIMPLE_POST_<PLATFORM>_REDIRECT_URI` still takes precedence.
 
 Platform notes:
 
@@ -109,6 +112,10 @@ simplepost post --post-json ./post.json --account x:main
 ```
 
 The CLI prints a per-target summary and exits non-zero if any target fails, so it is safe to use in scripts and CI.
+
+Boolean posting options use oclif's explicit positive/negative flags. For example, use `--strict-mode` or `--no-strict-mode`, and `--youtube-made-for-kids` or `--no-youtube-made-for-kids`; do not pass string values such as `--strict-mode true`.
+
+Scheduler connections use a one-time browser authorization code. The bearer token is exchanged directly by the CLI, stored only in the selected secret backend, expires after 90 days, and is revoked remotely by `simplepost disconnect`.
 
 ## Secret storage
 

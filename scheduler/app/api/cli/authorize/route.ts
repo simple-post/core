@@ -1,26 +1,18 @@
-import crypto from "node:crypto";
-
 import { NextResponse, type NextRequest } from "next/server";
 
 import { assertPlanFeature } from "@/lib/billing/subscriptions";
-import { requireAuth } from "@/lib/middleware/auth";
-import { prisma } from "@/lib/prisma";
+import { createCliAuthorizationCode } from "@/lib/cli/tokens";
+import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
-
-const CLI_TOKEN_PREFIX = "sp_cli_";
 
 function isLoopbackHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
 }
 
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireBrowserSession(req);
     await assertPlanFeature(session.user.id, "cliAccess");
     const body = await req.json();
     const { state, redirectUri } = body;
@@ -45,28 +37,14 @@ export async function POST(req: NextRequest) {
       throw new BadRequestError("Redirect URI must be a loopback address");
     }
 
-    // Generate token
-    const rawToken = CLI_TOKEN_PREFIX + crypto.randomBytes(32).toString("base64url");
-    const tokenHash = hashToken(rawToken);
+    // Return a short-lived, single-use code. The CLI exchanges this code over
+    // HTTPS so the bearer token never appears in browser history or logs.
+    const code = await createCliAuthorizationCode(session.user.id, redirectUri);
 
-    await prisma.cliToken.create({
-      data: {
-        userId: session.user.id,
-        tokenHash,
-      },
-    });
-
-    // Build redirect URL with token, state, and user info
+    // Build redirect URL with only the one-time code and CSRF state.
     const redirect = new URL(redirectUri);
-    redirect.searchParams.set("token", rawToken);
+    redirect.searchParams.set("code", code);
     redirect.searchParams.set("state", state);
-    redirect.searchParams.set("user_id", session.user.id);
-    if (session.user.email) {
-      redirect.searchParams.set("user_email", session.user.email as string);
-    }
-    if (session.user.name) {
-      redirect.searchParams.set("user_name", session.user.name as string);
-    }
 
     return NextResponse.json({ redirectUrl: redirect.toString() });
   } catch (error) {

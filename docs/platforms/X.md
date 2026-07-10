@@ -118,7 +118,7 @@ X_REFRESH_TOKEN=    # optional — use for refresh-token mode
 
 At least one of `X_ACCESS_TOKEN` / `X_REFRESH_TOKEN` must be provided.
 
-Follow the [X credentials guide](https://docs.simplepost.social/x) to obtain these values.
+Follow the [X credentials guide](https://github.com/simple-post/core/blob/main/docs/platforms/X.md) to obtain these values.
 
 ## Posting on behalf of a user (programmatic credentials)
 

@@ -74,7 +74,7 @@ SimplePost supports these platform keys in the SDK and the interfaces built on t
 | LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
 | Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
 
-Use [docs.simplepost.social](https://docs.simplepost.social) for guided credential setup. The platform guides in this repo explain what each platform needs and how SimplePost expects those credentials.
+Use the platform guides in this public repository for credential setup. You can clone the repo and run SimplePost today, or use the hosted Scheduler app when you do not want to manage raw tokens directly.
 
 ## Choosing A Credential Strategy
 
@@ -101,4 +101,11 @@ Ownership matters here: you can set up your own apps on each social platform and
 
 - Issues and bugs: [GitHub Issues](https://github.com/simple-post/core/issues)
 - Questions and discussions: [GitHub Discussions](https://github.com/simple-post/core/discussions)
-- Credential setup: [docs.simplepost.social](https://docs.simplepost.social)
+- Credential setup: [platform guides](platforms/)
+
+## Releases And Upgrades
+
+- [Changelog](../CHANGELOG.md)
+- [SDK compatibility policy](release/SDK_COMPATIBILITY.md)
+- [API versioning policy](release/API_VERSIONING.md)
+- [Migration notes](release/MIGRATIONS.md)

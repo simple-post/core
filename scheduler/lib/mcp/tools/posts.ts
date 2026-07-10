@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
+import { AccountIdsSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
-import { assertCanCreatePost } from "@/lib/billing/subscriptions";
+import { assertCanCreatePost, lockUserForQuota } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -30,10 +31,9 @@ import { validatePost, validatePostOutputSchema } from "./validation";
 
 export const createPostSchema = z.object({
   message: z.string().describe("The post text content"),
-  accountIds: z
-    .array(z.string())
-    .min(1)
-    .describe("IDs of connected accounts to post to. Use list_accounts to get available IDs."),
+  accountIds: AccountIdsSchema.describe(
+    "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
+  ),
   media: mcpMediaArraySchema
     .optional()
     .describe(
@@ -175,11 +175,9 @@ export const updateScheduledPostSchema = z.object({
     .optional()
     .describe("Set to 'draft' to save as a draft or 'schedule' to schedule for later. Omit to keep the current state."),
   message: z.string().optional().describe("Replacement root post text. Omit to keep the current text."),
-  accountIds: z
-    .array(z.string())
-    .min(1)
-    .optional()
-    .describe("Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets."),
+  accountIds: AccountIdsSchema.optional().describe(
+    "Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets.",
+  ),
   media: mcpMediaArraySchema
     .nullable()
     .optional()
@@ -516,6 +514,7 @@ function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: 
 }
 
 export async function previewPost(userId: string, input: z.infer<typeof previewPostSchema>) {
+  input = { ...input, accountIds: [...new Set(input.accountIds)] };
   const postingMode = input.postingMode ?? "now";
   const scheduledFor = postingMode === "schedule" ? resolveScheduledFor(input) : null;
   const mediaCount = input.media?.length ?? 0;
@@ -644,7 +643,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   assertEditableManagedPost(currentPost);
 
   const message = input.message ?? currentPost.message;
-  const accountIds = input.accountIds ?? currentPost.accountIds;
+  const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
   const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   const thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
@@ -705,7 +704,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.media !== undefined || input.thread !== undefined) {
     const removedMedia = getRemovedMedia(currentPost, media, threadForValidation);
     if (removedMedia.length > 0) {
-      await deleteMediaFiles(removedMedia);
+      await deleteMediaFiles(userId, removedMedia);
     }
   }
 
@@ -742,7 +741,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
 
   await repository.deletePost(input.postId);
   if (media.length > 0) {
-    await deleteMediaFiles(media);
+    await deleteMediaFiles(userId, media);
   }
 
   return {
@@ -812,6 +811,7 @@ function buildReplayResponse(post: SocialPost, input: z.infer<typeof createPostS
 }
 
 export async function createPost(userId: string, input: z.infer<typeof createPostSchema>) {
+  input = { ...input, accountIds: [...new Set(input.accountIds)] };
   const repository = new PostsModel(userId);
 
   // Idempotent creation: a retried call with the same key returns the
@@ -828,8 +828,6 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       }
     }
   }
-
-  await assertCanCreatePost(userId);
 
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
@@ -875,26 +873,51 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     userId,
   });
 
-  // Create the post record
+  // Serialize the quota check and insert for this user. Recheck the
+  // idempotency key under the same lock so a concurrent retry returns the
+  // winner even if that post consumed the final quota slot.
   let post: SocialPost;
   try {
-    post = await repository.createPost(
-      {
-        message: input.message,
-        accountIds: input.accountIds,
-        media: mediaFiles,
-        scheduledFor,
-        status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
-        repostEnabled: repostSettings.enabled,
-        repostDelayHours: repostSettings.delayHours,
-        repostStatus: "not_applicable",
-        repostDueAt: null,
-        thread: threadForPersistence,
-        quotePostId: input.quotePostId,
-        idempotencyKey: input.idempotencyKey,
-      },
-      userId,
-    );
+    const creation = await prisma.$transaction(async (tx) => {
+      await lockUserForQuota(tx, userId);
+
+      if (input.idempotencyKey) {
+        const existing = await tx.post.findUnique({
+          where: { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } },
+          select: { id: true },
+        });
+        if (existing) return { replayedPostId: existing.id } as const;
+      }
+
+      await assertCanCreatePost(userId, tx);
+      const createdPost = await repository.createPost(
+        {
+          message: input.message,
+          accountIds: input.accountIds,
+          media: mediaFiles,
+          scheduledFor,
+          status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+          repostEnabled: repostSettings.enabled,
+          repostDelayHours: repostSettings.delayHours,
+          repostStatus: "not_applicable",
+          repostDueAt: null,
+          thread: threadForPersistence,
+          quotePostId: input.quotePostId,
+          idempotencyKey: input.idempotencyKey,
+        },
+        userId,
+        tx,
+      );
+      return { post: createdPost } as const;
+    });
+
+    if ("replayedPostId" in creation) {
+      const existingPost = await repository.getPostById(creation.replayedPostId!);
+      if (existingPost) return buildReplayResponse(existingPost, input);
+      throw new Error("The idempotent post could not be loaded after creation");
+    }
+
+    post = creation.post;
   } catch (createError) {
     // A concurrent call with the same idempotency key won the insert: return
     // the winner's post.

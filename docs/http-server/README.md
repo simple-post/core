@@ -18,16 +18,17 @@ If you want scheduling, OAuth-based account connection, multi-user accounts, or 
 
 All `/api/v1/*` endpoints require an API key in the `x-api-key` header. `/health` and `/media/*` are public.
 
-| Method | Path                 | Purpose                                                                 |
-| ------ | -------------------- | ----------------------------------------------------------------------- |
-| GET    | `/health`            | Liveness check                                                          |
-| GET    | `/api/v1/accounts`   | List configured accounts (without credentials)                          |
-| POST   | `/api/v1/upload`     | Upload an image or video, returns a `MediaFile` reference               |
-| POST   | `/api/v1/validation` | Validate a draft against the rules of each target account               |
-| POST   | `/api/v1/posts`      | Publish a post (only `postingMode: "now"` is supported on this server)  |
-| GET    | `/media/:filename`   | Public read for uploaded media; platforms fetch URLs returned by upload |
+| Method | Path                     | Purpose                                                                 |
+| ------ | ------------------------ | ----------------------------------------------------------------------- |
+| GET    | `/health`                | Liveness check                                                          |
+| GET    | `/api/v1/accounts`       | List configured accounts (without credentials)                          |
+| POST   | `/api/v1/upload`         | Stream an image or video through the server, returns a `MediaFile`      |
+| POST   | `/api/v1/upload/presign` | Create a direct S3/R2 upload URL and `MediaFile` reference              |
+| POST   | `/api/v1/validation`     | Validate a draft against the rules of each target account               |
+| POST   | `/api/v1/posts`          | Publish a post (only `postingMode: "now"` is supported on this server)  |
+| GET    | `/media/:filename`       | Public read for uploaded media; platforms fetch URLs returned by upload |
 
-Endpoints the scheduler exposes that this server **does not**: `/api/v1/posts/[id]`, `/api/v1/upload/presign`, `/api/oauth/*`, `/api/connect/*`, `/api/cli/*`, `/api/auth/*`, `/api/internal/scheduled-posts/dispatch`, `/mcp`. Use the scheduler app if you need any of those.
+Endpoints the scheduler exposes that this server **does not**: `/api/v1/posts/[id]`, `/api/oauth/*`, `/api/connect/*`, `/api/cli/*`, `/api/auth/*`, `/api/internal/scheduled-posts/dispatch`, `/mcp`. Use the scheduler app if you need any of those.
 
 ## Configuration
 
@@ -40,7 +41,8 @@ Endpoints the scheduler exposes that this server **does not**: `/api/v1/posts/[i
 | `SIMPLE_POST_PUBLIC_URL`       | Recommended | Public URL where this server is reachable. Used to build media URLs. Defaults to `http://localhost:${PORT}`. |
 | `SIMPLE_POST_STORAGE_DIR`      | No          | Local directory for uploaded files. Defaults to `./data` next to the binary.                                 |
 | `PORT`                         | No          | HTTP port. Defaults to `3000`.                                                                               |
-| `TRUST_PROXY`                  | No          | Express `trust proxy` setting for deployments behind a reverse proxy/load balancer. Defaults to `1`.         |
+| `TRUST_PROXY`                  | No          | Exact Express `trust proxy` value for a proxy you control. Disabled by default.                              |
+| `S3_STORAGE_*`                 | No          | S3-compatible credentials, bucket, endpoint, and public base URL used by `/api/v1/upload/presign`.           |
 | `RATE_LIMIT_MAX_REQUESTS`      | No          | Max requests per IP in a 15-minute window for all routes. Defaults to `300`.                                 |
 | `RATE_LIMIT_AUTH_MAX_REQUESTS` | No          | Max requests per IP in a 15-minute window for authenticated API routes. Defaults to `100`.                   |
 
@@ -363,7 +365,42 @@ curl -X POST https://posts.example.com/api/v1/upload \
 
 The returned `url` points at this server's public `/media/:filename` route. Platforms fetch it to obtain the bytes, so the URL **must** be reachable from the public internet — set `SIMPLE_POST_PUBLIC_URL` accordingly.
 
-Limits: 500MB per file. Allowed types: JPEG, PNG, GIF, WebP, HEIC/HEIF, MP4, MOV, AVI, WMV, WebM, MPEG, 3GP/3G2.
+Limits: 500MB per file. The multipart parser streams to disk, caps files/fields/parts, and verifies the file signature against the declared media type before finalizing it. Supported types are JPEG, PNG, GIF, WebP, MP4, MOV, and WebM.
+
+### `POST /api/v1/upload/presign`
+
+For large uploads, configure the `S3_STORAGE_*` variables and upload directly to S3-compatible storage instead of routing bytes through this process:
+
+```bash
+curl -X POST https://posts.example.com/api/v1/upload/presign \
+  -H "x-api-key: $SIMPLE_POST_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"clip.mp4","contentType":"video/mp4","size":10485760}'
+```
+
+The response contains a 15-minute `uploadUrl`, required PUT headers, and a ready-to-use `media` object. PUT exactly the declared number of bytes to `uploadUrl`, then pass `media` to validation or posting. `S3_STORAGE_BASE_URL` must be publicly reachable by the social platforms.
+
+```bash
+curl -X PUT "$UPLOAD_URL" \
+  -H "Content-Type: video/mp4" \
+  --data-binary @clip.mp4
+```
+
+Browser uploads also require a bucket CORS rule. For Cloudflare R2, allow only the origins that host your client and the headers actually sent by the PUT:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://your-app.example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Presigned URLs are bearer credentials until they expire. Do not log them or expose them beyond the client performing the upload.
 
 ### `POST /api/v1/validation`
 
@@ -464,7 +501,7 @@ Both expose the same `/api/v1/*` shapes. Differences you'll observe in practice:
 - **No account connection flow.** Accounts come from the JSON file you write, not OAuth.
 - **No multi-user model.** The API key gates all access; everyone using it shares the same set of accounts.
 - **No persistence.** The `post` object in the response has fresh ids and is not stored anywhere — query it from `postingResults` if you need it.
-- **Local media.** Uploads land on local disk and serve from `/media/:filename`. The scheduler stores in S3 and supports presigned uploads.
+- **Media storage.** Multipart uploads land on local disk and serve from `/media/:filename`. When `S3_STORAGE_*` is configured, `/api/v1/upload/presign` lets clients PUT directly to S3/R2 and use the returned public media URL.
 - **No token refresh persistence.** The SDK still refreshes tokens during a request, but the new tokens are not written back anywhere — long-lived refresh tokens (X user tokens, YouTube, Bluesky OAuth) keep working because the SDK gets a fresh access token on every call.
 
 ## Related interfaces

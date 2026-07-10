@@ -106,12 +106,13 @@ export function getClipboardImageFiles(clipboardData: DataTransfer): File[] {
 async function getPresignedUrl(
   filename: string,
   contentType: string,
+  size: number,
   isThumbnail: boolean = false,
 ): Promise<{ uploadUrl: string; publicUrl: string }> {
   const response = await fetch("/api/v1/upload/presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename, contentType, isThumbnail }),
+    body: JSON.stringify({ filename, contentType, size, isThumbnail }),
   });
 
   if (!response.ok) {
@@ -265,7 +266,11 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
       try {
         // Step 1: Get presigned URL for main file (10% progress)
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 10 } : u)));
-        const { uploadUrl, publicUrl: presignedPublicUrl } = await getPresignedUrl(file.name, resolvedContentType);
+        const { uploadUrl, publicUrl: presignedPublicUrl } = await getPresignedUrl(
+          file.name,
+          resolvedContentType,
+          file.size,
+        );
 
         // Step 2: Upload main file to R2 (60% progress)
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
@@ -281,6 +286,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
             const { uploadUrl: thumbUploadUrl, publicUrl: thumbPublicUrl } = await getPresignedUrl(
               file.name,
               "image/jpeg",
+              thumbnailBlob.size,
               true,
             );
             await uploadToR2(thumbUploadUrl, thumbnailBlob, "image/jpeg");

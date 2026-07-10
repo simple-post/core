@@ -11,7 +11,16 @@ There is deliberately nothing in between: the CLI does not embed any shared OAut
 
 Use the [MCP server](../mcp-server/README.md) instead when the AI client supports MCP and should use OAuth rather than shell commands.
 
-## Build And Run In This Repo
+## Install
+
+Install the published CLI from npm:
+
+```bash
+npm install -g @simple-post/cli
+simplepost --help
+```
+
+To develop the CLI from a checkout instead:
 
 From the repo root:
 
@@ -20,7 +29,7 @@ yarn workspace @simple-post/cli build
 node cli/bin/run.js --help
 ```
 
-The published binary name is `simplepost`. In the repo, examples use `node cli/bin/run.js` so they work before packaging.
+The published binary name is `simplepost`. The repo commands below use `node cli/bin/run.js` only to exercise the local build.
 
 ## SimplePost Mode
 
@@ -30,11 +39,11 @@ node cli/bin/run.js account
 node cli/bin/run.js post
 ```
 
-The browser authorization flow stores a Scheduler CLI token in the CLI secret store. For CI or another non-interactive environment, pass a token directly. When no storage backend is configured yet, set `SIMPLE_POST_CONFIG_PASSWORD` and the CLI configures encrypted file storage automatically (otherwise run `setup --backend <backend>` first):
+The browser authorization flow returns a one-time code to the local CLI, which exchanges it directly for a 90-day Scheduler token and stores the token in the CLI secret store. The token is not placed in browser history. For CI or another non-interactive environment, provide an existing token through `SIMPLE_POST_CLI_TOKEN`. When no storage backend is configured yet, set `SIMPLE_POST_CONFIG_PASSWORD` and the CLI configures encrypted file storage automatically (otherwise run `setup --backend <backend>` first):
 
 ```bash
 export SIMPLE_POST_CONFIG_PASSWORD="..."
-node cli/bin/run.js connect --url https://schedule.example.com --token "$SIMPLE_POST_CLI_TOKEN"
+SIMPLE_POST_CLI_TOKEN="sp_cli_..." node cli/bin/run.js connect --url https://schedule.example.com
 ```
 
 Scheduler accounts can also be targeted non-interactively: `account` prints a target ID for every app account, which `post` accepts via `--app-account-id`:
@@ -62,6 +71,8 @@ Environment variables are uniform across platforms:
 | `SIMPLE_POST_<PLATFORM>_CLIENT_ID`     | OAuth client ID of your developer app            |
 | `SIMPLE_POST_<PLATFORM>_CLIENT_SECRET` | OAuth client secret, when the platform needs one |
 | `SIMPLE_POST_<PLATFORM>_REDIRECT_URI`  | Optional loopback redirect override              |
+
+The loopback listener defaults to port `5000`. Use `--callback-port 6123` on `connect` or `account add`, or set `SIMPLE_POST_CALLBACK_PORT=6123`, when that port is occupied. Register the resulting redirect URI in your platform developer app; an explicit platform redirect URI override takes precedence.
 
 - X works without a secret when the app is a public (native) client; PKCE is used. If a secret is set, it is used for Basic client authentication (confidential clients).
 - Facebook and Instagram require a public (native/desktop) Meta app: the flow is OIDC + PKCE and a client secret is never sent.
@@ -130,6 +141,8 @@ node cli/bin/run.js post \
 ```
 
 Run `node cli/bin/run.js post --help` for the complete flag list.
+
+Boolean flags use positive and negative forms, for example `--strict-mode` / `--no-strict-mode`, `--youtube-made-for-kids` / `--no-youtube-made-for-kids`, and the corresponding TikTok `--tiktok-allow-*` / `--no-tiktok-allow-*` forms. They no longer accept `true` or `false` as separate string arguments.
 
 ## Automation Notes
 

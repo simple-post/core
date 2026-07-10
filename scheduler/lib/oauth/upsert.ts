@@ -1,4 +1,4 @@
-import { assertCanConnectAccount } from "@/lib/billing/subscriptions";
+import { assertCanConnectAccount, lockUserForQuota } from "@/lib/billing/subscriptions";
 import { prisma } from "@/lib/prisma";
 import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
@@ -22,7 +22,16 @@ export interface UpsertAccountData {
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
 export async function upsertConnectedAccount(data: UpsertAccountData, tx?: TransactionClient): Promise<void> {
-  const client = tx ?? prisma;
+  if (!tx) {
+    await prisma.$transaction(async (transaction) => {
+      await upsertConnectedAccount(data, transaction);
+    });
+    return;
+  }
+
+  const client = tx;
+
+  await lockUserForQuota(client, data.userId);
 
   await assertCanConnectAccount(
     {

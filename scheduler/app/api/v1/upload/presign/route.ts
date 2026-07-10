@@ -10,6 +10,11 @@ import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 const presignRequestSchema = z.object({
   filename: z.string().min(1),
   contentType: z.string().min(1),
+  size: z
+    .number()
+    .int()
+    .positive()
+    .max(500 * 1024 * 1024),
   isThumbnail: z.boolean().optional(),
 });
 
@@ -37,12 +42,15 @@ export async function POST(req: NextRequest) {
     const key = generateFileKey(userId, filename);
 
     // Get presigned URL (valid for 1 hour)
-    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, resolvedContentType, 3600);
+    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, resolvedContentType, 3600, {
+      contentLength: validated.size,
+    });
 
     return NextResponse.json({
       uploadUrl,
       publicUrl,
       key,
+      expiresIn: 3600,
     });
   } catch (error) {
     return handleApiError(error);

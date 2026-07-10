@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   getPlanByKey,
@@ -18,6 +20,14 @@ type PrismaTransactionClient = Omit<
 >;
 
 type BillingClient = PrismaClient | PrismaTransactionClient;
+
+/**
+ * Serialize quota-sensitive writes for one user. Call this inside the same
+ * database transaction as the count and write it protects.
+ */
+export async function lockUserForQuota(client: Prisma.TransactionClient, userId: string): Promise<void> {
+  await client.$queryRaw(Prisma.sql`SELECT "id" FROM "user" WHERE "id" = ${userId} FOR UPDATE`);
+}
 
 export type SubscriptionFeature = "apiAccess" | "cliAccess";
 
@@ -125,7 +135,7 @@ async function findUserIdForStripeSubscription(subscription: Stripe.Subscription
   return user?.id ?? null;
 }
 
-export async function syncStripeSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
+async function persistStripeSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
   const userId = await findUserIdForStripeSubscription(subscription, fallbackUserId);
   const customerId = getStripeObjectId(subscription.customer);
 
@@ -176,6 +186,31 @@ export async function syncStripeSubscription(subscription: Stripe.Subscription, 
   return syncedSubscription;
 }
 
+export async function syncStripeSubscriptionById(subscriptionId: string, fallbackUserId?: string | null) {
+  const subscription = await getStripe().subscriptions.retrieve(subscriptionId, {
+    expand: ["items.data.price.product"],
+  });
+  return persistStripeSubscription(subscription, fallbackUserId);
+}
+
+/**
+ * Re-fetch the canonical Stripe object before writing local state. Webhook
+ * deliveries are not ordered, so persisting event.data.object directly could
+ * allow an older event to overwrite a newer subscription state.
+ */
+export async function syncStripeSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
+  return syncStripeSubscriptionById(subscription.id, fallbackUserId);
+}
+
+export async function syncStripeInvoiceSubscription(invoice: Stripe.Invoice) {
+  const subscriptionDetails =
+    invoice.parent?.type === "subscription_details" ? invoice.parent.subscription_details : null;
+  const subscriptionId = getStripeObjectId(subscriptionDetails?.subscription);
+  if (!subscriptionId) return null;
+
+  return syncStripeSubscriptionById(subscriptionId, subscriptionDetails?.metadata?.userId);
+}
+
 export async function syncCheckoutSession(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId || session.client_reference_id || null;
   const customerId = getStripeObjectId(session.customer);
@@ -192,11 +227,7 @@ export async function syncCheckoutSession(session: Stripe.Checkout.Session) {
     return null;
   }
 
-  const subscription = await getStripe().subscriptions.retrieve(subscriptionId, {
-    expand: ["items.data.price.product"],
-  });
-
-  return syncStripeSubscription(subscription, userId);
+  return syncStripeSubscriptionById(subscriptionId, userId);
 }
 
 export async function getBillingStatus(userId: string, client: BillingClient = prisma): Promise<BillingStatus> {
@@ -290,12 +321,15 @@ export async function assertPlanFeature(userId: string, feature: SubscriptionFea
   }
 }
 
-export async function assertCanCreatePost(userId: string): Promise<void> {
+export async function assertCanCreatePost(userId: string, client: BillingClient = prisma): Promise<void> {
   if (env.SELF_HOSTED) {
     return;
   }
 
-  const status = await assertActiveSubscription(userId);
+  const status = await getBillingStatus(userId, client);
+  if (!status.active || !status.plan) {
+    throw new PaymentRequiredError("An active SimplePost subscription is required");
+  }
   const limit = status.plan?.limits.postsPerMonth;
 
   if (limit && status.usage.postsThisPeriod >= limit) {

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { Platform } from "./post";
 
@@ -108,9 +108,16 @@ export const RepostTargetsMapSchema = z.record(z.string(), RepostTargetSchema);
 
 export type RepostTargetsMap = z.infer<typeof RepostTargetsMapSchema>;
 
+// Normalize account targets at the validation boundary so retries and callers
+// cannot publish more than once to the same connected account.
+export const AccountIdsSchema = z
+  .array(z.string())
+  .min(1, "At least one account is required")
+  .overwrite((accountIds) => [...new Set(accountIds)]);
+
 export const repostPostSchema = z
   .object({
-    accountIds: z.array(z.string()).min(1, "At least one account is required").optional(),
+    accountIds: AccountIdsSchema.optional(),
     target: RepostTargetSchema.optional(),
     accountTargets: RepostTargetsMapSchema.optional(),
     accountOptions: AccountOptionsMapSchema.optional(),
@@ -132,7 +139,7 @@ export type { RepostCapablePlatform } from "../platform-names";
 
 export const createPostSchema = z.object({
   message: z.string().default(""),
-  accountIds: z.array(z.string()).min(1, "At least one account is required"),
+  accountIds: AccountIdsSchema,
   postingMode: z.enum(["now", "schedule"]).default("schedule"),
   scheduledFor: z.iso.datetime().optional(),
   accountOptions: AccountOptionsMapSchema.optional(),
@@ -155,7 +162,7 @@ export type CreatePostInput = z.infer<typeof createPostSchema>;
 export const validationRequestSchema = z.object({
   message: z.string().default(""),
   media: z.array(MediaFileSchema).default([]),
-  accountIds: z.array(z.string()).min(1, "accountIds are required for validation"),
+  accountIds: AccountIdsSchema,
   accountOverrides: AccountOverridesMapSchema.optional(),
   thread: ThreadSchema.optional(),
 });

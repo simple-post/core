@@ -8,6 +8,10 @@ import {
   type ThreadSegmentResult,
 } from "@/types";
 
+import type { PrismaClient } from "@prisma/client";
+
+type PostWriteClient = Pick<PrismaClient, "post">;
+
 export interface PaginationOptions {
   page?: number;
   limit?: number;
@@ -275,8 +279,12 @@ export class PostsModel {
     };
   }
 
-  async createPost(postData: Omit<SocialPost, "id" | "createdAt">, userId: string): Promise<SocialPost> {
-    const post = await prisma.post.create({
+  async createPost(
+    postData: Omit<SocialPost, "id" | "createdAt">,
+    userId: string,
+    client: PostWriteClient = prisma,
+  ): Promise<SocialPost> {
+    const post = await client.post.create({
       data: {
         userId,
         message: postData.message,

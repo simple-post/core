@@ -34,7 +34,7 @@ const results = await post({
 });
 ```
 
-Set up platform credentials with [docs.simplepost.social](https://docs.simplepost.social), or use the Scheduler app / CLI account connection flows when you do not want to manage raw tokens directly.
+Set up platform credentials with the platform guides in the public [docs directory](https://github.com/simple-post/core/tree/main/docs), or use the hosted Scheduler app / CLI account connection flows when you do not want to manage raw tokens directly. The repository is open source and can be run today.
 
 ## Why SimplePost Exists
 
@@ -77,6 +77,13 @@ The main use cases are:
 ## Getting Started
 
 Start with [docs/README.md](docs/README.md). It routes you to the interface you need and explains the common posting model shared by the SDK, server, app, CLI, and MCP server.
+
+Release and compatibility references:
+
+- [Changelog](CHANGELOG.md)
+- [SDK compatibility policy](docs/release/SDK_COMPATIBILITY.md)
+- [API versioning policy](docs/release/API_VERSIONING.md)
+- [Migration notes](docs/release/MIGRATIONS.md)
 
 Found a bug or have a feature request? Open an [issue](https://github.com/simple-post/core/issues) or start a thread in [Discussions](https://github.com/simple-post/core/discussions).
 

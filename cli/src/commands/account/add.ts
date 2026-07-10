@@ -7,6 +7,7 @@ import {
 } from "../../lib/account/platforms.js";
 import { getAuthProvider } from "../../lib/auth/registry.js";
 import { getCliPaths, loadCliConfig, saveCliConfig } from "../../lib/config.js";
+import { DEFAULT_CALLBACK_PORT } from "../../lib/constants.js";
 import { createSecretStore } from "../../lib/secrets.js";
 import { configureStorage } from "../../lib/setup-storage.js";
 import { PromptSession } from "../../lib/ux/prompt.js";
@@ -35,6 +36,12 @@ export default class AccountAddCommand extends Command {
     }),
     "callback-url": Flags.string({
       description: "Provide the final browser callback URL directly instead of waiting for the listener",
+    }),
+    "callback-port": Flags.integer({
+      description: `Loopback callback port when no platform redirect URI override is set (default: ${DEFAULT_CALLBACK_PORT})`,
+      env: "SIMPLE_POST_CALLBACK_PORT",
+      min: 1,
+      max: 65_535,
     }),
     "chat-id": Flags.string({
       description: "Telegram chat ID (for non-interactive Telegram connect)",
@@ -77,6 +84,7 @@ export default class AccountAddCommand extends Command {
     const loginFlags = {
       alias: flags.alias,
       botToken: flags["bot-token"],
+      callbackPort: flags["callback-port"],
       callbackUrl: flags["callback-url"],
       chatId: flags["chat-id"],
       noBrowser: flags["no-browser"],

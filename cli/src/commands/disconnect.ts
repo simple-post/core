@@ -19,13 +19,29 @@ export default class DisconnectCommand extends Command {
 
     const displayName = config.scheduler.email || config.scheduler.name || config.scheduler.url;
 
-    // Delete the token from the secret store
+    // Revoke the remote token before removing the local copy. Failure to reach
+    // the Scheduler is reported, but local disconnect still completes.
     if (config.storage) {
       const secretStore = createSecretStore(paths, config.storage, prompt);
       try {
+        const secret = await secretStore.read(SCHEDULER_SECRET_REF);
+        if (secret && typeof secret.token === "string") {
+          const response = await fetch(`${config.scheduler.url}/api/cli/token`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${secret.token}` },
+          });
+          if (!response.ok && response.status !== 401) {
+            this.warn(`Could not revoke the remote CLI token (HTTP ${response.status}).`);
+          }
+        }
+      } catch (error) {
+        this.warn(`Could not revoke the remote CLI token: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      try {
         await secretStore.delete(SCHEDULER_SECRET_REF);
-      } catch {
-        // Ignore errors when deleting - the secret may not exist
+      } catch (error) {
+        this.warn(`Could not remove the local CLI token: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 

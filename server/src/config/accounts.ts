@@ -13,8 +13,8 @@ const AccountConfigSchema = z.object({
   username: z.string().optional(),
   platformAccountId: z.string().optional(),
   profilePicture: z.string().optional(),
-  credentials: z.record(z.unknown()),
-  options: z.record(z.unknown()).optional(),
+  credentials: z.record(z.string(), z.unknown()),
+  options: z.record(z.string(), z.unknown()).optional(),
 });
 
 const AccountsFileSchema = z.object({

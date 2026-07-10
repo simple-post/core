@@ -68,11 +68,13 @@ Credentials are provided per platform via environment variables or explicitly th
 
 ## Not managing raw credentials?
 
-The same engine powers the rest of SimplePost — the [Scheduler app](https://simplepost.social), the [CLI](https://www.npmjs.com/package/@simple-post/cli), an HTTP API server, and an MCP server for AI clients. Pick the layer that fits at [github.com/simple-post/core](https://github.com/simple-post/core).
+The same engine powers the rest of SimplePost — the [Scheduler app](https://app.simplepost.social), the [CLI](https://www.npmjs.com/package/@simple-post/cli), an HTTP API server, and an MCP server for AI clients. Pick the layer that fits at [github.com/simple-post/core](https://github.com/simple-post/core).
 
 ## Documentation
 
 Full documentation lives in the [SimplePost core repository](https://github.com/simple-post/core/tree/main/docs/typescript-sdk).
+
+For upgrade guarantees and release changes, see the [SDK compatibility policy](https://github.com/simple-post/core/blob/main/docs/release/SDK_COMPATIBILITY.md), [migration notes](https://github.com/simple-post/core/blob/main/docs/release/MIGRATIONS.md), and repository [changelog](https://github.com/simple-post/core/blob/main/CHANGELOG.md).
 
 ## License
 

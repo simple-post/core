@@ -6,7 +6,7 @@
     "name": "SimplePost",
     "url": "https://simplepost.social"
   },
-  "homepage": "https://docs.simplepost.social",
+  "homepage": "https://github.com/simple-post/core/tree/main/docs",
   "repository": "https://github.com/simple-post/core",
   "license": "MIT",
   "keywords": ["simplepost", "social-media", "posting", "mcp", "cli", "sdk"],

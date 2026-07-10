@@ -49,8 +49,9 @@ export const postFlags = {
     description: "SDK log level (none, error, warn, info)",
     helpGroup: "Advanced",
   }),
-  "strict-mode": Flags.string({
-    description: "SDK strict mode (true or false)",
+  "strict-mode": Flags.boolean({
+    allowNo: true,
+    description: "Enable SDK strict mode (use --no-strict-mode to disable)",
     helpGroup: "Advanced",
   }),
   "x-reply-to-id": Flags.string({
@@ -77,8 +78,9 @@ export const postFlags = {
     description: "YouTube playlist ID",
     helpGroup: "YouTube",
   }),
-  "youtube-made-for-kids": Flags.string({
-    description: "YouTube selfDeclaredMadeForKids option (true or false)",
+  "youtube-made-for-kids": Flags.boolean({
+    allowNo: true,
+    description: "Mark YouTube content as made for kids (use --no-youtube-made-for-kids to disable)",
     helpGroup: "YouTube",
   }),
   "youtube-publish-at": Flags.string({
@@ -101,16 +103,19 @@ export const postFlags = {
     description: "TikTok visibility",
     helpGroup: "TikTok",
   }),
-  "tiktok-allow-comment": Flags.string({
-    description: "TikTok allow comment (true or false)",
+  "tiktok-allow-comment": Flags.boolean({
+    allowNo: true,
+    description: "Allow TikTok comments (use --no-tiktok-allow-comment to disable)",
     helpGroup: "TikTok",
   }),
-  "tiktok-allow-duet": Flags.string({
-    description: "TikTok allow duet (true or false)",
+  "tiktok-allow-duet": Flags.boolean({
+    allowNo: true,
+    description: "Allow TikTok duets (use --no-tiktok-allow-duet to disable)",
     helpGroup: "TikTok",
   }),
-  "tiktok-allow-stitch": Flags.string({
-    description: "TikTok allow stitch (true or false)",
+  "tiktok-allow-stitch": Flags.boolean({
+    allowNo: true,
+    description: "Allow TikTok stitches (use --no-tiktok-allow-stitch to disable)",
     helpGroup: "TikTok",
   }),
   "linkedin-visibility": Flags.string({

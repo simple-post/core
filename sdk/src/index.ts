@@ -167,6 +167,7 @@ export {
   MediaFileSchema,
   AccountOptionsValueSchema,
   AccountOptionsMapSchema,
+  AccountIdsSchema,
   AccountContentOverrideSchema,
   AccountOverridesMapSchema,
   createPostSchema,
@@ -206,10 +207,19 @@ export { mapPlatformName, generatePostUrl, QUOTE_CAPABLE_PLATFORMS, isQuoteCapab
 export type { PostUrlContext, QuoteCapablePlatform } from "./platform-names";
 export { ALLOWED_MEDIA_TYPES, EXTENSION_TO_TYPE, normalizeContentType } from "./media-types";
 export { MediaResolver } from "./utils/media-resolver";
+export { downloadToTempFile } from "./utils/media";
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
-export { uploadFromBuffer, getPresignedUploadUrl, deleteFromStorage, getKeyFromUrl, generateFileKey } from "./utils/s3";
+export {
+  S3MediaUploader,
+  uploadFromBuffer,
+  getPresignedUploadUrl,
+  deleteFromStorage,
+  getKeyFromUrl,
+  getOwnedStorageKeyFromUrl,
+  generateFileKey,
+} from "./utils/s3";
 export { buildReplyOverlay, extractChainStep, isThreadCapable } from "./utils/thread";
 export type { ThreadChainState, ReplyOverlay } from "./utils/thread";
 export { getValidationRulesForPlatform, validateContentForPlatform } from "./validation";

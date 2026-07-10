@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Privacy <span className="text-primary">policy</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: May 21, 2026
+            Last updated: July 10, 2026
           </p>
         </div>
 
@@ -111,7 +111,7 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>Provide, maintain, and improve the Service</li>
               <li>Schedule and publish your content to connected social media platforms</li>
-              <li>Operate authorized MCP integrations such as the SimplePost ChatGPT app</li>
+              <li>Operate authorized MCP integrations such as a SimplePost connector in ChatGPT or Claude</li>
               <li>Send you technical notices, updates, and support messages</li>
               <li>Respond to your comments and questions</li>
               <li>Monitor and analyze trends, usage, and activities</li>
@@ -202,15 +202,18 @@ export default function PrivacyPage() {
               <li>Withdraw consent where processing is based on consent</li>
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-4">
-              To exercise these rights, please contact us through the application. You can also disconnect your social
-              media accounts, disconnect authorized MCP clients from their app or connector settings, and delete your
-              account at any time through the settings.
+              To exercise these rights, email support@simplepost.social. You can also disconnect social media accounts
+              in the Accounts page and disconnect authorized MCP clients from their app or connector settings. See the{" "}
+              <Link href="/deletion" className="text-primary hover:underline">
+                account and data deletion page
+              </Link>{" "}
+              for verified account deletion instructions.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
               To delete stored YouTube data in SimplePost, sign in, open the Accounts page, and disconnect the YouTube
               account. This deletes the stored YouTube OAuth tokens and account metadata for that connection. You may
-              also request deletion by contacting support, or delete your SimplePost account to remove all connected
-              accounts and stored content. To revoke SimplePost&apos;s access directly from Google, visit the{" "}
+              also request account deletion through the deletion page. To revoke SimplePost&apos;s access directly from
+              Google, visit the{" "}
               <a
                 href="https://myaccount.google.com/connections?filters=3,4&hl=en"
                 target="_blank"
@@ -280,8 +283,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">13. Contact Us</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you have any questions about this privacy policy or our privacy practices, please contact us through
-              the appropriate channels provided in the application.
+              The data controller for the hosted service is Creafex Lab Vladimir Haltakov. If you have questions about
+              this privacy policy or want to exercise a privacy right, email support@simplepost.social.
             </p>
           </section>
         </div>

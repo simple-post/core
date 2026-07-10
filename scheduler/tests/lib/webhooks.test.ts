@@ -48,6 +48,7 @@ describe("assertValidWebhookUrl", () => {
     "http://192.168.1.1/hooks",
     "http://169.254.169.254/latest",
     "http://172.16.0.1/hooks",
+    "http://[::ffff:127.0.0.1]/hooks",
     "http://metadata.google.internal/x",
     "http://service.internal/x",
     "not a url",
@@ -121,6 +122,26 @@ describe("dispatchPostWebhooks", () => {
     expect(prismaMock.webhookEndpoint.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ lastFailureAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it("revalidates redirect targets before following them", async () => {
+    prismaMock.webhookEndpoint.findMany.mockResolvedValue([
+      { id: "w1", url: "https://example.com/hook", secret: "s1" },
+    ]);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 302,
+      headers: { get: () => "http://127.0.0.1/private" },
+    });
+
+    await dispatchPostWebhooks("u1", "post.published", post);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(prismaMock.webhookEndpoint.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ lastError: expect.stringContaining("private") }),
       }),
     );
   });

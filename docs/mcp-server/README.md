@@ -43,6 +43,8 @@ https://your-scheduler-domain.example/mcp-docs
 
 The MCP server uses OAuth through the Scheduler app. The AI client receives a bearer token only after the user approves access.
 
+Access tokens are stored only as SHA-256 hashes, expire after 90 days, can be revoked through the OAuth revocation endpoint, and are rejected immediately after revocation. The authorization server metadata advertises the revocation endpoint to compatible clients.
+
 Supported scopes:
 
 | Scope            | Allows                                                                                   |

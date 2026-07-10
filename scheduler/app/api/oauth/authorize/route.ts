@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import {
   canUpgradeLegacyMcpClientScope,
   isMcpScopeSubset,
@@ -7,7 +8,7 @@ import {
   validateMcpScope,
 } from "@/lib/mcp/config";
 import { createAuthorizationCode, updateClientScope, validateClient } from "@/lib/mcp/oauth";
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 
 /**
@@ -16,7 +17,8 @@ import { handleApiError } from "@/lib/utils/errors";
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireBrowserSession(req);
+    await assertActiveSubscription(session.user.id);
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource } = body;

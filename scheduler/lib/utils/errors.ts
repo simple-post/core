@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 
 import { apiLogger, serializeError } from "@/lib/logger";
 

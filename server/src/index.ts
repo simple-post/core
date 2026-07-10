@@ -1,6 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
+import multer from "multer";
 
 import { loadAccounts } from "./config/accounts.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
@@ -10,12 +11,22 @@ import mediaRoutes from "./routes/media.js";
 import openApiRoutes from "./routes/openapi.js";
 import postsRoutes from "./routes/posts.js";
 import repostsRoutes from "./routes/reposts.js";
+import uploadPresignRoutes from "./routes/upload-presign.js";
 import uploadRoutes from "./routes/upload.js";
 import validationRoutes from "./routes/validation.js";
+import { ApiError } from "./utils/errors.js";
 import { ensureStorageDir, getStorageDir } from "./utils/files.js";
 
 const API_KEY = process.env.SIMPLE_POST_API_KEY;
 const PORT = process.env.PORT || 3000;
+
+function resolveTrustProxy(): boolean | number | string {
+  const configured = process.env.TRUST_PROXY?.trim();
+  if (!configured || configured === "false") return false;
+  if (configured === "true") return true;
+  if (/^\d+$/.test(configured)) return Number(configured);
+  return configured;
+}
 
 if (!API_KEY) {
   console.error("Error: SIMPLE_POST_API_KEY environment variable is required");
@@ -52,7 +63,10 @@ try {
 
 const app = express();
 
-app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY : 1);
+// Disabled by default: trusting an unspecified proxy lets clients spoof their
+// source IP through X-Forwarded-For. Operators behind a known proxy must opt in
+// with a hop count, subnet, or Express trust-proxy value.
+app.set("trust proxy", resolveTrustProxy());
 
 // Security headers
 app.use(
@@ -118,6 +132,7 @@ app.use(authRateLimiter);
 app.use(createAuthMiddleware(API_KEY));
 
 app.use("/api/v1/accounts", accountsRoutes);
+app.use("/api/v1/upload/presign", uploadPresignRoutes);
 app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/validation", validationRoutes);
 app.use("/api/v1/posts", postsRoutes);
@@ -132,6 +147,15 @@ app.use("*", (req, res) => {
 
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("Unhandled error:", err);
+  if (err instanceof multer.MulterError) {
+    const status = err.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    res.status(status).json({ error: err.message, code: err.code });
+    return;
+  }
+  if (err instanceof ApiError) {
+    res.status(err.statusCode).json({ error: err.message, code: err.code });
+    return;
+  }
   res.status(500).json({
     error: "Internal server error",
     message: err.message,

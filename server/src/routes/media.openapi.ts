@@ -1,4 +1,4 @@
-import * as z from "zod/v4";
+import * as z from "zod";
 
 import { binaryResponse, defineRoute, jsonResponse, serverErrorResponses } from "../openapi/helpers.js";
 import { ApiErrorSchema } from "../openapi/schemas.js";

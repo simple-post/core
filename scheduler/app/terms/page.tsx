@@ -28,7 +28,7 @@ export default function TermsPage() {
             Terms &amp; <span className="text-primary">conditions</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: May 21, 2026
+            Last updated: July 10, 2026
           </p>
         </div>
 
@@ -46,8 +46,13 @@ export default function TermsPage() {
             <p className="text-muted-foreground leading-relaxed">
               SimplePost is a social media scheduling platform that allows users to create, schedule, and publish
               content across multiple social media platforms. The Service provides tools for managing social media
-              accounts and scheduling posts in advance, including optional integrations with authorized Model Context
-              Protocol clients such as ChatGPT.
+              accounts and scheduling posts in advance, including the hosted API, CLI connection, and optional
+              integrations with authorized Model Context Protocol clients such as ChatGPT.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              The SimplePost source repository is available under the MIT License. That license governs the open-source
+              code; these Terms govern the hosted service. Self-hosted operators are responsible for their own
+              deployments, users, data handling, and legal compliance.
             </p>
           </section>
 
@@ -88,10 +93,10 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">5. AI and MCP Client Integrations</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you authorize ChatGPT or another MCP client to access SimplePost, that client may ask SimplePost to
-              list connected accounts, validate draft content, preview a post, or create and schedule posts. Publishing
-              or scheduling through an MCP client is still your responsibility. Review tool-call details before
-              approving any action that creates or publishes content.
+              If you authorize a SimplePost connector in ChatGPT, Claude, or another MCP client, that client may ask
+              SimplePost to list connected accounts, validate draft content, preview a post, or create and schedule
+              posts. Publishing or scheduling through an MCP client is still your responsibility. Review tool-call
+              details before approving any action that creates or publishes content.
             </p>
           </section>
 
@@ -176,8 +181,10 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">14. Contact Information</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you have any questions about these Terms, please contact us through the appropriate channels provided
-              in the application.
+              If you have any questions about these Terms, email support@simplepost.social. The hosted service is
+              operated by Creafex Lab Vladimir Haltakov. These Terms are governed by the laws of the Federal Republic of
+              Germany and disputes are subject to the courts having jurisdiction under applicable law, except where
+              mandatory law provides otherwise.
             </p>
           </section>
         </div>

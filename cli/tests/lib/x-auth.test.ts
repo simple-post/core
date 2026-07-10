@@ -1,3 +1,5 @@
+import { getAccountPlatformConfig } from "../../src/lib/account/platforms.js";
+import { resolveOAuthAppInputs } from "../../src/lib/auth/oauth.js";
 import {
   XAuthProvider,
   generatePkcePair,
@@ -98,6 +100,14 @@ describe("X auth helpers", () => {
         },
       ),
     ).rejects.toThrow(/SIMPLE_POST_X_CLIENT_ID/);
+  });
+
+  it("applies the shared callback-port override to the default redirect URI", () => {
+    process.env.SIMPLE_POST_X_CLIENT_ID = "x-client-id";
+
+    const resolved = resolveOAuthAppInputs("x", { callbackPort: 6123 }, getAccountPlatformConfig("x").oauthApp!);
+
+    expect(resolved.redirectUri).toBe("http://127.0.0.1:6123/oauth/callback");
   });
 
   it("logs in successfully through the provider", async () => {

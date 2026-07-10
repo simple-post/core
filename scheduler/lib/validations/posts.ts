@@ -1,12 +1,13 @@
 import {
   AccountOptionsMapSchema,
   AccountOverridesMapSchema,
+  AccountIdsSchema,
   MediaFileSchema,
   RepostSettingsSchema,
   ThreadSchema,
   createPostSchema as sdkCreatePostSchema,
 } from "@simple-post/sdk";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Schemas shared with the @simple-post/server HTTP API live in @simple-post/sdk.
 // Scheduler-specific schemas (e.g. updatePostSchema) stay here.
@@ -25,7 +26,7 @@ export type CreatePostInput = z.infer<typeof createPostSchema>;
 
 export const updatePostSchema = z.object({
   message: z.string().default(""),
-  accountIds: z.array(z.string()).min(1, "At least one account is required"),
+  accountIds: AccountIdsSchema,
   postingMode: postingModeSchema.optional(),
   scheduledFor: z.iso.datetime().optional(),
   accountOptions: AccountOptionsMapSchema.optional(),

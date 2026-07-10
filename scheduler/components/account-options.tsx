@@ -85,6 +85,7 @@ function normalizeImageContentType(file: File) {
 async function getPresignedThumbnailUrl(
   filename: string,
   contentType: string,
+  size: number,
 ): Promise<{
   uploadUrl: string;
   publicUrl: string;
@@ -92,7 +93,7 @@ async function getPresignedThumbnailUrl(
   const response = await fetch("/api/v1/upload/presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename, contentType, isThumbnail: true }),
+    body: JSON.stringify({ filename, contentType, size, isThumbnail: true }),
   });
 
   if (!response.ok) {
@@ -145,14 +146,11 @@ async function uploadYouTubeThumbnail(file: File): Promise<string> {
   }
 
   try {
-    const { uploadUrl, publicUrl } = await getPresignedThumbnailUrl(file.name, contentType);
+    const { uploadUrl, publicUrl } = await getPresignedThumbnailUrl(file.name, contentType, file.size);
     await uploadToStorage(uploadUrl, file, contentType);
     return publicUrl;
-  } catch (error) {
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      return uploadThumbnailViaServer(file);
-    }
-    throw error;
+  } catch {
+    return uploadThumbnailViaServer(file);
   }
 }
 

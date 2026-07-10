@@ -1,12 +1,14 @@
-import { uploadFromBuffer, generateFileKey } from "@simple-post/sdk";
+import { createReadStream } from "node:fs";
+import { open, unlink } from "node:fs/promises";
+
+import { downloadToTempFile, generateFileKey, S3MediaUploader } from "@simple-post/sdk";
 import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 import { z } from "zod";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
-const DOWNLOAD_TIMEOUT_MS = 20_000;
-const STORAGE_UPLOAD_TIMEOUT_MS = 20_000;
+const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
 const MIME_EXTENSION: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -62,9 +64,16 @@ export const uploadMediaOutputSchema = z.object({
 });
 
 interface ResolvedUploadSource {
-  buffer: Buffer;
   filename: string;
   mimeType: string;
+  size: number;
+  tempPath: string;
+}
+
+interface MediaSample {
+  header: Buffer;
+  size: number;
+  tail: Buffer;
 }
 
 const MIME_LABEL: Record<string, string> = {
@@ -89,35 +98,6 @@ function corruptedFileError(mimeType: string): Error {
   );
 }
 
-function uploadTimeoutMessage(action: string): string {
-  return `${action} took too long (over ${Math.round(DOWNLOAD_TIMEOUT_MS / 1000)} seconds). Please try again.`;
-}
-
-function remainingMs(deadline: number): number {
-  return Math.max(1, deadline - Date.now());
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  message: string,
-  onTimeout?: () => void,
-): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeout = setTimeout(() => {
-      reject(new Error(message));
-      onTimeout?.();
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
-}
-
 function extensionForMimeType(mimeType: string): string {
   return MIME_EXTENSION[mimeType] ?? "bin";
 }
@@ -130,22 +110,6 @@ function filenameFromUrl(url: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function filenameFromContentDisposition(contentDisposition: string | null): string | undefined {
-  if (!contentDisposition) return undefined;
-
-  const utf8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utf8?.[1]) {
-    try {
-      return decodeURIComponent(utf8[1].replaceAll(/^"|"$/g, ""));
-    } catch {
-      return utf8[1].replaceAll(/^"|"$/g, "");
-    }
-  }
-
-  const ascii = contentDisposition.match(/filename="?([^";]+)"?/i);
-  return ascii?.[1];
 }
 
 function ensureFilenameExtension(filename: string, mimeType: string): string {
@@ -231,12 +195,12 @@ function hasWebmHeader(buffer: Buffer): boolean {
   return buffer.length >= 4 && buffer[0] === 26 && buffer[1] === 69 && buffer[2] === 223 && buffer[3] === 163;
 }
 
-function assertCompleteMedia(buffer: Buffer, mimeType: string): void {
-  if (buffer.length > MAX_FILE_SIZE) {
+function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: string): void {
+  if (size > MAX_FILE_SIZE) {
     throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
 
-  const sniffedImageType = sniffImageMimeType(buffer);
+  const sniffedImageType = sniffImageMimeType(header);
 
   if (mimeType.startsWith("image/") && sniffedImageType !== mimeType) {
     throw new Error(
@@ -244,34 +208,34 @@ function assertCompleteMedia(buffer: Buffer, mimeType: string): void {
     );
   }
 
-  if (mimeType === "image/jpeg" && !hasJpegEndMarker(buffer)) {
+  if (mimeType === "image/jpeg" && !hasJpegEndMarker(tail)) {
     throw corruptedFileError(mimeType);
   }
-  if (mimeType === "image/png" && !hasPngEndChunk(buffer)) {
+  if (mimeType === "image/png" && !hasPngEndChunk(tail)) {
     throw corruptedFileError(mimeType);
   }
-  if (mimeType === "image/gif" && buffer.at(-1) !== 59) {
+  if (mimeType === "image/gif" && tail.at(-1) !== 59) {
     throw corruptedFileError(mimeType);
   }
   if (mimeType === "image/webp") {
-    const expectedLength = buffer.readUInt32LE(4) + 8;
-    if (expectedLength > buffer.length) {
+    const expectedLength = header.readUInt32LE(4) + 8;
+    if (expectedLength > size) {
       throw corruptedFileError(mimeType);
     }
   }
-  if ((mimeType === "video/mp4" || mimeType === "video/quicktime") && !hasMp4FileTypeBox(buffer)) {
+  if ((mimeType === "video/mp4" || mimeType === "video/quicktime") && !hasMp4FileTypeBox(header)) {
     throw new Error(
       `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
     );
   }
-  if (mimeType === "video/webm" && !hasWebmHeader(buffer)) {
+  if (mimeType === "video/webm" && !hasWebmHeader(header)) {
     throw new Error("This file doesn't appear to be a valid WebM video. Please re-upload it or try a different file.");
   }
 }
 
-function resolveMimeType(buffer: Buffer, declaredMimeType: string | undefined, filename: string): string {
+function resolveMimeType(sample: MediaSample, declaredMimeType: string | undefined, filename: string): string {
   const normalized = normalizeContentType(declaredMimeType ?? "", filename);
-  const sniffedImageType = sniffImageMimeType(buffer);
+  const sniffedImageType = sniffImageMimeType(sample.header);
   const resolvedType = sniffedImageType ?? normalized;
 
   if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
@@ -280,67 +244,29 @@ function resolveMimeType(buffer: Buffer, declaredMimeType: string | undefined, f
     );
   }
 
-  assertCompleteMedia(buffer, resolvedType);
+  assertCompleteMedia(sample, resolvedType);
   return resolvedType;
 }
 
-async function readResponseBuffer(response: Response, deadline: number, onTimeout: () => void): Promise<Buffer> {
-  const contentLength = response.headers.get("content-length");
-  if (contentLength && Number(contentLength) > MAX_FILE_SIZE) {
-    throw new Error(FILE_TOO_LARGE_MESSAGE);
-  }
-
-  if (!response.body) {
-    const arrayBuffer = await withTimeout(
-      response.arrayBuffer(),
-      remainingMs(deadline),
-      uploadTimeoutMessage("Downloading the file from ChatGPT"),
-      onTimeout,
-    );
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length === 0) {
+async function readMediaSample(tempPath: string): Promise<MediaSample> {
+  const file = await open(tempPath, "r");
+  try {
+    const { size } = await file.stat();
+    if (size === 0) {
       throw new Error("The downloaded file is empty. Please re-attach the file and try again.");
     }
-    if (buffer.length > MAX_FILE_SIZE) {
+    if (size > MAX_FILE_SIZE) {
       throw new Error(FILE_TOO_LARGE_MESSAGE);
     }
-    return buffer;
-  }
 
-  const reader = response.body.getReader();
-  const chunks: Buffer[] = [];
-  let received = 0;
-
-  try {
-    for (;;) {
-      const { done, value } = await withTimeout(
-        reader.read(),
-        remainingMs(deadline),
-        uploadTimeoutMessage("Downloading the file from ChatGPT"),
-        () => {
-          onTimeout();
-          void reader.cancel();
-        },
-      );
-      if (done) break;
-      if (!value) continue;
-
-      received += value.byteLength;
-      if (received > MAX_FILE_SIZE) {
-        await reader.cancel();
-        throw new Error(FILE_TOO_LARGE_MESSAGE);
-      }
-      chunks.push(Buffer.from(value));
-    }
+    const header = Buffer.alloc(Math.min(size, 32));
+    const tail = Buffer.alloc(Math.min(size, 4096));
+    await file.read(header, 0, header.length, 0);
+    await file.read(tail, 0, tail.length, Math.max(0, size - tail.length));
+    return { header, size, tail };
   } finally {
-    reader.releaseLock();
+    await file.close();
   }
-
-  if (received === 0) {
-    throw new Error("The downloaded file is empty. Please re-attach the file and try again.");
-  }
-
-  return Buffer.concat(chunks, received);
 }
 
 async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUploadSource> {
@@ -350,49 +276,38 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
     throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
 
-  const controller = new AbortController();
-  const deadline = Date.now() + DOWNLOAD_TIMEOUT_MS;
+  // Use the SDK's bounded, DNS-pinned downloader so a crafted file parameter
+  // cannot reach loopback, private networks, cloud metadata, or an unsafe
+  // redirect target.
+  const tempPath = await downloadToTempFile(input.file.download_url);
+  try {
+    const sample = await readMediaSample(tempPath);
 
-  const response = await withTimeout(
-    fetch(input.file.download_url, {
-      signal: controller.signal,
-    }),
-    remainingMs(deadline),
-    uploadTimeoutMessage("Downloading the file from ChatGPT"),
-    () => controller.abort(),
-  );
+    const declaredType = input.mimeType ?? input.file.mime_type ?? input.file.mimeType;
+    const filename =
+      input.filename ??
+      input.file.file_name ??
+      input.file.name ??
+      filenameFromUrl(input.file.download_url) ??
+      `${input.file.file_id}.${extensionForMimeType(declaredType ?? "application/octet-stream")}`;
+    const mimeType = resolveMimeType(sample, declaredType, filename);
 
-  if (!response.ok) {
-    throw new Error(
-      `Couldn't download the file from ChatGPT (HTTP ${response.status}). The link may have expired — please re-attach the file and try again.`,
-    );
+    return {
+      filename: ensureFilenameExtension(filename, mimeType),
+      mimeType,
+      size: sample.size,
+      tempPath,
+    };
+  } catch (error) {
+    await unlink(tempPath).catch(() => {});
+    throw error;
   }
-
-  const buffer = await readResponseBuffer(response, deadline, () => controller.abort());
-  const responseType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
-  const filename =
-    input.filename ??
-    input.file.file_name ??
-    input.file.name ??
-    filenameFromContentDisposition(response.headers.get("content-disposition")) ??
-    filenameFromUrl(input.file.download_url) ??
-    `${input.file.file_id}.${extensionForMimeType(input.file.mime_type ?? input.file.mimeType ?? responseType ?? "application/octet-stream")}`;
-  const mimeType = resolveMimeType(
-    buffer,
-    input.mimeType ?? input.file.mime_type ?? input.file.mimeType ?? responseType,
-    filename,
-  );
-
-  return {
-    buffer,
-    filename: ensureFilenameExtension(filename, mimeType),
-    mimeType,
-  };
 }
 
 export async function uploadMedia(userId: string, input: UploadMediaInput) {
   const startedAt = Date.now();
   const sourceType = "file_param";
+  let source: ResolvedUploadSource | undefined;
 
   try {
     log.info(
@@ -400,13 +315,13 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
       "Starting MCP media upload",
     );
 
-    const source = await resolveUploadSource(input);
+    source = await resolveUploadSource(input);
     log.info(
       {
         sourceType,
         filename: source.filename,
         mimeType: source.mimeType,
-        size: source.buffer.length,
+        size: source.size,
         elapsedMs: Date.now() - startedAt,
       },
       "Resolved MCP media upload source",
@@ -414,15 +329,22 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
 
     const key = generateFileKey(userId, source.filename);
     const uploadStartedAt = Date.now();
-    const url = await uploadFromBuffer(source.buffer, key, source.mimeType, {
-      timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
-    });
+    const uploadStream = createReadStream(source.tempPath);
+    const uploader = new S3MediaUploader();
+    let url: string;
+    try {
+      url = await uploader.uploadStream(uploadStream, key, source.mimeType, {
+        timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
+      });
+    } finally {
+      uploadStream.destroy();
+    }
     log.info(
       {
         sourceType,
         filename: source.filename,
         mimeType: source.mimeType,
-        size: source.buffer.length,
+        size: source.size,
         storageElapsedMs: Date.now() - uploadStartedAt,
         totalElapsedMs: Date.now() - startedAt,
       },
@@ -434,7 +356,7 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
       type: source.mimeType.startsWith("video/") ? ("video" as const) : ("image" as const),
       url,
       filename: source.filename,
-      size: source.buffer.length,
+      size: source.size,
       mimeType: source.mimeType,
     };
   } catch (error) {
@@ -447,5 +369,9 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
       "Failed MCP media upload",
     );
     throw error;
+  } finally {
+    if (source) {
+      await unlink(source.tempPath).catch(() => {});
+    }
   }
 }

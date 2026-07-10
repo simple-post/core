@@ -1,9 +1,9 @@
 import {
   basicErrorResponses,
+  browserSessionSecurity,
   defineRoute,
   jsonResponse,
   userAuthErrorResponses,
-  userAuthSecurity,
 } from "@/lib/openapi/helpers";
 import { CliAuthorizeRequestSchema, RedirectUrlResponseSchema } from "@/lib/openapi/schemas";
 
@@ -14,8 +14,9 @@ export default defineRoute({
       operationId: "authorizeCli",
       tags: ["CLI"],
       summary: "Authorize a local CLI session",
-      description: "Creates a CLI bearer token for an authenticated browser user and returns a loopback redirect URL.",
-      security: userAuthSecurity,
+      description:
+        "Creates a short-lived one-time code for an authenticated browser user and returns a loopback redirect URL. The CLI exchanges the code for a bearer token outside the browser.",
+      security: browserSessionSecurity,
       requestBody: {
         required: true,
         content: {
@@ -25,7 +26,7 @@ export default defineRoute({
         },
       },
       responses: {
-        "200": jsonResponse("Redirect URL containing the issued CLI token.", RedirectUrlResponseSchema),
+        "200": jsonResponse("Redirect URL containing the one-time CLI authorization code.", RedirectUrlResponseSchema),
         ...userAuthErrorResponses,
         ...basicErrorResponses,
       },

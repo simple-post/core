@@ -111,13 +111,18 @@ export default function DataDeletionPage() {
                   Delete Your Entire SimplePost Account
                 </h4>
                 <p className="text-muted-foreground ml-8">
-                  To completely delete your SimplePost account and all associated data:
+                  Account deletion is currently handled as a verified support request. Send an email from your
+                  registered SimplePost address to{" "}
+                  <a href="mailto:support@simplepost.social" className="text-primary hover:underline font-medium">
+                    support@simplepost.social
+                  </a>
+                  :
                 </p>
                 <ol className="list-decimal list-inside text-muted-foreground space-y-2 ml-8">
-                  <li>Log in to your SimplePost account</li>
-                  <li>Go to your account settings</li>
-                  <li>Look for the "Delete Account" option</li>
-                  <li>Follow the confirmation process</li>
+                  <li>Use the subject line "Data Deletion Request"</li>
+                  <li>State that you want your SimplePost account and associated data deleted</li>
+                  <li>Include the email address used for your SimplePost account</li>
+                  <li>Complete any identity verification requested by support</li>
                 </ol>
                 <Alert className="ml-8" variant="destructive">
                   <AlertDescription className="text-sm">
@@ -132,27 +137,20 @@ export default function DataDeletionPage() {
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
                     3
                   </span>
-                  Contact Us for Manual Deletion
+                  If You Cannot Email From the Registered Address
                 </h4>
                 <p className="text-muted-foreground ml-8">
-                  If you need assistance or prefer manual deletion of your data:
+                  If you have lost access to the registered address, contact support and explain the situation. We may
+                  ask for additional information to verify that you control the account before deleting it.
                 </p>
                 <div className="ml-8 space-y-4">
                   <p className="text-muted-foreground">
                     Send an email to{" "}
                     <a href="mailto:support@simplepost.social" className="text-primary hover:underline font-medium">
                       support@simplepost.social
-                    </a>{" "}
-                    with:
-                  </p>
-                  <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                    <li>Your registered email address</li>
-                    <li>Subject line: "Data Deletion Request"</li>
-                    <li>Clear statement that you want your data deleted</li>
-                  </ul>
-                  <p className="text-muted-foreground">
-                    We will process your request within <strong>30 days</strong> and send you a confirmation email once
-                    completed.
+                    </a>
+                    . Requests are normally completed within 30 days after identity verification. Billing, fraud
+                    prevention, tax, or other records may be retained where required by law.
                   </p>
                 </div>
               </div>
@@ -166,8 +164,8 @@ export default function DataDeletionPage() {
             <CardContent className="space-y-3">
               <p className="text-muted-foreground">When you delete your data or account:</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-2">
-                <li>All your personal information is permanently removed from our databases</li>
-                <li>Connected social media account tokens are immediately revoked and deleted</li>
+                <li>Your personal information is deleted or anonymized except where retention is legally required</li>
+                <li>Connected social media account tokens and SimplePost MCP, CLI, and API credentials are revoked</li>
                 <li>All uploaded media files are deleted from our storage</li>
                 <li>Scheduled posts and post history are permanently deleted</li>
                 <li>You will no longer be able to log in or access SimplePost services</li>
@@ -277,9 +275,7 @@ export default function DataDeletionPage() {
           </Card>
 
           <div className="text-center text-sm text-muted-foreground pt-6 pb-4">
-            <p>
-              Last updated: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            </p>
+            <p>Last updated: July 10, 2026</p>
           </div>
         </div>
       </main>

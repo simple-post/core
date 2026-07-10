@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { resolveMcpResource } from "@/lib/mcp/config";
-import { exchangeCodeForToken, hashValue } from "@/lib/mcp/oauth";
+import { cleanupExpired, exchangeCodeForToken, hashValue } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 
 const log = createLogger("api:oauth:token");
@@ -132,6 +132,10 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    void cleanupExpired().catch((error) => {
+      log.warn({ err: serializeError(error) }, "Failed to clean up expired MCP credentials");
+    });
 
     return NextResponse.json({
       access_token: result.accessToken,

@@ -43,22 +43,22 @@ export type PostFlagValues = {
   "post-json"?: string;
   "options-json"?: string;
   "log-level"?: string;
-  "strict-mode"?: string;
+  "strict-mode"?: boolean;
   "x-reply-to-id"?: string;
   "telegram-chat-id"?: string;
   "telegram-parse-mode"?: string;
   "youtube-tags"?: string;
   "youtube-category-id"?: string;
   "youtube-playlist-id"?: string;
-  "youtube-made-for-kids"?: string;
+  "youtube-made-for-kids"?: boolean;
   "youtube-publish-at"?: string;
   "youtube-privacy-status"?: string;
   "facebook-publish-at"?: string;
   "tiktok-publish-mode"?: string;
   "tiktok-visibility"?: string;
-  "tiktok-allow-comment"?: string;
-  "tiktok-allow-duet"?: string;
-  "tiktok-allow-stitch"?: string;
+  "tiktok-allow-comment"?: boolean;
+  "tiktok-allow-duet"?: boolean;
+  "tiktok-allow-stitch"?: boolean;
   "linkedin-visibility"?: string;
   "pinterest-board-id"?: string;
   "pinterest-title"?: string;
@@ -66,14 +66,6 @@ export type PostFlagValues = {
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
 };
-
-function parseBoolean(value: string | undefined, name: string): boolean | undefined {
-  if (value === undefined) return undefined;
-  const normalized = value.trim().toLowerCase();
-  if (["true", "1", "yes", "y"].includes(normalized)) return true;
-  if (["false", "0", "no", "n"].includes(normalized)) return false;
-  throw new Error(`Invalid boolean for ${name}: ${value}`);
-}
 
 function isUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
@@ -95,7 +87,7 @@ function inferPlatformsFromAccountSelections(selections: AccountSelections): Pla
 
 function buildOptions(flags: PostFlagValues): PostOptions | undefined {
   const options: PostOptions = {};
-  const strictMode = parseBoolean(flags["strict-mode"], "--strict-mode");
+  const strictMode = flags["strict-mode"];
   if (flags["log-level"] || strictMode !== undefined) {
     options.common = {
       ...(flags["log-level"] ? { logLevel: flags["log-level"] as NonNullable<PostOptions["common"]>["logLevel"] } : {}),
@@ -134,7 +126,7 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["youtube-playlist-id"] ? { playlistId: flags["youtube-playlist-id"] } : {}),
       ...(flags["youtube-made-for-kids"] === undefined
         ? {}
-        : { selfDeclaredMadeForKids: parseBoolean(flags["youtube-made-for-kids"], "--youtube-made-for-kids") }),
+        : { selfDeclaredMadeForKids: flags["youtube-made-for-kids"] }),
       ...(flags["youtube-publish-at"] ? { publishAt: flags["youtube-publish-at"] } : {}),
       ...(flags["youtube-privacy-status"]
         ? {
@@ -162,15 +154,9 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["tiktok-visibility"]
         ? { visibility: flags["tiktok-visibility"] as NonNullable<PostOptions["tiktok"]>["visibility"] }
         : {}),
-      ...(flags["tiktok-allow-comment"] === undefined
-        ? {}
-        : { allowComment: parseBoolean(flags["tiktok-allow-comment"], "--tiktok-allow-comment") }),
-      ...(flags["tiktok-allow-duet"] === undefined
-        ? {}
-        : { allowDuet: parseBoolean(flags["tiktok-allow-duet"], "--tiktok-allow-duet") }),
-      ...(flags["tiktok-allow-stitch"] === undefined
-        ? {}
-        : { allowStitch: parseBoolean(flags["tiktok-allow-stitch"], "--tiktok-allow-stitch") }),
+      ...(flags["tiktok-allow-comment"] === undefined ? {} : { allowComment: flags["tiktok-allow-comment"] }),
+      ...(flags["tiktok-allow-duet"] === undefined ? {} : { allowDuet: flags["tiktok-allow-duet"] }),
+      ...(flags["tiktok-allow-stitch"] === undefined ? {} : { allowStitch: flags["tiktok-allow-stitch"] }),
     };
   }
 

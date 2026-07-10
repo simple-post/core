@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 
-import { assertCanCreatePost } from "@/lib/billing/subscriptions";
+import { assertCanCreatePost, lockUserForQuota } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -142,7 +142,8 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     const body = await req.json();
     log.debug({ postingMode: body.postingMode, messageLength: body.message?.length || 0 }, "Request body parsed");
 
-    const validated = createPostSchema.parse(body);
+    const parsed = createPostSchema.parse(body);
+    const validated = { ...parsed, accountIds: [...new Set(parsed.accountIds)] };
     log.debug({ accountCount: validated.accountIds.length }, "Validation successful");
 
     // Idempotent creation: a retried request with the same key returns the
@@ -158,8 +159,6 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
       }
     }
-
-    await assertCanCreatePost(userId);
 
     const postingMode = validated.postingMode;
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);
@@ -210,29 +209,57 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
     const repostSettings = await resolvePostRepostSettings(userId, validated.repost);
 
-    // Create the post first
+    // Serialize the quota check and insert for this user. The in-transaction
+    // idempotency check ensures a concurrent replay returns the winner even
+    // when the first request consumed the final quota slot.
     log.debug("Creating post record in database");
     let post;
     try {
-      post = await repository.createPost(
-        {
-          message: validated.message,
-          accountIds: validated.accountIds,
-          media: mediaFiles,
-          scheduledFor,
-          status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
-          accountOptions: validated.accountOptions,
-          accountOverrides: validated.accountOverrides,
-          repostEnabled: repostSettings.enabled,
-          repostDelayHours: repostSettings.delayHours,
-          repostStatus: "not_applicable",
-          repostDueAt: null,
-          thread: validated.thread,
-          quotePostId: validated.quotePostId,
-          idempotencyKey: validated.idempotencyKey,
-        },
-        userId,
-      );
+      const creation = await prisma.$transaction(async (tx) => {
+        await lockUserForQuota(tx, userId);
+
+        if (validated.idempotencyKey) {
+          const existing = await tx.post.findUnique({
+            where: { userId_idempotencyKey: { userId, idempotencyKey: validated.idempotencyKey } },
+            select: { id: true },
+          });
+          if (existing) {
+            return { replayedPostId: existing.id } as const;
+          }
+        }
+
+        await assertCanCreatePost(userId, tx);
+        const createdPost = await repository.createPost(
+          {
+            message: validated.message,
+            accountIds: validated.accountIds,
+            media: mediaFiles,
+            scheduledFor,
+            status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+            accountOptions: validated.accountOptions,
+            accountOverrides: validated.accountOverrides,
+            repostEnabled: repostSettings.enabled,
+            repostDelayHours: repostSettings.delayHours,
+            repostStatus: "not_applicable",
+            repostDueAt: null,
+            thread: validated.thread,
+            quotePostId: validated.quotePostId,
+            idempotencyKey: validated.idempotencyKey,
+          },
+          userId,
+          tx,
+        );
+        return { post: createdPost } as const;
+      });
+
+      if ("replayedPostId" in creation) {
+        const replayedPostId = creation.replayedPostId!;
+        const existingPost = await repository.getPostById(replayedPostId);
+        log.info({ postId: replayedPostId }, "Idempotency key replay after quota lock");
+        return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
+      }
+
+      post = creation.post;
     } catch (createError) {
       // Concurrent request with the same idempotency key won the insert:
       // return the winner's post.

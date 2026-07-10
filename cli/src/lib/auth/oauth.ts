@@ -471,7 +471,12 @@ export function resolveOAuthAppInputs(
     throw buildMissingOAuthAppError(platform, appConfig);
   }
 
-  const redirectUri = flags.redirectUri ?? process.env[getRedirectUriEnvVar(platform)] ?? appConfig.redirectUri;
+  const explicitRedirectUri = flags.redirectUri ?? process.env[getRedirectUriEnvVar(platform)];
+  const defaultRedirectUri = new URL(appConfig.redirectUri);
+  if (flags.callbackPort !== undefined) {
+    defaultRedirectUri.port = String(flags.callbackPort);
+  }
+  const redirectUri = explicitRedirectUri ?? defaultRedirectUri.toString();
   ensureLoopbackRedirectUri(redirectUri);
 
   return {

@@ -194,6 +194,7 @@ describe("runPostWorkflow", () => {
     expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer cli-token");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       accountIds: ["app-account-1"],
+      idempotencyKey: expect.any(String),
       message: "hello",
       postingMode: "now",
     });

@@ -13,9 +13,12 @@
   },
   "scripts": {
     "check": "yarn workspaces foreach --all --parallel run check",
-    "test": "jest --runInBand",
+    "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test",
     "test:coverage": "jest --coverage --runInBand",
     "test:watch": "jest --watch"
+  },
+  "resolutions": {
+    "postcss": "^8.5.16"
   },
   "engines": {
     "node": ">=20.0.0"

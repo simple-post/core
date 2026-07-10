@@ -27,7 +27,6 @@ type AssistantOption = {
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social").replace(/\/+$/, "");
 const MCP_URL = `${APP_URL}/mcp`;
-const CHATGPT_APP_URL = "https://chatgpt.com/apps/simplepost";
 
 const options: AssistantOption[] = [
   {
@@ -35,8 +34,8 @@ const options: AssistantOption[] = [
     label: "ChatGPT",
     Icon: OpenAIIcon,
     description:
-      "Use the SimplePost app inside ChatGPT. Open this link, then ChatGPT will ask you to connect SimplePost.",
-    commands: [{ code: CHATGPT_APP_URL, href: CHATGPT_APP_URL, label: "ChatGPT app URL" }],
+      "In ChatGPT Settings, open Apps & Connectors, enable developer mode if required, then create a custom connector named SimplePost with this URL. ChatGPT will open SimplePost OAuth for approval.",
+    commands: [{ code: MCP_URL, label: "Remote MCP URL" }],
   },
   {
     id: "claude-desktop",

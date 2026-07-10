@@ -49,7 +49,14 @@ export function extractErrorMessage(data: unknown, fallback: string): string {
 export async function fetchJson<T>(input: string, init: RequestInit, label: string): Promise<T> {
   const response = await fetch(input, init);
   const raw = await response.text();
-  const data = raw ? (JSON.parse(raw) as unknown) : undefined;
+  let data: unknown;
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as unknown;
+    } catch {
+      data = raw;
+    }
+  }
 
   if (!response.ok) {
     const message = extractErrorMessage(data, response.statusText);

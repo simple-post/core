@@ -1,4 +1,6 @@
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
+import path from "node:path";
 
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -7,6 +9,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getContentType } from ".";
 
 import { PostError, PostErrorType } from "../types";
+
+import type { Readable } from "node:stream";
 
 const DEFAULT_UPLOAD_TIMEOUT_MS = 120_000;
 
@@ -32,7 +36,7 @@ function getStorageConfig(): {
     );
   }
 
-  return { accessKeyId, secretAccessKey, region, bucket, endpoint, baseUrl };
+  return { accessKeyId, secretAccessKey, region, bucket, endpoint, baseUrl: baseUrl.replace(/\/+$/, "") };
 }
 
 function createStorageClient(): { client: S3Client; bucket: string; baseUrl: string } {
@@ -61,20 +65,33 @@ export class S3MediaUploader {
   }
 
   async uploadFile(filePath: string, key: string): Promise<string> {
-    try {
-      const fileStream = createReadStream(filePath);
+    return this.uploadStream(createReadStream(filePath), key, getContentType(filePath));
+  }
 
+  async uploadStream(
+    stream: Readable,
+    key: string,
+    contentType: string,
+    options: { timeoutMs?: number } = {},
+  ): Promise<string> {
+    let timedOut = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
       const upload = new Upload({
         client: this.s3Client,
         params: {
           Bucket: this.s3Bucket,
           Key: key,
-          Body: fileStream,
-          ACL: "public-read",
-          ContentType: getContentType(filePath),
+          Body: stream,
+          ContentType: contentType,
         },
       });
 
+      const timeoutMs = options.timeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS;
+      timeout = setTimeout(() => {
+        timedOut = true;
+        void upload.abort().catch(() => {});
+      }, timeoutMs);
       await upload.done();
 
       return `${this.s3BaseUrl}/${key}`;
@@ -82,9 +99,13 @@ export class S3MediaUploader {
       const err = error as { message?: string };
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Error uploading file to S3: ${err.message || "Unknown error"}`,
+        timedOut
+          ? `Timed out uploading file to S3-compatible storage`
+          : `Error uploading file to S3: ${err.message || "Unknown error"}`,
         err,
       );
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
   }
 
@@ -161,12 +182,14 @@ export async function getPresignedUploadUrl(
   key: string,
   contentType: string,
   expiresIn: number = 3600,
+  options: { contentLength?: number } = {},
 ): Promise<{ uploadUrl: string; publicUrl: string }> {
   const { client, bucket, baseUrl } = createStorageClient();
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: contentType,
+    ...(options.contentLength === undefined ? {} : { ContentLength: options.contentLength }),
   });
   const uploadUrl = await (
     getSignedUrl as (client: unknown, command: unknown, options: { expiresIn: number }) => Promise<string>
@@ -193,13 +216,59 @@ export async function deleteFromStorage(key: string): Promise<void> {
  * @param url - The storage URL (e.g. https://files.example.com/uploads/user/123.jpg)
  * @returns The key (path) in the bucket
  */
-export function getKeyFromUrl(url: string): string | null {
+export function getKeyFromUrl(url: string, configuredBaseUrl = process.env.S3_STORAGE_BASE_URL): string | null {
+  if (!configuredBaseUrl) return null;
+
   try {
+    const schemeIndex = url.indexOf("://");
+    const pathIndex = schemeIndex === -1 ? -1 : url.indexOf("/", schemeIndex + 3);
+    const rawPath = pathIndex >= 0 ? url.slice(pathIndex).split(/[?#]/, 1)[0] : "/";
+    if (
+      decodeURIComponent(rawPath)
+        .split("/")
+        .some((segment) => segment === "." || segment === "..")
+    ) {
+      return null;
+    }
+
     const urlObj = new URL(url);
-    return urlObj.pathname.slice(1); // Remove leading slash
+    const base = new URL(configuredBaseUrl.endsWith("/") ? configuredBaseUrl : `${configuredBaseUrl}/`);
+    if (urlObj.protocol !== base.protocol || urlObj.host !== base.host) return null;
+
+    const basePath = base.pathname.endsWith("/") ? base.pathname : `${base.pathname}/`;
+    if (!urlObj.pathname.startsWith(basePath)) return null;
+
+    const key = decodeURIComponent(urlObj.pathname.slice(basePath.length));
+    if (
+      !key ||
+      key.startsWith("/") ||
+      key.split("/").some((segment) => !segment || segment === "." || segment === "..")
+    ) {
+      return null;
+    }
+    return key;
   } catch {
     return null;
   }
+}
+
+function storageOwnerSegment(userId: string): string {
+  return /^[a-zA-Z0-9_-]{1,64}$/.test(userId) ? userId : createHash("sha256").update(userId).digest("hex").slice(0, 32);
+}
+
+/**
+ * Extract an object key only when it belongs to the specified user's upload
+ * prefix. This prevents cleanup of another user's object when a post contains
+ * a storage URL supplied by the caller.
+ */
+export function getOwnedStorageKeyFromUrl(
+  url: string,
+  userId: string,
+  configuredBaseUrl = process.env.S3_STORAGE_BASE_URL,
+): string | null {
+  const key = getKeyFromUrl(url, configuredBaseUrl);
+  const prefix = `uploads/${storageOwnerSegment(userId)}/`;
+  return key?.startsWith(prefix) ? key : null;
 }
 
 /**
@@ -209,8 +278,8 @@ export function getKeyFromUrl(url: string): string | null {
  * @returns A unique key for the file
  */
 export function generateFileKey(userId: string, filename: string): string {
-  const timestamp = Date.now();
-  const randomStr = Math.random().toString(36).slice(2, 15);
-  const ext = filename.split(".").pop();
-  return `uploads/${userId}/${timestamp}-${randomStr}.${ext}`;
+  const safeUserId = storageOwnerSegment(userId);
+  const candidateExtension = path.extname(path.basename(filename)).slice(1).toLowerCase();
+  const extension = /^[a-z0-9]{1,8}$/.test(candidateExtension) ? `.${candidateExtension}` : "";
+  return `uploads/${safeUserId}/${Date.now()}-${randomUUID()}${extension}`;
 }

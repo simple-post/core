@@ -42,7 +42,7 @@ await post({
 });
 ```
 
-**Need credentials?** Get them at [docs.simplepost.social](https://docs.simplepost.social), then continue below.
+**Need credentials?** Use the public [platform guides](../platforms/), or run the open-source repository with your own platform apps and credentials.
 
 ## Installation
 
@@ -60,7 +60,7 @@ pnpm add @simple-post/sdk
 
 ### Credentials Setup
 
-Set up credentials using environment variables. Get platform-specific tokens at [docs.simplepost.social](https://docs.simplepost.social).
+Set up credentials using environment variables. The public [platform guides](../platforms/) explain what each platform requires.
 
 ### Basic Posting
 
@@ -258,7 +258,7 @@ For more examples, check out the [`/examples`](../../examples) directory.
 
 ## What's Next?
 
-- **Need help with credentials?** → [docs.simplepost.social](https://docs.simplepost.social)
+- **Need help with credentials?** → [platform guides](../platforms/)
 - **Want an HTTP API?** → [HTTP API server docs](../http-server/README.md)
 - **Need a web UI?** → [Scheduler app docs](../scheduler-app/README.md)
 - **Need terminal posting?** → [CLI docs](../cli/README.md)

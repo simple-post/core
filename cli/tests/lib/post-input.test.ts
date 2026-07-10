@@ -57,3 +57,29 @@ describe("collectPostInput interactive mode", () => {
     expect(prompt.text).not.toHaveBeenCalledWith(expect.stringContaining("Strict mode"), expect.anything());
   });
 });
+
+describe("collectPostInput boolean flags", () => {
+  it("preserves explicit true and false values from oclif boolean flags", async () => {
+    const result = await collectPostInput(
+      {
+        account: ["youtube:main", "tiktok:main"],
+        text: "Hello world",
+        "strict-mode": false,
+        "youtube-made-for-kids": false,
+        "tiktok-allow-comment": true,
+        "tiktok-allow-duet": false,
+        "tiktok-allow-stitch": true,
+      },
+      {} as any,
+      { accounts: [] },
+    );
+
+    expect(result.post.options?.common?.strictMode).toBe(false);
+    expect(result.post.options?.youtube?.selfDeclaredMadeForKids).toBe(false);
+    expect(result.post.options?.tiktok).toMatchObject({
+      allowComment: true,
+      allowDuet: false,
+      allowStitch: true,
+    });
+  });
+});

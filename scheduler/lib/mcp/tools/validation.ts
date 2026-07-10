@@ -1,3 +1,4 @@
+import { AccountIdsSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -7,10 +8,9 @@ import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } 
 
 export const validatePostSchema = z.object({
   message: z.string().describe("The post text content"),
-  accountIds: z
-    .array(z.string())
-    .min(1)
-    .describe("IDs of connected accounts to validate against. Use list_accounts to get available IDs."),
+  accountIds: AccountIdsSchema.describe(
+    "IDs of connected accounts to validate against. Use list_accounts to get available IDs.",
+  ),
   media: mcpMediaArraySchema
     .optional()
     .describe(
@@ -46,13 +46,14 @@ export const validatePostOutputSchema = z.object({
 });
 
 export async function validatePost(userId: string, input: z.infer<typeof validatePostSchema>) {
+  const accountIds = [...new Set(input.accountIds)];
   const mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);
   const result = await validatePostForAccounts({
     userId,
     message: input.message,
     media: mediaFiles,
-    accountIds: input.accountIds,
+    accountIds,
     thread: threadSegments.length > 0 ? threadSegments : undefined,
   });
 

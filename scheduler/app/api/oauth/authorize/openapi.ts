@@ -1,9 +1,9 @@
 import {
+  browserSessionSecurity,
   defineRoute,
   jsonResponse,
   serverErrorResponses,
   userAuthErrorResponses,
-  userAuthSecurity,
 } from "@/lib/openapi/helpers";
 import { OAuthAuthorizeRequestSchema, OAuthErrorSchema, RedirectUrlResponseSchema } from "@/lib/openapi/schemas";
 
@@ -15,7 +15,7 @@ export default defineRoute({
       tags: ["OAuth"],
       summary: "Authorize an MCP OAuth client",
       description: "Processes the consent form and returns the client redirect URL with an authorization code.",
-      security: userAuthSecurity,
+      security: browserSessionSecurity,
       requestBody: {
         required: true,
         content: {

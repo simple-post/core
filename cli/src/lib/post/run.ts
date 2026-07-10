@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { PostErrorType, post as publishPost } from "@simple-post/sdk";
 
 import { collectPostInput } from "./input.js";
@@ -208,6 +210,7 @@ async function postViaScheduler(
   const body: Record<string, unknown> = {
     message: post.content.text ?? "",
     accountIds: appAccountIds,
+    idempotencyKey: randomUUID(),
     postingMode: "now",
   };
 

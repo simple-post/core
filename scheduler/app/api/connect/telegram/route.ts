@@ -1,10 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { assertCanConnectAccount } from "@/lib/billing/subscriptions";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
-import { prisma } from "@/lib/prisma";
-import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
+import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 const log = createLogger("api:connect:telegram");
@@ -54,41 +52,18 @@ export async function POST(req: NextRequest) {
       const chatTitle = chatInfo.result.title || channelName || chatInfo.result.username || numericChatId;
       const chatUsername = chatInfo.result.username || null;
 
-      await assertCanConnectAccount({
+      await upsertConnectedAccount({
         userId: session.user.id,
         platform: "telegram",
         platformAccountId: numericChatId,
-      });
-
-      // Store the Telegram account in the database
-      // Use numeric chat ID as platformAccountId (required for posting)
-      await prisma.connectedAccount.upsert({
-        where: {
-          userId_platform_platformAccountId: {
-            userId: session.user.id,
-            platform: "telegram",
-            platformAccountId: numericChatId,
-          },
-        },
-        create: encryptConnectedAccountSecrets({
-          userId: session.user.id,
-          platform: "telegram",
-          platformAccountId: numericChatId,
-          accessToken: trimmedToken, // Store bot token as access token
-          refreshToken: null,
-          expiresAt: null, // Telegram bot tokens don't expire
-          scope: null,
-          username: chatUsername ? `@${chatUsername}` : null,
-          displayName: chatTitle || `Chat ${numericChatId}`,
-          email: null,
-          profilePicture: null,
-        }),
-        update: {
-          ...encryptConnectedAccountSecrets({ accessToken: trimmedToken, refreshToken: null }),
-          username: chatUsername ? `@${chatUsername}` : null,
-          displayName: chatTitle || `Chat ${numericChatId}`,
-          updatedAt: new Date(),
-        },
+        accessToken: trimmedToken,
+        refreshToken: null,
+        expiresAt: null,
+        scope: null,
+        username: chatUsername ? `@${chatUsername}` : null,
+        displayName: chatTitle || `Chat ${numericChatId}`,
+        email: null,
+        profilePicture: null,
       });
 
       return NextResponse.json({

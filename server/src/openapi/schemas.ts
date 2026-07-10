@@ -8,7 +8,7 @@ import {
   repostPostSchema,
   validationRequestSchema,
 } from "@simple-post/sdk";
-import * as z from "zod/v4";
+import * as z from "zod";
 
 export const JsonValueSchema = z.unknown();
 
@@ -34,6 +34,29 @@ export const OpenApiDocumentSchema = z
   .meta({ id: "ServerOpenApiDocument", description: "Generated OpenAPI 3.1 document." });
 
 export const MediaFileResponseSchema = MediaFileSchema.meta({ id: "ServerMediaFile" });
+
+export const PresignUploadRequestSchema = z
+  .object({
+    filename: z.string().min(1).max(255),
+    contentType: z.string().min(1),
+    size: z
+      .number()
+      .int()
+      .positive()
+      .max(500 * 1024 * 1024),
+  })
+  .meta({ id: "ServerPresignUploadRequest" });
+
+export const PresignUploadResponseSchema = z
+  .object({
+    uploadUrl: z.url(),
+    method: z.literal("PUT"),
+    headers: z.record(z.string(), z.string()),
+    expiresIn: z.number().int().positive(),
+    key: z.string(),
+    media: MediaFileResponseSchema,
+  })
+  .meta({ id: "ServerPresignUploadResponse" });
 
 export const CreatePostRequestSchema = createPostSchema
   .extend({

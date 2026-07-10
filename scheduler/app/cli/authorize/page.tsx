@@ -17,7 +17,7 @@ export default function CliAuthorizePage() {
           <>
             This authorization link is invalid or has expired. Please run{" "}
             <code className="bg-secondary border border-border text-primary font-mono px-1.5 py-0.5 rounded text-xs">
-              simple-post connect
+              simplepost connect
             </code>{" "}
             again.
           </>

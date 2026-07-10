@@ -58,6 +58,14 @@
         "simplepost connect --token sp_cli_..."
       ],
       "flags": {
+        "callback-port": {
+          "description": "Loopback callback port (default: 5000)",
+          "env": "SIMPLE_POST_CALLBACK_PORT",
+          "name": "callback-port",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
         "no-browser": {
           "description": "Do not try to open the browser automatically",
           "name": "no-browser",
@@ -66,6 +74,7 @@
         },
         "token": {
           "description": "Provide a CLI token directly (for CI/non-interactive use)",
+          "env": "SIMPLE_POST_CLI_TOKEN",
           "name": "token",
           "hasDynamicHelp": false,
           "multiple": false,
@@ -209,12 +218,11 @@
           "type": "option"
         },
         "strict-mode": {
-          "description": "SDK strict mode (true or false)",
+          "description": "Enable SDK strict mode (use --no-strict-mode to disable)",
           "helpGroup": "Advanced",
           "name": "strict-mode",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
+          "allowNo": true,
+          "type": "boolean"
         },
         "x-reply-to-id": {
           "description": "X reply target tweet ID",
@@ -265,12 +273,11 @@
           "type": "option"
         },
         "youtube-made-for-kids": {
-          "description": "YouTube selfDeclaredMadeForKids option (true or false)",
+          "description": "Mark YouTube content as made for kids (use --no-youtube-made-for-kids to disable)",
           "helpGroup": "YouTube",
           "name": "youtube-made-for-kids",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
+          "allowNo": true,
+          "type": "boolean"
         },
         "youtube-publish-at": {
           "description": "YouTube scheduled publish timestamp",
@@ -313,28 +320,25 @@
           "type": "option"
         },
         "tiktok-allow-comment": {
-          "description": "TikTok allow comment (true or false)",
+          "description": "Allow TikTok comments (use --no-tiktok-allow-comment to disable)",
           "helpGroup": "TikTok",
           "name": "tiktok-allow-comment",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
+          "allowNo": true,
+          "type": "boolean"
         },
         "tiktok-allow-duet": {
-          "description": "TikTok allow duet (true or false)",
+          "description": "Allow TikTok duets (use --no-tiktok-allow-duet to disable)",
           "helpGroup": "TikTok",
           "name": "tiktok-allow-duet",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
+          "allowNo": true,
+          "type": "boolean"
         },
         "tiktok-allow-stitch": {
-          "description": "TikTok allow stitch (true or false)",
+          "description": "Allow TikTok stitches (use --no-tiktok-allow-stitch to disable)",
           "helpGroup": "TikTok",
           "name": "tiktok-allow-stitch",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
+          "allowNo": true,
+          "type": "boolean"
         },
         "linkedin-visibility": {
           "description": "LinkedIn visibility",
@@ -589,6 +593,14 @@
         "callback-url": {
           "description": "Provide the final browser callback URL directly instead of waiting for the listener",
           "name": "callback-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "callback-port": {
+          "description": "Loopback callback port when no platform redirect URI override is set (default: 5000)",
+          "env": "SIMPLE_POST_CALLBACK_PORT",
+          "name": "callback-port",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

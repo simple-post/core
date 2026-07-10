@@ -200,10 +200,10 @@ async function updatePost(
 
     // Clean up removed media from R2 (best-effort, don't fail the request)
     if (removedMedia.length > 0) {
-      await deleteMediaFiles(removedMedia);
+      await deleteMediaFiles(session.user.id, removedMedia);
     }
     if (removedAccountOptionThumbnailUrls.length > 0) {
-      await deleteStorageUrls(removedAccountOptionThumbnailUrls, "removed-account-option-thumbnail");
+      await deleteStorageUrls(session.user.id, removedAccountOptionThumbnailUrls, "removed-account-option-thumbnail");
     }
 
     if (postingMode !== "now") {
@@ -350,7 +350,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const postMedia = [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
 
     // Delete uploaded files from R2
-    await Promise.all([deleteMediaFiles(postMedia), deleteAccountOptionFiles(post.accountOptions)]);
+    await Promise.all([
+      deleteMediaFiles(session.user.id, postMedia),
+      deleteAccountOptionFiles(session.user.id, post.accountOptions),
+    ]);
 
     await repository.deletePost(id);
 

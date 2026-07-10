@@ -1,5 +1,6 @@
 import authRoutes from "@/app/api/auth/[...all]/openapi";
 import cliAuthorizeRoutes from "@/app/api/cli/authorize/openapi";
+import cliTokenRoutes from "@/app/api/cli/token/openapi";
 import connectPlatformRoutes from "@/app/api/connect/[platform]/openapi";
 import connectCallbackRoutes from "@/app/api/connect/callback/[platform]/openapi";
 import connectPendingRoutes from "@/app/api/connect/pending/[id]/openapi";
@@ -7,10 +8,13 @@ import connectTelegramRoutes from "@/app/api/connect/telegram/openapi";
 import internalDispatchRoutes from "@/app/api/internal/scheduled-posts/dispatch/openapi";
 import oauthAuthorizeRoutes from "@/app/api/oauth/authorize/openapi";
 import oauthRegisterRoutes from "@/app/api/oauth/register/openapi";
+import oauthRevokeRoutes from "@/app/api/oauth/revoke/openapi";
 import oauthTokenRoutes from "@/app/api/oauth/token/openapi";
 import openApiRoutes from "@/app/api/openapi.json/openapi";
+import accountAvatarRoutes from "@/app/api/v1/accounts/[id]/avatar/openapi";
 import accountBoardsRoutes from "@/app/api/v1/accounts/[id]/boards/openapi";
 import accountRoutes from "@/app/api/v1/accounts/[id]/openapi";
+import accountTikTokCreatorInfoRoutes from "@/app/api/v1/accounts/[id]/tiktok/creator-info/openapi";
 import accountsRoutes from "@/app/api/v1/accounts/openapi";
 import apiKeyRoute from "@/app/api/v1/api-keys/[id]/openapi";
 import apiKeyRotateRoutes from "@/app/api/v1/api-keys/[id]/rotate/openapi";
@@ -34,6 +38,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   openApiRoutes,
   authRoutes,
   cliAuthorizeRoutes,
+  cliTokenRoutes,
   connectPlatformRoutes,
   connectCallbackRoutes,
   connectPendingRoutes,
@@ -41,10 +46,13 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   internalDispatchRoutes,
   oauthAuthorizeRoutes,
   oauthRegisterRoutes,
+  oauthRevokeRoutes,
   oauthTokenRoutes,
   accountsRoutes,
   accountRoutes,
+  accountAvatarRoutes,
   accountBoardsRoutes,
+  accountTikTokCreatorInfoRoutes,
   apiKeyRoutes,
   apiKeyRoute,
   apiKeyRotateRoutes,

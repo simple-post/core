@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { getMcpResourceUrl } from "@/lib/mcp/config";
 
 export const metadata = {
-  title: "SimplePost Text-Only ChatGPT App and MCP Server",
-  description: "Public documentation for the text-only SimplePost MCP server used by ChatGPT and other MCP clients.",
+  title: "SimplePost MCP Server",
+  description: "Public documentation for the SimplePost MCP server used by ChatGPT and other MCP clients.",
 };
 
 interface DocCardProps {
@@ -51,7 +51,7 @@ export default function McpDocsPage() {
           </Link>
           <div className="section-kicker">
             <span className="section-kicker-dot" />
-            <span className="section-kicker-label">ChatGPT App</span>
+            <span className="section-kicker-label">MCP Connector</span>
           </div>
           <div className="flex items-center gap-3 mb-3">
             <div className="h-9 w-9 rounded-lg border border-border bg-secondary text-foreground flex items-center justify-center">

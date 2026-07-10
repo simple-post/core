@@ -14,8 +14,8 @@ const RATE_LIMIT_MAX = 30;
 const clientErrorSchema = z.object({
   level: z.enum(["error", "warn"]).default("error"),
   message: z.string().max(500).default("Client error"),
-  error: z.record(z.unknown()).optional(),
-  context: z.record(z.unknown()).optional(),
+  error: z.record(z.string(), z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
   url: z.string().max(2000).optional(),
   userAgent: z.string().max(500).optional(),
   timestamp: z.string().max(80).optional(),

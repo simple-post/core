@@ -20,6 +20,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       throw new ValidationError(parseResult.error.issues);
     }
     const validated = parseResult.data;
+    const accountIds = [...new Set(validated.accountIds)];
 
     if (validated.postingMode !== "now") {
       throw new BadRequestError(
@@ -27,8 +28,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       );
     }
 
-    const accounts = getAccountsByIds(validated.accountIds);
-    if (accounts.length !== validated.accountIds.length) {
+    const accounts = getAccountsByIds(accountIds);
+    if (accounts.length !== accountIds.length) {
       throw new BadRequestError("One or more accounts were not found");
     }
 
@@ -37,7 +38,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const validation = validatePostForAccounts({
       message: validated.message,
       media: mediaFiles,
-      accountIds: validated.accountIds,
+      accountIds,
       accountOverrides: validated.accountOverrides,
       thread: validated.thread,
     });
@@ -49,7 +50,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const results = await postToAccounts(
       validated.message,
       mediaFiles,
-      validated.accountIds,
+      accountIds,
       validated.accountOptions,
       validated.accountOverrides,
       validated.thread
@@ -59,7 +60,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const post = {
       id: randomUUID(),
       message: validated.message,
-      accountIds: validated.accountIds,
+      accountIds,
       media: mediaFiles,
       thread: validated.thread,
       scheduledFor: new Date().toISOString(),

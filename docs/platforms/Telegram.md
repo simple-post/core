@@ -84,4 +84,4 @@ To post on Telegram, set the following environment variables:
 TELEGRAM_BOT_TOKEN=
 ```
 
-Follow the [Telegram credentials guide](https://docs.simplepost.social/telegram) to get your bot token.
+Follow the [Telegram credentials guide](https://github.com/simple-post/core/blob/main/docs/platforms/Telegram.md) to get your bot token.

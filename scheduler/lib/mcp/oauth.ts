@@ -148,6 +148,7 @@ export async function authenticateMcpToken(token: string, resource = getMcpResou
 
   if (!mcpToken) return null;
   if (mcpToken.expiresAt < new Date()) return null;
+  if (mcpToken.revokedAt) return null;
   if (mcpToken.resource && mcpToken.resource !== resource) return null;
 
   // Update lastUsedAt (fire-and-forget)
@@ -231,4 +232,14 @@ export async function cleanupExpired(): Promise<void> {
     prisma.mcpAuthorizationCode.deleteMany({ where: { expiresAt: { lt: now } } }),
     prisma.mcpAccessToken.deleteMany({ where: { expiresAt: { lt: now } } }),
   ]);
+}
+
+/** Revoke an MCP bearer token. RFC 7009 treats unknown tokens as success. */
+export async function revokeMcpToken(token: string): Promise<void> {
+  if (!isMcpToken(token)) return;
+
+  await prisma.mcpAccessToken.updateMany({
+    where: { tokenHash: hashValue(token), revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
 }

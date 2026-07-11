@@ -6,17 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import {
-  Trash2,
-  Calendar,
-  CalendarClock,
-  Clock,
-  Edit,
-  AlertCircle,
-  FileText,
-  MoreHorizontal,
-  Quote,
-} from "lucide-react";
+import { Trash2, Calendar, CalendarClock, Clock, Edit, AlertCircle, FileText, Quote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
@@ -33,12 +23,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
@@ -183,51 +167,48 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <div className="min-h-screen bg-background">
-        <Navbar
-          actions={
-            <>
-              {canQuote && (
-                <Link href={`/schedule?quotePostId=${id}`}>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Quote className="h-4 w-4" />
-                    <span className="hidden sm:inline">Quote</span>
-                  </Button>
-                </Link>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" aria-label="Post actions">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {(isScheduled || isDraft) && (
-                    <DropdownMenuItem onClick={() => setShowScheduleDialog(true)} className="cursor-pointer">
-                      <CalendarClock className="h-4 w-4 mr-2" />
-                      {isScheduled ? "Reschedule" : "Schedule"}
-                    </DropdownMenuItem>
-                  )}
-                  {(isScheduled || isDraft || isFailed) && (
-                    <Link href={`/posts/${id}/edit`}>
-                      <DropdownMenuItem className="cursor-pointer">
-                        <Edit className="h-4 w-4 mr-2" />
-                        {isFailed ? "Edit and Retry" : "Edit"}
-                      </DropdownMenuItem>
-                    </Link>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="text-destructive focus:text-destructive cursor-pointer">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          }
-        />
+        <Navbar />
 
         <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+          <div
+            className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-3 sm:flex sm:flex-wrap sm:justify-end"
+            aria-label="Post actions">
+            {canQuote && (
+              <Button asChild variant="outline" size="sm" className="w-full gap-2 sm:w-auto">
+                <Link href={`/schedule?quotePostId=${id}`}>
+                  <Quote className="h-4 w-4" />
+                  Quote
+                </Link>
+              </Button>
+            )}
+            {(isScheduled || isDraft) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 sm:w-auto"
+                onClick={() => setShowScheduleDialog(true)}>
+                <CalendarClock className="h-4 w-4" />
+                {isScheduled ? "Reschedule" : "Schedule"}
+              </Button>
+            )}
+            {(isScheduled || isDraft || isFailed) && (
+              <Button asChild variant="outline" size="sm" className="w-full gap-2 sm:w-auto">
+                <Link href={`/posts/${id}/edit`}>
+                  <Edit className="h-4 w-4" />
+                  {isFailed ? "Edit and Retry" : "Edit"}
+                </Link>
+              </Button>
+            )}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+
           <div className="animate-reveal">
             <div className="flex flex-wrap items-center gap-3">
               <div className="section-kicker !mb-0">

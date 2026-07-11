@@ -171,10 +171,10 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
         <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
           <div
-            className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-3 sm:flex sm:flex-wrap sm:justify-end"
+            className="mb-6 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-2 sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none"
             aria-label="Post actions">
             {canQuote && (
-              <Button asChild variant="outline" size="sm" className="w-full gap-2 sm:w-auto">
+              <Button asChild variant="ghost" className="h-11 w-full gap-2">
                 <Link href={`/schedule?quotePostId=${id}`}>
                   <Quote className="h-4 w-4" />
                   Quote
@@ -182,17 +182,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </Button>
             )}
             {(isScheduled || isDraft) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full gap-2 sm:w-auto"
-                onClick={() => setShowScheduleDialog(true)}>
+              <Button variant="ghost" className="h-11 w-full gap-2" onClick={() => setShowScheduleDialog(true)}>
                 <CalendarClock className="h-4 w-4" />
                 {isScheduled ? "Reschedule" : "Schedule"}
               </Button>
             )}
             {(isScheduled || isDraft || isFailed) && (
-              <Button asChild variant="outline" size="sm" className="w-full gap-2 sm:w-auto">
+              <Button asChild variant="ghost" className="h-11 w-full gap-2">
                 <Link href={`/posts/${id}/edit`}>
                   <Edit className="h-4 w-4" />
                   {isFailed ? "Edit and Retry" : "Edit"}
@@ -200,9 +196,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </Button>
             )}
             <Button
-              variant="destructive"
-              size="sm"
-              className="w-full gap-2 sm:w-auto"
+              variant="ghost"
+              className="h-11 w-full gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setShowDeleteDialog(true)}>
               <Trash2 className="h-4 w-4" />
               Delete

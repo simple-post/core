@@ -4,10 +4,11 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { Trash2, Edit, AlertCircle, ChevronLeft, ChevronRight, FileText, Quote } from "lucide-react";
+import { Trash2, Edit, AlertCircle, CalendarClock, ChevronLeft, ChevronRight, FileText, Quote } from "lucide-react";
 import { toast } from "sonner";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
+import { SchedulePostDialog } from "@/components/schedule-post-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -255,6 +256,7 @@ function PostCard({
   onDeleted?: () => void;
 }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const deletePostMutation = useDeletePost();
 
   // Get accounts for this post
@@ -441,6 +443,18 @@ function PostCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {(isScheduled || isDraft) && (
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowScheduleDialog(true);
+                        }}
+                        className="cursor-pointer">
+                        <CalendarClock className="h-4 w-4 mr-2" />
+                        {isScheduled ? "Reschedule" : "Schedule"}
+                      </DropdownMenuItem>
+                    )}
                     {(isScheduled || isDraft || isFailed) && (
                       <Link href={`/posts/${post.id}/edit`}>
                         <DropdownMenuItem
@@ -503,6 +517,10 @@ function PostCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {(isScheduled || isDraft) && (
+        <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
+      )}
     </>
   );
 }

@@ -6,11 +6,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { Trash2, Calendar, Clock, Edit, AlertCircle, FileText, Quote } from "lucide-react";
+import {
+  Trash2,
+  Calendar,
+  CalendarClock,
+  Clock,
+  Edit,
+  AlertCircle,
+  FileText,
+  MoreHorizontal,
+  Quote,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
+import { SchedulePostDialog } from "@/components/schedule-post-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +33,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
@@ -107,6 +124,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const deletePostMutation = useDeletePost();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
   const loading = postLoading || accountsLoading;
 
@@ -176,18 +194,35 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   </Button>
                 </Link>
               )}
-              {(isScheduled || isDraft || isFailed) && (
-                <Link href={`/posts/${id}/edit`}>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Edit className="h-4 w-4" />
-                    <span className="hidden sm:inline">{isFailed ? "Edit and Retry" : "Edit"}</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" aria-label="Post actions">
+                    <MoreHorizontal className="h-4 w-4" />
                   </Button>
-                </Link>
-              )}
-              <Button variant="destructive" size="sm" className="gap-2" onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Delete</span>
-              </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {(isScheduled || isDraft) && (
+                    <DropdownMenuItem onClick={() => setShowScheduleDialog(true)} className="cursor-pointer">
+                      <CalendarClock className="h-4 w-4 mr-2" />
+                      {isScheduled ? "Reschedule" : "Schedule"}
+                    </DropdownMenuItem>
+                  )}
+                  {(isScheduled || isDraft || isFailed) && (
+                    <Link href={`/posts/${id}/edit`}>
+                      <DropdownMenuItem className="cursor-pointer">
+                        <Edit className="h-4 w-4 mr-2" />
+                        {isFailed ? "Edit and Retry" : "Edit"}
+                      </DropdownMenuItem>
+                    </Link>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-destructive focus:text-destructive cursor-pointer">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           }
         />
@@ -342,6 +377,10 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {(isScheduled || isDraft) && (
+        <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
+      )}
     </>
   );
 }

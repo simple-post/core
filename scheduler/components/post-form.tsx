@@ -436,7 +436,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         if (isRetry) {
           router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
         } else {
-          router.push(`/posts/${existingPost.id}`);
+          router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
         }
       }
     } catch (error) {
@@ -770,7 +770,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           setShowPostLinksModal(open);
           // Navigate when modal is closed
           if (!open && postingSucceeded) {
-            router.push(isRetry ? "/?tab=past" : `/posts/${existingPost.id}`);
+            router.push("/?tab=past");
           }
           // If posting failed, stay on the page to let user retry
         }}

@@ -169,42 +169,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       <div className="min-h-screen bg-background">
         <Navbar />
 
-        <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-          <div
-            className="mb-6 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-2 sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none"
-            aria-label="Post actions">
-            {canQuote && (
-              <Button asChild variant="ghost" className="h-11 w-full gap-2">
-                <Link href={`/schedule?quotePostId=${id}`}>
-                  <Quote className="h-4 w-4" />
-                  Quote
-                </Link>
-              </Button>
-            )}
-            {(isScheduled || isDraft) && (
-              <Button variant="ghost" className="h-11 w-full gap-2" onClick={() => setShowScheduleDialog(true)}>
-                <CalendarClock className="h-4 w-4" />
-                {isScheduled ? "Reschedule" : "Schedule"}
-              </Button>
-            )}
-            {(isScheduled || isDraft || isFailed) && (
-              <Button asChild variant="ghost" className="h-11 w-full gap-2">
-                <Link href={`/posts/${id}/edit`}>
-                  <Edit className="h-4 w-4" />
-                  {isFailed ? "Edit and Retry" : "Edit"}
-                </Link>
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              className="h-11 w-full gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => setShowDeleteDialog(true)}>
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </Button>
-          </div>
-
-          <div className="animate-reveal">
+        <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-8 sm:py-6">
+          <div className="animate-reveal flex flex-wrap items-center justify-between gap-x-6 gap-y-5 sm:gap-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
@@ -231,6 +197,40 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       : format(post.publishedAt || post.createdAt, "MMMM d, yyyy 'at' h:mm a")}
                 </span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2" aria-label="Post actions">
+              {(isScheduled || isDraft) && (
+                <Button size="sm" onClick={() => setShowScheduleDialog(true)}>
+                  <CalendarClock className="h-4 w-4" />
+                  {isScheduled ? "Reschedule" : "Schedule"}
+                </Button>
+              )}
+              {(isScheduled || isDraft || isFailed) && (
+                <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
+                  <Link href={`/posts/${id}/edit`}>
+                    <Edit className="h-4 w-4" />
+                    {isFailed ? "Edit and Retry" : "Edit"}
+                  </Link>
+                </Button>
+              )}
+              {canQuote && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/schedule?quotePostId=${id}`}>
+                    <Quote className="h-4 w-4" />
+                    Quote
+                  </Link>
+                </Button>
+              )}
+              <span className="mx-1 h-4 w-px bg-border" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}>
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete post</span>
+              </Button>
             </div>
           </div>
           <div className="space-y-4 mt-5 animate-reveal animate-reveal-delay-1">

@@ -96,6 +96,7 @@ function platformLabel(platform: string): string {
     pinterest: "Pinterest",
     telegram: "Telegram",
     forem: "DEV/Forem",
+    farcaster: "Farcaster",
     threads: "Threads",
     tiktok: "TikTok",
     twitter: "X",
@@ -154,6 +155,7 @@ export function getRefreshTokenExpiresAt(data: Record<string, unknown>, now: Dat
 
 function isNonExpiringPlatform(platform: string): boolean {
   return platform === "telegram" || platform === "facebook" || platform === "forem";
+  return platform === "telegram" || platform === "facebook" || platform === "farcaster";
 }
 
 function getXClientId(): string {

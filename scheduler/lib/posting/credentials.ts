@@ -115,6 +115,10 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
     instanceUrl: String(getTokenMetadata(account).instanceUrl ?? "https://dev.to"),
     apiKey: account.accessToken,
   }),
+  farcaster: (account: ConnectedAccount) => ({
+    fid: Number(account.platformAccountId),
+    signerPrivateKey: account.accessToken,
+  }),
 };
 
 /**
@@ -160,6 +164,17 @@ const postOptionOverrides: Record<
       credentials: credentials as PlatformCredentials<"pinterest">,
     },
   }),
+  farcaster: (account, credentials, accountSpecificOptions) => {
+    const metadata = getTokenMetadata(account);
+    return {
+      farcaster: {
+        ...(accountSpecificOptions as Record<string, unknown>),
+        hubUrl: String(metadata.hubUrl ?? ""),
+        ...(account.username ? { username: account.username.replace(/^@/, "") } : {}),
+        credentials: credentials as PlatformCredentials<"farcaster">,
+      },
+    };
+  },
 };
 
 /**

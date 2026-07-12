@@ -205,6 +205,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "DEV/Forem",
     platform: "forem",
   },
+  farcaster: {
+    connectDescription: "Connect a Farcaster FID with an authorized signer and Hub.",
+    displayName: "Farcaster",
+    platform: "farcaster",
+  },
 } satisfies Record<AccountPlatform, AccountPlatformConfig>;
 
 export function getAccountPlatformConfig(platform: AccountPlatform): AccountPlatformConfig {

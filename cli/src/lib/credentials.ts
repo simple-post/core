@@ -220,6 +220,15 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "farcaster": {
+      return {
+        farcaster: {
+          hubUrl: String(metadata.settings?.hubUrl ?? ""),
+          ...(metadata.username ? { username: metadata.username } : {}),
+          credentials: { fid: Number(metadata.userId), signerPrivateKey: secret.accessToken },
+        },
+      };
+    }
   }
 
   throw new Error(`Stored account resolution is not implemented for ${platform}.`);

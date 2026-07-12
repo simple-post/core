@@ -48,6 +48,7 @@ const PLATFORM_RATE_LIMITS: Record<string, PlatformRateLimit> = {
   pinterest: { maxPosts: 15, intervalMinutes: 1 },
   telegram: { maxPosts: 15, intervalMinutes: 1 },
   forem: { maxPosts: 10, intervalMinutes: 1 },
+  farcaster: { maxPosts: 20, intervalMinutes: 1 },
 };
 
 interface PlatformRateLimit {

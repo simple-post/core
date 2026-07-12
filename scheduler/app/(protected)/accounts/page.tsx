@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectFarcaster, useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -44,6 +44,7 @@ export default function AccountsPage() {
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
   const connectForemMutation = useConnectForem();
+  const connectFarcasterMutation = useConnectFarcaster();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -57,6 +58,12 @@ export default function AccountsPage() {
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
+  const [showFarcasterDialog, setShowFarcasterDialog] = useState(false);
+  const [farcasterFid, setFarcasterFid] = useState("");
+  const [farcasterKey, setFarcasterKey] = useState("");
+  const [farcasterHub, setFarcasterHub] = useState("");
+  const [farcasterUsername, setFarcasterUsername] = useState("");
+  const [farcasterError, setFarcasterError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
@@ -66,6 +73,9 @@ export default function AccountsPage() {
       if (platform === "forem") {
         setShowForemDialog(true);
         setForemError("");
+      } else if (platform === "farcaster") {
+        setShowFarcasterDialog(true);
+        setFarcasterError("");
       } else {
         setShowTelegramDialog(true);
         setTelegramError("");
@@ -97,6 +107,27 @@ export default function AccountsPage() {
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
+    }
+  };
+
+  const handleFarcasterConnect = async () => {
+    const fid = Number(farcasterFid);
+    if (!fid || !farcasterKey.trim() || !farcasterHub.trim()) {
+      setFarcasterError("FID, signer key, and Hub endpoint are required");
+      return;
+    }
+    try {
+      await connectFarcasterMutation.mutateAsync({
+        fid,
+        signerPrivateKey: farcasterKey.trim(),
+        hubUrl: farcasterHub.trim(),
+        username: farcasterUsername.trim() || undefined,
+      });
+      setShowFarcasterDialog(false);
+      setFarcasterKey("");
+    } catch (error) {
+      logClientError(error, "Farcaster connection error");
+      setFarcasterError(error instanceof Error ? error.message : "Failed to connect Farcaster");
     }
   };
 
@@ -362,6 +393,65 @@ export default function AccountsPage() {
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
               {connectForemMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFarcasterDialog} onOpenChange={setShowFarcasterDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Farcaster</DialogTitle>
+            <DialogDescription>Use an authorized signer for your FID and a protocol Hub endpoint.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {farcasterError && (
+              <Alert variant="destructive">
+                <AlertDescription>{farcasterError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="farcasterFid">FID</Label>
+              <Input
+                id="farcasterFid"
+                inputMode="numeric"
+                value={farcasterFid}
+                onChange={(e) => setFarcasterFid(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="farcasterKey">Signer private key</Label>
+              <Input
+                id="farcasterKey"
+                type="password"
+                value={farcasterKey}
+                onChange={(e) => setFarcasterKey(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="farcasterHub">Hub gRPC endpoint</Label>
+              <Input
+                id="farcasterHub"
+                placeholder="hub.example.com:2283"
+                value={farcasterHub}
+                onChange={(e) => setFarcasterHub(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="farcasterUsername">Username (optional)</Label>
+              <Input
+                id="farcasterUsername"
+                value={farcasterUsername}
+                onChange={(e) => setFarcasterUsername(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowFarcasterDialog(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleFarcasterConnect} disabled={connectFarcasterMutation.isPending} className="flex-1">
+              {connectFarcasterMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

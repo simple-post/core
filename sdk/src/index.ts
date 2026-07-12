@@ -126,6 +126,7 @@ export { YouTubePublisher } from "./publishers/youtube";
 export { LinkedInPublisher } from "./publishers/linkedin";
 export { PinterestPublisher } from "./publishers/pinterest";
 export { ForemPublisher } from "./publishers/forem";
+export { FarcasterPublisher } from "./publishers/farcaster";
 
 // Export all types for TypeScript and JavaScript users
 export type {
@@ -156,6 +157,7 @@ export type {
   LinkedInOptions,
   PinterestOptions,
   ForemOptions,
+  FarcasterOptions,
   LogLevel,
 } from "./types/post";
 
@@ -254,4 +256,5 @@ export {
   LinkedInOptionsSchema,
   PinterestOptionsSchema,
   ForemOptionsSchema,
+  FarcasterOptionsSchema,
 } from "./types/post";

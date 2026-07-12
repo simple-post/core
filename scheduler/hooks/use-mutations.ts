@@ -102,6 +102,24 @@ export function useConnectForem() {
   });
 }
 
+export function useConnectFarcaster() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { fid: number; signerPrivateKey: string; hubUrl: string; username?: string }) => {
+      const response = await fetch("/api/connect/farcaster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to connect Farcaster");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
+
 // Create/Update post mutation
 interface PostMutationParams {
   body: {

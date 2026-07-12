@@ -491,6 +491,17 @@ export const ForemConnectRequestSchema = z
   .object({ instanceUrl: z.url(), apiKey: z.string() })
   .meta({ id: "ForemConnectRequest" });
 export const ForemConnectResponseSchema = z.object({ success: z.boolean() }).meta({ id: "ForemConnectResponse" });
+export const FarcasterConnectRequestSchema = z
+  .object({
+    fid: z.number().int().positive(),
+    signerPrivateKey: z.string(),
+    hubUrl: z.string(),
+    username: z.string().optional(),
+  })
+  .meta({ id: "FarcasterConnectRequest" });
+export const FarcasterConnectResponseSchema = z
+  .object({ success: z.boolean() })
+  .meta({ id: "FarcasterConnectResponse" });
 
 export const PendingConnectionAccountSchema = z
   .object({

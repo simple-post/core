@@ -45,6 +45,8 @@ export const AccountOptionsValueSchema = z
     series: z.string().nullable().optional(),
     canonicalUrl: z.string().nullable().optional(),
     organizationId: z.number().nullable().optional(),
+    hubUrl: z.string().optional(),
+    username: z.string().optional(),
   })
   .passthrough();
 

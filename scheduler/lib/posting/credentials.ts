@@ -112,6 +112,10 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  lemmy: (account: ConnectedAccount) => ({
+    instanceUrl: String(getTokenMetadata(account).instanceUrl ?? ""),
+    jwt: account.accessToken,
+  }),
 };
 
 /**
@@ -157,6 +161,17 @@ const postOptionOverrides: Record<
       credentials: credentials as PlatformCredentials<"pinterest">,
     },
   }),
+  lemmy: (account, credentials, accountSpecificOptions) => {
+    const metadata = getTokenMetadata(account);
+    return {
+      lemmy: {
+        ...(accountSpecificOptions as Record<string, unknown>),
+        communityId: Number(metadata.communityId),
+        apiVersion: metadata.apiVersion === "v4" ? "v4" : "v3",
+        credentials: credentials as PlatformCredentials<"lemmy">,
+      },
+    };
+  },
 };
 
 /**

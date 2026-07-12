@@ -1,6 +1,7 @@
 import { BlueskyPublisher } from "../publishers/bluesky";
 import { FacebookPublisher } from "../publishers/facebook";
 import { InstagramPublisher } from "../publishers/instagram";
+import { LemmyPublisher } from "../publishers/lemmy";
 import { LinkedInPublisher } from "../publishers/linkedin";
 import { PinterestPublisher } from "../publishers/pinterest";
 import { TelegramPublisher } from "../publishers/telegram";
@@ -48,6 +49,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "threads": {
       return ThreadsPublisher.mediaRequirement;
+    }
+    case "lemmy": {
+      return LemmyPublisher.mediaRequirement;
     }
   }
 }

@@ -87,6 +87,7 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  lemmy?: { title?: string; communityId?: number; apiVersion?: "v3" | "v4"; nsfw?: boolean; languageId?: number };
 }
 
 export interface SocialPost {
@@ -181,6 +182,7 @@ export interface PlatformOptions {
     link?: string;
     altText?: string;
   };
+  lemmy?: { title?: string; communityId?: number; apiVersion?: "v3" | "v4"; nsfw?: boolean; languageId?: number };
 }
 
 export interface ConnectedAccount {

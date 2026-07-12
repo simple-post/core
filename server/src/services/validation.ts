@@ -4,6 +4,7 @@ import {
   InstagramPublisher,
   isThreadCapable,
   LinkedInPublisher,
+  LemmyPublisher,
   PinterestPublisher,
   TelegramPublisher,
   ThreadsPublisher,
@@ -39,6 +40,7 @@ const publishers: Record<
   threads: ThreadsPublisher,
   linkedin: LinkedInPublisher,
   pinterest: PinterestPublisher,
+  lemmy: LemmyPublisher,
 };
 
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {

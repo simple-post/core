@@ -1,6 +1,7 @@
 import { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";
 import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 import { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
+import { LEMMY_VALIDATION_RULES, validateLemmyContent } from "./publishers/lemmy/validation";
 import { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
 import { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
 import { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
@@ -28,6 +29,7 @@ export const PLATFORM_VALIDATORS: Record<Platform, PlatformValidator> = {
   threads: { rules: THREADS_VALIDATION_RULES, validate: validateThreadsContent },
   linkedin: { rules: LINKEDIN_VALIDATION_RULES, validate: validateLinkedInContent },
   pinterest: { rules: PINTEREST_VALIDATION_RULES, validate: validatePinterestContent },
+  lemmy: { rules: LEMMY_VALIDATION_RULES, validate: validateLemmyContent },
 };
 
 export function getValidationRulesForPlatform(platform: Platform): PlatformValidationRules {
@@ -42,6 +44,7 @@ export { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/b
 export { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 export { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 export { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
+export { LEMMY_VALIDATION_RULES, validateLemmyContent } from "./publishers/lemmy/validation";
 export { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
 export { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 export { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectLemmy, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -43,6 +43,7 @@ export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
+  const connectLemmyMutation = useConnectLemmy();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -52,17 +53,44 @@ export default function AccountsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
   const [telegramError, setTelegramError] = useState("");
+  const [showLemmyDialog, setShowLemmyDialog] = useState(false);
+  const [lemmyInstance, setLemmyInstance] = useState("");
+  const [lemmyUsername, setLemmyUsername] = useState("");
+  const [lemmyPassword, setLemmyPassword] = useState("");
+  const [lemmyCommunity, setLemmyCommunity] = useState("");
+  const [lemmyError, setLemmyError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
       setShowConnectDialog(false);
-      setShowTelegramDialog(true);
-      setTelegramError("");
+      if (platform === "lemmy") {
+        setShowLemmyDialog(true);
+        setLemmyError("");
+      } else {
+        setShowTelegramDialog(true);
+        setTelegramError("");
+      }
     } else {
       setShowConnectDialog(false);
       window.location.href = `/api/connect/${platform}`;
+    }
+  };
+  const handleLemmyConnect = async () => {
+    try {
+      await connectLemmyMutation.mutateAsync({
+        instanceUrl: lemmyInstance.trim(),
+        username: lemmyUsername.trim(),
+        password: lemmyPassword,
+        communityId: Number(lemmyCommunity),
+        apiVersion: "v3",
+      });
+      setShowLemmyDialog(false);
+      setLemmyPassword("");
+    } catch (error) {
+      logClientError(error, "Lemmy connection error");
+      setLemmyError(error instanceof Error ? error.message : "Failed to connect Lemmy");
     }
   };
 
@@ -263,6 +291,60 @@ export default function AccountsPage() {
                 </div>
               </button>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showLemmyDialog} onOpenChange={setShowLemmyDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Lemmy</DialogTitle>
+            <DialogDescription>Connect an instance account and default community.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {lemmyError && (
+              <Alert variant="destructive">
+                <AlertDescription>{lemmyError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="lemmyInstance">Instance URL</Label>
+              <Input
+                id="lemmyInstance"
+                placeholder="https://lemmy.world"
+                value={lemmyInstance}
+                onChange={(e) => setLemmyInstance(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="lemmyUsername">Username</Label>
+              <Input id="lemmyUsername" value={lemmyUsername} onChange={(e) => setLemmyUsername(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="lemmyPassword">Password</Label>
+              <Input
+                id="lemmyPassword"
+                type="password"
+                value={lemmyPassword}
+                onChange={(e) => setLemmyPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="lemmyCommunity">Community ID</Label>
+              <Input
+                id="lemmyCommunity"
+                inputMode="numeric"
+                value={lemmyCommunity}
+                onChange={(e) => setLemmyCommunity(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowLemmyDialog(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleLemmyConnect} disabled={connectLemmyMutation.isPending} className="flex-1">
+              Connect
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

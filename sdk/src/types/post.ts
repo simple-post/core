@@ -13,6 +13,7 @@ export const PlatformSchema = z.enum([
   "threads",
   "linkedin",
   "pinterest",
+  "lemmy",
 ]);
 
 const BaseImageSchema = z.object({
@@ -218,6 +219,22 @@ export const PinterestOptionsSchema = z.object({
     })
     .optional(),
 });
+export const LemmyOptionsSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  communityId: z.number().int().positive().optional(),
+  apiVersion: z.enum(["v3", "v4"]).optional(),
+  nsfw: z.boolean().optional(),
+  languageId: z.number().int().positive().optional(),
+  credentials: z
+    .object({
+      instanceUrl: z.url(),
+      jwt: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+    })
+    .refine((value) => value.jwt || (value.username && value.password), "JWT or username/password is required")
+    .optional(),
+});
 
 export const ContentSchema = z.object({
   text: z.string().optional(),
@@ -236,6 +253,7 @@ export const PostOptionsSchema = z.object({
   threads: ThreadsOptionsSchema.optional(),
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
+  lemmy: LemmyOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -295,6 +313,7 @@ export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
+export type LemmyOptions = z.infer<typeof LemmyOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -333,6 +352,7 @@ export type LinkedInOptionsWithCredentials = LinkedInOptions & {
 export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
+export type LemmyOptionsWithCredentials = LemmyOptions & { credentials: NonNullable<LemmyOptions["credentials"]> };
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -345,4 +365,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   threads?: ThreadsOptionsWithCredentials;
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
+  lemmy?: LemmyOptionsWithCredentials;
 };

@@ -48,6 +48,14 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    lemmy: {
+      instanceUrl: process.env.LEMMY_INSTANCE_URL,
+      jwt: process.env.LEMMY_JWT,
+      username: process.env.LEMMY_USERNAME,
+      password: process.env.LEMMY_PASSWORD,
+      communityId: process.env.LEMMY_COMMUNITY_ID,
+      apiVersion: process.env.LEMMY_API_VERSION,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -142,6 +150,22 @@ export const getCredentialsFromEnv = (): PostOptions => {
       },
     };
   }
+  if (
+    envVars.lemmy.instanceUrl &&
+    envVars.lemmy.communityId &&
+    (envVars.lemmy.jwt || (envVars.lemmy.username && envVars.lemmy.password))
+  )
+    options.lemmy = {
+      title: "",
+      communityId: Number(envVars.lemmy.communityId),
+      ...(envVars.lemmy.apiVersion === "v4" ? { apiVersion: "v4" as const } : {}),
+      credentials: {
+        instanceUrl: envVars.lemmy.instanceUrl,
+        ...(envVars.lemmy.jwt
+          ? { jwt: envVars.lemmy.jwt }
+          : { username: envVars.lemmy.username!, password: envVars.lemmy.password! }),
+      },
+    };
 
   return options;
 };
@@ -187,6 +211,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    lemmy: userOptions.lemmy
+      ? { ...userOptions.lemmy, credentials: userOptions.lemmy.credentials || envOptions.lemmy?.credentials }
+      : envOptions.lemmy,
   };
 
   return merged as PostOptionsWithCredentials;

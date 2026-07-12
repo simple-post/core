@@ -84,6 +84,29 @@ export function useConnectTelegram() {
     },
   });
 }
+export function useConnectLemmy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      instanceUrl: string;
+      username: string;
+      password: string;
+      communityId: number;
+      apiVersion: "v3" | "v4";
+    }) => {
+      const response = await fetch("/api/connect/lemmy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to connect Lemmy");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
 
 // Create/Update post mutation
 interface PostMutationParams {

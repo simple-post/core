@@ -1,0 +1,11 @@
+{
+  "name": "@simple-post/make",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Make Custom App definitions for SimplePost.",
+  "license": "MIT",
+  "scripts": {
+    "check": "node --test test/*.test.cjs",
+    "test": "node --test test/*.test.cjs"
+  }
+}

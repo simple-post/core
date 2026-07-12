@@ -1,0 +1,17 @@
+[
+  {
+    "name": "apiKey",
+    "type": "password",
+    "label": "API Key",
+    "required": true,
+    "help": "Create an API key in SimplePost under API Keys."
+  },
+  {
+    "name": "baseUrl",
+    "type": "text",
+    "label": "Base URL",
+    "default": "https://app.simplepost.social",
+    "required": true,
+    "help": "Use your hosted SimplePost URL or the URL of your self-hosted Scheduler app."
+  }
+]

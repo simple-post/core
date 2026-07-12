@@ -13,6 +13,7 @@ export const PlatformSchema = z.enum([
   "threads",
   "linkedin",
   "pinterest",
+  "discord",
 ]);
 
 const BaseImageSchema = z.object({
@@ -219,6 +220,16 @@ export const PinterestOptionsSchema = z.object({
     .optional(),
 });
 
+export const DiscordOptionsSchema = z.object({
+  username: z.string().max(80).optional(),
+  avatarUrl: z.url().optional(),
+  threadId: z.string().optional(),
+  suppressEmbeds: z.boolean().optional(),
+  suppressNotifications: z.boolean().optional(),
+  allowMentions: z.boolean().optional(),
+  credentials: z.object({ webhookUrl: z.url() }).optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -236,6 +247,7 @@ export const PostOptionsSchema = z.object({
   threads: ThreadsOptionsSchema.optional(),
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
+  discord: DiscordOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -295,6 +307,7 @@ export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
+export type DiscordOptions = z.infer<typeof DiscordOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -333,6 +346,9 @@ export type LinkedInOptionsWithCredentials = LinkedInOptions & {
 export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
+export type DiscordOptionsWithCredentials = DiscordOptions & {
+  credentials: NonNullable<DiscordOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -345,4 +361,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   threads?: ThreadsOptionsWithCredentials;
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
+  discord?: DiscordOptionsWithCredentials;
 };

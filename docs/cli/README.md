@@ -79,6 +79,7 @@ The loopback listener defaults to port `5000`. Use `--callback-port 6123` on `co
 - YouTube, TikTok, Threads, LinkedIn, and Pinterest always require the secret.
 - Bluesky uses your hosted atproto client metadata URL as the client ID.
 - Telegram needs no OAuth app: `account add telegram --bot-token ... --chat-id ...`.
+- Discord needs no OAuth app: `account add discord --webhook-url ...`.
 
 Local account posting uses `@simple-post/sdk` directly and can use local media paths or public media URLs.
 

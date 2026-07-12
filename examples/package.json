@@ -19,6 +19,8 @@
     "telegram:image": "tsx telegram/postImage.ts",
     "telegram:image:url": "tsx telegram/postImageUrl.ts",
     "telegram:video": "tsx telegram/postVideo.ts",
+    "discord:single": "tsx discord/postSingle.ts",
+    "discord:image": "tsx discord/postImage.ts",
     "facebook:single": "tsx facebook/postSingle.ts",
     "facebook:images": "tsx facebook/postImages.ts",
     "facebook:image:url": "tsx facebook/postImageUrl.ts",

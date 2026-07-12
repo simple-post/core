@@ -41,6 +41,12 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    username: z.string().optional(),
+    avatarUrl: z.url().optional(),
+    threadId: z.string().optional(),
+    suppressEmbeds: z.boolean().optional(),
+    suppressNotifications: z.boolean().optional(),
+    allowMentions: z.boolean().optional(),
   })
   .passthrough();
 

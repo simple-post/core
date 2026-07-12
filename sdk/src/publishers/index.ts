@@ -1,4 +1,5 @@
 import { BlueskyPublisher } from "./bluesky";
+import { DiscordPublisher } from "./discord";
 import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";
 import { LinkedInPublisher } from "./linkedin";
@@ -16,6 +17,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
   switch (platform) {
     case "x": {
       return new XPublisher(options);
+    }
+    case "discord": {
+      return new DiscordPublisher(options);
     }
     case "youtube": {
       return new YouTubePublisher(options);

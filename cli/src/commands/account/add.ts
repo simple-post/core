@@ -53,6 +53,9 @@ export default class AccountAddCommand extends Command {
     "redirect-uri": Flags.string({
       description: "Loopback redirect URI to use for the OAuth callback",
     }),
+    "webhook-url": Flags.string({
+      description: "Discord incoming webhook URL (for non-interactive Discord connect)",
+    }),
   };
 
   public async run(): Promise<void> {
@@ -89,6 +92,7 @@ export default class AccountAddCommand extends Command {
       chatId: flags["chat-id"],
       noBrowser: flags["no-browser"],
       redirectUri: flags["redirect-uri"],
+      webhookUrl: flags["webhook-url"],
     };
     const nextConfig = await provider.login(loginFlags, {
       config,

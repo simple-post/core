@@ -85,6 +85,26 @@ export function useConnectTelegram() {
   });
 }
 
+async function connectDiscord(params: { webhookUrl: string }): Promise<void> {
+  const response = await fetch("/api/connect/discord", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || "Failed to connect Discord webhook");
+  }
+}
+
+export function useConnectDiscord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: connectDiscord,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
+
 // Create/Update post mutation
 interface PostMutationParams {
   body: {

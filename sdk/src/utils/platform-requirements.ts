@@ -1,4 +1,5 @@
 import { BlueskyPublisher } from "../publishers/bluesky";
+import { DiscordPublisher } from "../publishers/discord";
 import { FacebookPublisher } from "../publishers/facebook";
 import { InstagramPublisher } from "../publishers/instagram";
 import { LinkedInPublisher } from "../publishers/linkedin";
@@ -21,6 +22,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
   switch (platform) {
     case "youtube": {
       return YouTubePublisher.mediaRequirement;
+    }
+    case "discord": {
+      return DiscordPublisher.mediaRequirement;
     }
     case "x": {
       return XPublisher.mediaRequirement;

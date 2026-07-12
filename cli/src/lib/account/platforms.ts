@@ -195,6 +195,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     },
     platform: "pinterest",
   },
+  discord: {
+    connectDescription: "Connect a Discord channel with an incoming webhook URL.",
+    displayName: "Discord",
+    platform: "discord",
+  },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",

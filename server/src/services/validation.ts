@@ -1,5 +1,6 @@
 import {
   BlueskyPublisher,
+  DiscordPublisher,
   FacebookPublisher,
   InstagramPublisher,
   isThreadCapable,
@@ -36,6 +37,7 @@ const publishers: Record<
   tiktok: TikTokPublisher,
   youtube: YouTubePublisher,
   bluesky: BlueskyPublisher,
+  discord: DiscordPublisher,
   threads: ThreadsPublisher,
   linkedin: LinkedInPublisher,
   pinterest: PinterestPublisher,

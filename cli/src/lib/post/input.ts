@@ -65,6 +65,12 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "discord-username"?: string;
+  "discord-avatar-url"?: string;
+  "discord-thread-id"?: string;
+  "discord-suppress-embeds"?: boolean;
+  "discord-suppress-notifications"?: boolean;
+  "discord-allow-mentions"?: boolean;
 };
 
 function isUrl(value: string): boolean {
@@ -181,6 +187,25 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["pinterest-alt-text"] ? { altText: flags["pinterest-alt-text"] } : {}),
     };
   }
+  if (
+    flags["discord-username"] ||
+    flags["discord-avatar-url"] ||
+    flags["discord-thread-id"] ||
+    flags["discord-suppress-embeds"] !== undefined ||
+    flags["discord-suppress-notifications"] !== undefined ||
+    flags["discord-allow-mentions"] !== undefined
+  ) {
+    options.discord = {
+      ...(flags["discord-username"] ? { username: flags["discord-username"] } : {}),
+      ...(flags["discord-avatar-url"] ? { avatarUrl: flags["discord-avatar-url"] } : {}),
+      ...(flags["discord-thread-id"] ? { threadId: flags["discord-thread-id"] } : {}),
+      ...(flags["discord-suppress-embeds"] === undefined ? {} : { suppressEmbeds: flags["discord-suppress-embeds"] }),
+      ...(flags["discord-suppress-notifications"] === undefined
+        ? {}
+        : { suppressNotifications: flags["discord-suppress-notifications"] }),
+      ...(flags["discord-allow-mentions"] === undefined ? {} : { allowMentions: flags["discord-allow-mentions"] }),
+    };
+  }
 
   return Object.keys(options).length > 0 ? options : undefined;
 }
@@ -196,6 +221,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  discord: "Discord",
 };
 
 function getPlatformLabel(platform: Platform): string {
@@ -382,6 +408,8 @@ function describePlatformSettings(options: PostOptions | undefined, platforms: P
   if (platforms.includes("pinterest") && options.pinterest?.boardId) {
     parts.push(`Pinterest board ${options.pinterest.boardId}`);
   }
+  if (platforms.includes("discord") && options.discord?.threadId)
+    parts.push(`Discord thread ${options.discord.threadId}`);
 
   return parts.length > 0 ? parts.join(", ") : "none";
 }
@@ -661,6 +689,28 @@ async function collectInteractivePlatformOptions(
       ...(description ? { description } : {}),
       ...(link ? { link } : {}),
       ...(altText ? { altText } : {}),
+    };
+  }
+  if (platforms.includes("discord") && (await prompt.confirm("Add Discord-specific settings?", false))) {
+    logInteractiveSection(prompt, "Discord");
+    const username = (
+      await prompt.text("Webhook display name (optional)", { defaultValue: currentOptions?.discord?.username })
+    ).trim();
+    const threadId = (
+      await prompt.text("Thread ID (optional)", { defaultValue: currentOptions?.discord?.threadId })
+    ).trim();
+    options.discord = {
+      ...(username ? { username } : {}),
+      ...(threadId ? { threadId } : {}),
+      ...(currentOptions?.discord?.suppressEmbeds === undefined
+        ? {}
+        : { suppressEmbeds: currentOptions.discord.suppressEmbeds }),
+      ...(currentOptions?.discord?.suppressNotifications === undefined
+        ? {}
+        : { suppressNotifications: currentOptions.discord.suppressNotifications }),
+      ...(currentOptions?.discord?.allowMentions === undefined
+        ? {}
+        : { allowMentions: currentOptions.discord.allowMentions }),
     };
   }
 

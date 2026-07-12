@@ -18,6 +18,7 @@ const PLATFORM_MAP: Record<string, Platform> = {
   threads: "threads",
   linkedin: "linkedin",
   pinterest: "pinterest",
+  discord: "discord",
 };
 
 /** Maps stored platform names (including aliases like "twitter") to SDK platform ids. */
@@ -50,6 +51,8 @@ export function isQuoteCapablePlatform(platform: string): platform is QuoteCapab
 export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;
+  channelId?: string;
+  guildId?: string;
 }
 
 /**
@@ -131,6 +134,13 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     }
     case "pinterest": {
       return `https://www.pinterest.com/pin/${postId}/`;
+    }
+    case "discord": {
+      // Guild message links need the guild id; /channels/@me/... would be a
+      // DM link that doesn't resolve for guild channels.
+      return ctx.guildId && ctx.channelId
+        ? `https://discord.com/channels/${ctx.guildId}/${ctx.channelId}/${postId}`
+        : undefined;
     }
     default: {
       return undefined;

@@ -112,7 +112,17 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  discord: (account: ConnectedAccount) => ({ webhookUrl: account.accessToken }),
 };
+
+/** Channel/guild link context captured at connect time (e.g. Discord), if any. */
+export function getAccountLinkContext(account: ConnectedAccount): { channelId?: string; guildId?: string } {
+  const metadata = getTokenMetadata(account);
+  return {
+    channelId: typeof metadata.channelId === "string" && metadata.channelId ? metadata.channelId : undefined,
+    guildId: typeof metadata.guildId === "string" && metadata.guildId ? metadata.guildId : undefined,
+  };
+}
 
 /**
  * Builds credentials for a connected account

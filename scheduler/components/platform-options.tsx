@@ -469,6 +469,52 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
           </div>
         </Card>
       )}
+
+      {selectedPlatforms.includes("discord") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-indigo-500" />
+            <h4 className="text-sm font-medium">Discord Options</h4>
+          </div>
+          <div>
+            <Label htmlFor="discord-username">Webhook display name (optional)</Label>
+            <Input
+              id="discord-username"
+              value={options.discord?.username || ""}
+              onChange={(event) => updateOption("discord", "username", event.target.value || undefined)}
+              className="mt-1"
+              maxLength={80}
+            />
+          </div>
+          <div>
+            <Label htmlFor="discord-threadId">Forum/thread ID (optional)</Label>
+            <Input
+              id="discord-threadId"
+              value={options.discord?.threadId || ""}
+              onChange={(event) => updateOption("discord", "threadId", event.target.value || undefined)}
+              className="mt-1"
+            />
+          </div>
+          <div className="flex flex-wrap gap-5">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="discord-suppressEmbeds"
+                checked={options.discord?.suppressEmbeds || false}
+                onCheckedChange={(checked) => updateOption("discord", "suppressEmbeds", checked === true)}
+              />
+              <Label htmlFor="discord-suppressEmbeds">Suppress embeds</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="discord-suppressNotifications"
+                checked={options.discord?.suppressNotifications || false}
+                onCheckedChange={(checked) => updateOption("discord", "suppressNotifications", checked === true)}
+              />
+              <Label htmlFor="discord-suppressNotifications">Silent</Label>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

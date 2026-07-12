@@ -48,6 +48,9 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    discord: {
+      webhookUrl: process.env.DISCORD_WEBHOOK_URL,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -142,6 +145,9 @@ export const getCredentialsFromEnv = (): PostOptions => {
       },
     };
   }
+  if (envVars.discord.webhookUrl) {
+    options.discord = { credentials: { webhookUrl: envVars.discord.webhookUrl } };
+  }
 
   return options;
 };
@@ -187,6 +193,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    discord: userOptions.discord
+      ? { ...userOptions.discord, credentials: userOptions.discord.credentials || envOptions.discord?.credentials }
+      : envOptions.discord,
   };
 
   return merged as PostOptionsWithCredentials;

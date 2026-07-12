@@ -1,5 +1,15 @@
 const normalizeBaseUrl = (baseUrl) => (baseUrl || 'https://app.simplepost.social').replace(/\/+$/, '');
 
+// The Scheduler API only accepts UTC `Z` timestamps, while Zapier datetime
+// fields commonly deliver offset ISO strings.
+const normalizeScheduledFor = (value) => {
+  const parsed = new Date(value || '');
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Scheduled For must be a valid date and time.');
+  }
+  return parsed.toISOString();
+};
+
 const request = async (z, bundle, options) => {
   const response = await z.request({
     ...options,
@@ -38,7 +48,7 @@ const createPostPayload = (inputData) => {
     postingMode: inputData.postingMode,
   };
 
-  if (inputData.postingMode === 'schedule') payload.scheduledFor = inputData.scheduledFor;
+  if (inputData.postingMode === 'schedule') payload.scheduledFor = normalizeScheduledFor(inputData.scheduledFor);
 
   const media = parseJson(inputData.mediaJson, 'Media', 'array');
   const thread = parseJson(inputData.threadJson, 'Thread', 'array');
@@ -52,7 +62,7 @@ const createPostPayload = (inputData) => {
   if (inputData.quotePostId) payload.quotePostId = inputData.quotePostId;
   if (inputData.idempotencyKey) payload.idempotencyKey = inputData.idempotencyKey;
 
-  if (inputData.repostEnabled) {
+  if (String(inputData.repostEnabled) === 'true') {
     payload.repost = {
       enabled: true,
       delayHours: Number(inputData.repostDelayHours || 12),
@@ -72,4 +82,4 @@ const listAccounts = async (z, bundle) => {
   }));
 };
 
-module.exports = { createPostPayload, listAccounts, normalizeBaseUrl, parseJson, request };
+module.exports = { createPostPayload, listAccounts, normalizeBaseUrl, normalizeScheduledFor, parseJson, request };

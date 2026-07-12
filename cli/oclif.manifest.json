@@ -395,6 +395,12 @@
           "name": "mastodon-visibility",
           "hasDynamicHelp": false,
           "multiple": false,
+          "options": [
+            "public",
+            "unlisted",
+            "private",
+            "direct"
+          ],
           "type": "option"
         },
         "mastodon-spoiler-text": {

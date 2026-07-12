@@ -17,6 +17,12 @@ const getTokenMetadata = (account: ConnectedAccount): Record<string, unknown> =>
   return account.tokenMetadata as Record<string, unknown>;
 };
 
+/** Instance URL captured at connect time (e.g. Mastodon), if any. */
+export function getAccountInstanceUrl(account: ConnectedAccount): string | undefined {
+  const instanceUrl = getTokenMetadata(account).instanceUrl;
+  return typeof instanceUrl === "string" && instanceUrl ? instanceUrl : undefined;
+}
+
 /**
  * Platform-specific credential builders
  */

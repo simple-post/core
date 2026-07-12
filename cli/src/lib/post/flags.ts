@@ -142,7 +142,11 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
-  "mastodon-visibility": Flags.string({ description: "Mastodon visibility", helpGroup: "Mastodon" }),
+  "mastodon-visibility": Flags.string({
+    description: "Mastodon visibility",
+    helpGroup: "Mastodon",
+    options: ["public", "unlisted", "private", "direct"],
+  }),
   "mastodon-spoiler-text": Flags.string({ description: "Mastodon content warning", helpGroup: "Mastodon" }),
   "mastodon-sensitive": Flags.boolean({
     allowNo: true,

@@ -48,6 +48,7 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "forem": {
       return new ForemPublisher(options);
+    }
     case "google_business_profile": {
       return new GoogleBusinessProfilePublisher(options);
     }

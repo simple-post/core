@@ -216,6 +216,10 @@ function buildStoredAccountPostOptions(
           credentials: {
             instanceUrl: String(metadata.settings?.instanceUrl ?? "https://dev.to"),
             apiKey: secret.accessToken,
+          },
+        },
+      };
+    }
     case "google_business_profile": {
       return {
         google_business_profile: {

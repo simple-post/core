@@ -234,7 +234,9 @@ export const ForemOptionsSchema = z.object({
 });
 
 export const GoogleBusinessProfileOptionsSchema = z.object({
-  locationName: z.string().min(1),
+  // Required to publish; optional here so partial options (e.g. CLI flags) can
+  // be merged with a stored account that supplies the location.
+  locationName: z.string().min(1).optional(),
   languageCode: z.string().optional(),
   callToAction: z
     .object({ actionType: z.enum(["BOOK", "ORDER", "SHOP", "LEARN_MORE", "SIGN_UP", "CALL"]), url: z.url().optional() })

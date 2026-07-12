@@ -466,12 +466,18 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
         </Card>
       )}
 
-      {/* Pinterest Options */}
+      {/* Google Business Profile Options */}
       {selectedPlatforms.includes("google_business_profile") && (
         <Card className="p-4 space-y-4 border-border">
-          <h4 className="text-sm font-medium">Google Business Profile Options</h4>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Google Business Profile Options</h4>
+          </div>
+
           <div>
-            <Label htmlFor="gbp-language">Language code (optional)</Label>
+            <Label htmlFor="gbp-language" className="text-sm text-muted-foreground">
+              Language code (optional)
+            </Label>
             <Input
               id="gbp-language"
               value={options.google_business_profile?.languageCode || ""}
@@ -479,9 +485,67 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
                 updateOption("google_business_profile", "languageCode", event.target.value || undefined)
               }
               placeholder="en-US"
-              className="mt-1"
+              className="mt-1 border-border"
             />
+            <p className="text-xs text-muted-foreground mt-1">BCP-47 language code of the post</p>
           </div>
+
+          <div>
+            <Label htmlFor="gbp-cta-action" className="text-sm text-muted-foreground">
+              Call to action (optional)
+            </Label>
+            <Select
+              value={options.google_business_profile?.callToAction?.actionType || "none"}
+              onValueChange={(value) => {
+                if (value === "none") {
+                  updateOption("google_business_profile", "callToAction", undefined);
+                } else if (value === "CALL") {
+                  // CALL uses the location's phone number instead of a URL
+                  updateOption("google_business_profile", "callToAction", { actionType: value });
+                } else {
+                  updateOption("google_business_profile", "callToAction", {
+                    ...options.google_business_profile?.callToAction,
+                    actionType: value,
+                  });
+                }
+              }}>
+              <SelectTrigger id="gbp-cta-action" className="mt-1 border-border">
+                <SelectValue placeholder="Select action" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="BOOK">Book</SelectItem>
+                <SelectItem value="ORDER">Order</SelectItem>
+                <SelectItem value="SHOP">Shop</SelectItem>
+                <SelectItem value="LEARN_MORE">Learn more</SelectItem>
+                <SelectItem value="SIGN_UP">Sign up</SelectItem>
+                <SelectItem value="CALL">Call</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">Adds an action button to the post</p>
+          </div>
+
+          {options.google_business_profile?.callToAction &&
+            options.google_business_profile.callToAction.actionType !== "CALL" && (
+              <div>
+                <Label htmlFor="gbp-cta-url" className="text-sm text-muted-foreground">
+                  Call to action URL
+                </Label>
+                <Input
+                  id="gbp-cta-url"
+                  value={options.google_business_profile?.callToAction?.url || ""}
+                  onChange={(event) =>
+                    updateOption("google_business_profile", "callToAction", {
+                      ...options.google_business_profile?.callToAction,
+                      url: event.target.value || undefined,
+                    })
+                  }
+                  placeholder="https://example.com"
+                  className="mt-1 border-border"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Where the action button should link to</p>
+              </div>
+            )}
         </Card>
       )}
 

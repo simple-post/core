@@ -159,8 +159,9 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["forem-published"] === undefined ? {} : { published: flags["forem-published"] }),
       ...(flags["forem-canonical-url"] ? { canonicalUrl: flags["forem-canonical-url"] } : {}),
     };
-  if (flags["google-business-language-code"])
-    options.google_business_profile = { locationName: "", languageCode: flags["google-business-language-code"] };
+  if (flags["google-business-language-code"]) {
+    options.google_business_profile = { languageCode: flags["google-business-language-code"] };
+  }
 
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };

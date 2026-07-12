@@ -36,13 +36,14 @@ export class GoogleBusinessProfilePublisher extends Publisher {
         validation,
       );
     const settings = options?.google_business_profile;
-    if (!settings?.locationName)
+    const locationName = settings?.locationName;
+    if (!settings || !locationName)
       throw new PostError(PostErrorType.INVALID_CONTENT, "Google Business Profile locationName is required");
     const credentials = settings.credentials!;
     let accessToken = credentials.accessToken;
     const publish = () =>
       axios.post<LocalPostResponse>(
-        `https://mybusiness.googleapis.com/v4/${settings.locationName.replace(/^\//, "")}/localPosts`,
+        `https://mybusiness.googleapis.com/v4/${locationName.replace(/^\//, "")}/localPosts`,
         {
           languageCode: settings.languageCode,
           summary: content.text || undefined,

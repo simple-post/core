@@ -85,6 +85,8 @@ export const ALL_SOCIAL_PLATFORMS: SocialPlatform[] = [
     description: "Publish articles to DEV or a Forem",
     color: "bg-black",
     connectionType: "manual",
+  },
+  {
     id: "google_business_profile",
     name: "Google Business Profile",
     description: "Publish updates to business locations",

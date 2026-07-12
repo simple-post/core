@@ -95,6 +95,7 @@ export interface AccountPlatformOptions {
     canonicalUrl?: string | null;
     description?: string;
     organizationId?: number | null;
+  };
   google_business_profile?: {
     locationName?: string;
     languageCode?: string;
@@ -202,6 +203,7 @@ export interface PlatformOptions {
     canonicalUrl?: string | null;
     description?: string;
     organizationId?: number | null;
+  };
   google_business_profile?: {
     locationName?: string;
     languageCode?: string;

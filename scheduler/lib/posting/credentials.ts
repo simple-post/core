@@ -115,6 +115,7 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   forem: (account: ConnectedAccount) => ({
     instanceUrl: String(getTokenMetadata(account).instanceUrl ?? "https://dev.to"),
     apiKey: account.accessToken,
+  }),
   google_business_profile: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
     refreshToken: account.refreshToken || undefined,

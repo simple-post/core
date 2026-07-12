@@ -16,6 +16,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "google_business_profile",
             "telegram",
             "forem"
           ],
@@ -419,6 +420,14 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "google-business-language-code": {
+          "description": "Google Business Profile language code",
+          "helpGroup": "Google Business Profile",
+          "name": "google-business-language-code",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -601,6 +610,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "google_business_profile",
             "telegram",
             "forem"
           ],

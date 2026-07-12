@@ -36,6 +36,8 @@ const asString = (value: unknown): string => (typeof value === "string" ? value 
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
 const asBoolean = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
+const asCallToAction = (value: unknown): { actionType?: string; url?: string } | undefined =>
+  value && typeof value === "object" ? (value as { actionType?: string; url?: string }) : undefined;
 
 const MAX_YOUTUBE_THUMBNAIL_SIZE = 2 * 1024 * 1024;
 const YOUTUBE_TITLE_MAX_LENGTH = 100;
@@ -1149,19 +1151,77 @@ export function AccountOptionsComponent({
               </div>
             )}
 
-            {/* Telegram Options */}
+            {/* Google Business Profile Options */}
             {account.platform === "google_business_profile" && (
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor={`${account.id}-gbp-language`}>Language code (optional)</Label>
+                  <Label htmlFor={`${account.id}-gbp-language`} className="text-sm text-muted-foreground">
+                    Language code (optional)
+                  </Label>
                   <Input
                     id={`${account.id}-gbp-language`}
                     value={asString(accountOptions.languageCode)}
                     onChange={(event) => updateOption(account.id, "languageCode", event.target.value || undefined)}
                     placeholder="en-US"
-                    className="mt-1"
+                    className="mt-1 border-border"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">BCP-47 language code of the post</p>
                 </div>
+                <div>
+                  <Label htmlFor={`${account.id}-gbp-cta-action`} className="text-sm text-muted-foreground">
+                    Call to action (optional)
+                  </Label>
+                  <Select
+                    value={asCallToAction(accountOptions.callToAction)?.actionType || "none"}
+                    onValueChange={(value) => {
+                      if (value === "none") {
+                        updateOption(account.id, "callToAction", undefined);
+                      } else if (value === "CALL") {
+                        // CALL uses the location's phone number instead of a URL
+                        updateOption(account.id, "callToAction", { actionType: value });
+                      } else {
+                        updateOption(account.id, "callToAction", {
+                          ...asCallToAction(accountOptions.callToAction),
+                          actionType: value,
+                        });
+                      }
+                    }}>
+                    <SelectTrigger id={`${account.id}-gbp-cta-action`} className="mt-1 border-border">
+                      <SelectValue placeholder="Select action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="BOOK">Book</SelectItem>
+                      <SelectItem value="ORDER">Order</SelectItem>
+                      <SelectItem value="SHOP">Shop</SelectItem>
+                      <SelectItem value="LEARN_MORE">Learn more</SelectItem>
+                      <SelectItem value="SIGN_UP">Sign up</SelectItem>
+                      <SelectItem value="CALL">Call</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Adds an action button to the post</p>
+                </div>
+                {asCallToAction(accountOptions.callToAction) &&
+                  asCallToAction(accountOptions.callToAction)?.actionType !== "CALL" && (
+                    <div>
+                      <Label htmlFor={`${account.id}-gbp-cta-url`} className="text-sm text-muted-foreground">
+                        Call to action URL
+                      </Label>
+                      <Input
+                        id={`${account.id}-gbp-cta-url`}
+                        value={asCallToAction(accountOptions.callToAction)?.url || ""}
+                        onChange={(event) =>
+                          updateOption(account.id, "callToAction", {
+                            ...asCallToAction(accountOptions.callToAction),
+                            url: event.target.value || undefined,
+                          })
+                        }
+                        placeholder="https://example.com"
+                        className="mt-1 border-border"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Where the action button should link to</p>
+                    </div>
+                  )}
               </div>
             )}
 

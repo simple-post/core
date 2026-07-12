@@ -53,6 +53,7 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "forem": {
       return ForemPublisher.mediaRequirement;
+    }
     case "google_business_profile": {
       return GoogleBusinessProfilePublisher.mediaRequirement;
     }

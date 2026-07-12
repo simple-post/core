@@ -1239,6 +1239,19 @@ export function AccountOptionsComponent({
                 </div>
               </div>
             )}
+            {account.platform === "nostr" && (
+              <div>
+                <Label htmlFor={`${account.id}-nostr-subject`} className="text-sm text-muted-foreground">
+                  Subject (optional)
+                </Label>
+                <Input
+                  id={`${account.id}-nostr-subject`}
+                  value={asString(accountOptions.subject)}
+                  onChange={(event) => updateOption(account.id, "subject", event.target.value || undefined)}
+                  className="mt-1 border-border"
+                />
+              </div>
+            )}
           </Card>
         );
       })}

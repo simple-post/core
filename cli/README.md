@@ -1,6 +1,7 @@
 # SimplePost CLI
 
 Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and DEV/Forem from your terminal.
+Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and Nostr from your terminal.
 
 ```bash
 npm install -g @simple-post/cli
@@ -68,6 +69,7 @@ Platform notes:
 - **Bluesky** — the client ID is the URL of your hosted [atproto client metadata](https://atproto.com/specs/oauth).
 - **Telegram** — no OAuth app at all; connect with a bot token: `simplepost account add telegram --bot-token "$TOKEN" --chat-id @channel`.
 - **DEV/Forem** — no OAuth app; connect with an API key from your Forem account settings.
+- **Nostr** — no OAuth app; connect with an `nsec` or hex private key and comma-separated relays: `simplepost account add nostr --private-key "$NOSTR_PRIVATE_KEY" --relays "$NOSTR_RELAYS"`.
 
 ## Commands
 

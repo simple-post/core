@@ -102,6 +102,24 @@ export function useConnectForem() {
   });
 }
 
+export function useConnectNostr() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { privateKey: string; relays: string[] }) => {
+      const response = await fetch("/api/connect/nostr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to connect Nostr account");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
+
 // Create/Update post mutation
 interface PostMutationParams {
   body: {

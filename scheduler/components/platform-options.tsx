@@ -467,6 +467,24 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
       )}
 
       {/* Pinterest Options */}
+      {selectedPlatforms.includes("nostr") && (
+        <Card className="p-4 space-y-4 border-border">
+          <h4 className="text-sm font-medium">Nostr Options</h4>
+          <div>
+            <Label htmlFor="nostr-subject" className="text-sm text-muted-foreground">
+              Subject (optional)
+            </Label>
+            <Input
+              id="nostr-subject"
+              value={options.nostr?.subject || ""}
+              onChange={(event) => updateOption("nostr", "subject", event.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* Pinterest Options */}
       {selectedPlatforms.includes("pinterest") && (
         <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">

@@ -115,6 +115,7 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
     instanceUrl: String(getTokenMetadata(account).instanceUrl ?? "https://dev.to"),
     apiKey: account.accessToken,
   }),
+  nostr: (account: ConnectedAccount) => ({ privateKey: account.accessToken }),
 };
 
 /**
@@ -160,6 +161,16 @@ const postOptionOverrides: Record<
       credentials: credentials as PlatformCredentials<"pinterest">,
     },
   }),
+  nostr: (account, credentials, accountSpecificOptions) => {
+    const metadata = getTokenMetadata(account);
+    return {
+      nostr: {
+        ...(accountSpecificOptions as Record<string, unknown>),
+        relays: Array.isArray(metadata.relays) ? metadata.relays : [],
+        credentials: credentials as PlatformCredentials<"nostr">,
+      },
+    };
+  },
 };
 
 /**

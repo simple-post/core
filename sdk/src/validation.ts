@@ -3,6 +3,7 @@ import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers
 import { FOREM_VALIDATION_RULES, validateForemContent } from "./publishers/forem/validation";
 import { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 import { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
+import { NOSTR_VALIDATION_RULES, validateNostrContent } from "./publishers/nostr/validation";
 import { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
 import { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";
@@ -30,6 +31,7 @@ export const PLATFORM_VALIDATORS: Record<Platform, PlatformValidator> = {
   linkedin: { rules: LINKEDIN_VALIDATION_RULES, validate: validateLinkedInContent },
   pinterest: { rules: PINTEREST_VALIDATION_RULES, validate: validatePinterestContent },
   forem: { rules: FOREM_VALIDATION_RULES, validate: validateForemContent },
+  nostr: { rules: NOSTR_VALIDATION_RULES, validate: validateNostrContent },
 };
 
 export function getValidationRulesForPlatform(platform: Platform): PlatformValidationRules {
@@ -45,6 +47,7 @@ export { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers
 export { FOREM_VALIDATION_RULES, validateForemContent } from "./publishers/forem/validation";
 export { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 export { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
+export { NOSTR_VALIDATION_RULES, validateNostrContent } from "./publishers/nostr/validation";
 export { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
 export { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 export { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";

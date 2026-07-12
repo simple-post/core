@@ -492,6 +492,13 @@ export const ForemConnectRequestSchema = z
   .meta({ id: "ForemConnectRequest" });
 export const ForemConnectResponseSchema = z.object({ success: z.boolean() }).meta({ id: "ForemConnectResponse" });
 
+export const NostrConnectRequestSchema = z
+  .object({ privateKey: z.string(), relays: z.array(z.url()).min(1) })
+  .meta({ id: "NostrConnectRequest" });
+export const NostrConnectResponseSchema = z
+  .object({ success: z.boolean(), account: z.object({ platform: z.literal("nostr"), publicKey: z.string() }) })
+  .meta({ id: "NostrConnectResponse" });
+
 export const PendingConnectionAccountSchema = z
   .object({
     id: z.string(),

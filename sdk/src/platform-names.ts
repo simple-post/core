@@ -19,6 +19,7 @@ const PLATFORM_MAP: Record<string, Platform> = {
   linkedin: "linkedin",
   pinterest: "pinterest",
   forem: "forem",
+  nostr: "nostr",
 };
 
 /** Maps stored platform names (including aliases like "twitter") to SDK platform ids. */
@@ -132,6 +133,9 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     }
     case "pinterest": {
       return `https://www.pinterest.com/pin/${postId}/`;
+    }
+    case "nostr": {
+      return `https://njump.me/${postId}`;
     }
     default: {
       return undefined;

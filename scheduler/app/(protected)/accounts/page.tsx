@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectForem, useConnectNostr, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -44,6 +44,7 @@ export default function AccountsPage() {
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
   const connectForemMutation = useConnectForem();
+  const connectNostrMutation = useConnectNostr();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -57,6 +58,10 @@ export default function AccountsPage() {
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
+  const [showNostrDialog, setShowNostrDialog] = useState(false);
+  const [nostrPrivateKey, setNostrPrivateKey] = useState("");
+  const [nostrRelays, setNostrRelays] = useState("wss://relay.damus.io,wss://nos.lol");
+  const [nostrError, setNostrError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
@@ -66,6 +71,9 @@ export default function AccountsPage() {
       if (platform === "forem") {
         setShowForemDialog(true);
         setForemError("");
+      } else if (platform === "nostr") {
+        setShowNostrDialog(true);
+        setNostrError("");
       } else {
         setShowTelegramDialog(true);
         setTelegramError("");
@@ -97,6 +105,26 @@ export default function AccountsPage() {
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
+    }
+  };
+
+  const handleNostrConnect = async () => {
+    const relays = nostrRelays
+      .split(",")
+      .map((relay) => relay.trim())
+      .filter(Boolean);
+    if (!nostrPrivateKey.trim() || relays.length === 0) {
+      setNostrError("Please provide a private key and at least one relay");
+      return;
+    }
+    setNostrError("");
+    try {
+      await connectNostrMutation.mutateAsync({ privateKey: nostrPrivateKey.trim(), relays });
+      setShowNostrDialog(false);
+      setNostrPrivateKey("");
+    } catch (error) {
+      logClientError(error, "Nostr connection error");
+      setNostrError(error instanceof Error ? error.message : "Failed to connect Nostr account");
     }
   };
 
@@ -362,6 +390,57 @@ export default function AccountsPage() {
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
               {connectForemMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showNostrDialog} onOpenChange={setShowNostrDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Nostr</DialogTitle>
+            <DialogDescription>Store a signing key and the relays SimplePost should publish to.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {nostrError && (
+              <Alert variant="destructive">
+                <AlertDescription>{nostrError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="nostrPrivateKey">Private key</Label>
+              <Input
+                id="nostrPrivateKey"
+                type="password"
+                value={nostrPrivateKey}
+                onChange={(event) => setNostrPrivateKey(event.target.value)}
+                placeholder="nsec1… or 64-character hex"
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                This key can sign as your identity. Treat it as a secret.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="nostrRelays">Relay URLs</Label>
+              <Input
+                id="nostrRelays"
+                value={nostrRelays}
+                onChange={(event) => setNostrRelays(event.target.value)}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">Comma-separated secure WebSocket URLs.</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowNostrDialog(false)}
+              disabled={connectNostrMutation.isPending}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleNostrConnect} disabled={connectNostrMutation.isPending} className="flex-1">
+              {connectNostrMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

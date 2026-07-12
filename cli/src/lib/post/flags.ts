@@ -146,4 +146,8 @@ export const postFlags = {
   "forem-tags": Flags.string({ description: "Comma-separated Forem tags (max 4)", helpGroup: "DEV/Forem" }),
   "forem-published": Flags.boolean({ allowNo: true, description: "Publish or save as draft", helpGroup: "DEV/Forem" }),
   "forem-canonical-url": Flags.string({ description: "Canonical article URL", helpGroup: "DEV/Forem" }),
+  "nostr-subject": Flags.string({
+    description: "Optional Nostr subject tag",
+    helpGroup: "Nostr",
+  }),
 } as const;

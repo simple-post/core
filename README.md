@@ -63,6 +63,7 @@ The main use cases are:
 | LinkedIn  | Yes           | [LinkedIn](docs/platforms/LinkedIn.md)   |
 | Bluesky   | Yes           | [Bluesky](docs/platforms/Bluesky.md)     |
 | DEV/Forem | Yes           | [DEV/Forem](docs/platforms/Forem.md)     |
+| Nostr     | Yes           | [Nostr](docs/platforms/Nostr.md)         |
 
 ## Repository Layout
 

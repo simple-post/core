@@ -96,6 +96,7 @@ export interface AccountPlatformOptions {
     description?: string;
     organizationId?: number | null;
   };
+  nostr?: { relays?: string[]; subject?: string };
 }
 
 export interface SocialPost {
@@ -199,6 +200,7 @@ export interface PlatformOptions {
     description?: string;
     organizationId?: number | null;
   };
+  nostr?: { relays?: string[]; subject?: string };
 }
 
 export interface ConnectedAccount {

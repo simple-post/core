@@ -9,6 +9,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 ### Added
 
 - DEV/Forem article publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, including drafts, tags, series, canonical URLs, organizations, and self-hosted instances.
+- Nostr kind-1 note publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, with nsec/hex signing keys, multi-relay delivery, public media URLs, and subject tags.
 
 ## [1.1.0] - 2026-07-10
 

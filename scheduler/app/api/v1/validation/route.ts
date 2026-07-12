@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides || {},
       thread: validated.thread,
+      accountOptions: validated.accountOptions,
     });
 
     return NextResponse.json(validation);

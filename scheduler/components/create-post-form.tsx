@@ -232,8 +232,9 @@ export function CreatePostForm() {
       accounts: selectedAccounts,
       accountOverrides: enabledOverrides,
       thread: thread.length > 0 ? thread : undefined,
+      accountOptions,
     });
-  }, [enabledOverrides, media, message, selectedAccountIds, selectedAccounts, thread]);
+  }, [accountOptions, enabledOverrides, media, message, selectedAccountIds, selectedAccounts, thread]);
 
   useEffect(() => {
     setServerValidation(null);
@@ -261,6 +262,7 @@ export function CreatePostForm() {
             accountIds: selectedAccountIds,
             accountOverrides: enabledOverrides,
             thread: thread.length > 0 ? thread : undefined,
+            accountOptions,
           }),
           signal,
         });
@@ -285,7 +287,7 @@ export function CreatePostForm() {
         setValidationLoading(false);
       }
     },
-    [enabledOverrides, media, message, selectedAccountIds, thread],
+    [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread],
   );
 
   const maxTextLength = useMemo(() => {

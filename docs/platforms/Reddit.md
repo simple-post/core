@@ -8,10 +8,10 @@ SimplePost publishes text, link, and single-image posts to Reddit through Reddit
 
 - Text/self posts
 - Link posts through `options.reddit.url`
-- One image, supplied by URL or uploaded through SimplePost's configured media storage
+- One image, supplied as a persistent public URL. Reddit links to the URL directly (as a link post) and does not rehost it, so the URL must stay online.
 - Titles up to 300 characters
 - Optional flair, NSFW, spoiler, and reply-notification settings
-- Video and gallery posts are not currently supported
+- Reddit-native image uploads (i.redd.it), video, and gallery posts are not currently supported because Reddit uses a separate media upload and processing flow
 
 ## SDK
 

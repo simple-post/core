@@ -3,8 +3,6 @@ import axios from "axios";
 import { REDDIT_MAX_TITLE_LENGTH, REDDIT_VALIDATION_RULES, validateRedditContent } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
-import { resolveMediaUrl } from "../../utils";
-import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
@@ -30,8 +28,6 @@ export class RedditPublisher extends Publisher {
 
   private client: AxiosInstance;
   private credentials: NonNullable<NonNullable<PostOptionsWithCredentials["reddit"]>["credentials"]>;
-  private s3MediaUploader: S3MediaUploader | null = null;
-  private s3TempFileKeys: string[] = [];
   private refreshedCredentials: { accessToken: string; expiresAt: number } | null = null;
 
   constructor(options?: PostOptionsWithCredentials) {
@@ -106,18 +102,6 @@ export class RedditPublisher extends Publisher {
     }
   }
 
-  private getS3Uploader(): S3MediaUploader {
-    this.s3MediaUploader ??= new S3MediaUploader();
-    return this.s3MediaUploader;
-  }
-
-  private async cleanupS3Files(): Promise<void> {
-    if (this.s3MediaUploader && this.s3TempFileKeys.length > 0) {
-      await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader!.deleteFile(key)));
-      this.s3TempFileKeys = [];
-    }
-  }
-
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const validation = RedditPublisher.validate(content);
     if (!validation.isValid) {
@@ -140,18 +124,21 @@ export class RedditPublisher extends Publisher {
     }
 
     try {
+      // Reddit's native image kind only accepts reddit-hosted media from its
+      // upload-lease flow, and Reddit never rehosts external URLs. Images are
+      // therefore published as link posts pointing at a persistent public URL.
       const media = content.media?.[0];
-      let kind: "self" | "link" | "image" = reddit.url ? "link" : "self";
       let submissionUrl = reddit.url;
-
-      if (media?.type === "image") {
-        const resolved = await resolveMediaUrl(media, (filePath, key) =>
-          this.getS3Uploader().uploadFile(filePath, key),
-        );
-        submissionUrl = resolved.url;
-        if (resolved.uploadedKey) this.s3TempFileKeys.push(resolved.uploadedKey);
-        kind = "image";
+      if (!submissionUrl && media?.type === "image") {
+        if (!media.url) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            "Reddit images must be provided as a persistent public URL; Reddit links to the URL directly and does not rehost it.",
+          );
+        }
+        submissionUrl = media.url;
       }
+      const kind: "self" | "link" = submissionUrl ? "link" : "self";
 
       const body = new URLSearchParams({
         api_type: "json",
@@ -198,8 +185,6 @@ export class RedditPublisher extends Publisher {
         `Failed to post to Reddit: ${err.response?.data?.message || err.message || "Unknown error"}`,
         err.response?.data,
       );
-    } finally {
-      await this.cleanupS3Files();
     }
   }
 }

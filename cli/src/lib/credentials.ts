@@ -211,7 +211,7 @@ function buildStoredAccountPostOptions(
       return {
         reddit: {
           subreddit: (metadata.settings?.subreddit as string) ?? "",
-          title: "Reddit post",
+          title: "",
           credentials: {
             accessToken: secret.accessToken,
             refreshToken: secret.refreshToken,

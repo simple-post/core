@@ -1,5 +1,3 @@
-import { hasMediaSource } from "../validation-utils";
-
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
@@ -37,12 +35,13 @@ export function validateRedditContent(content: Content): ValidationResult {
     });
   }
 
-  if (media.some((item) => !hasMediaSource(item))) {
+  if (media.some((item) => item.type === "image" && !item.url)) {
     errors.push({
       platform: "reddit",
       severity: "error",
-      code: "media_source_missing",
-      message: "Reddit image media must have either a path or URL.",
+      code: "media_url_required",
+      message:
+        "Reddit images must be provided as a persistent public URL; Reddit links to the URL directly and does not rehost it.",
       field: "media",
     });
   }
@@ -52,7 +51,7 @@ export function validateRedditContent(content: Content): ValidationResult {
       platform: "reddit",
       severity: "warning",
       code: "image_body_omitted",
-      message: "Reddit image submissions use the image and title; body text is not included by the Data API.",
+      message: "Reddit image submissions are published as link posts; body text is not included.",
       field: "text",
     });
   }

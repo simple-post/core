@@ -502,6 +502,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
               className="mt-1 border-border"
               required
             />
+            <p className="text-xs text-muted-foreground mt-1">{(options.reddit?.title || "").length}/300</p>
           </div>
           <div>
             <Label htmlFor="reddit-url" className="text-sm text-muted-foreground">
@@ -556,6 +557,14 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
                 onCheckedChange={(checked) => updateOption("reddit", "spoiler", checked === true)}
               />
               <Label htmlFor="reddit-spoiler">Spoiler</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="reddit-sendReplies"
+                checked={options.reddit?.sendReplies ?? true}
+                onCheckedChange={(checked) => updateOption("reddit", "sendReplies", checked === true)}
+              />
+              <Label htmlFor="reddit-sendReplies">Send replies to inbox</Label>
             </div>
           </div>
         </Card>

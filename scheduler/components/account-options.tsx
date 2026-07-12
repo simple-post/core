@@ -1182,6 +1182,7 @@ export function AccountOptionsComponent({
                     className="mt-1 border-border"
                     required
                   />
+                  <p className="text-xs text-muted-foreground mt-1">{asString(accountOptions.title).length}/300</p>
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-reddit-url`} className="text-sm text-muted-foreground">
@@ -1236,6 +1237,14 @@ export function AccountOptionsComponent({
                       onCheckedChange={(checked) => updateOption(account.id, "spoiler", checked === true)}
                     />
                     <Label htmlFor={`${account.id}-reddit-spoiler`}>Spoiler</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${account.id}-reddit-sendReplies`}
+                      checked={asBoolean(accountOptions.sendReplies, true)}
+                      onCheckedChange={(checked) => updateOption(account.id, "sendReplies", checked === true)}
+                    />
+                    <Label htmlFor={`${account.id}-reddit-sendReplies`}>Send replies to inbox</Label>
                   </div>
                 </div>
               </div>

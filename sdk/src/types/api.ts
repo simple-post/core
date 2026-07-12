@@ -172,6 +172,7 @@ export const validationRequestSchema = z.object({
   accountIds: AccountIdsSchema,
   accountOverrides: AccountOverridesMapSchema.optional(),
   thread: ThreadSchema.optional(),
+  accountOptions: AccountOptionsMapSchema.optional(),
 });
 
 export type ValidationRequestInput = z.infer<typeof validationRequestSchema>;

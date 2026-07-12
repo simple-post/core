@@ -27,5 +27,6 @@ export async function validatePostForAccounts(params: {
     accounts,
     accountOverrides: params.accountOverrides,
     thread: params.thread,
+    accountOptions: params.accountOptions,
   });
 }

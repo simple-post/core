@@ -1,6 +1,6 @@
 # SimplePost
 
-SimplePost is a platform for AI agents, apps, and humans to post on social media. It gives you one TypeScript-powered posting layer and five ways to use it: SDK, HTTP API, Scheduler app, CLI, and MCP server.
+SimplePost is a platform for AI agents, apps, and humans to post on social media. It gives you one TypeScript-powered posting layer and six ways to use it: SDK, HTTP API, Scheduler app, CLI, MCP server, and n8n node.
 
 SimplePost is open source and ownership first: get the code, run it yourself, modify it, and connect it to your own social platform apps and credentials. Learn more at [simplepost.social](https://simplepost.social).
 
@@ -13,8 +13,9 @@ SimplePost is open source and ownership first: get the code, run it yourself, mo
 | Scheduler app   | Human writing, previewing, posting, and scheduling           | [docs/scheduler-app](docs/scheduler-app/README.md)   |
 | CLI             | Terminal workflows, scripts, CI jobs, local coding agents    | [docs/cli](docs/cli/README.md)                       |
 | MCP server      | ChatGPT, Claude, Cursor, and other MCP-compatible AI clients | [docs/mcp-server](docs/mcp-server/README.md)         |
+| n8n node        | Visual automations that publish, schedule, or save drafts    | [n8n](integrations/n8n/README.md)                    |
 
-All five paths are backed by `@simple-post/sdk`, so they share the same platform model and posting behavior.
+All six paths share the same platform model and posting behavior.
 
 ## Quick SDK Example
 
@@ -71,12 +72,13 @@ The main use cases are:
 | [`server/`](server/)       | HTTP API server around the SDK                                     |
 | [`scheduler/`](scheduler/) | Web scheduler app, account connections, API routes, and MCP server |
 | [`cli/`](cli/)             | Command line posting tool                                          |
+| [`integrations/`](integrations/) | Workflow-automation integrations, including the n8n community node |
 | [`examples/`](examples/)   | SDK examples by platform                                           |
 | [`docs/`](docs/)           | Product and integration documentation                              |
 
 ## Getting Started
 
-Start with [docs/README.md](docs/README.md). It routes you to the interface you need and explains the common posting model shared by the SDK, server, app, CLI, and MCP server.
+Start with [docs/README.md](docs/README.md). It routes you to the interface you need and explains the common posting model shared by the SDK, server, app, CLI, MCP server, and n8n node.
 
 Release and compatibility references:
 

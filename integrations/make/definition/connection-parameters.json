@@ -12,6 +12,10 @@
     "label": "Base URL",
     "default": "https://app.simplepost.social",
     "required": true,
-    "help": "Use your hosted SimplePost URL or the URL of your self-hosted Scheduler app."
+    "validate": {
+      "pattern": "^https?://.+[^/]$",
+      "message": "Enter an http(s) URL without a trailing slash."
+    },
+    "help": "Use your hosted SimplePost URL or the URL of your self-hosted Scheduler app, without a trailing slash."
   }
 ]

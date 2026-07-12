@@ -25,8 +25,15 @@
     { "name": "accountOverrides", "label": "Account overrides", "type": "json" }
   ],
   "interface": [
-    { "name": "summary.isValid", "label": "Is valid", "type": "boolean" },
-    { "name": "summary.errors", "label": "Errors", "type": "array" },
-    { "name": "summary.warnings", "label": "Warnings", "type": "array" }
+    {
+      "name": "summary",
+      "label": "Summary",
+      "type": "collection",
+      "spec": [
+        { "name": "isValid", "label": "Is valid", "type": "boolean" },
+        { "name": "errors", "label": "Errors", "type": "array" },
+        { "name": "warnings", "label": "Warnings", "type": "array" }
+      ]
+    }
   ]
 }

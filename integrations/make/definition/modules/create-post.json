@@ -52,9 +52,16 @@
     { "name": "idempotencyKey", "label": "Idempotency key", "type": "text", "help": "Use a stable unique value to prevent duplicate posts when Make retries." }
   ],
   "interface": [
-    { "name": "post.id", "label": "Post ID", "type": "text" },
-    { "name": "post.status", "label": "Status", "type": "text" },
-    { "name": "post.scheduledFor", "label": "Scheduled for", "type": "date" },
-    { "name": "post.publishedAt", "label": "Published at", "type": "date" }
+    {
+      "name": "post",
+      "label": "Post",
+      "type": "collection",
+      "spec": [
+        { "name": "id", "label": "Post ID", "type": "text" },
+        { "name": "status", "label": "Status", "type": "text" },
+        { "name": "scheduledFor", "label": "Scheduled for", "type": "date" },
+        { "name": "publishedAt", "label": "Published at", "type": "date" }
+      ]
+    }
   ]
 }

@@ -30,3 +30,13 @@ test('create post module targets the Scheduler posts API', () => {
   assert.equal(module.communication.method, 'POST');
   assert.ok(module.mappableParameters.some((parameter) => parameter.name === 'idempotencyKey'));
 });
+
+test('module interfaces declare nested output as collections', () => {
+  const postField = readJson('modules/create-post.json').interface.find((field) => field.name === 'post');
+  assert.equal(postField.type, 'collection');
+  assert.ok(postField.spec.some((field) => field.name === 'id'));
+
+  const summaryField = readJson('modules/validate-post.json').interface.find((field) => field.name === 'summary');
+  assert.equal(summaryField.type, 'collection');
+  assert.ok(summaryField.spec.some((field) => field.name === 'isValid'));
+});

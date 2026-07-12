@@ -65,6 +65,7 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "tumblr-blog-identifier"?: string;
   "tumblr-state"?: string;
   "tumblr-publish-on"?: string;
   "tumblr-tags"?: string;
@@ -146,20 +147,23 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
     .map((tag) => tag.trim())
     .filter(Boolean);
   if (
+    flags["tumblr-blog-identifier"] ||
     flags["tumblr-state"] ||
     flags["tumblr-publish-on"] ||
     tumblrTags?.length ||
     flags["tumblr-source-url"] ||
     flags["tumblr-slug"]
   ) {
+    // blogIdentifier is omitted (not set to "") when the flag is missing so the
+    // value from a stored account or TUMBLR_BLOG_IDENTIFIER is not overwritten.
     options.tumblr = {
-      blogIdentifier: "",
+      ...(flags["tumblr-blog-identifier"] ? { blogIdentifier: flags["tumblr-blog-identifier"] } : {}),
       ...(flags["tumblr-state"] ? { state: flags["tumblr-state"] as NonNullable<PostOptions["tumblr"]>["state"] } : {}),
       ...(flags["tumblr-publish-on"] ? { publishOn: flags["tumblr-publish-on"] } : {}),
       ...(tumblrTags?.length ? { tags: tumblrTags } : {}),
       ...(flags["tumblr-source-url"] ? { sourceUrl: flags["tumblr-source-url"] } : {}),
       ...(flags["tumblr-slug"] ? { slug: flags["tumblr-slug"] } : {}),
-    };
+    } as NonNullable<PostOptions["tumblr"]>;
   }
 
   if (flags["facebook-publish-at"]) {

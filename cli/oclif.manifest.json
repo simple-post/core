@@ -389,12 +389,26 @@
           "multiple": false,
           "type": "option"
         },
+        "tumblr-blog-identifier": {
+          "description": "Tumblr blog identifier",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-blog-identifier",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
         "tumblr-state": {
           "description": "Tumblr post state",
           "helpGroup": "Tumblr",
           "name": "tumblr-state",
           "hasDynamicHelp": false,
           "multiple": false,
+          "options": [
+            "published",
+            "queue",
+            "draft",
+            "private"
+          ],
           "type": "option"
         },
         "tumblr-publish-on": {

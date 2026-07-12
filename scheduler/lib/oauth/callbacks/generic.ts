@@ -78,7 +78,7 @@ interface YouTubeProfile {
   picture?: string;
 }
 interface TumblrProfile {
-  response?: { user?: { blogs?: Array<{ name?: string; title?: string; url?: string }> } };
+  response?: { user?: { blogs?: Array<{ name?: string; title?: string; url?: string; primary?: boolean }> } };
 }
 
 interface DefaultProfile {
@@ -185,7 +185,8 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   }
 
   if (platform === "tumblr") {
-    const blog = (data as TumblrProfile).response?.user?.blogs?.[0];
+    const blogs = (data as TumblrProfile).response?.user?.blogs ?? [];
+    const blog = blogs.find((candidate) => candidate.primary) ?? blogs[0];
     if (!blog?.name) throw new Error("Tumblr did not return a blog for this account.");
     return { id: blog.name, name: blog.title, username: blog.name } as XProfile;
   }

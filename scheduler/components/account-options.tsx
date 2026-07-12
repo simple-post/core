@@ -1173,7 +1173,6 @@ export function AccountOptionsComponent({
                 <p className="text-xs text-muted-foreground mt-1">Choose how Telegram should parse your message</p>
               </div>
             )}
-
             {/* DEV/Forem Options */}
             {account.platform === "forem" && (
               <div className="space-y-3">
@@ -1239,6 +1238,7 @@ export function AccountOptionsComponent({
                 </div>
               </div>
             )}
+            {/* Nostr Options */}
             {account.platform === "nostr" && (
               <div>
                 <Label htmlFor={`${account.id}-nostr-subject`} className="text-sm text-muted-foreground">
@@ -1246,10 +1246,12 @@ export function AccountOptionsComponent({
                 </Label>
                 <Input
                   id={`${account.id}-nostr-subject`}
+                  placeholder="Topic of the note"
                   value={asString(accountOptions.subject)}
                   onChange={(event) => updateOption(account.id, "subject", event.target.value || undefined)}
                   className="mt-1 border-border"
                 />
+                <p className="text-xs text-muted-foreground mt-1">Added to the note as a NIP-14 subject tag</p>
               </div>
             )}
           </Card>

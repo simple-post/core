@@ -108,6 +108,12 @@ export default function AccountsPage() {
     }
   };
 
+  const closeNostrDialog = () => {
+    setShowNostrDialog(false);
+    setNostrPrivateKey("");
+    setNostrError("");
+  };
+
   const handleNostrConnect = async () => {
     const relays = nostrRelays
       .split(",")
@@ -117,11 +123,14 @@ export default function AccountsPage() {
       setNostrError("Please provide a private key and at least one relay");
       return;
     }
+    if (relays.some((relay) => !/^wss:\/\//i.test(relay))) {
+      setNostrError("Relay URLs must start with wss://");
+      return;
+    }
     setNostrError("");
     try {
       await connectNostrMutation.mutateAsync({ privateKey: nostrPrivateKey.trim(), relays });
-      setShowNostrDialog(false);
-      setNostrPrivateKey("");
+      closeNostrDialog();
     } catch (error) {
       logClientError(error, "Nostr connection error");
       setNostrError(error instanceof Error ? error.message : "Failed to connect Nostr account");
@@ -394,7 +403,7 @@ export default function AccountsPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={showNostrDialog} onOpenChange={setShowNostrDialog}>
+      <Dialog open={showNostrDialog} onOpenChange={(open) => (open ? setShowNostrDialog(true) : closeNostrDialog())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Connect Nostr</DialogTitle>
@@ -426,6 +435,7 @@ export default function AccountsPage() {
                 id="nostrRelays"
                 value={nostrRelays}
                 onChange={(event) => setNostrRelays(event.target.value)}
+                placeholder="wss://relay.damus.io,wss://nos.lol"
                 className="mt-2"
               />
               <p className="text-xs text-muted-foreground mt-1.5">Comma-separated secure WebSocket URLs.</p>
@@ -434,7 +444,7 @@ export default function AccountsPage() {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={() => setShowNostrDialog(false)}
+              onClick={closeNostrDialog}
               disabled={connectNostrMutation.isPending}
               className="flex-1">
               Cancel

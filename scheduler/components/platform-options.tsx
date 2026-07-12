@@ -469,6 +469,97 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
           </div>
         </Card>
       )}
+
+      {selectedPlatforms.includes("reddit") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-orange-600 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Reddit Options</h4>
+          </div>
+          <div>
+            <Label htmlFor="reddit-subreddit" className="text-sm text-muted-foreground">
+              Subreddit
+            </Label>
+            <Input
+              id="reddit-subreddit"
+              placeholder="r/simplepost"
+              value={options.reddit?.subreddit || ""}
+              onChange={(e) => updateOption("reddit", "subreddit", e.target.value)}
+              className="mt-1 border-border"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="reddit-title" className="text-sm text-muted-foreground">
+              Title
+            </Label>
+            <Input
+              id="reddit-title"
+              placeholder="Post title"
+              maxLength={300}
+              value={options.reddit?.title || ""}
+              onChange={(e) => updateOption("reddit", "title", e.target.value)}
+              className="mt-1 border-border"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="reddit-url" className="text-sm text-muted-foreground">
+              Link URL (optional)
+            </Label>
+            <Input
+              id="reddit-url"
+              type="url"
+              placeholder="https://example.com"
+              value={options.reddit?.url || ""}
+              onChange={(e) => updateOption("reddit", "url", e.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="reddit-flairId" className="text-sm text-muted-foreground">
+                Flair ID (optional)
+              </Label>
+              <Input
+                id="reddit-flairId"
+                value={options.reddit?.flairId || ""}
+                onChange={(e) => updateOption("reddit", "flairId", e.target.value || undefined)}
+                className="mt-1 border-border"
+              />
+            </div>
+            <div>
+              <Label htmlFor="reddit-flairText" className="text-sm text-muted-foreground">
+                Flair text (optional)
+              </Label>
+              <Input
+                id="reddit-flairText"
+                value={options.reddit?.flairText || ""}
+                onChange={(e) => updateOption("reddit", "flairText", e.target.value || undefined)}
+                className="mt-1 border-border"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="reddit-nsfw"
+                checked={options.reddit?.nsfw || false}
+                onCheckedChange={(checked) => updateOption("reddit", "nsfw", checked === true)}
+              />
+              <Label htmlFor="reddit-nsfw">NSFW</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="reddit-spoiler"
+                checked={options.reddit?.spoiler || false}
+                onCheckedChange={(checked) => updateOption("reddit", "spoiler", checked === true)}
+              />
+              <Label htmlFor="reddit-spoiler">Spoiler</Label>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

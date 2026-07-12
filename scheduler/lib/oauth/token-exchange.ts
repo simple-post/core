@@ -195,6 +195,9 @@ export async function exchangeCodeForToken(
     const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
     headers.Authorization = `Basic ${credentials}`;
   }
+  if (platform === "reddit") {
+    headers["User-Agent"] = "web:SimplePost:1.0 (https://simplepost.social)";
+  }
 
   const response = await fetch(config.tokenUrl, {
     method: "POST",

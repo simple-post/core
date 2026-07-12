@@ -3,6 +3,7 @@ import { FacebookPublisher } from "../publishers/facebook";
 import { InstagramPublisher } from "../publishers/instagram";
 import { LinkedInPublisher } from "../publishers/linkedin";
 import { PinterestPublisher } from "../publishers/pinterest";
+import { RedditPublisher } from "../publishers/reddit";
 import { TelegramPublisher } from "../publishers/telegram";
 import { ThreadsPublisher } from "../publishers/threads";
 import { TikTokPublisher } from "../publishers/tiktok";
@@ -42,6 +43,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "pinterest": {
       return PinterestPublisher.mediaRequirement;
+    }
+    case "reddit": {
+      return RedditPublisher.mediaRequirement;
     }
     case "bluesky": {
       return BlueskyPublisher.mediaRequirement;

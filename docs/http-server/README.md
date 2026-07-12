@@ -71,7 +71,7 @@ The accounts file is a JSON document with a single `accounts` array. Each entry 
 | Field               | Required | Description                                                                                                                                                                         |
 | ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                | Yes      | Stable identifier you reference in `accountIds` when posting. Must be unique across the file.                                                                                       |
-| `platform`          | Yes      | One of `x`, `telegram`, `facebook`, `instagram`, `youtube`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`. The legacy alias `twitter` maps to `x`.                        |
+| `platform`          | Yes      | One of `x`, `telegram`, `facebook`, `instagram`, `youtube`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`, `reddit`. The legacy alias `twitter` maps to `x`.             |
 | `label`             | No       | Human-readable name surfaced in `GET /api/v1/accounts`.                                                                                                                             |
 | `username`          | No       | Used to build post URLs returned in `postingResults[].postUrl` (e.g. `https://x.com/<username>/status/...`).                                                                        |
 | `platformAccountId` | Varies   | Required for Telegram (used as `chatId`) and Facebook (used as `pageId`). Optional elsewhere.                                                                                       |
@@ -276,6 +276,27 @@ OAuth (if you already have OAuth tokens):
   "platform": "pinterest",
   "credentials": { "accessToken": "..." },
   "options": { "boardId": "987654321" }
+}
+```
+
+#### Reddit
+
+`subreddit` and `title` live on account `options` or per-request `accountOptions`. Use credentials from an approved Reddit Data API app.
+
+```json
+{
+  "id": "reddit-main",
+  "platform": "reddit",
+  "username": "your_reddit_username",
+  "credentials": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "clientId": "...",
+    "clientSecret": "...",
+    "expiresAt": 1780000000,
+    "userAgent": "web:your-app:1.0 (by /u/your_reddit_username)"
+  },
+  "options": { "subreddit": "simplepost", "title": "Hello Reddit" }
 }
 ```
 

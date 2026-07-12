@@ -45,6 +45,7 @@ const PLATFORM_RATE_LIMITS: Record<string, PlatformRateLimit> = {
   linkedin: { maxPosts: 15, intervalMinutes: 1 },
   bluesky: { maxPosts: 15, intervalMinutes: 1 },
   pinterest: { maxPosts: 15, intervalMinutes: 1 },
+  reddit: { maxPosts: 10, intervalMinutes: 1 },
   telegram: { maxPosts: 15, intervalMinutes: 1 },
 };
 

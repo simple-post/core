@@ -123,6 +123,18 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     requiresBasicAuth: true,
     requiresDpop: false,
   },
+  reddit: {
+    authUrl: "https://www.reddit.com/api/v1/authorize",
+    tokenUrl: "https://www.reddit.com/api/v1/access_token",
+    clientId: process.env.REDDIT_CLIENT_ID || "",
+    clientSecret: process.env.REDDIT_CLIENT_SECRET || "",
+    scope: "identity submit",
+    responseType: "code",
+    userInfoUrl: "https://oauth.reddit.com/api/v1/me",
+    requiresPkce: false,
+    requiresBasicAuth: true,
+    requiresDpop: false,
+  },
 };
 
 export function getPlatformOAuthConfig(platform: string): PlatformOAuthConfig | undefined {

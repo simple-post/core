@@ -381,10 +381,15 @@ export function AccountOptionsComponent({
     }
     return getTikTokBlockingReasons(account, (options[account.id] ?? {}) as Record<string, unknown>).length > 0;
   });
+  const redditBlocked = selectedAccounts.some((account) => {
+    if (account.platform.toLowerCase() !== "reddit") return false;
+    const accountOptions = (options[account.id] ?? {}) as Record<string, unknown>;
+    return !asString(accountOptions.subreddit).trim() || !asString(accountOptions.title).trim();
+  });
 
   useEffect(() => {
-    onBlockingChange?.(tiktokBlocked);
-  }, [onBlockingChange, tiktokBlocked]);
+    onBlockingChange?.(tiktokBlocked || redditBlocked);
+  }, [onBlockingChange, redditBlocked, tiktokBlocked]);
 
   useEffect(() => {
     for (const account of selectedAccounts) {
@@ -1145,6 +1150,93 @@ export function AccountOptionsComponent({
                     onChange={(e) => updateOption(account.id, "altText", e.target.value || undefined)}
                     className="mt-1 border-border"
                   />
+                </div>
+              </div>
+            )}
+
+            {account.platform === "reddit" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-reddit-subreddit`} className="text-sm text-muted-foreground">
+                    Subreddit
+                  </Label>
+                  <Input
+                    id={`${account.id}-reddit-subreddit`}
+                    placeholder="r/simplepost"
+                    value={asString(accountOptions.subreddit)}
+                    onChange={(e) => updateOption(account.id, "subreddit", e.target.value)}
+                    className="mt-1 border-border"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-reddit-title`} className="text-sm text-muted-foreground">
+                    Title
+                  </Label>
+                  <Input
+                    id={`${account.id}-reddit-title`}
+                    placeholder="Post title"
+                    maxLength={300}
+                    value={asString(accountOptions.title)}
+                    onChange={(e) => updateOption(account.id, "title", e.target.value)}
+                    className="mt-1 border-border"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-reddit-url`} className="text-sm text-muted-foreground">
+                    Link URL (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-reddit-url`}
+                    type="url"
+                    placeholder="https://example.com"
+                    value={asString(accountOptions.url)}
+                    onChange={(e) => updateOption(account.id, "url", e.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor={`${account.id}-reddit-flairId`} className="text-sm text-muted-foreground">
+                      Flair ID (optional)
+                    </Label>
+                    <Input
+                      id={`${account.id}-reddit-flairId`}
+                      value={asString(accountOptions.flairId)}
+                      onChange={(e) => updateOption(account.id, "flairId", e.target.value || undefined)}
+                      className="mt-1 border-border"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`${account.id}-reddit-flairText`} className="text-sm text-muted-foreground">
+                      Flair text (optional)
+                    </Label>
+                    <Input
+                      id={`${account.id}-reddit-flairText`}
+                      value={asString(accountOptions.flairText)}
+                      onChange={(e) => updateOption(account.id, "flairText", e.target.value || undefined)}
+                      className="mt-1 border-border"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-6">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${account.id}-reddit-nsfw`}
+                      checked={asBoolean(accountOptions.nsfw, false)}
+                      onCheckedChange={(checked) => updateOption(account.id, "nsfw", checked === true)}
+                    />
+                    <Label htmlFor={`${account.id}-reddit-nsfw`}>NSFW</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${account.id}-reddit-spoiler`}
+                      checked={asBoolean(accountOptions.spoiler, false)}
+                      onCheckedChange={(checked) => updateOption(account.id, "spoiler", checked === true)}
+                    />
+                    <Label htmlFor={`${account.id}-reddit-spoiler`}>Spoiler</Label>
+                  </div>
                 </div>
               </div>
             )}

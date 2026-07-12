@@ -142,4 +142,15 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "reddit-subreddit": Flags.string({ description: "Target subreddit (with or without r/)", helpGroup: "Reddit" }),
+  "reddit-title": Flags.string({ description: "Reddit post title", helpGroup: "Reddit" }),
+  "reddit-url": Flags.string({ description: "URL for a Reddit link post", helpGroup: "Reddit" }),
+  "reddit-flair-id": Flags.string({ description: "Reddit post flair template ID", helpGroup: "Reddit" }),
+  "reddit-flair-text": Flags.string({ description: "Reddit post flair text", helpGroup: "Reddit" }),
+  "reddit-nsfw": Flags.boolean({ allowNo: true, description: "Mark the Reddit post NSFW", helpGroup: "Reddit" }),
+  "reddit-spoiler": Flags.boolean({
+    allowNo: true,
+    description: "Mark the Reddit post as a spoiler",
+    helpGroup: "Reddit",
+  }),
 } as const;

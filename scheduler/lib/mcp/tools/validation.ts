@@ -1,4 +1,4 @@
-import { AccountIdsSchema } from "@simple-post/sdk";
+import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -17,6 +17,9 @@ export const validatePostSchema = z.object({
       "Optional images/videos to validate alongside the text. Each item needs a public URL (user-provided or returned by upload_media).",
     ),
   thread: mcpThreadSchema,
+  accountOptions: AccountOptionsMapSchema.optional().describe(
+    "Optional per-account platform settings keyed by account ID. Reddit accounts require subreddit and title.",
+  ),
 });
 
 const validationIssueSchema = z.object({
@@ -55,6 +58,7 @@ export async function validatePost(userId: string, input: z.infer<typeof validat
     media: mediaFiles,
     accountIds,
     thread: threadSegments.length > 0 ? threadSegments : undefined,
+    accountOptions: input.accountOptions,
   });
 
   return {

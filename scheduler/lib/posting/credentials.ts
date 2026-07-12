@@ -112,6 +112,14 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  reddit: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    refreshToken: account.refreshToken || undefined,
+    clientId: process.env.REDDIT_CLIENT_ID || undefined,
+    clientSecret: process.env.REDDIT_CLIENT_SECRET || undefined,
+    expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : undefined,
+    userAgent: `web:SimplePost:1.0 (by /u/${account.username || account.platformAccountId})`,
+  }),
 };
 
 /**

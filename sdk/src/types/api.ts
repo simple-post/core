@@ -41,6 +41,13 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    subreddit: z.string().optional(),
+    url: z.url().optional(),
+    flairId: z.string().optional(),
+    flairText: z.string().optional(),
+    nsfw: z.boolean().optional(),
+    spoiler: z.boolean().optional(),
+    sendReplies: z.boolean().optional(),
   })
   .passthrough();
 

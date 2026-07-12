@@ -87,6 +87,16 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  reddit?: {
+    subreddit?: string;
+    title?: string;
+    url?: string;
+    flairId?: string;
+    flairText?: string;
+    nsfw?: boolean;
+    spoiler?: boolean;
+    sendReplies?: boolean;
+  };
 }
 
 export interface SocialPost {
@@ -180,6 +190,16 @@ export interface PlatformOptions {
     description?: string;
     link?: string;
     altText?: string;
+  };
+  reddit?: {
+    subreddit?: string;
+    title?: string;
+    url?: string;
+    flairId?: string;
+    flairText?: string;
+    nsfw?: boolean;
+    spoiler?: boolean;
+    sendReplies?: boolean;
   };
 }
 

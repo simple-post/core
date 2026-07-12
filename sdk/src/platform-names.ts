@@ -18,6 +18,7 @@ const PLATFORM_MAP: Record<string, Platform> = {
   threads: "threads",
   linkedin: "linkedin",
   pinterest: "pinterest",
+  reddit: "reddit",
 };
 
 /** Maps stored platform names (including aliases like "twitter") to SDK platform ids. */
@@ -131,6 +132,9 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     }
     case "pinterest": {
       return `https://www.pinterest.com/pin/${postId}/`;
+    }
+    case "reddit": {
+      return `https://www.reddit.com/comments/${postId}/`;
     }
     default: {
       return undefined;

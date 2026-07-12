@@ -57,7 +57,7 @@ The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:300
 | Better Auth secret       | App authentication and session signing                                                            |
 | Scheduler encryption key | Encryption for connected account secrets                                                          |
 | Resend                   | Email login / auth mail                                                                           |
-| Social platform apps     | OAuth credentials for platforms such as X, Meta, Google, TikTok, LinkedIn, Pinterest, and Bluesky |
+| Social platform apps     | OAuth credentials for platforms such as X, Meta, Google, TikTok, LinkedIn, Pinterest, Bluesky, and Reddit |
 
 See [`scheduler/.env.example`](../../scheduler/.env.example) for the full list of environment variables.
 

@@ -524,6 +524,9 @@ export async function exchangeAuthorizationCode(input: {
   if (tokenAuthMethod === "basic") {
     headers.Authorization = `Basic ${Buffer.from(`${input.appConfig.clientId}:${input.appConfig.clientSecret}`).toString("base64")}`;
   }
+  if (input.platform === "reddit") {
+    headers["User-Agent"] = "web:SimplePost:1.0 (https://simplepost.social)";
+  }
 
   const response = await fetchJson<Record<string, unknown>>(
     input.appConfig.tokenUrl,

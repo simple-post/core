@@ -23,7 +23,8 @@
     "bluesky",
     "threads",
     "linkedin",
-    "pinterest"
+    "pinterest",
+    "reddit"
   ],
   "engines": {
     "node": ">=20.0.0"

@@ -71,6 +71,7 @@ SimplePost supports these platform keys in the SDK and the interfaces built on t
 | TikTok    | `tiktok`    | [TikTok](platforms/TikTok.md)       |
 | YouTube   | `youtube`   | [YouTube](platforms/YouTube.md)     |
 | Pinterest | `pinterest` | [Pinterest](platforms/Pinterest.md) |
+| Slack | `slack` | [Slack](platforms/Slack.md) |
 | LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
 | Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
 

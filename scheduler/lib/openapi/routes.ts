@@ -13,6 +13,7 @@ import oauthTokenRoutes from "@/app/api/oauth/token/openapi";
 import openApiRoutes from "@/app/api/openapi.json/openapi";
 import accountAvatarRoutes from "@/app/api/v1/accounts/[id]/avatar/openapi";
 import accountBoardsRoutes from "@/app/api/v1/accounts/[id]/boards/openapi";
+import accountChannelsRoutes from "@/app/api/v1/accounts/[id]/channels/openapi";
 import accountRoutes from "@/app/api/v1/accounts/[id]/openapi";
 import accountTikTokCreatorInfoRoutes from "@/app/api/v1/accounts/[id]/tiktok/creator-info/openapi";
 import accountsRoutes from "@/app/api/v1/accounts/openapi";
@@ -52,6 +53,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   accountRoutes,
   accountAvatarRoutes,
   accountBoardsRoutes,
+  accountChannelsRoutes,
   accountTikTokCreatorInfoRoutes,
   apiKeyRoutes,
   apiKeyRoute,

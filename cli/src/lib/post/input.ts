@@ -65,6 +65,12 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "slack-channel-id"?: string;
+  "slack-thread-ts"?: string;
+  "slack-reply-broadcast"?: boolean;
+  "slack-mrkdwn"?: boolean;
+  "slack-unfurl-links"?: boolean;
+  "slack-unfurl-media"?: boolean;
 };
 
 function isUrl(value: string): boolean {
@@ -136,6 +142,26 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
     };
   }
 
+  if (
+    flags["slack-channel-id"] ||
+    flags["slack-thread-ts"] ||
+    flags["slack-reply-broadcast"] !== undefined ||
+    flags["slack-mrkdwn"] !== undefined ||
+    flags["slack-unfurl-links"] !== undefined ||
+    flags["slack-unfurl-media"] !== undefined
+  ) {
+    // channelId is omitted (not set to "") when the flag is missing so the
+    // value from a stored account or SLACK_CHANNEL_ID is not overwritten.
+    options.slack = {
+      ...(flags["slack-channel-id"] ? { channelId: flags["slack-channel-id"] } : {}),
+      ...(flags["slack-thread-ts"] ? { threadTs: flags["slack-thread-ts"] } : {}),
+      ...(flags["slack-reply-broadcast"] === undefined ? {} : { replyBroadcast: flags["slack-reply-broadcast"] }),
+      ...(flags["slack-mrkdwn"] === undefined ? {} : { mrkdwn: flags["slack-mrkdwn"] }),
+      ...(flags["slack-unfurl-links"] === undefined ? {} : { unfurlLinks: flags["slack-unfurl-links"] }),
+      ...(flags["slack-unfurl-media"] === undefined ? {} : { unfurlMedia: flags["slack-unfurl-media"] }),
+    } as NonNullable<PostOptions["slack"]>;
+  }
+
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };
   }
@@ -196,6 +222,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  slack: "Slack",
 };
 
 function getPlatformLabel(platform: Platform): string {

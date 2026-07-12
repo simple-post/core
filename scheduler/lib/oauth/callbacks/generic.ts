@@ -77,6 +77,15 @@ interface YouTubeProfile {
   email?: string;
   picture?: string;
 }
+interface SlackProfile {
+  ok?: boolean;
+  error?: string;
+  team_id?: string;
+  team?: string;
+  user_id?: string;
+  user?: string;
+  url?: string;
+}
 
 interface DefaultProfile {
   id?: string;
@@ -91,6 +100,7 @@ type PlatformProfile =
   | LinkedInProfile
   | PinterestProfile
   | YouTubeProfile
+  | SlackProfile
   | DefaultProfile;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -175,6 +185,10 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   }
 
   const data = await response.json();
+
+  if (platform === "slack" && !(data as SlackProfile).ok) {
+    throw new Error(`Slack profile lookup failed: ${(data as SlackProfile).error || "unknown_error"}`);
+  }
 
   if (platform === "tiktok" && data.data?.user) {
     return data.data.user;
@@ -275,6 +289,12 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       displayName = p.profile_name || p.business_name || p.username || null;
       const img = p.profile_image;
       profilePicture = (typeof img === "object" ? img?.url : img) || null;
+      break;
+    }
+    case "slack": {
+      const p = profile as SlackProfile;
+      platformAccountId = p.team_id || "";
+      displayName = p.team || "Slack workspace";
       break;
     }
     case "youtube": {

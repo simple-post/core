@@ -41,6 +41,12 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    channelId: z.string().optional(),
+    threadTs: z.string().optional(),
+    replyBroadcast: z.boolean().optional(),
+    mrkdwn: z.boolean().optional(),
+    unfurlLinks: z.boolean().optional(),
+    unfurlMedia: z.boolean().optional(),
   })
   .passthrough();
 

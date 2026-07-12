@@ -112,6 +112,14 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  slack: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    teamId: account.platformAccountId,
+    refreshToken: account.refreshToken || undefined,
+    clientId: process.env.SLACK_CLIENT_ID || undefined,
+    clientSecret: process.env.SLACK_CLIENT_SECRET || undefined,
+    expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : undefined,
+  }),
 };
 
 /**
@@ -155,6 +163,13 @@ const postOptionOverrides: Record<
       ...(accountSpecificOptions as Record<string, unknown>),
       boardId: (accountSpecificOptions as { boardId?: string }).boardId || process.env.PINTEREST_BOARD_ID || "",
       credentials: credentials as PlatformCredentials<"pinterest">,
+    },
+  }),
+  slack: (_account, credentials, accountSpecificOptions) => ({
+    slack: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      channelId: (accountSpecificOptions as { channelId?: string }).channelId || "",
+      credentials: credentials as PlatformCredentials<"slack">,
     },
   }),
 };

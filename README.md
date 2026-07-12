@@ -60,6 +60,7 @@ The main use cases are:
 | TikTok    | Yes           | [TikTok](docs/platforms/TikTok.md)       |
 | YouTube   | Yes           | [YouTube](docs/platforms/YouTube.md)     |
 | Pinterest | Yes           | [Pinterest](docs/platforms/Pinterest.md) |
+| Slack     | Yes           | [Slack](docs/platforms/Slack.md)         |
 | LinkedIn  | Yes           | [LinkedIn](docs/platforms/LinkedIn.md)   |
 | Bluesky   | Yes           | [Bluesky](docs/platforms/Bluesky.md)     |
 

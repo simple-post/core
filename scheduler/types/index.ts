@@ -87,6 +87,14 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  slack?: {
+    channelId?: string;
+    threadTs?: string;
+    replyBroadcast?: boolean;
+    mrkdwn?: boolean;
+    unfurlLinks?: boolean;
+    unfurlMedia?: boolean;
+  };
 }
 
 export interface SocialPost {
@@ -180,6 +188,14 @@ export interface PlatformOptions {
     description?: string;
     link?: string;
     altText?: string;
+  };
+  slack?: {
+    channelId?: string;
+    threadTs?: string;
+    replyBroadcast?: boolean;
+    mrkdwn?: boolean;
+    unfurlLinks?: boolean;
+    unfurlMedia?: boolean;
   };
 }
 

@@ -298,6 +298,14 @@ export const PinterestBoardsEnvelopeSchema = z
   })
   .meta({ id: "PinterestBoardsEnvelope" });
 
+export const SlackChannelSchema = z
+  .object({ id: z.string(), name: z.string(), isPrivate: z.boolean() })
+  .meta({ id: "SlackChannel" });
+
+export const SlackChannelsEnvelopeSchema = z
+  .object({ channels: z.array(SlackChannelSchema) })
+  .meta({ id: "SlackChannelsEnvelope" });
+
 export const TikTokCreatorInfoSchema = z
   .object({
     creatorAvatarUrl: z.url().nullable(),

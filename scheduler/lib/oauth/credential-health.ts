@@ -89,6 +89,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function platformLabel(platform: string): string {
   const labels: Record<string, string> = {
     bluesky: "Bluesky",
+    discord: "Discord",
     facebook: "Facebook",
     instagram: "Instagram",
     linkedin: "LinkedIn",
@@ -151,7 +152,7 @@ export function getRefreshTokenExpiresAt(data: Record<string, unknown>, now: Dat
 }
 
 function isNonExpiringPlatform(platform: string): boolean {
-  return platform === "telegram" || platform === "facebook";
+  return platform === "telegram" || platform === "facebook" || platform === "discord";
 }
 
 function getXClientId(): string {

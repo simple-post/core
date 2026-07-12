@@ -79,6 +79,13 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-blue-500",
     connectionType: "manual",
   },
+  {
+    id: "discord",
+    name: "Discord",
+    description: "Send messages through an incoming webhook",
+    color: "bg-indigo-500",
+    connectionType: "manual",
+  },
 ];
 
 /**

@@ -16,6 +16,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "discord",
             "telegram"
           ],
           "required": false
@@ -387,6 +388,51 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "discord-username": {
+          "description": "Discord webhook display name",
+          "helpGroup": "Discord",
+          "name": "discord-username",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "discord-avatar-url": {
+          "description": "Discord webhook avatar URL",
+          "helpGroup": "Discord",
+          "name": "discord-avatar-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "discord-thread-id": {
+          "description": "Discord forum/thread channel ID",
+          "helpGroup": "Discord",
+          "name": "discord-thread-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "discord-suppress-embeds": {
+          "description": "Suppress Discord link embeds",
+          "helpGroup": "Discord",
+          "name": "discord-suppress-embeds",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "discord-suppress-notifications": {
+          "description": "Suppress Discord push notifications",
+          "helpGroup": "Discord",
+          "name": "discord-suppress-notifications",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "discord-allow-mentions": {
+          "description": "Allow Discord mentions to notify users",
+          "helpGroup": "Discord",
+          "name": "discord-allow-mentions",
+          "allowNo": true,
+          "type": "boolean"
         }
       },
       "hasDynamicHelp": false,
@@ -569,6 +615,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "discord",
             "telegram"
           ],
           "required": false
@@ -621,6 +668,13 @@
         "redirect-uri": {
           "description": "Loopback redirect URI to use for the OAuth callback",
           "name": "redirect-uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "webhook-url": {
+          "description": "Discord incoming webhook URL (for non-interactive Discord connect)",
+          "name": "webhook-url",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

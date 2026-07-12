@@ -1149,6 +1149,72 @@ export function AccountOptionsComponent({
               </div>
             )}
 
+            {account.platform === "discord" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-discord-username`} className="text-sm text-muted-foreground">
+                    Webhook display name (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-discord-username`}
+                    value={asString(accountOptions.username)}
+                    onChange={(event) => updateOption(account.id, "username", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                    maxLength={80}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-discord-avatarUrl`} className="text-sm text-muted-foreground">
+                    Avatar URL (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-discord-avatarUrl`}
+                    type="url"
+                    value={asString(accountOptions.avatarUrl)}
+                    onChange={(event) => updateOption(account.id, "avatarUrl", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-discord-threadId`} className="text-sm text-muted-foreground">
+                    Forum/thread ID (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-discord-threadId`}
+                    value={asString(accountOptions.threadId)}
+                    onChange={(event) => updateOption(account.id, "threadId", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${account.id}-discord-suppressEmbeds`}
+                      checked={asBoolean(accountOptions.suppressEmbeds, false)}
+                      onCheckedChange={(checked) => updateOption(account.id, "suppressEmbeds", checked === true)}
+                    />
+                    <Label htmlFor={`${account.id}-discord-suppressEmbeds`}>Suppress embeds</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${account.id}-discord-suppressNotifications`}
+                      checked={asBoolean(accountOptions.suppressNotifications, false)}
+                      onCheckedChange={(checked) => updateOption(account.id, "suppressNotifications", checked === true)}
+                    />
+                    <Label htmlFor={`${account.id}-discord-suppressNotifications`}>Silent</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${account.id}-discord-allowMentions`}
+                      checked={asBoolean(accountOptions.allowMentions, false)}
+                      onCheckedChange={(checked) => updateOption(account.id, "allowMentions", checked === true)}
+                    />
+                    <Label htmlFor={`${account.id}-discord-allowMentions`}>Allow mentions</Label>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Telegram Options */}
             {account.platform === "telegram" && (
               <div>

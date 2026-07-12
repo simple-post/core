@@ -87,6 +87,14 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  discord?: {
+    username?: string;
+    avatarUrl?: string;
+    threadId?: string;
+    suppressEmbeds?: boolean;
+    suppressNotifications?: boolean;
+    allowMentions?: boolean;
+  };
 }
 
 export interface SocialPost {
@@ -180,6 +188,14 @@ export interface PlatformOptions {
     description?: string;
     link?: string;
     altText?: string;
+  };
+  discord?: {
+    username?: string;
+    avatarUrl?: string;
+    threadId?: string;
+    suppressEmbeds?: boolean;
+    suppressNotifications?: boolean;
+    allowMentions?: boolean;
   };
 }
 

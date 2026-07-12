@@ -200,6 +200,9 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "discord": {
+      return { discord: { credentials: { webhookUrl: secret.accessToken } } };
+    }
     case "telegram": {
       return {
         telegram: {

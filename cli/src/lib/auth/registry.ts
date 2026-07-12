@@ -1,4 +1,5 @@
 import { BlueskyAuthProvider } from "./bluesky.js";
+import { DiscordAuthProvider } from "./discord.js";
 import { FacebookAuthProvider } from "./facebook.js";
 import { InstagramAuthProvider } from "./instagram.js";
 import { LinkedInAuthProvider } from "./linkedin.js";
@@ -16,6 +17,7 @@ const AUTH_PROVIDERS = {
   x: new XAuthProvider(),
   youtube: new YouTubeAuthProvider(),
   facebook: new FacebookAuthProvider(),
+  discord: new DiscordAuthProvider(),
   instagram: new InstagramAuthProvider(),
   tiktok: new TikTokAuthProvider(),
   bluesky: new BlueskyAuthProvider(),

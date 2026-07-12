@@ -28,7 +28,7 @@ AI agent      App/backend      Human web user      Terminal/script
                   TypeScript SDK
                          |
        X, Telegram, Instagram, Facebook, Threads,
-       TikTok, YouTube, Pinterest, LinkedIn, Bluesky
+       TikTok, YouTube, Pinterest, LinkedIn, Bluesky, Discord
 ```
 
 The SDK contains the shared posting model, platform adapters, media handling, validation types, and credential resolution. The other interfaces wrap it for different workflows.
@@ -73,6 +73,7 @@ SimplePost supports these platform keys in the SDK and the interfaces built on t
 | Pinterest | `pinterest` | [Pinterest](platforms/Pinterest.md) |
 | LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
 | Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
+| Discord   | `discord`   | [Discord](platforms/Discord.md)     |
 
 Use the platform guides in this public repository for credential setup. You can clone the repo and run SimplePost today, or use the hosted Scheduler app when you do not want to manage raw tokens directly.
 

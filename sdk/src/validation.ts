@@ -1,4 +1,5 @@
 import { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";
+import { DISCORD_VALIDATION_RULES, validateDiscordContent } from "./publishers/discord/validation";
 import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 import { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 import { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
@@ -19,6 +20,7 @@ interface PlatformValidator {
 
 export const PLATFORM_VALIDATORS: Record<Platform, PlatformValidator> = {
   x: { rules: X_VALIDATION_RULES, validate: validateXContent },
+  discord: { rules: DISCORD_VALIDATION_RULES, validate: validateDiscordContent },
   youtube: { rules: YOUTUBE_VALIDATION_RULES, validate: validateYouTubeContent },
   telegram: { rules: TELEGRAM_VALIDATION_RULES, validate: validateTelegramContent },
   facebook: { rules: FACEBOOK_VALIDATION_RULES, validate: validateFacebookContent },
@@ -39,6 +41,7 @@ export function validateContentForPlatform(platform: Platform, content: Content)
 }
 
 export { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";
+export { DISCORD_VALIDATION_RULES, validateDiscordContent } from "./publishers/discord/validation";
 export { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 export { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 export { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";

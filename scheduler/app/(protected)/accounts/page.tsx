@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectDiscord, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -43,6 +43,7 @@ export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
+  const connectDiscordMutation = useConnectDiscord();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -52,17 +53,41 @@ export default function AccountsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
   const [telegramError, setTelegramError] = useState("");
+  const [showDiscordDialog, setShowDiscordDialog] = useState(false);
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
+  const [discordError, setDiscordError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
       setShowConnectDialog(false);
-      setShowTelegramDialog(true);
-      setTelegramError("");
+      if (platform === "discord") {
+        setShowDiscordDialog(true);
+        setDiscordError("");
+      } else {
+        setShowTelegramDialog(true);
+        setTelegramError("");
+      }
     } else {
       setShowConnectDialog(false);
       window.location.href = `/api/connect/${platform}`;
+    }
+  };
+
+  const handleDiscordConnect = async () => {
+    if (!discordWebhookUrl.trim()) {
+      setDiscordError("Please provide a webhook URL");
+      return;
+    }
+    setDiscordError("");
+    try {
+      await connectDiscordMutation.mutateAsync({ webhookUrl: discordWebhookUrl.trim() });
+      setShowDiscordDialog(false);
+      setDiscordWebhookUrl("");
+    } catch (error) {
+      logClientError(error, "Discord connection error");
+      setDiscordError(error instanceof Error ? error.message : "Failed to connect Discord webhook");
     }
   };
 
@@ -421,6 +446,58 @@ export default function AccountsPage() {
             </Button>
             <Button onClick={handleTelegramConnect} disabled={connectTelegramMutation.isPending} className="flex-1">
               {connectTelegramMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDiscordDialog} onOpenChange={setShowDiscordDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Discord</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Discord</DialogTitle>
+            <DialogDescription>
+              Paste an incoming webhook URL for the channel where SimplePost should publish.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {discordError && (
+              <Alert variant="destructive">
+                <AlertDescription>{discordError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="discordWebhookUrl">Webhook URL</Label>
+              <Input
+                id="discordWebhookUrl"
+                type="password"
+                placeholder="https://discord.com/api/webhooks/..."
+                value={discordWebhookUrl}
+                onChange={(event) => setDiscordWebhookUrl(event.target.value)}
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Create it in Channel Settings → Integrations → Webhooks. Treat the URL as a secret.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDiscordDialog(false);
+                setDiscordWebhookUrl("");
+                setDiscordError("");
+              }}
+              disabled={connectDiscordMutation.isPending}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleDiscordConnect} disabled={connectDiscordMutation.isPending} className="flex-1">
+              {connectDiscordMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

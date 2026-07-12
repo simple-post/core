@@ -112,6 +112,7 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  discord: (account: ConnectedAccount) => ({ webhookUrl: account.accessToken }),
 };
 
 /**

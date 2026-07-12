@@ -142,4 +142,22 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "discord-username": Flags.string({ description: "Discord webhook display name", helpGroup: "Discord" }),
+  "discord-avatar-url": Flags.string({ description: "Discord webhook avatar URL", helpGroup: "Discord" }),
+  "discord-thread-id": Flags.string({ description: "Discord forum/thread channel ID", helpGroup: "Discord" }),
+  "discord-suppress-embeds": Flags.boolean({
+    allowNo: true,
+    description: "Suppress Discord link embeds",
+    helpGroup: "Discord",
+  }),
+  "discord-suppress-notifications": Flags.boolean({
+    allowNo: true,
+    description: "Suppress Discord push notifications",
+    helpGroup: "Discord",
+  }),
+  "discord-allow-mentions": Flags.boolean({
+    allowNo: true,
+    description: "Allow Discord mentions to notify users",
+    helpGroup: "Discord",
+  }),
 } as const;

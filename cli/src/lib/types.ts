@@ -43,6 +43,7 @@ export interface CliConfigV1 {
   threads: PlatformAccounts;
   linkedin: PlatformAccounts;
   pinterest: PlatformAccounts;
+  discord: PlatformAccounts;
   telegram: PlatformAccounts;
 }
 

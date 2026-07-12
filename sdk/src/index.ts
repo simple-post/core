@@ -116,6 +116,7 @@ export async function quote(quoteRequest: Quote): Promise<Map<Platform, QuoteRes
 
 // Export publisher classes - use static methods for validation
 export { XPublisher } from "./publishers/x";
+export { DiscordPublisher } from "./publishers/discord";
 export { BlueskyPublisher } from "./publishers/bluesky";
 export { ThreadsPublisher } from "./publishers/threads";
 export { FacebookPublisher } from "./publishers/facebook";
@@ -154,6 +155,7 @@ export type {
   ThreadsOptions,
   LinkedInOptions,
   PinterestOptions,
+  DiscordOptions,
   LogLevel,
 } from "./types/post";
 
@@ -251,4 +253,5 @@ export {
   ThreadsOptionsSchema,
   LinkedInOptionsSchema,
   PinterestOptionsSchema,
+  DiscordOptionsSchema,
 } from "./types/post";

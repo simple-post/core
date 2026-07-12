@@ -488,6 +488,11 @@ export const TelegramConnectResponseSchema = z
   })
   .meta({ id: "TelegramConnectResponse" });
 
+export const DiscordConnectRequestSchema = z.object({ webhookUrl: z.url() }).meta({ id: "DiscordConnectRequest" });
+export const DiscordConnectResponseSchema = z
+  .object({ success: z.literal(true) })
+  .meta({ id: "DiscordConnectResponse" });
+
 export const PendingConnectionAccountSchema = z
   .object({
     id: z.string(),

@@ -150,14 +150,16 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
     flags["slack-unfurl-links"] !== undefined ||
     flags["slack-unfurl-media"] !== undefined
   ) {
+    // channelId is omitted (not set to "") when the flag is missing so the
+    // value from a stored account or SLACK_CHANNEL_ID is not overwritten.
     options.slack = {
-      channelId: flags["slack-channel-id"] ?? "",
+      ...(flags["slack-channel-id"] ? { channelId: flags["slack-channel-id"] } : {}),
       ...(flags["slack-thread-ts"] ? { threadTs: flags["slack-thread-ts"] } : {}),
       ...(flags["slack-reply-broadcast"] === undefined ? {} : { replyBroadcast: flags["slack-reply-broadcast"] }),
       ...(flags["slack-mrkdwn"] === undefined ? {} : { mrkdwn: flags["slack-mrkdwn"] }),
       ...(flags["slack-unfurl-links"] === undefined ? {} : { unfurlLinks: flags["slack-unfurl-links"] }),
       ...(flags["slack-unfurl-media"] === undefined ? {} : { unfurlMedia: flags["slack-unfurl-media"] }),
-    };
+    } as NonNullable<PostOptions["slack"]>;
   }
 
   if (flags["facebook-publish-at"]) {

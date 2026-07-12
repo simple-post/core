@@ -656,7 +656,12 @@ async function refreshSlack(account: ConnectedAccount, now: Date): Promise<Token
     method: "POST",
     signal: AbortSignal.timeout(REFRESH_REQUEST_TIMEOUT_MS),
   });
-  return buildRefreshResult(account, await expectTokenResponse("slack", response), now, { keepRefreshToken: true });
+  const data = await expectTokenResponse("slack", response);
+  // Slack reports errors with HTTP 200 and { ok: false, error } instead of an error status.
+  if (data.ok === false) {
+    throw new Error(`Slack token refresh failed: ${typeof data.error === "string" ? data.error : "unknown_error"}`);
+  }
+  return buildRefreshResult(account, data, now, { keepRefreshToken: true });
 }
 
 async function refreshPlatformToken(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {

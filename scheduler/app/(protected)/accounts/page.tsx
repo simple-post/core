@@ -406,42 +406,54 @@ export default function AccountsPage() {
       <Dialog open={showNostrDialog} onOpenChange={(open) => (open ? setShowNostrDialog(true) : closeNostrDialog())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Connect Nostr</DialogTitle>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Nostr</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Nostr</DialogTitle>
             <DialogDescription>Store a signing key and the relays SimplePost should publish to.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 mt-2">
             {nostrError && (
               <Alert variant="destructive">
                 <AlertDescription>{nostrError}</AlertDescription>
               </Alert>
             )}
             <div>
-              <Label htmlFor="nostrPrivateKey">Private key</Label>
+              <Label
+                htmlFor="nostrPrivateKey"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Private key
+              </Label>
               <Input
                 id="nostrPrivateKey"
                 type="password"
                 value={nostrPrivateKey}
                 onChange={(event) => setNostrPrivateKey(event.target.value)}
                 placeholder="nsec1… or 64-character hex"
-                className="mt-2"
+                className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
                 This key can sign as your identity. Treat it as a secret.
               </p>
             </div>
             <div>
-              <Label htmlFor="nostrRelays">Relay URLs</Label>
+              <Label
+                htmlFor="nostrRelays"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Relay URLs
+              </Label>
               <Input
                 id="nostrRelays"
                 value={nostrRelays}
                 onChange={(event) => setNostrRelays(event.target.value)}
                 placeholder="wss://relay.damus.io,wss://nos.lol"
-                className="mt-2"
+                className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">Comma-separated secure WebSocket URLs.</p>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 mt-2">
             <Button
               variant="outline"
               onClick={closeNostrDialog}

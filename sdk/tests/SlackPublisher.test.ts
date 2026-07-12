@@ -49,7 +49,9 @@ describe("SlackPublisher", () => {
     const result = await new SlackPublisher(options).postContent(
       {
         text: "Attached",
-        media: [{ type: "image", path: path.resolve("tests/SlackPublisher.test.ts"), caption: "Test attachment" }],
+        media: [
+          { type: "image", path: path.resolve(__dirname, "SlackPublisher.test.ts"), caption: "Test attachment" },
+        ],
       },
       options,
     );

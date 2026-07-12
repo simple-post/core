@@ -2,7 +2,7 @@
 
 The simplest way to use SimplePost - integrate directly into your TypeScript project with a unified interface for all social platforms.
 
-Use the SDK when you control the TypeScript runtime and want the least abstraction between your app or agent and the platform publishers. The [HTTP API server](../http-server/README.md), [Scheduler app](../scheduler-app/README.md), [CLI](../cli/README.md), and [MCP server](../mcp-server/README.md) all build on this package.
+Use the SDK when you control the TypeScript runtime and want the least abstraction between your app or agent and the platform publishers. The [HTTP API server](../http-server/README.md), [Scheduler app](../scheduler-app/README.md), [CLI](../cli/README.md), and [MCP server](../mcp-server/README.md) build on this package; the [n8n node](../../integrations/n8n/README.md) uses the Scheduler API backed by the same posting model.
 
 ## Quick Start
 

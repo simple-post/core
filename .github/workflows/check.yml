@@ -11,7 +11,9 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        # n8n's expression runtime currently resolves isolated-vm 6.1.x,
+        # which requires the V8 API available in newer Node releases.
+        node-version: [24.x]
 
     steps:
       - name: Checkout code
@@ -36,7 +38,7 @@ jobs:
 
       - name: Run SDK tests with coverage
         env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
+          NODE_OPTIONS: "--max_old_space_size=6144"
         run: yarn test:coverage
 
       - name: Run CLI tests

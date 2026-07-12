@@ -8,12 +8,13 @@
       "examples",
       "server",
       "scheduler",
-      "cli"
+      "cli",
+      "integrations/*"
     ]
   },
   "scripts": {
     "check": "yarn workspaces foreach --all --parallel run check",
-    "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test",
+    "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test && yarn workspace n8n-nodes-simplepost test",
     "test:coverage": "jest --coverage --runInBand",
     "test:watch": "jest --watch"
   },

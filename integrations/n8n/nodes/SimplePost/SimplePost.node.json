@@ -1,0 +1,18 @@
+{
+  "node": "n8n-nodes-simplepost.simplePost",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": ["Marketing", "Productivity"],
+  "resources": {
+    "credentialDocumentation": [
+      {
+        "url": "https://github.com/simple-post/core/tree/main/integrations/n8n#credentials"
+      }
+    ],
+    "primaryDocumentation": [
+      {
+        "url": "https://github.com/simple-post/core/tree/main/integrations/n8n"
+      }
+    ]
+  }
+}

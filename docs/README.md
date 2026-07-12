@@ -13,17 +13,18 @@ You own the code. The default path is self-hosted software with full source acce
 | Give humans a web UI for writing, previewing, posting, and scheduling | Scheduler app      | [Scheduler app](scheduler-app/README.md)   |
 | Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                       |
 | Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)         |
+| Publish, schedule, or save drafts from a visual automation            | n8n node           | [n8n node](../integrations/n8n/README.md)  |
 
 Most users only need one row. The common concepts below explain how the pieces fit together.
 
 ## How The Pieces Fit
 
 ```text
-AI agent      App/backend      Human web user      Terminal/script
-   |              |                 |                    |
- MCP server    HTTP API        Scheduler app            CLI
-   |              |                 |                    |
-   +--------------+-----------------+--------------------+
+AI agent      App/backend      Human web user      Terminal/script      n8n workflow
+   |              |                 |                    |                  |
+ MCP server    HTTP API        Scheduler app            CLI             n8n node
+   |              |                 |                    |                  |
+   +--------------+-----------------+--------------------+------------------+
                          |
                   TypeScript SDK
                          |
@@ -81,7 +82,7 @@ Use the platform guides in this public repository for credential setup. You can 
 You have three common options:
 
 - Use environment variables with the SDK or HTTP API server.
-- Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, and Scheduler API keys use them.
+- Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, n8n node, and Scheduler API keys use them.
 - Store accounts locally in the CLI for terminal-only workflows.
 
 Ownership matters here: you can set up your own apps on each social platform and run the code yourself. SimplePost should simplify the setup, not make you dependent on a hosted account you cannot inspect or replace.
@@ -94,6 +95,7 @@ Ownership matters here: you can set up your own apps on each social platform and
 | [`server/`](../server/)         | Express HTTP API wrapper around the SDK                              |
 | [`scheduler/`](../scheduler/)   | Next.js scheduler app, connected accounts, hosted UI, and MCP server |
 | [`cli/`](../cli/)               | oclif command line tool                                              |
+| [`integrations/`](../integrations/) | Workflow-automation integrations, including n8n                        |
 | [`examples/`](../examples/)     | Per-platform SDK examples                                            |
 | [`docs/platforms/`](platforms/) | Platform credential and behavior notes                               |
 

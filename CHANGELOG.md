@@ -10,6 +10,8 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ### Added
 
+- An `n8n-nodes-simplepost` community node with API-key credentials, connected-account discovery, publish/schedule/draft modes, media, threads, account options and overrides, reposts, quote posts, and idempotent retries.
+- A provenance-enabled n8n npm publishing workflow and n8n Creator Portal publication guide.
 - One-time CLI authorization codes, expiring CLI tokens, remote CLI revocation,
   and configurable loopback callback ports.
 - MCP OAuth token revocation and authorization-server revocation metadata.
@@ -28,7 +30,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
   dispatch across the SDK schemas, HTTP APIs, Scheduler, and MCP tools.
 - CLI posts sent through the hosted Scheduler include an idempotency key.
 - The SDK's exported validation surface now uses Zod 4 directly.
-- The root `yarn test` command runs the SDK, Scheduler, and CLI test suites.
+- The root `yarn test` command runs the SDK, Scheduler, CLI, and n8n node test suites.
 - CLI boolean options use `--flag` and `--no-flag` forms.
 - The public npm registry is the documented install source for the SDK and CLI.
 - ChatGPT onboarding now uses the working remote MCP connector flow.

@@ -2,7 +2,7 @@
 
 Use the Scheduler app when humans need a web UI to connect social accounts, compose posts, preview how they will look, publish immediately, or schedule for later.
 
-The app is also the account hub for the AI features. The MCP server and scheduler-connected CLI use the accounts stored in the Scheduler app.
+The app is also the account hub for integrations. The MCP server, scheduler-connected CLI, API clients, and n8n node use the accounts stored in the Scheduler app.
 
 ## When To Use It
 
@@ -46,7 +46,7 @@ yarn workspace @simple-post/scheduler db:migrate
 yarn workspace @simple-post/scheduler dev
 ```
 
-The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:3000` is the local base URL used by OAuth callbacks, CLI authorization, and MCP metadata.
+The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:3000` is the local base URL used by OAuth callbacks, CLI authorization, and MCP metadata. `NEXT_PUBLIC_N8N_NODE_URL` optionally changes the n8n package/marketplace link shown on the API Keys page after the node is published.
 
 ## Required Services
 

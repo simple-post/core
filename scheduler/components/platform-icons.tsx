@@ -9,6 +9,7 @@ import {
   faPinterest,
   faThreads,
   faBluesky,
+  faDev,
 } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -28,6 +29,7 @@ export const platformIcons: Record<string, IconDefinition> = {
   pinterest: faPinterest,
   threads: faThreads,
   bluesky: faBluesky,
+  forem: faDev,
 };
 
 export function PlatformIcon({ platform, className }: { platform: string; className?: string }) {

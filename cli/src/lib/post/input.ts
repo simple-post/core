@@ -65,6 +65,10 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "forem-title"?: string;
+  "forem-tags"?: string;
+  "forem-published"?: boolean;
+  "forem-canonical-url"?: string;
 };
 
 function isUrl(value: string): boolean {
@@ -135,6 +139,25 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
         : {}),
     };
   }
+  if (
+    flags["forem-title"] ||
+    flags["forem-tags"] ||
+    flags["forem-published"] !== undefined ||
+    flags["forem-canonical-url"]
+  )
+    options.forem = {
+      ...(flags["forem-title"] ? { title: flags["forem-title"] } : {}),
+      ...(flags["forem-tags"]
+        ? {
+            tags: flags["forem-tags"]
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+          }
+        : {}),
+      ...(flags["forem-published"] === undefined ? {} : { published: flags["forem-published"] }),
+      ...(flags["forem-canonical-url"] ? { canonicalUrl: flags["forem-canonical-url"] } : {}),
+    };
 
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };
@@ -196,6 +219,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  forem: "DEV/Forem",
 };
 
 function getPlatformLabel(platform: Platform): string {

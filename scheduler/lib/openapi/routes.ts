@@ -3,6 +3,7 @@ import cliAuthorizeRoutes from "@/app/api/cli/authorize/openapi";
 import cliTokenRoutes from "@/app/api/cli/token/openapi";
 import connectPlatformRoutes from "@/app/api/connect/[platform]/openapi";
 import connectCallbackRoutes from "@/app/api/connect/callback/[platform]/openapi";
+import connectForemRoutes from "@/app/api/connect/forem/openapi";
 import connectPendingRoutes from "@/app/api/connect/pending/[id]/openapi";
 import connectTelegramRoutes from "@/app/api/connect/telegram/openapi";
 import internalDispatchRoutes from "@/app/api/internal/scheduled-posts/dispatch/openapi";
@@ -42,6 +43,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   connectPlatformRoutes,
   connectCallbackRoutes,
   connectPendingRoutes,
+  connectForemRoutes,
   connectTelegramRoutes,
   internalDispatchRoutes,
   oauthAuthorizeRoutes,

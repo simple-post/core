@@ -210,6 +210,16 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "forem": {
+      return {
+        forem: {
+          credentials: {
+            instanceUrl: String(metadata.settings?.instanceUrl ?? "https://dev.to"),
+            apiKey: secret.accessToken,
+          },
+        },
+      };
+    }
   }
 
   throw new Error(`Stored account resolution is not implemented for ${platform}.`);

@@ -79,6 +79,13 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-blue-500",
     connectionType: "manual",
   },
+  {
+    id: "forem",
+    name: "DEV/Forem",
+    description: "Publish articles to DEV or a Forem",
+    color: "bg-black",
+    connectionType: "manual",
+  },
 ];
 
 /**

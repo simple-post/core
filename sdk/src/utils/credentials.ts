@@ -48,6 +48,7 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    forem: { instanceUrl: process.env.FOREM_INSTANCE_URL, apiKey: process.env.FOREM_API_KEY },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -142,6 +143,8 @@ export const getCredentialsFromEnv = (): PostOptions => {
       },
     };
   }
+  if (envVars.forem.instanceUrl && envVars.forem.apiKey)
+    options.forem = { credentials: { instanceUrl: envVars.forem.instanceUrl, apiKey: envVars.forem.apiKey } };
 
   return options;
 };
@@ -187,6 +190,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    forem: userOptions.forem
+      ? { ...userOptions.forem, credentials: userOptions.forem.credentials || envOptions.forem?.credentials }
+      : envOptions.forem,
   };
 
   return merged as PostOptionsWithCredentials;

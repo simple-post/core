@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -43,6 +43,7 @@ export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
+  const connectForemMutation = useConnectForem();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -52,17 +53,36 @@ export default function AccountsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
   const [telegramError, setTelegramError] = useState("");
+  const [showForemDialog, setShowForemDialog] = useState(false);
+  const [foremInstance, setForemInstance] = useState("https://dev.to");
+  const [foremApiKey, setForemApiKey] = useState("");
+  const [foremError, setForemError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
       setShowConnectDialog(false);
-      setShowTelegramDialog(true);
-      setTelegramError("");
+      if (platform === "forem") {
+        setShowForemDialog(true);
+        setForemError("");
+      } else {
+        setShowTelegramDialog(true);
+        setTelegramError("");
+      }
     } else {
       setShowConnectDialog(false);
       window.location.href = `/api/connect/${platform}`;
+    }
+  };
+  const handleForemConnect = async () => {
+    try {
+      await connectForemMutation.mutateAsync({ instanceUrl: foremInstance.trim(), apiKey: foremApiKey.trim() });
+      setShowForemDialog(false);
+      setForemApiKey("");
+    } catch (error) {
+      logClientError(error, "Forem connection error");
+      setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
     }
   };
 
@@ -263,6 +283,42 @@ export default function AccountsPage() {
                 </div>
               </button>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showForemDialog} onOpenChange={setShowForemDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect DEV/Forem</DialogTitle>
+            <DialogDescription>Use an API key from your Forem account settings.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {foremError && (
+              <Alert variant="destructive">
+                <AlertDescription>{foremError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="foremInstance">Instance URL</Label>
+              <Input id="foremInstance" value={foremInstance} onChange={(e) => setForemInstance(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="foremApiKey">API key</Label>
+              <Input
+                id="foremApiKey"
+                type="password"
+                value={foremApiKey}
+                onChange={(e) => setForemApiKey(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowForemDialog(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
+              Connect
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

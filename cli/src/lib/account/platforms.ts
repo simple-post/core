@@ -200,6 +200,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "Telegram",
     platform: "telegram",
   },
+  forem: {
+    connectDescription: "Connect DEV or another Forem with an API key.",
+    displayName: "DEV/Forem",
+    platform: "forem",
+  },
 } satisfies Record<AccountPlatform, AccountPlatformConfig>;
 
 export function getAccountPlatformConfig(platform: AccountPlatform): AccountPlatformConfig {

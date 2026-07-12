@@ -1,5 +1,6 @@
 import { BlueskyPublisher } from "../publishers/bluesky";
 import { FacebookPublisher } from "../publishers/facebook";
+import { ForemPublisher } from "../publishers/forem";
 import { InstagramPublisher } from "../publishers/instagram";
 import { LinkedInPublisher } from "../publishers/linkedin";
 import { PinterestPublisher } from "../publishers/pinterest";
@@ -48,6 +49,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "threads": {
       return ThreadsPublisher.mediaRequirement;
+    }
+    case "forem": {
+      return ForemPublisher.mediaRequirement;
     }
   }
 }

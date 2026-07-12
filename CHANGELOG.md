@@ -6,6 +6,10 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+### Added
+
+- DEV/Forem article publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, including drafts, tags, series, canonical URLs, organizations, and self-hosted instances.
+
 ## [1.1.0] - 2026-07-10
 
 ### Added

@@ -2,7 +2,7 @@ const { createPostPayload, listAccounts, request } = require('./lib/simplepost')
 
 const authentication = {
   type: 'custom',
-  test: { url: '{{bundle.authData.baseUrl}}/api/v1/accounts', method: 'GET' },
+  test: async (z, bundle) => request(z, bundle, { method: 'GET', path: '/api/v1/accounts' }),
   fields: [
     {
       key: 'apiKey',
@@ -154,8 +154,15 @@ const makePostTrigger = (key, event, label) => ({
     }),
     perform: async (_z, bundle) => [{ id: bundle.cleanedRequest.post.id, ...bundle.cleanedRequest }],
     performList: async (z, bundle) => {
-      const response = await request(z, bundle, { method: 'GET', path: '/api/v1/posts?type=past&limit=10' });
-      return response.posts || [];
+      const type = event === 'post.published' ? 'past' : 'failed';
+      const response = await request(z, bundle, { method: 'GET', path: `/api/v1/posts?type=${type}&limit=10` });
+      // Match the webhook payload shape so field mappings work for both.
+      return (response.posts || []).map((post) => ({
+        id: post.id,
+        event,
+        createdAt: post.publishedAt || post.createdAt,
+        post,
+      }));
     },
     sample: { id: 'post_123', event, post: { id: 'post_123', status: event === 'post.published' ? 'published' : 'failed', message: 'Hello from Zapier' } },
     outputFields: [

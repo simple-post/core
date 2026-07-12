@@ -20,6 +20,8 @@ interface DiscordMessage {
   guild_id?: string;
 }
 
+const DISCORD_WEBHOOK_HOST_PATTERN = /^(?:www\.|ptb\.|canary\.)?discord(?:app)?\.com$/;
+
 export function normalizeDiscordWebhookUrl(value: string): string {
   let url: URL;
   try {
@@ -27,7 +29,7 @@ export function normalizeDiscordWebhookUrl(value: string): string {
   } catch {
     throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Discord webhook URL is invalid.");
   }
-  if (url.protocol !== "https:" || !["discord.com", "www.discord.com"].includes(url.hostname)) {
+  if (url.protocol !== "https:" || !DISCORD_WEBHOOK_HOST_PATTERN.test(url.hostname)) {
     throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Discord webhook URL must use https://discord.com.");
   }
   if (!/^\/api(?:\/v\d+)?\/webhooks\/\d+\/[A-Za-z0-9._-]+$/.test(url.pathname.replace(/\/$/, ""))) {
@@ -110,9 +112,12 @@ export class DiscordPublisher extends Publisher {
       }
       const message = response.data;
       if (!message.id) throw new PostError(PostErrorType.API_ERROR, "Discord did not return a message ID.");
-      const messageUrl = message.channel_id
-        ? `https://discord.com/channels/${message.guild_id || "@me"}/${message.channel_id}/${message.id}`
-        : undefined;
+      // A /channels/@me/... fallback would be a DM link, which is wrong for
+      // guild channels, so only build the URL when the guild id is known.
+      const messageUrl =
+        message.channel_id && message.guild_id
+          ? `https://discord.com/channels/${message.guild_id}/${message.channel_id}/${message.id}`
+          : undefined;
       return {
         id: message.id,
         url: messageUrl,

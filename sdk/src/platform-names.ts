@@ -52,6 +52,7 @@ export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;
   channelId?: string;
+  guildId?: string;
 }
 
 /**
@@ -135,8 +136,11 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
       return `https://www.pinterest.com/pin/${postId}/`;
     }
     case "discord": {
-      const channelId = ctx.channelId || ctx.platformAccountId;
-      return channelId ? `https://discord.com/channels/@me/${channelId}/${postId}` : undefined;
+      // Guild message links need the guild id; /channels/@me/... would be a
+      // DM link that doesn't resolve for guild channels.
+      return ctx.guildId && ctx.channelId
+        ? `https://discord.com/channels/${ctx.guildId}/${ctx.channelId}/${postId}`
+        : undefined;
     }
     default: {
       return undefined;

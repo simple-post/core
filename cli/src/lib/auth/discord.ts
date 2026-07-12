@@ -23,7 +23,8 @@ function normalizeWebhookUrl(value: string): string {
   const url = new URL(value);
   if (
     url.protocol !== "https:" ||
-    !["discord.com", "www.discord.com"].includes(url.hostname) ||
+    // discordapp.com and the ptb/canary hosts still issue valid webhook URLs.
+    !/^(?:www\.|ptb\.|canary\.)?discord(?:app)?\.com$/.test(url.hostname) ||
     !/^\/api(?:\/v\d+)?\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(url.pathname)
   ) {
     throw new Error("Provide a valid https://discord.com/api/webhooks/... incoming webhook URL.");

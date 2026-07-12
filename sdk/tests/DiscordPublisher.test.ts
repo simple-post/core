@@ -25,6 +25,15 @@ describe("DiscordPublisher", () => {
     ).toThrow(PostError);
   });
 
+  it("accepts legacy discordapp.com webhook URLs", () => {
+    expect(
+      () =>
+        new DiscordPublisher({
+          discord: { credentials: { webhookUrl: "https://discordapp.com/api/webhooks/123/token_abc" } },
+        }),
+    ).not.toThrow();
+  });
+
   it("reports malformed webhook URLs as credential errors", () => {
     expect(() => new DiscordPublisher({ discord: { credentials: { webhookUrl: "not-a-url" } } })).toThrow(PostError);
   });
@@ -46,6 +55,13 @@ describe("DiscordPublisher", () => {
         error: PostErrorType.NO_ERROR,
       }),
     );
+  });
+
+  it("omits the message URL when the guild id is unknown", async () => {
+    mockedAxios.post.mockResolvedValue({ data: { id: "message-3", channel_id: "channel-1" } });
+    const publisher = new DiscordPublisher(options);
+    const result = await publisher.postContent({ text: "Hello Discord" }, options);
+    expect(result.url).toBeUndefined();
   });
 
   it("adds a thread target and message flags", async () => {

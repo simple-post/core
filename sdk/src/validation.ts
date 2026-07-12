@@ -2,6 +2,7 @@ import { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/b
 import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 import { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 import { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
+import { MASTODON_VALIDATION_RULES, validateMastodonContent } from "./publishers/mastodon/validation";
 import { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
 import { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";
@@ -28,6 +29,7 @@ export const PLATFORM_VALIDATORS: Record<Platform, PlatformValidator> = {
   threads: { rules: THREADS_VALIDATION_RULES, validate: validateThreadsContent },
   linkedin: { rules: LINKEDIN_VALIDATION_RULES, validate: validateLinkedInContent },
   pinterest: { rules: PINTEREST_VALIDATION_RULES, validate: validatePinterestContent },
+  mastodon: { rules: MASTODON_VALIDATION_RULES, validate: validateMastodonContent },
 };
 
 export function getValidationRulesForPlatform(platform: Platform): PlatformValidationRules {
@@ -43,6 +45,7 @@ export { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers
 export { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 export { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
 export { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
+export { MASTODON_VALIDATION_RULES, validateMastodonContent } from "./publishers/mastodon/validation";
 export { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 export { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";
 export { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";

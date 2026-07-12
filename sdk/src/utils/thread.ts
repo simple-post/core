@@ -18,7 +18,8 @@ export type ReplyOverlay =
   | { platform: "x"; options: { replyToId: string } }
   | { platform: "bluesky"; options: { replyTo: { root: BlueskyPostRef; parent: BlueskyPostRef } } }
   | { platform: "threads"; options: { replyToId: string } }
-  | { platform: "telegram"; options: { replyTo: string } };
+  | { platform: "telegram"; options: { replyTo: string } }
+  | { platform: "mastodon"; options: { inReplyToId: string } };
 
 /**
  * Returns a per-platform options delta to chain the next segment to the
@@ -38,6 +39,10 @@ export function buildReplyOverlay(platform: Platform | string, chain: ThreadChai
     case "telegram": {
       if (!chain.parentPostId) return undefined;
       return { platform: "telegram", options: { replyTo: chain.parentPostId } };
+    }
+    case "mastodon": {
+      if (!chain.parentPostId) return undefined;
+      return { platform: "mastodon", options: { inReplyToId: chain.parentPostId } };
     }
     case "bluesky": {
       if (!chain.parentBskyRef || !chain.rootBskyRef) return undefined;
@@ -65,7 +70,8 @@ export function extractChainStep(
   switch (platform) {
     case "x":
     case "threads":
-    case "telegram": {
+    case "telegram":
+    case "mastodon": {
       return { postId: result.id };
     }
     case "bluesky": {
@@ -82,5 +88,11 @@ export function extractChainStep(
 }
 
 export function isThreadCapable(platform: Platform | string): boolean {
-  return platform === "x" || platform === "bluesky" || platform === "threads" || platform === "telegram";
+  return (
+    platform === "x" ||
+    platform === "bluesky" ||
+    platform === "threads" ||
+    platform === "telegram" ||
+    platform === "mastodon"
+  );
 }

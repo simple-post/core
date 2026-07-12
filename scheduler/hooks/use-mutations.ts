@@ -85,6 +85,31 @@ export function useConnectTelegram() {
   });
 }
 
+interface ConnectMastodonParams {
+  instanceUrl: string;
+  accessToken: string;
+}
+
+async function connectMastodon(params: ConnectMastodonParams): Promise<void> {
+  const response = await fetch("/api/connect/mastodon", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || "Failed to connect Mastodon account");
+  }
+}
+
+export function useConnectMastodon() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: connectMastodon,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
+
 // Create/Update post mutation
 interface PostMutationParams {
   body: {

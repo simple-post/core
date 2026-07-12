@@ -142,4 +142,13 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "mastodon-visibility": Flags.string({ description: "Mastodon visibility", helpGroup: "Mastodon" }),
+  "mastodon-spoiler-text": Flags.string({ description: "Mastodon content warning", helpGroup: "Mastodon" }),
+  "mastodon-sensitive": Flags.boolean({
+    allowNo: true,
+    description: "Mark Mastodon media as sensitive",
+    helpGroup: "Mastodon",
+  }),
+  "mastodon-language": Flags.string({ description: "Mastodon ISO language code", helpGroup: "Mastodon" }),
+  "mastodon-reply-to-id": Flags.string({ description: "Mastodon status ID to reply to", helpGroup: "Mastodon" }),
 } as const;

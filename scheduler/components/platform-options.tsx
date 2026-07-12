@@ -469,6 +469,52 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
           </div>
         </Card>
       )}
+
+      {selectedPlatforms.includes("mastodon") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-indigo-600 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Mastodon Options</h4>
+          </div>
+          <div>
+            <Label htmlFor="mastodon-visibility" className="text-sm text-muted-foreground">
+              Visibility
+            </Label>
+            <Select
+              value={options.mastodon?.visibility || "public"}
+              onValueChange={(value) => updateOption("mastodon", "visibility", value)}>
+              <SelectTrigger id="mastodon-visibility" className="mt-1 border-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">Public</SelectItem>
+                <SelectItem value="unlisted">Quiet public</SelectItem>
+                <SelectItem value="private">Followers only</SelectItem>
+                <SelectItem value="direct">Mentioned users only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="mastodon-spoilerText" className="text-sm text-muted-foreground">
+              Content warning (optional)
+            </Label>
+            <Input
+              id="mastodon-spoilerText"
+              value={options.mastodon?.spoilerText || ""}
+              onChange={(event) => updateOption("mastodon", "spoilerText", event.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="mastodon-sensitive"
+              checked={options.mastodon?.sensitive || false}
+              onCheckedChange={(checked) => updateOption("mastodon", "sensitive", checked === true)}
+            />
+            <Label htmlFor="mastodon-sensitive">Mark media as sensitive</Label>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

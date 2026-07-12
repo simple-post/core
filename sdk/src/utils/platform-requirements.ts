@@ -2,6 +2,7 @@ import { BlueskyPublisher } from "../publishers/bluesky";
 import { FacebookPublisher } from "../publishers/facebook";
 import { InstagramPublisher } from "../publishers/instagram";
 import { LinkedInPublisher } from "../publishers/linkedin";
+import { MastodonPublisher } from "../publishers/mastodon";
 import { PinterestPublisher } from "../publishers/pinterest";
 import { TelegramPublisher } from "../publishers/telegram";
 import { ThreadsPublisher } from "../publishers/threads";
@@ -42,6 +43,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "pinterest": {
       return PinterestPublisher.mediaRequirement;
+    }
+    case "mastodon": {
+      return MastodonPublisher.mediaRequirement;
     }
     case "bluesky": {
       return BlueskyPublisher.mediaRequirement;

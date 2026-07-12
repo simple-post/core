@@ -195,6 +195,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     },
     platform: "pinterest",
   },
+  mastodon: {
+    connectDescription: "Connect any Mastodon instance with a user access token.",
+    displayName: "Mastodon",
+    platform: "mastodon",
+  },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",

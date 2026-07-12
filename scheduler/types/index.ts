@@ -87,6 +87,13 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  mastodon?: {
+    visibility?: "public" | "unlisted" | "private" | "direct";
+    spoilerText?: string;
+    sensitive?: boolean;
+    language?: string;
+    inReplyToId?: string;
+  };
 }
 
 export interface SocialPost {
@@ -180,6 +187,13 @@ export interface PlatformOptions {
     description?: string;
     link?: string;
     altText?: string;
+  };
+  mastodon?: {
+    visibility?: "public" | "unlisted" | "private" | "direct";
+    spoilerText?: string;
+    sensitive?: boolean;
+    language?: string;
+    inReplyToId?: string;
   };
 }
 

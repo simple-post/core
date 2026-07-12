@@ -125,6 +125,7 @@ export { TikTokPublisher } from "./publishers/tiktok";
 export { YouTubePublisher } from "./publishers/youtube";
 export { LinkedInPublisher } from "./publishers/linkedin";
 export { PinterestPublisher } from "./publishers/pinterest";
+export { MastodonPublisher } from "./publishers/mastodon";
 
 // Export all types for TypeScript and JavaScript users
 export type {
@@ -154,6 +155,7 @@ export type {
   ThreadsOptions,
   LinkedInOptions,
   PinterestOptions,
+  MastodonOptions,
   LogLevel,
 } from "./types/post";
 
@@ -251,4 +253,5 @@ export {
   ThreadsOptionsSchema,
   LinkedInOptionsSchema,
   PinterestOptionsSchema,
+  MastodonOptionsSchema,
 } from "./types/post";

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useDisconnectAccount, useConnectMastodon, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -43,6 +43,7 @@ export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
+  const connectMastodonMutation = useConnectMastodon();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -52,17 +53,46 @@ export default function AccountsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
   const [telegramError, setTelegramError] = useState("");
+  const [showMastodonDialog, setShowMastodonDialog] = useState(false);
+  const [mastodonInstanceUrl, setMastodonInstanceUrl] = useState("");
+  const [mastodonAccessToken, setMastodonAccessToken] = useState("");
+  const [mastodonError, setMastodonError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
       setShowConnectDialog(false);
-      setShowTelegramDialog(true);
-      setTelegramError("");
+      if (platform === "mastodon") {
+        setShowMastodonDialog(true);
+        setMastodonError("");
+      } else {
+        setShowTelegramDialog(true);
+        setTelegramError("");
+      }
     } else {
       setShowConnectDialog(false);
       window.location.href = `/api/connect/${platform}`;
+    }
+  };
+
+  const handleMastodonConnect = async () => {
+    if (!mastodonInstanceUrl.trim() || !mastodonAccessToken.trim()) {
+      setMastodonError("Please provide both an instance URL and access token");
+      return;
+    }
+    setMastodonError("");
+    try {
+      await connectMastodonMutation.mutateAsync({
+        instanceUrl: mastodonInstanceUrl.trim(),
+        accessToken: mastodonAccessToken.trim(),
+      });
+      setShowMastodonDialog(false);
+      setMastodonInstanceUrl("");
+      setMastodonAccessToken("");
+    } catch (error) {
+      logClientError(error, "Mastodon connection error");
+      setMastodonError(error instanceof Error ? error.message : "Failed to connect Mastodon account");
     }
   };
 
@@ -421,6 +451,70 @@ export default function AccountsPage() {
             </Button>
             <Button onClick={handleTelegramConnect} disabled={connectTelegramMutation.isPending} className="flex-1">
               {connectTelegramMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMastodonDialog} onOpenChange={setShowMastodonDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Mastodon</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Mastodon</DialogTitle>
+            <DialogDescription>
+              Connect an account from any Mastodon instance with a user access token.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {mastodonError && (
+              <Alert variant="destructive">
+                <AlertDescription>{mastodonError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="mastodonInstanceUrl">Instance URL</Label>
+              <Input
+                id="mastodonInstanceUrl"
+                type="url"
+                placeholder="https://mastodon.social"
+                value={mastodonInstanceUrl}
+                onChange={(event) => setMastodonInstanceUrl(event.target.value)}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="mastodonAccessToken">User access token</Label>
+              <Input
+                id="mastodonAccessToken"
+                type="password"
+                value={mastodonAccessToken}
+                onChange={(event) => setMastodonAccessToken(event.target.value)}
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Create an application in your instance preferences with read:accounts, write:statuses, and write:media
+                access.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowMastodonDialog(false);
+                setMastodonInstanceUrl("");
+                setMastodonAccessToken("");
+                setMastodonError("");
+              }}
+              disabled={connectMastodonMutation.isPending}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleMastodonConnect} disabled={connectMastodonMutation.isPending} className="flex-1">
+              {connectMastodonMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

@@ -5,6 +5,7 @@ import {
   isThreadCapable,
   LinkedInPublisher,
   PinterestPublisher,
+  MastodonPublisher,
   TelegramPublisher,
   ThreadsPublisher,
   TikTokPublisher,
@@ -39,6 +40,7 @@ const publishers: Record<
   threads: ThreadsPublisher,
   linkedin: LinkedInPublisher,
   pinterest: PinterestPublisher,
+  mastodon: MastodonPublisher,
 };
 
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {

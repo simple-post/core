@@ -16,6 +16,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "mastodon",
             "telegram"
           ],
           "required": false
@@ -387,6 +388,45 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "mastodon-visibility": {
+          "description": "Mastodon visibility",
+          "helpGroup": "Mastodon",
+          "name": "mastodon-visibility",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "mastodon-spoiler-text": {
+          "description": "Mastodon content warning",
+          "helpGroup": "Mastodon",
+          "name": "mastodon-spoiler-text",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "mastodon-sensitive": {
+          "description": "Mark Mastodon media as sensitive",
+          "helpGroup": "Mastodon",
+          "name": "mastodon-sensitive",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "mastodon-language": {
+          "description": "Mastodon ISO language code",
+          "helpGroup": "Mastodon",
+          "name": "mastodon-language",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "mastodon-reply-to-id": {
+          "description": "Mastodon status ID to reply to",
+          "helpGroup": "Mastodon",
+          "name": "mastodon-reply-to-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -569,6 +609,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "mastodon",
             "telegram"
           ],
           "required": false
@@ -586,6 +627,13 @@
         "bot-token": {
           "description": "Telegram bot token (for non-interactive Telegram connect)",
           "name": "bot-token",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "access-token": {
+          "description": "Mastodon user access token (for non-interactive Mastodon connect)",
+          "name": "access-token",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
@@ -608,6 +656,13 @@
         "chat-id": {
           "description": "Telegram chat ID (for non-interactive Telegram connect)",
           "name": "chat-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "instance-url": {
+          "description": "Mastodon instance URL, such as https://mastodon.social",
+          "name": "instance-url",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

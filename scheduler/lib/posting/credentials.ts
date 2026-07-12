@@ -112,6 +112,10 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  mastodon: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    instanceUrl: getTokenMetadata(account).instanceUrl,
+  }),
 };
 
 /**

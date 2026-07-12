@@ -50,14 +50,14 @@ The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:300
 
 ## Required Services
 
-| Service                  | Why it is needed                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------- |
-| Postgres                 | Users, sessions, connected accounts, posts, and scheduled post records                            |
-| S3-compatible storage    | Uploaded media, thumbnails, and files that need public URLs                                       |
-| Better Auth secret       | App authentication and session signing                                                            |
-| Scheduler encryption key | Encryption for connected account secrets                                                          |
-| Resend                   | Email login / auth mail                                                                           |
-| Social platform apps     | OAuth credentials for platforms such as X, Meta, Google, TikTok, LinkedIn, Pinterest, and Bluesky |
+| Service                  | Why it is needed                                                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Postgres                 | Users, sessions, connected accounts, posts, and scheduled post records                                                             |
+| S3-compatible storage    | Uploaded media, thumbnails, and files that need public URLs                                                                        |
+| Better Auth secret       | App authentication and session signing                                                                                             |
+| Scheduler encryption key | Encryption for connected account secrets                                                                                           |
+| Resend                   | Email login / auth mail                                                                                                            |
+| Social platform apps     | OAuth credentials for platforms such as X, Meta, Google, TikTok, LinkedIn, Pinterest, and Bluesky; Mastodon uses an instance token |
 
 See [`scheduler/.env.example`](../../scheduler/.env.example) for the full list of environment variables.
 

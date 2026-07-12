@@ -14,7 +14,7 @@ import type {
   PlatformValidationRules,
 } from "@simple-post/sdk";
 
-const THREAD_CAPABLE_PLATFORMS = new Set<Platform>(["x", "bluesky", "threads", "telegram"]);
+const THREAD_CAPABLE_PLATFORMS = new Set<Platform>(["x", "bluesky", "threads", "telegram", "mastodon"]);
 
 const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
   const media: Media[] = mediaFiles.map((file) =>

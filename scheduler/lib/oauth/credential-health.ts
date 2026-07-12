@@ -92,6 +92,7 @@ function platformLabel(platform: string): string {
     facebook: "Facebook",
     instagram: "Instagram",
     linkedin: "LinkedIn",
+    mastodon: "Mastodon",
     pinterest: "Pinterest",
     telegram: "Telegram",
     threads: "Threads",
@@ -151,7 +152,7 @@ export function getRefreshTokenExpiresAt(data: Record<string, unknown>, now: Dat
 }
 
 function isNonExpiringPlatform(platform: string): boolean {
-  return platform === "telegram" || platform === "facebook";
+  return platform === "telegram" || platform === "facebook" || platform === "mastodon";
 }
 
 function getXClientId(): string {

@@ -65,6 +65,11 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "mastodon-visibility"?: string;
+  "mastodon-spoiler-text"?: string;
+  "mastodon-sensitive"?: boolean;
+  "mastodon-language"?: string;
+  "mastodon-reply-to-id"?: string;
 };
 
 function isUrl(value: string): boolean {
@@ -182,6 +187,24 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
     };
   }
 
+  if (
+    flags["mastodon-visibility"] ||
+    flags["mastodon-spoiler-text"] ||
+    flags["mastodon-sensitive"] !== undefined ||
+    flags["mastodon-language"] ||
+    flags["mastodon-reply-to-id"]
+  ) {
+    options.mastodon = {
+      ...(flags["mastodon-visibility"]
+        ? { visibility: flags["mastodon-visibility"] as NonNullable<PostOptions["mastodon"]>["visibility"] }
+        : {}),
+      ...(flags["mastodon-spoiler-text"] ? { spoilerText: flags["mastodon-spoiler-text"] } : {}),
+      ...(flags["mastodon-sensitive"] === undefined ? {} : { sensitive: flags["mastodon-sensitive"] }),
+      ...(flags["mastodon-language"] ? { language: flags["mastodon-language"] } : {}),
+      ...(flags["mastodon-reply-to-id"] ? { inReplyToId: flags["mastodon-reply-to-id"] } : {}),
+    };
+  }
+
   return Object.keys(options).length > 0 ? options : undefined;
 }
 
@@ -196,6 +219,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  mastodon: "Mastodon",
 };
 
 function getPlatformLabel(platform: Platform): string {
@@ -381,6 +405,9 @@ function describePlatformSettings(options: PostOptions | undefined, platforms: P
 
   if (platforms.includes("pinterest") && options.pinterest?.boardId) {
     parts.push(`Pinterest board ${options.pinterest.boardId}`);
+  }
+  if (platforms.includes("mastodon") && options.mastodon?.visibility) {
+    parts.push(`Mastodon ${options.mastodon.visibility}`);
   }
 
   return parts.length > 0 ? parts.join(", ") : "none";
@@ -661,6 +688,32 @@ async function collectInteractivePlatformOptions(
       ...(description ? { description } : {}),
       ...(link ? { link } : {}),
       ...(altText ? { altText } : {}),
+    };
+  }
+
+  if (platforms.includes("mastodon") && (await prompt.confirm("Add Mastodon-specific settings?", false))) {
+    logInteractiveSection(prompt, "Mastodon");
+    const visibility = await prompt.select(
+      "Visibility",
+      [
+        { label: "Public", value: "public" },
+        { label: "Quiet public / unlisted", value: "unlisted" },
+        { label: "Followers only", value: "private" },
+        { label: "Mentioned users only", value: "direct" },
+      ],
+      currentOptions?.mastodon?.visibility ?? "public",
+    );
+    const spoilerText = (
+      await prompt.text("Content warning (optional)", { defaultValue: currentOptions?.mastodon?.spoilerText })
+    ).trim();
+    const language = (
+      await prompt.text("Language code (optional)", { defaultValue: currentOptions?.mastodon?.language })
+    ).trim();
+    options.mastodon = {
+      visibility,
+      ...(spoilerText ? { spoilerText } : {}),
+      ...(language ? { language } : {}),
+      ...(currentOptions?.mastodon?.sensitive === undefined ? {} : { sensitive: currentOptions.mastodon.sensitive }),
     };
   }
 

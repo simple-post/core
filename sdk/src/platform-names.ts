@@ -18,6 +18,7 @@ const PLATFORM_MAP: Record<string, Platform> = {
   threads: "threads",
   linkedin: "linkedin",
   pinterest: "pinterest",
+  mastodon: "mastodon",
 };
 
 /** Maps stored platform names (including aliases like "twitter") to SDK platform ids. */
@@ -32,7 +33,7 @@ export function mapPlatformName(platform: string): Platform {
  * browser bundles can import it without pulling in the Node-only parts of the
  * SDK barrel (e.g. the S3/`node:fs` utilities).
  */
-export const REPOST_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "linkedin"] as const;
+export const REPOST_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "linkedin", "mastodon"] as const;
 export type RepostCapablePlatform = (typeof REPOST_CAPABLE_PLATFORMS)[number];
 
 export function isRepostCapablePlatform(platform: string): platform is RepostCapablePlatform {
@@ -50,6 +51,7 @@ export function isQuoteCapablePlatform(platform: string): platform is QuoteCapab
 export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;
+  instanceUrl?: string;
 }
 
 /**
@@ -131,6 +133,10 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     }
     case "pinterest": {
       return `https://www.pinterest.com/pin/${postId}/`;
+    }
+    case "mastodon": {
+      const instanceUrl = ctx.instanceUrl?.replace(/\/$/, "");
+      return instanceUrl ? `${instanceUrl}/web/statuses/${postId}` : undefined;
     }
     default: {
       return undefined;

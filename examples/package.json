@@ -32,7 +32,9 @@
     "tiktok:slideshow": "tsx tiktok/postSlideshow.ts",
     "tiktok:slideshow:url": "tsx tiktok/postSlideshowUrl.ts",
     "all:video": "tsx all/postVideo.ts",
-    "all": "tsx all/runAll.ts"
+    "all": "tsx all/runAll.ts",
+    "mastodon:single": "tsx mastodon/postSingle.ts",
+    "mastodon:image": "tsx mastodon/postImage.ts"
   },
   "devDependencies": {
     "@simple-post/sdk": "*",

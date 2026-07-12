@@ -5,6 +5,20 @@ export function normalizeBaseUrl(value: string): string {
 	return value.replace(/\/+$/, '');
 }
 
+// The Scheduler API only accepts UTC `Z` timestamps, while n8n date pickers and
+// Luxon expressions commonly produce offset or zone-less ISO strings.
+export function normalizeScheduledFor(
+	value: string,
+	getNode: () => ConstructorParameters<typeof NodeOperationError>[0],
+): string {
+	const parsed = new Date(value);
+	if (!value.trim() || Number.isNaN(parsed.getTime())) {
+		throw new NodeOperationError(getNode(), 'Scheduled For must be a valid date and time');
+	}
+
+	return parsed.toISOString();
+}
+
 export function parseOptionalObject(
 	value: string,
 	fieldName: string,

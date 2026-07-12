@@ -6,12 +6,12 @@
   "resources": {
     "credentialDocumentation": [
       {
-        "url": "https://github.com/simple-post/core/tree/main/n8n#credentials"
+        "url": "https://github.com/simple-post/core/tree/main/integrations/n8n#credentials"
       }
     ],
     "primaryDocumentation": [
       {
-        "url": "https://github.com/simple-post/core/tree/main/n8n"
+        "url": "https://github.com/simple-post/core/tree/main/integrations/n8n"
       }
     ]
   }

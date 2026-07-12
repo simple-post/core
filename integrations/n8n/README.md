@@ -40,7 +40,7 @@ yarn dev
 Add the **SimplePost** node, choose one or more connected accounts, enter the message, and select a posting mode:
 
 - **Publish Now** sends the post immediately.
-- **Schedule** requires an ISO-compatible date and time.
+- **Schedule** requires a date and time; the node converts it to UTC before sending, so offset and zone-less values work.
 - **Save as Draft** keeps the post in SimplePost for later review.
 
 Media URLs must be publicly reachable. `ID`, `Filename`, and `Size in Bytes` can be supplied when known; the node generates an ID, derives a filename, and uses size `0` when they are omitted.

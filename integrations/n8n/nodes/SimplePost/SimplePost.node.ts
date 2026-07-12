@@ -12,7 +12,7 @@ import type {
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 import { randomUUID } from 'node:crypto';
 
-import { normalizeBaseUrl, parseOptionalArray, parseOptionalObject } from './shared';
+import { normalizeBaseUrl, normalizeScheduledFor, parseOptionalArray, parseOptionalObject } from './shared';
 
 type ConnectedAccount = {
 	id: string;
@@ -271,7 +271,10 @@ export class SimplePost implements INodeType {
 				};
 
 				if (postingMode === 'schedule') {
-					body.scheduledFor = this.getNodeParameter('scheduledFor', itemIndex) as string;
+					body.scheduledFor = normalizeScheduledFor(
+						this.getNodeParameter('scheduledFor', itemIndex) as string,
+						() => this.getNode(),
+					);
 				}
 
 				if (mediaCollection.items?.length) {

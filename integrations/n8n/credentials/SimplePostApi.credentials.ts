@@ -16,7 +16,7 @@ export class SimplePostApi implements ICredentialType {
 		dark: 'file:../nodes/SimplePost/simplePost.dark.svg',
 	};
 
-	documentationUrl = 'https://github.com/simple-post/core/tree/main/n8n#credentials';
+	documentationUrl = 'https://github.com/simple-post/core/tree/main/integrations/n8n#credentials';
 
 	properties: INodeProperties[] = [
 		{

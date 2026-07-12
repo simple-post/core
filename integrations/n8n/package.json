@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Publish, schedule, and save social media posts from n8n with SimplePost.",
   "license": "MIT",
-  "homepage": "https://github.com/simple-post/core/tree/main/n8n",
+  "homepage": "https://github.com/simple-post/core/tree/main/integrations/n8n",
   "keywords": [
     "n8n-community-node-package",
     "n8n",

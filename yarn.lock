@@ -12989,13 +12989,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"isolated-vm@npm:^6.1.2":
-  version: 6.1.2
-  resolution: "isolated-vm@npm:6.1.2"
+"isolated-vm@npm:6.0.2":
+  version: 6.0.2
+  resolution: "isolated-vm@npm:6.0.2"
   dependencies:
     node-gyp: "npm:latest"
-    node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/2209032b8296e6af49250f7e04ab904e9c331bbbf1bdf8eeca78e32ed6bd98c84ced42b785127f0f2828a1c5e66d82cb2bf1459e973620e19b485c5a00252e98
+    prebuild-install: "npm:^7.1.3"
+  checksum: 10c0/1c40cb52836a9bd9b6c2a410ee0156dc3bef528e04c8cfeec24a431625ed4d41c0f8e9930df893a577e10d6109f1f81070dc369e2b47a1d48f8695807a3adf0c
   languageName: node
   linkType: hard
 
@@ -15041,17 +15041,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-gyp-build@npm:^4.8.4":
-  version: 4.8.4
-  resolution: "node-gyp-build@npm:4.8.4"
-  bin:
-    node-gyp-build: bin.js
-    node-gyp-build-optional: optional.js
-    node-gyp-build-test: build-test.js
-  checksum: 10c0/444e189907ece2081fe60e75368784f7782cfddb554b60123743dfb89509df89f1f29c03bbfa16b3a3e0be3f48799a4783f487da6203245fa5bed239ba7407e1
-  languageName: node
-  linkType: hard
-
 "node-gyp@npm:latest":
   version: 11.2.0
   resolution: "node-gyp@npm:11.2.0"
@@ -16098,7 +16087,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prebuild-install@npm:^7.0.1":
+"prebuild-install@npm:^7.0.1, prebuild-install@npm:^7.1.3":
   version: 7.1.3
   resolution: "prebuild-install@npm:7.1.3"
   dependencies:

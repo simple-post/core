@@ -110,12 +110,23 @@ export default function AccountsPage() {
     }
   };
 
+  const closeFarcasterDialog = () => {
+    setShowFarcasterDialog(false);
+    setFarcasterKey("");
+    setFarcasterError("");
+  };
+
   const handleFarcasterConnect = async () => {
     const fid = Number(farcasterFid);
-    if (!fid || !farcasterKey.trim() || !farcasterHub.trim()) {
+    if (!Number.isInteger(fid) || fid <= 0 || !farcasterKey.trim() || !farcasterHub.trim()) {
       setFarcasterError("FID, signer key, and Hub endpoint are required");
       return;
     }
+    if (!/^(0x)?[a-fA-F0-9]{64}$/.test(farcasterKey.trim())) {
+      setFarcasterError("The signer private key must be 64 hexadecimal characters (optionally 0x-prefixed)");
+      return;
+    }
+    setFarcasterError("");
     try {
       await connectFarcasterMutation.mutateAsync({
         fid,
@@ -123,8 +134,7 @@ export default function AccountsPage() {
         hubUrl: farcasterHub.trim(),
         username: farcasterUsername.trim() || undefined,
       });
-      setShowFarcasterDialog(false);
-      setFarcasterKey("");
+      closeFarcasterDialog();
     } catch (error) {
       logClientError(error, "Farcaster connection error");
       setFarcasterError(error instanceof Error ? error.message : "Failed to connect Farcaster");
@@ -398,56 +408,95 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showFarcasterDialog} onOpenChange={setShowFarcasterDialog}>
+      <Dialog
+        open={showFarcasterDialog}
+        onOpenChange={(open) => (open ? setShowFarcasterDialog(true) : closeFarcasterDialog())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Connect Farcaster</DialogTitle>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Farcaster</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Farcaster</DialogTitle>
             <DialogDescription>Use an authorized signer for your FID and a protocol Hub endpoint.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4 mt-2">
             {farcasterError && (
               <Alert variant="destructive">
                 <AlertDescription>{farcasterError}</AlertDescription>
               </Alert>
             )}
             <div>
-              <Label htmlFor="farcasterFid">FID</Label>
+              <Label
+                htmlFor="farcasterFid"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                FID
+              </Label>
               <Input
                 id="farcasterFid"
                 inputMode="numeric"
+                placeholder="12345"
                 value={farcasterFid}
                 onChange={(e) => setFarcasterFid(e.target.value)}
+                className="mt-2 font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">Your numeric Farcaster ID.</p>
             </div>
             <div>
-              <Label htmlFor="farcasterKey">Signer private key</Label>
+              <Label
+                htmlFor="farcasterKey"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Signer private key
+              </Label>
               <Input
                 id="farcasterKey"
                 type="password"
+                placeholder="0x… 64 hexadecimal characters"
                 value={farcasterKey}
                 onChange={(e) => setFarcasterKey(e.target.value)}
+                className="mt-2 font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                An Ed25519 signer already authorized for this FID. This key can post as you — treat it as a secret.
+              </p>
             </div>
             <div>
-              <Label htmlFor="farcasterHub">Hub gRPC endpoint</Label>
+              <Label
+                htmlFor="farcasterHub"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Hub gRPC endpoint
+              </Label>
               <Input
                 id="farcasterHub"
                 placeholder="hub.example.com:2283"
                 value={farcasterHub}
                 onChange={(e) => setFarcasterHub(e.target.value)}
+                className="mt-2 font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">The Hub SimplePost should submit casts to.</p>
             </div>
             <div>
-              <Label htmlFor="farcasterUsername">Username (optional)</Label>
+              <Label
+                htmlFor="farcasterUsername"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Username <span className="text-[#555555] normal-case font-sans">(optional)</span>
+              </Label>
               <Input
                 id="farcasterUsername"
+                placeholder="alice"
                 value={farcasterUsername}
                 onChange={(e) => setFarcasterUsername(e.target.value)}
+                className="mt-2"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">Used to build links to your published casts.</p>
             </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setShowFarcasterDialog(false)} className="flex-1">
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={closeFarcasterDialog}
+              disabled={connectFarcasterMutation.isPending}
+              className="flex-1">
               Cancel
             </Button>
             <Button onClick={handleFarcasterConnect} disabled={connectFarcasterMutation.isPending} className="flex-1">

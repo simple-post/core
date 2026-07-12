@@ -24,7 +24,7 @@ interface PostPreviewProps {
 
 type PreviewComponent = React.ComponentType<{ message: string; media: MediaFile[]; platform: string }>;
 
-const THREAD_CAPABLE_PLATFORMS = new Set(["x", "bluesky", "threads", "telegram"]);
+const THREAD_CAPABLE_PLATFORMS = new Set(["x", "bluesky", "threads", "telegram", "mastodon"]);
 
 const platformComponents: Record<string, PreviewComponent> = {
   x: XPreview,

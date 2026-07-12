@@ -34,6 +34,7 @@ const PLATFORM_LABELS: Partial<Record<Platform, string>> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  mastodon: "Mastodon",
 };
 
 function getPlatformLabel(platform: Platform | string): string {

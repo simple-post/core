@@ -2,6 +2,7 @@ import { BlueskyPublisher } from "./bluesky";
 import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";
 import { LinkedInPublisher } from "./linkedin";
+import { MastodonPublisher } from "./mastodon";
 import { PinterestPublisher } from "./pinterest";
 import { TelegramPublisher } from "./telegram";
 import { ThreadsPublisher } from "./threads";
@@ -43,6 +44,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "pinterest": {
       return new PinterestPublisher(options);
+    }
+    case "mastodon": {
+      return new MastodonPublisher(options);
     }
   }
 

@@ -1149,6 +1149,61 @@ export function AccountOptionsComponent({
               </div>
             )}
 
+            {account.platform === "mastodon" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-mastodon-visibility`} className="text-sm text-muted-foreground">
+                    Visibility
+                  </Label>
+                  <Select
+                    value={asString(accountOptions.visibility) || "public"}
+                    onValueChange={(value) => updateOption(account.id, "visibility", value)}>
+                    <SelectTrigger id={`${account.id}-mastodon-visibility`} className="mt-1 border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="public">Public</SelectItem>
+                      <SelectItem value="unlisted">Quiet public</SelectItem>
+                      <SelectItem value="private">Followers only</SelectItem>
+                      <SelectItem value="direct">Mentioned users only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-mastodon-spoilerText`} className="text-sm text-muted-foreground">
+                    Content warning (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-mastodon-spoilerText`}
+                    value={asString(accountOptions.spoilerText)}
+                    onChange={(event) => updateOption(account.id, "spoilerText", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-mastodon-language`} className="text-sm text-muted-foreground">
+                    Language code (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-mastodon-language`}
+                    placeholder="en"
+                    maxLength={5}
+                    value={asString(accountOptions.language)}
+                    onChange={(event) => updateOption(account.id, "language", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${account.id}-mastodon-sensitive`}
+                    checked={asBoolean(accountOptions.sensitive, false)}
+                    onCheckedChange={(checked) => updateOption(account.id, "sensitive", checked === true)}
+                  />
+                  <Label htmlFor={`${account.id}-mastodon-sensitive`}>Mark media as sensitive</Label>
+                </div>
+              </div>
+            )}
+
             {/* Telegram Options */}
             {account.platform === "telegram" && (
               <div>

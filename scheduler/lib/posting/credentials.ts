@@ -17,6 +17,12 @@ const getTokenMetadata = (account: ConnectedAccount): Record<string, unknown> =>
   return account.tokenMetadata as Record<string, unknown>;
 };
 
+/** Instance URL captured at connect time (e.g. Mastodon), if any. */
+export function getAccountInstanceUrl(account: ConnectedAccount): string | undefined {
+  const instanceUrl = getTokenMetadata(account).instanceUrl;
+  return typeof instanceUrl === "string" && instanceUrl ? instanceUrl : undefined;
+}
+
 /**
  * Platform-specific credential builders
  */
@@ -111,6 +117,10 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   }),
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
+  }),
+  mastodon: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    instanceUrl: getTokenMetadata(account).instanceUrl,
   }),
 };
 

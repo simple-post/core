@@ -145,6 +145,17 @@ export function assertValidWebhookUrl(url: string): void {
   }
 }
 
+/** Validate a user-provided remote URL and its current DNS results before a direct fetch. */
+export async function assertSafeRemoteUrl(url: string): Promise<void> {
+  assertValidWebhookUrl(url);
+  const hostname = new URL(url).hostname;
+  const addresses = await dns.promises.lookup(hostname, { all: true, verbatim: true });
+  const blocked = addresses.find(({ address }) => isPrivateAddress(address));
+  if (blocked) {
+    throw new Error(`Remote hostname resolved to a private/internal address: ${hostname}`);
+  }
+}
+
 async function fetchWebhook(url: string, init: RequestInit): Promise<Response> {
   let currentUrl = url;
 

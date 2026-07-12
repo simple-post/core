@@ -200,6 +200,17 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "mastodon": {
+      const instanceUrl = secret.tokenMetadata?.instanceUrl;
+      if (typeof instanceUrl !== "string" || !instanceUrl) {
+        throw new Error(`Stored Mastodon account "${metadata.alias}" is missing its instance URL. Reconnect it.`);
+      }
+      return {
+        mastodon: {
+          credentials: { accessToken: secret.accessToken, instanceUrl },
+        },
+      };
+    }
     case "telegram": {
       return {
         telegram: {

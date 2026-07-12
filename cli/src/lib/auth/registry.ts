@@ -2,6 +2,7 @@ import { BlueskyAuthProvider } from "./bluesky.js";
 import { FacebookAuthProvider } from "./facebook.js";
 import { InstagramAuthProvider } from "./instagram.js";
 import { LinkedInAuthProvider } from "./linkedin.js";
+import { MastodonAuthProvider } from "./mastodon.js";
 import { PinterestAuthProvider } from "./pinterest.js";
 import { TelegramAuthProvider } from "./telegram.js";
 import { ThreadsAuthProvider } from "./threads.js";
@@ -21,6 +22,7 @@ const AUTH_PROVIDERS = {
   bluesky: new BlueskyAuthProvider(),
   threads: new ThreadsAuthProvider(),
   linkedin: new LinkedInAuthProvider(),
+  mastodon: new MastodonAuthProvider(),
   pinterest: new PinterestAuthProvider(),
   telegram: new TelegramAuthProvider(),
 } satisfies Record<AccountPlatform, AuthProvider>;

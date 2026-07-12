@@ -41,6 +41,10 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    spoilerText: z.string().optional(),
+    sensitive: z.boolean().optional(),
+    language: z.string().optional(),
+    inReplyToId: z.string().optional(),
   })
   .passthrough();
 
@@ -55,7 +59,7 @@ export type AccountOptionsMap = Record<string, Record<string, unknown> | undefin
 export const MAX_THREAD_SEGMENTS = 24;
 
 // Platforms with native thread / reply support today.
-export const THREAD_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "telegram"] as const;
+export const THREAD_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "telegram", "mastodon"] as const;
 export type ThreadCapablePlatform = (typeof THREAD_CAPABLE_PLATFORMS)[number];
 
 export function isThreadCapablePlatform(platform: string): platform is ThreadCapablePlatform {

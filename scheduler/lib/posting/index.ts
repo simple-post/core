@@ -22,7 +22,7 @@ import { sanitizeForJson } from "@/lib/utils/errors";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import { reloadAccountSecrets, withAccountLock } from "./account-lock";
-import { buildPostOptions } from "./credentials";
+import { buildPostOptions, getAccountInstanceUrl } from "./credentials";
 
 import type {
   Post,
@@ -192,6 +192,7 @@ async function postSingleSegment(
         generatePostUrl(platform, result.id, {
           username: account.username ?? undefined,
           platformAccountId: account.platformAccountId ?? undefined,
+          instanceUrl: getAccountInstanceUrl(account),
         });
       const durationMs = Date.now() - startTime;
       log.info(
@@ -613,6 +614,7 @@ async function repostSingleTarget(
           ? generatePostUrl(platform, repostId, {
               username: freshAccount.username ?? undefined,
               platformAccountId: freshAccount.platformAccountId ?? undefined,
+              instanceUrl: getAccountInstanceUrl(freshAccount),
             })
           : undefined);
 

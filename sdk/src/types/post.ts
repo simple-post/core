@@ -13,6 +13,7 @@ export const PlatformSchema = z.enum([
   "threads",
   "linkedin",
   "pinterest",
+  "mastodon",
 ]);
 
 const BaseImageSchema = z.object({
@@ -219,6 +220,20 @@ export const PinterestOptionsSchema = z.object({
     .optional(),
 });
 
+export const MastodonOptionsSchema = z.object({
+  visibility: z.enum(["public", "unlisted", "private", "direct"]).optional(),
+  spoilerText: z.string().optional(),
+  sensitive: z.boolean().optional(),
+  language: z.string().max(5).optional(),
+  inReplyToId: z.string().optional(),
+  credentials: z
+    .object({
+      instanceUrl: z.url(),
+      accessToken: z.string().min(1),
+    })
+    .optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -236,6 +251,7 @@ export const PostOptionsSchema = z.object({
   threads: ThreadsOptionsSchema.optional(),
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
+  mastodon: MastodonOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -295,6 +311,7 @@ export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
+export type MastodonOptions = z.infer<typeof MastodonOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -333,6 +350,9 @@ export type LinkedInOptionsWithCredentials = LinkedInOptions & {
 export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
+export type MastodonOptionsWithCredentials = MastodonOptions & {
+  credentials: NonNullable<MastodonOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -345,4 +365,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   threads?: ThreadsOptionsWithCredentials;
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
+  mastodon?: MastodonOptionsWithCredentials;
 };

@@ -77,7 +77,7 @@ Notes:
 
 Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_post\` when the user wants more than one connected post: the root is always \`message\` plus optional root \`media\`, and \`thread\` is an ordered array of text-only follow-up segments \`{ message }\`. Use root \`media\` for image/video attachments; the ChatGPT app tools do not accept media on individual follow-up segments.
 
-- **Thread-capable platforms** (native reply chains): \`x\`, \`bluesky\`, \`threads\` (Meta Threads), \`telegram\`. Each segment is published in order as a reply to the previous one. There is a short delay between segments so APIs can resolve parent ids (especially Meta Threads).
+- **Thread-capable platforms** (native reply chains): \`x\`, \`bluesky\`, \`threads\` (Meta Threads), \`telegram\`, \`mastodon\`. Each segment is published in order as a reply to the previous one. There is a short delay between segments so APIs can resolve parent ids (especially Meta Threads).
 - **Other platforms** in the same \`create_post\` call still receive only the **root** segment; validation surfaces a **warning** (not a hard error) that extra segments are dropped for those accounts.
 - **Limits**: at most 24 follow-up segments after the root (25 posts total on X). Each follow-up segment has its own text. Images/videos can be attached through the root \`media\` field.
 - **When to validate**: do not call \`validate_post\` automatically just because \`thread\` is non-empty. \`create_post\` validates every segment before creating or publishing. Use \`validate_post\` only when the user asks for validation-only feedback, and use \`preview_post\` only when the user asks for a preview or details are missing.

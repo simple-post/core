@@ -47,7 +47,7 @@ export const mcpThreadArraySchema = z
 export const mcpThreadSchema = mcpThreadArraySchema
   .optional()
   .describe(
-    `Additional text-only posts after the root, in order (max ${MAX_THREAD_SEGMENTS}). Each thread segment has required "message". Use the root "media" field for image/video attachments. Only thread-capable platforms (x, bluesky, threads, telegram) publish every segment; others get a validation warning and only the root is sent.`,
+    `Additional text-only posts after the root, in order (max ${MAX_THREAD_SEGMENTS}). Each thread segment has required "message". Use the root "media" field for image/video attachments. Only thread-capable platforms (x, bluesky, threads, telegram, mastodon) publish every segment; others get a validation warning and only the root is sent.`,
   );
 
 export type McpThreadSegment = z.infer<typeof mcpThreadSegmentSchema>;

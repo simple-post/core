@@ -59,4 +59,4 @@ HTTP and MCP use Scheduler-style account targets:
 
 ## Threads
 
-Use the root `message` or `content.text` for the first post and `thread` for follow-up segments where supported. Native thread/reply-chain platforms are `x`, `bluesky`, `threads`, and `telegram`. Other platforms receive the root post only and may surface validation warnings.
+Use the root `message` or `content.text` for the first post and `thread` for follow-up segments where supported. Native thread/reply-chain platforms are `x`, `bluesky`, `threads`, `telegram`, and `mastodon`. Other platforms receive the root post only and may surface validation warnings.

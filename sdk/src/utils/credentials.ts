@@ -48,6 +48,10 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    mastodon: {
+      accessToken: process.env.MASTODON_ACCESS_TOKEN,
+      instanceUrl: process.env.MASTODON_INSTANCE_URL,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -143,6 +147,15 @@ export const getCredentialsFromEnv = (): PostOptions => {
     };
   }
 
+  if (Object.values(envVars.mastodon).every(Boolean)) {
+    options.mastodon = {
+      credentials: {
+        accessToken: envVars.mastodon.accessToken!,
+        instanceUrl: envVars.mastodon.instanceUrl!,
+      },
+    };
+  }
+
   return options;
 };
 
@@ -187,6 +200,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    mastodon: userOptions.mastodon
+      ? { ...userOptions.mastodon, credentials: userOptions.mastodon.credentials || envOptions.mastodon?.credentials }
+      : envOptions.mastodon,
   };
 
   return merged as PostOptionsWithCredentials;

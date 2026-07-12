@@ -79,6 +79,13 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-blue-500",
     connectionType: "manual",
   },
+  {
+    id: "mastodon",
+    name: "Mastodon",
+    description: "Post to any Mastodon instance",
+    color: "bg-indigo-600",
+    connectionType: "manual",
+  },
 ];
 
 /**
@@ -106,7 +113,8 @@ export function getAccountDisplayName(account: {
       account.platform === "instagram" ||
       account.platform === "tiktok" ||
       account.platform === "bluesky" ||
-      account.platform === "threads") &&
+      account.platform === "threads" ||
+      account.platform === "mastodon") &&
     account.username
   ) {
     return `@${account.username}`;

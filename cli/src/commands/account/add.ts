@@ -34,6 +34,9 @@ export default class AccountAddCommand extends Command {
     "bot-token": Flags.string({
       description: "Telegram bot token (for non-interactive Telegram connect)",
     }),
+    "access-token": Flags.string({
+      description: "Mastodon user access token (for non-interactive Mastodon connect)",
+    }),
     "callback-url": Flags.string({
       description: "Provide the final browser callback URL directly instead of waiting for the listener",
     }),
@@ -45,6 +48,9 @@ export default class AccountAddCommand extends Command {
     }),
     "chat-id": Flags.string({
       description: "Telegram chat ID (for non-interactive Telegram connect)",
+    }),
+    "instance-url": Flags.string({
+      description: "Mastodon instance URL, such as https://mastodon.social",
     }),
     "no-browser": Flags.boolean({
       default: false,
@@ -83,10 +89,12 @@ export default class AccountAddCommand extends Command {
     const provider = getAuthProvider(platform);
     const loginFlags = {
       alias: flags.alias,
+      accessToken: flags["access-token"],
       botToken: flags["bot-token"],
       callbackPort: flags["callback-port"],
       callbackUrl: flags["callback-url"],
       chatId: flags["chat-id"],
+      instanceUrl: flags["instance-url"],
       noBrowser: flags["no-browser"],
       redirectUri: flags["redirect-uri"],
     };

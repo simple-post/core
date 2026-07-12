@@ -488,6 +488,17 @@ export const TelegramConnectResponseSchema = z
   })
   .meta({ id: "TelegramConnectResponse" });
 
+export const MastodonConnectRequestSchema = z
+  .object({
+    instanceUrl: z.url(),
+    accessToken: z.string().min(1),
+  })
+  .meta({ id: "MastodonConnectRequest" });
+
+export const MastodonConnectResponseSchema = z
+  .object({ success: z.literal(true) })
+  .meta({ id: "MastodonConnectResponse" });
+
 export const PendingConnectionAccountSchema = z
   .object({
     id: z.string(),

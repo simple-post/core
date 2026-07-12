@@ -1,6 +1,6 @@
 # @simple-post/sdk
 
-Post to all social platforms with one TypeScript library: X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, and Pinterest.
+Post to all social platforms with one TypeScript library: X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and Mastodon.
 
 ```bash
 npm install @simple-post/sdk

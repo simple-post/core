@@ -87,6 +87,13 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  tumblr?: {
+    state?: "published" | "queue" | "draft" | "private";
+    publishOn?: string;
+    tags?: string[];
+    sourceUrl?: string;
+    slug?: string;
+  };
 }
 
 export interface SocialPost {
@@ -180,6 +187,13 @@ export interface PlatformOptions {
     description?: string;
     link?: string;
     altText?: string;
+  };
+  tumblr?: {
+    state?: "published" | "queue" | "draft" | "private";
+    publishOn?: string;
+    tags?: string[];
+    sourceUrl?: string;
+    slug?: string;
   };
 }
 

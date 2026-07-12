@@ -6,6 +6,7 @@ import { PinterestPublisher } from "./pinterest";
 import { TelegramPublisher } from "./telegram";
 import { ThreadsPublisher } from "./threads";
 import { TikTokPublisher } from "./tiktok";
+import { TumblrPublisher } from "./tumblr";
 import { XPublisher } from "./x";
 import { YouTubePublisher } from "./youtube";
 
@@ -43,6 +44,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "pinterest": {
       return new PinterestPublisher(options);
+    }
+    case "tumblr": {
+      return new TumblrPublisher(options);
     }
   }
 

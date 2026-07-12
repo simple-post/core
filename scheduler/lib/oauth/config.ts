@@ -123,6 +123,18 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     requiresBasicAuth: true,
     requiresDpop: false,
   },
+  tumblr: {
+    authUrl: "https://www.tumblr.com/oauth2/authorize",
+    tokenUrl: "https://api.tumblr.com/v2/oauth2/token",
+    clientId: process.env.TUMBLR_CLIENT_ID || "",
+    clientSecret: process.env.TUMBLR_CLIENT_SECRET || "",
+    scope: "basic write offline_access",
+    responseType: "code",
+    userInfoUrl: "https://api.tumblr.com/v2/user/info",
+    requiresPkce: false,
+    requiresBasicAuth: false,
+    requiresDpop: false,
+  },
 };
 
 export function getPlatformOAuthConfig(platform: string): PlatformOAuthConfig | undefined {

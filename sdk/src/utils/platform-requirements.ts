@@ -6,6 +6,7 @@ import { PinterestPublisher } from "../publishers/pinterest";
 import { TelegramPublisher } from "../publishers/telegram";
 import { ThreadsPublisher } from "../publishers/threads";
 import { TikTokPublisher } from "../publishers/tiktok";
+import { TumblrPublisher } from "../publishers/tumblr";
 import { XPublisher } from "../publishers/x";
 import { YouTubePublisher } from "../publishers/youtube";
 
@@ -48,6 +49,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "threads": {
       return ThreadsPublisher.mediaRequirement;
+    }
+    case "tumblr": {
+      return TumblrPublisher.mediaRequirement;
     }
   }
 }

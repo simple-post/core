@@ -79,6 +79,13 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-blue-500",
     connectionType: "manual",
   },
+  {
+    id: "tumblr",
+    name: "Tumblr",
+    description: "Publish text and media posts to a blog",
+    color: "bg-blue-950",
+    connectionType: "oauth",
+  },
 ];
 
 /**
@@ -106,7 +113,8 @@ export function getAccountDisplayName(account: {
       account.platform === "instagram" ||
       account.platform === "tiktok" ||
       account.platform === "bluesky" ||
-      account.platform === "threads") &&
+      account.platform === "threads" ||
+      account.platform === "tumblr") &&
     account.username
   ) {
     return `@${account.username}`;

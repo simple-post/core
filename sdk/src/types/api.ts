@@ -41,6 +41,11 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    blogIdentifier: z.string().optional(),
+    state: z.enum(["published", "queue", "draft", "private"]).optional(),
+    publishOn: z.string().optional(),
+    sourceUrl: z.string().optional(),
+    slug: z.string().optional(),
   })
   .passthrough();
 

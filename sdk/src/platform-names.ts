@@ -18,6 +18,7 @@ const PLATFORM_MAP: Record<string, Platform> = {
   threads: "threads",
   linkedin: "linkedin",
   pinterest: "pinterest",
+  tumblr: "tumblr",
 };
 
 /** Maps stored platform names (including aliases like "twitter") to SDK platform ids. */

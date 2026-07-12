@@ -1,4 +1,5 @@
 import simplepost from '../../simplepost.app.mjs';
+import { normalizeScheduledFor } from '../../common.mjs';
 
 const parseOptionalJson = (value, fieldName) => {
   if (!value) return undefined;
@@ -26,16 +27,7 @@ export default {
       optional: true,
     },
     accountIds: {
-      type: 'string[]',
-      label: 'Account IDs',
-      description: 'One or more connected SimplePost account IDs.',
-      async options({ page }) {
-        const accounts = await this.simplepost.listAccounts();
-        return accounts.map((account) => ({
-          label: `${account.displayName || account.username || account.id} (${account.platform})`,
-          value: account.id,
-        })).slice((page - 1) * 100, page * 100);
-      },
+      propDefinition: [simplepost, 'accountIds'],
     },
     postingMode: {
       type: 'string',
@@ -54,6 +46,18 @@ export default {
     accountOptionsJson: { type: 'string', label: 'Account Options (JSON)', optional: true },
     accountOverridesJson: { type: 'string', label: 'Account Overrides (JSON)', optional: true },
     quotePostId: { type: 'string', label: 'Quote Post ID', optional: true },
+    repostEnabled: {
+      type: 'boolean',
+      label: 'Automatically Repost',
+      description: 'Whether to automatically repost after publishing.',
+      optional: true,
+    },
+    repostDelayHours: {
+      type: 'integer',
+      label: 'Repost Delay (Hours)',
+      optional: true,
+      default: 12,
+    },
     idempotencyKey: { type: 'string', label: 'Idempotency Key', optional: true },
   },
   async run({ $ }) {
@@ -62,7 +66,7 @@ export default {
       accountIds: this.accountIds,
       postingMode: this.postingMode,
     };
-    if (this.postingMode === 'schedule') body.scheduledFor = this.scheduledFor;
+    if (this.postingMode === 'schedule') body.scheduledFor = normalizeScheduledFor(this.scheduledFor);
 
     const fields = [
       ['media', this.mediaJson, 'Media'],
@@ -75,6 +79,9 @@ export default {
       if (parsed) body[key] = parsed;
     }
     if (this.quotePostId) body.quotePostId = this.quotePostId;
+    if (this.repostEnabled) {
+      body.repost = { enabled: true, delayHours: this.repostDelayHours || 12 };
+    }
     if (this.idempotencyKey) body.idempotencyKey = this.idempotencyKey;
 
     const response = await this.simplepost.createPost($, body);

@@ -18,7 +18,7 @@ export default {
   props: {
     simplepost: { type: 'app', app: 'simplepost' },
     message: { type: 'string', label: 'Message', optional: true },
-    accountIds: { type: 'string[]', label: 'Account IDs' },
+    accountIds: { propDefinition: [simplepost, 'accountIds'] },
     mediaJson: { type: 'string', label: 'Media (JSON)', optional: true },
     threadJson: { type: 'string', label: 'Thread (JSON)', optional: true },
     accountOverridesJson: { type: 'string', label: 'Account Overrides (JSON)', optional: true },

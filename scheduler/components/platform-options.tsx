@@ -394,6 +394,78 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
         </Card>
       )}
 
+      {/* DEV/Forem Options */}
+      {selectedPlatforms.includes("forem") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
+            <h4 className="text-sm font-medium">DEV/Forem Options</h4>
+          </div>
+
+          <div>
+            <Label htmlFor="forem-title" className="text-sm text-muted-foreground">
+              Article title (optional)
+            </Label>
+            <Input
+              id="forem-title"
+              placeholder="My article title"
+              value={options.forem?.title || ""}
+              onChange={(event) => updateOption("forem", "title", event.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Defaults to the first Markdown heading or line</p>
+          </div>
+
+          <div>
+            <Label htmlFor="forem-tags" className="text-sm text-muted-foreground">
+              Tags (optional)
+            </Label>
+            <Input
+              id="forem-tags"
+              placeholder="typescript, opensource (comma separated, max 4)"
+              value={options.forem?.tags?.join(", ") || ""}
+              onChange={(event) => {
+                const tags = event.target.value
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter(Boolean);
+                updateOption("forem", "tags", tags.length > 0 ? tags : undefined);
+              }}
+              className="mt-1 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Forem allows up to four tags per article</p>
+          </div>
+
+          <div>
+            <Label htmlFor="forem-canonicalUrl" className="text-sm text-muted-foreground">
+              Canonical URL (optional)
+            </Label>
+            <Input
+              id="forem-canonicalUrl"
+              placeholder="https://myblog.example/original-post"
+              value={options.forem?.canonicalUrl || ""}
+              onChange={(event) => updateOption("forem", "canonicalUrl", event.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Point at the original when cross-posting</p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="forem-published"
+              checked={options.forem?.published !== false}
+              onCheckedChange={(checked) => updateOption("forem", "published", checked === true ? undefined : false)}
+            />
+            <div>
+              <Label htmlFor="forem-published" className="text-sm cursor-pointer">
+                Publish immediately
+              </Label>
+              <p className="text-xs text-muted-foreground">Uncheck to save the article as a draft</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Pinterest Options */}
       {selectedPlatforms.includes("pinterest") && (
         <Card className="p-4 space-y-4 border-border">

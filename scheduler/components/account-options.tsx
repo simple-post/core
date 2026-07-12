@@ -1173,6 +1173,72 @@ export function AccountOptionsComponent({
                 <p className="text-xs text-muted-foreground mt-1">Choose how Telegram should parse your message</p>
               </div>
             )}
+
+            {/* DEV/Forem Options */}
+            {account.platform === "forem" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-forem-title`} className="text-sm text-muted-foreground">
+                    Article title (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-forem-title`}
+                    placeholder="My article title"
+                    value={asString(accountOptions.title)}
+                    onChange={(event) => updateOption(account.id, "title", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Defaults to the first Markdown heading or line</p>
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-forem-tags`} className="text-sm text-muted-foreground">
+                    Tags (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-forem-tags`}
+                    placeholder="typescript, opensource (comma separated, max 4)"
+                    value={asStringArray(accountOptions.tags).join(", ")}
+                    onChange={(event) => {
+                      const tags = event.target.value
+                        .split(",")
+                        .map((tag) => tag.trim())
+                        .filter(Boolean);
+                      updateOption(account.id, "tags", tags.length > 0 ? tags : undefined);
+                    }}
+                    className="mt-1 border-border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Forem allows up to four tags per article</p>
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-forem-canonicalUrl`} className="text-sm text-muted-foreground">
+                    Canonical URL (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-forem-canonicalUrl`}
+                    placeholder="https://myblog.example/original-post"
+                    value={asString(accountOptions.canonicalUrl)}
+                    onChange={(event) => updateOption(account.id, "canonicalUrl", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Point at the original when cross-posting</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${account.id}-forem-published`}
+                    checked={accountOptions.published !== false}
+                    onCheckedChange={(checked) =>
+                      updateOption(account.id, "published", checked === true ? undefined : false)
+                    }
+                  />
+                  <div>
+                    <Label htmlFor={`${account.id}-forem-published`} className="text-sm cursor-pointer">
+                      Publish immediately
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Uncheck to save the article as a draft</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         );
       })}

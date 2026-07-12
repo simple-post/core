@@ -8,12 +8,22 @@ export async function POST(request: NextRequest) {
     const session = await requireAuth(request);
     const body = await request.json();
     const instanceUrl =
-      typeof body.instanceUrl === "string" ? body.instanceUrl.trim().replace(/\/$/, "") : "https://dev.to";
+      (typeof body.instanceUrl === "string" ? body.instanceUrl.trim().replace(/\/$/, "") : "") || "https://dev.to";
     const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
     if (!apiKey) throw new BadRequestError("Forem API key is required");
-    const response = await fetch(`${instanceUrl}/api/users/me`, {
-      headers: { "api-key": apiKey, Accept: "application/vnd.forem.api-v1+json" },
-    });
+    try {
+      if (new URL(instanceUrl).protocol !== "https:") throw new Error("Not https");
+    } catch {
+      throw new BadRequestError("Instance URL must be a valid https:// URL");
+    }
+    let response: Response;
+    try {
+      response = await fetch(`${instanceUrl}/api/users/me`, {
+        headers: { "api-key": apiKey, Accept: "application/vnd.forem.api-v1+json" },
+      });
+    } catch {
+      throw new BadRequestError("Could not reach the Forem instance");
+    }
     const user = await response.json().catch(() => ({}));
     if (!response.ok || !user.id || !user.username)
       throw new BadRequestError(user.error || "Forem rejected this API key");

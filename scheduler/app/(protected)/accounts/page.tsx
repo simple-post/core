@@ -75,11 +75,25 @@ export default function AccountsPage() {
       window.location.href = `/api/connect/${platform}`;
     }
   };
+  const closeForemDialog = () => {
+    setShowForemDialog(false);
+    setForemApiKey("");
+    setForemError("");
+  };
+
   const handleForemConnect = async () => {
+    if (!foremInstance.trim() || !foremApiKey.trim()) {
+      setForemError("Please provide the instance URL and API key");
+      return;
+    }
+    if (!/^https:\/\//i.test(foremInstance.trim())) {
+      setForemError("The instance URL must start with https://");
+      return;
+    }
+    setForemError("");
     try {
       await connectForemMutation.mutateAsync({ instanceUrl: foremInstance.trim(), apiKey: foremApiKey.trim() });
-      setShowForemDialog(false);
-      setForemApiKey("");
+      closeForemDialog();
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
@@ -286,38 +300,67 @@ export default function AccountsPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={showForemDialog} onOpenChange={setShowForemDialog}>
+      <Dialog open={showForemDialog} onOpenChange={(open) => (open ? setShowForemDialog(true) : closeForemDialog())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Connect DEV/Forem</DialogTitle>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">DEV/Forem</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect DEV/Forem</DialogTitle>
             <DialogDescription>Use an API key from your Forem account settings.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4 mt-2">
             {foremError && (
               <Alert variant="destructive">
                 <AlertDescription>{foremError}</AlertDescription>
               </Alert>
             )}
             <div>
-              <Label htmlFor="foremInstance">Instance URL</Label>
-              <Input id="foremInstance" value={foremInstance} onChange={(e) => setForemInstance(e.target.value)} />
+              <Label
+                htmlFor="foremInstance"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Instance URL
+              </Label>
+              <Input
+                id="foremInstance"
+                placeholder="https://dev.to"
+                value={foremInstance}
+                onChange={(e) => setForemInstance(e.target.value)}
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Keep https://dev.to for DEV Community, or point at your own Forem.
+              </p>
             </div>
             <div>
-              <Label htmlFor="foremApiKey">API key</Label>
+              <Label
+                htmlFor="foremApiKey"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                API key
+              </Label>
               <Input
                 id="foremApiKey"
                 type="password"
                 value={foremApiKey}
                 onChange={(e) => setForemApiKey(e.target.value)}
+                className="mt-2 font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Generate one under Settings → Extensions → DEV Community API Keys.
+              </p>
             </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setShowForemDialog(false)} className="flex-1">
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={closeForemDialog}
+              disabled={connectForemMutation.isPending}
+              className="flex-1">
               Cancel
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
-              Connect
+              {connectForemMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

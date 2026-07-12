@@ -200,6 +200,29 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "reddit": {
+      if (!secret.refreshToken) {
+        throw new Error(`Stored Reddit account "${metadata.alias}" is missing a refresh token. Reconnect the account.`);
+      }
+      const clientSecret = process.env[getClientSecretEnvVar("reddit")];
+      if (!clientSecret) {
+        throw new Error(`Set ${getClientSecretEnvVar("reddit")} to post with stored Reddit accounts.`);
+      }
+      return {
+        reddit: {
+          subreddit: (metadata.settings?.subreddit as string) ?? "",
+          title: "",
+          credentials: {
+            accessToken: secret.accessToken,
+            refreshToken: secret.refreshToken,
+            clientId: getStoredClientId("reddit", secret),
+            clientSecret,
+            ...(typeof secret.expiresAt === "number" ? { expiresAt: secret.expiresAt } : {}),
+            userAgent: `web:SimplePost:1.0 (by /u/${metadata.username || metadata.userId})`,
+          },
+        },
+      };
+    }
     case "telegram": {
       return {
         telegram: {

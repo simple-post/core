@@ -53,6 +53,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         authUrl.searchParams.set("force_authentication", "1");
         break;
       }
+      case "reddit": {
+        authUrl.searchParams.set("duration", "permanent");
+        break;
+      }
     }
 
     const response = NextResponse.redirect(authUrl.toString());

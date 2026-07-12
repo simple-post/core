@@ -79,6 +79,13 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-blue-500",
     connectionType: "manual",
   },
+  {
+    id: "reddit",
+    name: "Reddit",
+    description: "Publish text, link, and image posts",
+    color: "bg-orange-600",
+    connectionType: "oauth",
+  },
 ];
 
 /**
@@ -106,7 +113,8 @@ export function getAccountDisplayName(account: {
       account.platform === "instagram" ||
       account.platform === "tiktok" ||
       account.platform === "bluesky" ||
-      account.platform === "threads") &&
+      account.platform === "threads" ||
+      account.platform === "reddit") &&
     account.username
   ) {
     return `@${account.username}`;

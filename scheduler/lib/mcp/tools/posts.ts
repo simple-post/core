@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { AccountIdsSchema } from "@simple-post/sdk";
+import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
 import { assertCanCreatePost, lockUserForQuota } from "@/lib/billing/subscriptions";
@@ -66,6 +66,9 @@ export const createPostSchema = z.object({
     .describe(
       "Optional unique key making creation idempotent. If a post was already created with this key, the original post is returned instead of creating and publishing a duplicate. Recommended when retrying after a timeout.",
     ),
+  accountOptions: AccountOptionsMapSchema.optional().describe(
+    "Optional platform settings keyed by account ID. Reddit accounts require subreddit and title.",
+  ),
 });
 
 export const previewPostSchema = createPostSchema;
@@ -530,6 +533,7 @@ export async function previewPost(userId: string, input: z.infer<typeof previewP
     accountIds: input.accountIds,
     media: input.media,
     thread: input.thread,
+    accountOptions: input.accountOptions,
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
@@ -850,6 +854,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     media: mediaFiles,
     accountIds: input.accountIds,
     thread: threadForPersistence,
+    accountOptions: input.accountOptions,
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
@@ -902,6 +907,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
           repostStatus: "not_applicable",
           repostDueAt: null,
           thread: threadForPersistence,
+          accountOptions: input.accountOptions,
           quotePostId: input.quotePostId,
           idempotencyKey: input.idempotencyKey,
         },
@@ -947,7 +953,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         input.message,
         mediaFiles,
         input.accountIds,
-        undefined,
+        input.accountOptions,
         undefined,
         threadForPersistence,
         quoteTargets,

@@ -16,6 +16,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "reddit",
             "telegram"
           ],
           "required": false
@@ -387,6 +388,60 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "reddit-subreddit": {
+          "description": "Target subreddit (with or without r/)",
+          "helpGroup": "Reddit",
+          "name": "reddit-subreddit",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "reddit-title": {
+          "description": "Reddit post title",
+          "helpGroup": "Reddit",
+          "name": "reddit-title",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "reddit-url": {
+          "description": "URL for a Reddit link post",
+          "helpGroup": "Reddit",
+          "name": "reddit-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "reddit-flair-id": {
+          "description": "Reddit post flair template ID",
+          "helpGroup": "Reddit",
+          "name": "reddit-flair-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "reddit-flair-text": {
+          "description": "Reddit post flair text",
+          "helpGroup": "Reddit",
+          "name": "reddit-flair-text",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "reddit-nsfw": {
+          "description": "Mark the Reddit post NSFW",
+          "helpGroup": "Reddit",
+          "name": "reddit-nsfw",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "reddit-spoiler": {
+          "description": "Mark the Reddit post as a spoiler",
+          "helpGroup": "Reddit",
+          "name": "reddit-spoiler",
+          "allowNo": true,
+          "type": "boolean"
         }
       },
       "hasDynamicHelp": false,
@@ -569,6 +624,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "reddit",
             "telegram"
           ],
           "required": false

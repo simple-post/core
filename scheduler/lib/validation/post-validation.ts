@@ -2,7 +2,7 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "@simple-post/sdk/validation";
 
 import { getPlatformById } from "@/lib/config";
-import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type {
   Content,
@@ -70,6 +70,7 @@ export function validatePostForResolvedAccounts(params: {
   accounts: ConnectedAccount[];
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
+  accountOptions?: AccountOptionsMap;
 }): ValidationResultByPlatform {
   const platforms = [...new Set(params.accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
   const overrides = params.accountOverrides || {};
@@ -106,6 +107,22 @@ export function validatePostForResolvedAccounts(params: {
       });
       validation.errors.forEach((issue) => errors.push(withMeta(issue)));
       validation.warnings.forEach((issue) => warnings.push(withMeta(issue)));
+    }
+
+    if (platform === "reddit") {
+      const accountOptions = params.accountOptions?.[account.id] ?? {};
+      const subreddit = typeof accountOptions.subreddit === "string" ? accountOptions.subreddit.trim() : "";
+      const title = typeof accountOptions.title === "string" ? accountOptions.title.trim() : "";
+      if (!subreddit || !title) {
+        errors.push({
+          platform,
+          severity: "error",
+          code: "reddit_options_required",
+          message: "Reddit posts require a subreddit and title. Set them in the account options.",
+          field: "accountOptions",
+          meta: { accountId: account.id },
+        });
+      }
     }
 
     if (!threadAware && accountThread.length > 0) {

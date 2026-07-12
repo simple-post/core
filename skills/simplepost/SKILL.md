@@ -27,6 +27,7 @@ If multiple options are available, prefer MCP for AI-user posting, SDK for in-pr
 - For scheduling, resolve relative times to an absolute future ISO 8601 datetime with timezone offset or `Z`. Ask for timezone if it is unknown.
 - A successful API or tool call can still contain per-platform failures. Always inspect `summary.overallSuccess`, per-account results, and `threadResults` for threads.
 - When reporting a preview, scheduled post, draft, edit, discard, or publish result, include the exact root post text and any thread segments in the visible answer.
+- Reddit posts require per-account `subreddit` and `title` options. Never guess the target community; use the user's explicit choice.
 
 ## Shared Posting Model
 

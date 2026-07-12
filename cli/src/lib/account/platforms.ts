@@ -195,6 +195,22 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     },
     platform: "pinterest",
   },
+  reddit: {
+    connectDescription: "Connect Reddit with your own approved Reddit Data API app.",
+    displayName: "Reddit",
+    oauthApp: {
+      authorizationUrl: "https://www.reddit.com/api/v1/authorize",
+      clientSecretRequired: true,
+      developerPortalUrl: "https://www.reddit.com/prefs/apps",
+      extraAuthorizationParams: { duration: "permanent" },
+      pkce: false,
+      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      scopes: ["identity", "submit"],
+      tokenAuthMethod: "basic",
+      tokenUrl: "https://www.reddit.com/api/v1/access_token",
+    },
+    platform: "reddit",
+  },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",

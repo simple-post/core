@@ -48,6 +48,16 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    reddit: {
+      accessToken: process.env.REDDIT_ACCESS_TOKEN,
+      refreshToken: process.env.REDDIT_REFRESH_TOKEN,
+      clientId: process.env.REDDIT_CLIENT_ID,
+      clientSecret: process.env.REDDIT_CLIENT_SECRET,
+      expiresAt: process.env.REDDIT_EXPIRES_AT,
+      subreddit: process.env.REDDIT_SUBREDDIT,
+      title: process.env.REDDIT_TITLE,
+      userAgent: process.env.REDDIT_USER_AGENT,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -143,6 +153,22 @@ export const getCredentialsFromEnv = (): PostOptions => {
     };
   }
 
+  if (envVars.reddit.subreddit && envVars.reddit.title && (envVars.reddit.accessToken || envVars.reddit.refreshToken)) {
+    const expiresAt = envVars.reddit.expiresAt ? Number(envVars.reddit.expiresAt) : undefined;
+    options.reddit = {
+      subreddit: envVars.reddit.subreddit,
+      title: envVars.reddit.title,
+      credentials: {
+        ...(envVars.reddit.accessToken ? { accessToken: envVars.reddit.accessToken } : {}),
+        ...(envVars.reddit.refreshToken ? { refreshToken: envVars.reddit.refreshToken } : {}),
+        ...(envVars.reddit.clientId ? { clientId: envVars.reddit.clientId } : {}),
+        ...(envVars.reddit.clientSecret ? { clientSecret: envVars.reddit.clientSecret } : {}),
+        ...(expiresAt && Number.isFinite(expiresAt) ? { expiresAt } : {}),
+        ...(envVars.reddit.userAgent ? { userAgent: envVars.reddit.userAgent } : {}),
+      },
+    };
+  }
+
   return options;
 };
 
@@ -187,6 +213,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    reddit: userOptions.reddit
+      ? { ...userOptions.reddit, credentials: userOptions.reddit.credentials || envOptions.reddit?.credentials }
+      : envOptions.reddit,
   };
 
   return merged as PostOptionsWithCredentials;

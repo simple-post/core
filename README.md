@@ -62,6 +62,7 @@ The main use cases are:
 | Pinterest | Yes           | [Pinterest](docs/platforms/Pinterest.md) |
 | LinkedIn  | Yes           | [LinkedIn](docs/platforms/LinkedIn.md)   |
 | Bluesky   | Yes           | [Bluesky](docs/platforms/Bluesky.md)     |
+| Reddit    | Yes           | [Reddit](docs/platforms/Reddit.md)       |
 
 ## Repository Layout
 

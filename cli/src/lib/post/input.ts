@@ -65,6 +65,13 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "reddit-subreddit"?: string;
+  "reddit-title"?: string;
+  "reddit-url"?: string;
+  "reddit-flair-id"?: string;
+  "reddit-flair-text"?: string;
+  "reddit-nsfw"?: boolean;
+  "reddit-spoiler"?: boolean;
 };
 
 function isUrl(value: string): boolean {
@@ -136,6 +143,26 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
     };
   }
 
+  if (
+    flags["reddit-subreddit"] ||
+    flags["reddit-title"] ||
+    flags["reddit-url"] ||
+    flags["reddit-flair-id"] ||
+    flags["reddit-flair-text"] ||
+    flags["reddit-nsfw"] !== undefined ||
+    flags["reddit-spoiler"] !== undefined
+  ) {
+    options.reddit = {
+      subreddit: flags["reddit-subreddit"] ?? "",
+      title: flags["reddit-title"] ?? "",
+      ...(flags["reddit-url"] ? { url: flags["reddit-url"] } : {}),
+      ...(flags["reddit-flair-id"] ? { flairId: flags["reddit-flair-id"] } : {}),
+      ...(flags["reddit-flair-text"] ? { flairText: flags["reddit-flair-text"] } : {}),
+      ...(flags["reddit-nsfw"] === undefined ? {} : { nsfw: flags["reddit-nsfw"] }),
+      ...(flags["reddit-spoiler"] === undefined ? {} : { spoiler: flags["reddit-spoiler"] }),
+    };
+  }
+
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };
   }
@@ -196,6 +223,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  reddit: "Reddit",
 };
 
 function getPlatformLabel(platform: Platform): string {
@@ -381,6 +409,9 @@ function describePlatformSettings(options: PostOptions | undefined, platforms: P
 
   if (platforms.includes("pinterest") && options.pinterest?.boardId) {
     parts.push(`Pinterest board ${options.pinterest.boardId}`);
+  }
+  if (platforms.includes("reddit") && options.reddit?.subreddit) {
+    parts.push(`Reddit r/${options.reddit.subreddit.replace(/^r\//, "")}`);
   }
 
   return parts.length > 0 ? parts.join(", ") : "none";
@@ -661,6 +692,24 @@ async function collectInteractivePlatformOptions(
       ...(description ? { description } : {}),
       ...(link ? { link } : {}),
       ...(altText ? { altText } : {}),
+    };
+  }
+
+  if (platforms.includes("reddit")) {
+    logInteractiveSection(prompt, "Reddit", "Reddit requires a subreddit and title for every post.");
+    const subreddit = (
+      await prompt.text("Subreddit", { defaultValue: currentOptions?.reddit?.subreddit, required: true })
+    ).trim();
+    const title = (await prompt.text("Title", { defaultValue: currentOptions?.reddit?.title, required: true })).trim();
+    const url = (await prompt.text("Link URL (optional)", { defaultValue: currentOptions?.reddit?.url })).trim();
+    options.reddit = {
+      subreddit,
+      title,
+      ...(url ? { url } : {}),
+      ...(currentOptions?.reddit?.flairId ? { flairId: currentOptions.reddit.flairId } : {}),
+      ...(currentOptions?.reddit?.flairText ? { flairText: currentOptions.reddit.flairText } : {}),
+      ...(currentOptions?.reddit?.nsfw === undefined ? {} : { nsfw: currentOptions.reddit.nsfw }),
+      ...(currentOptions?.reddit?.spoiler === undefined ? {} : { spoiler: currentOptions.reddit.spoiler }),
     };
   }
 

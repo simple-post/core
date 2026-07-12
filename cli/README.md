@@ -1,6 +1,6 @@
 # SimplePost CLI
 
-Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, and Pinterest from your terminal.
+Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and Reddit from your terminal.
 
 ```bash
 npm install -g @simple-post/cli

@@ -13,6 +13,7 @@ export const PlatformSchema = z.enum([
   "threads",
   "linkedin",
   "pinterest",
+  "reddit",
 ]);
 
 const BaseImageSchema = z.object({
@@ -219,6 +220,30 @@ export const PinterestOptionsSchema = z.object({
     .optional(),
 });
 
+export const RedditOptionsSchema = z.object({
+  subreddit: z.string().min(1),
+  title: z.string().min(1).max(300),
+  url: z.url().optional(),
+  flairId: z.string().optional(),
+  flairText: z.string().optional(),
+  nsfw: z.boolean().optional(),
+  spoiler: z.boolean().optional(),
+  sendReplies: z.boolean().optional(),
+  credentials: z
+    .object({
+      accessToken: z.string().optional(),
+      refreshToken: z.string().optional(),
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
+      expiresAt: z.number().optional(),
+      userAgent: z.string().optional(),
+    })
+    .refine((data) => Boolean(data.accessToken) || Boolean(data.clientId && data.clientSecret && data.refreshToken), {
+      message: "Reddit credentials require an access token or clientId + clientSecret + refreshToken",
+    })
+    .optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -236,6 +261,7 @@ export const PostOptionsSchema = z.object({
   threads: ThreadsOptionsSchema.optional(),
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
+  reddit: RedditOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -295,6 +321,7 @@ export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
+export type RedditOptions = z.infer<typeof RedditOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -333,6 +360,9 @@ export type LinkedInOptionsWithCredentials = LinkedInOptions & {
 export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
+export type RedditOptionsWithCredentials = RedditOptions & {
+  credentials: NonNullable<RedditOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -345,4 +375,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   threads?: ThreadsOptionsWithCredentials;
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
+  reddit?: RedditOptionsWithCredentials;
 };

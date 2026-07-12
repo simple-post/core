@@ -6,6 +6,11 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+### Added
+
+- Reddit text, link, and single-image publishing across the SDK, CLI, HTTP API,
+  Scheduler, MCP tools, examples, and documentation.
+
 ## [1.1.0] - 2026-07-10
 
 ### Added

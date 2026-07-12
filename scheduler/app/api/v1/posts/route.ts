@@ -186,6 +186,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       accountIds: validated.accountIds,
       accountOverrides: validated.accountOverrides,
       thread: validated.thread,
+      accountOptions: validated.accountOptions,
     });
 
     if (validation.accounts.length !== validated.accountIds.length) {

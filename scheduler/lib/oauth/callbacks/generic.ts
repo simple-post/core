@@ -70,6 +70,12 @@ interface PinterestProfile {
   profile_image?: { url?: string } | string;
 }
 
+interface RedditProfile {
+  id?: string;
+  name?: string;
+  icon_img?: string;
+}
+
 interface YouTubeProfile {
   id?: string;
   sub?: string;
@@ -90,6 +96,7 @@ type PlatformProfile =
   | ThreadsProfile
   | LinkedInProfile
   | PinterestProfile
+  | RedditProfile
   | YouTubeProfile
   | DefaultProfile;
 
@@ -155,6 +162,7 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
   };
+  if (platform === "reddit") headers["User-Agent"] = "web:SimplePost:1.0 (https://simplepost.social)";
 
   let response: Response;
 
@@ -275,6 +283,14 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       displayName = p.profile_name || p.business_name || p.username || null;
       const img = p.profile_image;
       profilePicture = (typeof img === "object" ? img?.url : img) || null;
+      break;
+    }
+    case "reddit": {
+      const p = profile as RedditProfile;
+      platformAccountId = p.id || p.name || "";
+      username = p.name || null;
+      displayName = p.name || null;
+      profilePicture = p.icon_img?.replaceAll("&amp;", "&") || null;
       break;
     }
     case "youtube": {

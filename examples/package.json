@@ -32,7 +32,9 @@
     "tiktok:slideshow": "tsx tiktok/postSlideshow.ts",
     "tiktok:slideshow:url": "tsx tiktok/postSlideshowUrl.ts",
     "all:video": "tsx all/postVideo.ts",
-    "all": "tsx all/runAll.ts"
+    "all": "tsx all/runAll.ts",
+    "reddit:single": "tsx reddit/postSingle.ts",
+    "reddit:link": "tsx reddit/postLink.ts"
   },
   "devDependencies": {
     "@simple-post/sdk": "*",

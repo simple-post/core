@@ -1,6 +1,10 @@
 import { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";
 import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 import { FOREM_VALIDATION_RULES, validateForemContent } from "./publishers/forem/validation";
+import {
+  GOOGLE_BUSINESS_PROFILE_VALIDATION_RULES,
+  validateGoogleBusinessProfileContent,
+} from "./publishers/google-business-profile/validation";
 import { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
 import { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
 import { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
@@ -30,6 +34,10 @@ export const PLATFORM_VALIDATORS: Record<Platform, PlatformValidator> = {
   linkedin: { rules: LINKEDIN_VALIDATION_RULES, validate: validateLinkedInContent },
   pinterest: { rules: PINTEREST_VALIDATION_RULES, validate: validatePinterestContent },
   forem: { rules: FOREM_VALIDATION_RULES, validate: validateForemContent },
+  google_business_profile: {
+    rules: GOOGLE_BUSINESS_PROFILE_VALIDATION_RULES,
+    validate: validateGoogleBusinessProfileContent,
+  },
 };
 
 export function getValidationRulesForPlatform(platform: Platform): PlatformValidationRules {
@@ -44,6 +52,10 @@ export { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/b
 export { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 export { FOREM_VALIDATION_RULES, validateForemContent } from "./publishers/forem/validation";
 export { INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./publishers/instagram/validation";
+export {
+  GOOGLE_BUSINESS_PROFILE_VALIDATION_RULES,
+  validateGoogleBusinessProfileContent,
+} from "./publishers/google-business-profile/validation";
 export { LINKEDIN_VALIDATION_RULES, validateLinkedInContent } from "./publishers/linkedin/validation";
 export { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishers/pinterest/validation";
 export { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";

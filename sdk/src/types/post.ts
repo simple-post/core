@@ -14,6 +14,7 @@ export const PlatformSchema = z.enum([
   "linkedin",
   "pinterest",
   "forem",
+  "google_business_profile",
 ]);
 
 const BaseImageSchema = z.object({
@@ -232,6 +233,22 @@ export const ForemOptionsSchema = z.object({
   credentials: z.object({ instanceUrl: z.url(), apiKey: z.string().min(1) }).optional(),
 });
 
+export const GoogleBusinessProfileOptionsSchema = z.object({
+  locationName: z.string().min(1),
+  languageCode: z.string().optional(),
+  callToAction: z
+    .object({ actionType: z.enum(["BOOK", "ORDER", "SHOP", "LEARN_MORE", "SIGN_UP", "CALL"]), url: z.url().optional() })
+    .optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      refreshToken: z.string().optional(),
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
+    })
+    .optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -250,6 +267,7 @@ export const PostOptionsSchema = z.object({
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
   forem: ForemOptionsSchema.optional(),
+  google_business_profile: GoogleBusinessProfileOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -310,6 +328,7 @@ export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type ForemOptions = z.infer<typeof ForemOptionsSchema>;
+export type GoogleBusinessProfileOptions = z.infer<typeof GoogleBusinessProfileOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -349,6 +368,9 @@ export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
 export type ForemOptionsWithCredentials = ForemOptions & { credentials: NonNullable<ForemOptions["credentials"]> };
+export type GoogleBusinessProfileOptionsWithCredentials = GoogleBusinessProfileOptions & {
+  credentials: NonNullable<GoogleBusinessProfileOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -362,4 +384,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
   forem?: ForemOptionsWithCredentials;
+  google_business_profile?: GoogleBusinessProfileOptionsWithCredentials;
 };

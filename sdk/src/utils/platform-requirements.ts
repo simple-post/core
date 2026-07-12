@@ -1,6 +1,7 @@
 import { BlueskyPublisher } from "../publishers/bluesky";
 import { FacebookPublisher } from "../publishers/facebook";
 import { ForemPublisher } from "../publishers/forem";
+import { GoogleBusinessProfilePublisher } from "../publishers/google-business-profile";
 import { InstagramPublisher } from "../publishers/instagram";
 import { LinkedInPublisher } from "../publishers/linkedin";
 import { PinterestPublisher } from "../publishers/pinterest";
@@ -52,6 +53,8 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "forem": {
       return ForemPublisher.mediaRequirement;
+    case "google_business_profile": {
+      return GoogleBusinessProfilePublisher.mediaRequirement;
     }
   }
 }

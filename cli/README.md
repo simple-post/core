@@ -1,6 +1,7 @@
 # SimplePost CLI
 
 Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and DEV/Forem from your terminal.
+Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and Google Business Profile from your terminal.
 
 ```bash
 npm install -g @simple-post/cli
@@ -56,7 +57,7 @@ Every platform uses the same variable names:
 | `SIMPLE_POST_<PLATFORM>_CLIENT_SECRET` | OAuth client secret, when the platform needs one |
 | `SIMPLE_POST_<PLATFORM>_REDIRECT_URI`  | Optional loopback redirect override              |
 
-`<PLATFORM>` is one of `X`, `YOUTUBE`, `FACEBOOK`, `INSTAGRAM`, `TIKTOK`, `BLUESKY`, `THREADS`, `LINKEDIN`, `PINTEREST`.
+`<PLATFORM>` is one of `X`, `YOUTUBE`, `FACEBOOK`, `INSTAGRAM`, `TIKTOK`, `BLUESKY`, `THREADS`, `LINKEDIN`, `PINTEREST`, `GOOGLE_BUSINESS_PROFILE`.
 
 OAuth callbacks use port `5000` by default. If that port is occupied, pass `--callback-port 6123` to `connect` or `account add`, or set `SIMPLE_POST_CALLBACK_PORT=6123`. For your own platform app, register the resulting loopback redirect URI exactly; a platform-specific `SIMPLE_POST_<PLATFORM>_REDIRECT_URI` still takes precedence.
 
@@ -65,6 +66,7 @@ Platform notes:
 - **X** — a client secret is only needed if your app is a confidential client; public (native) apps work with PKCE alone.
 - **Facebook, Instagram** — use a public (native/desktop) Meta app; the flow is OIDC + PKCE and no client secret is used.
 - **YouTube, TikTok, Threads, LinkedIn, Pinterest** — always require the client secret.
+- **Google Business Profile** — requires a Google Cloud OAuth client, Business Profile API access, and the `business.manage` scope.
 - **Bluesky** — the client ID is the URL of your hosted [atproto client metadata](https://atproto.com/specs/oauth).
 - **Telegram** — no OAuth app at all; connect with a bot token: `simplepost account add telegram --bot-token "$TOKEN" --chat-id @channel`.
 - **DEV/Forem** — no OAuth app; connect with an API key from your Forem account settings.

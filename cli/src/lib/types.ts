@@ -45,6 +45,7 @@ export interface CliConfigV1 {
   pinterest: PlatformAccounts;
   telegram: PlatformAccounts;
   forem: PlatformAccounts;
+  google_business_profile: PlatformAccounts;
 }
 
 export interface PlainSecretsFile {

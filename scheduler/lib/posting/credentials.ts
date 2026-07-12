@@ -115,6 +115,11 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   forem: (account: ConnectedAccount) => ({
     instanceUrl: String(getTokenMetadata(account).instanceUrl ?? "https://dev.to"),
     apiKey: account.accessToken,
+  google_business_profile: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    refreshToken: account.refreshToken || undefined,
+    clientId: process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET,
   }),
 };
 
@@ -159,6 +164,13 @@ const postOptionOverrides: Record<
       ...(accountSpecificOptions as Record<string, unknown>),
       boardId: (accountSpecificOptions as { boardId?: string }).boardId || process.env.PINTEREST_BOARD_ID || "",
       credentials: credentials as PlatformCredentials<"pinterest">,
+    },
+  }),
+  google_business_profile: (account, credentials, accountSpecificOptions) => ({
+    google_business_profile: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      locationName: account.platformAccountId,
+      credentials: credentials as PlatformCredentials<"google_business_profile">,
     },
   }),
 };

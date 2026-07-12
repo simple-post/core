@@ -20,6 +20,8 @@
     "telegram:image:url": "tsx telegram/postImageUrl.ts",
     "telegram:video": "tsx telegram/postVideo.ts",
     "forem:article": "tsx forem/postArticle.ts",
+    "google-business:single": "tsx google-business-profile/postSingle.ts",
+    "google-business:image": "tsx google-business-profile/postImage.ts",
     "facebook:single": "tsx facebook/postSingle.ts",
     "facebook:images": "tsx facebook/postImages.ts",
     "facebook:image:url": "tsx facebook/postImageUrl.ts",

@@ -53,6 +53,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         authUrl.searchParams.set("prompt", "consent");
         break;
       }
+      case "google_business_profile": {
+        authUrl.searchParams.set("access_type", "offline");
+        authUrl.searchParams.set("prompt", "consent");
+        break;
+      }
       case "instagram": {
         authUrl.searchParams.set("enable_fb_login", "0");
         authUrl.searchParams.set("force_authentication", "1");

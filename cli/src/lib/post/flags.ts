@@ -146,4 +146,8 @@ export const postFlags = {
   "forem-tags": Flags.string({ description: "Comma-separated Forem tags (max 4)", helpGroup: "DEV/Forem" }),
   "forem-published": Flags.boolean({ allowNo: true, description: "Publish or save as draft", helpGroup: "DEV/Forem" }),
   "forem-canonical-url": Flags.string({ description: "Canonical article URL", helpGroup: "DEV/Forem" }),
+  "google-business-language-code": Flags.string({
+    description: "Google Business Profile language code",
+    helpGroup: "Google Business Profile",
+  }),
 } as const;

@@ -1,6 +1,7 @@
 import { BlueskyPublisher } from "./bluesky";
 import { FacebookPublisher } from "./facebook";
 import { ForemPublisher } from "./forem";
+import { GoogleBusinessProfilePublisher } from "./google-business-profile";
 import { InstagramPublisher } from "./instagram";
 import { LinkedInPublisher } from "./linkedin";
 import { PinterestPublisher } from "./pinterest";
@@ -47,6 +48,8 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "forem": {
       return new ForemPublisher(options);
+    case "google_business_profile": {
+      return new GoogleBusinessProfilePublisher(options);
     }
   }
 

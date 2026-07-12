@@ -3,6 +3,7 @@ import {
   FacebookPublisher,
   ForemPublisher,
   InstagramPublisher,
+  GoogleBusinessProfilePublisher,
   isThreadCapable,
   LinkedInPublisher,
   PinterestPublisher,
@@ -41,6 +42,7 @@ const publishers: Record<
   linkedin: LinkedInPublisher,
   pinterest: PinterestPublisher,
   forem: ForemPublisher,
+  google_business_profile: GoogleBusinessProfilePublisher,
 };
 
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {

@@ -9,6 +9,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 ### Added
 
 - DEV/Forem article publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, including drafts, tags, series, canonical URLs, organizations, and self-hosted instances.
+- Google Business Profile local-post publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, including OAuth location selection, public media, language codes, and calls to action.
 
 ## [1.1.0] - 2026-07-10
 

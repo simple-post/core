@@ -19,6 +19,7 @@ const PLATFORM_MAP: Record<string, Platform> = {
   linkedin: "linkedin",
   pinterest: "pinterest",
   forem: "forem",
+  google_business_profile: "google_business_profile",
 };
 
 /** Maps stored platform names (including aliases like "twitter") to SDK platform ids. */

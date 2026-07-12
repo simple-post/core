@@ -77,6 +77,7 @@ The loopback listener defaults to port `5000`. Use `--callback-port 6123` on `co
 - X works without a secret when the app is a public (native) client; PKCE is used. If a secret is set, it is used for Basic client authentication (confidential clients).
 - Facebook and Instagram require a public (native/desktop) Meta app: the flow is OIDC + PKCE and a client secret is never sent.
 - YouTube, TikTok, Threads, LinkedIn, and Pinterest always require the secret.
+- Google Business Profile requires a Google Cloud OAuth client and the `business.manage` scope.
 - Bluesky uses your hosted atproto client metadata URL as the client ID.
 - Telegram needs no OAuth app: `account add telegram --bot-token ... --chat-id ...`.
 

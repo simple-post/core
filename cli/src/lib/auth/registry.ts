@@ -1,6 +1,7 @@
 import { BlueskyAuthProvider } from "./bluesky.js";
 import { FacebookAuthProvider } from "./facebook.js";
 import { ForemAuthProvider } from "./forem.js";
+import { GoogleBusinessProfileAuthProvider } from "./google-business-profile.js";
 import { InstagramAuthProvider } from "./instagram.js";
 import { LinkedInAuthProvider } from "./linkedin.js";
 import { PinterestAuthProvider } from "./pinterest.js";
@@ -25,6 +26,7 @@ const AUTH_PROVIDERS = {
   pinterest: new PinterestAuthProvider(),
   telegram: new TelegramAuthProvider(),
   forem: new ForemAuthProvider(),
+  google_business_profile: new GoogleBusinessProfileAuthProvider(),
 } satisfies Record<AccountPlatform, AuthProvider>;
 
 export function getAuthProvider(platform: AccountPlatform): AuthProvider {

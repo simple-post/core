@@ -216,6 +216,17 @@ function buildStoredAccountPostOptions(
           credentials: {
             instanceUrl: String(metadata.settings?.instanceUrl ?? "https://dev.to"),
             apiKey: secret.accessToken,
+    case "google_business_profile": {
+      return {
+        google_business_profile: {
+          locationName: metadata.userId,
+          credentials: {
+            accessToken: secret.accessToken,
+            ...(secret.refreshToken ? { refreshToken: secret.refreshToken } : {}),
+            clientId: getStoredClientId("google_business_profile", secret),
+            ...(process.env.SIMPLE_POST_GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET
+              ? { clientSecret: process.env.SIMPLE_POST_GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET }
+              : {}),
           },
         },
       };

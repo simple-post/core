@@ -95,6 +95,10 @@ export interface AccountPlatformOptions {
     canonicalUrl?: string | null;
     description?: string;
     organizationId?: number | null;
+  google_business_profile?: {
+    locationName?: string;
+    languageCode?: string;
+    callToAction?: { actionType: "BOOK" | "ORDER" | "SHOP" | "LEARN_MORE" | "SIGN_UP" | "CALL"; url?: string };
   };
 }
 
@@ -198,6 +202,10 @@ export interface PlatformOptions {
     canonicalUrl?: string | null;
     description?: string;
     organizationId?: number | null;
+  google_business_profile?: {
+    locationName?: string;
+    languageCode?: string;
+    callToAction?: { actionType: "BOOK" | "ORDER" | "SHOP" | "LEARN_MORE" | "SIGN_UP" | "CALL"; url?: string };
   };
 }
 

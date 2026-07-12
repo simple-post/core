@@ -25,7 +25,8 @@
     "linkedin",
     "pinterest",
     "forem",
-    "dev.to"
+    "dev.to",
+    "google-business-profile"
   ],
   "engines": {
     "node": ">=20.0.0"

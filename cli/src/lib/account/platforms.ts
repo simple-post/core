@@ -195,6 +195,22 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     },
     platform: "pinterest",
   },
+  google_business_profile: {
+    connectDescription: "Connect a Google Business Profile location.",
+    displayName: "Google Business Profile",
+    oauthApp: {
+      authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      clientSecretRequired: true,
+      developerPortalUrl: "https://console.cloud.google.com/apis/credentials",
+      extraAuthorizationParams: { access_type: "offline", prompt: "consent" },
+      pkce: true,
+      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      scopes: ["https://www.googleapis.com/auth/business.manage"],
+      tokenAuthMethod: "client_secret_post",
+      tokenUrl: "https://oauth2.googleapis.com/token",
+    },
+    platform: "google_business_profile",
+  },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",

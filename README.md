@@ -63,6 +63,19 @@ The main use cases are:
 | LinkedIn  | Yes           | [LinkedIn](docs/platforms/LinkedIn.md)   |
 | Bluesky   | Yes           | [Bluesky](docs/platforms/Bluesky.md)     |
 | DEV/Forem | Yes           | [DEV/Forem](docs/platforms/Forem.md)     |
+| Platform                | SDK publisher | Docs                                                               |
+| ----------------------- | ------------- | ------------------------------------------------------------------ |
+| X                       | Yes           | [X](docs/platforms/X.md)                                           |
+| Telegram                | Yes           | [Telegram](docs/platforms/Telegram.md)                             |
+| Instagram               | Yes           | [Instagram](docs/platforms/Instagram.md)                           |
+| Facebook                | Yes           | [Facebook](docs/platforms/Facebook.md)                             |
+| Threads                 | Yes           | [Threads](docs/platforms/Threads.md)                               |
+| TikTok                  | Yes           | [TikTok](docs/platforms/TikTok.md)                                 |
+| YouTube                 | Yes           | [YouTube](docs/platforms/YouTube.md)                               |
+| Pinterest               | Yes           | [Pinterest](docs/platforms/Pinterest.md)                           |
+| LinkedIn                | Yes           | [LinkedIn](docs/platforms/LinkedIn.md)                             |
+| Bluesky                 | Yes           | [Bluesky](docs/platforms/Bluesky.md)                               |
+| Google Business Profile | Yes           | [Google Business Profile](docs/platforms/GoogleBusinessProfile.md) |
 
 ## Repository Layout
 

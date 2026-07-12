@@ -69,6 +69,7 @@ export type PostFlagValues = {
   "forem-tags"?: string;
   "forem-published"?: boolean;
   "forem-canonical-url"?: string;
+  "google-business-language-code"?: string;
 };
 
 function isUrl(value: string): boolean {
@@ -158,6 +159,8 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["forem-published"] === undefined ? {} : { published: flags["forem-published"] }),
       ...(flags["forem-canonical-url"] ? { canonicalUrl: flags["forem-canonical-url"] } : {}),
     };
+  if (flags["google-business-language-code"])
+    options.google_business_profile = { locationName: "", languageCode: flags["google-business-language-code"] };
 
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };
@@ -220,6 +223,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
   forem: "DEV/Forem",
+  google_business_profile: "Google Business Profile",
 };
 
 function getPlatformLabel(platform: Platform): string {

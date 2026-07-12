@@ -6,12 +6,17 @@ import { upsertConnectedAccount } from "@/lib/oauth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError, NotFoundError, GoneError } from "@/lib/utils/errors";
 
+import type { Prisma } from "@prisma/client";
+
 type PendingAccount = {
   id: string;
   name?: string | null;
   username?: string | null;
   profilePicture?: string | null;
   accessToken: string;
+  refreshToken?: string | null;
+  expiresIn?: number;
+  tokenMetadata?: Record<string, unknown> | null;
 };
 
 type PendingData = {
@@ -122,13 +127,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             platform: pending.platform,
             platformAccountId: account.id,
             accessToken: account.accessToken,
-            refreshToken: null,
-            expiresAt: null,
+            refreshToken: account.refreshToken || null,
+            expiresAt: account.expiresIn ? new Date(Date.now() + account.expiresIn * 1000) : null,
             scope,
             username,
             displayName,
             email: null,
             profilePicture: account.profilePicture || null,
+            tokenMetadata: account.tokenMetadata as Prisma.InputJsonValue | undefined,
           },
           tx,
         );

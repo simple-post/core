@@ -29,6 +29,8 @@ AI agent      App/backend      Human web user      Terminal/script
                          |
        X, Telegram, Instagram, Facebook, Threads,
        TikTok, YouTube, Pinterest, LinkedIn, Bluesky, DEV/Forem
+       TikTok, YouTube, Pinterest, LinkedIn, Bluesky,
+       Google Business Profile
 ```
 
 The SDK contains the shared posting model, platform adapters, media handling, validation types, and credential resolution. The other interfaces wrap it for different workflows.
@@ -74,6 +76,19 @@ SimplePost supports these platform keys in the SDK and the interfaces built on t
 | LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
 | Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
 | DEV/Forem | `forem`     | [DEV/Forem](platforms/Forem.md)     |
+| Platform                | Key                       | Guide                                                         |
+| ----------------------- | ------------------------- | ------------------------------------------------------------- |
+| X                       | `x`                       | [X](platforms/X.md)                                           |
+| Telegram                | `telegram`                | [Telegram](platforms/Telegram.md)                             |
+| Instagram               | `instagram`               | [Instagram](platforms/Instagram.md)                           |
+| Facebook                | `facebook`                | [Facebook](platforms/Facebook.md)                             |
+| Threads                 | `threads`                 | [Threads](platforms/Threads.md)                               |
+| TikTok                  | `tiktok`                  | [TikTok](platforms/TikTok.md)                                 |
+| YouTube                 | `youtube`                 | [YouTube](platforms/YouTube.md)                               |
+| Pinterest               | `pinterest`               | [Pinterest](platforms/Pinterest.md)                           |
+| LinkedIn                | `linkedin`                | [LinkedIn](platforms/LinkedIn.md)                             |
+| Bluesky                 | `bluesky`                 | [Bluesky](platforms/Bluesky.md)                               |
+| Google Business Profile | `google_business_profile` | [Google Business Profile](platforms/GoogleBusinessProfile.md) |
 
 Use the platform guides in this public repository for credential setup. You can clone the repo and run SimplePost today, or use the hosted Scheduler app when you do not want to manage raw tokens directly.
 

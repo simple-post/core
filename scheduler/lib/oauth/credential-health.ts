@@ -95,6 +95,7 @@ function platformLabel(platform: string): string {
     pinterest: "Pinterest",
     telegram: "Telegram",
     forem: "DEV/Forem",
+    google_business_profile: "Google Business Profile",
     threads: "Threads",
     tiktok: "TikTok",
     twitter: "X",
@@ -472,6 +473,27 @@ async function refreshYouTube(account: ConnectedAccount, now: Date): Promise<Tok
   return buildRefreshResult(account, await expectTokenResponse("youtube", response), now, { keepRefreshToken: true });
 }
 
+async function refreshGoogleBusinessProfile(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {
+  const clientId = process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+  if (!account.refreshToken || !clientId || !clientSecret)
+    throw new Error("Google Business Profile refresh token or client credentials are missing. Reconnect the account.");
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: account.refreshToken,
+    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method: "POST",
+    signal: AbortSignal.timeout(REFRESH_REQUEST_TIMEOUT_MS),
+  });
+  return buildRefreshResult(account, await expectTokenResponse("google_business_profile", response), now, {
+    keepRefreshToken: true,
+  });
+}
+
 async function refreshInstagram(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {
   const url = new URL("https://graph.instagram.com/refresh_access_token");
   url.searchParams.set("grant_type", "ig_refresh_token");
@@ -642,6 +664,9 @@ async function refreshPlatformToken(account: ConnectedAccount, now: Date): Promi
     }
     case "youtube": {
       return await refreshYouTube(account, now);
+    }
+    case "google_business_profile": {
+      return await refreshGoogleBusinessProfile(account, now);
     }
     case "instagram": {
       return await refreshInstagram(account, now);

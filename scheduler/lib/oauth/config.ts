@@ -75,6 +75,17 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     requiresBasicAuth: false,
     requiresDpop: false,
   },
+  google_business_profile: {
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    clientId: process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || "",
+    scope: "https://www.googleapis.com/auth/business.manage",
+    responseType: "code",
+    requiresPkce: false,
+    requiresBasicAuth: false,
+    requiresDpop: false,
+  },
   bluesky: {
     authUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/authorize`,
     tokenUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/token`,

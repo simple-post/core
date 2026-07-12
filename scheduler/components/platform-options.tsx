@@ -467,6 +467,25 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
       )}
 
       {/* Pinterest Options */}
+      {selectedPlatforms.includes("google_business_profile") && (
+        <Card className="p-4 space-y-4 border-border">
+          <h4 className="text-sm font-medium">Google Business Profile Options</h4>
+          <div>
+            <Label htmlFor="gbp-language">Language code (optional)</Label>
+            <Input
+              id="gbp-language"
+              value={options.google_business_profile?.languageCode || ""}
+              onChange={(event) =>
+                updateOption("google_business_profile", "languageCode", event.target.value || undefined)
+              }
+              placeholder="en-US"
+              className="mt-1"
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* Pinterest Options */}
       {selectedPlatforms.includes("pinterest") && (
         <Card className="p-4 space-y-4 border-border">
           <div className="flex items-center gap-2">

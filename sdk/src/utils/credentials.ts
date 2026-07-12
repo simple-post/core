@@ -49,6 +49,13 @@ export const getCredentialsFromEnv = (): PostOptions => {
       boardId: process.env.PINTEREST_BOARD_ID,
     },
     forem: { instanceUrl: process.env.FOREM_INSTANCE_URL, apiKey: process.env.FOREM_API_KEY },
+    googleBusinessProfile: {
+      accessToken: process.env.GOOGLE_BUSINESS_PROFILE_ACCESS_TOKEN,
+      refreshToken: process.env.GOOGLE_BUSINESS_PROFILE_REFRESH_TOKEN,
+      clientId: process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET,
+      locationName: process.env.GOOGLE_BUSINESS_PROFILE_LOCATION_NAME,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -145,6 +152,20 @@ export const getCredentialsFromEnv = (): PostOptions => {
   }
   if (envVars.forem.instanceUrl && envVars.forem.apiKey)
     options.forem = { credentials: { instanceUrl: envVars.forem.instanceUrl, apiKey: envVars.forem.apiKey } };
+  if (envVars.googleBusinessProfile.accessToken && envVars.googleBusinessProfile.locationName)
+    options.google_business_profile = {
+      locationName: envVars.googleBusinessProfile.locationName,
+      credentials: {
+        accessToken: envVars.googleBusinessProfile.accessToken,
+        ...(envVars.googleBusinessProfile.refreshToken
+          ? { refreshToken: envVars.googleBusinessProfile.refreshToken }
+          : {}),
+        ...(envVars.googleBusinessProfile.clientId ? { clientId: envVars.googleBusinessProfile.clientId } : {}),
+        ...(envVars.googleBusinessProfile.clientSecret
+          ? { clientSecret: envVars.googleBusinessProfile.clientSecret }
+          : {}),
+      },
+    };
 
   return options;
 };
@@ -193,6 +214,13 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
     forem: userOptions.forem
       ? { ...userOptions.forem, credentials: userOptions.forem.credentials || envOptions.forem?.credentials }
       : envOptions.forem,
+    google_business_profile: userOptions.google_business_profile
+      ? {
+          ...userOptions.google_business_profile,
+          credentials:
+            userOptions.google_business_profile.credentials || envOptions.google_business_profile?.credentials,
+        }
+      : envOptions.google_business_profile,
   };
 
   return merged as PostOptionsWithCredentials;

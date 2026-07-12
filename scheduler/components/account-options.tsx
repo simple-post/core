@@ -1150,6 +1150,22 @@ export function AccountOptionsComponent({
             )}
 
             {/* Telegram Options */}
+            {account.platform === "google_business_profile" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-gbp-language`}>Language code (optional)</Label>
+                  <Input
+                    id={`${account.id}-gbp-language`}
+                    value={asString(accountOptions.languageCode)}
+                    onChange={(event) => updateOption(account.id, "languageCode", event.target.value || undefined)}
+                    placeholder="en-US"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Telegram Options */}
             {account.platform === "telegram" && (
               <div>
                 <Label htmlFor={`${account.id}-parseMode`} className="text-sm text-muted-foreground">

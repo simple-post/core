@@ -78,6 +78,16 @@ The accounts file is a JSON document with a single `accounts` array. Each entry 
 | `profilePicture`    | No       | Returned by `GET /api/v1/accounts` for UI display.                                                                                                                                  |
 | `credentials`       | Yes      | Platform-specific credentials. Shapes mirror `PostOptions[platform].credentials` in `@simple-post/sdk`. See examples below.                                                         |
 | `options`           | No       | Platform-specific defaults (e.g. YouTube `privacyStatus`, LinkedIn `visibility`). Mirrors `PostOptions[platform]` minus `credentials`. Per-request `accountOptions` override these. |
+| Field               | Required | Description                                                                                                                                                                             |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | Yes      | Stable identifier you reference in `accountIds` when posting. Must be unique across the file.                                                                                           |
+| `platform`          | Yes      | One of `x`, `telegram`, `facebook`, `instagram`, `youtube`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`, `google_business_profile`. The legacy alias `twitter` maps to `x`. |
+| `label`             | No       | Human-readable name surfaced in `GET /api/v1/accounts`.                                                                                                                                 |
+| `username`          | No       | Used to build post URLs returned in `postingResults[].postUrl` (e.g. `https://x.com/<username>/status/...`).                                                                            |
+| `platformAccountId` | Varies   | Required for Telegram (used as `chatId`) and Facebook (used as `pageId`). Optional elsewhere.                                                                                           |
+| `profilePicture`    | No       | Returned by `GET /api/v1/accounts` for UI display.                                                                                                                                      |
+| `credentials`       | Yes      | Platform-specific credentials. Shapes mirror `PostOptions[platform].credentials` in `@simple-post/sdk`. See examples below.                                                             |
+| `options`           | No       | Platform-specific defaults (e.g. YouTube `privacyStatus`, LinkedIn `visibility`). Mirrors `PostOptions[platform]` minus `credentials`. Per-request `accountOptions` override these.     |
 
 The server validates the file at startup. Unknown platforms, duplicate IDs, or malformed JSON cause it to refuse to boot — fail fast on misconfiguration.
 

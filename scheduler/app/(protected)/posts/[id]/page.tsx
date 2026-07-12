@@ -6,11 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { Trash2, Calendar, Clock, Edit, AlertCircle, FileText, Quote } from "lucide-react";
+import { Trash2, Calendar, CalendarClock, Clock, Edit, AlertCircle, FileText, Quote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
+import { SchedulePostDialog } from "@/components/schedule-post-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,6 +108,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const deletePostMutation = useDeletePost();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
   const loading = postLoading || accountsLoading;
 
@@ -165,35 +167,10 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <div className="min-h-screen bg-background">
-        <Navbar
-          actions={
-            <>
-              {canQuote && (
-                <Link href={`/schedule?quotePostId=${id}`}>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Quote className="h-4 w-4" />
-                    <span className="hidden sm:inline">Quote</span>
-                  </Button>
-                </Link>
-              )}
-              {(isScheduled || isDraft || isFailed) && (
-                <Link href={`/posts/${id}/edit`}>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Edit className="h-4 w-4" />
-                    <span className="hidden sm:inline">{isFailed ? "Edit and Retry" : "Edit"}</span>
-                  </Button>
-                </Link>
-              )}
-              <Button variant="destructive" size="sm" className="gap-2" onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Delete</span>
-              </Button>
-            </>
-          }
-        />
+        <Navbar />
 
-        <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-          <div className="animate-reveal">
+        <main className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-8 sm:py-6">
+          <div className="animate-reveal flex flex-wrap items-center justify-between gap-x-6 gap-y-5 sm:gap-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
@@ -220,6 +197,40 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       : format(post.publishedAt || post.createdAt, "MMMM d, yyyy 'at' h:mm a")}
                 </span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2" aria-label="Post actions">
+              {(isScheduled || isDraft) && (
+                <Button size="sm" onClick={() => setShowScheduleDialog(true)}>
+                  <CalendarClock className="h-4 w-4" />
+                  {isScheduled ? "Reschedule" : "Schedule"}
+                </Button>
+              )}
+              {(isScheduled || isDraft || isFailed) && (
+                <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
+                  <Link href={`/posts/${id}/edit`}>
+                    <Edit className="h-4 w-4" />
+                    {isFailed ? "Edit and Retry" : "Edit"}
+                  </Link>
+                </Button>
+              )}
+              {canQuote && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/schedule?quotePostId=${id}`}>
+                    <Quote className="h-4 w-4" />
+                    Quote
+                  </Link>
+                </Button>
+              )}
+              <span className="mx-1 h-4 w-px bg-border" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}>
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete post</span>
+              </Button>
             </div>
           </div>
           <div className="space-y-4 mt-5 animate-reveal animate-reveal-delay-1">
@@ -342,6 +353,10 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {(isScheduled || isDraft) && (
+        <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
+      )}
     </>
   );
 }

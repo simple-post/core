@@ -1,0 +1,22 @@
+{
+  "name": "@simple-post/piece-simplepost",
+  "version": "0.1.0",
+  "description": "Activepieces piece for SimplePost social media publishing.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "npm run build && node --test test/*.test.cjs",
+    "test": "node --test test/*.test.cjs"
+  },
+  "dependencies": {
+    "@activepieces/pieces-common": "0.12.5",
+    "@activepieces/pieces-framework": "0.32.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

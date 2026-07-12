@@ -1,27 +1,27 @@
 import { axios } from '@pipedream/platform';
 
-const normalizeBaseUrl = (baseUrl) => (baseUrl || 'https://app.simplepost.social').replace(/\/+$/, '');
+import { normalizeBaseUrl } from './common.mjs';
 
 export default {
   type: 'app',
   app: 'simplepost',
   propDefinitions: {
-    apiKey: {
-      type: 'string',
-      label: 'API Key',
-      description: 'Create an API key in SimplePost under API Keys.',
-      secret: true,
-    },
-    baseUrl: {
-      type: 'string',
-      label: 'Base URL',
-      description: 'The hosted SimplePost URL or URL of your self-hosted Scheduler app.',
-      default: 'https://app.simplepost.social',
+    accountIds: {
+      type: 'string[]',
+      label: 'Account IDs',
+      description: 'One or more connected SimplePost account IDs.',
+      async options({ page }) {
+        const accounts = await this.listAccounts();
+        return accounts.map((account) => ({
+          label: `${account.displayName || account.username || account.id} (${account.platform})`,
+          value: account.id,
+        })).slice(page * 100, (page + 1) * 100);
+      },
     },
   },
   methods: {
     _baseUrl() {
-      return normalizeBaseUrl(this.baseUrl);
+      return normalizeBaseUrl(this.$auth.base_url);
     },
     async _request($, config) {
       return axios($, {
@@ -29,11 +29,11 @@ export default {
         url: `${this._baseUrl()}${config.path}`,
         headers: {
           ...config.headers,
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.$auth.api_key}`,
         },
       });
     },
-    async listAccounts($) {
+    async listAccounts($ = this) {
       const { accounts } = await this._request($, { method: 'GET', path: '/api/v1/accounts' });
       return accounts;
     },
@@ -45,5 +45,3 @@ export default {
     },
   },
 };
-
-export { normalizeBaseUrl };

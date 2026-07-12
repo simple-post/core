@@ -469,6 +469,81 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
           </div>
         </Card>
       )}
+
+      {selectedPlatforms.includes("tumblr") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-950 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Tumblr Options</h4>
+          </div>
+          <div>
+            <Label htmlFor="tumblr-state" className="text-sm text-muted-foreground">
+              Post State
+            </Label>
+            <Select
+              value={options.tumblr?.state || "published"}
+              onValueChange={(value) => updateOption("tumblr", "state", value)}>
+              <SelectTrigger id="tumblr-state" className="mt-1 border-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="published">Published</SelectItem>
+                <SelectItem value="queue">Queue</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="private">Private</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="tumblr-tags" className="text-sm text-muted-foreground">
+              Tags (optional)
+            </Label>
+            <Input
+              id="tumblr-tags"
+              placeholder="updates, product"
+              value={options.tumblr?.tags?.join(", ") || ""}
+              onChange={(e) =>
+                updateOption(
+                  "tumblr",
+                  "tags",
+                  e.target.value
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean),
+                )
+              }
+              className="mt-1 border-border"
+            />
+          </div>
+          {options.tumblr?.state === "queue" && (
+            <div>
+              <Label htmlFor="tumblr-publishOn" className="text-sm text-muted-foreground">
+                Publish On (optional)
+              </Label>
+              <Input
+                id="tumblr-publishOn"
+                type="datetime-local"
+                value={options.tumblr?.publishOn || ""}
+                onChange={(e) => updateOption("tumblr", "publishOn", e.target.value || undefined)}
+                className="mt-1 border-border"
+              />
+            </div>
+          )}
+          <div>
+            <Label htmlFor="tumblr-sourceUrl" className="text-sm text-muted-foreground">
+              Source URL (optional)
+            </Label>
+            <Input
+              id="tumblr-sourceUrl"
+              type="url"
+              placeholder="https://example.com/article"
+              value={options.tumblr?.sourceUrl || ""}
+              onChange={(e) => updateOption("tumblr", "sourceUrl", e.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

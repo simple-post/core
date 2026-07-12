@@ -6,6 +6,7 @@ import { PinterestAuthProvider } from "./pinterest.js";
 import { TelegramAuthProvider } from "./telegram.js";
 import { ThreadsAuthProvider } from "./threads.js";
 import { TikTokAuthProvider } from "./tiktok.js";
+import { TumblrAuthProvider } from "./tumblr.js";
 import { XAuthProvider } from "./x.js";
 import { YouTubeAuthProvider } from "./youtube.js";
 
@@ -22,6 +23,7 @@ const AUTH_PROVIDERS = {
   threads: new ThreadsAuthProvider(),
   linkedin: new LinkedInAuthProvider(),
   pinterest: new PinterestAuthProvider(),
+  tumblr: new TumblrAuthProvider(),
   telegram: new TelegramAuthProvider(),
 } satisfies Record<AccountPlatform, AuthProvider>;
 

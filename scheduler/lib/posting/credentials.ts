@@ -112,6 +112,12 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  tumblr: (account: ConnectedAccount) => ({
+    accessToken: account.accessToken,
+    refreshToken: account.refreshToken || undefined,
+    clientId: process.env.TUMBLR_CLIENT_ID || undefined,
+    clientSecret: process.env.TUMBLR_CLIENT_SECRET || undefined,
+  }),
 };
 
 /**
@@ -155,6 +161,13 @@ const postOptionOverrides: Record<
       ...(accountSpecificOptions as Record<string, unknown>),
       boardId: (accountSpecificOptions as { boardId?: string }).boardId || process.env.PINTEREST_BOARD_ID || "",
       credentials: credentials as PlatformCredentials<"pinterest">,
+    },
+  }),
+  tumblr: (account, credentials, accountSpecificOptions) => ({
+    tumblr: {
+      ...(accountSpecificOptions as Record<string, unknown>),
+      blogIdentifier: account.platformAccountId,
+      credentials: credentials as PlatformCredentials<"tumblr">,
     },
   }),
 };

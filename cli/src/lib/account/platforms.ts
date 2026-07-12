@@ -195,6 +195,21 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     },
     platform: "pinterest",
   },
+  tumblr: {
+    connectDescription: "Connect a Tumblr blog with your own Tumblr application.",
+    displayName: "Tumblr",
+    oauthApp: {
+      authorizationUrl: "https://www.tumblr.com/oauth2/authorize",
+      clientSecretRequired: true,
+      developerPortalUrl: "https://www.tumblr.com/oauth/apps",
+      pkce: false,
+      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      scopes: ["basic", "write", "offline_access"],
+      tokenAuthMethod: "client_secret_post",
+      tokenUrl: "https://api.tumblr.com/v2/oauth2/token",
+    },
+    platform: "tumblr",
+  },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",

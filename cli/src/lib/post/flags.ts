@@ -142,4 +142,29 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "tumblr-blog-identifier": Flags.string({
+    description: "Tumblr blog identifier",
+    helpGroup: "Tumblr",
+  }),
+  "tumblr-state": Flags.string({
+    description: "Tumblr post state",
+    helpGroup: "Tumblr",
+    options: ["published", "queue", "draft", "private"],
+  }),
+  "tumblr-publish-on": Flags.string({
+    description: "Tumblr queue publish timestamp",
+    helpGroup: "Tumblr",
+  }),
+  "tumblr-tags": Flags.string({
+    description: "Comma-separated Tumblr tags",
+    helpGroup: "Tumblr",
+  }),
+  "tumblr-source-url": Flags.string({
+    description: "Tumblr content source URL",
+    helpGroup: "Tumblr",
+  }),
+  "tumblr-slug": Flags.string({
+    description: "Tumblr post URL slug",
+    helpGroup: "Tumblr",
+  }),
 } as const;

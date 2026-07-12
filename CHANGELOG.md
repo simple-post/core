@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add Tumblr OAuth 2.0 and NPF publishing support across the SDK, CLI, HTTP API, scheduler, examples, and documentation.
+
 All notable changes to SimplePost are recorded here. The SDK and CLI follow
 [Semantic Versioning](https://semver.org/); repository-wide entries also cover
 the Scheduler, MCP server, and self-hosted HTTP server.

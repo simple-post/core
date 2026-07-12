@@ -200,6 +200,20 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "tumblr": {
+      const clientSecret = process.env[getClientSecretEnvVar("tumblr")];
+      return {
+        tumblr: {
+          blogIdentifier: (metadata.settings?.blogIdentifier as string) ?? metadata.userId,
+          credentials: {
+            accessToken: secret.accessToken,
+            ...(secret.refreshToken ? { refreshToken: secret.refreshToken } : {}),
+            clientId: getStoredClientId("tumblr", secret),
+            ...(clientSecret ? { clientSecret } : {}),
+          },
+        },
+      };
+    }
     case "telegram": {
       return {
         telegram: {

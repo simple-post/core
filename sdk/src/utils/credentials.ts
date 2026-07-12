@@ -48,6 +48,13 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    tumblr: {
+      accessToken: process.env.TUMBLR_ACCESS_TOKEN,
+      refreshToken: process.env.TUMBLR_REFRESH_TOKEN,
+      clientId: process.env.TUMBLR_CLIENT_ID,
+      clientSecret: process.env.TUMBLR_CLIENT_SECRET,
+      blogIdentifier: process.env.TUMBLR_BLOG_IDENTIFIER,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -142,6 +149,16 @@ export const getCredentialsFromEnv = (): PostOptions => {
       },
     };
   }
+  if (envVars.tumblr.accessToken && envVars.tumblr.blogIdentifier)
+    options.tumblr = {
+      blogIdentifier: envVars.tumblr.blogIdentifier,
+      credentials: {
+        accessToken: envVars.tumblr.accessToken,
+        ...(envVars.tumblr.refreshToken ? { refreshToken: envVars.tumblr.refreshToken } : {}),
+        ...(envVars.tumblr.clientId ? { clientId: envVars.tumblr.clientId } : {}),
+        ...(envVars.tumblr.clientSecret ? { clientSecret: envVars.tumblr.clientSecret } : {}),
+      },
+    };
 
   return options;
 };
@@ -187,6 +204,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    tumblr: userOptions.tumblr
+      ? { ...userOptions.tumblr, credentials: userOptions.tumblr.credentials || envOptions.tumblr?.credentials }
+      : envOptions.tumblr,
   };
 
   return merged as PostOptionsWithCredentials;

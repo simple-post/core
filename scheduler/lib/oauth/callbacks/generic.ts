@@ -77,6 +77,9 @@ interface YouTubeProfile {
   email?: string;
   picture?: string;
 }
+interface TumblrProfile {
+  response?: { user?: { blogs?: Array<{ name?: string; title?: string; url?: string; primary?: boolean }> } };
+}
 
 interface DefaultProfile {
   id?: string;
@@ -91,6 +94,7 @@ type PlatformProfile =
   | LinkedInProfile
   | PinterestProfile
   | YouTubeProfile
+  | TumblrProfile
   | DefaultProfile;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -180,6 +184,12 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
     return data.data.user;
   }
 
+  if (platform === "tumblr") {
+    const blogs = (data as TumblrProfile).response?.user?.blogs ?? [];
+    const blog = blogs.find((candidate) => candidate.primary) ?? blogs[0];
+    if (!blog?.name) throw new Error("Tumblr did not return a blog for this account.");
+    return { id: blog.name, name: blog.title, username: blog.name } as XProfile;
+  }
   return data;
 }
 
@@ -275,6 +285,13 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       displayName = p.profile_name || p.business_name || p.username || null;
       const img = p.profile_image;
       profilePicture = (typeof img === "object" ? img?.url : img) || null;
+      break;
+    }
+    case "tumblr": {
+      const p = profile as XProfile;
+      platformAccountId = p.id || "";
+      username = p.username || null;
+      displayName = p.name || p.username || null;
       break;
     }
     case "youtube": {

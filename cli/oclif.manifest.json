@@ -16,6 +16,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "tumblr",
             "telegram"
           ],
           "required": false
@@ -387,6 +388,60 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "tumblr-blog-identifier": {
+          "description": "Tumblr blog identifier",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-blog-identifier",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tumblr-state": {
+          "description": "Tumblr post state",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-state",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "published",
+            "queue",
+            "draft",
+            "private"
+          ],
+          "type": "option"
+        },
+        "tumblr-publish-on": {
+          "description": "Tumblr queue publish timestamp",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-publish-on",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tumblr-tags": {
+          "description": "Comma-separated Tumblr tags",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-tags",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tumblr-source-url": {
+          "description": "Tumblr content source URL",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-source-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tumblr-slug": {
+          "description": "Tumblr post URL slug",
+          "helpGroup": "Tumblr",
+          "name": "tumblr-slug",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -569,6 +624,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "tumblr",
             "telegram"
           ],
           "required": false

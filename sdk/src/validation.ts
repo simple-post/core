@@ -6,6 +6,7 @@ import { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishe
 import { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";
 import { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";
+import { TUMBLR_VALIDATION_RULES, validateTumblrContent } from "./publishers/tumblr/validation";
 import { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation";
 import { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";
 
@@ -28,6 +29,7 @@ export const PLATFORM_VALIDATORS: Record<Platform, PlatformValidator> = {
   threads: { rules: THREADS_VALIDATION_RULES, validate: validateThreadsContent },
   linkedin: { rules: LINKEDIN_VALIDATION_RULES, validate: validateLinkedInContent },
   pinterest: { rules: PINTEREST_VALIDATION_RULES, validate: validatePinterestContent },
+  tumblr: { rules: TUMBLR_VALIDATION_RULES, validate: validateTumblrContent },
 };
 
 export function getValidationRulesForPlatform(platform: Platform): PlatformValidationRules {
@@ -46,5 +48,6 @@ export { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishe
 export { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 export { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";
 export { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";
+export { TUMBLR_VALIDATION_RULES, validateTumblrContent } from "./publishers/tumblr/validation";
 export { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation";
 export { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";

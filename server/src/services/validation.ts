@@ -8,6 +8,7 @@ import {
   TelegramPublisher,
   ThreadsPublisher,
   TikTokPublisher,
+  TumblrPublisher,
   XPublisher,
   YouTubePublisher,
 } from "@simple-post/sdk";
@@ -39,6 +40,7 @@ const publishers: Record<
   threads: ThreadsPublisher,
   linkedin: LinkedInPublisher,
   pinterest: PinterestPublisher,
+  tumblr: TumblrPublisher,
 };
 
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {

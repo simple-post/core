@@ -213,7 +213,6 @@ function buildStoredAccountPostOptions(
     case "lemmy": {
       return {
         lemmy: {
-          title: "",
           communityId: Number(metadata.settings?.communityId),
           apiVersion: metadata.settings?.apiVersion === "v4" ? "v4" : "v3",
           credentials: { instanceUrl: String(metadata.settings?.instanceUrl), jwt: secret.accessToken },

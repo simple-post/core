@@ -394,6 +394,44 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
         </Card>
       )}
 
+      {/* Lemmy Options */}
+      {selectedPlatforms.includes("lemmy") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-600 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Lemmy Options</h4>
+          </div>
+
+          <div>
+            <Label htmlFor="lemmy-title" className="text-sm text-muted-foreground">
+              Post title (optional)
+            </Label>
+            <Input
+              id="lemmy-title"
+              placeholder="Title shown in the community feed"
+              value={options.lemmy?.title || ""}
+              onChange={(event) => updateOption("lemmy", "title", event.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Defaults to the first line of your post text</p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="lemmy-nsfw"
+              checked={options.lemmy?.nsfw || false}
+              onCheckedChange={(checked) => updateOption("lemmy", "nsfw", checked === true ? true : undefined)}
+            />
+            <div>
+              <Label htmlFor="lemmy-nsfw" className="text-sm cursor-pointer">
+                Mark as NSFW
+              </Label>
+              <p className="text-xs text-muted-foreground">Flags the post as not safe for work</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Pinterest Options */}
       {selectedPlatforms.includes("pinterest") && (
         <Card className="p-4 space-y-4 border-border">

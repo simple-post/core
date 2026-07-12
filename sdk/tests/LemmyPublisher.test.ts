@@ -15,7 +15,7 @@ describe("LemmyPublisher", () => {
     expect(mocked.post).toHaveBeenCalledWith(
       "https://lemmy.example/api/v3/post",
       expect.objectContaining({ community_id: 1, auth: "jwt", name: "Hello" }),
-      undefined,
+      { headers: { Authorization: "Bearer jwt" } },
     );
     expect(result.error).toBe(PostErrorType.NO_ERROR);
   });

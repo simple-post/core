@@ -488,6 +488,18 @@ export const TelegramConnectResponseSchema = z
   })
   .meta({ id: "TelegramConnectResponse" });
 
+export const LemmyConnectRequestSchema = z
+  .object({
+    instanceUrl: z.url(),
+    username: z.string(),
+    password: z.string(),
+    communityId: z.number().int().positive(),
+    apiVersion: z.enum(["v3", "v4"]).optional(),
+  })
+  .meta({ id: "LemmyConnectRequest" });
+
+export const LemmyConnectResponseSchema = z.object({ success: z.boolean() }).meta({ id: "LemmyConnectResponse" });
+
 export const PendingConnectionAccountSchema = z
   .object({
     id: z.string(),

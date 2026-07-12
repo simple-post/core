@@ -1173,6 +1173,38 @@ export function AccountOptionsComponent({
                 <p className="text-xs text-muted-foreground mt-1">Choose how Telegram should parse your message</p>
               </div>
             )}
+
+            {/* Lemmy Options */}
+            {account.platform === "lemmy" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-lemmy-title`} className="text-sm text-muted-foreground">
+                    Post title (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-lemmy-title`}
+                    placeholder="Title shown in the community feed"
+                    value={asString(accountOptions.title)}
+                    onChange={(event) => updateOption(account.id, "title", event.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Defaults to the first line of your post text</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${account.id}-lemmy-nsfw`}
+                    checked={asBoolean(accountOptions.nsfw, false)}
+                    onCheckedChange={(checked) => updateOption(account.id, "nsfw", checked === true ? true : undefined)}
+                  />
+                  <div>
+                    <Label htmlFor={`${account.id}-lemmy-nsfw`} className="text-sm cursor-pointer">
+                      Mark as NSFW
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Flags the post as not safe for work</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         );
       })}

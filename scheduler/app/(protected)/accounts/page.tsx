@@ -77,17 +77,36 @@ export default function AccountsPage() {
       window.location.href = `/api/connect/${platform}`;
     }
   };
+  const closeLemmyDialog = () => {
+    setShowLemmyDialog(false);
+    setLemmyPassword("");
+    setLemmyError("");
+  };
+
   const handleLemmyConnect = async () => {
+    const communityId = Number(lemmyCommunity);
+    if (!lemmyInstance.trim() || !lemmyUsername.trim() || !lemmyPassword) {
+      setLemmyError("Please provide the instance URL, username, and password");
+      return;
+    }
+    if (!/^https:\/\//i.test(lemmyInstance.trim())) {
+      setLemmyError("The instance URL must start with https://");
+      return;
+    }
+    if (!Number.isInteger(communityId) || communityId <= 0) {
+      setLemmyError("The community ID must be a positive number");
+      return;
+    }
+    setLemmyError("");
     try {
       await connectLemmyMutation.mutateAsync({
         instanceUrl: lemmyInstance.trim(),
         username: lemmyUsername.trim(),
         password: lemmyPassword,
-        communityId: Number(lemmyCommunity),
+        communityId,
         apiVersion: "v3",
       });
-      setShowLemmyDialog(false);
-      setLemmyPassword("");
+      closeLemmyDialog();
     } catch (error) {
       logClientError(error, "Lemmy connection error");
       setLemmyError(error instanceof Error ? error.message : "Failed to connect Lemmy");
@@ -294,56 +313,97 @@ export default function AccountsPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={showLemmyDialog} onOpenChange={setShowLemmyDialog}>
+      <Dialog open={showLemmyDialog} onOpenChange={(open) => (open ? setShowLemmyDialog(true) : closeLemmyDialog())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Connect Lemmy</DialogTitle>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Lemmy</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Lemmy</DialogTitle>
             <DialogDescription>Connect an instance account and default community.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4 mt-2">
             {lemmyError && (
               <Alert variant="destructive">
                 <AlertDescription>{lemmyError}</AlertDescription>
               </Alert>
             )}
             <div>
-              <Label htmlFor="lemmyInstance">Instance URL</Label>
+              <Label
+                htmlFor="lemmyInstance"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Instance URL
+              </Label>
               <Input
                 id="lemmyInstance"
                 placeholder="https://lemmy.world"
                 value={lemmyInstance}
                 onChange={(e) => setLemmyInstance(e.target.value)}
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">The Lemmy instance your account lives on.</p>
+            </div>
+            <div>
+              <Label
+                htmlFor="lemmyUsername"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Username
+              </Label>
+              <Input
+                id="lemmyUsername"
+                placeholder="alice"
+                value={lemmyUsername}
+                onChange={(e) => setLemmyUsername(e.target.value)}
+                className="mt-2"
               />
             </div>
             <div>
-              <Label htmlFor="lemmyUsername">Username</Label>
-              <Input id="lemmyUsername" value={lemmyUsername} onChange={(e) => setLemmyUsername(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="lemmyPassword">Password</Label>
+              <Label
+                htmlFor="lemmyPassword"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Password
+              </Label>
               <Input
                 id="lemmyPassword"
                 type="password"
                 value={lemmyPassword}
                 onChange={(e) => setLemmyPassword(e.target.value)}
+                className="mt-2"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Used once to sign in; SimplePost stores only the resulting session token.
+              </p>
             </div>
             <div>
-              <Label htmlFor="lemmyCommunity">Community ID</Label>
+              <Label
+                htmlFor="lemmyCommunity"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Community ID
+              </Label>
               <Input
                 id="lemmyCommunity"
                 inputMode="numeric"
+                placeholder="12345"
                 value={lemmyCommunity}
                 onChange={(e) => setLemmyCommunity(e.target.value)}
+                className="mt-2 font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                The numeric ID of the community posts should go to by default.
+              </p>
             </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setShowLemmyDialog(false)} className="flex-1">
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={closeLemmyDialog}
+              disabled={connectLemmyMutation.isPending}
+              className="flex-1">
               Cancel
             </Button>
             <Button onClick={handleLemmyConnect} disabled={connectLemmyMutation.isPending} className="flex-1">
-              Connect
+              {connectLemmyMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

@@ -140,8 +140,8 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
   }
   if (flags["lemmy-title"] || flags["lemmy-community-id"] || flags["lemmy-nsfw"] !== undefined)
     options.lemmy = {
-      title: flags["lemmy-title"] ?? "",
-      communityId: flags["lemmy-community-id"] ?? 0,
+      ...(flags["lemmy-title"] ? { title: flags["lemmy-title"] } : {}),
+      ...(flags["lemmy-community-id"] ? { communityId: flags["lemmy-community-id"] } : {}),
       ...(flags["lemmy-nsfw"] === undefined ? {} : { nsfw: flags["lemmy-nsfw"] }),
     };
 

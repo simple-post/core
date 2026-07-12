@@ -56,11 +56,13 @@ export class LemmyPublisher extends Publisher {
         nsfw: settings.nsfw,
         language_id: settings.languageId,
       };
+      // Lemmy 0.19+ requires the Authorization header on /api/v3; older
+      // instances still read the body auth field, so send both for v3.
       if (version === "v3") payload.auth = jwt;
       const response = await axios.post<LemmyResponse>(
         `${this.credentials.instanceUrl.replace(/\/$/, "")}/api/${version}/post`,
         payload,
-        version === "v4" ? { headers: { Authorization: `Bearer ${jwt}` } } : undefined,
+        { headers: { Authorization: `Bearer ${jwt}` } },
       );
       const post = (response.data.post_view?.post ?? response.data.postView?.post) as
         | { id?: number; ap_id?: string; apId?: string }

@@ -14,12 +14,25 @@ export async function POST(request: NextRequest) {
     const apiVersion = body.apiVersion === "v4" ? "v4" : "v3";
     if (!instanceUrl || !username || !password || !Number.isInteger(communityId) || communityId <= 0)
       throw new BadRequestError("Instance, username, password, and community ID are required");
+    let instanceHost: string;
+    try {
+      const parsed = new URL(instanceUrl);
+      if (parsed.protocol !== "https:") throw new Error("Not https");
+      instanceHost = parsed.host;
+    } catch {
+      throw new BadRequestError("Instance URL must be a valid https:// URL");
+    }
     const path = apiVersion === "v4" ? "/api/v4/account/auth/login" : "/api/v3/user/login";
-    const response = await fetch(`${instanceUrl}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username_or_email: username, password }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${instanceUrl}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username_or_email: username, password }),
+      });
+    } catch {
+      throw new BadRequestError("Could not reach the Lemmy instance");
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.jwt) throw new BadRequestError(data.error || "Lemmy login failed");
     await upsertConnectedAccount({
@@ -31,7 +44,7 @@ export async function POST(request: NextRequest) {
       expiresAt: null,
       scope: null,
       username,
-      displayName: `${username}@${new URL(instanceUrl).host}`,
+      displayName: `${username}@${instanceHost}`,
       email: null,
       profilePicture: null,
       tokenMetadata: { instanceUrl, communityId, apiVersion },

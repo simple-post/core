@@ -156,7 +156,6 @@ export const getCredentialsFromEnv = (): PostOptions => {
     (envVars.lemmy.jwt || (envVars.lemmy.username && envVars.lemmy.password))
   )
     options.lemmy = {
-      title: "",
       communityId: Number(envVars.lemmy.communityId),
       ...(envVars.lemmy.apiVersion === "v4" ? { apiVersion: "v4" as const } : {}),
       credentials: {

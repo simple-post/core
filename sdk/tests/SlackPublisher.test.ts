@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import axios from "axios";
 
 import { SlackPublisher } from "../src/publishers/slack";
@@ -49,9 +47,7 @@ describe("SlackPublisher", () => {
     const result = await new SlackPublisher(options).postContent(
       {
         text: "Attached",
-        media: [
-          { type: "image", path: path.resolve(__dirname, "SlackPublisher.test.ts"), caption: "Test attachment" },
-        ],
+        media: [{ type: "image", path: expect.getState().testPath!, caption: "Test attachment" }],
       },
       options,
     );

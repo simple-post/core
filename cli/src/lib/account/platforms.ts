@@ -195,6 +195,22 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     },
     platform: "pinterest",
   },
+  slack: {
+    connectDescription: "Install a Slack app in a workspace and choose a default channel.",
+    displayName: "Slack",
+    oauthApp: {
+      authorizationUrl: "https://slack.com/oauth/v2/authorize",
+      clientSecretRequired: true,
+      developerPortalUrl: "https://api.slack.com/apps",
+      pkce: false,
+      redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
+      scopeSeparator: ",",
+      scopes: ["chat:write", "chat:write.public", "files:write", "channels:read", "groups:read"],
+      tokenAuthMethod: "client_secret_post",
+      tokenUrl: "https://slack.com/api/oauth.v2.access",
+    },
+    platform: "slack",
+  },
   telegram: {
     connectDescription: "Connect a Telegram bot and chat/channel with a bot token and chat ID.",
     displayName: "Telegram",

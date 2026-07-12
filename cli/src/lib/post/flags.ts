@@ -142,4 +142,14 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "slack-channel-id": Flags.string({ description: "Slack channel or conversation ID", helpGroup: "Slack" }),
+  "slack-thread-ts": Flags.string({ description: "Slack parent message timestamp for a reply", helpGroup: "Slack" }),
+  "slack-reply-broadcast": Flags.boolean({
+    allowNo: true,
+    description: "Broadcast a Slack thread reply",
+    helpGroup: "Slack",
+  }),
+  "slack-mrkdwn": Flags.boolean({ allowNo: true, description: "Enable Slack mrkdwn formatting", helpGroup: "Slack" }),
+  "slack-unfurl-links": Flags.boolean({ allowNo: true, description: "Enable Slack link unfurls", helpGroup: "Slack" }),
+  "slack-unfurl-media": Flags.boolean({ allowNo: true, description: "Enable Slack media unfurls", helpGroup: "Slack" }),
 } as const;

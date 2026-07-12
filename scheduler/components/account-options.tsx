@@ -31,6 +31,11 @@ interface PinterestBoard {
   description: string | null;
   pinCount: number;
 }
+interface SlackChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+}
 
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
 const asStringArray = (value: unknown): string[] =>
@@ -166,6 +171,9 @@ export function AccountOptionsComponent({
   const [pinterestBoards, setPinterestBoards] = useState<Record<string, PinterestBoard[]>>({});
   const [boardsLoading, setBoardsLoading] = useState<Record<string, boolean>>({});
   const [boardsError, setBoardsError] = useState<Record<string, string | null>>({});
+  const [slackChannels, setSlackChannels] = useState<Record<string, SlackChannel[]>>({});
+  const [channelsLoading, setChannelsLoading] = useState<Record<string, boolean>>({});
+  const [channelsError, setChannelsError] = useState<Record<string, string | null>>({});
   const [thumbnailUploads, setThumbnailUploads] = useState<Record<string, boolean>>({});
   const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string | null>>({});
   const [tiktokCreatorInfo, setTikTokCreatorInfo] = useState<Record<string, TikTokCreatorInfo>>({});
@@ -223,6 +231,27 @@ export function AccountOptionsComponent({
     }
   }, []);
 
+  const fetchSlackChannels = useCallback(async (accountId: string) => {
+    setChannelsLoading((prev) => ({ ...prev, [accountId]: true }));
+    setChannelsError((prev) => ({ ...prev, [accountId]: null }));
+    try {
+      const response = await fetch(`/api/v1/accounts/${accountId}/channels`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as { error?: string }).error || "Failed to fetch Slack channels");
+      }
+      const data = (await response.json()) as { channels: SlackChannel[] };
+      setSlackChannels((prev) => ({ ...prev, [accountId]: data.channels }));
+    } catch (error) {
+      setChannelsError((prev) => ({
+        ...prev,
+        [accountId]: error instanceof Error ? error.message : "Failed to fetch Slack channels",
+      }));
+    } finally {
+      setChannelsLoading((prev) => ({ ...prev, [accountId]: false }));
+    }
+  }, []);
+
   useEffect(() => {
     const pinterestAccountIds = accounts
       .filter(
@@ -235,6 +264,17 @@ export function AccountOptionsComponent({
       fetchBoards(accountId);
     }
   }, [accounts, selectedAccountIds, pinterestBoards, fetchBoards]);
+
+  useEffect(() => {
+    for (const account of accounts.filter(
+      (candidate: ConnectedAccount) =>
+        candidate.platform.toLowerCase() === "slack" &&
+        selectedAccountIds.includes(candidate.id) &&
+        !slackChannels[candidate.id],
+    )) {
+      fetchSlackChannels(account.id);
+    }
+  }, [accounts, selectedAccountIds, slackChannels, fetchSlackChannels]);
 
   useEffect(() => {
     const tiktokAccountIds = accounts
@@ -301,8 +341,11 @@ export function AccountOptionsComponent({
     () => accounts.filter((acc: { id: string }) => selectedAccountIds.includes(acc.id)),
     [accounts, selectedAccountIds],
   );
-  const selectedTikTokAccounts = useMemo(
-    () => selectedAccounts.filter((account: ConnectedAccount) => account.platform.toLowerCase() === "tiktok"),
+  const selectedOptionAccounts = useMemo(
+    () =>
+      selectedAccounts.filter((account: ConnectedAccount) =>
+        ["tiktok", "slack"].includes(account.platform.toLowerCase()),
+      ),
     [selectedAccounts],
   );
   const hasTikTokVideo = media.some((file) => file.type === "video");
@@ -428,7 +471,7 @@ export function AccountOptionsComponent({
     return null;
   }
 
-  if (selectedTikTokAccounts.length === 0) {
+  if (selectedOptionAccounts.length === 0) {
     return null;
   }
 
@@ -456,12 +499,12 @@ export function AccountOptionsComponent({
       <div>
         <div className="section-kicker">
           <span className="section-kicker-dot" />
-          <span className="section-kicker-label">TikTok options</span>
+          <span className="section-kicker-label">Account options</span>
         </div>
-        <p className="text-xs text-muted-foreground">Configure required TikTok settings for each selected account.</p>
+        <p className="text-xs text-muted-foreground">Configure platform settings for each selected account.</p>
       </div>
 
-      {selectedTikTokAccounts.map((account: ConnectedAccount) => {
+      {selectedOptionAccounts.map((account: ConnectedAccount) => {
         const platformId = account.platform.toLowerCase();
         const platformConfig = getPlatformById(platformId);
         if (!platformConfig) return null;
@@ -1171,6 +1214,69 @@ export function AccountOptionsComponent({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">Choose how Telegram should parse your message</p>
+              </div>
+            )}
+
+            {account.platform === "slack" && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`${account.id}-slack-channelId`} className="text-sm text-muted-foreground">
+                    Channel ID
+                  </Label>
+                  {channelsLoading[account.id] ? (
+                    <p className="mt-1 text-sm text-muted-foreground">Loading channels...</p>
+                  ) : slackChannels[account.id]?.length ? (
+                    <Select
+                      value={asString(accountOptions.channelId) || undefined}
+                      onValueChange={(value) => updateOption(account.id, "channelId", value)}>
+                      <SelectTrigger id={`${account.id}-slack-channelId`} className="mt-1 border-border">
+                        <SelectValue placeholder="Select a channel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {slackChannels[account.id].map((channel) => (
+                          <SelectItem key={channel.id} value={channel.id}>
+                            #{channel.name}
+                            {channel.isPrivate ? " (private)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={`${account.id}-slack-channelId`}
+                      placeholder="C0123456789"
+                      value={asString(accountOptions.channelId)}
+                      onChange={(e) => updateOption(account.id, "channelId", e.target.value)}
+                      className="mt-1 border-border"
+                    />
+                  )}
+                  {channelsError[account.id] && (
+                    <p className="text-xs text-destructive mt-1">{channelsError[account.id]}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The Slack conversation where this post will be sent.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor={`${account.id}-slack-threadTs`} className="text-sm text-muted-foreground">
+                    Thread timestamp (optional)
+                  </Label>
+                  <Input
+                    id={`${account.id}-slack-threadTs`}
+                    placeholder="1712345678.123456"
+                    value={asString(accountOptions.threadTs)}
+                    onChange={(e) => updateOption(account.id, "threadTs", e.target.value || undefined)}
+                    className="mt-1 border-border"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${account.id}-slack-mrkdwn`}
+                    checked={asBoolean(accountOptions.mrkdwn, true)}
+                    onCheckedChange={(checked) => updateOption(account.id, "mrkdwn", checked === true)}
+                  />
+                  <Label htmlFor={`${account.id}-slack-mrkdwn`}>Enable Slack mrkdwn</Label>
+                </div>
               </div>
             )}
           </Card>

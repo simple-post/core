@@ -13,6 +13,7 @@ export const PlatformSchema = z.enum([
   "threads",
   "linkedin",
   "pinterest",
+  "slack",
 ]);
 
 const BaseImageSchema = z.object({
@@ -219,6 +220,25 @@ export const PinterestOptionsSchema = z.object({
     .optional(),
 });
 
+export const SlackOptionsSchema = z.object({
+  channelId: z.string(),
+  threadTs: z.string().optional(),
+  replyBroadcast: z.boolean().optional(),
+  unfurlLinks: z.boolean().optional(),
+  unfurlMedia: z.boolean().optional(),
+  mrkdwn: z.boolean().optional(),
+  credentials: z
+    .object({
+      accessToken: z.string(),
+      teamId: z.string().optional(),
+      refreshToken: z.string().optional(),
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
+      expiresAt: z.number().optional(),
+    })
+    .optional(),
+});
+
 export const ContentSchema = z.object({
   text: z.string().optional(),
   media: z.array(MediaSchema).optional(),
@@ -236,6 +256,7 @@ export const PostOptionsSchema = z.object({
   threads: ThreadsOptionsSchema.optional(),
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
+  slack: SlackOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -295,6 +316,7 @@ export type BlueskyOptions = z.infer<typeof BlueskyOptionsSchema>;
 export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
+export type SlackOptions = z.infer<typeof SlackOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -333,6 +355,9 @@ export type LinkedInOptionsWithCredentials = LinkedInOptions & {
 export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
+export type SlackOptionsWithCredentials = SlackOptions & {
+  credentials: NonNullable<SlackOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -345,4 +370,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   threads?: ThreadsOptionsWithCredentials;
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
+  slack?: SlackOptionsWithCredentials;
 };

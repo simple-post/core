@@ -123,6 +123,18 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     requiresBasicAuth: true,
     requiresDpop: false,
   },
+  slack: {
+    authUrl: "https://slack.com/oauth/v2/authorize",
+    tokenUrl: "https://slack.com/api/oauth.v2.access",
+    clientId: process.env.SLACK_CLIENT_ID || "",
+    clientSecret: process.env.SLACK_CLIENT_SECRET || "",
+    scope: "chat:write,chat:write.public,files:write,channels:read,groups:read",
+    responseType: "code",
+    userInfoUrl: "https://slack.com/api/auth.test",
+    requiresPkce: false,
+    requiresBasicAuth: false,
+    requiresDpop: false,
+  },
 };
 
 export function getPlatformOAuthConfig(platform: string): PlatformOAuthConfig | undefined {

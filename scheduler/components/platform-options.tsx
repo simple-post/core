@@ -469,6 +469,47 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
           </div>
         </Card>
       )}
+
+      {selectedPlatforms.includes("slack") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-purple-700 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Slack Options</h4>
+          </div>
+          <div>
+            <Label htmlFor="slack-channelId" className="text-sm text-muted-foreground">
+              Channel ID
+            </Label>
+            <Input
+              id="slack-channelId"
+              placeholder="C0123456789"
+              value={options.slack?.channelId || ""}
+              onChange={(e) => updateOption("slack", "channelId", e.target.value)}
+              className="mt-1 border-border"
+            />
+          </div>
+          <div>
+            <Label htmlFor="slack-threadTs" className="text-sm text-muted-foreground">
+              Thread timestamp (optional)
+            </Label>
+            <Input
+              id="slack-threadTs"
+              placeholder="1712345678.123456"
+              value={options.slack?.threadTs || ""}
+              onChange={(e) => updateOption("slack", "threadTs", e.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="slack-mrkdwn"
+              checked={options.slack?.mrkdwn ?? true}
+              onCheckedChange={(checked) => updateOption("slack", "mrkdwn", checked === true)}
+            />
+            <Label htmlFor="slack-mrkdwn">Enable Slack mrkdwn</Label>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

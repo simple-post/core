@@ -79,6 +79,13 @@ export const SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-blue-500",
     connectionType: "manual",
   },
+  {
+    id: "slack",
+    name: "Slack",
+    description: "Post messages and files to workspace channels",
+    color: "bg-purple-700",
+    connectionType: "oauth",
+  },
 ];
 
 /**

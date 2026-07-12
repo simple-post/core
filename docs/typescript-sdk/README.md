@@ -249,6 +249,7 @@ For detailed platform-specific documentation, check out the platform guides:
 - [TikTok](../platforms/TikTok.md)
 - [YouTube](../platforms/YouTube.md)
 - [Pinterest](../platforms/Pinterest.md)
+- [Slack](../platforms/Slack.md)
 - [LinkedIn](../platforms/LinkedIn.md)
 - [Bluesky](../platforms/Bluesky.md)
 

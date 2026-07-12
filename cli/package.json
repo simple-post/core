@@ -29,7 +29,8 @@
     "bluesky",
     "threads",
     "linkedin",
-    "pinterest"
+    "pinterest",
+    "slack"
   ],
   "files": [
     "bin",

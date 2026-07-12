@@ -3,6 +3,7 @@ import { FacebookPublisher } from "./facebook";
 import { InstagramPublisher } from "./instagram";
 import { LinkedInPublisher } from "./linkedin";
 import { PinterestPublisher } from "./pinterest";
+import { SlackPublisher } from "./slack";
 import { TelegramPublisher } from "./telegram";
 import { ThreadsPublisher } from "./threads";
 import { TikTokPublisher } from "./tiktok";
@@ -43,6 +44,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "pinterest": {
       return new PinterestPublisher(options);
+    }
+    case "slack": {
+      return new SlackPublisher(options);
     }
   }
 

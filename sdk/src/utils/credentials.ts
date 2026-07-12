@@ -48,6 +48,15 @@ export const getCredentialsFromEnv = (): PostOptions => {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
       boardId: process.env.PINTEREST_BOARD_ID,
     },
+    slack: {
+      accessToken: process.env.SLACK_BOT_TOKEN,
+      teamId: process.env.SLACK_TEAM_ID,
+      channelId: process.env.SLACK_CHANNEL_ID,
+      refreshToken: process.env.SLACK_REFRESH_TOKEN,
+      clientId: process.env.SLACK_CLIENT_ID,
+      clientSecret: process.env.SLACK_CLIENT_SECRET,
+      expiresAt: process.env.SLACK_EXPIRES_AT,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -143,6 +152,22 @@ export const getCredentialsFromEnv = (): PostOptions => {
     };
   }
 
+  if (envVars.slack.accessToken && envVars.slack.channelId) {
+    options.slack = {
+      channelId: envVars.slack.channelId,
+      credentials: {
+        accessToken: envVars.slack.accessToken,
+        ...(envVars.slack.teamId ? { teamId: envVars.slack.teamId } : {}),
+        ...(envVars.slack.refreshToken ? { refreshToken: envVars.slack.refreshToken } : {}),
+        ...(envVars.slack.clientId ? { clientId: envVars.slack.clientId } : {}),
+        ...(envVars.slack.clientSecret ? { clientSecret: envVars.slack.clientSecret } : {}),
+        ...(envVars.slack.expiresAt && Number.isFinite(Number(envVars.slack.expiresAt))
+          ? { expiresAt: Number(envVars.slack.expiresAt) }
+          : {}),
+      },
+    };
+  }
+
   return options;
 };
 
@@ -187,6 +212,9 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
+    slack: userOptions.slack
+      ? { ...userOptions.slack, credentials: userOptions.slack.credentials || envOptions.slack?.credentials }
+      : envOptions.slack,
   };
 
   return merged as PostOptionsWithCredentials;

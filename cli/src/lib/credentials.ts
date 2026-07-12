@@ -200,6 +200,22 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "slack": {
+      const clientSecret = process.env[getClientSecretEnvVar("slack")];
+      return {
+        slack: {
+          channelId: (metadata.settings?.channelId as string) ?? "",
+          credentials: {
+            accessToken: secret.accessToken,
+            teamId: metadata.userId,
+            ...(secret.refreshToken ? { refreshToken: secret.refreshToken } : {}),
+            ...(typeof secret.expiresAt === "number" ? { expiresAt: secret.expiresAt } : {}),
+            clientId: getStoredClientId("slack", secret),
+            ...(clientSecret ? { clientSecret } : {}),
+          },
+        },
+      };
+    }
     case "telegram": {
       return {
         telegram: {

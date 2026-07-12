@@ -16,6 +16,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "slack",
             "telegram"
           ],
           "required": false
@@ -387,6 +388,50 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "slack-channel-id": {
+          "description": "Slack channel or conversation ID",
+          "helpGroup": "Slack",
+          "name": "slack-channel-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "slack-thread-ts": {
+          "description": "Slack parent message timestamp for a reply",
+          "helpGroup": "Slack",
+          "name": "slack-thread-ts",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "slack-reply-broadcast": {
+          "description": "Broadcast a Slack thread reply",
+          "helpGroup": "Slack",
+          "name": "slack-reply-broadcast",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "slack-mrkdwn": {
+          "description": "Enable Slack mrkdwn formatting",
+          "helpGroup": "Slack",
+          "name": "slack-mrkdwn",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "slack-unfurl-links": {
+          "description": "Enable Slack link unfurls",
+          "helpGroup": "Slack",
+          "name": "slack-unfurl-links",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "slack-unfurl-media": {
+          "description": "Enable Slack media unfurls",
+          "helpGroup": "Slack",
+          "name": "slack-unfurl-media",
+          "allowNo": true,
+          "type": "boolean"
         }
       },
       "hasDynamicHelp": false,
@@ -569,6 +614,7 @@
             "threads",
             "linkedin",
             "pinterest",
+            "slack",
             "telegram"
           ],
           "required": false

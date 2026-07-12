@@ -93,6 +93,7 @@ function platformLabel(platform: string): string {
     instagram: "Instagram",
     linkedin: "LinkedIn",
     pinterest: "Pinterest",
+    slack: "Slack",
     telegram: "Telegram",
     threads: "Threads",
     tiktok: "TikTok",
@@ -220,6 +221,13 @@ function getRefreshReadiness(account: ConnectedAccount): RefreshReadiness {
       if (!account.refreshToken) return { supported: true, ready: false, reason: "no refresh token is stored" };
       if (!process.env.PINTEREST_CLIENT_ID || !process.env.PINTEREST_CLIENT_SECRET) {
         return { supported: true, ready: false, reason: "Pinterest client credentials are not configured" };
+      }
+      return { supported: true, ready: true };
+    }
+    case "slack": {
+      if (!account.refreshToken) return { supported: true, ready: false, reason: "no refresh token is stored" };
+      if (!process.env.SLACK_CLIENT_ID || !process.env.SLACK_CLIENT_SECRET) {
+        return { supported: true, ready: false, reason: "Slack client credentials are not configured" };
       }
       return { supported: true, ready: true };
     }
@@ -633,6 +641,24 @@ async function refreshPinterest(account: ConnectedAccount, now: Date): Promise<T
   return buildRefreshResult(account, await expectTokenResponse("pinterest", response), now, { keepRefreshToken: true });
 }
 
+async function refreshSlack(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {
+  if (!account.refreshToken || !process.env.SLACK_CLIENT_ID || !process.env.SLACK_CLIENT_SECRET) {
+    throw new Error("Slack refresh token or client credentials are missing. Reconnect the Slack account.");
+  }
+  const response = await fetch("https://slack.com/api/oauth.v2.access", {
+    body: new URLSearchParams({
+      client_id: process.env.SLACK_CLIENT_ID,
+      client_secret: process.env.SLACK_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: account.refreshToken,
+    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method: "POST",
+    signal: AbortSignal.timeout(REFRESH_REQUEST_TIMEOUT_MS),
+  });
+  return buildRefreshResult(account, await expectTokenResponse("slack", response), now, { keepRefreshToken: true });
+}
+
 async function refreshPlatformToken(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {
   switch (account.platform.toLowerCase()) {
     case "x":
@@ -659,6 +685,9 @@ async function refreshPlatformToken(account: ConnectedAccount, now: Date): Promi
     }
     case "pinterest": {
       return await refreshPinterest(account, now);
+    }
+    case "slack": {
+      return await refreshSlack(account, now);
     }
     default: {
       throw new Error(`${platformLabel(account.platform)} does not support automatic credential refresh.`);

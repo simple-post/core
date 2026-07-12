@@ -1,25 +1,17 @@
 import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
-import { DEFAULT_BASE_URL, simplePostRequest } from '../lib/simplepost';
+import { accountIdsProperty, simplePostAuth } from '../lib/auth';
+import { normalizeScheduledFor, simplePostRequest, toSimplePostAuth } from '../lib/simplepost';
 
 export const createPost = createAction({
+  auth: simplePostAuth,
   name: 'create_post',
   displayName: 'Create Post',
   description: 'Publishes immediately, schedules, or saves a SimplePost social media post.',
   props: {
-    baseUrl: Property.ShortText({
-      displayName: 'Base URL',
-      description: 'The hosted SimplePost URL or URL of your self-hosted Scheduler app.',
-      required: false,
-      defaultValue: DEFAULT_BASE_URL,
-    }),
     message: Property.LongText({ displayName: 'Message', required: false }),
-    accountIds: Property.Json({
-      displayName: 'Account IDs',
-      description: 'JSON array of connected SimplePost account IDs.',
-      required: true,
-    }),
+    accountIds: accountIdsProperty(),
     postingMode: Property.StaticDropdown({
       displayName: 'Posting Mode',
       required: true,
@@ -47,10 +39,14 @@ export const createPost = createAction({
     idempotencyKey: Property.ShortText({ displayName: 'Idempotency Key', description: 'Stable value that prevents duplicate posts on retry.', required: false }),
   },
   async run(context) {
-    const { baseUrl, ...body } = context.propsValue;
+    const { scheduledFor, ...rest } = context.propsValue;
+    const body: Record<string, unknown> = { ...rest, message: rest.message ?? '' };
+    if (rest.postingMode === 'schedule') {
+      body['scheduledFor'] = normalizeScheduledFor(scheduledFor);
+    }
+
     return simplePostRequest({
-      apiKey: (context.auth as { secret_text: string }).secret_text,
-      baseUrl,
+      auth: toSimplePostAuth(context.auth),
       method: HttpMethod.POST,
       path: '/api/v1/posts',
       body,

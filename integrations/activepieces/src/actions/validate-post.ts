@@ -1,25 +1,25 @@
 import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
-import { DEFAULT_BASE_URL, simplePostRequest } from '../lib/simplepost';
+import { accountIdsProperty, simplePostAuth } from '../lib/auth';
+import { simplePostRequest, toSimplePostAuth } from '../lib/simplepost';
 
 export const validatePost = createAction({
+  auth: simplePostAuth,
   name: 'validate_post',
   displayName: 'Validate Post',
   description: 'Validates a SimplePost social media post without creating it.',
   props: {
-    baseUrl: Property.ShortText({ displayName: 'Base URL', required: false, defaultValue: DEFAULT_BASE_URL }),
     message: Property.LongText({ displayName: 'Message', required: false }),
-    accountIds: Property.Json({ displayName: 'Account IDs', description: 'JSON array of connected SimplePost account IDs.', required: true }),
+    accountIds: accountIdsProperty(),
     media: Property.Json({ displayName: 'Media', required: false }),
     thread: Property.Json({ displayName: 'Thread', required: false }),
     accountOverrides: Property.Json({ displayName: 'Account Overrides', required: false }),
   },
   async run(context) {
-    const { baseUrl, ...body } = context.propsValue;
+    const body = { ...context.propsValue, message: context.propsValue.message ?? '' };
     return simplePostRequest({
-      apiKey: (context.auth as { secret_text: string }).secret_text,
-      baseUrl,
+      auth: toSimplePostAuth(context.auth),
       method: HttpMethod.POST,
       path: '/api/v1/validation',
       body,

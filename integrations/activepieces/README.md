@@ -9,7 +9,7 @@ Native Activepieces piece for the SimplePost Scheduler API.
 
 ## Credentials
 
-Create a SimplePost API key in the Scheduler app and use it as the Activepieces piece connection. Each action accepts the hosted SimplePost URL by default and can point to a self-hosted Scheduler app.
+Create a SimplePost API key in the Scheduler app. The piece connection stores the API key together with the base URL, which defaults to the hosted SimplePost URL and can point to a self-hosted Scheduler app. Activepieces validates the connection by listing your connected accounts.
 
 ## Development
 

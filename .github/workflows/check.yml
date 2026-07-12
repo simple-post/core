@@ -11,7 +11,9 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        # isolated-vm 6.1.x does not compile against the V8 headers shipped
+        # in Node 20.20; n8n still supports the latest 20.19 LTS release.
+        node-version: [20.19.5]
 
     steps:
       - name: Checkout code

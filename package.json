@@ -19,7 +19,6 @@
     "test:watch": "jest --watch"
   },
   "resolutions": {
-    "isolated-vm": "6.0.2",
     "postcss": "^8.5.16"
   },
   "engines": {

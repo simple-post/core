@@ -41,6 +41,10 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    communityId: z.number().optional(),
+    apiVersion: z.enum(["v3", "v4"]).optional(),
+    nsfw: z.boolean().optional(),
+    languageId: z.number().optional(),
   })
   .passthrough();
 

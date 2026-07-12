@@ -46,6 +46,7 @@ const PLATFORM_RATE_LIMITS: Record<string, PlatformRateLimit> = {
   bluesky: { maxPosts: 15, intervalMinutes: 1 },
   pinterest: { maxPosts: 15, intervalMinutes: 1 },
   telegram: { maxPosts: 15, intervalMinutes: 1 },
+  lemmy: { maxPosts: 10, intervalMinutes: 1 },
 };
 
 interface PlatformRateLimit {

@@ -53,6 +53,11 @@ export default class AccountAddCommand extends Command {
     "redirect-uri": Flags.string({
       description: "Loopback redirect URI to use for the OAuth callback",
     }),
+    "instance-url": Flags.string({ description: "Lemmy instance URL" }),
+    username: Flags.string({ description: "Lemmy username" }),
+    password: Flags.string({ description: "Lemmy password (prefer interactive entry)" }),
+    "community-id": Flags.integer({ description: "Default Lemmy community ID" }),
+    "api-version": Flags.string({ description: "Lemmy API version (v3 or v4)" }),
   };
 
   public async run(): Promise<void> {
@@ -89,6 +94,11 @@ export default class AccountAddCommand extends Command {
       chatId: flags["chat-id"],
       noBrowser: flags["no-browser"],
       redirectUri: flags["redirect-uri"],
+      instanceUrl: flags["instance-url"],
+      username: flags.username,
+      password: flags.password,
+      communityId: flags["community-id"],
+      apiVersion: flags["api-version"],
     };
     const nextConfig = await provider.login(loginFlags, {
       config,

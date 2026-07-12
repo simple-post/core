@@ -6,6 +6,10 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+### Added
+
+- Lemmy community posting across the SDK, CLI, HTTP API, Scheduler app, and examples, with v3/v4 API support, JWT login, link posts, NSFW flags, and language selection.
+
 ## [1.1.0] - 2026-07-10
 
 ### Added

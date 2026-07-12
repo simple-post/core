@@ -65,6 +65,9 @@ export type PostFlagValues = {
   "pinterest-description"?: string;
   "pinterest-link"?: string;
   "pinterest-alt-text"?: string;
+  "lemmy-title"?: string;
+  "lemmy-community-id"?: number;
+  "lemmy-nsfw"?: boolean;
 };
 
 function isUrl(value: string): boolean {
@@ -135,6 +138,12 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
         : {}),
     };
   }
+  if (flags["lemmy-title"] || flags["lemmy-community-id"] || flags["lemmy-nsfw"] !== undefined)
+    options.lemmy = {
+      ...(flags["lemmy-title"] ? { title: flags["lemmy-title"] } : {}),
+      ...(flags["lemmy-community-id"] ? { communityId: flags["lemmy-community-id"] } : {}),
+      ...(flags["lemmy-nsfw"] === undefined ? {} : { nsfw: flags["lemmy-nsfw"] }),
+    };
 
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };
@@ -196,6 +205,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   threads: "Threads",
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
+  lemmy: "Lemmy",
 };
 
 function getPlatformLabel(platform: Platform): string {

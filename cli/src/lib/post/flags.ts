@@ -142,4 +142,7 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "lemmy-title": Flags.string({ description: "Lemmy post title", helpGroup: "Lemmy" }),
+  "lemmy-community-id": Flags.integer({ description: "Lemmy community ID override", helpGroup: "Lemmy" }),
+  "lemmy-nsfw": Flags.boolean({ allowNo: true, description: "Mark Lemmy post NSFW", helpGroup: "Lemmy" }),
 } as const;

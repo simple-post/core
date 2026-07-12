@@ -16,7 +16,8 @@
             "threads",
             "linkedin",
             "pinterest",
-            "telegram"
+            "telegram",
+            "lemmy"
           ],
           "required": false
         }
@@ -387,6 +388,29 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "lemmy-title": {
+          "description": "Lemmy post title",
+          "helpGroup": "Lemmy",
+          "name": "lemmy-title",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "lemmy-community-id": {
+          "description": "Lemmy community ID override",
+          "helpGroup": "Lemmy",
+          "name": "lemmy-community-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "lemmy-nsfw": {
+          "description": "Mark Lemmy post NSFW",
+          "helpGroup": "Lemmy",
+          "name": "lemmy-nsfw",
+          "allowNo": true,
+          "type": "boolean"
         }
       },
       "hasDynamicHelp": false,
@@ -569,7 +593,8 @@
             "threads",
             "linkedin",
             "pinterest",
-            "telegram"
+            "telegram",
+            "lemmy"
           ],
           "required": false
         }
@@ -621,6 +646,41 @@
         "redirect-uri": {
           "description": "Loopback redirect URI to use for the OAuth callback",
           "name": "redirect-uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "instance-url": {
+          "description": "Lemmy instance URL",
+          "name": "instance-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "username": {
+          "description": "Lemmy username",
+          "name": "username",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "password": {
+          "description": "Lemmy password (prefer interactive entry)",
+          "name": "password",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "community-id": {
+          "description": "Default Lemmy community ID",
+          "name": "community-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "api-version": {
+          "description": "Lemmy API version (v3 or v4)",
+          "name": "api-version",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

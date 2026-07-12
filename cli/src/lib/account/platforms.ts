@@ -200,6 +200,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "Telegram",
     platform: "telegram",
   },
+  lemmy: {
+    connectDescription: "Connect a Lemmy account and default community.",
+    displayName: "Lemmy",
+    platform: "lemmy",
+  },
 } satisfies Record<AccountPlatform, AccountPlatformConfig>;
 
 export function getAccountPlatformConfig(platform: AccountPlatform): AccountPlatformConfig {

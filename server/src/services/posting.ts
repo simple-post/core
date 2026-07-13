@@ -35,7 +35,9 @@ function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
   return mediaFiles.map((file): Media => {
     const url = rewriteOwnUrlToPath(file.url);
     if (file.type === "image") {
-      return url.kind === "path" ? { type: "image", path: url.path } : { type: "image", url: file.url };
+      return url.kind === "path"
+        ? { type: "image", path: url.path, size: file.size }
+        : { type: "image", url: file.url, size: file.size };
     }
     const thumb = file.thumbnailUrl ? rewriteOwnUrlToPath(file.thumbnailUrl) : undefined;
     let thumbField: { thumbnailPath: string } | { thumbnailUrl: string } | Record<string, never> = {};
@@ -45,9 +47,9 @@ function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
       thumbField = { thumbnailUrl: file.thumbnailUrl };
     }
     if (url.kind === "path") {
-      return { type: "video", path: url.path, durationSec: file.durationSec, ...thumbField };
+      return { type: "video", path: url.path, size: file.size, durationSec: file.durationSec, ...thumbField };
     }
-    return { type: "video", url: file.url, durationSec: file.durationSec, ...thumbField };
+    return { type: "video", url: file.url, size: file.size, durationSec: file.durationSec, ...thumbField };
   });
 }
 

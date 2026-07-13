@@ -19,6 +19,7 @@ const BaseImageSchema = z.object({
   type: z.literal("image"),
   path: z.string().optional(),
   url: z.url().optional(),
+  size: z.number().int().nonnegative().optional(),
   caption: z.string().optional(),
 });
 
@@ -30,6 +31,7 @@ const BaseVideoSchema = z.object({
   type: z.literal("video"),
   path: z.string().optional(),
   url: z.url().optional(),
+  size: z.number().int().nonnegative().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   thumbnailPath: z.string().optional(),

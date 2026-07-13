@@ -5,10 +5,12 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 
 export const BLUESKY_MAX_TEXT_LENGTH = 300;
 export const BLUESKY_MAX_IMAGES = 4;
+export const BLUESKY_MAX_IMAGE_SIZE_BYTES = 2_000_000;
 
 export const BLUESKY_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: BLUESKY_MAX_TEXT_LENGTH },
   media: { maxCount: BLUESKY_MAX_IMAGES, maxImages: BLUESKY_MAX_IMAGES, maxVideos: 0, allowsMixed: false },
+  image: { maxSizeBytes: BLUESKY_MAX_IMAGE_SIZE_BYTES },
 };
 
 export function validateBlueskyContent(content: Content): ValidationResult {
@@ -74,6 +76,20 @@ export function validateBlueskyContent(content: Content): ValidationResult {
       limit: BLUESKY_MAX_IMAGES,
       actual: images,
     });
+  }
+
+  for (const [index, item] of media.entries()) {
+    if (item.type === "image" && item.size !== undefined && item.size > BLUESKY_MAX_IMAGE_SIZE_BYTES) {
+      errors.push({
+        platform: "bluesky",
+        severity: "error",
+        code: "image_too_large",
+        message: `Bluesky images cannot exceed ${BLUESKY_MAX_IMAGE_SIZE_BYTES.toLocaleString("en-US")} bytes (2 MB).`,
+        field: `media[${index}]`,
+        limit: BLUESKY_MAX_IMAGE_SIZE_BYTES,
+        actual: item.size,
+      });
+    }
   }
 
   return { errors, warnings, isValid: errors.length === 0 };

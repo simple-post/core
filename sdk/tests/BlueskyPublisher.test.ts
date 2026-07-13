@@ -3,6 +3,7 @@ import fs from "node:fs";
 import axios from "axios";
 
 import { BlueskyPublisher } from "../src/publishers/bluesky";
+import { BLUESKY_MAX_IMAGE_SIZE_BYTES } from "../src/publishers/bluesky/validation";
 import { PostError, PostErrorType } from "../src/types";
 
 import type { Content } from "../src/types/post";
@@ -81,6 +82,38 @@ describe("BlueskyPublisher", () => {
     });
   });
 
+  describe("validation", () => {
+    it("rejects images larger than Bluesky's blob limit", () => {
+      const result = BlueskyPublisher.validate({
+        text: "Oversized image",
+        media: [{ type: "image", path: "./large.jpg", size: BLUESKY_MAX_IMAGE_SIZE_BYTES + 1 }],
+      });
+
+      expect(result).toMatchObject({
+        isValid: false,
+        errors: [
+          {
+            code: "image_too_large",
+            field: "media[0]",
+            limit: BLUESKY_MAX_IMAGE_SIZE_BYTES,
+            actual: BLUESKY_MAX_IMAGE_SIZE_BYTES + 1,
+          },
+        ],
+      });
+    });
+
+    it("allows images exactly at Bluesky's blob limit", () => {
+      const result = BlueskyPublisher.validate({
+        text: "Maximum-size image",
+        media: [{ type: "image", path: "./max.jpg", size: BLUESKY_MAX_IMAGE_SIZE_BYTES }],
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(BlueskyPublisher.getValidationRules().image?.maxSizeBytes).toBe(BLUESKY_MAX_IMAGE_SIZE_BYTES);
+    });
+  });
+
   describe("postContent", () => {
     it("should post text and image successfully", async () => {
       mockAxiosInstance.post
@@ -117,6 +150,25 @@ describe("BlueskyPublisher", () => {
       };
 
       await expect(publisher.postContent(content)).rejects.toThrow(PostError);
+    });
+
+    it("should reject an oversized resolved image before uploading it", async () => {
+      mockedFs.readFileSync.mockReturnValue(Buffer.alloc(BLUESKY_MAX_IMAGE_SIZE_BYTES + 1));
+
+      let thrown: unknown;
+      try {
+        await publisher.postContent({
+          text: "Oversized image",
+          media: [{ type: "image", path: "./large.jpg" }],
+        });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(PostError);
+      expect((thrown as PostError).errorType).toBe(PostErrorType.INVALID_CONTENT);
+      expect((thrown as PostError).message).toContain("2,000,000 bytes");
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
     });
 
     it("should proactively refresh expired OAuth credentials before posting", async () => {

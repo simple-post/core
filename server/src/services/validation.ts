@@ -44,8 +44,14 @@ const publishers: Record<
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {
   const media: Media[] = mediaFiles.map((file) =>
     file.type === "image"
-      ? { type: "image", url: file.url }
-      : { type: "video", url: file.url, thumbnailUrl: file.thumbnailUrl, durationSec: file.durationSec }
+      ? { type: "image", url: file.url, size: file.size }
+      : {
+          type: "video",
+          url: file.url,
+          size: file.size,
+          thumbnailUrl: file.thumbnailUrl,
+          durationSec: file.durationSec,
+        }
   );
 
   return {

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { google } from "googleapis";
 
 import { YouTubePublisher } from "../src/publishers/youtube";
+import { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES, YOUTUBE_MAX_VIDEO_SIZE_BYTES } from "../src/publishers/youtube/validation";
 import { PostError, PostErrorType } from "../src/types";
 
 import type { Content, PostOptionsWithCredentials } from "../src/types/post";
@@ -191,6 +192,47 @@ describe("YouTubePublisher", () => {
         },
       });
       expect(result).toEqual({ id: "video_id_456", error: PostErrorType.NO_ERROR });
+    });
+
+    it("rejects an oversized resolved video before upload", async () => {
+      mockedFs.statSync.mockReturnValue({ size: YOUTUBE_MAX_VIDEO_SIZE_BYTES + 1 } as any);
+
+      await expect(
+        publisher.postContent(
+          {
+            text: "Oversized video",
+            media: [{ type: "video", path: "/path/to/video.mp4", title: "Oversized" }],
+          },
+          options,
+        ),
+      ).rejects.toThrow("YouTube videos cannot exceed 256 GB.");
+      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
+    });
+
+    it("rejects an oversized custom thumbnail before uploading the video", async () => {
+      mockedFs.statSync.mockImplementation((filePath) =>
+        String(filePath).endsWith("thumbnail.jpg")
+          ? ({ size: YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES + 1 } as any)
+          : ({ size: 1024 * 1024 } as any),
+      );
+
+      await expect(
+        publisher.postContent(
+          {
+            text: "Oversized thumbnail",
+            media: [
+              {
+                type: "video",
+                path: "/path/to/video.mp4",
+                title: "Thumbnail check",
+                thumbnailPath: "/path/to/thumbnail.jpg",
+              },
+            ],
+          },
+          options,
+        ),
+      ).rejects.toThrow("YouTube custom thumbnails cannot exceed 2 MB.");
+      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
     });
 
     it("should use YouTube-specific thumbnail over media thumbnail", async () => {

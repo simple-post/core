@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import { PostError, PostErrorType } from "../../types";
 import { Logger } from "../../utils/logger";
 
@@ -52,12 +54,29 @@ export abstract class Publisher {
     }
   }
 
+  private withKnownLocalMediaSizes(content: Content): Content {
+    if (!content.media) return content;
+
+    return {
+      ...content,
+      media: content.media.map((item) => {
+        if (item.size !== undefined || !item.path) return item;
+        try {
+          return { ...item, size: fs.statSync(item.path).size };
+        } catch {
+          // Publishers retain their existing, platform-specific missing-file errors.
+          return item;
+        }
+      }),
+    };
+  }
+
   async post(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     try {
       // Try to post the content
       this.logger.info(`Posting content...`);
 
-      const result = await this.postContent(content, options);
+      const result = await this.postContent(this.withKnownLocalMediaSizes(content), options);
 
       if (result.error === PostErrorType.NO_ERROR) {
         this.logger.info(`Post successful: ${result.id}`);
@@ -117,7 +136,7 @@ export abstract class Publisher {
     try {
       this.logger.info(`Quoting content...`);
 
-      const result = await this.quoteContent(content, target, options);
+      const result = await this.quoteContent(this.withKnownLocalMediaSizes(content), target, options);
 
       if (result.error === PostErrorType.NO_ERROR) {
         this.logger.info(`Quote successful: ${result.id}`);

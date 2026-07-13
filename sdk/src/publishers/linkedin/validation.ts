@@ -1,4 +1,4 @@
-import { countMedia, hasMediaSource } from "../validation-utils";
+import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -6,6 +6,7 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 export const LINKEDIN_MAX_TEXT_LENGTH = 3000;
 export const LINKEDIN_MAX_IMAGES = 9;
 export const LINKEDIN_MAX_VIDEOS = 1;
+export const LINKEDIN_MAX_SINGLE_UPLOAD_VIDEO_SIZE_BYTES = 200 * 1024 * 1024;
 
 export const LINKEDIN_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: LINKEDIN_MAX_TEXT_LENGTH },
@@ -15,6 +16,11 @@ export const LINKEDIN_VALIDATION_RULES: PlatformValidationRules = {
     maxVideos: LINKEDIN_MAX_VIDEOS,
     allowsMixed: false,
   },
+  video: { maxSizeBytes: LINKEDIN_MAX_SINGLE_UPLOAD_VIDEO_SIZE_BYTES },
+  notes: [
+    "LinkedIn allows larger multipart video uploads, but this publisher currently uses the single-request Assets API upload.",
+    "LinkedIn documents an image pixel-count limit, but not a maximum image byte size.",
+  ],
 };
 
 export function validateLinkedInContent(content: Content): ValidationResult {
@@ -93,6 +99,12 @@ export function validateLinkedInContent(content: Content): ValidationResult {
       actual: images,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("linkedin", "LinkedIn", media, {
+      video: LINKEDIN_MAX_SINGLE_UPLOAD_VIDEO_SIZE_BYTES,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

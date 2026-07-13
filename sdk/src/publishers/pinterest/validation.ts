@@ -1,4 +1,4 @@
-import { hasMediaSource } from "../validation-utils";
+import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -6,10 +6,14 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 export const PINTEREST_MAX_TITLE_LENGTH = 100;
 export const PINTEREST_MAX_DESCRIPTION_LENGTH = 500;
 export const PINTEREST_MAX_MEDIA_COUNT = 1;
+export const PINTEREST_MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
+export const PINTEREST_MAX_VIDEO_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
 
 export const PINTEREST_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxCaptionLength: PINTEREST_MAX_DESCRIPTION_LENGTH },
   media: { requiresMedia: true, minCount: 1, maxCount: PINTEREST_MAX_MEDIA_COUNT, allowsMixed: false },
+  image: { maxSizeBytes: PINTEREST_MAX_IMAGE_SIZE_BYTES },
+  video: { maxSizeBytes: PINTEREST_MAX_VIDEO_SIZE_BYTES },
 };
 
 export function validatePinterestContent(content: Content): ValidationResult {
@@ -65,6 +69,13 @@ export function validatePinterestContent(content: Content): ValidationResult {
       actual: mediaCount,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("pinterest", "Pinterest", media, {
+      image: PINTEREST_MAX_IMAGE_SIZE_BYTES,
+      video: PINTEREST_MAX_VIDEO_SIZE_BYTES,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

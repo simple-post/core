@@ -1,6 +1,6 @@
-import { countMedia, hasMediaSource } from "../validation-utils";
+import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
-import type { Content } from "../../types/post";
+import type { Content, Media } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 /** Classic tweet length; longer posts require an X account that supports long posts (e.g. X Premium). */
@@ -9,10 +9,26 @@ export const X_STANDARD_POST_MAX_LENGTH = 280;
 export const X_LONG_POST_MAX_LENGTH = 25_000;
 export const X_MAX_MEDIA_COUNT = 4;
 export const X_MAX_VIDEOS = 1;
+export const X_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+export const X_MAX_GIF_SIZE_BYTES = 15 * 1024 * 1024;
+export const X_MAX_VIDEO_SIZE_BYTES = 512 * 1024 * 1024;
+
+function isGif(media: Media): boolean {
+  const source = media.path ?? media.url;
+  if (!source) return false;
+  try {
+    return new URL(source).pathname.toLowerCase().endsWith(".gif");
+  } catch {
+    return source.split("?")[0].toLowerCase().endsWith(".gif");
+  }
+}
 
 export const X_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: X_LONG_POST_MAX_LENGTH, standardMaxLength: X_STANDARD_POST_MAX_LENGTH },
   media: { maxCount: X_MAX_MEDIA_COUNT, maxImages: X_MAX_MEDIA_COUNT, maxVideos: X_MAX_VIDEOS, allowsMixed: false },
+  image: { maxSizeBytes: X_MAX_IMAGE_SIZE_BYTES },
+  video: { maxSizeBytes: X_MAX_VIDEO_SIZE_BYTES },
+  notes: [`Animated GIFs may be up to ${X_MAX_GIF_SIZE_BYTES / (1024 * 1024)} MB.`],
 };
 
 export function validateXContent(content: Content): ValidationResult {
@@ -101,6 +117,13 @@ export function validateXContent(content: Content): ValidationResult {
       actual: images,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("x", "X", media, {
+      image: (item) => (isGif(item) ? X_MAX_GIF_SIZE_BYTES : X_MAX_IMAGE_SIZE_BYTES),
+      video: X_MAX_VIDEO_SIZE_BYTES,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

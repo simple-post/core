@@ -1,19 +1,23 @@
-import { countMedia, hasMediaSource } from "../validation-utils";
+import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content, Video, YouTubeOptions } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const YOUTUBE_MAX_TITLE_LENGTH = 100;
 export const YOUTUBE_MAX_DESCRIPTION_LENGTH = 5000;
+export const YOUTUBE_MAX_VIDEO_SIZE_BYTES = 256 * 1024 * 1024 * 1024;
+export const YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES = 2 * 1024 * 1024;
 
 export const YOUTUBE_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxCaptionLength: YOUTUBE_MAX_DESCRIPTION_LENGTH },
   media: { requiresMedia: true, minCount: 1, maxVideos: 1, allowsMixed: false },
   video: {
     requiresVideo: true,
+    maxSizeBytes: YOUTUBE_MAX_VIDEO_SIZE_BYTES,
     maxTitleLength: YOUTUBE_MAX_TITLE_LENGTH,
     maxDescriptionLength: YOUTUBE_MAX_DESCRIPTION_LENGTH,
   },
+  notes: [`Custom thumbnails cannot exceed ${YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES / (1024 * 1024)} MB.`],
 };
 
 export function getYouTubeVideoMetadata(
@@ -116,6 +120,8 @@ export function validateYouTubeContent(content: Content): ValidationResult {
       });
     }
   }
+
+  errors.push(...validateMediaSizes("youtube", "YouTube", media, { video: YOUTUBE_MAX_VIDEO_SIZE_BYTES }));
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

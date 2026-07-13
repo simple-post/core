@@ -1,4 +1,4 @@
-import { countMedia, hasMediaSource } from "../validation-utils";
+import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -78,19 +78,7 @@ export function validateBlueskyContent(content: Content): ValidationResult {
     });
   }
 
-  for (const [index, item] of media.entries()) {
-    if (item.type === "image" && item.size !== undefined && item.size > BLUESKY_MAX_IMAGE_SIZE_BYTES) {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "image_too_large",
-        message: `Bluesky images cannot exceed ${BLUESKY_MAX_IMAGE_SIZE_BYTES.toLocaleString("en-US")} bytes (2 MB).`,
-        field: `media[${index}]`,
-        limit: BLUESKY_MAX_IMAGE_SIZE_BYTES,
-        actual: item.size,
-      });
-    }
-  }
+  errors.push(...validateMediaSizes("bluesky", "Bluesky", media, { image: BLUESKY_MAX_IMAGE_SIZE_BYTES }));
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

@@ -43,6 +43,7 @@ describe("billing in self-hosted mode", () => {
     const status = await getBillingStatus("user-1");
 
     expect(status.active).toBe(true);
+    expect(status.accessType).toBe("self_hosted");
     expect(status.plan).toBeNull();
     expect(status.subscription).toBeNull();
     expect(status.usage.connectedAccounts).toBe(3);
@@ -76,6 +77,10 @@ describe("billing when self-hosted mode is off", () => {
     delete process.env.SELF_HOSTED;
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it("requires a subscription record for an active status", async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ subscription: null });
     mockPrisma.connectedAccount.count.mockResolvedValue(0);
@@ -85,6 +90,101 @@ describe("billing when self-hosted mode is off", () => {
 
     expect(status.active).toBe(false);
     expect(status.plan).toBeNull();
+  });
+
+  it("uses an active complimentary grant as the effective plan", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-13T12:00:00.000Z"));
+    mockPrisma.user.findUnique.mockResolvedValue({
+      subscription: null,
+      complimentaryAccess: {
+        id: "access-1",
+        userId: "user-1",
+        planKey: "pro",
+        startsAt: new Date("2026-07-01T00:00:00.000Z"),
+        expiresAt: new Date("2026-10-01T00:00:00.000Z"),
+        source: "manual",
+        inviteId: null,
+        createdAt: new Date("2026-07-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-07-01T00:00:00.000Z"),
+      },
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(2);
+    mockPrisma.post.count.mockResolvedValue(15);
+
+    const status = await getBillingStatus("user-1");
+
+    expect(status).toMatchObject({
+      active: true,
+      accessType: "complimentary",
+      plan: { key: "pro" },
+      complimentaryAccess: {
+        planKey: "pro",
+        source: "manual",
+        expiresAt: "2026-10-01T00:00:00.000Z",
+      },
+      usage: { connectedAccounts: 2, postsThisPeriod: 15 },
+    });
+    expect(mockPrisma.post.count).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        createdAt: {
+          gte: new Date("2026-07-01T00:00:00.000Z"),
+          lt: new Date("2026-08-01T00:00:00.000Z"),
+        },
+      },
+    });
+  });
+
+  it("does not activate an expired complimentary grant", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      subscription: null,
+      complimentaryAccess: {
+        planKey: "advanced",
+        startsAt: new Date("2025-01-01T00:00:00.000Z"),
+        expiresAt: new Date("2025-02-01T00:00:00.000Z"),
+        source: "manual",
+      },
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(0);
+
+    const status = await getBillingStatus("user-1");
+
+    expect(status.active).toBe(false);
+    expect(status.accessType).toBeNull();
+    expect(status.plan).toBeNull();
+    expect(mockPrisma.post.count).not.toHaveBeenCalled();
+  });
+
+  it("prefers an active paid subscription over complimentary access", async () => {
+    const periodStart = new Date("2026-07-01T00:00:00.000Z");
+    const periodEnd = new Date("2099-08-01T00:00:00.000Z");
+    mockPrisma.user.findUnique.mockResolvedValue({
+      subscription: {
+        status: "active",
+        planKey: "basic",
+        stripeCustomerId: "cus_1",
+        stripeSubscriptionId: "sub_1",
+        stripePriceId: null,
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        cancelAtPeriodEnd: false,
+        canceledAt: null,
+        trialEndsAt: null,
+      },
+      complimentaryAccess: {
+        planKey: "pro",
+        startsAt: new Date("2026-01-01T00:00:00.000Z"),
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+        source: "manual",
+      },
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(0);
+    mockPrisma.post.count.mockResolvedValue(0);
+
+    const status = await getBillingStatus("user-1");
+
+    expect(status.accessType).toBe("stripe");
+    expect(status.plan?.key).toBe("basic");
   });
 
   it("rejects the active subscription assertion without a subscription", async () => {

@@ -11,7 +11,7 @@ import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, PaymentRequiredError } from "@/lib/utils/errors";
 
-import type { PrismaClient, UserSubscription } from "@prisma/client";
+import type { ComplimentaryAccess, PrismaClient, UserSubscription } from "@prisma/client";
 import type Stripe from "stripe";
 
 type PrismaTransactionClient = Omit<
@@ -38,6 +38,7 @@ export interface BillingUsage {
 
 export interface BillingStatus {
   active: boolean;
+  accessType: "stripe" | "complimentary" | "self_hosted" | null;
   plan: BillingPlan | null;
   subscription: {
     status: string;
@@ -50,6 +51,12 @@ export interface BillingStatus {
     cancelAtPeriodEnd: boolean;
     canceledAt: string | null;
     trialEndsAt: string | null;
+  } | null;
+  complimentaryAccess: {
+    planKey: string;
+    startsAt: string;
+    expiresAt: string;
+    source: string;
   } | null;
   usage: BillingUsage;
 }
@@ -105,10 +112,30 @@ function resolvePlanForSubscription(subscription: UserSubscription | null): Bill
   return getPlanByKey(subscription.planKey) ?? getPlanByStripePriceId(subscription.stripePriceId);
 }
 
+function resolvePlanForComplimentaryAccess(access: ComplimentaryAccess | null): BillingPlan | null {
+  if (!access) return null;
+  return getPlanByKey(access.planKey);
+}
+
 function isSubscriptionRecordActive(subscription: UserSubscription | null): boolean {
   if (!subscription) return false;
   if (!ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)) return false;
   return !subscription.currentPeriodEnd || subscription.currentPeriodEnd.getTime() >= Date.now();
+}
+
+function isComplimentaryAccessActive(access: ComplimentaryAccess | null, now: Date): boolean {
+  if (!access) return false;
+  return access.startsAt.getTime() <= now.getTime() && access.expiresAt.getTime() > now.getTime();
+}
+
+function getComplimentaryUsagePeriod(access: ComplimentaryAccess, now: Date): { start: Date; end: Date } {
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+  return {
+    start: access.startsAt.getTime() > monthStart.getTime() ? access.startsAt : monthStart,
+    end: access.expiresAt.getTime() < nextMonthStart.getTime() ? access.expiresAt : nextMonthStart,
+  };
 }
 
 async function findUserIdForStripeSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
@@ -235,8 +262,10 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
     const connectedAccounts = await client.connectedAccount.count({ where: { userId } });
     return {
       active: true,
+      accessType: "self_hosted",
       plan: null,
       subscription: null,
+      complimentaryAccess: null,
       usage: {
         connectedAccounts,
         postsThisPeriod: 0,
@@ -248,15 +277,27 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
     where: { id: userId },
     select: {
       subscription: true,
+      complimentaryAccess: true,
     },
   });
 
   const subscription = user?.subscription ?? null;
-  const plan = resolvePlanForSubscription(subscription);
-  const active = isSubscriptionRecordActive(subscription) && plan !== null;
-
-  const start = subscription?.currentPeriodStart ?? new Date(0);
-  const end = subscription?.currentPeriodEnd ?? undefined;
+  const complimentaryAccess = user?.complimentaryAccess ?? null;
+  const subscriptionPlan = resolvePlanForSubscription(subscription);
+  const complimentaryPlan = resolvePlanForComplimentaryAccess(complimentaryAccess);
+  const now = new Date();
+  const stripeActive = isSubscriptionRecordActive(subscription) && subscriptionPlan !== null;
+  const complimentaryActive = isComplimentaryAccessActive(complimentaryAccess, now) && complimentaryPlan !== null;
+  const accessType = stripeActive ? "stripe" : complimentaryActive ? "complimentary" : null;
+  const active = accessType !== null;
+  const plan = stripeActive ? subscriptionPlan : complimentaryActive ? complimentaryPlan : null;
+  const complimentaryPeriod = complimentaryActive
+    ? getComplimentaryUsagePeriod(complimentaryAccess as ComplimentaryAccess, now)
+    : null;
+  const start = stripeActive
+    ? (subscription?.currentPeriodStart ?? new Date(0))
+    : (complimentaryPeriod?.start ?? new Date(0));
+  const end = stripeActive ? (subscription?.currentPeriodEnd ?? undefined) : complimentaryPeriod?.end;
   const postWhere = {
     userId,
     createdAt: {
@@ -272,6 +313,7 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
 
   return {
     active,
+    accessType,
     plan,
     subscription: subscription
       ? {
@@ -285,6 +327,14 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
           cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
           canceledAt: toISOString(subscription.canceledAt),
           trialEndsAt: toISOString(subscription.trialEndsAt),
+        }
+      : null,
+    complimentaryAccess: complimentaryAccess
+      ? {
+          planKey: complimentaryAccess.planKey,
+          startsAt: complimentaryAccess.startsAt.toISOString(),
+          expiresAt: complimentaryAccess.expiresAt.toISOString(),
+          source: complimentaryAccess.source,
         }
       : null,
     usage: {

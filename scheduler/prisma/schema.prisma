@@ -11,49 +11,92 @@ datasource db {
 }
 
 model User {
-  id                     String                   @id
-  name                   String
-  email                  String
-  emailVerified          Boolean                  @default(false)
-  image                  String?
-  stripeCustomerId       String?                  @unique
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @default(now()) @updatedAt
-  sessions               Session[]
-  accounts               Account[] // For authentication
-  connectedAccounts      ConnectedAccount[] // For social media posting
-  webhookEndpoints       WebhookEndpoint[]
-  posts                  Post[]
-  PendingOAuthConnection PendingOAuthConnection[]
-  cliTokens              CliToken[]
-  cliAuthorizationCodes  CliAuthorizationCode[]
-  mcpAccessTokens        McpAccessToken[]
-  apiKeys                ApiKey[]
-  subscription           UserSubscription?
-  repostSettings         UserRepostSettings?
-  postingSlots           PostingSlot[]
+  id                           String                      @id
+  name                         String
+  email                        String
+  emailVerified                Boolean                     @default(false)
+  image                        String?
+  stripeCustomerId             String?                     @unique
+  createdAt                    DateTime                    @default(now())
+  updatedAt                    DateTime                    @default(now()) @updatedAt
+  sessions                     Session[]
+  accounts                     Account[] // For authentication
+  connectedAccounts            ConnectedAccount[] // For social media posting
+  webhookEndpoints             WebhookEndpoint[]
+  posts                        Post[]
+  PendingOAuthConnection       PendingOAuthConnection[]
+  cliTokens                    CliToken[]
+  cliAuthorizationCodes        CliAuthorizationCode[]
+  mcpAccessTokens              McpAccessToken[]
+  apiKeys                      ApiKey[]
+  subscription                 UserSubscription?
+  complimentaryAccess          ComplimentaryAccess?
+  redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
+  repostSettings               UserRepostSettings?
+  postingSlots                 PostingSlot[]
 
   @@unique([email])
   @@map("user")
 }
 
+// A database-managed plan grant that does not require a Stripe customer or
+// payment method. There is at most one current grant per user; update or
+// replace this row to manage access manually.
+model ComplimentaryAccess {
+  id        String                     @id @default(cuid())
+  userId    String                     @unique
+  user      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planKey   String
+  startsAt  DateTime                   @default(now())
+  expiresAt DateTime
+  source    String                     @default("manual")
+  inviteId  String?                    @unique
+  invite    ComplimentaryAccessInvite? @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
+
+  @@index([expiresAt])
+  @@map("complimentary_access")
+}
+
+// Single-use links granting complimentary access. Create rows directly and
+// share /invite/<code>. expiresAt limits when the invite may be redeemed;
+// accessDurationDays controls the length of the resulting plan grant.
+model ComplimentaryAccessInvite {
+  id                  String               @id @default(cuid())
+  code                String               @unique
+  planKey             String
+  accessDurationDays  Int
+  expiresAt           DateTime?
+  redeemedAt          DateTime?
+  redeemedByUserId    String?
+  redeemedByUser      User?                @relation("RedeemedComplimentaryInvites", fields: [redeemedByUserId], references: [id], onDelete: SetNull)
+  complimentaryAccess ComplimentaryAccess?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([expiresAt])
+  @@index([redeemedByUserId])
+  @@map("complimentary_access_invite")
+}
+
 model UserSubscription {
-  id                     String    @id @default(cuid())
-  userId                 String    @unique
-  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stripeCustomerId       String
-  stripeSubscriptionId   String?   @unique
-  stripePriceId          String?
-  stripeProductId        String?
-  planKey                String?
-  status                 String    @default("incomplete")
-  currentPeriodStart     DateTime?
-  currentPeriodEnd       DateTime?
-  cancelAtPeriodEnd      Boolean   @default(false)
-  canceledAt             DateTime?
-  trialEndsAt            DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId     String
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  stripeProductId      String?
+  planKey              String?
+  status               String    @default("incomplete")
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  canceledAt           DateTime?
+  trialEndsAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([stripeCustomerId])
   @@index([status])

@@ -4,7 +4,17 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { Trash2, Edit, AlertCircle, CalendarClock, ChevronLeft, ChevronRight, FileText, Quote } from "lucide-react";
+import {
+  Trash2,
+  Edit,
+  AlertCircle,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Quote,
+  Send,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
@@ -29,7 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDeletePost } from "@/hooks/use-mutations";
+import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
@@ -258,6 +268,7 @@ function PostCard({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const deletePostMutation = useDeletePost();
+  const submitPostMutation = useSubmitPost();
 
   // Get accounts for this post
   const postAccounts = accounts.filter((acc) => post.accountIds.includes(acc.id));
@@ -281,6 +292,42 @@ function PostCard({
     } catch (error) {
       logClientError(error, "Failed to delete post", { postId: post.id });
       toast.error("Failed to delete post. Please try again.");
+    }
+  };
+
+  const handlePostNow = async () => {
+    const toastId = toast.loading("Posting draft...");
+
+    try {
+      const data = await submitPostMutation.mutateAsync({
+        mode: "edit",
+        postId: post.id,
+        body: {
+          message: post.message,
+          accountIds: post.accountIds,
+          postingMode: "now",
+          accountOptions: post.accountOptions,
+          accountOverrides: post.accountOverrides,
+          repost: {
+            enabled: post.repostEnabled === true,
+            delayHours: post.repostDelayHours ?? 12,
+          },
+          media: post.media,
+          thread: post.thread,
+          quotePostId: post.quotePostId ?? null,
+        },
+      });
+
+      const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
+      if (allSucceeded) {
+        toast.success("Draft posted.", { id: toastId });
+      } else {
+        toast.error("Draft could not be posted to every account.", { id: toastId });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to post draft.";
+      logClientError(error, "Failed to post draft", { postId: post.id });
+      toast.error(message, { id: toastId });
     }
   };
 
@@ -443,6 +490,19 @@ function PostCard({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {isDraft && (
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handlePostNow();
+                        }}
+                        disabled={submitPostMutation.isPending}
+                        className="cursor-pointer">
+                        <Send className="h-4 w-4 mr-2" />
+                        {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                      </DropdownMenuItem>
+                    )}
                     {(isScheduled || isDraft) && (
                       <DropdownMenuItem
                         onClick={(e) => {

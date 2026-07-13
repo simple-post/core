@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { Trash2, Calendar, CalendarClock, Clock, Edit, AlertCircle, FileText, Quote } from "lucide-react";
+import { Trash2, Calendar, CalendarClock, Clock, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDeletePost } from "@/hooks/use-mutations";
+import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
@@ -107,6 +107,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const { data: quotePost } = usePost(post?.quotePostId ?? "");
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const deletePostMutation = useDeletePost();
+  const submitPostMutation = useSubmitPost();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
@@ -119,6 +120,44 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     } catch (error) {
       logClientError(error, "Failed to delete post", { postId: id });
       toast.error("Failed to delete post. Please try again.");
+    }
+  };
+
+  const handlePostNow = async () => {
+    if (!post) return;
+
+    const toastId = toast.loading("Posting draft...");
+
+    try {
+      const data = await submitPostMutation.mutateAsync({
+        mode: "edit",
+        postId: post.id,
+        body: {
+          message: post.message,
+          accountIds: post.accountIds,
+          postingMode: "now",
+          accountOptions: post.accountOptions,
+          accountOverrides: post.accountOverrides,
+          repost: {
+            enabled: post.repostEnabled === true,
+            delayHours: post.repostDelayHours ?? 12,
+          },
+          media: post.media,
+          thread: post.thread,
+          quotePostId: post.quotePostId ?? null,
+        },
+      });
+
+      const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
+      if (allSucceeded) {
+        toast.success("Draft posted.", { id: toastId });
+      } else {
+        toast.error("Draft could not be posted to every account.", { id: toastId });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to post draft.";
+      logClientError(error, "Failed to post draft", { postId: post.id });
+      toast.error(message, { id: toastId });
     }
   };
 
@@ -200,8 +239,18 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             <div className="flex items-center gap-2" aria-label="Post actions">
+              {isDraft && (
+                <Button size="sm" onClick={handlePostNow} disabled={submitPostMutation.isPending}>
+                  <Send className="h-4 w-4" />
+                  {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                </Button>
+              )}
               {(isScheduled || isDraft) && (
-                <Button size="sm" onClick={() => setShowScheduleDialog(true)}>
+                <Button
+                  size="sm"
+                  variant={isDraft ? "outline" : "default"}
+                  onClick={() => setShowScheduleDialog(true)}
+                  disabled={submitPostMutation.isPending}>
                   <CalendarClock className="h-4 w-4" />
                   {isScheduled ? "Reschedule" : "Schedule"}
                 </Button>

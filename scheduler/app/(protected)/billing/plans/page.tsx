@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { BackLink } from "@/components/back-link";
 import { ChangePlanSelection } from "@/components/billing/change-plan-selection";
+import { PlanSelection } from "@/components/billing/plan-selection";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
@@ -16,9 +17,14 @@ import { type PlanKey } from "@/lib/billing/plans";
 
 interface BillingStatus {
   active: boolean;
+  accessType: "stripe" | "complimentary" | "self_hosted" | null;
   displayCurrency: BillingDisplayCurrency;
   plan: {
     key: PlanKey;
+    name: string;
+  } | null;
+  complimentaryAccess: {
+    expiresAt: string;
   } | null;
   selfHosted?: boolean;
 }
@@ -26,6 +32,15 @@ interface BillingStatus {
 async function parseApiError(response: Response): Promise<string> {
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
   return data.error || data.message || `Request failed with status ${response.status}`;
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "its configured end date";
+  return new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function BillingPlansPage() {
@@ -95,6 +110,12 @@ export default function BillingPlansPage() {
               </Button>
             </div>
           </section>
+        ) : billing?.accessType === "complimentary" && billing.plan ? (
+          <PlanSelection
+            title="Start a paid subscription"
+            description={`You currently have complimentary ${billing.plan.name} access through ${formatDate(billing.complimentaryAccess?.expiresAt)}. No payment method is required for that access; choose a plan here only if you want to start a paid subscription now.`}
+            displayCurrency={displayCurrency}
+          />
         ) : !billing?.active || !billing.plan ? (
           <section className="mx-auto w-full max-w-2xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
             <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -115,7 +136,7 @@ export default function BillingPlansPage() {
           <ChangePlanSelection
             currentPlanKey={billing.plan.key}
             displayCurrency={displayCurrency}
-            onPlanChanged={(updatedBilling) => setBilling(updatedBilling)}
+            onPlanChanged={() => void fetchBilling()}
           />
         )}
       </main>

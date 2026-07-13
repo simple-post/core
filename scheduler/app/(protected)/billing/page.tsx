@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { ArrowLeftRight, ExternalLink, FileText, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, CreditCard, ExternalLink, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
@@ -33,6 +33,7 @@ interface BillingPlan {
 
 interface BillingStatus {
   active: boolean;
+  accessType: "stripe" | "complimentary" | "self_hosted" | null;
   displayCurrency: BillingDisplayCurrency;
   plan: BillingPlan | null;
   subscription: {
@@ -42,6 +43,12 @@ interface BillingStatus {
     cancelAtPeriodEnd: boolean;
     canceledAt: string | null;
     trialEndsAt: string | null;
+  } | null;
+  complimentaryAccess: {
+    planKey: string;
+    startsAt: string;
+    expiresAt: string;
+    source: string;
   } | null;
   usage: {
     connectedAccounts: number;
@@ -193,6 +200,7 @@ export default function BillingPage() {
   const displayCurrency = billing?.displayCurrency ?? DEFAULT_BILLING_DISPLAY_CURRENCY;
   const accountLimit = plan?.limits.socialAccounts ?? null;
   const postLimit = plan?.limits.postsPerMonth ?? null;
+  const isComplimentary = billing?.accessType === "complimentary";
 
   if (billing?.selfHosted) {
     return (
@@ -281,58 +289,85 @@ export default function BillingPage() {
                 <div>
                   <div className="section-kicker">
                     <span className="section-kicker-dot" />
-                    <span className="section-kicker-label">Current plan</span>
+                    <span className="section-kicker-label">
+                      {isComplimentary ? "Complimentary access" : "Current plan"}
+                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-2xl font-semibold tracking-[-0.025em]">{plan.name}</h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
-                      {billing.subscription?.status ?? "active"}
+                      {isComplimentary ? "Complimentary" : (billing.subscription?.status ?? "active")}
                     </Badge>
-                    {billing.subscription?.cancelAtPeriodEnd ? (
+                    {!isComplimentary && billing.subscription?.cancelAtPeriodEnd ? (
                       <Badge variant="outline" className="border-destructive/50 text-destructive">
                         Cancels at period end
                       </Badge>
                     ) : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {getBillingPlanPrice(plan, displayCurrency)} / month · Current period ends{" "}
-                    {formatDate(billing.subscription?.currentPeriodEnd ?? null)}
+                    {isComplimentary ? (
+                      <>
+                        Your {plan.name} plan is complimentary through{" "}
+                        {formatDate(billing.complimentaryAccess?.expiresAt ?? null)}. No payment method is required.
+                      </>
+                    ) : (
+                      <>
+                        {getBillingPlanPrice(plan, displayCurrency)} / month · Current period ends{" "}
+                        {formatDate(billing.subscription?.currentPeriodEnd ?? null)}
+                      </>
+                    )}
                   </p>
                 </div>
 
                 <div className="grid gap-2 sm:min-w-56">
-                  <Button asChild className="justify-start gap-2">
-                    <Link href="/billing/plans">
-                      <ArrowLeftRight className="h-4 w-4" />
-                      Change plan
-                    </Link>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openPortal("manage")}
-                    disabled={portalLoading !== null}
-                    className="justify-start gap-2">
-                    {portalLoading === "manage" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4" />
-                    )}
-                    {portalLoading === "manage" ? "Opening..." : "Manage subscription"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openPortal("invoices")}
-                    disabled={portalLoading !== null}
-                    className="justify-start gap-2">
-                    {portalLoading === "invoices" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="h-4 w-4" />
-                    )}
-                    {portalLoading === "invoices" ? "Opening..." : "Invoices"}
-                  </Button>
+                  {isComplimentary ? (
+                    <>
+                      <Button asChild className="justify-start gap-2">
+                        <Link href="/subscribe">
+                          <CreditCard className="h-4 w-4" />
+                          Start a paid subscription
+                        </Link>
+                      </Button>
+                      <p className="px-1 text-xs leading-5 text-muted-foreground">
+                        Optional. Your complimentary access stays active until you subscribe or it expires.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Button asChild className="justify-start gap-2">
+                        <Link href="/billing/plans">
+                          <ArrowLeftRight className="h-4 w-4" />
+                          Change plan
+                        </Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => openPortal("manage")}
+                        disabled={portalLoading !== null}
+                        className="justify-start gap-2">
+                        {portalLoading === "manage" ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ExternalLink className="h-4 w-4" />
+                        )}
+                        {portalLoading === "manage" ? "Opening..." : "Manage subscription"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => openPortal("invoices")}
+                        disabled={portalLoading !== null}
+                        className="justify-start gap-2">
+                        {portalLoading === "invoices" ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4" />
+                        )}
+                        {portalLoading === "invoices" ? "Opening..." : "Invoices"}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </section>

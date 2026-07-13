@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const appUrl = getAppUrl();
-    if (billing.active) {
+    if (billing.accessType === "stripe") {
       return NextResponse.json({ url: `${appUrl}/billing/plans` });
     }
 

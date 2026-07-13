@@ -1,4 +1,4 @@
-import { countMedia, hasMediaSource } from "../validation-utils";
+import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -6,6 +6,8 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 export const FACEBOOK_MAX_TEXT_LENGTH = 63_206;
 export const FACEBOOK_MAX_MEDIA_COUNT = 10;
 export const FACEBOOK_MAX_VIDEOS = 1;
+export const FACEBOOK_MAX_IMAGE_SIZE_BYTES = 4 * 1024 * 1024;
+export const FACEBOOK_MAX_VIDEO_SIZE_BYTES = 4 * 1024 * 1024 * 1024;
 
 export const FACEBOOK_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: FACEBOOK_MAX_TEXT_LENGTH },
@@ -15,6 +17,8 @@ export const FACEBOOK_VALIDATION_RULES: PlatformValidationRules = {
     maxVideos: FACEBOOK_MAX_VIDEOS,
     allowsMixed: false,
   },
+  image: { maxSizeBytes: FACEBOOK_MAX_IMAGE_SIZE_BYTES },
+  video: { maxSizeBytes: FACEBOOK_MAX_VIDEO_SIZE_BYTES },
 };
 
 export function validateFacebookContent(content: Content): ValidationResult {
@@ -93,6 +97,13 @@ export function validateFacebookContent(content: Content): ValidationResult {
       actual: images,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("facebook", "Facebook", media, {
+      image: FACEBOOK_MAX_IMAGE_SIZE_BYTES,
+      video: FACEBOOK_MAX_VIDEO_SIZE_BYTES,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

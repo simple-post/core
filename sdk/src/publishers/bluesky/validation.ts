@@ -1,14 +1,16 @@
-import { countMedia, hasMediaSource } from "../validation-utils";
+import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const BLUESKY_MAX_TEXT_LENGTH = 300;
 export const BLUESKY_MAX_IMAGES = 4;
+export const BLUESKY_MAX_IMAGE_SIZE_BYTES = 2_000_000;
 
 export const BLUESKY_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: BLUESKY_MAX_TEXT_LENGTH },
   media: { maxCount: BLUESKY_MAX_IMAGES, maxImages: BLUESKY_MAX_IMAGES, maxVideos: 0, allowsMixed: false },
+  image: { maxSizeBytes: BLUESKY_MAX_IMAGE_SIZE_BYTES },
 };
 
 export function validateBlueskyContent(content: Content): ValidationResult {
@@ -75,6 +77,8 @@ export function validateBlueskyContent(content: Content): ValidationResult {
       actual: images,
     });
   }
+
+  errors.push(...validateMediaSizes("bluesky", "Bluesky", media, { image: BLUESKY_MAX_IMAGE_SIZE_BYTES }));
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

@@ -1,14 +1,18 @@
-import { hasMediaSource } from "../validation-utils";
+import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const INSTAGRAM_MAX_CAPTION_LENGTH = 2200;
 export const INSTAGRAM_MAX_MEDIA_COUNT = 10;
+export const INSTAGRAM_MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+export const INSTAGRAM_MAX_VIDEO_SIZE_BYTES = 300 * 1024 * 1024;
 
 export const INSTAGRAM_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxCaptionLength: INSTAGRAM_MAX_CAPTION_LENGTH },
   media: { requiresMedia: true, minCount: 1, maxCount: INSTAGRAM_MAX_MEDIA_COUNT, allowsMixed: true },
+  image: { maxSizeBytes: INSTAGRAM_MAX_IMAGE_SIZE_BYTES },
+  video: { maxSizeBytes: INSTAGRAM_MAX_VIDEO_SIZE_BYTES },
 };
 
 export function validateInstagramContent(content: Content): ValidationResult {
@@ -64,6 +68,13 @@ export function validateInstagramContent(content: Content): ValidationResult {
       actual: mediaCount,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("instagram", "Instagram", media, {
+      image: INSTAGRAM_MAX_IMAGE_SIZE_BYTES,
+      video: INSTAGRAM_MAX_VIDEO_SIZE_BYTES,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

@@ -3,7 +3,12 @@ import fs from "node:fs";
 
 import axios from "axios";
 
-import { BLUESKY_MAX_IMAGES, BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./validation";
+import {
+  BLUESKY_MAX_IMAGES,
+  BLUESKY_MAX_IMAGE_SIZE_BYTES,
+  BLUESKY_VALIDATION_RULES,
+  validateBlueskyContent,
+} from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
@@ -487,6 +492,18 @@ export class BlueskyPublisher extends Publisher {
     }
 
     const fileBuffer = fs.readFileSync(resolvedPath);
+    if (fileBuffer.byteLength > BLUESKY_MAX_IMAGE_SIZE_BYTES) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        `Bluesky images cannot exceed ${BLUESKY_MAX_IMAGE_SIZE_BYTES.toLocaleString("en-US")} bytes (2 MB).`,
+        {
+          platform: "bluesky",
+          code: "image_too_large",
+          limit: BLUESKY_MAX_IMAGE_SIZE_BYTES,
+          actual: fileBuffer.byteLength,
+        },
+      );
+    }
     const path = "/xrpc/com.atproto.repo.uploadBlob";
 
     const makeRequest = async (nonce?: string) => {

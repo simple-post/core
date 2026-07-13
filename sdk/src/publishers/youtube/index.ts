@@ -6,7 +6,9 @@ import {
   getYouTubeVideoMetadata,
   validateYouTubeContent,
   YOUTUBE_MAX_DESCRIPTION_LENGTH,
+  YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES,
   YOUTUBE_MAX_TITLE_LENGTH,
+  YOUTUBE_MAX_VIDEO_SIZE_BYTES,
   YOUTUBE_VALIDATION_RULES,
 } from "./validation";
 
@@ -137,6 +139,23 @@ export class YouTubePublisher extends Publisher {
       this.logger.info(
         `[YouTubePublisher] Video file size: ${fileStats.size} bytes (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`,
       );
+      if (fileStats.size > YOUTUBE_MAX_VIDEO_SIZE_BYTES) {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          `YouTube videos cannot exceed ${YOUTUBE_MAX_VIDEO_SIZE_BYTES / (1024 * 1024 * 1024)} GB.`,
+        );
+      }
+
+      if (resolvedThumbnailPath) {
+        const thumbnailStats = fs.statSync(resolvedThumbnailPath);
+        this.logger.info(`[YouTubePublisher] Thumbnail file size: ${thumbnailStats.size} bytes`);
+        if (thumbnailStats.size > YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            `YouTube custom thumbnails cannot exceed ${YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES / (1024 * 1024)} MB.`,
+          );
+        }
+      }
 
       // Upload the video
       let videoId: string;
@@ -201,8 +220,6 @@ export class YouTubePublisher extends Publisher {
       if (resolvedThumbnailPath) {
         try {
           this.logger.info(`[YouTubePublisher] Uploading thumbnail for video ${videoId}`);
-          const thumbnailStats = fs.statSync(resolvedThumbnailPath);
-          this.logger.info(`[YouTubePublisher] Thumbnail file size: ${thumbnailStats.size} bytes`);
 
           await this.youtube.thumbnails.set({
             videoId: videoId,

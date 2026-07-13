@@ -1,4 +1,4 @@
-import { hasMediaSource } from "../validation-utils";
+import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -6,10 +6,14 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 export const THREADS_MAX_TEXT_LENGTH = 500;
 export const THREADS_MAX_MEDIA_COUNT = 1;
 export const THREADS_MAX_VIDEOS = 1;
+export const THREADS_MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+export const THREADS_MAX_VIDEO_SIZE_BYTES = 1024 * 1024 * 1024;
 
 export const THREADS_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: THREADS_MAX_TEXT_LENGTH },
   media: { maxCount: THREADS_MAX_MEDIA_COUNT, maxImages: 1, maxVideos: THREADS_MAX_VIDEOS, allowsMixed: false },
+  image: { maxSizeBytes: THREADS_MAX_IMAGE_SIZE_BYTES },
+  video: { maxSizeBytes: THREADS_MAX_VIDEO_SIZE_BYTES },
 };
 
 export function validateThreadsContent(content: Content): ValidationResult {
@@ -82,6 +86,13 @@ export function validateThreadsContent(content: Content): ValidationResult {
       actual: mediaCount,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("threads", "Threads", media, {
+      image: THREADS_MAX_IMAGE_SIZE_BYTES,
+      video: THREADS_MAX_VIDEO_SIZE_BYTES,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

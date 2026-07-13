@@ -1,10 +1,10 @@
-import { hasMediaSource } from "../validation-utils";
+import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const TIKTOK_MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
-export const TIKTOK_MAX_PHOTO_SIZE = 50 * 1024 * 1024;
+export const TIKTOK_MAX_PHOTO_SIZE = 20 * 1024 * 1024;
 export const TIKTOK_MAX_VIDEO_CAPTION_LENGTH = 2200;
 export const TIKTOK_MAX_PHOTO_CAPTION_LENGTH = 90;
 export const TIKTOK_MAX_MEDIA_COUNT = 1;
@@ -84,6 +84,13 @@ export function validateTikTokContent(content: Content): ValidationResult {
       actual: text.length,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("tiktok", "TikTok", media, {
+      image: TIKTOK_MAX_PHOTO_SIZE,
+      video: TIKTOK_MAX_VIDEO_SIZE,
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

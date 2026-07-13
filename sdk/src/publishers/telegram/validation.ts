@@ -1,4 +1,4 @@
-import { hasMediaSource } from "../validation-utils";
+import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -6,10 +6,17 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 export const TELEGRAM_MAX_TEXT_LENGTH = 4096;
 export const TELEGRAM_MAX_CAPTION_LENGTH = 1024;
 export const TELEGRAM_MAX_MEDIA_COUNT = 1;
+export const TELEGRAM_MAX_URL_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
+export const TELEGRAM_MAX_URL_VIDEO_SIZE_BYTES = 20 * 1024 * 1024;
+export const TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+export const TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const TELEGRAM_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: TELEGRAM_MAX_TEXT_LENGTH, maxCaptionLength: TELEGRAM_MAX_CAPTION_LENGTH },
   media: { maxCount: TELEGRAM_MAX_MEDIA_COUNT },
+  image: { maxSizeBytes: TELEGRAM_MAX_URL_PHOTO_SIZE_BYTES },
+  video: { maxSizeBytes: TELEGRAM_MAX_URL_VIDEO_SIZE_BYTES },
+  notes: ["Direct multipart uploads allow photos up to 10 MB and videos up to 50 MB."],
 };
 
 export function validateTelegramContent(content: Content): ValidationResult {
@@ -77,6 +84,13 @@ export function validateTelegramContent(content: Content): ValidationResult {
       actual: mediaCount,
     });
   }
+
+  errors.push(
+    ...validateMediaSizes("telegram", "Telegram", media, {
+      image: (item) => (item.url ? TELEGRAM_MAX_URL_PHOTO_SIZE_BYTES : TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES),
+      video: (item) => (item.url ? TELEGRAM_MAX_URL_VIDEO_SIZE_BYTES : TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES),
+    }),
+  );
 
   return { errors, warnings, isValid: errors.length === 0 };
 }

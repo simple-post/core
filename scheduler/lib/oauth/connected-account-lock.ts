@@ -20,5 +20,7 @@ export async function acquireConnectedAccountCredentialLock(
   accountId: string,
 ): Promise<void> {
   const lockKey = `simplepost:connected-account-credentials:${accountId}`;
-  await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+  // pg_advisory_xact_lock returns `void`, which Prisma cannot deserialize;
+  // cast it to text so the query yields a supported column type.
+  await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text`;
 }

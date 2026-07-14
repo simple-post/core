@@ -5,6 +5,46 @@ import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 
+type ThreadsApiErrorDetails = {
+  message?: string;
+  type?: string;
+  code?: number | string;
+  errorSubcode?: number | string;
+  errorUserTitle?: string;
+  errorUserMessage?: string;
+  isTransient?: boolean;
+  traceId?: string;
+};
+
+async function getThreadsApiErrorDetails(response: Response): Promise<ThreadsApiErrorDetails | undefined> {
+  try {
+    const body = (await response.json()) as Record<string, unknown>;
+    const error =
+      body.error && typeof body.error === "object" && !Array.isArray(body.error)
+        ? (body.error as Record<string, unknown>)
+        : body;
+
+    const details: ThreadsApiErrorDetails = {
+      message: typeof error.message === "string" ? error.message : undefined,
+      type: typeof error.type === "string" ? error.type : undefined,
+      code: typeof error.code === "number" || typeof error.code === "string" ? error.code : undefined,
+      errorSubcode:
+        typeof error.error_subcode === "number" || typeof error.error_subcode === "string"
+          ? error.error_subcode
+          : undefined,
+      errorUserTitle: typeof error.error_user_title === "string" ? error.error_user_title : undefined,
+      errorUserMessage: typeof error.error_user_msg === "string" ? error.error_user_msg : undefined,
+      isTransient: typeof error.is_transient === "boolean" ? error.is_transient : undefined,
+      traceId:
+        typeof error.fbtrace_id === "string" ? error.fbtrace_id : response.headers.get("x-fb-trace-id") || undefined,
+    };
+
+    return Object.values(details).some((value) => value !== undefined) ? details : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function exchangeForLongLivedToken(shortLivedToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   const config = getPlatformOAuthConfig("threads")!;
   const url = new URL("https://graph.threads.net/access_token");
@@ -15,7 +55,15 @@ async function exchangeForLongLivedToken(shortLivedToken: string): Promise<{ acc
   const response = await fetch(url.toString());
 
   if (!response.ok) {
-    authLogger.error({ status: response.status }, "Failed to exchange for long-lived Threads token");
+    const providerError = await getThreadsApiErrorDetails(response);
+    authLogger.error(
+      {
+        status: response.status,
+        statusText: response.statusText,
+        providerError,
+      },
+      "Failed to exchange for long-lived Threads token",
+    );
     throw new Error("Failed to get long-lived Threads token");
   }
 
@@ -34,7 +82,15 @@ async function fetchThreadsProfile(accessToken: string) {
   const response = await fetch(url.toString());
 
   if (!response.ok) {
-    authLogger.error({ status: response.status }, "Failed to fetch Threads profile");
+    const providerError = await getThreadsApiErrorDetails(response);
+    authLogger.error(
+      {
+        status: response.status,
+        statusText: response.statusText,
+        providerError,
+      },
+      "Failed to fetch Threads profile",
+    );
     throw new Error("Failed to fetch Threads profile");
   }
 

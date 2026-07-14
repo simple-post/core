@@ -1,5 +1,6 @@
 import axios from "axios";
 
+import { foremSafeLookup, normalizeForemInstanceUrl, validateForemRedirect } from "./security";
 import { FOREM_VALIDATION_RULES, validateForemContent } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -47,8 +48,9 @@ export class ForemPublisher extends Publisher {
     );
     const bodyMarkdown = [content.text?.trim(), ...markdownMedia].filter(Boolean).join("\n\n");
     try {
+      const instanceUrl = normalizeForemInstanceUrl(this.credentials.instanceUrl);
       const response = await axios.post<ArticleResponse>(
-        `${this.credentials.instanceUrl.replace(/\/$/, "")}/api/articles`,
+        `${instanceUrl}/api/articles`,
         {
           article: {
             title,
@@ -69,14 +71,15 @@ export class ForemPublisher extends Publisher {
             "Content-Type": "application/json",
           },
           timeout: 30_000,
+          maxRedirects: 5,
+          lookup: foremSafeLookup,
+          beforeRedirect: (redirectOptions) => validateForemRedirect(redirectOptions, instanceUrl),
         },
       );
       if (!response.data.id) throw new PostError(PostErrorType.API_ERROR, "Forem did not return an article ID");
       return {
         id: String(response.data.id),
-        url:
-          response.data.url ??
-          (response.data.path ? `${this.credentials.instanceUrl.replace(/\/$/, "")}${response.data.path}` : undefined),
+        url: response.data.url ?? (response.data.path ? `${instanceUrl}${response.data.path}` : undefined),
         error: PostErrorType.NO_ERROR,
       };
     } catch (error) {

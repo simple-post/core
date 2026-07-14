@@ -2,24 +2,26 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
+import { fetchForem, normalizeForemInstanceUrl } from "@/lib/security/forem";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth(request);
     const body = await request.json();
-    const instanceUrl =
-      (typeof body.instanceUrl === "string" ? body.instanceUrl.trim().replace(/\/$/, "") : "") || "https://dev.to";
+    const rawInstanceUrl = (typeof body.instanceUrl === "string" ? body.instanceUrl.trim() : "") || "https://dev.to";
     const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
     if (!apiKey) throw new BadRequestError("Forem API key is required");
+    let instanceUrl: string;
     try {
-      if (new URL(instanceUrl).protocol !== "https:") throw new Error("Not https");
+      instanceUrl = normalizeForemInstanceUrl(rawInstanceUrl);
     } catch {
-      throw new BadRequestError("Instance URL must be a valid https:// URL");
+      throw new BadRequestError("Instance URL must be a public https:// origin");
     }
     let response: Response;
     try {
-      response = await fetch(`${instanceUrl}/api/users/me`, {
+      response = await fetchForem(instanceUrl, "/api/users/me", {
         headers: { "api-key": apiKey, Accept: "application/vnd.forem.api-v1+json" },
+        signal: AbortSignal.timeout(15_000),
       });
     } catch {
       throw new BadRequestError("Could not reach the Forem instance");

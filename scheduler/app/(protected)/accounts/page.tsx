@@ -347,7 +347,8 @@ export default function AccountsPage() {
                 className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                Generate one under Settings → Extensions → DEV Community API Keys.
+                For DEV, generate a dedicated key under Settings → Extensions → DEV Community API Keys. Revoke it there
+                when no longer needed.
               </p>
             </div>
           </div>

@@ -49,6 +49,13 @@ export const getCredentialsFromEnv = (): PostOptions => {
       boardId: process.env.PINTEREST_BOARD_ID,
     },
     forem: { instanceUrl: process.env.FOREM_INSTANCE_URL, apiKey: process.env.FOREM_API_KEY },
+    farcaster: {
+      fid: process.env.FARCASTER_FID,
+      signerPrivateKey: process.env.FARCASTER_SIGNER_PRIVATE_KEY,
+      snapchainUrls: process.env.FARCASTER_SNAPCHAIN_URLS,
+      hubUrl: process.env.FARCASTER_HUB_URL,
+      username: process.env.FARCASTER_USERNAME,
+    },
   };
 
   // OAuth 2.0 user credentials: signalled by X_CLIENT_ID. At least one of accessToken
@@ -145,6 +152,16 @@ export const getCredentialsFromEnv = (): PostOptions => {
   }
   if (envVars.forem.instanceUrl && envVars.forem.apiKey)
     options.forem = { credentials: { instanceUrl: envVars.forem.instanceUrl, apiKey: envVars.forem.apiKey } };
+  const farcasterEndpoints = (envVars.farcaster.snapchainUrls || envVars.farcaster.hubUrl || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (envVars.farcaster.fid && envVars.farcaster.signerPrivateKey && farcasterEndpoints.length > 0)
+    options.farcaster = {
+      snapchainUrls: farcasterEndpoints,
+      ...(envVars.farcaster.username ? { username: envVars.farcaster.username } : {}),
+      credentials: { fid: Number(envVars.farcaster.fid), signerPrivateKey: envVars.farcaster.signerPrivateKey },
+    };
 
   return options;
 };
@@ -193,6 +210,12 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
     forem: userOptions.forem
       ? { ...userOptions.forem, credentials: userOptions.forem.credentials || envOptions.forem?.credentials }
       : envOptions.forem,
+    farcaster: userOptions.farcaster
+      ? {
+          ...userOptions.farcaster,
+          credentials: userOptions.farcaster.credentials || envOptions.farcaster?.credentials,
+        }
+      : envOptions.farcaster,
   };
 
   return merged as PostOptionsWithCredentials;

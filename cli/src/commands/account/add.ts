@@ -55,6 +55,10 @@ export default class AccountAddCommand extends Command {
     }),
     "instance-url": Flags.string({ description: "Forem instance URL (defaults to https://dev.to)" }),
     "api-key": Flags.string({ description: "Forem API key (prefer interactive entry)" }),
+    fid: Flags.integer({ description: "Farcaster ID" }),
+    "signer-private-key": Flags.string({ description: "Authorized Farcaster signer private key" }),
+    "hub-url": Flags.string({ description: "Farcaster Snapchain gRPC endpoint (legacy flag name)" }),
+    username: Flags.string({ description: "Farcaster username (for post links)" }),
   };
 
   public async run(): Promise<void> {
@@ -93,6 +97,10 @@ export default class AccountAddCommand extends Command {
       redirectUri: flags["redirect-uri"],
       instanceUrl: flags["instance-url"],
       apiKey: flags["api-key"],
+      fid: flags.fid,
+      signerPrivateKey: flags["signer-private-key"],
+      hubUrl: flags["hub-url"],
+      username: flags.username,
     };
     const nextConfig = await provider.login(loginFlags, {
       config,

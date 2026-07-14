@@ -205,6 +205,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "DEV/Forem",
     platform: "forem",
   },
+  farcaster: {
+    connectDescription: "Advanced: connect a Farcaster FID with an authorized scoped signer and Snapchain RPC.",
+    displayName: "Farcaster",
+    platform: "farcaster",
+  },
 } satisfies Record<AccountPlatform, AccountPlatformConfig>;
 
 export function getAccountPlatformConfig(platform: AccountPlatform): AccountPlatformConfig {

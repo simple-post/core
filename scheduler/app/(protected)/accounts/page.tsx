@@ -14,10 +14,24 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import {
+  useConnectFarcaster,
+  useConnectForem,
+  useDisconnectAccount,
+  useConnectTelegram,
+  usePrepareFarcaster,
+} from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
+
+interface EthereumProvider {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+}
+
+function getEthereumProvider(): EthereumProvider | null {
+  return (window as typeof window & { ethereum?: EthereumProvider }).ethereum ?? null;
+}
 
 function getCredentialBadge(account: ConnectedAccount): {
   className: string;
@@ -44,6 +58,8 @@ export default function AccountsPage() {
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
   const connectForemMutation = useConnectForem();
+  const prepareFarcasterMutation = usePrepareFarcaster();
+  const connectFarcasterMutation = useConnectFarcaster();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -57,6 +73,8 @@ export default function AccountsPage() {
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
+  const [showFarcasterDialog, setShowFarcasterDialog] = useState(false);
+  const [farcasterError, setFarcasterError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
@@ -66,6 +84,9 @@ export default function AccountsPage() {
       if (platform === "forem") {
         setShowForemDialog(true);
         setForemError("");
+      } else if (platform === "farcaster") {
+        setShowFarcasterDialog(true);
+        setFarcasterError("");
       } else {
         setShowTelegramDialog(true);
         setTelegramError("");
@@ -97,6 +118,37 @@ export default function AccountsPage() {
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
+    }
+  };
+
+  const closeFarcasterDialog = () => {
+    setShowFarcasterDialog(false);
+    setFarcasterError("");
+  };
+
+  const handleFarcasterConnect = async () => {
+    setFarcasterError("");
+    try {
+      const provider = getEthereumProvider();
+      if (!provider)
+        throw new TypeError("No Ethereum wallet was found. Install or open a wallet that controls your FID.");
+
+      const accounts = await provider.request({ method: "eth_requestAccounts" });
+      if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {
+        throw new TypeError("The wallet did not return an Ethereum account");
+      }
+      const prepared = await prepareFarcasterMutation.mutateAsync({ custodyAddress: accounts[0] });
+      const signature = await provider.request({
+        method: "eth_signTypedData_v4",
+        params: [prepared.custodyAddress, JSON.stringify(prepared.typedData)],
+      });
+      if (typeof signature !== "string") throw new Error("The wallet did not return a signer authorization");
+
+      await connectFarcasterMutation.mutateAsync({ requestToken: prepared.requestToken, custodySignature: signature });
+      closeFarcasterDialog();
+    } catch (error) {
+      logClientError(error, "Farcaster connection error");
+      setFarcasterError(error instanceof Error ? error.message : "Failed to connect Farcaster");
     }
   };
 
@@ -139,7 +191,7 @@ export default function AccountsPage() {
       setAccountToDisconnect(null);
     } catch (error) {
       logClientError(error, "Disconnect error", { accountId: accountToDisconnect.id });
-      toast.error("An error occurred while disconnecting the account.");
+      toast.error(error instanceof Error ? error.message : "An error occurred while disconnecting the account.");
     }
   };
 
@@ -362,6 +414,57 @@ export default function AccountsPage() {
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
               {connectForemMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showFarcasterDialog}
+        onOpenChange={(open) => (open ? setShowFarcasterDialog(true) : closeFarcasterDialog())}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Farcaster</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Farcaster</DialogTitle>
+            <DialogDescription>
+              Authorize a dedicated, cast-only signer with the Ethereum wallet that owns your FID.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {farcasterError && (
+              <Alert variant="destructive">
+                <AlertDescription>{farcasterError}</AlertDescription>
+              </Alert>
+            )}
+            <Alert>
+              <AlertDescription>
+                SimplePost will ask for one EIP-712 signature. It cannot move funds or change custody. The generated
+                signer can only publish and delete casts, expires after inactivity, and is encrypted at rest.
+              </AlertDescription>
+            </Alert>
+            <p className="text-xs text-muted-foreground">
+              Use the current custody wallet for the FID you want to connect. Smart-contract custody wallets are not
+              supported by Farcaster&apos;s May 2026 signer protocol.
+            </p>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={closeFarcasterDialog}
+              disabled={prepareFarcasterMutation.isPending || connectFarcasterMutation.isPending}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleFarcasterConnect}
+              disabled={prepareFarcasterMutation.isPending || connectFarcasterMutation.isPending}
+              className="flex-1">
+              {prepareFarcasterMutation.isPending || connectFarcasterMutation.isPending
+                ? "Authorizing..."
+                : "Connect custody wallet"}
             </Button>
           </div>
         </DialogContent>

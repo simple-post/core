@@ -9,6 +9,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 ### Added
 
 - DEV/Forem article publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, including drafts, tags, series, canonical URLs, organizations, and self-hosted instances.
+- Protocol-native Farcaster casting across the SDK, CLI, HTTP API, Scheduler app, and examples, with May 2026 scoped signers, custody-wallet authorization, encrypted signer storage, direct Snapchain failover, revocation, long casts, and URL embeds.
 
 ## [1.1.0] - 2026-07-10
 

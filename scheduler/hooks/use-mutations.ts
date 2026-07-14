@@ -35,7 +35,8 @@ async function disconnectAccount(accountId: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error("Failed to disconnect account");
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error || "Failed to disconnect account");
   }
 }
 
@@ -97,6 +98,54 @@ export function useConnectForem() {
         const data = await response.json();
         throw new Error(data.error || "Failed to connect Forem");
       }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
+
+export interface FarcasterTypedData {
+  domain: { name: string; version: string; chainId: number };
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: "KeyAdd";
+  message: Record<string, unknown>;
+}
+
+export function usePrepareFarcaster() {
+  return useMutation({
+    mutationFn: async (params: { custodyAddress: string }) => {
+      const response = await fetch("/api/connect/farcaster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare", ...params }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to prepare Farcaster authorization");
+      return data as {
+        action: "sign";
+        fid: number;
+        custodyAddress: string;
+        requestToken: string;
+        signerExpiresInSeconds: number;
+        typedData: FarcasterTypedData;
+      };
+    },
+  });
+}
+
+export function useConnectFarcaster() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { requestToken: string; custodySignature: string }) => {
+      const response = await fetch("/api/connect/farcaster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "complete", ...params }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to connect Farcaster");
+      }
+      return data as { success: true; fid: number; username: string | null };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
   });

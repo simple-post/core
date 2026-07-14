@@ -49,6 +49,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
   forem: "DEV/Forem",
+  farcaster: "Farcaster",
 };
 
 function hasExplicitCredentials(post: Post, platform: Platform): boolean {

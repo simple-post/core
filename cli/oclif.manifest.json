@@ -17,7 +17,8 @@
             "linkedin",
             "pinterest",
             "telegram",
-            "forem"
+            "forem",
+            "farcaster"
           ],
           "required": false
         }
@@ -602,7 +603,8 @@
             "linkedin",
             "pinterest",
             "telegram",
-            "forem"
+            "forem",
+            "farcaster"
           ],
           "required": false
         }
@@ -665,9 +667,37 @@
           "multiple": false,
           "type": "option"
         },
+        "fid": {
+          "description": "Farcaster ID",
+          "name": "fid",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
         "api-key": {
           "description": "Forem API key (prefer interactive entry)",
           "name": "api-key",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "signer-private-key": {
+          "description": "Authorized Farcaster signer private key",
+          "name": "signer-private-key",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "hub-url": {
+          "description": "Farcaster Hub gRPC endpoint",
+          "name": "hub-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "username": {
+          "description": "Farcaster username (for post links)",
+          "name": "username",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

@@ -14,6 +14,7 @@ export const PlatformSchema = z.enum([
   "linkedin",
   "pinterest",
   "forem",
+  "farcaster",
 ]);
 
 const BaseImageSchema = z.object({
@@ -231,6 +232,20 @@ export const ForemOptionsSchema = z.object({
   organizationId: z.number().int().positive().nullable().optional(),
   credentials: z.object({ instanceUrl: z.url(), apiKey: z.string().min(1) }).optional(),
 });
+export const FarcasterOptionsSchema = z
+  .object({
+    /** Snapchain gRPC endpoints, tried in order. Use grpcs:// in production. */
+    snapchainUrls: z.array(z.string().min(1)).min(1).optional(),
+    /** @deprecated Use snapchainUrls. Retained for backwards compatibility. */
+    hubUrl: z.string().min(1).optional(),
+    /** Sliding signer TTL, used to keep scheduler credential health in sync after a successful cast. */
+    signerTtlSeconds: z.number().int().positive().optional(),
+    username: z.string().optional(),
+    credentials: z.object({ fid: z.number().int().positive(), signerPrivateKey: z.string().min(1) }).optional(),
+  })
+  .refine((value) => Boolean(value.snapchainUrls?.length || value.hubUrl), {
+    message: "At least one Farcaster Snapchain endpoint is required",
+  });
 
 export const ContentSchema = z.object({
   text: z.string().optional(),
@@ -250,6 +265,7 @@ export const PostOptionsSchema = z.object({
   linkedin: LinkedInOptionsSchema.optional(),
   pinterest: PinterestOptionsSchema.optional(),
   forem: ForemOptionsSchema.optional(),
+  farcaster: FarcasterOptionsSchema.optional(),
 });
 
 export const PostSchema = z.object({
@@ -310,6 +326,7 @@ export type ThreadsOptions = z.infer<typeof ThreadsOptionsSchema>;
 export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type ForemOptions = z.infer<typeof ForemOptionsSchema>;
+export type FarcasterOptions = z.infer<typeof FarcasterOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
 export type PostOptions = z.infer<typeof PostOptionsSchema>;
 export type Post = z.infer<typeof PostSchema>;
@@ -349,6 +366,9 @@ export type PinterestOptionsWithCredentials = PinterestOptions & {
   credentials: NonNullable<PinterestOptions["credentials"]>;
 };
 export type ForemOptionsWithCredentials = ForemOptions & { credentials: NonNullable<ForemOptions["credentials"]> };
+export type FarcasterOptionsWithCredentials = FarcasterOptions & {
+  credentials: NonNullable<FarcasterOptions["credentials"]>;
+};
 
 export type PostOptionsWithCredentials = PostOptions & {
   x?: XOptionsWithCredentials;
@@ -362,4 +382,5 @@ export type PostOptionsWithCredentials = PostOptions & {
   linkedin?: LinkedInOptionsWithCredentials;
   pinterest?: PinterestOptionsWithCredentials;
   forem?: ForemOptionsWithCredentials;
+  farcaster?: FarcasterOptionsWithCredentials;
 };

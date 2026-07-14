@@ -96,6 +96,7 @@ function platformLabel(platform: string): string {
     pinterest: "Pinterest",
     telegram: "Telegram",
     forem: "DEV/Forem",
+    farcaster: "Farcaster",
     threads: "Threads",
     tiktok: "TikTok",
     twitter: "X",

@@ -10,6 +10,7 @@ import {
   faThreads,
   faBluesky,
   faDev,
+  faConnectdevelop,
 } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -30,6 +31,7 @@ export const platformIcons: Record<string, IconDefinition> = {
   threads: faThreads,
   bluesky: faBluesky,
   forem: faDev,
+  farcaster: faConnectdevelop,
 };
 
 export function PlatformIcon({ platform, className }: { platform: string; className?: string }) {

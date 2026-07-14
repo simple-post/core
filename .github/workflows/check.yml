@@ -36,7 +36,9 @@ jobs:
 
       - name: Run SDK tests with coverage
         env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
+          # Farcaster's protobuf and viem dependency graph pushes Jest's
+          # instrumented heap above the default 4 GiB limit.
+          NODE_OPTIONS: "--max_old_space_size=6144"
         run: yarn test:coverage
 
       - name: Run CLI tests

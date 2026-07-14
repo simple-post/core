@@ -45,6 +45,10 @@ export const AccountOptionsValueSchema = z
     series: z.string().nullable().optional(),
     canonicalUrl: z.string().nullable().optional(),
     organizationId: z.number().nullable().optional(),
+    hubUrl: z.string().optional(),
+    snapchainUrls: z.array(z.string()).optional(),
+    signerTtlSeconds: z.number().int().positive().optional(),
+    username: z.string().optional(),
   })
   .passthrough();
 

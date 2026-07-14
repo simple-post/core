@@ -86,6 +86,13 @@ export const ALL_SOCIAL_PLATFORMS: SocialPlatform[] = [
     color: "bg-black",
     connectionType: "manual",
   },
+  {
+    id: "farcaster",
+    name: "Farcaster",
+    description: "Publish casts directly through Snapchain",
+    color: "bg-purple-600",
+    connectionType: "manual",
+  },
 ];
 
 export const SOCIAL_PLATFORM_IDS = ALL_SOCIAL_PLATFORMS.map((platform) => platform.id);

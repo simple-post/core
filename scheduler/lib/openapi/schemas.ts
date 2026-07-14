@@ -492,15 +492,28 @@ export const ForemConnectRequestSchema = z
   .meta({ id: "ForemConnectRequest" });
 export const ForemConnectResponseSchema = z.object({ success: z.boolean() }).meta({ id: "ForemConnectResponse" });
 export const FarcasterConnectRequestSchema = z
-  .object({
-    fid: z.number().int().positive(),
-    signerPrivateKey: z.string(),
-    hubUrl: z.string(),
-    username: z.string().optional(),
-  })
+  .discriminatedUnion("action", [
+    z.object({ action: z.literal("prepare"), custodyAddress: z.string() }),
+    z.object({ action: z.literal("complete"), requestToken: z.string(), custodySignature: z.string() }),
+  ])
   .meta({ id: "FarcasterConnectRequest" });
 export const FarcasterConnectResponseSchema = z
-  .object({ success: z.boolean() })
+  .union([
+    z.object({
+      action: z.literal("sign"),
+      fid: z.number().int().positive(),
+      custodyAddress: z.string(),
+      requestToken: z.string(),
+      signerExpiresInSeconds: z.number().int().positive(),
+      typedData: z.object({
+        domain: z.object({ name: z.string(), version: z.string(), chainId: z.number().int() }),
+        types: z.record(z.string(), z.array(z.object({ name: z.string(), type: z.string() }))),
+        primaryType: z.literal("KeyAdd"),
+        message: z.record(z.string(), JsonValueSchema),
+      }),
+    }),
+    z.object({ success: z.literal(true), fid: z.number().int().positive(), username: z.string().nullable() }),
+  ])
   .meta({ id: "FarcasterConnectResponse" });
 
 export const PendingConnectionAccountSchema = z

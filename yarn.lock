@@ -4773,6 +4773,7 @@ __metadata:
   resolution: "@simple-post/scheduler@workspace:scheduler"
   dependencies:
     "@eslint/js": "npm:^9.17.0"
+    "@farcaster/hub-nodejs": "npm:0.16.0"
     "@fortawesome/fontawesome-svg-core": "npm:^7.1.0"
     "@fortawesome/free-brands-svg-icons": "npm:^7.1.0"
     "@fortawesome/react-fontawesome": "npm:^3.1.0"
@@ -4870,6 +4871,7 @@ __metadata:
     undici: "npm:^6.27.0"
     uuid: "npm:^11.1.1"
     vaul: "npm:^1.1.2"
+    viem: "npm:^2.17.4"
     zod: "npm:^4.4.3"
     zod-openapi: "npm:^5.4.6"
   languageName: unknown

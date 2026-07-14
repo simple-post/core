@@ -89,7 +89,7 @@ export const ALL_SOCIAL_PLATFORMS: SocialPlatform[] = [
   {
     id: "farcaster",
     name: "Farcaster",
-    description: "Publish casts through a protocol Hub",
+    description: "Publish casts directly through Snapchain",
     color: "bg-purple-600",
     connectionType: "manual",
   },

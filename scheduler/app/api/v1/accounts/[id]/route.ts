@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { FarcasterProtocolError, revokeFarcasterSigner } from "@/lib/farcaster/snapchain";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
+import { ApiError, handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,7 +24,28 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       throw new ForbiddenError("You don't have permission to delete this account");
     }
 
-    // Delete the account
+    const decryptedAccount = decryptConnectedAccountSecrets(account);
+    const metadata =
+      decryptedAccount.tokenMetadata &&
+      typeof decryptedAccount.tokenMetadata === "object" &&
+      !Array.isArray(decryptedAccount.tokenMetadata)
+        ? (decryptedAccount.tokenMetadata as Record<string, unknown>)
+        : {};
+    if (account.platform.toLowerCase() === "farcaster" && metadata.protocol === "snapchain-key-add-v1") {
+      try {
+        await revokeFarcasterSigner(Number(account.platformAccountId), decryptedAccount.accessToken);
+      } catch (error) {
+        if (error instanceof FarcasterProtocolError) {
+          throw new ApiError(
+            `The Farcaster signer could not be revoked, so the account was not deleted: ${error.message}`,
+            502,
+            "FARCASTER_REVOCATION_FAILED",
+          );
+        }
+        throw error;
+      }
+    }
+
     await prisma.connectedAccount.delete({
       where: { id },
     });

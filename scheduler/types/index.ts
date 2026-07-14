@@ -96,7 +96,7 @@ export interface AccountPlatformOptions {
     description?: string;
     organizationId?: number | null;
   };
-  farcaster?: { hubUrl?: string; username?: string };
+  farcaster?: { hubUrl?: string; snapchainUrls?: string[]; signerTtlSeconds?: number; username?: string };
 }
 
 export interface SocialPost {
@@ -200,7 +200,7 @@ export interface PlatformOptions {
     description?: string;
     organizationId?: number | null;
   };
-  farcaster?: { hubUrl?: string; username?: string };
+  farcaster?: { hubUrl?: string; snapchainUrls?: string[]; signerTtlSeconds?: number; username?: string };
 }
 
 export interface ConnectedAccount {

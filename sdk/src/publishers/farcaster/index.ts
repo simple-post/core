@@ -2,6 +2,7 @@ import {
   CastAddBody,
   CastType,
   FarcasterNetwork,
+  getInsecureHubRpcClient,
   getSSLHubRpcClient,
   makeCastAdd,
   NobleEd25519Signer,
@@ -21,6 +22,23 @@ function parseSignerKey(value: string): Uint8Array {
   if (!/^[a-fA-F0-9]{64}$/.test(normalized))
     throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Farcaster signer private key must be 32-byte hex.");
   return Uint8Array.from(Buffer.from(normalized, "hex"));
+}
+
+function parseEndpoint(value: string): { address: string; insecure: boolean } {
+  const trimmed = value.trim().replace(/\/$/, "");
+  const insecure = trimmed.startsWith("grpc://");
+  const address = trimmed.replace(/^grpcs?:\/\//, "");
+  if (!address || address.includes("/")) {
+    throw new PostError(
+      PostErrorType.CREDENTIALS_ERROR,
+      `Invalid Farcaster Snapchain endpoint: ${value}. Expected grpcs://host:port.`,
+    );
+  }
+  return { address, insecure };
+}
+
+function isRetryableHubError(code: string): boolean {
+  return code === "unknown" || code === "unavailable" || code.startsWith("unavailable.");
 }
 export class FarcasterPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
@@ -44,7 +62,11 @@ export class FarcasterPublisher extends Publisher {
     if (!validation.isValid)
       throw new PostError(PostErrorType.INVALID_CONTENT, "Farcaster content validation failed", validation);
     const settings = options?.farcaster;
-    if (!settings?.hubUrl) throw new PostError(PostErrorType.INVALID_CONTENT, "Farcaster hubUrl is required");
+    if (!settings) throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Farcaster options are required");
+    let endpoints = settings.snapchainUrls ?? [];
+    if (endpoints.length === 0 && settings.hubUrl) endpoints = [settings.hubUrl];
+    if (endpoints.length === 0)
+      throw new PostError(PostErrorType.CREDENTIALS_ERROR, "At least one Farcaster Snapchain endpoint is required");
     const bytes = Buffer.byteLength(content.text ?? "", "utf8");
     const body = CastAddBody.create({
       text: content.text ?? "",
@@ -56,20 +78,41 @@ export class FarcasterPublisher extends Publisher {
     });
     const message = await makeCastAdd(body, { fid: this.fid, network: FarcasterNetwork.MAINNET }, this.signer);
     if (message.isErr()) throw new PostError(PostErrorType.INVALID_CONTENT, message.error.message);
-    const client = getSSLHubRpcClient(settings.hubUrl.replace(/^grpcs?:\/\//, "").replace(/\/$/, ""));
-    try {
-      const submitted = await client.submitMessage(message.value);
-      if (submitted.isErr())
-        throw new PostError(PostErrorType.API_ERROR, `Farcaster Hub rejected the cast: ${submitted.error.message}`);
-      const hash = Buffer.from(message.value.hash).toString("hex");
-      return {
-        id: `0x${hash}`,
-        url: settings.username ? `https://farcaster.xyz/${settings.username.replace(/^@/, "")}/0x${hash}` : undefined,
-        error: PostErrorType.NO_ERROR,
-        extraData: { platformData: { fid: this.fid } },
-      };
-    } finally {
-      client.close();
+    const errors: string[] = [];
+    let submittedSuccessfully = false;
+    for (const endpoint of endpoints) {
+      const { address, insecure } = parseEndpoint(endpoint);
+      const client = insecure ? getInsecureHubRpcClient(address) : getSSLHubRpcClient(address);
+      try {
+        const submitted = await client.submitMessage(message.value);
+        if (submitted.isOk() || submitted.error.errCode === "bad_request.duplicate") {
+          submittedSuccessfully = true;
+          break;
+        }
+        errors.push(`${address}: ${submitted.error.message}`);
+        if (!isRetryableHubError(submitted.error.errCode)) break;
+      } catch (error) {
+        errors.push(`${address}: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        client.close();
+      }
     }
+    if (!submittedSuccessfully)
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Farcaster Snapchain rejected the cast: ${errors.join("; ") || "submission failed"}`,
+      );
+    const hash = Buffer.from(message.value.hash).toString("hex");
+    return {
+      id: `0x${hash}`,
+      url: settings.username ? `https://farcaster.xyz/${settings.username.replace(/^@/, "")}/0x${hash}` : undefined,
+      error: PostErrorType.NO_ERROR,
+      extraData: {
+        platformData: { fid: this.fid },
+        ...(settings.signerTtlSeconds
+          ? { refreshedCredentials: { expiresAt: Math.floor(Date.now() / 1000) + settings.signerTtlSeconds } }
+          : {}),
+      },
+    };
   }
 }

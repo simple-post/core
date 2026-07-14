@@ -79,7 +79,7 @@ The loopback listener defaults to port `5000`. Use `--callback-port 6123` on `co
 - YouTube, TikTok, Threads, LinkedIn, and Pinterest always require the secret.
 - Bluesky uses your hosted atproto client metadata URL as the client ID.
 - Telegram needs no OAuth app: `account add telegram --bot-token ... --chat-id ...`.
-- Farcaster needs no OAuth app: connect an authorized signer with `account add farcaster --fid ... --signer-private-key ... --hub-url ...`.
+- Farcaster standalone mode accepts an already-authorized scoped signer with `account add farcaster --fid ... --signer-private-key ... --hub-url ...`. Do not provide a custody key. The hosted Scheduler uses custody-wallet authorization to create and revoke a scoped May 2026 signer.
 
 Local account posting uses `@simple-post/sdk` directly and can use local media paths or public media URLs.
 

@@ -57,7 +57,7 @@ export default class AccountAddCommand extends Command {
     "api-key": Flags.string({ description: "Forem API key (prefer interactive entry)" }),
     fid: Flags.integer({ description: "Farcaster ID" }),
     "signer-private-key": Flags.string({ description: "Authorized Farcaster signer private key" }),
-    "hub-url": Flags.string({ description: "Farcaster Hub gRPC endpoint" }),
+    "hub-url": Flags.string({ description: "Farcaster Snapchain gRPC endpoint (legacy flag name)" }),
     username: Flags.string({ description: "Farcaster username (for post links)" }),
   };
 

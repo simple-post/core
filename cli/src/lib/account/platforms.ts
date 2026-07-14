@@ -206,7 +206,7 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     platform: "forem",
   },
   farcaster: {
-    connectDescription: "Connect a Farcaster FID with an authorized signer and Hub.",
+    connectDescription: "Advanced: connect a Farcaster FID with an authorized scoped signer and Snapchain RPC.",
     displayName: "Farcaster",
     platform: "farcaster",
   },

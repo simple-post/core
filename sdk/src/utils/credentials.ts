@@ -52,6 +52,7 @@ export const getCredentialsFromEnv = (): PostOptions => {
     farcaster: {
       fid: process.env.FARCASTER_FID,
       signerPrivateKey: process.env.FARCASTER_SIGNER_PRIVATE_KEY,
+      snapchainUrls: process.env.FARCASTER_SNAPCHAIN_URLS,
       hubUrl: process.env.FARCASTER_HUB_URL,
       username: process.env.FARCASTER_USERNAME,
     },
@@ -151,9 +152,13 @@ export const getCredentialsFromEnv = (): PostOptions => {
   }
   if (envVars.forem.instanceUrl && envVars.forem.apiKey)
     options.forem = { credentials: { instanceUrl: envVars.forem.instanceUrl, apiKey: envVars.forem.apiKey } };
-  if (envVars.farcaster.fid && envVars.farcaster.signerPrivateKey && envVars.farcaster.hubUrl)
+  const farcasterEndpoints = (envVars.farcaster.snapchainUrls || envVars.farcaster.hubUrl || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (envVars.farcaster.fid && envVars.farcaster.signerPrivateKey && farcasterEndpoints.length > 0)
     options.farcaster = {
-      hubUrl: envVars.farcaster.hubUrl,
+      snapchainUrls: farcasterEndpoints,
       ...(envVars.farcaster.username ? { username: envVars.farcaster.username } : {}),
       credentials: { fid: Number(envVars.farcaster.fid), signerPrivateKey: envVars.farcaster.signerPrivateKey },
     };

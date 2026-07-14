@@ -232,11 +232,20 @@ export const ForemOptionsSchema = z.object({
   organizationId: z.number().int().positive().nullable().optional(),
   credentials: z.object({ instanceUrl: z.url(), apiKey: z.string().min(1) }).optional(),
 });
-export const FarcasterOptionsSchema = z.object({
-  hubUrl: z.string().min(1),
-  username: z.string().optional(),
-  credentials: z.object({ fid: z.number().int().positive(), signerPrivateKey: z.string().min(1) }).optional(),
-});
+export const FarcasterOptionsSchema = z
+  .object({
+    /** Snapchain gRPC endpoints, tried in order. Use grpcs:// in production. */
+    snapchainUrls: z.array(z.string().min(1)).min(1).optional(),
+    /** @deprecated Use snapchainUrls. Retained for backwards compatibility. */
+    hubUrl: z.string().min(1).optional(),
+    /** Sliding signer TTL, used to keep scheduler credential health in sync after a successful cast. */
+    signerTtlSeconds: z.number().int().positive().optional(),
+    username: z.string().optional(),
+    credentials: z.object({ fid: z.number().int().positive(), signerPrivateKey: z.string().min(1) }).optional(),
+  })
+  .refine((value) => Boolean(value.snapchainUrls?.length || value.hubUrl), {
+    message: "At least one Farcaster Snapchain endpoint is required",
+  });
 
 export const ContentSchema = z.object({
   text: z.string().optional(),

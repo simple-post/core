@@ -25,12 +25,14 @@ export class FarcasterAuthProvider implements AuthProvider<FarcasterLoginFlags> 
       (context.prompt.interactive ? await context.prompt.secret("Authorized signer private key") : undefined);
     const hubUrl =
       flags.hubUrl?.trim() ||
-      (context.prompt.interactive ? await context.prompt.text("Hub gRPC endpoint", { required: true }) : undefined);
+      (context.prompt.interactive
+        ? await context.prompt.text("Snapchain gRPC endpoint", { required: true })
+        : undefined);
     const username =
       flags.username?.trim() ||
       (context.prompt.interactive ? (await context.prompt.text("Username (optional)")).trim() : undefined);
     if (!fid || !Number.isInteger(fid) || !key || !/^(0x)?[a-fA-F0-9]{64}$/.test(key) || !hubUrl)
-      throw new Error("A positive FID, 32-byte hex signer key, and Hub endpoint are required.");
+      throw new Error("A positive FID, 32-byte hex signer key, and Snapchain endpoint are required.");
     const id = String(fid);
     const alias = await resolveStoredAccountAlias(
       context.prompt,

@@ -12,11 +12,11 @@ export default defineRoute({
     post: {
       operationId: "connectFarcaster",
       tags: ["Connect"],
-      summary: "Connect a Farcaster signer",
+      summary: "Prepare or complete a scoped Farcaster signer authorization",
       security: userAuthSecurity,
       requestBody: { required: true, content: { "application/json": { schema: FarcasterConnectRequestSchema } } },
       responses: {
-        "200": jsonResponse("Farcaster connected.", FarcasterConnectResponseSchema),
+        "200": jsonResponse("Signer authorization prepared or Farcaster connected.", FarcasterConnectResponseSchema),
         ...userAuthErrorResponses,
         ...basicErrorResponses,
       },

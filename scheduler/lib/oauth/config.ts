@@ -1,3 +1,5 @@
+import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
+
 const BLUESKY_OAUTH_ISSUER = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
 
 export interface PlatformOAuthConfig {
@@ -78,7 +80,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
   bluesky: {
     authUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/authorize`,
     tokenUrl: `${BLUESKY_OAUTH_ISSUER}/oauth/token`,
-    clientId: process.env.BLUESKY_CLIENT_ID || "",
+    clientId: getBlueskyClientId(),
     clientSecret: process.env.BLUESKY_CLIENT_SECRET || "",
     scope: "atproto transition:generic",
     responseType: "code",

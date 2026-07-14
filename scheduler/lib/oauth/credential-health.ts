@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { derToRaw } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
+import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
 import { prisma } from "@/lib/prisma";
 import {
@@ -203,7 +204,7 @@ function getRefreshReadiness(account: ConnectedAccount): RefreshReadiness {
       return { supported: true, ready: true };
     }
     case "bluesky": {
-      const clientId = typeof metadata.clientId === "string" ? metadata.clientId : process.env.BLUESKY_CLIENT_ID || "";
+      const clientId = typeof metadata.clientId === "string" ? metadata.clientId : getBlueskyClientId();
       const tokenUrl = typeof metadata.tokenUrl === "string" ? metadata.tokenUrl : "";
       if (!account.refreshToken) return { supported: true, ready: false, reason: "no refresh token is stored" };
       if (!clientId) return { supported: true, ready: false, reason: "Bluesky client ID is not configured" };
@@ -549,7 +550,7 @@ function buildDpopProof(params: {
 
 async function refreshBluesky(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {
   const metadata = getTokenMetadata(account);
-  const clientId = typeof metadata.clientId === "string" ? metadata.clientId : process.env.BLUESKY_CLIENT_ID || "";
+  const clientId = typeof metadata.clientId === "string" ? metadata.clientId : getBlueskyClientId();
   const tokenUrl = typeof metadata.tokenUrl === "string" ? metadata.tokenUrl : "";
   if (!account.refreshToken || !clientId || !tokenUrl) {
     throw new Error("Bluesky refresh token, client ID, or token URL is missing. Reconnect the Bluesky account.");

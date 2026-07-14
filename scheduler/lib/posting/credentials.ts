@@ -1,3 +1,4 @@
+import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
 import type { ConnectedAccount, AccountOptionsMap } from "@/types";
 
 import type { PostOptions } from "@simple-post/sdk";
@@ -85,9 +86,7 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
     const tokenUrl =
       typeof metadata.tokenUrl === "string" && metadata.tokenUrl ? metadata.tokenUrl : `${issuer}/oauth/token`;
     const clientId =
-      typeof metadata.clientId === "string" && metadata.clientId
-        ? metadata.clientId
-        : process.env.BLUESKY_CLIENT_ID || "";
+      typeof metadata.clientId === "string" && metadata.clientId ? metadata.clientId : getBlueskyClientId();
     return {
       accessToken: account.accessToken,
       refreshToken: account.refreshToken || "",

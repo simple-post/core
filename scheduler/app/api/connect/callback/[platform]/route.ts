@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
 import { authLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -42,6 +43,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { platform } = await params;
+    if (!isSocialPlatformEnabled(platform)) {
+      authLogger.warn({ platform }, "OAuth callback rejected for disabled platform");
+      return NextResponse.redirect(getErrorRedirectUrl("unknown_error", baseURL));
+    }
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get("code");
     const state = searchParams.get("state");

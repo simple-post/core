@@ -142,4 +142,8 @@ export const postFlags = {
     description: "Pinterest alt text",
     helpGroup: "Pinterest",
   }),
+  "forem-title": Flags.string({ description: "Forem article title", helpGroup: "DEV/Forem" }),
+  "forem-tags": Flags.string({ description: "Comma-separated Forem tags (max 4)", helpGroup: "DEV/Forem" }),
+  "forem-published": Flags.boolean({ allowNo: true, description: "Publish or save as draft", helpGroup: "DEV/Forem" }),
+  "forem-canonical-url": Flags.string({ description: "Canonical article URL", helpGroup: "DEV/Forem" }),
 } as const;

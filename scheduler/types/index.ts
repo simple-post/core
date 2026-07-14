@@ -87,6 +87,15 @@ export interface AccountPlatformOptions {
     link?: string;
     altText?: string;
   };
+  forem?: {
+    title?: string;
+    published?: boolean;
+    tags?: string[];
+    series?: string | null;
+    canonicalUrl?: string | null;
+    description?: string;
+    organizationId?: number | null;
+  };
 }
 
 export interface SocialPost {
@@ -180,6 +189,15 @@ export interface PlatformOptions {
     description?: string;
     link?: string;
     altText?: string;
+  };
+  forem?: {
+    title?: string;
+    published?: boolean;
+    tags?: string[];
+    series?: string | null;
+    canonicalUrl?: string | null;
+    description?: string;
+    organizationId?: number | null;
   };
 }
 

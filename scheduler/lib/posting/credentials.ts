@@ -112,6 +112,10 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
   }),
+  forem: (account: ConnectedAccount) => ({
+    instanceUrl: String(getTokenMetadata(account).instanceUrl ?? "https://dev.to"),
+    apiKey: account.accessToken,
+  }),
 };
 
 /**

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
@@ -10,6 +11,9 @@ const log = createLogger("api:connect:telegram");
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
+    if (!isSocialPlatformEnabled("telegram")) {
+      throw new BadRequestError("Telegram is not enabled in this environment");
+    }
     const body = await req.json();
     const { botToken, chatId, channelName } = body;
     const trimmedToken = typeof botToken === "string" ? botToken.trim() : "";

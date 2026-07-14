@@ -1,7 +1,7 @@
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "@simple-post/sdk/validation";
 
-import { getPlatformById } from "@/lib/config";
+import { getPlatformById, isSocialPlatformEnabled } from "@/lib/config";
 import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type {
@@ -98,6 +98,17 @@ export function validatePostForResolvedAccounts(params: {
 
     const errors: ValidationResult["errors"] = [];
     const warnings: ValidationResult["warnings"] = [];
+
+    if (!isSocialPlatformEnabled(account.platform)) {
+      errors.push({
+        platform,
+        severity: "error",
+        code: "provider_disabled",
+        message: `${getPlatformById(account.platform)?.name ?? account.platform} is not enabled in this environment.`,
+        field: "accounts",
+        meta: { accountId: account.id },
+      });
+    }
 
     for (const { field, content } of segments) {
       const validation = validateContentForPlatform(platform, content);

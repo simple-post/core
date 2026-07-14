@@ -23,7 +23,9 @@
     "bluesky",
     "threads",
     "linkedin",
-    "pinterest"
+    "pinterest",
+    "forem",
+    "dev.to"
   ],
   "engines": {
     "node": ">=20.0.0"

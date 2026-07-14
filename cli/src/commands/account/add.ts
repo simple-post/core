@@ -53,6 +53,8 @@ export default class AccountAddCommand extends Command {
     "redirect-uri": Flags.string({
       description: "Loopback redirect URI to use for the OAuth callback",
     }),
+    "instance-url": Flags.string({ description: "Forem instance URL (defaults to https://dev.to)" }),
+    "api-key": Flags.string({ description: "Forem API key (prefer interactive entry)" }),
   };
 
   public async run(): Promise<void> {
@@ -89,6 +91,8 @@ export default class AccountAddCommand extends Command {
       chatId: flags["chat-id"],
       noBrowser: flags["no-browser"],
       redirectUri: flags["redirect-uri"],
+      instanceUrl: flags["instance-url"],
+      apiKey: flags["api-key"],
     };
     const nextConfig = await provider.login(loginFlags, {
       config,

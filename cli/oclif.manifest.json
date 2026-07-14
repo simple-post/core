@@ -16,7 +16,8 @@
             "threads",
             "linkedin",
             "pinterest",
-            "telegram"
+            "telegram",
+            "forem"
           ],
           "required": false
         }
@@ -387,6 +388,37 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "forem-title": {
+          "description": "Forem article title",
+          "helpGroup": "DEV/Forem",
+          "name": "forem-title",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "forem-tags": {
+          "description": "Comma-separated Forem tags (max 4)",
+          "helpGroup": "DEV/Forem",
+          "name": "forem-tags",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "forem-published": {
+          "description": "Publish or save as draft",
+          "helpGroup": "DEV/Forem",
+          "name": "forem-published",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "forem-canonical-url": {
+          "description": "Canonical article URL",
+          "helpGroup": "DEV/Forem",
+          "name": "forem-canonical-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -569,7 +601,8 @@
             "threads",
             "linkedin",
             "pinterest",
-            "telegram"
+            "telegram",
+            "forem"
           ],
           "required": false
         }
@@ -621,6 +654,20 @@
         "redirect-uri": {
           "description": "Loopback redirect URI to use for the OAuth callback",
           "name": "redirect-uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "instance-url": {
+          "description": "Forem instance URL (defaults to https://dev.to)",
+          "name": "instance-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "api-key": {
+          "description": "Forem API key (prefer interactive entry)",
+          "name": "api-key",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

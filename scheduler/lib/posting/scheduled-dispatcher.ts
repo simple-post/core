@@ -3,6 +3,7 @@ import { isThreadCapable } from "@simple-post/sdk";
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger } from "@/lib/logger";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
@@ -46,6 +47,7 @@ const PLATFORM_RATE_LIMITS: Record<string, PlatformRateLimit> = {
   bluesky: { maxPosts: 15, intervalMinutes: 1 },
   pinterest: { maxPosts: 15, intervalMinutes: 1 },
   telegram: { maxPosts: 15, intervalMinutes: 1 },
+  forem: { maxPosts: 10, intervalMinutes: 1 },
 };
 
 interface PlatformRateLimit {
@@ -692,6 +694,18 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   const duePostIds = new Set(duePosts.map((post) => post.id));
   const dispatchableDuePosts = orderPostsByQuoteDependencies(
     duePosts.filter((post) => {
+      const disabledPlatforms = [
+        ...new Set(
+          post.accounts
+            .map((account) => account.platform.toLowerCase())
+            .filter((platform) => !isSocialPlatformEnabled(platform)),
+        ),
+      ];
+      if (disabledPlatforms.length > 0) {
+        log.info({ postId: post.id, disabledPlatforms }, "Deferring post for disabled social provider");
+        return false;
+      }
+
       const sourceStatus = post.quotePost?.status;
       const sourceIsDueThisRun = !!post.quotePostId && sourceStatus === "scheduled" && duePostIds.has(post.quotePostId);
       const waiting =
@@ -707,6 +721,23 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       return !waiting;
     }),
   );
+
+  const dispatchableDueReposts = dueReposts.filter((post) => {
+    const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
+    const disabledPlatforms = [
+      ...new Set(
+        (repostTargetsByPostId.get(post.id) ?? [])
+          .map((target) => accountById.get(target.accountId))
+          .filter((platform): platform is string => typeof platform === "string")
+          .filter((platform) => !isSocialPlatformEnabled(platform)),
+      ),
+    ];
+    if (disabledPlatforms.length > 0) {
+      log.info({ postId: post.id, disabledPlatforms }, "Deferring repost for disabled social provider");
+      return false;
+    }
+    return true;
+  });
 
   if (duePosts.length === 0 && dueReposts.length === 0) {
     const credentialRefresh = await credentialRefreshPromise;
@@ -738,7 +769,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
   const uniquePlatforms = [
     ...new Set<string>([
       ...dispatchableDuePosts.flatMap((post) => post.accounts.map((account) => account.platform.toLowerCase())),
-      ...dueReposts.flatMap((post) => {
+      ...dispatchableDueReposts.flatMap((post) => {
         const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
         return (repostTargetsByPostId.get(post.id) ?? [])
           .map((target) => accountById.get(target.accountId))
@@ -809,7 +840,7 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     }
   }
 
-  for (const post of dueReposts) {
+  for (const post of dispatchableDueReposts) {
     const targets = repostTargetsByPostId.get(post.id) ?? [];
     const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
     const costs = new Map<string, number>();

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
@@ -9,6 +10,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { platform } = await params;
     const session = await requireAuth(request);
+
+    if (!isSocialPlatformEnabled(platform)) {
+      throw new BadRequestError("Social platform is not enabled in this environment");
+    }
 
     const config = getPlatformOAuthConfig(platform);
     if (!config || !config.clientId) {

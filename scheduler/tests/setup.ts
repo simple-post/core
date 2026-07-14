@@ -5,6 +5,9 @@ process.env.BETTER_AUTH_SECRET = "test-better-auth-secret";
 process.env.SCHEDULED_POST_DISPATCH_SECRET = "test-dispatch-secret";
 process.env.RESEND_API_KEY = "test-resend-key";
 process.env.LOG_LEVEL = "silent";
+// Most existing tests exercise provider behavior rather than feature gating.
+// Individual feature-flag tests call the pure parser with explicit values.
+process.env.NEXT_PUBLIC_ENABLED_SOCIAL_PROVIDERS = "*";
 // Keep pino on the JSON (non-pretty) path. NODE_ENV is typed read-only in
 // Next.js, hence the defineProperty.
 Object.defineProperty(process.env, "NODE_ENV", { value: "production", writable: true });

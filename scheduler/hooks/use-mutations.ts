@@ -84,6 +84,23 @@ export function useConnectTelegram() {
     },
   });
 }
+export function useConnectForem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { instanceUrl: string; apiKey: string }) => {
+      const response = await fetch("/api/connect/forem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to connect Forem");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+  });
+}
 
 // Create/Update post mutation
 interface PostMutationParams {

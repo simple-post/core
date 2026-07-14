@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -43,6 +43,7 @@ export default function AccountsPage() {
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
+  const connectForemMutation = useConnectForem();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -52,17 +53,50 @@ export default function AccountsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
   const [telegramError, setTelegramError] = useState("");
+  const [showForemDialog, setShowForemDialog] = useState(false);
+  const [foremInstance, setForemInstance] = useState("https://dev.to");
+  const [foremApiKey, setForemApiKey] = useState("");
+  const [foremError, setForemError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
 
     if (platformConfig?.connectionType === "manual") {
       setShowConnectDialog(false);
-      setShowTelegramDialog(true);
-      setTelegramError("");
+      if (platform === "forem") {
+        setShowForemDialog(true);
+        setForemError("");
+      } else {
+        setShowTelegramDialog(true);
+        setTelegramError("");
+      }
     } else {
       setShowConnectDialog(false);
       window.location.href = `/api/connect/${platform}`;
+    }
+  };
+  const closeForemDialog = () => {
+    setShowForemDialog(false);
+    setForemApiKey("");
+    setForemError("");
+  };
+
+  const handleForemConnect = async () => {
+    if (!foremInstance.trim() || !foremApiKey.trim()) {
+      setForemError("Please provide the instance URL and API key");
+      return;
+    }
+    if (!/^https:\/\//i.test(foremInstance.trim())) {
+      setForemError("The instance URL must start with https://");
+      return;
+    }
+    setForemError("");
+    try {
+      await connectForemMutation.mutateAsync({ instanceUrl: foremInstance.trim(), apiKey: foremApiKey.trim() });
+      closeForemDialog();
+    } catch (error) {
+      logClientError(error, "Forem connection error");
+      setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
     }
   };
 
@@ -263,6 +297,72 @@ export default function AccountsPage() {
                 </div>
               </button>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showForemDialog} onOpenChange={(open) => (open ? setShowForemDialog(true) : closeForemDialog())}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">DEV/Forem</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect DEV/Forem</DialogTitle>
+            <DialogDescription>Use an API key from your Forem account settings.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {foremError && (
+              <Alert variant="destructive">
+                <AlertDescription>{foremError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label
+                htmlFor="foremInstance"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Instance URL
+              </Label>
+              <Input
+                id="foremInstance"
+                placeholder="https://dev.to"
+                value={foremInstance}
+                onChange={(e) => setForemInstance(e.target.value)}
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Keep https://dev.to for DEV Community, or point at your own Forem.
+              </p>
+            </div>
+            <div>
+              <Label
+                htmlFor="foremApiKey"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                API key
+              </Label>
+              <Input
+                id="foremApiKey"
+                type="password"
+                value={foremApiKey}
+                onChange={(e) => setForemApiKey(e.target.value)}
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                For DEV, generate a dedicated key under Settings → Extensions → DEV Community API Keys. Revoke it there
+                when no longer needed.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={closeForemDialog}
+              disabled={connectForemMutation.isPending}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
+              {connectForemMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

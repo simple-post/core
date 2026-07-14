@@ -1,5 +1,6 @@
 import { BlueskyPublisher } from "./bluesky";
 import { FacebookPublisher } from "./facebook";
+import { ForemPublisher } from "./forem";
 import { InstagramPublisher } from "./instagram";
 import { LinkedInPublisher } from "./linkedin";
 import { PinterestPublisher } from "./pinterest";
@@ -43,6 +44,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "pinterest": {
       return new PinterestPublisher(options);
+    }
+    case "forem": {
+      return new ForemPublisher(options);
     }
   }
 

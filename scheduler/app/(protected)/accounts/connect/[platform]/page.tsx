@@ -13,7 +13,7 @@ import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getPlatformById } from "@/lib/config";
+import { getPlatformById, isSocialPlatformEnabled } from "@/lib/config";
 
 type PendingAccount = {
   id: string;
@@ -44,6 +44,11 @@ export default function ConnectAccountPickerPage() {
   const platformConfig = useMemo(() => getPlatformById(platformId), [platformId]);
 
   useEffect(() => {
+    if (!isSocialPlatformEnabled(platformId)) {
+      setError("This social platform is not enabled in this environment.");
+      setLoading(false);
+      return;
+    }
     if (!pendingId) {
       setError("Missing pending connection ID.");
       setLoading(false);

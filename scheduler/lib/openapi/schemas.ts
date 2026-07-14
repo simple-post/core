@@ -487,6 +487,10 @@ export const TelegramConnectResponseSchema = z
     }),
   })
   .meta({ id: "TelegramConnectResponse" });
+export const ForemConnectRequestSchema = z
+  .object({ instanceUrl: z.url(), apiKey: z.string() })
+  .meta({ id: "ForemConnectRequest" });
+export const ForemConnectResponseSchema = z.object({ success: z.boolean() }).meta({ id: "ForemConnectResponse" });
 
 export const PendingConnectionAccountSchema = z
   .object({

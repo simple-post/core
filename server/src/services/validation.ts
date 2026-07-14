@@ -1,6 +1,7 @@
 import {
   BlueskyPublisher,
   FacebookPublisher,
+  ForemPublisher,
   InstagramPublisher,
   isThreadCapable,
   LinkedInPublisher,
@@ -39,6 +40,7 @@ const publishers: Record<
   threads: ThreadsPublisher,
   linkedin: LinkedInPublisher,
   pinterest: PinterestPublisher,
+  forem: ForemPublisher,
 };
 
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {

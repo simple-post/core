@@ -41,6 +41,10 @@ export const AccountOptionsValueSchema = z
     description: z.string().optional(),
     link: z.url().optional(),
     altText: z.string().optional(),
+    published: z.boolean().optional(),
+    series: z.string().nullable().optional(),
+    canonicalUrl: z.string().nullable().optional(),
+    organizationId: z.number().nullable().optional(),
   })
   .passthrough();
 

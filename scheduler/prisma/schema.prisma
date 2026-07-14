@@ -216,6 +216,11 @@ model ConnectedAccount {
   scope         String?
   tokenMetadata Json?
 
+  // Refresh scheduling is stored outside encrypted tokenMetadata so the
+  // background sweep can exclude cooling-down and permanently invalid rows.
+  credentialRefreshRetryAt   DateTime?
+  credentialRefreshBlockedAt DateTime?
+
   // Account profile information
   username       String? // @handle or username
   displayName    String? // Full name or display name
@@ -231,6 +236,7 @@ model ConnectedAccount {
 
   @@unique([userId, platform, platformAccountId])
   @@index([userId])
+  @@index([credentialRefreshBlockedAt, credentialRefreshRetryAt, expiresAt], map: "connected_account_refresh_sweep_idx")
   @@map("connected_account")
 }
 

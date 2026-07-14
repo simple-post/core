@@ -1,4 +1,3 @@
-import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
 import type { ConnectedAccount, AccountOptionsMap } from "@/types";
 
 import type { PostOptions } from "@simple-post/sdk";
@@ -23,48 +22,20 @@ const getTokenMetadata = (account: ConnectedAccount): Record<string, unknown> =>
  */
 const credentialBuilders: Record<string, (account: ConnectedAccount) => Credentials> = {
   x: (account: ConnectedAccount) => ({
-    clientId: process.env.X_CLIENT_ID || "",
-    clientSecret: process.env.X_CLIENT_SECRET || "",
+    // Refreshing is centralized in credential-health.ts under a PostgreSQL
+    // advisory lock. Never let the SDK independently consume X's rotating
+    // refresh token during a publish.
     accessToken: account.accessToken,
-    refreshToken: account.refreshToken || "",
     expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0,
     // Numeric X user id captured at connect time. Lets repost skip the
     // rate-limited users/me lookup.
     userId: account.platformAccountId || undefined,
   }),
   twitter: (account: ConnectedAccount) => credentialBuilders.x(account),
-  youtube: (account: ConnectedAccount) => {
-    // Use same client as connect flow - refresh tokens are tied to the OAuth client.
-    // YOUTUBE_* overrides GOOGLE_* when set (for separate YouTube app).
-    const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || "";
-    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || "";
-
-    // Use access token when still valid - avoids hitting refresh endpoint (which can fail with
-    // invalid_grant if token was revoked or credentials mismatch). Buffer: 5 min before expiry.
-    const YOUTUBE_TOKEN_BUFFER_SEC = 5 * 60;
-    const nowSec = Math.floor(Date.now() / 1000);
-    const expiresAtSec = account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0;
-    const accessTokenValid = account.accessToken && expiresAtSec > nowSec + YOUTUBE_TOKEN_BUFFER_SEC;
-
-    if (accessTokenValid) {
-      return { accessToken: account.accessToken };
-    }
-    if (account.refreshToken && clientId && clientSecret) {
-      return {
-        clientId,
-        clientSecret,
-        refreshToken: account.refreshToken,
-      };
-    }
-    if (account.accessToken) {
-      return { accessToken: account.accessToken };
-    }
-    return {
-      clientId,
-      clientSecret,
-      refreshToken: account.refreshToken || "",
-    };
-  },
+  // The pre-publish credential health check owns YouTube refreshes. Supplying
+  // only the access token prevents googleapis from refreshing outside the
+  // cross-process account lock.
+  youtube: (account: ConnectedAccount) => ({ accessToken: account.accessToken }),
   telegram: (account: ConnectedAccount) => ({
     botToken: account.accessToken || process.env.TELEGRAM_BOT_TOKEN || "",
   }),
@@ -75,7 +46,6 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   instagram: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
     businessAccountId: account.platformAccountId,
-    expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : undefined,
   }),
   tiktok: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
@@ -83,18 +53,14 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   bluesky: (account: ConnectedAccount) => {
     const metadata = getTokenMetadata(account);
     const issuer = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
-    const tokenUrl =
-      typeof metadata.tokenUrl === "string" && metadata.tokenUrl ? metadata.tokenUrl : `${issuer}/oauth/token`;
-    const clientId =
-      typeof metadata.clientId === "string" && metadata.clientId ? metadata.clientId : getBlueskyClientId();
     return {
       accessToken: account.accessToken,
-      refreshToken: account.refreshToken || "",
       expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : 0,
       did: account.platformAccountId,
       pdsUrl: (metadata.pdsUrl as string) || issuer,
-      tokenUrl,
-      clientId,
+      // DPoP keys are still required to use the access token. The refresh
+      // token/client details deliberately stay inside the locked scheduler
+      // refresh path.
       dpopPublicJwk: metadata.dpopPublicJwk,
       dpopPrivateJwk: metadata.dpopPrivateJwk,
     };
@@ -102,7 +68,6 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   threads: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
     userId: account.platformAccountId,
-    expiresAt: account.expiresAt ? Math.floor(account.expiresAt.getTime() / 1000) : undefined,
   }),
   linkedin: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,

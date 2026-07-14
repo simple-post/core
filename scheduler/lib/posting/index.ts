@@ -12,6 +12,10 @@ import {
 import { generatePostUrl, mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { postingLogger, serializeError, redact } from "@/lib/logger";
+import {
+  acquireConnectedAccountCredentialLock,
+  CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS,
+} from "@/lib/oauth/connected-account-lock";
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import {
@@ -98,16 +102,38 @@ async function persistRefreshedCredentials(
   log: Logger,
 ) {
   try {
-    await prisma.connectedAccount.update({
-      where: { id: account.id },
-      data: {
-        ...encryptConnectedAccountSecrets({
-          accessToken: refreshedCredentials.accessToken || account.accessToken,
-          refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
-        }),
-        expiresAt: refreshedCredentials.expiresAt ? new Date(refreshedCredentials.expiresAt * 1000) : account.expiresAt,
-      },
-    });
+    const updatedAt = new Date();
+    // Safety net: buildPostOptions no longer hands the SDK any refresh
+    // material, so publishers should never report refreshed credentials. If
+    // one ever does, take the same advisory lock as credential-health.ts so
+    // this write cannot land between a locked refresh's read and write and
+    // get that refresh's freshly rotated tokens discarded.
+    const updated = await prisma.$transaction(async (tx) => {
+      await acquireConnectedAccountCredentialLock(tx, account.id);
+      return await tx.connectedAccount.updateMany({
+        where: { id: account.id, updatedAt: account.updatedAt },
+        data: {
+          ...encryptConnectedAccountSecrets({
+            accessToken: refreshedCredentials.accessToken || account.accessToken,
+            refreshToken: refreshedCredentials.refreshToken ?? account.refreshToken,
+          }),
+          credentialRefreshBlockedAt: null,
+          credentialRefreshRetryAt: null,
+          expiresAt: refreshedCredentials.expiresAt
+            ? new Date(refreshedCredentials.expiresAt * 1000)
+            : account.expiresAt,
+          updatedAt,
+        },
+      });
+    }, CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS);
+    if (updated.count !== 1) {
+      log.warn(
+        { accountId: account.id, platform: account.platform },
+        "Discarded refreshed credentials because the account changed concurrently",
+      );
+      return;
+    }
+    account.updatedAt = updatedAt;
     log.info({ accountId: account.id, platform: account.platform }, "Updated credentials from refresh");
   } catch (updateError) {
     log.warn({ err: serializeError(updateError), accountId: account.id }, "Failed to update credentials");

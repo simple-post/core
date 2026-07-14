@@ -14,9 +14,10 @@ import type { ConnectedAccount } from "@/types";
  * reloadAccountSecrets (called after acquiring the lock) the second publish
  * sees the tokens persisted by the first instead of its stale snapshot.
  *
- * Note: this protects a single process. Deployments running multiple app
- * replicas must route dispatching through one instance (the documented
- * single-cron setup) or add a cross-process lock.
+ * This lock protects whole publish/thread ordering inside one process. Token
+ * refresh itself has an additional PostgreSQL advisory lock in
+ * credential-health.ts, so overlapping cron invocations or multiple replicas
+ * cannot concurrently consume a rotating refresh token.
  */
 
 const accountQueues = new Map<string, Promise<unknown>>();

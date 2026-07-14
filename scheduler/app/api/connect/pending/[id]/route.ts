@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth";
+import { CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS } from "@/lib/oauth/connected-account-lock";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError, NotFoundError, GoneError } from "@/lib/utils/errors";
 
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
 
       await tx.pendingOAuthConnection.delete({ where: { id: pending.id } });
-    });
+    }, CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS);
 
     return NextResponse.json({ success: true, count: selectedAccounts.length });
   } catch (error) {

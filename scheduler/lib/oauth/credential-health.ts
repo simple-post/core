@@ -4,6 +4,10 @@ import { derToRaw } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
+import {
+  acquireConnectedAccountCredentialLock,
+  CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS,
+} from "@/lib/oauth/connected-account-lock";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
 import { prisma } from "@/lib/prisma";
 import {
@@ -13,7 +17,7 @@ import {
 } from "@/lib/security/connected-account-secrets";
 import type { ConnectedAccount, ConnectedAccountCredentialStatus, ConnectedAccountCredentialState } from "@/types";
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 export const POST_CREDENTIAL_MIN_VALIDITY_MS = 5 * 60 * 1000;
 /**
@@ -49,6 +53,22 @@ interface TokenRefreshResult {
   refreshToken?: string | null;
   expiresAt: Date | null;
   refreshTokenExpiresAt?: Date | null;
+  tokenMetadataPatch?: Record<string, unknown>;
+}
+
+type CredentialPersistenceClient = Pick<PrismaClient, "connectedAccount">;
+
+class TokenRefreshError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly providerCode: string | null,
+    readonly providerSubtype: string | null,
+    readonly permanent: boolean,
+  ) {
+    super(message);
+    this.name = "TokenRefreshError";
+  }
 }
 
 export interface RefreshConnectedAccountResult {
@@ -256,6 +276,36 @@ function status(
   };
 }
 
+function hasStoredPermanentRefreshFailure(account: ConnectedAccount): boolean {
+  const metadata = getTokenMetadata(account);
+  if (typeof metadata.lastRefreshFailurePermanent === "boolean") {
+    return metadata.lastRefreshFailurePermanent;
+  }
+
+  // Failures recorded before credentialRefreshBlockedAt existed only contain
+  // the rendered provider message. Recognize the permanent responses we used
+  // to log so affected accounts become visible immediately after deployment.
+  const lastError = typeof metadata.lastRefreshError === "string" ? metadata.lastRefreshError.toLowerCase() : "";
+  if (!lastError) {
+    return false;
+  }
+
+  return (
+    [
+      "invalid_grant",
+      "invalid refresh token",
+      "refresh token is invalid",
+      "refresh token has expired",
+      "refresh token was revoked",
+      "token was invalid",
+      "session has been invalidated",
+    ].some((fragment) => lastError.includes(fragment)) ||
+    // Google's old response parser discarded `invalid_grant` and retained
+    // only the unhelpful error_description shown in the production logs.
+    lastError.includes("youtube token refresh failed (400): bad request")
+  );
+}
+
 export function getConnectedAccountCredentialStatus(
   account: ConnectedAccount,
   options?: { now?: Date; warningWindowMs?: number },
@@ -267,6 +317,18 @@ export function getConnectedAccountCredentialStatus(
   const readiness = getRefreshReadiness(account);
   const canRefresh = readiness.ready;
   const refreshTokenExpiresAt = metadataDate(account, "refreshTokenExpiresAt");
+
+  if (account.credentialRefreshBlockedAt || hasStoredPermanentRefreshFailure(account)) {
+    return status(
+      account,
+      "reauth_required",
+      "error",
+      "Reconnect",
+      `${label} rejected the stored credentials. Reconnect this account before posting.`,
+      "reconnect",
+      false,
+    );
+  }
 
   if (refreshTokenExpiresAt && refreshTokenExpiresAt.getTime() <= now.getTime()) {
     return status(
@@ -352,6 +414,23 @@ export function getConnectedAccountCredentialStatus(
   }
 
   if (readiness.supported && !canRefresh) {
+    // LinkedIn commonly issues access tokens without a refresh token. The
+    // account is still fully usable until its recorded expiry, and the expiry
+    // warning above will ask the user to reconnect at the appropriate time.
+    // A stored refresh token with missing client credentials is a server
+    // misconfiguration instead and falls through to the generic warning.
+    if (platform === "linkedin" && !account.refreshToken) {
+      return status(
+        account,
+        "healthy",
+        "ok",
+        "Active",
+        `${label} credentials are active. SimplePost will ask you to reconnect before they expire.`,
+        "none",
+        false,
+      );
+    }
+
     return status(
       account,
       "refresh_unavailable",
@@ -379,25 +458,69 @@ async function parseJsonObject(response: Response): Promise<Record<string, unkno
   }
 }
 
-function providerErrorMessage(data: Record<string, unknown>): string | null {
+function providerErrorDetails(data: Record<string, unknown>): {
+  code: string | null;
+  message: string | null;
+  subtype: string | null;
+} {
   const error = data.error;
-  if (isPlainObject(error) && typeof error.message === "string") {
-    return error.message;
+  const objectMessage = isPlainObject(error) && typeof error.message === "string" ? error.message : null;
+  const objectCode =
+    isPlainObject(error) && (typeof error.code === "string" || typeof error.code === "number")
+      ? String(error.code)
+      : isPlainObject(error) && typeof error.type === "string"
+        ? error.type
+        : null;
+  const code = typeof error === "string" && error ? error : objectCode;
+  const description =
+    typeof data.error_description === "string" && data.error_description ? data.error_description : null;
+  const topLevelMessage = typeof data.message === "string" && data.message ? data.message : null;
+  const subtype = typeof data.error_subtype === "string" && data.error_subtype ? data.error_subtype : null;
+
+  return {
+    code,
+    message: objectMessage ?? description ?? topLevelMessage ?? code,
+    subtype,
+  };
+}
+
+function isPermanentRefreshRejection(status: number, code: string | null, message: string): boolean {
+  if (status !== 400 && status !== 401) {
+    return false;
   }
-  for (const key of ["error_description", "error", "message"] as const) {
-    const value = data[key];
-    if (typeof value === "string" && value) {
-      return value;
-    }
+
+  const normalizedCode = code?.toLowerCase().replaceAll("-", "_") ?? "";
+  if (["invalid_grant", "invalid_token", "invalid_refresh_token"].includes(normalizedCode)) {
+    return true;
   }
-  return null;
+
+  const normalizedMessage = message.toLowerCase();
+  return [
+    "invalid refresh token",
+    "refresh token is invalid",
+    "refresh token has expired",
+    "refresh token was revoked",
+    "token was invalid",
+    "session has been invalidated",
+  ].some((fragment) => normalizedMessage.includes(fragment));
 }
 
 async function expectTokenResponse(platform: string, response: Response): Promise<Record<string, unknown>> {
   const data = await parseJsonObject(response);
   if (!response.ok) {
-    const providerMessage = providerErrorMessage(data) || response.statusText || "unknown error";
-    throw new Error(`${platformLabel(platform)} token refresh failed (${response.status}): ${providerMessage}`);
+    const details = providerErrorDetails(data);
+    const providerMessage = details.message || response.statusText || "unknown error";
+    const combinedMessage =
+      details.code && details.code.toLowerCase() !== providerMessage.toLowerCase()
+        ? `${details.code}: ${providerMessage}`
+        : providerMessage;
+    throw new TokenRefreshError(
+      `${platformLabel(platform)} token refresh failed (${response.status}): ${combinedMessage}`,
+      response.status,
+      details.code,
+      details.subtype,
+      isPermanentRefreshRejection(response.status, details.code, combinedMessage),
+    );
   }
   return data;
 }
@@ -580,17 +703,26 @@ async function refreshBluesky(account: ConnectedAccount, now: Date): Promise<Tok
     });
   };
 
-  let response = await makeRequest();
+  const storedNonce = typeof metadata.tokenDpopNonce === "string" ? metadata.tokenDpopNonce : undefined;
+  let response = await makeRequest(storedNonce);
   if (!response.ok) {
     const nonce = response.headers.get("DPoP-Nonce");
-    if (nonce) {
+    const challenge = providerErrorDetails(await parseJsonObject(response.clone()));
+    // A DPoP-Nonce header can accompany unrelated OAuth errors. Reusing a
+    // single-use refresh token is safe only for an explicit nonce challenge.
+    if (nonce && challenge.code?.toLowerCase() === "use_dpop_nonce") {
       response = await makeRequest(nonce);
     }
   }
-  return buildRefreshResult(account, await expectTokenResponse("bluesky", response), now, {
+  const refreshed = buildRefreshResult(account, await expectTokenResponse("bluesky", response), now, {
     fallbackExpiresInSec: 3600,
     keepRefreshToken: true,
   });
+  const nextNonce = response.headers.get("DPoP-Nonce");
+  if (nextNonce) {
+    refreshed.tokenMetadataPatch = { tokenDpopNonce: nextNonce };
+  }
+  return refreshed;
 }
 
 async function refreshLinkedIn(account: ConnectedAccount, now: Date): Promise<TokenRefreshResult> {
@@ -682,63 +814,104 @@ function withRefreshMetadata(
   return metadata as Prisma.InputJsonValue;
 }
 
-async function persistRefreshError(account: ConnectedAccount, now: Date, message: string): Promise<void> {
+interface RefreshFailureDetails {
+  permanent: boolean;
+  providerCode?: string | null;
+  providerStatus?: number | null;
+  providerSubtype?: string | null;
+}
+
+async function persistRefreshError(
+  client: CredentialPersistenceClient,
+  account: ConnectedAccount,
+  now: Date,
+  message: string,
+  details: RefreshFailureDetails,
+): Promise<ConnectedAccount | null> {
   const tokenMetadata = withRefreshMetadata(account, now, {
     lastRefreshError: message,
     lastRefreshErrorAt: now.toISOString(),
+    lastRefreshErrorCode: details.providerCode ?? null,
+    lastRefreshErrorStatus: details.providerStatus ?? null,
+    lastRefreshErrorSubtype: details.providerSubtype ?? null,
+    lastRefreshFailurePermanent: details.permanent,
   });
 
-  try {
-    // Only the metadata is written: rewriting the (unchanged) tokens here
-    // could clobber credentials persisted by a concurrent refresh.
-    await prisma.connectedAccount.update({
-      where: { id: account.id },
-      data: {
-        tokenMetadata: encryptTokenMetadata(tokenMetadata) ?? undefined,
-        updatedAt: new Date(),
-      },
-    });
-  } catch (error) {
-    log.warn({ accountId: account.id, err: serializeError(error) }, "Failed to persist credential refresh error");
+  const updatedAt = new Date();
+  const credentialRefreshBlockedAt = details.permanent ? now : null;
+  const credentialRefreshRetryAt = details.permanent
+    ? null
+    : new Date(now.getTime() + FAILED_REFRESH_RETRY_INTERVAL_MS);
+  const result = await client.connectedAccount.updateMany({
+    where: { id: account.id, updatedAt: account.updatedAt },
+    data: {
+      credentialRefreshBlockedAt,
+      credentialRefreshRetryAt,
+      tokenMetadata: encryptTokenMetadata(tokenMetadata) ?? undefined,
+      updatedAt,
+    },
+  });
+  if (result.count !== 1) {
+    return null;
   }
+
+  return {
+    ...account,
+    credentialRefreshBlockedAt,
+    credentialRefreshRetryAt,
+    tokenMetadata: tokenMetadata as Prisma.JsonValue,
+    updatedAt,
+  };
 }
 
 async function persistRefreshSuccess(
+  client: CredentialPersistenceClient,
   account: ConnectedAccount,
   refreshed: TokenRefreshResult,
   now: Date,
-): Promise<ConnectedAccount> {
+): Promise<ConnectedAccount | null> {
   const tokenMetadata = withRefreshMetadata(account, now, {
+    ...refreshed.tokenMetadataPatch,
     lastRefreshError: null,
     lastRefreshErrorAt: null,
+    lastRefreshErrorCode: null,
+    lastRefreshErrorStatus: null,
+    lastRefreshErrorSubtype: null,
+    lastRefreshFailurePermanent: false,
     lastRefreshedAt: now.toISOString(),
     ...(refreshed.refreshTokenExpiresAt
       ? { refreshTokenExpiresAt: refreshed.refreshTokenExpiresAt.toISOString() }
       : {}),
   });
   const refreshToken = refreshed.refreshToken === undefined ? account.refreshToken : refreshed.refreshToken;
-
-  const updated = await prisma.connectedAccount.update({
-    where: { id: account.id },
+  const updatedAt = new Date();
+  const result = await client.connectedAccount.updateMany({
+    where: { id: account.id, updatedAt: account.updatedAt },
     data: {
       ...encryptConnectedAccountSecrets({
         accessToken: refreshed.accessToken,
         refreshToken,
         tokenMetadata,
       }),
+      credentialRefreshBlockedAt: null,
+      credentialRefreshRetryAt: null,
       expiresAt: refreshed.expiresAt,
-      updatedAt: new Date(),
+      updatedAt,
     },
-    select: { updatedAt: true },
   });
+  if (result.count !== 1) {
+    return null;
+  }
 
   return {
     ...account,
     accessToken: refreshed.accessToken,
+    credentialRefreshBlockedAt: null,
+    credentialRefreshRetryAt: null,
     expiresAt: refreshed.expiresAt,
     refreshToken: refreshToken ?? null,
     tokenMetadata: tokenMetadata as Prisma.JsonValue,
-    updatedAt: updated.updatedAt,
+    updatedAt,
   };
 }
 
@@ -760,8 +933,135 @@ function isTokenExpired(account: ConnectedAccount, now: Date): boolean {
 }
 
 function isRefreshCoolingDown(account: ConnectedAccount, now: Date): boolean {
+  if (account.credentialRefreshBlockedAt) {
+    return true;
+  }
+  if (account.credentialRefreshRetryAt) {
+    return account.credentialRefreshRetryAt.getTime() > now.getTime();
+  }
+
+  // Backwards compatibility for failures recorded before queryable retry
+  // fields were introduced.
   const lastErrorAt = metadataDate(account, "lastRefreshErrorAt");
   return lastErrorAt !== null && lastErrorAt.getTime() > now.getTime() - FAILED_REFRESH_RETRY_INTERVAL_MS;
+}
+
+async function loadConnectedAccount(
+  client: CredentialPersistenceClient,
+  accountId: string,
+): Promise<ConnectedAccount | null> {
+  const stored = await client.connectedAccount.findUnique({ where: { id: accountId } });
+  return stored ? decryptConnectedAccountSecrets(stored) : null;
+}
+
+function refreshFailureResult(
+  account: ConnectedAccount,
+  status: ConnectedAccountCredentialStatus,
+  now: Date,
+  message: string,
+): RefreshConnectedAccountResult {
+  return isTokenExpired(account, now)
+    ? { account, error: message, refreshed: false, refreshError: message, status }
+    : { account, refreshed: false, refreshError: message, status };
+}
+
+async function refreshConnectedAccountWhileLocked(
+  client: CredentialPersistenceClient,
+  account: ConnectedAccount,
+  options: {
+    force?: boolean;
+    minValidityMs: number;
+    now: Date;
+    reason: "post" | "background" | "manual";
+  },
+): Promise<RefreshConnectedAccountResult> {
+  const { minValidityMs, now, reason } = options;
+  const currentStatus = getConnectedAccountCredentialStatus(account, { now, warningWindowMs: minValidityMs });
+
+  // Another request may have refreshed or reconnected this account while this
+  // request was waiting for the PostgreSQL advisory lock.
+  if (!shouldRefreshAccount(account, { force: options.force, minValidityMs, now })) {
+    return { account, refreshed: false, status: currentStatus };
+  }
+
+  if (reason === "background" && !options.force && isRefreshCoolingDown(account, now)) {
+    return { account, refreshed: false, status: currentStatus };
+  }
+
+  if (!currentStatus.canRefresh) {
+    const message = currentStatus.message;
+    if (account.credentialRefreshBlockedAt) {
+      return refreshFailureResult(account, currentStatus, now, message);
+    }
+
+    log.warn(
+      { accountId: account.id, platform: account.platform, reason },
+      "Connected account credentials need refresh but cannot be refreshed",
+    );
+    const persisted = await persistRefreshError(client, account, now, message, {
+      permanent: hasStoredPermanentRefreshFailure(account),
+    });
+    const failedAccount = persisted ?? (await loadConnectedAccount(client, account.id)) ?? account;
+    const failedStatus = getConnectedAccountCredentialStatus(failedAccount, { now, warningWindowMs: minValidityMs });
+    return refreshFailureResult(failedAccount, failedStatus, now, message);
+  }
+
+  let refreshed: TokenRefreshResult;
+  try {
+    log.info({ accountId: account.id, platform: account.platform, reason }, "Refreshing connected account credentials");
+    refreshed = await refreshPlatformToken(account, now);
+  } catch (error) {
+    const tokenError = error instanceof TokenRefreshError ? error : null;
+    const errorMessage =
+      error instanceof Error
+        ? `${error.message}. Reconnect the ${platformLabel(account.platform)} account if this persists.`
+        : `${platformLabel(account.platform)} token refresh failed. Reconnect this account.`;
+    log.warn(
+      {
+        accountId: account.id,
+        err: serializeError(error),
+        permanent: tokenError?.permanent ?? false,
+        platform: account.platform,
+        providerCode: tokenError?.providerCode,
+        providerStatus: tokenError?.status,
+        providerSubtype: tokenError?.providerSubtype,
+        reason,
+      },
+      "Connected account credential refresh failed",
+    );
+
+    const persisted = await persistRefreshError(client, account, now, errorMessage, {
+      permanent: tokenError?.permanent ?? false,
+      providerCode: tokenError?.providerCode,
+      providerStatus: tokenError?.status,
+      providerSubtype: tokenError?.providerSubtype,
+    });
+    const failedAccount = persisted ?? (await loadConnectedAccount(client, account.id)) ?? account;
+    const failedStatus = getConnectedAccountCredentialStatus(failedAccount, { now, warningWindowMs: minValidityMs });
+    return refreshFailureResult(failedAccount, failedStatus, now, errorMessage);
+  }
+
+  const updatedAccount = await persistRefreshSuccess(client, account, refreshed, now);
+  if (!updatedAccount) {
+    // A reconnect/delete won the compare-and-swap. Never overwrite it with a
+    // token produced from the stale session.
+    const latestAccount = await loadConnectedAccount(client, account.id);
+    if (latestAccount) {
+      return {
+        account: latestAccount,
+        refreshed: false,
+        status: getConnectedAccountCredentialStatus(latestAccount, { now, warningWindowMs: minValidityMs }),
+      };
+    }
+    const message = `${platformLabel(account.platform)} account changed while its credentials were refreshing.`;
+    return refreshFailureResult(account, currentStatus, now, message);
+  }
+
+  const refreshedStatus = getConnectedAccountCredentialStatus(updatedAccount, {
+    now,
+    warningWindowMs: minValidityMs,
+  });
+  return { account: updatedAccount, refreshed: true, status: refreshedStatus };
 }
 
 export async function refreshConnectedAccountIfNeeded(
@@ -777,50 +1077,28 @@ export async function refreshConnectedAccountIfNeeded(
     return { account, refreshed: false, status: currentStatus };
   }
 
-  // Background sweeps back off after a failed attempt so a permanently broken
-  // account isn't retried on every dispatcher run. User-triggered refreshes
-  // still retry immediately: a publish is at stake.
-  if (reason === "background" && !options?.force && isRefreshCoolingDown(account, now)) {
-    return { account, refreshed: false, status: currentStatus };
-  }
-
-  // Block the caller only when the token is known to be expired; a refresh
-  // failure with a still-valid (or unknown-validity) token fails open so the
-  // publish attempt can proceed with the existing token.
-  const failure = (message: string): RefreshConnectedAccountResult =>
-    isTokenExpired(account, now)
-      ? { account, error: message, refreshed: false, refreshError: message, status: currentStatus }
-      : { account, refreshed: false, refreshError: message, status: currentStatus };
-
-  if (!currentStatus.canRefresh) {
-    log.warn(
-      { accountId: account.id, platform: account.platform, reason },
-      "Connected account credentials need refresh but cannot be refreshed",
-    );
-    await persistRefreshError(account, now, currentStatus.message);
-    return failure(currentStatus.message);
-  }
-
   try {
-    log.info({ accountId: account.id, platform: account.platform, reason }, "Refreshing connected account credentials");
-    const refreshed = await refreshPlatformToken(account, now);
-    const updatedAccount = await persistRefreshSuccess(account, refreshed, now);
-    const refreshedStatus = getConnectedAccountCredentialStatus(updatedAccount, {
-      now,
-      warningWindowMs: minValidityMs,
-    });
-    return { account: updatedAccount, refreshed: true, status: refreshedStatus };
+    return await prisma.$transaction(async (transaction) => {
+      await acquireConnectedAccountCredentialLock(transaction, account.id);
+      const freshAccount = await loadConnectedAccount(transaction, account.id);
+      if (!freshAccount) {
+        const message = `${platformLabel(account.platform)} account no longer exists.`;
+        return refreshFailureResult(account, currentStatus, now, message);
+      }
+      return await refreshConnectedAccountWhileLocked(transaction, freshAccount, {
+        force: options?.force,
+        minValidityMs,
+        now,
+        reason,
+      });
+    }, CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS);
   } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? `${error.message}. Reconnect the ${platformLabel(account.platform)} account if this persists.`
-        : `${platformLabel(account.platform)} token refresh failed. Reconnect this account.`;
-    log.warn(
+    const errorMessage = `${platformLabel(account.platform)} credentials could not be refreshed safely. Try again shortly.`;
+    log.error(
       { accountId: account.id, err: serializeError(error), platform: account.platform, reason },
-      "Connected account credential refresh failed",
+      "Connected account credential refresh transaction failed",
     );
-    await persistRefreshError(account, now, errorMessage);
-    return failure(errorMessage);
+    return refreshFailureResult(account, currentStatus, now, errorMessage);
   }
 }
 
@@ -844,6 +1122,8 @@ export async function refreshExpiringConnectedAccounts(options?: {
       orderBy: { expiresAt: "asc" },
       take: options?.limit ?? DEFAULT_REFRESH_SWEEP_LIMIT,
       where: {
+        credentialRefreshBlockedAt: null,
+        OR: [{ credentialRefreshRetryAt: null }, { credentialRefreshRetryAt: { lte: now } }],
         expiresAt: {
           lte: cutoff,
         },
@@ -937,6 +1217,16 @@ export async function getCredentialIssuesForPublishTime(params: {
     const readiness = getRefreshReadiness(account);
     const label = platformLabel(account.platform);
     const refreshTokenExpiresAt = metadataDate(account, "refreshTokenExpiresAt");
+
+    if (account.credentialRefreshBlockedAt || hasStoredPermanentRefreshFailure(account)) {
+      return [
+        {
+          accountId: account.id,
+          message: `${label} rejected the stored credentials. Reconnect this account before scheduling.`,
+          platform: account.platform,
+        },
+      ];
+    }
 
     if (refreshTokenExpiresAt && refreshTokenExpiresAt.getTime() <= requiredAtMs) {
       return [

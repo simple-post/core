@@ -1,18 +1,24 @@
 import { NextRequest } from "next/server";
 
 import { POST } from "@/app/api/connect/forem/route";
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { fetchForem } from "@/lib/security/forem";
 
 jest.mock("@/lib/middleware/auth", () => ({ requireAuth: jest.fn() }));
 jest.mock("@/lib/oauth/upsert", () => ({ upsertConnectedAccount: jest.fn() }));
+jest.mock("@/lib/config", () => {
+  const actual = jest.requireActual("@/lib/config");
+  return { ...actual, isSocialPlatformEnabled: jest.fn() };
+});
 jest.mock("@/lib/security/forem", () => {
   const actual = jest.requireActual("@/lib/security/forem");
   return { ...actual, fetchForem: jest.fn() };
 });
 
 const requireAuthMock = requireAuth as jest.MockedFunction<typeof requireAuth>;
+const isSocialPlatformEnabledMock = isSocialPlatformEnabled as jest.MockedFunction<typeof isSocialPlatformEnabled>;
 const upsertMock = upsertConnectedAccount as jest.MockedFunction<typeof upsertConnectedAccount>;
 const fetchForemMock = fetchForem as jest.MockedFunction<typeof fetchForem>;
 
@@ -27,6 +33,19 @@ function request(body: unknown): NextRequest {
 beforeEach(() => {
   jest.clearAllMocks();
   requireAuthMock.mockResolvedValue({ user: { id: "user-1" } } as Awaited<ReturnType<typeof requireAuth>>);
+  isSocialPlatformEnabledMock.mockReturnValue(true);
+});
+
+it("rejects connections when Forem is disabled", async () => {
+  isSocialPlatformEnabledMock.mockReturnValue(false);
+
+  const response = await POST(request({ instanceUrl: "https://dev.to", apiKey: "secret" }));
+
+  expect(response.status).toBe(400);
+  const body = await response.json();
+  expect(body.error).toContain("DEV/Forem is not enabled");
+  expect(fetchForemMock).not.toHaveBeenCalled();
+  expect(upsertMock).not.toHaveBeenCalled();
 });
 
 it("validates a DEV key and stores the normalized account", async () => {

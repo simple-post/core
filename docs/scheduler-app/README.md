@@ -48,6 +48,8 @@ yarn workspace @simple-post/scheduler dev
 
 The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:3000` is the local base URL used by OAuth callbacks, CLI authorization, and MCP metadata.
 
+Social account connections are disabled by default. Set `NEXT_PUBLIC_ENABLED_SOCIAL_PROVIDERS` to a comma-separated allowlist for each environment, for example `x,youtube,forem`, or to `*` to enable every provider. Supported IDs are `x`, `youtube`, `instagram`, `facebook`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`, `telegram`, and `forem`. Because this value is exposed to the Scheduler client bundle, rebuild/redeploy the app after changing it.
+
 ## Required Services
 
 | Service                  | Why it is needed                                                                                  |

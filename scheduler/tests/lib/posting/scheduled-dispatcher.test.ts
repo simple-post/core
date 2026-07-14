@@ -1,8 +1,11 @@
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { postToAccounts, repostToAccounts } from "@/lib/posting";
 import type { PostingResult } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
 import { prisma } from "@/lib/prisma";
+
+jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: jest.fn() }));
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -65,6 +68,7 @@ const prismaMock = prisma as unknown as {
 };
 const postToAccountsMock = postToAccounts as jest.Mock;
 const repostToAccountsMock = repostToAccounts as jest.Mock;
+const isSocialPlatformEnabledMock = isSocialPlatformEnabled as jest.MockedFunction<typeof isSocialPlatformEnabled>;
 
 interface DuePostFixture {
   id: string;
@@ -174,6 +178,7 @@ function mockFindMany({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  isSocialPlatformEnabledMock.mockReturnValue(true);
   prismaMock.user.findUnique.mockResolvedValue({
     subscription: {
       status: "active",
@@ -259,6 +264,22 @@ describe("dispatchDueScheduledPosts", () => {
         where: { id: "p1" },
         data: expect.objectContaining({ status: "published" }),
       }),
+    );
+  });
+
+  it("defers scheduled posts while one of their providers is disabled", async () => {
+    mockFindMany({
+      due: [duePost({ id: "p1", accounts: [{ id: "a1", platform: "forem" }] })],
+    });
+    isSocialPlatformEnabledMock.mockImplementation((platform) => platform !== "forem");
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(result.processedPosts).toBe(0);
+    expect(result.skippedPosts).toBe(1);
+    expect(prismaMock.post.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: "p1", status: "scheduled" }) }),
     );
   });
 

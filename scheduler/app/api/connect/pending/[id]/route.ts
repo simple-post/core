@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +44,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       throw new NotFoundError("Pending connection not found");
     }
 
+    if (!isSocialPlatformEnabled(pending.platform)) {
+      throw new BadRequestError("Social platform is not enabled in this environment");
+    }
+
     if (pending.expiresAt && pending.expiresAt.getTime() < Date.now()) {
       await prisma.pendingOAuthConnection.delete({ where: { id: pending.id } });
       throw new GoneError("Pending connection expired");
@@ -83,6 +88,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!pending) {
       throw new NotFoundError("Pending connection not found");
+    }
+
+    if (!isSocialPlatformEnabled(pending.platform)) {
+      throw new BadRequestError("Social platform is not enabled in this environment");
     }
 
     if (pending.expiresAt && pending.expiresAt.getTime() < Date.now()) {

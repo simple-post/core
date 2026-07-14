@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { fetchForem, normalizeForemInstanceUrl } from "@/lib/security/forem";
@@ -7,6 +8,9 @@ import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth(request);
+    if (!isSocialPlatformEnabled("forem")) {
+      throw new BadRequestError("DEV/Forem is not enabled in this environment");
+    }
     const body = await request.json();
     const rawInstanceUrl = (typeof body.instanceUrl === "string" ? body.instanceUrl.trim() : "") || "https://dev.to";
     const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";

@@ -17,6 +17,7 @@ import {
   CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS,
 } from "@/lib/oauth/connected-account-lock";
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
+import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/telemetry";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -455,7 +456,7 @@ function buildAccountSegments(
  * constraint is enforced here too so no future call site can post to another
  * user's connected accounts.
  */
-export async function postToAccounts(
+async function postToAccountsInternal(
   userId: string,
   message: string,
   mediaFiles: MediaFile[],
@@ -522,12 +523,15 @@ export async function postToAccounts(
       results = await Promise.all(
         accounts.map(async (account) => {
           const segments = buildAccountSegments(account.id, message, mediaFiles, sharedThread, accountOverrides);
-          const result = await postSegmentsToAccount(
-            segments,
-            account,
-            resolver,
-            accountOptions,
-            quoteTargetByAccountId.get(account.id),
+          const result = await withAccountPublishSpan(
+            "post",
+            account.platform,
+            {
+              "simplepost.segment_count": segments.length,
+              "simplepost.has_media": segments.some((segment) => segment.mediaFiles.length > 0),
+            },
+            () =>
+              postSegmentsToAccount(segments, account, resolver, accountOptions, quoteTargetByAccountId.get(account.id)),
           );
 
           // Progress reporting is best-effort. A disconnected streaming client
@@ -583,6 +587,20 @@ export async function postToAccounts(
     log.error({ err: serializeError(error), durationMs }, "Fatal error in postToAccounts");
     throw error;
   }
+}
+
+export async function postToAccounts(...args: Parameters<typeof postToAccountsInternal>): Promise<PostingResult[]> {
+  const { 2: mediaFiles, 3: accountIds, 6: thread } = args;
+  return withPostingBatch(
+    "post",
+    "simplepost.publish",
+    {
+      "simplepost.account_count": accountIds.length,
+      "simplepost.media_count": mediaFiles.length,
+      "simplepost.thread_segment_count": thread?.length ?? 0,
+    },
+    () => postToAccountsInternal(...args),
+  );
 }
 
 async function repostSingleTarget(
@@ -671,7 +689,7 @@ async function repostSingleTarget(
   });
 }
 
-export async function repostToAccounts(
+async function repostToAccountsInternal(
   userId: string,
   targets: AccountRepostTarget[],
   accountOptions?: AccountOptionsMap,
@@ -713,11 +731,23 @@ export async function repostToAccounts(
       }
 
       const accountLog = log.child({ accountId: account.id, platform: account.platform });
-      return repostSingleTarget(account, target, accountOptions, accountLog);
+      return withAccountPublishSpan("repost", account.platform, {}, () =>
+        repostSingleTarget(account, target, accountOptions, accountLog),
+      );
     }),
   );
 
   return [...missingResults, ...results];
+}
+
+export async function repostToAccounts(...args: Parameters<typeof repostToAccountsInternal>): Promise<PostingResult[]> {
+  const [, targets] = args;
+  return withPostingBatch(
+    "repost",
+    "simplepost.repost",
+    { "simplepost.account_count": targets.length },
+    () => repostToAccountsInternal(...args),
+  );
 }
 
 /**

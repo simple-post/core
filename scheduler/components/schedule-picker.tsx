@@ -142,20 +142,25 @@ export function SchedulePicker({
                       key={key}
                       type="button"
                       disabled={isFilled}
+                      aria-label={`${format(occurrence, "EEEE, MMMM d 'at' h:mm a")}${isFilled ? ", booked" : ""}`}
                       onClick={() => {
                         selectSlot(occurrence);
                         setListOpen(false);
                       }}
                       className={cn(
                         "flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:bg-secondary disabled:pointer-events-none",
-                        isActive ? "bg-primary/15 font-medium text-primary" : "text-foreground hover:bg-secondary",
+                        isFilled
+                          ? "bg-secondary/40 text-muted-foreground opacity-55"
+                          : isActive
+                            ? "bg-primary/15 font-medium text-primary"
+                            : "text-foreground hover:bg-secondary",
                       )}>
-                      <span className={cn("tabular-nums", isFilled && "text-muted-foreground line-through")}>
+                      <span className={cn("tabular-nums", isFilled && "line-through")}>
                         {format(occurrence, "EEE, MMM d · h:mm a")}
                       </span>
                       {isFilled ? (
                         <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          Filled
+                          Booked
                         </span>
                       ) : isActive ? (
                         <Check className="h-3.5 w-3.5 shrink-0" />

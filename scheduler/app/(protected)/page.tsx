@@ -15,18 +15,7 @@ import { useSession } from "@/lib/auth/auth-client";
 import { cn } from "@/lib/utils";
 
 type TimelineTabType = "drafts" | "scheduled" | "past" | "failed";
-type DashboardTabParam = TimelineTabType | "published" | "posted" | "calendar";
-
 const TIMELINE_TABS = new Set<TimelineTabType>(["drafts", "scheduled", "past", "failed"]);
-const DASHBOARD_TAB_PARAMS = new Set<DashboardTabParam>([
-  "scheduled",
-  "past",
-  "failed",
-  "published",
-  "posted",
-  "drafts",
-  "calendar",
-]);
 const FAILED_SEEN_STORAGE_KEY_PREFIX = "simplepost:dashboard:last-seen-failed-at:v1";
 const TIMELINE_TAB_TRIGGER_CLASS =
   "h-14 min-w-0 flex-col gap-1 rounded-lg px-1 font-sans normal-case tracking-normal after:hidden data-[state=active]:bg-secondary data-[state=active]:shadow-sm sm:h-10 sm:flex-row sm:gap-2 sm:rounded-none sm:px-3 sm:font-mono sm:uppercase sm:tracking-[0.12em] sm:after:block sm:data-[state=active]:bg-transparent sm:data-[state=active]:shadow-none";
@@ -35,10 +24,6 @@ function getTimelineTabFromParam(value: string | null): TimelineTabType | null {
   if (!value) return null;
   if (value === "published" || value === "posted") return "past";
   return TIMELINE_TABS.has(value as TimelineTabType) ? (value as TimelineTabType) : null;
-}
-
-function isKnownDashboardTabParam(value: string | null): value is DashboardTabParam {
-  return Boolean(value && DASHBOARD_TAB_PARAMS.has(value as DashboardTabParam));
 }
 
 function TabCountBadge({
@@ -101,12 +86,22 @@ export default function Dashboard() {
   }, [failedSeenStorageKey]);
 
   useEffect(() => {
-    if (isKnownDashboardTabParam(tabParam)) {
-      const timelineTab = getTimelineTabFromParam(tabParam);
-      if (timelineTab) {
-        setActiveTab(timelineTab);
+    const timelineTab = getTimelineTabFromParam(tabParam);
+
+    if (timelineTab) {
+      setActiveTab(timelineTab);
+
+      // Keep old links working, but leave the canonical tab in the URL so
+      // navigating back from a post restores the same dashboard section.
+      if (tabParam !== timelineTab) {
+        router.replace(`/?tab=${timelineTab}`, { scroll: false });
       }
-      router.replace("/", { scroll: false });
+      return;
+    }
+
+    setActiveTab("drafts");
+    if (tabParam) {
+      router.replace("/?tab=drafts", { scroll: false });
     }
   }, [tabParam, router]);
 
@@ -120,7 +115,9 @@ export default function Dashboard() {
   }, [activeTab, failedSeenStorageKey, latestFailedAt]);
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value as TimelineTabType);
+    const nextTab = value as TimelineTabType;
+    setActiveTab(nextTab);
+    router.replace(`/?tab=${nextTab}`, { scroll: false });
   };
 
   return (

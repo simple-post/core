@@ -5,7 +5,7 @@ const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Allow the native image-processing package to load outside the bundle.
-  serverExternalPackages: ["sharp"],
+  serverExternalPackages: ["sharp", "@prisma/instrumentation"],
 
   // Enable Turbopack (default in Next.js 16)
   // This app imports the sibling SDK workspace. Pinning the root prevents

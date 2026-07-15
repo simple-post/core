@@ -6,6 +6,7 @@ import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger } from "@/lib/logger";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
+import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
 import { prisma } from "@/lib/prisma";
@@ -81,6 +82,7 @@ interface DuePost {
   repostEnabled: boolean;
   repostDelayHours: number;
   quotePostId: string | null;
+  scheduledFor: Date;
   quotePost: { status: string } | null;
   media: MediaFile[];
   accounts: Array<{
@@ -96,6 +98,7 @@ interface DueRepostPost {
   accountOptions: unknown;
   accountResults: unknown;
   repostDelayHours: number;
+  repostDueAt: Date | null;
   accounts: Array<{
     id: string;
     platform: string;
@@ -626,7 +629,7 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
   }
 }
 
-export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResult> {
+async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResult> {
   const startedAt = new Date();
   const now = new Date();
 
@@ -689,6 +692,13 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
       take: MAX_POSTS_PER_RUN,
     }),
   ])) as [DuePost[], DueRepostPost[]];
+
+  if (duePosts[0]?.scheduledFor) {
+    recordSchedulerQueueLag("post", now.getTime() - duePosts[0].scheduledFor.getTime());
+  }
+  if (dueReposts[0]?.repostDueAt) {
+    recordSchedulerQueueLag("repost", now.getTime() - dueReposts[0].repostDueAt.getTime());
+  }
 
   const repostTargetsByPostId = new Map(dueReposts.map((post) => [post.id, buildRepostTargets(post)]));
   const duePostIds = new Set(duePosts.map((post) => post.id));
@@ -968,4 +978,8 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     postResults,
     repostResults,
   };
+}
+
+export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResult> {
+  return withScheduledDispatch(dispatchDueScheduledPostsInternal);
 }

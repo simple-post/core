@@ -6,7 +6,7 @@ function getRequired(name: string): string {
   return value;
 }
 
-function getBoolean(name: string): boolean {
+export function getBoolean(name: string): boolean {
   return process.env[name]?.toLowerCase() === "true";
 }
 

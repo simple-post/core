@@ -531,7 +531,13 @@ async function postToAccountsInternal(
               "simplepost.has_media": segments.some((segment) => segment.mediaFiles.length > 0),
             },
             () =>
-              postSegmentsToAccount(segments, account, resolver, accountOptions, quoteTargetByAccountId.get(account.id)),
+              postSegmentsToAccount(
+                segments,
+                account,
+                resolver,
+                accountOptions,
+                quoteTargetByAccountId.get(account.id),
+              ),
           );
 
           // Progress reporting is best-effort. A disconnected streaming client
@@ -742,11 +748,8 @@ async function repostToAccountsInternal(
 
 export async function repostToAccounts(...args: Parameters<typeof repostToAccountsInternal>): Promise<PostingResult[]> {
   const [, targets] = args;
-  return withPostingBatch(
-    "repost",
-    "simplepost.repost",
-    { "simplepost.account_count": targets.length },
-    () => repostToAccountsInternal(...args),
+  return withPostingBatch("repost", "simplepost.repost", { "simplepost.account_count": targets.length }, () =>
+    repostToAccountsInternal(...args),
   );
 }
 

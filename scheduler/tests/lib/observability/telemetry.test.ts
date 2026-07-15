@@ -49,7 +49,11 @@ describe("observability telemetry", () => {
   it("counts credential-refresh failures as a partial dispatch failure", () => {
     expect(dispatchOutcome(dispatchResult)).toBe("partial_failure");
     expect(
-      dispatchOutcome({ ...dispatchResult, failedPosts: 0, credentialRefresh: { refreshed: 1, failed: 0, skipped: 0 } }),
+      dispatchOutcome({
+        ...dispatchResult,
+        failedPosts: 0,
+        credentialRefresh: { refreshed: 1, failed: 0, skipped: 0 },
+      }),
     ).toBe("success");
   });
 

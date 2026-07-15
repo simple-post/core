@@ -29,7 +29,10 @@ export async function register() {
   registerProcessErrorHandlers();
 
   if (observabilityError) {
-    logger.error({ err: serializeError(observabilityError) }, "OpenTelemetry setup failed; continuing without telemetry");
+    logger.error(
+      { err: serializeError(observabilityError) },
+      "OpenTelemetry setup failed; continuing without telemetry",
+    );
   }
 
   try {

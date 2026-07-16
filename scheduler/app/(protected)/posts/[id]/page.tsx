@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { format } from "date-fns";
-import { Trash2, Calendar, CalendarClock, Clock, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
+import { Trash2, Calendar, CalendarClock, Clock, Copy, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Navbar } from "@/components/navbar";
@@ -196,7 +196,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const isDraft = post.status === "draft";
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
-  const canQuote = isScheduled || post.status === "published";
+  const isPublished = post.status === "published";
+  const canQuote = isScheduled || isPublished;
   const thread = post.thread ?? [];
   const hasThread = thread.length > 0;
   const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
@@ -260,6 +261,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <Link href={`/posts/${id}/edit`}>
                     <Edit className="h-4 w-4" />
                     {isFailed ? "Edit and Retry" : "Edit"}
+                  </Link>
+                </Button>
+              )}
+              {isPublished && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/posts/${id}/duplicate`}>
+                    <Copy className="h-4 w-4" />
+                    Duplicate
                   </Link>
                 </Button>
               )}

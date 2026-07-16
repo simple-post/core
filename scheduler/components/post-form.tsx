@@ -51,7 +51,7 @@ import { SchedulePicker } from "./schedule-picker";
 import type { ValidationIssue } from "@simple-post/sdk";
 
 interface PostFormProps {
-  mode: "create" | "edit" | "retry";
+  mode: "create" | "duplicate" | "edit" | "retry";
   existingPost?: SocialPost;
 }
 
@@ -98,21 +98,23 @@ function getFailedRetryAccountIds(post: SocialPost): string[] {
   return post.accountIds;
 }
 
-function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: "edit" | "retry" }) {
+function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: "duplicate" | "edit" | "retry" }) {
   const isRetry = mode === "retry";
+  const isDuplicate = mode === "duplicate";
+  const isCreating = isRetry || isDuplicate;
   const router = useRouter();
   const [message, setMessage] = useState(existingPost.message || "");
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     isRetry ? getFailedRetryAccountIds(existingPost) : existingPost.accountIds || [],
   );
   const [postingMode, setPostingMode] = useState<PostingMode>(
-    isRetry ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
+    isCreating ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
   );
   const [scheduledDate, setScheduledDate] = useState(
-    !isRetry && existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
+    !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
   );
   const [scheduledTime, setScheduledTime] = useState(
-    !isRetry && existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
+    !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
   );
   const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
   const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
@@ -395,7 +397,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         body.thread = thread;
       }
 
-      if (isRetry) {
+      if (isCreating) {
         body.repost = {
           enabled: existingPost.repostEnabled === true,
           delayHours: normalizeDelayHours(existingPost.repostDelayHours),
@@ -410,8 +412,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       // Submit using mutation
       const data = await submitPostMutation.mutateAsync({
         body,
-        mode: isRetry ? "create" : "edit",
-        postId: isRetry ? undefined : existingPost.id,
+        mode: isCreating ? "create" : "edit",
+        postId: isCreating ? undefined : existingPost.id,
         onPostingResult:
           postingMode === "now"
             ? (result) => {
@@ -433,11 +435,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         // Navigation will happen when modal closes (see onOpenChange below)
         // If failed, user can close modal and retry
       } else {
-        if (isRetry) {
-          router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
-        } else {
-          router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
-        }
+        router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : `Failed to ${isRetry ? "retry" : mode} post.`;

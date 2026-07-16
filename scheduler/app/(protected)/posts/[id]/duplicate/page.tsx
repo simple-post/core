@@ -1,9 +1,8 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use } from "react";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
@@ -11,19 +10,11 @@ import { PostForm } from "@/components/post-form";
 import { Button } from "@/components/ui/button";
 import { usePost } from "@/hooks/use-posts";
 
-export default function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
+export default function DuplicatePostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const router = useRouter();
-  const { data: post, isLoading: loading } = usePost(id);
-  const canEdit = post?.status === "scheduled" || post?.status === "draft" || post?.status === "failed";
+  const { data: post, isLoading } = usePost(id);
 
-  useEffect(() => {
-    if (post && !canEdit) {
-      router.replace("/?tab=past");
-    }
-  }, [canEdit, post, router]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -54,14 +45,17 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
     );
   }
 
-  if (!canEdit) {
+  if (post.status !== "published") {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-secondary rounded w-1/4" />
-            <div className="h-64 bg-secondary rounded" />
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-semibold">Cannot duplicate this post</h1>
+            <p className="text-muted-foreground text-sm">Only published posts can be duplicated.</p>
+            <Link href={`/posts/${id}`}>
+              <Button variant="outline">Back to post</Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -78,23 +72,15 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />
-              <span className="section-kicker-label">Edit</span>
+              <span className="section-kicker-label">Duplicate</span>
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              {post.status === "failed" ? (
-                <>
-                  Retry <span className="text-primary">failed post</span>
-                </>
-              ) : (
-                <>
-                  Update <span className="text-primary">{post.status === "draft" ? "draft" : "scheduled post"}</span>
-                </>
-              )}
+              Create a <span className="text-primary">new post</span>
             </h1>
           </div>
         </div>
-        <PostForm mode={post.status === "failed" ? "retry" : "edit"} existingPost={post} />
+        <PostForm mode="duplicate" existingPost={post} />
       </main>
     </div>
   );

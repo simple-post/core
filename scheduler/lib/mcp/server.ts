@@ -1,6 +1,9 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import { createLogger } from "@/lib/logger";
+import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
+
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
@@ -24,6 +27,8 @@ import {
   updateScheduledPostSchema,
 } from "./tools/posts";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
+
+const log = createLogger("mcp:tools");
 
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule posts to multiple social media platforms (X, Telegram, Facebook, Instagram, YouTube, Meta Threads, ...) from a single tool call. Only call tools for SimplePost posting workflows. Do not call tools for generic writing help, connecting accounts, or editing/deleting social posts that were already published externally; explain those are unsupported and direct the user to the SimplePost web app or social platform.
 
@@ -123,6 +128,10 @@ function toolMeta(invoking: string, invoked: string) {
 }
 
 function errorResult(error: unknown) {
+  if (error instanceof ApiError && error.logContext) {
+    log.warn(apiErrorLogPayload(error), "MCP tool billing gate denied");
+  }
+
   return {
     content: [{ type: "text" as const, text: error instanceof Error ? error.message : String(error) }],
     isError: true,

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-currency";
 import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getStripe } from "@/lib/billing/stripe";
-import { getBillingStatus, syncStripeSubscription } from "@/lib/billing/subscriptions";
+import { getBillingErrorLogContext, getBillingStatus, syncStripeSubscription } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { BadRequestError, NotFoundError, PaymentRequiredError, handleApiError } from "@/lib/utils/errors";
@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
     const billing = await getBillingStatus(session.user.id);
     const subscriptionId = billing.subscription?.stripeSubscriptionId;
     if (!billing.active || !subscriptionId) {
-      throw new PaymentRequiredError("An active subscription is required to change plans");
+      throw new PaymentRequiredError(
+        "An active subscription is required to change plans",
+        await getBillingErrorLogContext(session.user.id, { action: "change_paid_plan" }),
+      );
     }
 
     const displayCurrency = getBillingDisplayCurrencyFromHeaders(req.headers);

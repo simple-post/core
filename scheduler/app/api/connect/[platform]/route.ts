@@ -9,7 +9,7 @@ import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   try {
     const { platform } = await params;
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, { action: "connect_social_account", platform });
 
     if (!isSocialPlatformEnabled(platform)) {
       throw new BadRequestError("Social platform is not enabled in this environment");

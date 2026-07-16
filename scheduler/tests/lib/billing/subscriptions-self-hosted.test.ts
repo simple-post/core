@@ -17,6 +17,7 @@ jest.mock("@/lib/prisma", () => ({
     },
     connectedAccount: {
       count: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
   },
@@ -25,7 +26,7 @@ jest.mock("@/lib/prisma", () => ({
 const mockPrisma = prisma as unknown as {
   user: { findUnique: jest.Mock };
   post: { count: jest.Mock };
-  connectedAccount: { count: jest.Mock; findUnique: jest.Mock };
+  connectedAccount: { count: jest.Mock; findFirst: jest.Mock; findUnique: jest.Mock };
 };
 
 describe("billing in self-hosted mode", () => {
@@ -188,10 +189,107 @@ describe("billing when self-hosted mode is off", () => {
   });
 
   it("rejects the active subscription assertion without a subscription", async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ subscription: null });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "vladimir@example.com",
+      subscription: {
+        status: "past_due",
+        planKey: "basic",
+        stripeCustomerId: "cus_1",
+        stripeSubscriptionId: "sub_1",
+        stripePriceId: null,
+        currentPeriodStart: new Date("2026-06-01T00:00:00.000Z"),
+        currentPeriodEnd: new Date("2099-07-01T00:00:00.000Z"),
+        cancelAtPeriodEnd: false,
+        canceledAt: null,
+        trialEndsAt: null,
+      },
+      complimentaryAccess: null,
+    });
     mockPrisma.connectedAccount.count.mockResolvedValue(0);
     mockPrisma.post.count.mockResolvedValue(0);
 
-    await expect(assertActiveSubscription("user-1")).rejects.toThrow("An active SimplePost subscription is required");
+    await expect(assertActiveSubscription("user-1", { action: "oauth_authorize" })).rejects.toMatchObject({
+      message: "An active SimplePost subscription is required",
+      logContext: {
+        userId: "user-1",
+        maskedEmail: "vl***ir@example.com",
+        action: "oauth_authorize",
+        billingActive: false,
+        accessType: "none",
+        planKey: null,
+        subscriptionStatus: "past_due",
+      },
+    });
+  });
+
+  it("logs the complimentary plan and exact social account when the account limit is reached", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-13T12:00:00.000Z"));
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "invitee@example.com",
+      subscription: null,
+      complimentaryAccess: {
+        planKey: "basic",
+        startsAt: new Date("2026-07-01T00:00:00.000Z"),
+        expiresAt: new Date("2026-10-01T00:00:00.000Z"),
+        source: "invite",
+      },
+    });
+    mockPrisma.connectedAccount.findUnique.mockResolvedValue(null);
+    mockPrisma.connectedAccount.count.mockResolvedValue(5);
+    mockPrisma.post.count.mockResolvedValue(3);
+
+    await expect(
+      assertCanConnectAccount({
+        userId: "user-1",
+        platform: "x",
+        platformAccountId: "123456789",
+        accountLabel: "@simplepost",
+      }),
+    ).rejects.toMatchObject({
+      logContext: {
+        userId: "user-1",
+        maskedEmail: "in***ee@example.com",
+        action: "connect_social_account",
+        accessType: "complimentary",
+        planKey: "basic",
+        subscriptionStatus: "none",
+        complimentaryPlanKey: "basic",
+        platform: "x",
+        platformAccountId: "123456789",
+        accountLabel: "@simplepost",
+      },
+    });
+  });
+
+  it("resolves the exact social account for an account-specific billing denial", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "account-owner@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(1);
+    mockPrisma.connectedAccount.findFirst.mockResolvedValue({
+      platform: "linkedin",
+      platformAccountId: "urn:li:person:abc123",
+      username: "vladimir-haltakov",
+      displayName: "Vladimir Haltakov",
+    });
+
+    await expect(
+      assertActiveSubscription("user-1", {
+        action: "disconnect_social_account",
+        connectedAccountId: "account-1",
+      }),
+    ).rejects.toMatchObject({
+      logContext: {
+        userId: "user-1",
+        maskedEmail: "ac***er@example.com",
+        action: "disconnect_social_account",
+        connectedAccountId: "account-1",
+        platform: "linkedin",
+        platformAccountId: "urn:li:person:abc123",
+        accountLabel: "vladimir-haltakov",
+      },
+    });
   });
 });

@@ -10,7 +10,7 @@ const log = createLogger("api:connect:telegram");
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireAuth(req, { action: "connect_social_account", platform: "telegram" });
     if (!isSocialPlatformEnabled("telegram")) {
       throw new BadRequestError("Telegram is not enabled in this environment");
     }

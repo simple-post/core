@@ -43,7 +43,7 @@ function isAllowedAvatarHost(url: URL, platform: string): boolean {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, { action: "load_social_account_avatar", connectedAccountId: id });
 
     const account = await prisma.connectedAccount.findUnique({
       where: { id },

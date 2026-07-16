@@ -13,7 +13,11 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, {
+      action: "load_tiktok_creator_info",
+      connectedAccountId: id,
+      platform: "tiktok",
+    });
 
     const storedAccount = await prisma.connectedAccount.findUnique({ where: { id } });
     const account = storedAccount ? decryptConnectedAccountSecrets(storedAccount) : null;

@@ -18,7 +18,7 @@ import { handleApiError } from "@/lib/utils/errors";
 export async function POST(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
-    await assertActiveSubscription(session.user.id);
+    await assertActiveSubscription(session.user.id, { action: "oauth_authorize" });
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource } = body;

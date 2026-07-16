@@ -84,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Validate session matches state userId
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, { action: "connect_social_account_callback", platform });
     if (session.user.id !== userId) {
       authLogger.warn({ stateUserId: userId, sessionUserId: session.user.id }, "OAuth session mismatch");
       return NextResponse.redirect(getErrorRedirectUrl("session_mismatch", baseURL));

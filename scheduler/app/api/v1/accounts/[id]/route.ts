@@ -7,7 +7,7 @@ import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/error
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, { action: "disconnect_social_account", connectedAccountId: id });
 
     // Check if the account exists and belongs to the user
     const account = await prisma.connectedAccount.findUnique({

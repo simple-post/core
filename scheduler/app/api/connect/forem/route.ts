@@ -7,7 +7,7 @@ import { fetchForem, normalizeForemInstanceUrl } from "@/lib/security/forem";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, { action: "connect_social_account", platform: "forem" });
     if (!isSocialPlatformEnabled("forem")) {
       throw new BadRequestError("DEV/Forem is not enabled in this environment");
     }

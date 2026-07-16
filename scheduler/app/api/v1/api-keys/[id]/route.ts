@@ -29,8 +29,8 @@ function serializeApiKey(apiKey: {
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireBrowserSession(req);
-    await assertPlanFeature(session.user.id, "apiAccess");
     const { id } = await params;
+    await assertPlanFeature(session.user.id, "apiAccess", { action: "revoke_api_key" });
     const apiKey = await prisma.apiKey.findUnique({ where: { id } });
 
     if (!apiKey) {

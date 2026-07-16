@@ -21,7 +21,7 @@ interface PinterestBoardsResponse {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(request);
+    const session = await requireAuth(request, { action: "list_social_account_boards", connectedAccountId: id });
 
     // Fetch the account
     const storedAccount = await prisma.connectedAccount.findUnique({

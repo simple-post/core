@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 
 import { auth } from "@/lib/auth/auth";
-import { assertActiveSubscription, assertPlanFeature } from "@/lib/billing/subscriptions";
+import { assertActiveSubscription, assertPlanFeature, type BillingGateContext } from "@/lib/billing/subscriptions";
 import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
@@ -116,25 +116,34 @@ async function authenticateApiKey(req: NextRequest) {
  * Requires authentication and returns the session
  * Throws UnauthorizedError if not authenticated
  */
-export async function requireAuth(req: NextRequest) {
+export async function requireAuth(req: NextRequest, billingContext: BillingGateContext = {}) {
   // Try CLI bearer token first
   const cliSession = await authenticateCliToken(req);
   if (cliSession) {
-    await assertPlanFeature(cliSession.user.id, "cliAccess");
+    await assertPlanFeature(cliSession.user.id, "cliAccess", {
+      ...billingContext,
+      action: billingContext.action ?? "cli_authenticated_request",
+    });
     return cliSession;
   }
 
   // Try MCP bearer token
   const mcpSession = await authenticateMcpBearerToken(req);
   if (mcpSession) {
-    await assertActiveSubscription(mcpSession.user.id);
+    await assertActiveSubscription(mcpSession.user.id, {
+      ...billingContext,
+      action: billingContext.action ?? "mcp_authenticated_request",
+    });
     return mcpSession;
   }
 
   // Try API key bearer token
   const apiKeySession = await authenticateApiKey(req);
   if (apiKeySession) {
-    await assertPlanFeature(apiKeySession.user.id, "apiAccess");
+    await assertPlanFeature(apiKeySession.user.id, "apiAccess", {
+      ...billingContext,
+      action: billingContext.action ?? "api_key_authenticated_request",
+    });
     return apiKeySession;
   }
 
@@ -145,7 +154,10 @@ export async function requireAuth(req: NextRequest) {
     throw new UnauthorizedError("Authentication required");
   }
 
-  await assertActiveSubscription(session.user.id);
+  await assertActiveSubscription(session.user.id, {
+    ...billingContext,
+    action: billingContext.action ?? "browser_authenticated_request",
+  });
 
   return session;
 }

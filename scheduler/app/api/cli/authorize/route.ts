@@ -13,7 +13,7 @@ function isLoopbackHost(hostname: string): boolean {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
-    await assertPlanFeature(session.user.id, "cliAccess");
+    await assertPlanFeature(session.user.id, "cliAccess", { action: "cli_authorize" });
     const body = await req.json();
     const { state, redirectUri } = body;
 

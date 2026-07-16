@@ -158,6 +158,7 @@ export function AccountSelector({
               <div key={account.id} className={cardClass}>
                 <button
                   type="button"
+                  data-testid={`account-toggle-${account.platform}-${account.id}`}
                   onClick={() => handleAccountToggle(account.id)}
                   disabled={isDisabled}
                   className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
@@ -257,6 +258,7 @@ export function AccountSelector({
                       <div key={account.id} className={cardClass}>
                         <button
                           type="button"
+                          data-testid={`account-toggle-${account.platform}-${account.id}`}
                           onClick={() => handleAccountToggle(account.id)}
                           disabled={isDisabled}
                           className="absolute inset-0 w-full h-full p-3 text-center disabled:cursor-not-allowed">
@@ -305,6 +307,7 @@ export function AccountSelector({
                       <div key={account.id} className={containerClass}>
                         <button
                           type="button"
+                          data-testid={`account-toggle-${account.platform}-${account.id}`}
                           onClick={() => handleAccountToggle(account.id)}
                           disabled={isDisabled}
                           className="flex-1 text-left disabled:cursor-not-allowed">

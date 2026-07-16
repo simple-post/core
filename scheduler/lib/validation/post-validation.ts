@@ -1,6 +1,7 @@
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "@simple-post/sdk/validation";
 
+import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getPlatformById, isSocialPlatformEnabled } from "@/lib/config";
 import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
@@ -105,6 +106,17 @@ export function validatePostForResolvedAccounts(params: {
         severity: "error",
         code: "provider_disabled",
         message: `${getPlatformById(account.platform)?.name ?? account.platform} is not enabled in this environment.`,
+        field: "accounts",
+        meta: { accountId: account.id },
+      });
+    }
+
+    if (isPreviewOnlyConnectedAccount(account)) {
+      errors.push({
+        platform,
+        severity: "error",
+        code: "preview_only_account",
+        message: `${getPlatformById(platform)?.name ?? platform} is configured for preview only. Connect a real account before posting.`,
         field: "accounts",
         meta: { accountId: account.id },
       });

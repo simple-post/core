@@ -117,7 +117,7 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
     }
     case "threads": {
       const username = ctx.username || "";
-      return username ? `https://www.threads.net/@${username.replace("@", "")}/post/${postId}` : undefined;
+      return username ? `https://www.threads.com/@${username.replace("@", "")}/post/${postId}` : undefined;
     }
     case "linkedin": {
       // The LinkedIn `/ugcPosts` API returns URNs like

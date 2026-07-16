@@ -15,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { AccountOptionsComponent } from "@/features/platform-options/account-options";
+import { PlatformPostPreview } from "@/features/platform-preview/live-platform-post-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
@@ -39,12 +41,10 @@ import type {
   ThreadSegment,
 } from "@/types";
 
-import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
 import { CreatePostForm } from "./create-post-form";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
-import { PostPreview } from "./post-preview";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
 
@@ -753,12 +753,12 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       </form>
 
       <div className="lg:sticky lg:top-24 self-start">
-        <PostPreview
+        <PlatformPostPreview
           message={message}
           media={media}
-          scheduledDate={scheduledDate}
-          scheduledTime={scheduledTime}
-          selectedPlatforms={selectedAccountIds}
+          selectedAccounts={selectedAccounts}
+          accountOptions={accountOptions}
+          accountOverrides={accountOverrides}
           thread={thread}
         />
       </div>

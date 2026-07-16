@@ -7,16 +7,16 @@ import { useParams } from "next/navigation";
 
 import { Info } from "lucide-react";
 
-import { AccountOptionsComponent } from "@/components/account-options";
 import { BackLink } from "@/components/back-link";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "@/components/media-upload";
 import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
-import { PostPreview } from "@/components/post-preview";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AccountOptionsComponent } from "@/features/platform-options/account-options";
+import { PlatformPostPreview } from "@/features/platform-preview/live-platform-post-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 
@@ -247,7 +247,12 @@ export default function AdvancedAccountSettingsPage() {
           </div>
 
           <div className="lg:sticky lg:top-24 self-start">
-            <PostPreview message={effectiveMessage} media={effectiveMedia} selectedPlatforms={[accountId]} />
+            <PlatformPostPreview
+              message={effectiveMessage}
+              media={effectiveMedia}
+              selectedAccounts={[account]}
+              accountOptions={accountOptions}
+            />
           </div>
         </div>
       </main>

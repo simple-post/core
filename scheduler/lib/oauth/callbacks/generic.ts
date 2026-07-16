@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authLogger } from "@/lib/logger";
 import { getPlatformOAuthConfig } from "@/lib/oauth/config";
+import { fetchPinterestDisplayName } from "@/lib/oauth/pinterest-profile";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 
@@ -272,7 +273,11 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       const p = profile as PinterestProfile;
       platformAccountId = p.id || p.username || "";
       username = p.username || null;
-      displayName = p.profile_name || p.business_name || p.username || null;
+      displayName = p.profile_name || p.business_name || null;
+      if (!displayName && username) {
+        displayName = await fetchPinterestDisplayName(username);
+      }
+      displayName ||= username;
       const img = p.profile_image;
       profilePicture = (typeof img === "object" ? img?.url : img) || null;
       break;

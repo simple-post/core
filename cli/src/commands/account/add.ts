@@ -55,6 +55,8 @@ export default class AccountAddCommand extends Command {
     }),
     "instance-url": Flags.string({ description: "Forem instance URL (defaults to https://dev.to)" }),
     "api-key": Flags.string({ description: "Forem API key (prefer interactive entry)" }),
+    "private-key": Flags.string({ description: "Nostr nsec or hex private key (prefer interactive entry)" }),
+    relays: Flags.string({ description: "Comma-separated Nostr relay URLs" }),
   };
 
   public async run(): Promise<void> {
@@ -93,6 +95,8 @@ export default class AccountAddCommand extends Command {
       redirectUri: flags["redirect-uri"],
       instanceUrl: flags["instance-url"],
       apiKey: flags["api-key"],
+      privateKey: flags["private-key"],
+      relays: flags.relays,
     };
     const nextConfig = await provider.login(loginFlags, {
       config,

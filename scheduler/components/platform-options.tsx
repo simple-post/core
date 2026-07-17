@@ -466,6 +466,29 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
         </Card>
       )}
 
+      {/* Nostr Options */}
+      {selectedPlatforms.includes("nostr") && (
+        <Card className="p-4 space-y-4 border-border">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-purple-600 flex-shrink-0" />
+            <h4 className="text-sm font-medium">Nostr Options</h4>
+          </div>
+          <div>
+            <Label htmlFor="nostr-subject" className="text-sm text-muted-foreground">
+              Subject (optional)
+            </Label>
+            <Input
+              id="nostr-subject"
+              placeholder="Topic of the note"
+              value={options.nostr?.subject || ""}
+              onChange={(event) => updateOption("nostr", "subject", event.target.value || undefined)}
+              className="mt-1 border-border"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Added to the note as a NIP-14 subject tag</p>
+          </div>
+        </Card>
+      )}
+
       {/* Pinterest Options */}
       {selectedPlatforms.includes("pinterest") && (
         <Card className="p-4 space-y-4 border-border">

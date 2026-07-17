@@ -3,6 +3,7 @@ import { FacebookPublisher } from "./facebook";
 import { ForemPublisher } from "./forem";
 import { InstagramPublisher } from "./instagram";
 import { LinkedInPublisher } from "./linkedin";
+import { NostrPublisher } from "./nostr";
 import { PinterestPublisher } from "./pinterest";
 import { TelegramPublisher } from "./telegram";
 import { ThreadsPublisher } from "./threads";
@@ -47,6 +48,9 @@ export const getPublisher = (platform: Platform, options?: PostOptionsWithCreden
     }
     case "forem": {
       return new ForemPublisher(options);
+    }
+    case "nostr": {
+      return new NostrPublisher(options);
     }
   }
 

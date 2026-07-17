@@ -3,6 +3,7 @@ import { FacebookPublisher } from "../publishers/facebook";
 import { ForemPublisher } from "../publishers/forem";
 import { InstagramPublisher } from "../publishers/instagram";
 import { LinkedInPublisher } from "../publishers/linkedin";
+import { NostrPublisher } from "../publishers/nostr";
 import { PinterestPublisher } from "../publishers/pinterest";
 import { TelegramPublisher } from "../publishers/telegram";
 import { ThreadsPublisher } from "../publishers/threads";
@@ -52,6 +53,9 @@ export function getPlatformMediaRequirement(platform: Platform): MediaRequiremen
     }
     case "forem": {
       return ForemPublisher.mediaRequirement;
+    }
+    case "nostr": {
+      return NostrPublisher.mediaRequirement;
     }
   }
 }

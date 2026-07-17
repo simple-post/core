@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useConnectForem, useConnectNostr, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
@@ -44,6 +44,7 @@ export default function AccountsPage() {
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
   const connectForemMutation = useConnectForem();
+  const connectNostrMutation = useConnectNostr();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -57,6 +58,10 @@ export default function AccountsPage() {
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
+  const [showNostrDialog, setShowNostrDialog] = useState(false);
+  const [nostrPrivateKey, setNostrPrivateKey] = useState("");
+  const [nostrRelays, setNostrRelays] = useState("wss://relay.damus.io,wss://nos.lol");
+  const [nostrError, setNostrError] = useState("");
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
@@ -66,6 +71,9 @@ export default function AccountsPage() {
       if (platform === "forem") {
         setShowForemDialog(true);
         setForemError("");
+      } else if (platform === "nostr") {
+        setShowNostrDialog(true);
+        setNostrError("");
       } else {
         setShowTelegramDialog(true);
         setTelegramError("");
@@ -97,6 +105,35 @@ export default function AccountsPage() {
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
+    }
+  };
+
+  const closeNostrDialog = () => {
+    setShowNostrDialog(false);
+    setNostrPrivateKey("");
+    setNostrError("");
+  };
+
+  const handleNostrConnect = async () => {
+    const relays = nostrRelays
+      .split(",")
+      .map((relay) => relay.trim())
+      .filter(Boolean);
+    if (!nostrPrivateKey.trim() || relays.length === 0) {
+      setNostrError("Please provide a private key and at least one relay");
+      return;
+    }
+    if (relays.some((relay) => !/^wss:\/\//i.test(relay))) {
+      setNostrError("Relay URLs must start with wss://");
+      return;
+    }
+    setNostrError("");
+    try {
+      await connectNostrMutation.mutateAsync({ privateKey: nostrPrivateKey.trim(), relays });
+      closeNostrDialog();
+    } catch (error) {
+      logClientError(error, "Nostr connection error");
+      setNostrError(error instanceof Error ? error.message : "Failed to connect Nostr account");
     }
   };
 
@@ -362,6 +399,70 @@ export default function AccountsPage() {
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
               {connectForemMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showNostrDialog} onOpenChange={(open) => (open ? setShowNostrDialog(true) : closeNostrDialog())}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="section-kicker">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Nostr</span>
+            </div>
+            <DialogTitle className="text-xl tracking-tight">Connect Nostr</DialogTitle>
+            <DialogDescription>Store a signing key and the relays SimplePost should publish to.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {nostrError && (
+              <Alert variant="destructive">
+                <AlertDescription>{nostrError}</AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label
+                htmlFor="nostrPrivateKey"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Private key
+              </Label>
+              <Input
+                id="nostrPrivateKey"
+                type="password"
+                value={nostrPrivateKey}
+                onChange={(event) => setNostrPrivateKey(event.target.value)}
+                placeholder="nsec1… or 64-character hex"
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                This key can sign as your identity. Treat it as a secret.
+              </p>
+            </div>
+            <div>
+              <Label
+                htmlFor="nostrRelays"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Relay URLs
+              </Label>
+              <Input
+                id="nostrRelays"
+                value={nostrRelays}
+                onChange={(event) => setNostrRelays(event.target.value)}
+                placeholder="wss://relay.damus.io,wss://nos.lol"
+                className="mt-2 font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">Comma-separated secure WebSocket URLs.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={closeNostrDialog}
+              disabled={connectNostrMutation.isPending}
+              className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleNostrConnect} disabled={connectNostrMutation.isPending} className="flex-1">
+              {connectNostrMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </DialogContent>

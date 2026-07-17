@@ -205,6 +205,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
     displayName: "DEV/Forem",
     platform: "forem",
   },
+  nostr: {
+    connectDescription: "Connect Nostr with a private key and relay list.",
+    displayName: "Nostr",
+    platform: "nostr",
+  },
 } satisfies Record<AccountPlatform, AccountPlatformConfig>;
 
 export function getAccountPlatformConfig(platform: AccountPlatform): AccountPlatformConfig {

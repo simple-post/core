@@ -69,6 +69,7 @@ export type PostFlagValues = {
   "forem-tags"?: string;
   "forem-published"?: boolean;
   "forem-canonical-url"?: string;
+  "nostr-subject"?: string;
 };
 
 function isUrl(value: string): boolean {
@@ -159,6 +160,10 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
       ...(flags["forem-canonical-url"] ? { canonicalUrl: flags["forem-canonical-url"] } : {}),
     };
 
+  if (flags["nostr-subject"]) {
+    options.nostr = { subject: flags["nostr-subject"] };
+  }
+
   if (flags["facebook-publish-at"]) {
     options.facebook = { publishAt: flags["facebook-publish-at"] };
   }
@@ -220,6 +225,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
   forem: "DEV/Forem",
+  nostr: "Nostr",
 };
 
 function getPlatformLabel(platform: Platform): string {
@@ -406,6 +412,7 @@ function describePlatformSettings(options: PostOptions | undefined, platforms: P
   if (platforms.includes("pinterest") && options.pinterest?.boardId) {
     parts.push(`Pinterest board ${options.pinterest.boardId}`);
   }
+  if (platforms.includes("nostr") && options.nostr?.subject) parts.push("Nostr subject");
 
   return parts.length > 0 ? parts.join(", ") : "none";
 }
@@ -686,6 +693,13 @@ async function collectInteractivePlatformOptions(
       ...(link ? { link } : {}),
       ...(altText ? { altText } : {}),
     };
+  }
+
+  if (platforms.includes("nostr") && (await prompt.confirm("Add a Nostr subject tag?", false))) {
+    const subject = (
+      await prompt.text("Subject", { defaultValue: currentOptions?.nostr?.subject, required: true })
+    ).trim();
+    options.nostr = { ...(currentOptions?.nostr?.relays ? { relays: currentOptions.nostr.relays } : {}), subject };
   }
 
   return Object.keys(options).length > 0 ? options : undefined;

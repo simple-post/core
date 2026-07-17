@@ -220,6 +220,12 @@ function buildStoredAccountPostOptions(
         },
       };
     }
+    case "nostr": {
+      const relays = Array.isArray(metadata.settings?.relays)
+        ? metadata.settings.relays.filter((relay): relay is string => typeof relay === "string")
+        : [];
+      return { nostr: { relays, credentials: { privateKey: secret.accessToken } } };
+    }
   }
 
   throw new Error(`Stored account resolution is not implemented for ${platform}.`);

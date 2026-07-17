@@ -17,7 +17,8 @@
             "linkedin",
             "pinterest",
             "telegram",
-            "forem"
+            "forem",
+            "nostr"
           ],
           "required": false
         }
@@ -419,6 +420,14 @@
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"
+        },
+        "nostr-subject": {
+          "description": "Optional Nostr subject tag",
+          "helpGroup": "Nostr",
+          "name": "nostr-subject",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
         }
       },
       "hasDynamicHelp": false,
@@ -602,7 +611,8 @@
             "linkedin",
             "pinterest",
             "telegram",
-            "forem"
+            "forem",
+            "nostr"
           ],
           "required": false
         }
@@ -668,6 +678,20 @@
         "api-key": {
           "description": "Forem API key (prefer interactive entry)",
           "name": "api-key",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "private-key": {
+          "description": "Nostr nsec or hex private key (prefer interactive entry)",
+          "name": "private-key",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "relays": {
+          "description": "Comma-separated Nostr relay URLs",
+          "name": "relays",
           "hasDynamicHelp": false,
           "multiple": false,
           "type": "option"

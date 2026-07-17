@@ -1,46 +1,33 @@
+import { getPlatformById, SOCIAL_PLATFORM_IDS } from "@/lib/config";
 import {
-  getUniquePreviewPlatformIds,
-  normalizePreviewTitle,
-  PREVIEW_FRAME_SIZE,
-  PREVIEW_PLATFORM_IDS,
+  getUniquePreviewPlatforms,
+  normalizePreviewPlatform,
+  PREVIEW_FRAME_WIDTH,
+  PREVIEW_PLATFORMS,
 } from "@/lib/platform-preview";
 
 describe("platform preview", () => {
-  it("covers every scheduler platform", () => {
-    expect(PREVIEW_PLATFORM_IDS).toEqual([
-      "x",
-      "instagram",
-      "facebook",
-      "tiktok",
-      "youtube",
-      "bluesky",
-      "threads",
-      "linkedin",
-      "pinterest",
-      "telegram",
-      "forem",
-    ]);
+  it("previews every scheduler platform", () => {
+    for (const platformId of SOCIAL_PLATFORM_IDS) {
+      expect(normalizePreviewPlatform(platformId)).toBe(platformId);
+    }
   });
 
-  it("keeps first-selection order while deduplicating aliases", () => {
-    expect(getUniquePreviewPlatformIds(["instagram", "twitter", "x", "telegram", "unknown"])).toEqual([
+  it("maps every previewable platform to scheduler platform config", () => {
+    for (const platform of PREVIEW_PLATFORMS) {
+      expect(getPlatformById(platform)).toBeDefined();
+    }
+  });
+
+  it("keeps first-selection order while deduplicating aliases and dropping unknowns", () => {
+    expect(getUniquePreviewPlatforms(["instagram", "twitter", "x", "telegram", "unknown"])).toEqual([
       "instagram",
       "x",
       "telegram",
     ]);
   });
 
-  it("uses one stable preview frame and content size for every renderer", () => {
-    expect(PREVIEW_FRAME_SIZE).toEqual({
-      contentWidth: 390,
-      width: 390,
-    });
-  });
-
-  it("normalizes markdown headings for article-style preview titles", () => {
-    expect(normalizePreviewTitle("# Launch notes\n\nBody text", "Fallback")).toBe("Launch notes");
-    expect(normalizePreviewTitle("### Deep dive", "Fallback")).toBe("Deep dive");
-    expect(normalizePreviewTitle("   \n  Plain title  ", "Fallback")).toBe("Plain title");
-    expect(normalizePreviewTitle(undefined, "Fallback")).toBe("Fallback");
+  it("matches the renderer's default frame width", () => {
+    expect(PREVIEW_FRAME_WIDTH).toBe(390);
   });
 });

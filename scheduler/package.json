@@ -5,8 +5,9 @@
   "license": "MIT",
   "scripts": {
     "build": "next build",
-    "dev": "node scripts/dev.mjs",
-    "dev:published": "SIMPLE_POST_PREVIEW_LOCAL=0 node scripts/dev.mjs",
+    "dev": "next dev",
+    "preview:link": "yarn link -r ../../preview/packages/preview ../../preview/packages/react",
+    "preview:unlink": "yarn unlink ../../preview/packages/preview ../../preview/packages/react",
     "start": "next start",
     "check": "tsc --noEmit && eslint . && prettier --check .",
     "lint": "eslint .",

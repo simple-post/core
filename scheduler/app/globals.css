@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@source "../features/platform-preview/live-platform-post-preview.tsx";
-@source "../features/platform-options/account-options.tsx";
+@source "../features";
 
 @custom-variant dark (&:is(.dark *));
 

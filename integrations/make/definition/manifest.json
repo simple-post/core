@@ -1,0 +1,14 @@
+{
+  "name": "SimplePost",
+  "version": "0.1.0",
+  "base": "base.json",
+  "connection": {
+    "parameters": "connection-parameters.json",
+    "communication": "connection.json"
+  },
+  "modules": [
+    "modules/create-post.json",
+    "modules/list-accounts.json",
+    "modules/validate-post.json"
+  ]
+}

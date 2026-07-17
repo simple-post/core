@@ -1,0 +1,67 @@
+{
+  "name": "Create a post",
+  "type": "action",
+  "label": "Create a post",
+  "description": "Creates, publishes, schedules, or saves a social media post.",
+  "communication": {
+    "url": "/api/v1/posts",
+    "method": "POST",
+    "body": "{{parameters}}",
+    "response": {
+      "output": "{{body}}"
+    }
+  },
+  "mappableParameters": [
+    {
+      "name": "message",
+      "label": "Message",
+      "type": "text",
+      "multiline": true,
+      "help": "The root post text. It may be empty for media-only posts."
+    },
+    {
+      "name": "accountIds",
+      "label": "Account IDs",
+      "type": "array",
+      "required": true,
+      "spec": {
+        "type": "text",
+        "label": "Account ID"
+      },
+      "help": "One or more connected SimplePost account IDs. Use the List Accounts module to load them."
+    },
+    {
+      "name": "postingMode",
+      "label": "Posting mode",
+      "type": "select",
+      "required": true,
+      "default": "now",
+      "options": [
+        { "label": "Publish now", "value": "now" },
+        { "label": "Schedule", "value": "schedule" },
+        { "label": "Save as draft", "value": "draft" }
+      ]
+    },
+    { "name": "scheduledFor", "label": "Scheduled for", "type": "date", "help": "Required when Posting mode is Schedule." },
+    { "name": "media", "label": "Media", "type": "json", "help": "Optional SimplePost media array." },
+    { "name": "thread", "label": "Thread", "type": "json", "help": "Optional array of additional thread segments." },
+    { "name": "accountOptions", "label": "Account options", "type": "json", "help": "Optional platform settings keyed by account ID." },
+    { "name": "accountOverrides", "label": "Account overrides", "type": "json", "help": "Optional per-account content overrides keyed by account ID." },
+    { "name": "repost", "label": "Repost", "type": "json", "help": "Optional repost settings with enabled and delayHours." },
+    { "name": "quotePostId", "label": "Quote post ID", "type": "text" },
+    { "name": "idempotencyKey", "label": "Idempotency key", "type": "text", "help": "Use a stable unique value to prevent duplicate posts when Make retries." }
+  ],
+  "interface": [
+    {
+      "name": "post",
+      "label": "Post",
+      "type": "collection",
+      "spec": [
+        { "name": "id", "label": "Post ID", "type": "text" },
+        { "name": "status", "label": "Status", "type": "text" },
+        { "name": "scheduledFor", "label": "Scheduled for", "type": "date" },
+        { "name": "publishedAt", "label": "Published at", "type": "date" }
+      ]
+    }
+  ]
+}

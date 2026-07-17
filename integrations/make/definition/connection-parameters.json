@@ -1,0 +1,21 @@
+[
+  {
+    "name": "apiKey",
+    "type": "password",
+    "label": "API Key",
+    "required": true,
+    "help": "Create an API key in SimplePost under API Keys."
+  },
+  {
+    "name": "baseUrl",
+    "type": "text",
+    "label": "Base URL",
+    "default": "https://app.simplepost.social",
+    "required": true,
+    "validate": {
+      "pattern": "^https?://.+[^/]$",
+      "message": "Enter an http(s) URL without a trailing slash."
+    },
+    "help": "Use your hosted SimplePost URL or the URL of your self-hosted Scheduler app, without a trailing slash."
+  }
+]

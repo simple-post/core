@@ -4782,21 +4782,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@simple-post/preview-react@npm:0.1.0":
-  version: 0.1.0
-  resolution: "@simple-post/preview-react@npm:0.1.0"
+"@simple-post/preview-react@npm:0.2.1":
+  version: 0.2.1
+  resolution: "@simple-post/preview-react@npm:0.2.1"
   dependencies:
-    "@simple-post/preview": "npm:0.1.0"
+    "@simple-post/preview": "npm:0.2.1"
   peerDependencies:
     react: ">=18"
-  checksum: 10c0/5237661cb31266dd3f90d1081ea2cfe414bc4771f64ae30e52671b07d1218ddb4aeb99dd726ce28517f19b63b00fca5a974cd5afcbe93a80dc1037d7214b812f
+  checksum: 10c0/f354914e072851d7527fec898beac7bd93db5ef1aa5e14364169eb28e7a8b35ea9e384d4c8485831c2b414f82857c225109b3ca6d27c9630dbcc82d48613cb69
   languageName: node
   linkType: hard
 
-"@simple-post/preview@npm:0.1.0":
-  version: 0.1.0
-  resolution: "@simple-post/preview@npm:0.1.0"
-  checksum: 10c0/fe9e598a935bb3670011532646ef4ccc19c1eb51938255d3344f9d465bb3e3ff8eb0f87d616336b9bdf19ee1a5e649710e7606ff444e2b43fc57de10976129f3
+"@simple-post/preview@npm:0.2.1":
+  version: 0.2.1
+  resolution: "@simple-post/preview@npm:0.2.1"
+  checksum: 10c0/e66bc90bd6d4c42deac002d84578a363eb6a935bab7bb4632052c69bb2e1acb2e3dddbe88f74e3dbe002a0bd3bb7724122fb90539bfbf45e5aeaa9e9c0124207
   languageName: node
   linkType: hard
 
@@ -4851,7 +4851,7 @@ __metadata:
     "@radix-ui/react-toggle-group": "npm:1.1.1"
     "@radix-ui/react-tooltip": "npm:1.1.6"
     "@react-email/render": "npm:^2.0.4"
-    "@simple-post/preview-react": "npm:0.1.0"
+    "@simple-post/preview-react": "npm:0.2.1"
     "@simple-post/sdk": "workspace:*"
     "@tailwindcss/postcss": "npm:^4.1.9"
     "@tanstack/react-query": "npm:^5.90.19"

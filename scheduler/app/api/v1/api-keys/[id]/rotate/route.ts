@@ -30,8 +30,8 @@ function serializeApiKey(apiKey: {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireBrowserSession(req);
-    await assertPlanFeature(session.user.id, "apiAccess");
     const { id } = await params;
+    await assertPlanFeature(session.user.id, "apiAccess", { action: "rotate_api_key" });
     const currentKey = await prisma.apiKey.findUnique({ where: { id } });
 
     if (!currentKey) {

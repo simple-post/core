@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { AccountIdsSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
-import { assertCanCreatePost, lockUserForQuota } from "@/lib/billing/subscriptions";
+import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -889,7 +889,10 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         if (existing) return { replayedPostId: existing.id } as const;
       }
 
-      await assertCanCreatePost(userId, tx);
+      await assertCanCreatePost(userId, tx, {
+        action: `mcp_create_${postingMode}_post`,
+        socialAccounts: toBillingSocialAccounts(validation.accounts),
+      });
       const createdPost = await repository.createPost(
         {
           message: input.message,

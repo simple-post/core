@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { isThreadCapable } from "@simple-post/sdk";
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
-import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger } from "@/lib/logger";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
@@ -14,7 +14,7 @@ import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/t
 import { summarizeRepostOutcome } from "@/lib/repost/results";
 import { buildPublishedRepostState } from "@/lib/repost/settings";
 import { buildRepostTargets } from "@/lib/repost/targets";
-import { sanitizeForJson } from "@/lib/utils/errors";
+import { apiErrorLogPayload, PaymentRequiredError, sanitizeForJson } from "@/lib/utils/errors";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 
@@ -88,6 +88,9 @@ interface DuePost {
   accounts: Array<{
     id: string;
     platform: string;
+    platformAccountId: string;
+    username: string | null;
+    displayName: string | null;
   }>;
 }
 
@@ -102,6 +105,9 @@ interface DueRepostPost {
   accounts: Array<{
     id: string;
     platform: string;
+    platformAccountId: string;
+    username: string | null;
+    displayName: string | null;
   }>;
 }
 
@@ -387,7 +393,11 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   }
 
   try {
-    await assertActiveSubscription(post.userId);
+    await assertActiveSubscription(post.userId, {
+      action: "publish_scheduled_post",
+      postId: post.id,
+      socialAccounts: toBillingSocialAccounts(post.accounts),
+    });
 
     let quoteTargets;
     if (post.quotePostId) {
@@ -527,6 +537,10 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error while publishing scheduled post";
 
+    if (error instanceof PaymentRequiredError) {
+      log.warn(apiErrorLogPayload(error), "Scheduled post billing gate denied");
+    }
+
     await prisma.post.update({
       where: { id: post.id },
       data: {
@@ -574,7 +588,11 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
   }
 
   try {
-    await assertActiveSubscription(post.userId);
+    await assertActiveSubscription(post.userId, {
+      action: "publish_scheduled_repost",
+      postId: post.id,
+      socialAccounts: toBillingSocialAccounts(post.accounts),
+    });
 
     const results = await repostToAccounts(
       post.userId,
@@ -612,6 +630,10 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
     return { postId: post.id, success: false, status: "failed", errorMessage: outcome.errorMessage ?? undefined };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error while reposting";
+
+    if (error instanceof PaymentRequiredError) {
+      log.warn(apiErrorLogPayload(error), "Scheduled repost billing gate denied");
+    }
 
     await prisma.post.update({
       where: { id: post.id },
@@ -662,6 +684,9 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
           select: {
             id: true,
             platform: true,
+            platformAccountId: true,
+            username: true,
+            displayName: true,
           },
         },
       },
@@ -683,6 +708,9 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
           select: {
             id: true,
             platform: true,
+            platformAccountId: true,
+            username: true,
+            displayName: true,
           },
         },
       },

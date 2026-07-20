@@ -31,8 +31,8 @@ function sanitizeAccounts(accounts: PendingAccount[]) {
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireAuth(_req);
     const { id } = await params;
+    const session = await requireAuth(_req, { action: "view_pending_social_accounts" });
 
     const pending = await prisma.pendingOAuthConnection.findFirst({
       where: {
@@ -71,8 +71,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireAuth(req);
     const { id } = await params;
+    const session = await requireAuth(req, { action: "connect_pending_social_accounts" });
     const body = await req.json();
     const selectedAccountIds = Array.isArray(body.selectedAccountIds) ? body.selectedAccountIds : [];
 

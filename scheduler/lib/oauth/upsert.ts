@@ -45,6 +45,7 @@ export async function upsertConnectedAccount(data: UpsertAccountData, tx?: Trans
       userId: data.userId,
       platform: data.platform,
       platformAccountId: data.platformAccountId,
+      accountLabel: data.username ?? data.displayName ?? data.platformAccountId,
     },
     client,
   );

@@ -44,7 +44,7 @@ async function readJsonBody(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
-    await assertPlanFeature(session.user.id, "apiAccess");
+    await assertPlanFeature(session.user.id, "apiAccess", { action: "list_api_keys" });
     const apiKeys = await prisma.apiKey.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
-    await assertPlanFeature(session.user.id, "apiAccess");
+    await assertPlanFeature(session.user.id, "apiAccess", { action: "create_api_key" });
     const body = await readJsonBody(req);
     const validated = createApiKeySchema.parse(body);
     const apiKey = generateApiKey();

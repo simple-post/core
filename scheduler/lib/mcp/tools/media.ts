@@ -22,21 +22,21 @@ const MIME_EXTENSION: Record<string, string> = {
 
 const log = mediaLogger.child({ tool: "mcp.upload_media" });
 
-const chatGptFileParamSchema = z
+const fileParamSchema = z
   .object({
-    download_url: z.string().url().describe("Temporary ChatGPT file download URL."),
-    file_id: z.string().min(1).describe("ChatGPT file id."),
-    file_name: z.string().min(1).optional().describe("Original filename when provided by ChatGPT."),
+    download_url: z.string().url().describe("Temporary file download URL provided by the chat client."),
+    file_id: z.string().min(1).describe("File id assigned by the chat client."),
+    file_name: z.string().min(1).optional().describe("Original filename when provided by the chat client."),
     name: z.string().min(1).optional().describe("Original filename when provided by the host."),
-    mime_type: z.string().min(1).optional().describe("MIME type when provided by ChatGPT."),
+    mime_type: z.string().min(1).optional().describe("MIME type when provided by the chat client."),
     mimeType: z.string().min(1).optional().describe("MIME type when provided by the host."),
     size: z.number().optional().describe("File size in bytes when provided by the host."),
   })
   .passthrough();
 
 export const uploadMediaSchema = z.object({
-  file: chatGptFileParamSchema.describe(
-    "Required ChatGPT file parameter for an image or video generated, attached, uploaded, or selected in ChatGPT. Do not pass file bytes as base64 tool arguments.",
+  file: fileParamSchema.describe(
+    "Required file parameter for an image or video generated, attached, uploaded, or selected in the chat. Do not pass file bytes as base64 tool arguments.",
   ),
   filename: z
     .string()

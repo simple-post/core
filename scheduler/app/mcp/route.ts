@@ -8,7 +8,7 @@ import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { registerTools, SERVER_INSTRUCTIONS, type McpToolAuthContext } from "@/lib/mcp/server";
-import { PaymentRequiredError } from "@/lib/utils/errors";
+import { apiErrorLogPayload, PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
 const log = createLogger("api:mcp");
@@ -27,7 +27,7 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
   const session = await authenticateMcpToken(token, getMcpResourceUrl());
   if (!session?.user?.id) return null;
 
-  await assertActiveSubscription(session.user.id);
+  await assertActiveSubscription(session.user.id, { action: "mcp_request" });
 
   return {
     userId: session.user.id,
@@ -65,6 +65,7 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
     return await authenticateRequest(req);
   } catch (error) {
     if (error instanceof PaymentRequiredError) {
+      log.warn(apiErrorLogPayload(error), "MCP billing gate denied");
       return paymentRequiredResponse();
     }
     throw error;

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 
-import { assertCanCreatePost, lockUserForQuota } from "@/lib/billing/subscriptions";
+import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -228,7 +228,10 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
           }
         }
 
-        await assertCanCreatePost(userId, tx);
+        await assertCanCreatePost(userId, tx, {
+          action: `create_${postingMode}_post`,
+          socialAccounts: toBillingSocialAccounts(validation.accounts),
+        });
         const createdPost = await repository.createPost(
           {
             message: validated.message,

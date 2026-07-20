@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import * as z from "zod";
 
-import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { repostToAccounts } from "@/lib/posting";
@@ -19,7 +19,7 @@ const manualRepostSchema = z.object({
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(req);
+    const session = await requireAuth(req, { action: "manual_repost", postId: id });
     const repository = new PostsModel(session.user.id);
     const body = await req.json().catch(() => ({}));
     const validated = manualRepostSchema.parse(body);
@@ -34,6 +34,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           select: {
             id: true,
             platform: true,
+            platformAccountId: true,
+            username: true,
+            displayName: true,
           },
         },
       },
@@ -64,7 +67,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       throw new BadRequestError("This post has no successful publish results on repost-capable accounts");
     }
 
-    await assertActiveSubscription(session.user.id);
+    await assertActiveSubscription(session.user.id, {
+      action: "manual_repost",
+      postId: post.id,
+      socialAccounts: toBillingSocialAccounts(accounts),
+    });
 
     // Atomically claim the repost before firing it. Any state except an
     // in-flight "pending" can be (re)claimed; a 0-row result means a concurrent

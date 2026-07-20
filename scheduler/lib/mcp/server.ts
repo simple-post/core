@@ -1,6 +1,9 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import { createLogger } from "@/lib/logger";
+import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
+
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
@@ -24,6 +27,8 @@ import {
   updateScheduledPostSchema,
 } from "./tools/posts";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
+
+const log = createLogger("mcp:tools");
 
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule posts to multiple social media platforms (X, Telegram, Facebook, Instagram, YouTube, Meta Threads, ...) from a single tool call. Only call tools for SimplePost posting workflows. Do not call tools for generic writing help, connecting accounts, or editing/deleting social posts that were already published externally; explain those are unsupported and direct the user to the SimplePost web app or social platform.
 
@@ -54,7 +59,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Visible text responses
 
-- This is a text-only ChatGPT app. After \`preview_post\`, \`create_post\`, \`inspect_posts\`, \`update_scheduled_post\`, or \`discard_scheduled_post\`, always include the exact post content in the assistant's visible answer so the user can see what was previewed, posted, scheduled, edited, or discarded.
+- This server returns text and structured data only (no embedded UI). After \`preview_post\`, \`create_post\`, \`inspect_posts\`, \`update_scheduled_post\`, or \`discard_scheduled_post\`, always include the exact post content in the assistant's visible answer so the user can see what was previewed, posted, scheduled, edited, or discarded.
 - For threads, show the root post and each follow-up segment in order. Do not hide the post text behind only a status, count, or URL.
 
 # Media
@@ -64,7 +69,7 @@ Posts can include images and videos via the \`media\` array on \`validate_post\`
 There are two ways to get a usable \`url\`:
 
 - **The user provides a URL** (most common — they paste a link, or it comes from an earlier tool result). Use it directly.
-- **ChatGPT has a generated or attached file with no public URL**. Call \`upload_media\` with the \`file\` file parameter so SimplePost can download and validate the bytes server-side. Do not transcribe large ChatGPT images into base64 tool arguments; \`upload_media\` does not accept base64 media data.
+- **The chat client has a generated or attached file with no public URL**. Call \`upload_media\` with the \`file\` file parameter so SimplePost can download and validate the bytes server-side. Do not transcribe large images into base64 tool arguments; \`upload_media\` does not accept base64 media data.
 
 Notes:
 - Some platforms require media: Instagram needs at least one image or video; YouTube needs a video. \`validate_post\` and \`preview_post\` will surface these requirements as errors.
@@ -75,7 +80,7 @@ Notes:
 
 # Multi-segment threads (reply chains)
 
-Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_post\` when the user wants more than one connected post: the root is always \`message\` plus optional root \`media\`, and \`thread\` is an ordered array of text-only follow-up segments \`{ message }\`. Use root \`media\` for image/video attachments; the ChatGPT app tools do not accept media on individual follow-up segments.
+Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_post\` when the user wants more than one connected post: the root is always \`message\` plus optional root \`media\`, and \`thread\` is an ordered array of text-only follow-up segments \`{ message }\`. Use root \`media\` for image/video attachments; the tools do not accept media on individual follow-up segments.
 
 - **Thread-capable platforms** (native reply chains): \`x\`, \`bluesky\`, \`threads\` (Meta Threads), \`telegram\`. Each segment is published in order as a reply to the previous one. There is a short delay between segments so APIs can resolve parent ids (especially Meta Threads).
 - **Other platforms** in the same \`create_post\` call still receive only the **root** segment; validation surfaces a **warning** (not a hard error) that extra segments are dropped for those accounts.
@@ -123,6 +128,10 @@ function toolMeta(invoking: string, invoked: string) {
 }
 
 function errorResult(error: unknown) {
+  if (error instanceof ApiError && error.logContext) {
+    log.warn(apiErrorLogPayload(error), "MCP tool billing gate denied");
+  }
+
   return {
     content: [{ type: "text" as const, text: error instanceof Error ? error.message : String(error) }],
     isError: true,
@@ -457,7 +466,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "upload_media",
     {
       title: "Upload Media",
-      description: `Upload a ChatGPT generated or attached image/video file to SimplePost storage and get back a public URL you can pass into validate_post, preview_post, or create_post through the media field. This tool requires the file parameter; do not pass base64 media data. If the user already gave a fetchable URL, skip this tool and use the URL directly.`,
+      description: `Upload an image/video file generated in or attached to the chat to SimplePost storage and get back a public URL you can pass into validate_post, preview_post, or create_post through the media field. This tool requires the file parameter; do not pass base64 media data. If the user already gave a fetchable URL, skip this tool and use the URL directly.`,
       inputSchema: uploadMediaSchema.shape,
       outputSchema: uploadMediaOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.upload_media,

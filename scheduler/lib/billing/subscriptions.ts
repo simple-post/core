@@ -61,6 +61,120 @@ export interface BillingStatus {
   usage: BillingUsage;
 }
 
+export interface BillingGateContext {
+  action?: string;
+  platform?: string;
+  connectedAccountId?: string;
+  platformAccountId?: string;
+  accountLabel?: string | null;
+  postId?: string;
+  socialAccounts?: Array<{
+    connectedAccountId?: string;
+    platform: string;
+    platformAccountId?: string;
+    accountLabel?: string | null;
+  }>;
+}
+
+interface BillingEvaluation {
+  status: BillingStatus;
+  email: string | null;
+}
+
+/** Maps connected accounts to the `socialAccounts` shape of {@link BillingGateContext}. */
+export function toBillingSocialAccounts(
+  accounts: Array<{
+    id: string;
+    platform: string;
+    platformAccountId: string;
+    username?: string | null;
+    displayName?: string | null;
+  }>,
+): NonNullable<BillingGateContext["socialAccounts"]> {
+  return accounts.map((account) => ({
+    connectedAccountId: account.id,
+    platform: account.platform,
+    platformAccountId: account.platformAccountId,
+    accountLabel: account.username ?? account.displayName ?? account.platformAccountId,
+  }));
+}
+
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+
+  const separatorIndex = email.lastIndexOf("@");
+  if (separatorIndex <= 0) return "***";
+
+  const localPart = email.slice(0, separatorIndex);
+  const domain = email.slice(separatorIndex + 1);
+  let visibleLocalPart: string;
+
+  if (localPart.length <= 2) {
+    visibleLocalPart = `${localPart[0] ?? ""}***`;
+  } else if (localPart.length <= 4) {
+    visibleLocalPart = `${localPart[0]}***${localPart.at(-1)}`;
+  } else {
+    visibleLocalPart = `${localPart.slice(0, 2)}***${localPart.slice(-2)}`;
+  }
+
+  return `${visibleLocalPart}@${domain}`;
+}
+
+function buildBillingLogContext(
+  userId: string,
+  email: string | null,
+  status: BillingStatus,
+  context: BillingGateContext = {},
+): Record<string, unknown> {
+  return {
+    userId,
+    maskedEmail: maskEmail(email),
+    action: context.action ?? "billing_gate",
+    billingActive: status.active,
+    accessType: status.accessType ?? "none",
+    planKey: status.plan?.key ?? null,
+    subscriptionStatus: status.subscription?.status ?? "none",
+    subscriptionPlanKey: status.subscription?.planKey ?? null,
+    subscriptionCurrentPeriodEnd: status.subscription?.currentPeriodEnd ?? null,
+    complimentaryPlanKey: status.complimentaryAccess?.planKey ?? null,
+    complimentaryStartsAt: status.complimentaryAccess?.startsAt ?? null,
+    complimentaryExpiresAt: status.complimentaryAccess?.expiresAt ?? null,
+    ...(context.platform && { platform: context.platform }),
+    ...(context.connectedAccountId && { connectedAccountId: context.connectedAccountId }),
+    ...(context.platformAccountId && { platformAccountId: context.platformAccountId }),
+    ...(context.accountLabel && { accountLabel: context.accountLabel }),
+    ...(context.postId && { postId: context.postId }),
+    ...(context.socialAccounts && context.socialAccounts.length > 0 && { socialAccounts: context.socialAccounts }),
+  };
+}
+
+async function resolveSocialAccountLogContext(
+  userId: string,
+  context: BillingGateContext,
+): Promise<BillingGateContext> {
+  if (!context.connectedAccountId || (context.platform && context.platformAccountId)) {
+    return context;
+  }
+
+  const account = await prisma.connectedAccount.findFirst({
+    where: { id: context.connectedAccountId, userId },
+    select: {
+      platform: true,
+      platformAccountId: true,
+      username: true,
+      displayName: true,
+    },
+  });
+  if (!account) return context;
+
+  return {
+    ...context,
+    platform: context.platform ?? account.platform,
+    platformAccountId: context.platformAccountId ?? account.platformAccountId,
+    accountLabel: context.accountLabel ?? account.username ?? account.displayName ?? account.platformAccountId,
+  };
+}
+
 function toDate(timestamp: number | null | undefined): Date | null {
   return timestamp ? new Date(timestamp * 1000) : null;
 }
@@ -257,18 +371,21 @@ export async function syncCheckoutSession(session: Stripe.Checkout.Session) {
   return syncStripeSubscriptionById(subscriptionId, userId);
 }
 
-export async function getBillingStatus(userId: string, client: BillingClient = prisma): Promise<BillingStatus> {
+async function getBillingEvaluation(userId: string, client: BillingClient = prisma): Promise<BillingEvaluation> {
   if (env.SELF_HOSTED) {
     const connectedAccounts = await client.connectedAccount.count({ where: { userId } });
     return {
-      active: true,
-      accessType: "self_hosted",
-      plan: null,
-      subscription: null,
-      complimentaryAccess: null,
-      usage: {
-        connectedAccounts,
-        postsThisPeriod: 0,
+      email: null,
+      status: {
+        active: true,
+        accessType: "self_hosted",
+        plan: null,
+        subscription: null,
+        complimentaryAccess: null,
+        usage: {
+          connectedAccounts,
+          postsThisPeriod: 0,
+        },
       },
     };
   }
@@ -276,6 +393,7 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
   const user = await client.user.findUnique({
     where: { id: userId },
     select: {
+      email: true,
       subscription: true,
       complimentaryAccess: true,
     },
@@ -312,79 +430,129 @@ export async function getBillingStatus(userId: string, client: BillingClient = p
   ]);
 
   return {
-    active,
-    accessType,
-    plan,
-    subscription: subscription
-      ? {
-          status: subscription.status,
-          planKey: subscription.planKey,
-          stripeCustomerId: subscription.stripeCustomerId,
-          stripeSubscriptionId: subscription.stripeSubscriptionId,
-          stripePriceId: subscription.stripePriceId,
-          currentPeriodStart: toISOString(subscription.currentPeriodStart),
-          currentPeriodEnd: toISOString(subscription.currentPeriodEnd),
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-          canceledAt: toISOString(subscription.canceledAt),
-          trialEndsAt: toISOString(subscription.trialEndsAt),
-        }
-      : null,
-    complimentaryAccess: complimentaryAccess
-      ? {
-          planKey: complimentaryAccess.planKey,
-          startsAt: complimentaryAccess.startsAt.toISOString(),
-          expiresAt: complimentaryAccess.expiresAt.toISOString(),
-          source: complimentaryAccess.source,
-        }
-      : null,
-    usage: {
-      connectedAccounts,
-      postsThisPeriod,
+    email: user?.email ?? null,
+    status: {
+      active,
+      accessType,
+      plan,
+      subscription: subscription
+        ? {
+            status: subscription.status,
+            planKey: subscription.planKey,
+            stripeCustomerId: subscription.stripeCustomerId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            stripePriceId: subscription.stripePriceId,
+            currentPeriodStart: toISOString(subscription.currentPeriodStart),
+            currentPeriodEnd: toISOString(subscription.currentPeriodEnd),
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+            canceledAt: toISOString(subscription.canceledAt),
+            trialEndsAt: toISOString(subscription.trialEndsAt),
+          }
+        : null,
+      complimentaryAccess: complimentaryAccess
+        ? {
+            planKey: complimentaryAccess.planKey,
+            startsAt: complimentaryAccess.startsAt.toISOString(),
+            expiresAt: complimentaryAccess.expiresAt.toISOString(),
+            source: complimentaryAccess.source,
+          }
+        : null,
+      usage: {
+        connectedAccounts,
+        postsThisPeriod,
+      },
     },
   };
 }
 
-export async function assertActiveSubscription(userId: string): Promise<BillingStatus> {
-  const status = await getBillingStatus(userId);
+export async function getBillingStatus(userId: string, client: BillingClient = prisma): Promise<BillingStatus> {
+  const evaluation = await getBillingEvaluation(userId, client);
+  return evaluation.status;
+}
+
+export async function getBillingErrorLogContext(
+  userId: string,
+  context: BillingGateContext = {},
+): Promise<Record<string, unknown>> {
+  const { status, email } = await getBillingEvaluation(userId);
+  return buildBillingLogContext(userId, email, status, context);
+}
+
+async function assertActiveBillingEvaluation(
+  userId: string,
+  context: BillingGateContext = {},
+): Promise<BillingEvaluation> {
+  const evaluation = await getBillingEvaluation(userId);
+  const { status, email } = evaluation;
 
   if (env.SELF_HOSTED) {
-    return status;
+    return evaluation;
   }
 
   if (!status.active || !status.plan) {
-    throw new PaymentRequiredError("An active SimplePost subscription is required");
+    const resolvedContext = await resolveSocialAccountLogContext(userId, context);
+    throw new PaymentRequiredError(
+      "An active SimplePost subscription is required",
+      buildBillingLogContext(userId, email, status, resolvedContext),
+    );
   }
 
-  return status;
+  return evaluation;
 }
 
-export async function assertPlanFeature(userId: string, feature: SubscriptionFeature): Promise<void> {
+export async function assertActiveSubscription(
+  userId: string,
+  context: BillingGateContext = {},
+): Promise<BillingStatus> {
+  const evaluation = await assertActiveBillingEvaluation(userId, context);
+  return evaluation.status;
+}
+
+export async function assertPlanFeature(
+  userId: string,
+  feature: SubscriptionFeature,
+  context: BillingGateContext = {},
+): Promise<void> {
   if (env.SELF_HOSTED) {
     return;
   }
 
-  const status = await assertActiveSubscription(userId);
+  const gateContext = { ...context, action: context.action ?? `use_${feature}` };
+  const { status, email } = await assertActiveBillingEvaluation(userId, gateContext);
 
   if (!status.plan?.limits[feature]) {
     const featureLabel = feature === "apiAccess" ? "API access" : "CLI access";
-    throw new ForbiddenError(`${featureLabel} is not included in your ${status.plan?.name ?? "current"} plan`);
+    const resolvedContext = await resolveSocialAccountLogContext(userId, gateContext);
+    throw new ForbiddenError(
+      `${featureLabel} is not included in your ${status.plan?.name ?? "current"} plan`,
+      buildBillingLogContext(userId, email, status, resolvedContext),
+    );
   }
 }
 
-export async function assertCanCreatePost(userId: string, client: BillingClient = prisma): Promise<void> {
+export async function assertCanCreatePost(
+  userId: string,
+  client: BillingClient = prisma,
+  context: BillingGateContext = {},
+): Promise<void> {
   if (env.SELF_HOSTED) {
     return;
   }
 
-  const status = await getBillingStatus(userId, client);
+  const gateContext = { ...context, action: context.action ?? "create_post" };
+  const { status, email } = await getBillingEvaluation(userId, client);
   if (!status.active || !status.plan) {
-    throw new PaymentRequiredError("An active SimplePost subscription is required");
+    throw new PaymentRequiredError(
+      "An active SimplePost subscription is required",
+      buildBillingLogContext(userId, email, status, gateContext),
+    );
   }
   const limit = status.plan?.limits.postsPerMonth;
 
   if (limit && status.usage.postsThisPeriod >= limit) {
     throw new ForbiddenError(
       `Your ${status.plan?.name ?? "current"} plan includes ${limit.toLocaleString()} posts per month`,
+      buildBillingLogContext(userId, email, status, gateContext),
     );
   }
 }
@@ -394,6 +562,7 @@ export async function assertCanConnectAccount(
     userId: string;
     platform: string;
     platformAccountId: string;
+    accountLabel?: string | null;
   },
   client: BillingClient = prisma,
 ): Promise<void> {
@@ -416,13 +585,19 @@ export async function assertCanConnectAccount(
     return;
   }
 
-  const status = await getBillingStatus(params.userId, client);
+  const { status, email } = await getBillingEvaluation(params.userId, client);
+  const logContext = buildBillingLogContext(params.userId, email, status, {
+    action: "connect_social_account",
+    platform: params.platform,
+    platformAccountId: params.platformAccountId,
+    accountLabel: params.accountLabel,
+  });
   if (!status.active || !status.plan) {
-    throw new PaymentRequiredError("An active SimplePost subscription is required to connect accounts");
+    throw new PaymentRequiredError("An active SimplePost subscription is required to connect accounts", logContext);
   }
 
   const accountLimit = status.plan.limits.socialAccounts;
   if (accountLimit !== null && status.usage.connectedAccounts + 1 > accountLimit) {
-    throw new ForbiddenError(`Your ${status.plan.name} plan includes ${accountLimit} social accounts`);
+    throw new ForbiddenError(`Your ${status.plan.name} plan includes ${accountLimit} social accounts`, logContext);
   }
 }

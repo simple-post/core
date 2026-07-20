@@ -8,7 +8,7 @@ import { getMcpResourceUrl } from "@/lib/mcp/config";
 
 export const metadata = {
   title: "SimplePost MCP Server",
-  description: "Public documentation for the SimplePost MCP server used by ChatGPT and other MCP clients.",
+  description: "Public documentation for the SimplePost MCP server used by Claude, ChatGPT, and other MCP clients.",
 };
 
 interface DocCardProps {
@@ -73,13 +73,13 @@ export default function McpDocsPage() {
             <ul className="space-y-1.5">
               {[
                 "List social accounts connected to your SimplePost account",
-                "Upload generated or attached images and videos through ChatGPT file parameters when no public URL exists",
+                "Upload generated or attached images and videos through chat file parameters when no public URL exists",
                 "Validate draft post text against platform-specific rules when requested",
                 "Preview target accounts, timing, and validation when requested",
                 "Create posts for immediate publishing, future scheduling, or draft storage",
                 "Inspect drafts, scheduled, posted, and failed SimplePost records",
                 "Edit or discard drafts and future scheduled posts",
-                "Return text and structured JSON without an embedded ChatGPT iframe",
+                "Return text and structured JSON without an embedded widget",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <span className="mt-1.5 w-1 h-1 rounded-full bg-primary flex-shrink-0" />
@@ -106,8 +106,8 @@ export default function McpDocsPage() {
 
           <DocCard icon={<LockKeyhole className="h-4 w-4" />} label="Auth" title="Data access">
             <p>
-              The MCP server uses OAuth. ChatGPT and other MCP clients receive a bearer token only after you approve
-              access in SimplePost.
+              The MCP server uses OAuth. Claude, ChatGPT, and other MCP clients receive a bearer token only after you
+              approve access in SimplePost.
             </p>
             <p>
               Tool calls can process connected account metadata, generated or attached media files, draft post text,
@@ -118,8 +118,9 @@ export default function McpDocsPage() {
 
           <DocCard icon={<ExternalLink className="h-4 w-4" />} label="Disconnect" title="Disconnecting">
             <p>
-              You can disconnect the app from ChatGPT in ChatGPT&apos;s Apps &amp; Connectors settings. You can also
-              manage connected social accounts inside the SimplePost web app.
+              You can disconnect SimplePost in your AI assistant&apos;s connector settings (Claude&apos;s Connectors
+              settings or ChatGPT&apos;s Apps &amp; Connectors settings). You can also manage connected social accounts
+              inside the SimplePost web app.
             </p>
             <p>
               See the{" "}

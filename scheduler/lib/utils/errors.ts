@@ -69,6 +69,8 @@ export class ApiError extends Error {
     message: string,
     public statusCode: number = 500,
     public code?: string,
+    /** Structured diagnostics written to server logs but never returned to API clients. */
+    public logContext?: Record<string, unknown>,
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -89,8 +91,8 @@ export class UnauthorizedError extends ApiError {
  * Payment required error (402)
  */
 export class PaymentRequiredError extends ApiError {
-  constructor(message: string = "An active subscription is required") {
-    super(message, 402, "PAYMENT_REQUIRED");
+  constructor(message: string = "An active subscription is required", logContext?: Record<string, unknown>) {
+    super(message, 402, "PAYMENT_REQUIRED", logContext);
   }
 }
 
@@ -98,8 +100,8 @@ export class PaymentRequiredError extends ApiError {
  * Forbidden error (403)
  */
 export class ForbiddenError extends ApiError {
-  constructor(message: string = "Forbidden") {
-    super(message, 403, "FORBIDDEN");
+  constructor(message: string = "Forbidden", logContext?: Record<string, unknown>) {
+    super(message, 403, "FORBIDDEN", logContext);
   }
 }
 
@@ -171,12 +173,25 @@ function formatZodErrorMessage(error: ZodError): string {
 }
 
 /**
+ * Builds the structured log payload for an ApiError, surfacing its private
+ * logContext as top-level fields for log querying.
+ */
+export function apiErrorLogPayload(error: ApiError): Record<string, unknown> {
+  return {
+    err: serializeError(error),
+    statusCode: error.statusCode,
+    code: error.code,
+    ...error.logContext,
+  };
+}
+
+/**
  * Handles errors and returns appropriate NextResponse
  */
 export function handleApiError(error: unknown): NextResponse {
   // Log error with structured logging
   if (error instanceof ApiError) {
-    const payload = { err: serializeError(error), statusCode: error.statusCode, code: error.code };
+    const payload = apiErrorLogPayload(error);
     if (error.statusCode >= 500) {
       apiLogger.error(payload, "API error occurred");
     } else {

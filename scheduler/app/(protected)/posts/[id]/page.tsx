@@ -135,8 +135,6 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const isFailed = post.status === "failed";
   const isPublished = post.status === "published";
   const canQuote = isScheduled || isPublished;
-  const thread = post.thread ?? [];
-  const hasThread = thread.length > 0;
   const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
     ? (post.errorDetails.failedPlatforms as FailedPlatform[])
     : [];

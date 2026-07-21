@@ -7,9 +7,13 @@ const nextConfig = {
   // Allow the native image-processing package to load outside the bundle.
   serverExternalPackages: ["sharp", "@prisma/instrumentation"],
 
-  // Enable Turbopack (default in Next.js 16)
-  // This app imports the sibling SDK workspace. Pinning the root prevents
-  // Next.js from walking up to an unrelated parent lockfile.
+  // Transpiling makes Turbopack watch these packages, so rebuilds reach the
+  // dev server when they are portal-linked to the sibling preview repository
+  // (see "yarn preview:link" in package.json).
+  transpilePackages: ["@simple-post/preview", "@simple-post/preview-react"],
+
+  // Enable Turbopack (default in Next.js 16). Keep its root inside core so it
+  // does not scan the sibling repository or its node_modules directory.
   outputFileTracingRoot: workspaceRoot,
   turbopack: {
     root: workspaceRoot,

@@ -209,6 +209,7 @@ export interface ConnectedAccount {
   accessToken: string;
   refreshToken: string | null;
   tokenMetadata?: Prisma.JsonValue | null;
+  previewOnly?: boolean;
   credentialRefreshRetryAt?: Date | null;
   credentialRefreshBlockedAt?: Date | null;
   tokenType: string | null;

@@ -53,3 +53,36 @@ it("does not add a provider_disabled error when the provider is enabled", () => 
     expect.arrayContaining([expect.objectContaining({ code: "provider_disabled" })]),
   );
 });
+
+it("returns a preview_only_account error for preview-only accounts", () => {
+  isSocialPlatformEnabledMock.mockReturnValue(true);
+
+  const validation = validatePostForResolvedAccounts({
+    message: "Hello",
+    media: [],
+    accounts: [{ ...account, previewOnly: true }],
+  });
+
+  expect(validation.summary.isValid).toBe(false);
+  expect(validation.summary.errors).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ code: "preview_only_account", field: "accounts", meta: { accountId: "account-1" } }),
+    ]),
+  );
+});
+
+it("returns a preview_only_account error for accounts with preview-only metadata", () => {
+  isSocialPlatformEnabledMock.mockReturnValue(true);
+
+  const validation = validatePostForResolvedAccounts({
+    message: "Hello",
+    media: [],
+    accounts: [{ ...account, tokenMetadata: { previewOnly: true } }],
+  });
+
+  expect(validation.summary.errors).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ code: "preview_only_account", field: "accounts", meta: { accountId: "account-1" } }),
+    ]),
+  );
+});

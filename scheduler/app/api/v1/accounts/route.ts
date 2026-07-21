@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
@@ -23,14 +24,12 @@ export async function GET(req: NextRequest) {
     });
     const connectedAccounts = storedAccounts.map((storedAccount) => {
       const account = decryptConnectedAccountSecrets(storedAccount);
-      const {
-        accessToken: _accessToken,
-        refreshToken: _refreshToken,
-        tokenMetadata: _tokenMetadata,
-        ...safeAccount
-      } = account;
+      const { accessToken: _accessToken, refreshToken: _refreshToken, tokenMetadata, ...safeAccount } = account;
+      const previewOnly = isPreviewOnlyTokenMetadata(tokenMetadata);
+
       return {
         ...safeAccount,
+        previewOnly,
         credentialStatus: getConnectedAccountCredentialStatus(account),
       };
     });

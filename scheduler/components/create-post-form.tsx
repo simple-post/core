@@ -18,6 +18,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AccountOptionsComponent } from "@/features/platform-options/account-options";
+import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
@@ -37,9 +39,7 @@ import type { ValidationResultByPlatform } from "@/lib/validation/post-validatio
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
-import { AccountOptionsComponent } from "./account-options";
 import { AccountSelector } from "./account-selector";
-import { GenericPostPreview } from "./generic-post-preview";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
@@ -131,6 +131,14 @@ export function CreatePostForm() {
 
   const selectedAccounts = useMemo(
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
+    [accounts, selectedAccountIds],
+  );
+  const previewAccounts = useMemo(
+    () =>
+      selectedAccountIds.flatMap((accountId) => {
+        const account = accounts.find((candidate) => candidate.id === accountId);
+        return account ? [account] : [];
+      }),
     [accounts, selectedAccountIds],
   );
   const selectedTikTokAccounts = useMemo(
@@ -954,7 +962,14 @@ export function CreatePostForm() {
           ) : null}
         </div>
 
-        <GenericPostPreview message={message} media={media} thread={thread} />
+        <PlatformPostPreview
+          message={message}
+          media={media}
+          selectedAccounts={previewAccounts}
+          accountOptions={accountOptions}
+          accountOverrides={accountOverrides}
+          thread={thread}
+        />
       </div>
 
       <PostLinksModal

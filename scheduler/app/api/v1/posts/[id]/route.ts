@@ -222,6 +222,7 @@ async function updatePost(
         validated.thread,
         quoteTargets,
         onPostingResult,
+        { postId: post.id, source: "api" },
       );
       const summary = getPostingSummary(results);
 

@@ -3,7 +3,15 @@ import fs from "node:fs";
 import axios from "axios";
 import { EUploadMimeType, TwitterApi } from "twitter-api-v2";
 
-import { X_MAX_MEDIA_COUNT, X_VALIDATION_RULES, validateXContent } from "./validation";
+import {
+  X_MAX_GIF_SIZE_BYTES,
+  X_MAX_IMAGE_SIZE_BYTES,
+  X_MAX_MEDIA_COUNT,
+  X_MAX_VIDEO_SIZE_BYTES,
+  X_STANDARD_POST_MAX_LENGTH,
+  X_VALIDATION_RULES,
+  validateXContent,
+} from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, TempFileManager } from "../../utils";
@@ -17,6 +25,12 @@ interface RefreshTokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number; // seconds from now
+}
+
+interface XAuthenticatedUser {
+  id?: string;
+  username?: string;
+  subscription_type?: string;
 }
 
 export class XPublisher extends Publisher {
@@ -41,6 +55,12 @@ export class XPublisher extends Publisher {
   // otherwise populated on first lookup so repeated calls don't re-fetch.
   private cachedUserId?: string;
 
+  private cachedUsername?: string;
+
+  private cachedSubscriptionType?: string;
+
+  private authenticatedUserLookupAttempted = false;
+
   constructor(options?: PostOptionsWithCredentials) {
     super("X", options);
 
@@ -50,6 +70,7 @@ export class XPublisher extends Publisher {
 
     this.credentials = options.x.credentials;
     this.cachedUserId = this.credentials.userId;
+    this.cachedUsername = this.credentials.username?.replace(/^@/, "");
 
     const canRefresh = Boolean(this.credentials.clientId && this.credentials.refreshToken);
     if (!this.credentials.accessToken && !canRefresh) {
@@ -103,6 +124,70 @@ export class XPublisher extends Publisher {
       throw new PostError(PostErrorType.CREDENTIALS_ERROR, "X access token is required");
     }
     return accessToken;
+  }
+
+  private accountDetails(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      platform: "x",
+      ...(this.cachedUsername ? { accountHandle: `@${this.cachedUsername}` } : {}),
+      ...(this.cachedSubscriptionType ? { subscriptionType: this.cachedSubscriptionType } : {}),
+      ...extra,
+    };
+  }
+
+  private async resolveAuthenticatedUser(): Promise<XAuthenticatedUser> {
+    const accessToken = this.getCurrentAccessToken();
+    this.authenticatedUserLookupAttempted = true;
+    const response = await axios.get<{ data?: XAuthenticatedUser }>("https://api.x.com/2/users/me", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      params: {
+        "user.fields": "username,subscription_type",
+      },
+    });
+    const user = response.data?.data;
+    if (!user?.id) {
+      throw new PostError(PostErrorType.API_ERROR, "X API did not return the authenticated user profile.");
+    }
+
+    this.cachedUserId = user.id;
+    this.cachedUsername = user.username?.replace(/^@/, "") || this.cachedUsername;
+    this.cachedSubscriptionType = user.subscription_type || undefined;
+    return user;
+  }
+
+  private async checkLongPostEligibility(textLength: number): Promise<void> {
+    try {
+      const user = await this.resolveAuthenticatedUser();
+      if (user.subscription_type?.toLowerCase() !== "none") return;
+
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        `${this.cachedUsername ? `@${this.cachedUsername}` : "This X account"} does not have X Premium, so it cannot publish this ${textLength}-character post. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} characters or split it into a thread.`,
+        this.accountDetails({
+          code: "long_post_requires_premium",
+          limit: X_STANDARD_POST_MAX_LENGTH,
+          actual: textLength,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof PostError && error.errorType === PostErrorType.INVALID_CONTENT) throw error;
+
+      // An unavailable or unrecognized subscription result is not proof that
+      // the account lacks Premium. Let X make the authoritative decision.
+      this.logger.warn("Could not determine X Premium status; attempting the long post with X.");
+    }
+  }
+
+  private async populateAccountIdentityForError(): Promise<void> {
+    if (this.cachedUsername || this.authenticatedUserLookupAttempted) return;
+    try {
+      await this.resolveAuthenticatedUser();
+    } catch {
+      // The stored account id remains available to the scheduler when X can no
+      // longer return a profile (for example, after credential revocation).
+    }
   }
 
   private async refreshAccessToken(): Promise<void> {
@@ -185,6 +270,33 @@ export class XPublisher extends Publisher {
     const mimeType = XPublisher.getMimeType(resolvedPath);
     const buffer = fs.readFileSync(resolvedPath);
 
+    const isGif = mimeType === EUploadMimeType.Gif;
+    const isVideo = mimeType === EUploadMimeType.Mp4 || mimeType === EUploadMimeType.Mov;
+    let maxSizeBytes = X_MAX_IMAGE_SIZE_BYTES;
+    let mediaKind = "images";
+    let errorCode = "image_too_large";
+    if (isGif) {
+      maxSizeBytes = X_MAX_GIF_SIZE_BYTES;
+      mediaKind = "animated GIFs";
+      errorCode = "gif_too_large";
+    } else if (isVideo) {
+      maxSizeBytes = X_MAX_VIDEO_SIZE_BYTES;
+      mediaKind = "videos";
+      errorCode = "video_too_large";
+    }
+    if (buffer.byteLength > maxSizeBytes) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        `X ${mediaKind} cannot exceed ${Math.round(maxSizeBytes / (1024 * 1024))} MB. This file is ${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB.`,
+        {
+          ...this.accountDetails(),
+          code: errorCode,
+          limit: maxSizeBytes,
+          actual: buffer.byteLength,
+        },
+      );
+    }
+
     // Upload the media using the X V2 API
     try {
       const mediaId = await this.client.v2.uploadMedia(buffer, { media_type: mimeType });
@@ -221,6 +333,11 @@ export class XPublisher extends Publisher {
 
     // Ensure we have a valid token before posting
     await this.ensureValidToken();
+
+    const textLength = content.text?.length ?? 0;
+    if (textLength > X_STANDARD_POST_MAX_LENGTH) {
+      await this.checkLongPostEligibility(textLength);
+    }
 
     const tempFileManager = new TempFileManager();
 
@@ -259,9 +376,48 @@ export class XPublisher extends Publisher {
 
       return result;
     } catch (error: unknown) {
-      const err = error as { data?: unknown };
+      await this.populateAccountIdentityForError();
+      if (error instanceof PostError) {
+        let details: Record<string, unknown> = {};
+        if (typeof error.details === "object" && error.details !== null) {
+          details = error.details as Record<string, unknown>;
+        } else if (error.details !== undefined) {
+          details = { provider: error.details };
+        }
+        throw new PostError(error.errorType, error.message, this.accountDetails(details));
+      }
+
+      const err = error as {
+        code?: number;
+        data?: { detail?: string; status?: number };
+        response?: { status?: number };
+        status?: number;
+      };
+      const status = err.code ?? err.status ?? err.response?.status ?? err.data?.status;
+      if (status === 403 && textLength > X_STANDARD_POST_MAX_LENGTH) {
+        const accountLabel = this.cachedUsername ? ` for @${this.cachedUsername}` : "";
+        const reportedSubscription = this.cachedSubscriptionType
+          ? ` X reports the account's subscription as ${this.cachedSubscriptionType}, but did not grant long-post access for this request.`
+          : " The account may not have X Premium long-post access.";
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          `X rejected this ${textLength}-character post${accountLabel}.${reportedSubscription} Shorten it to ${X_STANDARD_POST_MAX_LENGTH} characters or split it into a thread.`,
+          {
+            ...this.accountDetails(),
+            code: "long_post_not_permitted",
+            limit: X_STANDARD_POST_MAX_LENGTH,
+            actual: textLength,
+            provider: err.data,
+          },
+        );
+      }
+
       this.logger.error(error instanceof Error ? error : String(error));
-      throw new PostError(PostErrorType.API_ERROR, `Failed to post content: ${error}`, err.data);
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        `Failed to post content: ${error}`,
+        this.accountDetails({ provider: err.data }),
+      );
     } finally {
       await tempFileManager.cleanup();
     }
@@ -276,13 +432,8 @@ export class XPublisher extends Publisher {
       return this.cachedUserId;
     }
 
-    const accessToken = this.getCurrentAccessToken();
-    const meResponse = await axios.get<{ data?: { id?: string } }>("https://api.x.com/2/users/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    const userId = meResponse.data?.data?.id;
+    const authenticatedUser = await this.resolveAuthenticatedUser();
+    const userId = authenticatedUser.id;
     if (!userId) {
       throw new PostError(PostErrorType.API_ERROR, "X API did not return the authenticated user id.");
     }

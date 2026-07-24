@@ -954,6 +954,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         undefined,
         threadForPersistence,
         quoteTargets,
+        undefined,
+        { postId: post.id, source: "mcp" },
       );
       const summary = getPostingSummary(results);
 

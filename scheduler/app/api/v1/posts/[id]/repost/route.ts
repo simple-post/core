@@ -91,6 +91,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         session.user.id,
         targets,
         (post.accountOptions as AccountOptionsMap | null) ?? undefined,
+        {
+          content: post.message,
+          postId: post.id,
+          source: "api",
+          userEmail: session.user.email,
+          userName: session.user.name,
+        },
       );
     } catch (repostError) {
       // Never leave the post stuck in "pending" if the repost call itself

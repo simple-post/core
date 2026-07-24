@@ -3,6 +3,7 @@ import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-sc
 
 import { listAccountsSchema } from "@/lib/mcp/tools/accounts";
 import { uploadMediaSchema } from "@/lib/mcp/tools/media";
+import { toMediaFiles } from "@/lib/mcp/tools/media-schema";
 import {
   createPostSchema,
   discardScheduledPostSchema,
@@ -103,6 +104,8 @@ function assertMediaItems(schema: JsonSchemaObject): void {
   expect(mediaItem?.required).toEqual(expect.arrayContaining(["type", "url"]));
   expect(mediaItem?.properties?.type.enum).toEqual(["image", "video"]);
   expect(mediaItem?.properties?.url.type).toBe("string");
+  expect(mediaItem?.properties?.filename?.type).toBe("string");
+  expect(mediaItem?.properties?.size?.type).toBe("integer");
 }
 
 function assertTextOnlyThreadSegments(schema: JsonSchemaObject): void {
@@ -140,6 +143,25 @@ describe("MCP tool JSON schemas", () => {
     for (const schema of Object.values(THREAD_INPUT_SCHEMAS)) {
       assertTextOnlyThreadSegments(toInputJsonSchema(schema));
     }
+  });
+
+  it("preserves upload metadata for platform file-size validation", () => {
+    expect(
+      toMediaFiles([
+        {
+          type: "image",
+          url: "https://files.simplepost.social/uploads/user/image.png",
+          filename: "image.png",
+          size: 8_450_653,
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        type: "image",
+        filename: "image.png",
+        size: 8_450_653,
+      }),
+    ]);
   });
 
   it("exposes SimplePost quote references on create, preview, and scheduled updates", () => {

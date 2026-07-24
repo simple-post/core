@@ -13,6 +13,13 @@ function createMcpMediaItemSchema() {
       .url()
       .describe("Public URL of the media. Either a URL the user provided, or a URL returned by the upload_media tool."),
     thumbnailUrl: z.string().url().optional().describe("Optional public thumbnail URL. Recommended for videos."),
+    filename: z.string().min(1).optional().describe("Original filename when known, such as the upload_media result."),
+    size: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe("File size in bytes. Preserve this value when reusing an upload_media result."),
   });
 }
 
@@ -25,7 +32,7 @@ export const mcpMediaItemSchema = createMcpMediaItemSchema();
 export type McpMediaItem = z.infer<typeof mcpMediaItemSchema>;
 
 export const mcpMediaArraySchema = createMcpMediaArraySchema(
-  'Media items. Each item must be an object with required fields {"type":"image"|"video","url":"https://..."} and optional "thumbnailUrl".',
+  'Media items. Each item must have {"type":"image"|"video","url":"https://..."}. Preserve optional filename, size, and thumbnailUrl values returned by upload_media so platform validation can enforce file-size limits.',
 );
 
 /** Follow-up text segments after the root post. Segment media is intentionally omitted from MCP inputs. */
@@ -71,8 +78,8 @@ export function toMediaFiles(items: McpMediaItem[] | undefined): MediaFile[] {
       url: item.url,
       thumbnailUrl: item.thumbnailUrl,
       type: item.type,
-      filename,
-      size: 0,
+      filename: item.filename ?? filename,
+      size: item.size ?? 0,
     };
   });
 }

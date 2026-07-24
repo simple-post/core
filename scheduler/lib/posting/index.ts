@@ -18,6 +18,7 @@ import {
 } from "@/lib/oauth/connected-account-lock";
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/telemetry";
+import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -61,6 +62,30 @@ export interface PostingResult {
 }
 
 export type PostingResultCallback = (result: PostingResult) => void;
+
+export interface PostingObservabilityContext {
+  content?: string;
+  postId?: string;
+  source?: "api" | "mcp" | "scheduler";
+  scheduledFor?: string;
+  userEmail?: string;
+  userName?: string;
+}
+
+function contentLogContext(message: string | undefined): { contentLength?: number; contentPreview?: string } {
+  if (message === undefined) return {};
+  const normalizedContent = message.replaceAll(/\s+/g, " ").trim();
+  const contentPreview = normalizedContent.length <= 280 ? normalizedContent : `${normalizedContent.slice(0, 277)}...`;
+  return { contentLength: message.length, contentPreview };
+}
+
+function resultAccountHandle(result: PostingResult, account: ConnectedAccount | undefined): string | undefined {
+  if (result.details && typeof result.details === "object" && "accountHandle" in result.details) {
+    const handle = (result.details as { accountHandle?: unknown }).accountHandle;
+    if (typeof handle === "string" && handle.length > 0) return handle;
+  }
+  return account ? getPlatformAccountHandle(account.platform, account.username) : undefined;
+}
 
 export interface AccountRepostTarget extends RepostTarget {
   accountId: string;
@@ -223,7 +248,7 @@ async function postSingleSegment(
       const durationMs = Date.now() - startTime;
       log.info(
         {
-          postId: result.id,
+          platformPostId: result.id,
           postUrl: postUrl || null,
           durationMs,
           credentialsRefreshed: !!result.extraData?.refreshedCredentials,
@@ -246,7 +271,7 @@ async function postSingleSegment(
     const errorMsg = result?.error || "Unknown error occurred";
     const errorMessage = result?.message || errorMsg;
     const durationMs = Date.now() - startTime;
-    log.error(
+    log.warn(
       {
         error: errorMsg,
         errorMessage: result?.message,
@@ -268,7 +293,7 @@ async function postSingleSegment(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     const durationMs = Date.now() - startTime;
-    log.error({ err: serializeError(error), durationMs }, "Exception while posting segment");
+    log.warn({ err: serializeError(error), durationMs }, "Exception while posting segment");
     return {
       accountId: account.id,
       platform: account.platform,
@@ -294,6 +319,8 @@ async function postSegmentsToAccount(
     fn: "postSegmentsToAccount",
     accountId: account.id,
     platform: account.platform,
+    accountUsername: account.username || account.displayName || account.platformAccountId,
+    accountHandle: getPlatformAccountHandle(account.platform, account.username),
     segmentCount: segments.length,
   });
 
@@ -466,9 +493,19 @@ async function postToAccountsInternal(
   thread?: ThreadSegment[],
   quoteTargets?: AccountQuoteTarget[],
   onResult?: PostingResultCallback,
+  observability?: PostingObservabilityContext,
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
-  const log = postingLogger.child({ fn: "postToAccounts" });
+  const log = postingLogger.child({
+    fn: "postToAccounts",
+    userId,
+    userEmail: observability?.userEmail,
+    userName: observability?.userName,
+    postId: observability?.postId,
+    postingSource: observability?.source,
+    scheduledFor: observability?.scheduledFor,
+    ...contentLogContext(message),
+  });
 
   log.info(
     {
@@ -497,7 +534,7 @@ async function postToAccountsInternal(
     log.debug({ foundCount: accounts.length }, "Found accounts in database");
 
     if (accounts.length === 0) {
-      log.error({ accountIds }, "No accounts found for the provided IDs");
+      log.warn({ accountIds }, "No accounts found for the provided IDs");
       throw new Error("No accounts found");
     }
 
@@ -527,6 +564,9 @@ async function postToAccountsInternal(
             "post",
             account.platform,
             {
+              "enduser.id": userId,
+              "simplepost.account.id": account.id,
+              ...(observability?.postId ? { "simplepost.post.id": observability.postId } : {}),
               "simplepost.segment_count": segments.length,
               "simplepost.has_media": segments.some((segment) => segment.mediaFiles.length > 0),
             },
@@ -568,19 +608,24 @@ async function postToAccountsInternal(
         log.info(
           {
             platform: result.platform,
-            postId: result.postId,
+            platformPostId: result.postId,
             postUrl: result.postUrl || null,
             credentialsRefreshed: !!result.extraData?.refreshedCredentials,
           },
           "Platform post succeeded",
         );
       } else {
+        const account = accounts.find((candidate) => candidate.id === result.accountId);
         log.error(
           {
+            accountId: result.accountId,
+            accountUsername: account?.username || account?.displayName || account?.platformAccountId,
+            accountHandle: resultAccountHandle(result, account),
             platform: result.platform,
             error: result.error,
             message: result.message,
             details: result.details,
+            failedSegments: result.threadResults?.filter((segment) => !segment.success),
           },
           "Platform post failed",
         );
@@ -596,7 +641,7 @@ async function postToAccountsInternal(
 }
 
 export async function postToAccounts(...args: Parameters<typeof postToAccountsInternal>): Promise<PostingResult[]> {
-  const { 2: mediaFiles, 3: accountIds, 6: thread } = args;
+  const { 0: userId, 2: mediaFiles, 3: accountIds, 6: thread, 9: observability } = args;
   return withPostingBatch(
     "post",
     "simplepost.publish",
@@ -604,6 +649,9 @@ export async function postToAccounts(...args: Parameters<typeof postToAccountsIn
       "simplepost.account_count": accountIds.length,
       "simplepost.media_count": mediaFiles.length,
       "simplepost.thread_segment_count": thread?.length ?? 0,
+      "enduser.id": userId,
+      ...(observability?.postId ? { "simplepost.post.id": observability.postId } : {}),
+      ...(observability?.source ? { "simplepost.source": observability.source } : {}),
     },
     () => postToAccountsInternal(...args),
   );
@@ -699,8 +747,17 @@ async function repostToAccountsInternal(
   userId: string,
   targets: AccountRepostTarget[],
   accountOptions?: AccountOptionsMap,
+  observability?: PostingObservabilityContext,
 ): Promise<PostingResult[]> {
-  const log = postingLogger.child({ fn: "repostToAccounts" });
+  const log = postingLogger.child({
+    fn: "repostToAccounts",
+    userId,
+    userEmail: observability?.userEmail,
+    userName: observability?.userName,
+    postId: observability?.postId,
+    postingSource: observability?.source,
+    ...contentLogContext(observability?.content),
+  });
   const targetByAccountId = new Map(targets.map((target) => [target.accountId, target]));
   const accountIds = [...targetByAccountId.keys()];
 
@@ -723,7 +780,7 @@ async function repostToAccountsInternal(
       message: "Account was not found or no longer belongs to this user.",
     }));
 
-  const results = await Promise.all(
+  const results: PostingResult[] = await Promise.all(
     accounts.map((account) => {
       const target = targetByAccountId.get(account.id);
       if (!target) {
@@ -736,20 +793,59 @@ async function repostToAccountsInternal(
         });
       }
 
-      const accountLog = log.child({ accountId: account.id, platform: account.platform });
-      return withAccountPublishSpan("repost", account.platform, {}, () =>
-        repostSingleTarget(account, target, accountOptions, accountLog),
+      const accountUsername = account.username || account.displayName || account.platformAccountId;
+      const accountLog = log.child({
+        accountId: account.id,
+        accountUsername,
+        accountHandle: getPlatformAccountHandle(account.platform, account.username),
+        platform: account.platform,
+      });
+      return withAccountPublishSpan(
+        "repost",
+        account.platform,
+        {
+          "enduser.id": userId,
+          "simplepost.account.id": account.id,
+          ...(observability?.postId ? { "simplepost.post.id": observability.postId } : {}),
+        },
+        () => repostSingleTarget(account, target, accountOptions, accountLog),
       );
     }),
   );
 
-  return [...missingResults, ...results];
+  const allResults = [...missingResults, ...results];
+  for (const result of allResults) {
+    if (!result.success) {
+      const account = accounts.find((candidate) => candidate.id === result.accountId);
+      log.error(
+        {
+          accountId: result.accountId,
+          accountUsername: account?.username || account?.displayName || account?.platformAccountId,
+          accountHandle: resultAccountHandle(result, account),
+          platform: result.platform,
+          error: result.error,
+          message: result.message,
+          details: result.details,
+        },
+        "Platform repost failed",
+      );
+    }
+  }
+  return allResults;
 }
 
 export async function repostToAccounts(...args: Parameters<typeof repostToAccountsInternal>): Promise<PostingResult[]> {
-  const [, targets] = args;
-  return withPostingBatch("repost", "simplepost.repost", { "simplepost.account_count": targets.length }, () =>
-    repostToAccountsInternal(...args),
+  const [userId, targets, , observability] = args;
+  return withPostingBatch(
+    "repost",
+    "simplepost.repost",
+    {
+      "simplepost.account_count": targets.length,
+      "enduser.id": userId,
+      ...(observability?.postId ? { "simplepost.post.id": observability.postId } : {}),
+      ...(observability?.source ? { "simplepost.source": observability.source } : {}),
+    },
+    () => repostToAccountsInternal(...args),
   );
 }
 

@@ -92,13 +92,25 @@ function stringifyValue(value: unknown, maxLength = 900): string {
   }
 }
 
-function formatNotification(notification: TelegramLogNotification): string {
+export function formatTelegramLogNotification(notification: TelegramLogNotification): string {
   const env = process.env.NODE_ENV || "development";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const context = notification.context || {};
   const moduleName = typeof context.module === "string" ? context.module : undefined;
   const requestId = typeof context.requestId === "string" ? context.requestId : undefined;
   const userId = typeof context.userId === "string" ? context.userId : undefined;
+  const userEmail = typeof context.userEmail === "string" ? context.userEmail : undefined;
+  const userName = typeof context.userName === "string" ? context.userName : undefined;
+  const postId = typeof context.postId === "string" ? context.postId : undefined;
+  const accountId = typeof context.accountId === "string" ? context.accountId : undefined;
+  const accountUsername = typeof context.accountUsername === "string" ? context.accountUsername : undefined;
+  const accountHandle = typeof context.accountHandle === "string" ? context.accountHandle : undefined;
+  const platform = typeof context.platform === "string" ? context.platform : undefined;
+  const postingSource = typeof context.postingSource === "string" ? context.postingSource : undefined;
+  const traceId = typeof context.traceId === "string" ? context.traceId : undefined;
+  const contentPreview = typeof context.contentPreview === "string" ? context.contentPreview : undefined;
+  const contentLength = typeof context.contentLength === "number" ? context.contentLength : undefined;
+  const providerMessage = typeof context.message === "string" ? context.message : undefined;
 
   const lines = [
     `<b>SimplePost Scheduler ${escapeHtml(notification.level.toUpperCase())}</b>`,
@@ -109,9 +121,28 @@ function formatNotification(notification: TelegramLogNotification): string {
   if (appUrl) lines.push(`<b>App:</b> ${escapeHtml(appUrl)}`);
   if (moduleName) lines.push(`<b>Module:</b> ${escapeHtml(moduleName)}`);
   if (requestId) lines.push(`<b>Request:</b> ${escapeHtml(requestId)}`);
-  if (userId) lines.push(`<b>User:</b> ${escapeHtml(userId)}`);
+  if (userId || userEmail || userName) {
+    const userLabel = [userName, userEmail ? `<${userEmail}>` : undefined, userId ? `(${userId})` : undefined]
+      .filter(Boolean)
+      .join(" ");
+    lines.push(`<b>User:</b> ${escapeHtml(userLabel)}`);
+  }
+  if (postId) lines.push(`<b>Post:</b> ${escapeHtml(postId)}`);
+  if (platform) lines.push(`<b>Platform:</b> ${escapeHtml(platform)}`);
+  if (accountHandle) lines.push(`<b>Handle:</b> ${escapeHtml(accountHandle)}`);
+  if (accountId) lines.push(`<b>Account ID:</b> ${escapeHtml(accountId)}`);
+  if (!accountHandle && accountUsername) lines.push(`<b>Account:</b> ${escapeHtml(accountUsername)}`);
+  if (postingSource) lines.push(`<b>Source:</b> ${escapeHtml(postingSource)}`);
+  if (traceId) lines.push(`<b>Trace:</b> <code>${escapeHtml(traceId)}</code>`);
 
   lines.push(`<b>Message:</b> ${escapeHtml(truncate(notification.message, 600))}`);
+  if (providerMessage && providerMessage !== notification.message) {
+    lines.push(`<b>Reason:</b> ${escapeHtml(truncate(providerMessage, 900))}`);
+  }
+  if (contentPreview) {
+    const lengthSuffix = contentLength === undefined ? "" : ` (${contentLength} chars)`;
+    lines.push(`<b>Content${escapeHtml(lengthSuffix)}:</b> ${escapeHtml(truncate(contentPreview, 900))}`);
+  }
 
   if (notification.error) {
     lines.push(`<b>Error:</b> <pre>${escapeHtml(stringifyValue(notification.error, 1200))}</pre>`);
@@ -121,6 +152,19 @@ function formatNotification(notification: TelegramLogNotification): string {
   delete extraContext.module;
   delete extraContext.requestId;
   delete extraContext.userId;
+  delete extraContext.userEmail;
+  delete extraContext.userName;
+  delete extraContext.postId;
+  delete extraContext.accountId;
+  delete extraContext.accountUsername;
+  delete extraContext.accountHandle;
+  delete extraContext.platform;
+  delete extraContext.postingSource;
+  delete extraContext.traceId;
+  delete extraContext.spanId;
+  delete extraContext.contentPreview;
+  delete extraContext.contentLength;
+  delete extraContext.message;
   delete extraContext.err;
   delete extraContext.error;
 
@@ -151,7 +195,7 @@ export async function sendTelegramLogNotification(notification: TelegramLogNotif
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: config.chatId,
-        text: formatNotification(notification),
+        text: formatTelegramLogNotification(notification),
         parse_mode: "HTML",
         disable_web_page_preview: true,
       }),

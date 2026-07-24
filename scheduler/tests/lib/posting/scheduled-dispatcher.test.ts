@@ -383,9 +383,18 @@ describe("dispatchDueScheduledPosts", () => {
 
     await dispatchDueScheduledPosts();
 
-    expect(postToAccountsMock).toHaveBeenCalledWith("user-1", "hello", [], ["a1"], undefined, undefined, undefined, [
-      expect.objectContaining({ accountId: "a1", postId: "source-tweet" }),
-    ]);
+    expect(postToAccountsMock).toHaveBeenCalledWith(
+      "user-1",
+      "hello",
+      [],
+      ["a1"],
+      undefined,
+      undefined,
+      undefined,
+      [expect.objectContaining({ accountId: "a1", postId: "source-tweet" })],
+      undefined,
+      { postId: "quote-1", source: "scheduler" },
+    );
   });
 
   it("quotes successful platform results from a partially failed source", async () => {
@@ -410,9 +419,18 @@ describe("dispatchDueScheduledPosts", () => {
 
     const result = await dispatchDueScheduledPosts();
 
-    expect(postToAccountsMock).toHaveBeenCalledWith("user-1", "hello", [], ["a1"], undefined, undefined, undefined, [
-      expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" }),
-    ]);
+    expect(postToAccountsMock).toHaveBeenCalledWith(
+      "user-1",
+      "hello",
+      [],
+      ["a1"],
+      undefined,
+      undefined,
+      undefined,
+      [expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" })],
+      undefined,
+      { postId: "quote-1", source: "scheduler" },
+    );
     expect(result.publishedPosts).toBe(1);
   });
 
@@ -434,6 +452,7 @@ describe("dispatchDueScheduledPosts", () => {
       "user-1",
       [expect.objectContaining({ accountId: "a1", postId: "tweet-1" })],
       undefined,
+      { content: "hello", postId: "p1", source: "scheduler" },
     );
     expect(result.processedReposts).toBe(1);
     expect(result.completedReposts).toBe(1);

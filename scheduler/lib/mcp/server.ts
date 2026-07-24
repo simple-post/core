@@ -64,7 +64,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Media
 
-Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, thumbnailUrl? }\`. The \`url\` must be publicly fetchable.
+Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
 
 There are two ways to get a usable \`url\`:
 

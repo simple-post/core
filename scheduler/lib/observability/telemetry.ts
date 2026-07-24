@@ -152,6 +152,9 @@ export async function withPostingBatch<T extends TelemetryPostingResult>(
         "simplepost.failure_count": failures,
         "simplepost.outcome": outcome,
       });
+      if (failures > 0) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: `${failures} publishing target(s) failed` });
+      }
       return results;
     } catch (error) {
       recordPostingFailure(operation, Date.now() - startedAt);
@@ -164,18 +167,24 @@ export async function withPostingBatch<T extends TelemetryPostingResult>(
  * Wraps the publish to a single target platform in a "simplepost.publish.account"
  * span whose outcome attribute is derived from the returned result.
  */
-export async function withAccountPublishSpan<T extends { success: boolean }>(
-  operation: "post" | "repost",
-  platform: string,
-  attributes: Attributes,
-  run: () => Promise<T>,
-): Promise<T> {
+export async function withAccountPublishSpan<
+  T extends { success: boolean; error?: string; message?: string; details?: unknown },
+>(operation: "post" | "repost", platform: string, attributes: Attributes, run: () => Promise<T>): Promise<T> {
   return withSpan(
     "simplepost.publish.account",
     { "simplepost.operation": operation, "social.platform": platform.toLowerCase(), ...attributes },
     async (span) => {
       const result = await run();
       span.setAttribute("simplepost.outcome", result.success ? "success" : "failure");
+      if (!result.success) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: "Publishing target failed" });
+        if (result.error) span.setAttribute("error.type", result.error);
+        if (result.message) span.setAttribute("error.message", result.message.slice(0, 500));
+        if (typeof result.details === "object" && result.details !== null && "code" in result.details) {
+          const code = (result.details as { code?: unknown }).code;
+          if (typeof code === "string") span.setAttribute("simplepost.error.code", code);
+        }
+      }
       return result;
     },
   );
@@ -200,6 +209,9 @@ export async function withScheduledDispatch<T extends TelemetryDispatchResult>(r
         "simplepost.stale_recovered": result.staleRecoveredPosts + result.staleRecoveredReposts,
         "simplepost.outcome": dispatchOutcome(result),
       });
+      if (dispatchOutcome(result) === "partial_failure") {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: "Scheduled dispatch contained failures" });
+      }
       recordScheduledDispatch(Date.now() - startedAt, result);
       return result;
     } catch (error) {

@@ -84,6 +84,7 @@ interface DuePost {
   quotePostId: string | null;
   scheduledFor: Date;
   quotePost: { status: string } | null;
+  user?: { email: string; name: string };
   media: MediaFile[];
   accounts: Array<{
     id: string;
@@ -102,6 +103,7 @@ interface DueRepostPost {
   accountResults: unknown;
   repostDelayHours: number;
   repostDueAt: Date | null;
+  user?: { email: string; name: string };
   accounts: Array<{
     id: string;
     platform: string;
@@ -433,6 +435,14 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
       post.thread ?? undefined,
       quoteTargets,
+      undefined,
+      {
+        postId: post.id,
+        source: "scheduler",
+        ...(post.scheduledFor ? { scheduledFor: post.scheduledFor.toISOString() } : {}),
+        ...(post.user?.email ? { userEmail: post.user.email } : {}),
+        ...(post.user?.name ? { userName: post.user.name } : {}),
+      },
     );
 
     const summary = getPostingSummary(postingResults);
@@ -598,6 +608,13 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
       post.userId,
       targets,
       (post.accountOptions as AccountOptionsMap | null) ?? undefined,
+      {
+        content: post.message,
+        postId: post.id,
+        source: "scheduler",
+        ...(post.user?.email ? { userEmail: post.user.email } : {}),
+        ...(post.user?.name ? { userName: post.user.name } : {}),
+      },
     );
     const outcome = summarizeRepostOutcome(results);
     const repostResults = outcome.repostResults as unknown as Prisma.InputJsonValue;
@@ -680,6 +697,12 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
             status: true,
           },
         },
+        user: {
+          select: {
+            email: true,
+            name: true,
+          },
+        },
         accounts: {
           select: {
             id: true,
@@ -704,6 +727,12 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
         },
       },
       include: {
+        user: {
+          select: {
+            email: true,
+            name: true,
+          },
+        },
         accounts: {
           select: {
             id: true,

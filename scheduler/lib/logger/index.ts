@@ -1,3 +1,4 @@
+import { context as otelContext, isSpanContextValid, trace } from "@opentelemetry/api";
 import pino, { type Logger } from "pino";
 
 import { SENSITIVE_KEYS } from "@/lib/logger/sensitive-keys";
@@ -32,11 +33,16 @@ function queueTelegramNotification(
   context: Record<string, unknown>,
   error?: unknown,
 ): void {
+  const activeSpanContext = trace.getSpan(otelContext.active())?.spanContext();
+  const traceContext =
+    activeSpanContext && isSpanContextValid(activeSpanContext)
+      ? { traceId: activeSpanContext.traceId, spanId: activeSpanContext.spanId }
+      : {};
   void sendTelegramLogNotification({
     level: label,
     message,
     timestamp: new Date().toISOString(),
-    context: redact(context),
+    context: redact({ ...context, ...traceContext }),
     error: error ? redact({ error }).error : undefined,
   });
 }

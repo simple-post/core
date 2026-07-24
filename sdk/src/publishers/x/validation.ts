@@ -64,9 +64,9 @@ export function validateXContent(content: Content): ValidationResult {
       platform: "x",
       severity: "warning",
       code: "long_post",
-      message: "Long X post. Premium may be required.",
+      message: `This ${text.length}-character X post requires X Premium long-post access. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} characters or split it into a thread if the account is not eligible.`,
       field: "text",
-      limit: X_LONG_POST_MAX_LENGTH,
+      limit: X_STANDARD_POST_MAX_LENGTH,
       actual: text.length,
     });
   }

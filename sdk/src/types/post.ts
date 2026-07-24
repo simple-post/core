@@ -59,6 +59,7 @@ export const XCredentialsSchema = z
     refreshToken: z.string().optional(),
     expiresAt: z.number().optional(), // Unix timestamp
     userId: z.string().optional(), // Numeric X user id; lets repost skip the users/me lookup
+    username: z.string().optional(), // X handle captured at connect time; included in diagnostics
   })
   .refine((data) => Boolean(data.accessToken) || Boolean(data.clientId && data.refreshToken), {
     message: "X credentials require either accessToken, or clientId + refreshToken (or both)",

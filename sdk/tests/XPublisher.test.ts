@@ -4,6 +4,7 @@ import axios from "axios";
 import { TwitterApi } from "twitter-api-v2";
 
 import { XPublisher } from "../src/publishers/x";
+import { X_MAX_IMAGE_SIZE_BYTES } from "../src/publishers/x/validation";
 import { PostError, PostErrorType } from "../src/types";
 
 import type { Content, PostOptionsWithCredentials } from "../src/types/post";
@@ -34,6 +35,7 @@ const validCredentialsOptions = (): PostOptionsWithCredentials => ({
       accessToken: "test_access_token",
       refreshToken: "test_refresh_token",
       expiresAt: futureTimestamp(),
+      username: "simplepost",
     },
   },
 });
@@ -189,9 +191,110 @@ describe("XPublisher", () => {
       const content: Content = { text: "This will fail" };
       mockV2Client.tweet.mockRejectedValue(new Error("API Error"));
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Failed to post content: Error: API Error", undefined),
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        message: "Failed to post content: Error: API Error",
+        details: { platform: "x", accountHandle: "@simplepost", provider: undefined },
+      });
+    });
+
+    it("blocks a long post only when X definitively reports no Premium subscription", async () => {
+      const content: Content = { text: "a".repeat(455) };
+      mockedAxios.get.mockResolvedValue({
+        data: { data: { id: "x-user-1", username: "livehandle", subscription_type: "None" } },
+      });
+
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        message:
+          "@livehandle does not have X Premium, so it cannot publish this 455-character post. Shorten it to 280 characters or split it into a thread.",
+        details: {
+          platform: "x",
+          accountHandle: "@livehandle",
+          subscriptionType: "None",
+          code: "long_post_requires_premium",
+          limit: 280,
+          actual: 455,
+        },
+      });
+      expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      expect(mockedAxios.get).toHaveBeenCalledWith("https://api.x.com/2/users/me", {
+        headers: { Authorization: "Bearer test_access_token" },
+        params: { "user.fields": "username,subscription_type" },
+      });
+    });
+
+    it.each(["Basic", "Premium", "PremiumPlus"])("allows a long post for X %s", async (subscriptionType) => {
+      const content: Content = { text: "a".repeat(455) };
+      mockedAxios.get.mockResolvedValue({
+        data: { data: { id: "x-user-1", username: "livehandle", subscription_type: subscriptionType } },
+      });
+      mockV2Client.tweet.mockResolvedValue({ data: { id: "long-post-id" } });
+
+      await expect(publisher.postContent(content, options)).resolves.toMatchObject({
+        id: "long-post-id",
+        error: PostErrorType.NO_ERROR,
+      });
+      expect(mockV2Client.tweet).toHaveBeenCalled();
+    });
+
+    it("attempts a long post when X Premium status cannot be determined", async () => {
+      const content: Content = { text: "a".repeat(455) };
+      mockedAxios.get.mockRejectedValue(new Error("User lookup unavailable"));
+      mockV2Client.tweet.mockResolvedValue({ data: { id: "long-post-id" } });
+
+      await expect(publisher.postContent(content, options)).resolves.toMatchObject({
+        id: "long-post-id",
+        error: PostErrorType.NO_ERROR,
+      });
+      expect(mockV2Client.tweet).toHaveBeenCalled();
+    });
+
+    it("should explain when X rejects a long post without long-post access", async () => {
+      const content: Content = { text: "a".repeat(455) };
+      mockedAxios.get.mockResolvedValue({
+        data: { data: { id: "x-user-1", username: "livehandle", subscription_type: "Premium" } },
+      });
+      mockV2Client.tweet.mockRejectedValue(
+        Object.assign(new Error("Request failed with code 403"), {
+          code: 403,
+          data: { detail: "You are not permitted to perform this action.", status: 403 },
+        }),
       );
+
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        message:
+          "X rejected this 455-character post for @livehandle. X reports the account's subscription as Premium, but did not grant long-post access for this request. Shorten it to 280 characters or split it into a thread.",
+        details: expect.objectContaining({
+          accountHandle: "@livehandle",
+          subscriptionType: "Premium",
+          code: "long_post_not_permitted",
+          limit: 280,
+          actual: 455,
+        }),
+      });
+    });
+
+    it("should reject oversized images before calling the X upload API", async () => {
+      mockedFs.readFileSync.mockReturnValue(Buffer.alloc(X_MAX_IMAGE_SIZE_BYTES + 1));
+
+      await expect(
+        publisher.postContent(
+          { text: "Oversized image", media: [{ type: "image", path: "/path/to/oversized.jpg" }] },
+          options,
+        ),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        details: expect.objectContaining({
+          platform: "x",
+          accountHandle: "@simplepost",
+          code: "image_too_large",
+          limit: X_MAX_IMAGE_SIZE_BYTES,
+          actual: X_MAX_IMAGE_SIZE_BYTES + 1,
+        }),
+      });
+      expect(mockV2Client.uploadMedia).not.toHaveBeenCalled();
     });
 
     it("should create a native quote post", async () => {
@@ -430,7 +533,15 @@ describe("XPublisher", () => {
 
       expect(result.isValid).toBe(true);
       expect(result.errors).toHaveLength(0);
-      expect(result.warnings.some((w) => w.code === "long_post")).toBe(true);
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          code: "long_post",
+          limit: 280,
+          actual: 281,
+          message:
+            "This 281-character X post requires X Premium long-post access. Shorten it to 280 characters or split it into a thread if the account is not eligible.",
+        }),
+      );
     });
 
     it("should error when text exceeds long-post max", () => {
@@ -473,7 +584,11 @@ describe("XPublisher", () => {
       expect(result).toEqual({
         error: PostErrorType.API_ERROR,
         message: "Failed to post content: Error: API Error",
-        details: undefined,
+        details: {
+          platform: "x",
+          accountHandle: "@simplepost",
+          provider: undefined,
+        },
       });
     });
 

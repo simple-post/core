@@ -30,6 +30,8 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
     // Numeric X user id captured at connect time. Lets repost skip the
     // rate-limited users/me lookup.
     userId: account.platformAccountId || undefined,
+    // Preserve the human-readable handle for provider error diagnostics.
+    username: account.username || undefined,
   }),
   twitter: (account: ConnectedAccount) => credentialBuilders.x(account),
   // The pre-publish credential health check owns YouTube refreshes. Supplying

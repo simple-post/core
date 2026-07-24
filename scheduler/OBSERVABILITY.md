@@ -29,7 +29,7 @@ Automatic server instrumentation provides Next.js request spans, outgoing HTTP/`
 - `simplepost.repost`: a multi-account repost
 - `simplepost.scheduler.dispatch`: one scheduled-dispatch run
 
-The custom attributes intentionally contain only bounded operational dimensions such as platform, operation, outcome, counts, and media presence. Post text, account IDs, user IDs, credentials, provider payloads, and post URLs are not attached to spans or metrics.
+Metrics intentionally contain only bounded operational dimensions such as platform, operation, outcome, counts, and media presence. Publish spans also carry the opaque SimplePost user, post, and connected-account IDs needed to correlate a failure with application records. Post text, credentials, provider payloads, usernames, and post URLs are not attached to spans or metrics.
 
 The following custom metrics are exported:
 
@@ -46,6 +46,8 @@ The following custom metrics are exported:
 | `simplepost.credentials.refresh`         | Counter   | Background credential-refresh results                                 |
 
 Pino logs continue to be written as JSON to stdout and are also sent through the OpenTelemetry Logs SDK. Logs emitted inside a span include `trace_id`, `span_id`, and `trace_flags`, enabling direct trace/log correlation in SigNoz. Existing application redaction remains active before log export.
+
+Publishing logs include the opaque user/post/account IDs, the user's name and email for scheduled work, the normalized `@handle` for every platform that supplied a username, source (`api`, `mcp`, or `scheduler`), content length, and a whitespace-normalized content preview capped at 280 characters. Providers without a real handle retain a readable account-name and ID fallback. Error/fatal Telegram notifications promote the handle and those fields plus the active trace ID into a readable incident summary. Credentials and provider options remain redacted. A handled per-segment failure is logged at `warn`; the final per-platform outcome is the single `error` event, avoiding duplicate alerts for one failure.
 
 If your Collector already tails Docker stdout, set `OTEL_LOGS_EXPORTER=none` to prevent duplicate ingestion. Trace IDs remain in stdout logs while tracing is active.
 

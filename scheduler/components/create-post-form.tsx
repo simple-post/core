@@ -18,7 +18,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { AccountOptionsComponent } from "@/features/platform-options/account-options";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useSubmitPost } from "@/hooks/use-mutations";
@@ -82,7 +81,6 @@ export function CreatePostForm() {
     setMessage,
     setMedia,
     setSelectedAccountIds,
-    setAccountOptions,
     setRepostSettings,
     setQuotePostId,
     setPostingMode,
@@ -106,7 +104,6 @@ export function CreatePostForm() {
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
   const [tiktokConsent, setTikTokConsent] = useState(false);
   const [contentTouched, setContentTouched] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -603,7 +600,6 @@ export function CreatePostForm() {
     selectedAccounts.length === selectedAccountIds.length &&
     (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
     (postingMode === "draft" || !validationLoading) &&
-    (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
@@ -645,14 +641,6 @@ export function CreatePostForm() {
           showAdvancedButton
           getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
           layout="row"
-        />
-
-        <AccountOptionsComponent
-          selectedAccountIds={selectedAccountIds}
-          options={accountOptions}
-          onOptionsChange={setAccountOptions}
-          media={media}
-          onBlockingChange={setAccountOptionsBlocked}
         />
 
         <div className="space-y-4">

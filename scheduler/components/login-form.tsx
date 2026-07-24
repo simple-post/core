@@ -16,17 +16,15 @@ interface LoginFormProps {
   callbackURL?: string;
 }
 
-interface OpenAITestUserLoginResponse {
+interface TestUserLoginResponse {
   authenticated?: boolean;
 }
 
-interface OpenAITestUserLoginConfigResponse {
+interface TestUserLoginConfigResponse {
   enabled?: boolean;
 }
 
-const OPENAI_TEST_USER_EMAIL = "openai@simplepost.social";
-
-async function fetchOpenAITestUserLoginEnabled(): Promise<boolean> {
+async function fetchTestUserLoginEnabled(): Promise<boolean> {
   const response = await fetch("/api/auth/sign-in/openai-test-user", {
     method: "GET",
   });
@@ -35,15 +33,11 @@ async function fetchOpenAITestUserLoginEnabled(): Promise<boolean> {
     return false;
   }
 
-  const data = (await response.json()) as OpenAITestUserLoginConfigResponse;
+  const data = (await response.json()) as TestUserLoginConfigResponse;
   return data.enabled === true;
 }
 
-async function tryOpenAITestUserLogin(email: string, password: string): Promise<boolean> {
-  if (email !== OPENAI_TEST_USER_EMAIL) {
-    return false;
-  }
-
+async function tryTestUserLogin(email: string, password: string): Promise<boolean> {
   const response = await fetch("/api/auth/sign-in/openai-test-user", {
     method: "POST",
     headers: {
@@ -53,10 +47,10 @@ async function tryOpenAITestUserLogin(email: string, password: string): Promise<
   });
 
   if (!response.ok) {
-    throw new Error("OpenAI test user login failed");
+    throw new Error("Test user login failed");
   }
 
-  const data = (await response.json()) as OpenAITestUserLoginResponse;
+  const data = (await response.json()) as TestUserLoginResponse;
   return data.authenticated === true;
 }
 
@@ -66,20 +60,20 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [openAITestLoginEnabled, setOpenAITestLoginEnabled] = useState(false);
+  const [testUserLoginEnabled, setTestUserLoginEnabled] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    fetchOpenAITestUserLoginEnabled()
+    fetchTestUserLoginEnabled()
       .then((enabled) => {
         if (active) {
-          setOpenAITestLoginEnabled(enabled);
+          setTestUserLoginEnabled(enabled);
         }
       })
       .catch(() => {
         if (active) {
-          setOpenAITestLoginEnabled(false);
+          setTestUserLoginEnabled(false);
         }
       });
 
@@ -127,12 +121,12 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     }
 
     try {
-      if (await tryOpenAITestUserLogin(normalizedEmail, password)) {
+      if (await tryTestUserLogin(normalizedEmail, password)) {
         window.location.assign(callbackURL);
         return;
       }
 
-      setError("Invalid email or password. Use the email link option if this is not the reviewer account.");
+      setError("Invalid email or password. Use the email link option if this is not a demo account.");
     } catch (error_) {
       logClientError(error_, "Password sign-in error");
       setError("Failed to sign in. Please try again.");
@@ -268,7 +262,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
               </div>
             </div>
 
-            {openAITestLoginEnabled ? (
+            {testUserLoginEnabled ? (
               <form onSubmit={handlePasswordSignIn} className="space-y-3">
                 <div className="space-y-1.5">
                   <Label

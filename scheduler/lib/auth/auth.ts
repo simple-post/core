@@ -9,8 +9,7 @@ import { env } from "../env";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
 
-const OPENAI_TEST_USER_EMAIL = "openai@simplepost.social";
-const OPENAI_TEST_USER_PASSWORD = "openai";
+import { authenticateTestUser } from "./test-users";
 
 function openAITestUserLogin() {
   return {
@@ -22,10 +21,10 @@ function openAITestUserLogin() {
           method: "GET",
           metadata: {
             openapi: {
-              description: "Return whether the OpenAI test user password login is enabled.",
+              description: "Return whether the test user password login is enabled.",
               responses: {
                 200: {
-                  description: "OpenAI test user sign-in configuration.",
+                  description: "Test user sign-in configuration.",
                   content: {
                     "application/json": {
                       schema: {
@@ -58,10 +57,10 @@ function openAITestUserLogin() {
           metadata: {
             openapi: {
               description:
-                "Sign in the configured OpenAI test user with the hard-coded review password when the server-side feature flag is enabled.",
+                "Sign in a configured test user with its hard-coded password when the server-side feature flag is enabled.",
               responses: {
                 200: {
-                  description: "OpenAI test user sign-in result.",
+                  description: "Test user sign-in result.",
                   content: {
                     "application/json": {
                       schema: {
@@ -80,11 +79,8 @@ function openAITestUserLogin() {
         },
         async (ctx) => {
           const email = ctx.body.email.trim().toLowerCase();
-          if (
-            !env.ENABLE_OPENAI_TEST_LOGIN ||
-            email !== OPENAI_TEST_USER_EMAIL ||
-            ctx.body.password !== OPENAI_TEST_USER_PASSWORD
-          ) {
+          const testUser = authenticateTestUser(email, ctx.body.password);
+          if (!env.ENABLE_OPENAI_TEST_LOGIN || !testUser) {
             return ctx.json({ authenticated: false });
           }
 
@@ -93,7 +89,7 @@ function openAITestUserLogin() {
             user = await ctx.context.internalAdapter.createUser({
               email,
               emailVerified: true,
-              name: "OpenAI Test User",
+              name: testUser.name,
             });
           } else if (!user.emailVerified) {
             user = await ctx.context.internalAdapter.updateUser(user.id, { emailVerified: true });
@@ -102,7 +98,7 @@ function openAITestUserLogin() {
           if (!user) {
             throw APIError.from("INTERNAL_SERVER_ERROR", {
               code: "failed_to_create_test_user",
-              message: "Failed to create OpenAI test user",
+              message: "Failed to create test user",
             });
           }
 
@@ -110,7 +106,7 @@ function openAITestUserLogin() {
           if (!session) {
             throw APIError.from("INTERNAL_SERVER_ERROR", {
               code: "failed_to_create_session",
-              message: "Failed to create OpenAI test user session",
+              message: "Failed to create test user session",
             });
           }
 

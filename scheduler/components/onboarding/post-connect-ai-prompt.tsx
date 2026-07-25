@@ -9,7 +9,7 @@ import { useOnboardingDismissal, useOnboardingState } from "@/components/onboard
 
 /**
  * Opens the AI/MCP pitch the moment a user finishes connecting a social
- * account — every OAuth callback lands back on /accounts with
+ * account. Every OAuth callback lands back on /accounts with
  * `?success=true&platform=<id>` (see lib/oauth/callbacks/*), and the manual
  * Telegram/Forem flows set the same params.
  *

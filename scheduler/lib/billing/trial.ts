@@ -43,7 +43,7 @@ export function getTrialDaysRemaining(trial: FreeTrial, now: Date = new Date()):
  * untouched, which is exactly what stops a returning user from restarting the
  * trial.
  *
- * The trial is for genuinely new users. Any prior access grant disqualifies —
+ * The trial is for genuinely new users. Any prior access grant disqualifies:
  * a Stripe subscription record in *any* state, or a complimentary grant even
  * after it has expired. Otherwise a churned customer would land a free week
  * every time their subscription lapsed.
@@ -86,7 +86,7 @@ export async function ensureTrialStarted(userId: string, now: Date = new Date())
  * Publishes charged against each platform's trial allowance.
  *
  * The unit is one publish to one account, so a post targeting two X accounts
- * costs two X slots — that matches what actually goes out to the platform.
+ * costs two X slots, matching what actually goes out to the platform.
  * Drafts are excluded: the trial only charges once a post is scheduled or
  * published.
  */

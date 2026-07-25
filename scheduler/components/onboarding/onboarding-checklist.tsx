@@ -65,7 +65,7 @@ function StepRow({ step, index }: { step: ChecklistStep; index: number }) {
 /**
  * First-run guidance on the dashboard. The middle step is the AI integration
  * rather than an afterthought, because that is what makes SimplePost different
- * from every other scheduler — connecting an assistant is deliberately placed
+ * from every other scheduler. Connecting an assistant is deliberately placed
  * before writing a first post.
  *
  * Disappears on its own once all three steps are done, so it never needs

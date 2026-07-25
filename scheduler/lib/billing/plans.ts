@@ -55,7 +55,7 @@ export interface BillingPlan {
 
 /**
  * Any plan a user can currently be on. Widens {@link BillingPlan} to include
- * the trial, which grants access but can never be selected in Checkout — that
+ * the trial, which grants access but can never be selected in Checkout. That
  * distinction is what keeps `"trial"` out of every Stripe code path.
  */
 export interface AccessPlan extends Omit<BillingPlan, "key"> {
@@ -64,8 +64,8 @@ export interface AccessPlan extends Omit<BillingPlan, "key"> {
 
 /**
  * The plan a user is on before they ever pay. Capability is deliberately
- * Pro-level — the point of the trial is to show the AI/MCP integration, not to
- * ration features — with volume capped per platform instead of per month.
+ * Pro-level, because the point of the trial is to show the AI/MCP integration
+ * rather than ration features, with volume capped per platform, not per month.
  * Not part of {@link BILLING_PLANS}, so it can never be selected in Checkout.
  */
 export const TRIAL_PLAN: AccessPlan = {

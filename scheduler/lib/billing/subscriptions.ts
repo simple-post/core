@@ -635,7 +635,7 @@ function assertTrialAllowance(
 ): void {
   const { postsPerPlatform, maxThreadSegments } = status.plan?.limits ?? {};
   if (status.accessType !== "trial" || !status.trial) return;
-  // Drafts are free — only scheduling or publishing charges the allowance.
+  // Drafts are free. Only scheduling or publishing charges the allowance.
   if (context.isDraft) return;
 
   if (maxThreadSegments != null && (context.threadSegments ?? 1) > maxThreadSegments) {
@@ -665,7 +665,7 @@ function assertTrialAllowance(
 }
 
 /**
- * Gate for anything that puts a post in front of a platform — creating one, or
+ * Gate for anything that puts a post in front of a platform: creating one, or
  * editing an existing one. Both paths run through here so the trial allowance
  * cannot be sidestepped by saving a draft and scheduling it afterwards.
  */

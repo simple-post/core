@@ -37,11 +37,11 @@ interface BillingStatus {
 
 function describeTrial(trial: NonNullable<BillingStatus["trial"]>): string {
   if (trial.status === "expired") {
-    return `Your free trial ended on ${formatDate(trial.expiresAt)}. Pick a plan to start scheduling again — everything you created is still here.`;
+    return `Your free trial ended on ${formatDate(trial.expiresAt)}. Everything you created is still here. Pick a plan to start scheduling again.`;
   }
 
   const remaining = trial.daysRemaining <= 1 ? "It ends today" : `You have ${trial.daysRemaining} days left`;
-  return `You are on the free trial, limited to ${trial.postsPerPlatform} posts per platform. ${remaining} — subscribe whenever you are ready, no need to wait for it to run out.`;
+  return `You are on the free trial, limited to ${trial.postsPerPlatform} posts per platform. ${remaining}. Subscribe whenever you are ready, no need to wait for it to run out.`;
 }
 
 async function parseApiError(response: Response): Promise<string> {

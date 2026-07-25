@@ -36,7 +36,7 @@ const STEPS = [
 
 /**
  * First thing a brand-new trial user sees. It exists to name the three steps
- * and hand off directly into the first one — the dashboard checklist is the
+ * and hand off directly into the first one. The dashboard checklist is the
  * fallback for anyone who dismisses it or comes back later.
  *
  * Suppressed once the user has done anything at all, so returning users and

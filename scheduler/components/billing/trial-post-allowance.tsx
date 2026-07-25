@@ -12,8 +12,52 @@ import type { BillingTrialStatus } from "@/lib/billing/subscriptions";
 import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
-/** How close to the cap a platform gets before the compose form warns about it. */
-const WARN_WITHIN = 3;
+/**
+ * Remaining publishes at which a platform starts warning. Exact counts are not
+ * worth the user's attention until they are nearly out, so nothing is shown
+ * above this.
+ */
+export const LOW_REMAINING = 3;
+
+/** "X", or "X and Bluesky", or "X, Bluesky and Threads". */
+function formatPlatformList(labels: string[]): string {
+  if (labels.length <= 1) return labels.join("");
+  return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+}
+
+/** Warns about platforms that are nearly out, without putting numbers on screen. */
+export function LowAllowanceWarning({
+  platforms,
+  allUsedUp,
+  className,
+}: {
+  platforms: string[];
+  allUsedUp: boolean;
+  className?: string;
+}) {
+  if (platforms.length === 0) return null;
+
+  const names = formatPlatformList(platforms);
+
+  return (
+    <div className={cn("rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm", className)}>
+      <div className="flex items-center gap-1.5 text-destructive">
+        <AlertTriangle className="h-3.5 w-3.5" />
+        <p className="font-medium">
+          {allUsedUp
+            ? `You have used all your free trial posts for ${names}`
+            : `Almost all your free trial posts for ${names} are used up`}
+        </p>
+      </div>
+      <p className="mt-1 text-muted-foreground">
+        <Link href="/billing/plans" className="font-medium text-primary hover:underline">
+          Choose a plan
+        </Link>{" "}
+        to keep posting there.
+      </p>
+    </div>
+  );
+}
 
 export interface TrialPlatformAllowance {
   platform: string;
@@ -26,7 +70,7 @@ export interface TrialPlatformAllowance {
 }
 
 export interface TrialPostAllowance {
-  /** False for paying users and outside the trial — callers should render nothing. */
+  /** False for paying users and outside the trial, when callers should render nothing. */
   onTrial: boolean;
   /** Platforms this post would push past the cap. Non-empty means it cannot go out. */
   exceeded: TrialPlatformAllowance[];
@@ -63,7 +107,7 @@ function useActiveTrial(): BillingTrialStatus | null {
  *
  * Mirrors the server-side projection in `assertCanCreatePost`: the cost is one
  * publish per selected account, and the check is whether current usage plus
- * this post would exceed the cap — not merely whether the cap is already hit.
+ * this post would exceed the cap, not merely whether the cap is already hit.
  * Drafts never consume allowance, so pass `isDraft` to opt out of blocking.
  */
 export function useTrialPostAllowance({
@@ -100,7 +144,7 @@ export function useTrialPostAllowance({
 
       if (used + requested > trial.postsPerPlatform) {
         exceeded.push(entry);
-      } else if (entry.remaining <= WARN_WITHIN) {
+      } else if (entry.remaining < LOW_REMAINING) {
         runningLow.push(entry);
       }
     }
@@ -117,16 +161,9 @@ export function useTrialPostAllowance({
   }, [trial, platforms, threadSegments, isDraft]);
 }
 
-function formatPlatformList(entries: TrialPlatformAllowance[]): string {
-  const labels = entries.map((entry) => entry.label);
-  if (labels.length <= 1) return labels.join("");
-  return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
-}
-
 /**
- * Feedback about the post currently being composed. Ambient trial status lives
- * in {@link TrialScheduleNotice} instead; this only speaks up when the selected
- * accounts are at or near their limit.
+ * Feedback about the post currently being composed. Only speaks up when the
+ * selected accounts are at or near their limit; exact counts stay off screen.
  */
 export function TrialLimitNotice({ allowance }: { allowance: TrialPostAllowance }) {
   if (!allowance.onTrial) return null;
@@ -136,110 +173,72 @@ export function TrialLimitNotice({ allowance }: { allowance: TrialPostAllowance 
     return null;
   }
 
-  if (allowance.blocked) {
+  if (threadTooLong) {
     return (
-      <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
         <div className="flex items-center gap-1.5 text-destructive">
           <AlertTriangle className="h-3.5 w-3.5" />
-          <p className="font-medium">Free trial limit reached</p>
+          <p className="font-medium">Thread is too long</p>
         </div>
-        {exceeded.length > 0 ? (
-          <p className="text-muted-foreground">
-            This post would take {formatPlatformList(exceeded)} past the {exceeded[0].limit} publishes the trial
-            includes per platform. Remove {exceeded.length === 1 ? "that account" : "those accounts"} or choose a plan.
-          </p>
-        ) : null}
-        {threadTooLong ? (
-          <p className="text-muted-foreground">
-            The free trial allows up to {maxThreadSegments} posts in a thread. Shorten the thread or upgrade.
-          </p>
-        ) : null}
-        <Link href="/billing/plans" className="inline-block pt-1 font-medium text-primary hover:underline">
-          Choose a plan
-        </Link>
+        <p className="mt-1 text-muted-foreground">
+          The free trial allows up to {maxThreadSegments} posts in a thread. Shorten it or{" "}
+          <Link href="/billing/plans" className="font-medium text-primary hover:underline">
+            choose a plan
+          </Link>
+          .
+        </p>
       </div>
     );
   }
 
+  const platforms = exceeded.length > 0 ? exceeded : runningLow;
+
   return (
-    <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm">
-      <div className="flex items-center gap-1.5 text-foreground">
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
-        <p className="font-medium">Free trial</p>
-      </div>
-      <p className="mt-1 text-muted-foreground">
-        {runningLow
-          .map(
-            (entry) => `${entry.remaining} ${entry.remaining === 1 ? "publish" : "publishes"} left for ${entry.label}`,
-          )
-          .join(" · ")}
-        .{" "}
-        <Link href="/billing/plans" className="font-medium text-primary hover:underline">
-          Choose a plan
-        </Link>{" "}
-        to lift the limit.
-      </p>
-    </div>
+    <LowAllowanceWarning
+      platforms={platforms.map((entry) => entry.label)}
+      allUsedUp={platforms.some((entry) => entry.remaining === 0)}
+    />
   );
 }
 
 /**
- * Ambient trial status above the compose form: time left and where the
- * allowance has gone, visible before the user selects anything.
+ * Ambient trial status above the compose form: how long is left, plus a nudge
+ * once a platform is nearly out. Usage is tracked per platform on the server,
+ * but the numbers are only worth surfacing when they start to bite.
  */
 export function TrialScheduleNotice() {
   const trial = useActiveTrial();
 
-  const platformUsage = useMemo(
-    () =>
-      Object.entries(trial?.platformUsage ?? {})
-        .filter(([, used]) => used > 0)
-        .sort(([a], [b]) => getPlatformName(a).localeCompare(getPlatformName(b))),
-    [trial],
-  );
+  const lowPlatforms = useMemo(() => {
+    if (!trial) return [];
+    return Object.entries(trial.platformUsage)
+      .map(([platform, used]) => ({
+        label: getPlatformName(platform),
+        remaining: Math.max(0, trial.postsPerPlatform - used),
+      }))
+      .filter((entry) => entry.remaining < LOW_REMAINING)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [trial]);
 
   if (!trial) return null;
 
-  const anyExhausted = platformUsage.some(([, used]) => used >= trial.postsPerPlatform);
+  const anyExhausted = lowPlatforms.some((entry) => entry.remaining === 0);
 
   return (
-    <div
-      className={cn(
-        "mb-6 rounded-xl border p-4",
-        anyExhausted ? "border-destructive/30 bg-destructive/10" : "border-primary/25 bg-primary/10",
-      )}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+    <div className="mb-6 space-y-3">
+      <div className="rounded-xl border border-primary/25 bg-primary/10 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Sparkles className="h-4 w-4 text-primary" />
             Free trial · {trial.daysRemaining} {trial.daysRemaining === 1 ? "day" : "days"} left
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {trial.postsPerPlatform} publishes per platform. A thread counts as one publish and may contain up to{" "}
-            {trial.maxThreadSegments} posts.
-          </p>
+          <Button asChild size="sm" variant={lowPlatforms.length > 0 ? "default" : "outline"} className="shrink-0">
+            <Link href="/billing/plans">{lowPlatforms.length > 0 ? "Upgrade to keep posting" : "Upgrade"}</Link>
+          </Button>
         </div>
-        <Button asChild size="sm" variant={anyExhausted ? "default" : "outline"} className="shrink-0">
-          <Link href="/billing/plans">{anyExhausted ? "Upgrade to keep posting" : "Upgrade"}</Link>
-        </Button>
       </div>
 
-      {platformUsage.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {platformUsage.map(([platform, used]) => (
-            <span
-              key={platform}
-              className={cn(
-                "rounded-md border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em]",
-                used >= trial.postsPerPlatform
-                  ? "border-destructive/40 bg-destructive/10 text-destructive"
-                  : "border-border bg-background/60 text-muted-foreground",
-              )}>
-              {getPlatformName(platform)} {used}/{trial.postsPerPlatform}
-            </span>
-          ))}
-        </div>
-      ) : null}
+      <LowAllowanceWarning platforms={lowPlatforms.map((entry) => entry.label)} allUsedUp={anyExhausted} />
     </div>
   );
 }

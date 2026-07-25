@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { useAccounts } from "@/hooks/use-accounts";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
-import { getPlatformById } from "@/lib/config";
+import { getPlatformName } from "@/lib/config";
 
 interface BillingPlan {
   key: PlanKey;
@@ -91,6 +91,21 @@ function formatDate(value: string | null) {
 function usagePercent(value: number, limit: number | null) {
   if (!limit) return 0;
   return Math.min(100, Math.round((value / limit) * 100));
+}
+
+/** A labelled usage bar. Every row in the usage grid uses this so they align. */
+function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium">{label}</span>
+        <span className="text-muted-foreground">
+          {used.toLocaleString()} / {limit === null ? "Unlimited" : limit.toLocaleString()}
+        </span>
+      </div>
+      <Progress value={usagePercent(used, limit)} />
+    </div>
+  );
 }
 
 export default function BillingPage() {
@@ -300,7 +315,7 @@ export default function BillingPage() {
               title={trial ? "Your free trial has ended" : "Choose a plan to use SimplePost"}
               description={
                 trial
-                  ? `Your trial ran out on ${formatDate(trial.expiresAt)}. Your posts and connected accounts are still here — pick a plan to start scheduling again.`
+                  ? `Your trial ran out on ${formatDate(trial.expiresAt)}. Your posts and connected accounts are still here. Pick a plan to start scheduling again.`
                   : undefined
               }
               displayCurrency={displayCurrency}
@@ -318,7 +333,11 @@ export default function BillingPage() {
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-[-0.025em]">{plan.name}</h2>
+                    {/* The kicker above already says "Free trial", so name the
+                        benefit here instead of repeating it. */}
+                    <h2 className="text-2xl font-semibold tracking-[-0.025em]">
+                      {isTrial ? "All features unlocked" : plan.name}
+                    </h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       {isTrial
                         ? trial && trial.daysRemaining <= 1
@@ -354,33 +373,37 @@ export default function BillingPage() {
                   </p>
                 </div>
 
-                <div className="grid gap-2 sm:min-w-56">
+                {/* items-start keeps every child at its own content width, so a
+                    long helper line can never stretch the buttons above it. */}
+                <div className="flex shrink-0 flex-col items-start gap-2">
                   {isTrial ? (
                     <>
-                      <Button asChild className="justify-start gap-2">
+                      <Button asChild className="gap-2">
                         <a href="#plans">
                           <CreditCard className="h-4 w-4" />
                           Choose a plan
                         </a>
                       </Button>
-                      <p className="px-1 text-xs leading-5 text-muted-foreground">
-                        Subscribing now keeps everything you have set up and lifts the trial limits immediately.
+                      <p className="max-w-56 text-xs leading-5 text-muted-foreground">
+                        Subscribing lifts the trial limits right away.
                       </p>
                     </>
                   ) : isComplimentary ? (
                     <>
-                      <Button asChild className="justify-start gap-2">
+                      <Button asChild className="gap-2">
                         <Link href="/subscribe">
                           <CreditCard className="h-4 w-4" />
                           Start a paid subscription
                         </Link>
                       </Button>
-                      <p className="px-1 text-xs leading-5 text-muted-foreground">
+                      <p className="max-w-56 text-xs leading-5 text-muted-foreground">
                         Optional. Your complimentary access stays active until you subscribe or it expires.
                       </p>
                     </>
                   ) : (
-                    <>
+                    // Three related actions read better as an even stack than at
+                    // three different content widths.
+                    <div className="flex w-56 flex-col gap-2">
                       <Button asChild className="justify-start gap-2">
                         <Link href="/billing/plans">
                           <ArrowLeftRight className="h-4 w-4" />
@@ -413,7 +436,7 @@ export default function BillingPage() {
                         )}
                         {portalLoading === "invoices" ? "Opening..." : "Invoices"}
                       </Button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -424,56 +447,28 @@ export default function BillingPage() {
                 <span className="section-kicker-dot" />
                 <span className="section-kicker-label">Usage</span>
               </div>
+              {/* One meter shape for every row, so labels and bars line up across
+                  the columns no matter how many platforms are listed. */}
               <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium">Social accounts</span>
-                    <span className="text-muted-foreground">
-                      {billing.usage.connectedAccounts} / {accountLimit ?? "Unlimited"}
-                    </span>
-                  </div>
-                  <Progress value={usagePercent(billing.usage.connectedAccounts, accountLimit)} />
-                </div>
+                <UsageMeter label="Social accounts" used={billing.usage.connectedAccounts} limit={accountLimit} />
                 {isTrial && trial ? (
-                  <div>
-                    <div className="mb-2 text-sm font-medium">Posts per platform</div>
-                    {connectedPlatforms.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Connect a social account to start using your {trial.postsPerPlatform} posts per platform.
-                      </p>
-                    ) : (
-                      <ul className="grid gap-3">
-                        {connectedPlatforms.map((platform) => {
-                          const used = trial.platformUsage[platform] ?? 0;
-                          return (
-                            <li key={platform}>
-                              <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                                <span className="text-muted-foreground">
-                                  {getPlatformById(platform)?.name ?? platform}
-                                </span>
-                                <span className="text-muted-foreground">
-                                  {used} / {trial.postsPerPlatform}
-                                </span>
-                              </div>
-                              <Progress value={usagePercent(used, trial.postsPerPlatform)} />
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
+                  connectedPlatforms.map((platform) => (
+                    <UsageMeter
+                      key={platform}
+                      label={`${getPlatformName(platform)} posts`}
+                      used={trial.platformUsage[platform] ?? 0}
+                      limit={trial.postsPerPlatform}
+                    />
+                  ))
                 ) : (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium">Posts this period</span>
-                      <span className="text-muted-foreground">
-                        {billing.usage.postsThisPeriod.toLocaleString()} / {postLimit?.toLocaleString()}
-                      </span>
-                    </div>
-                    <Progress value={usagePercent(billing.usage.postsThisPeriod, postLimit)} />
-                  </div>
+                  <UsageMeter label="Posts this period" used={billing.usage.postsThisPeriod} limit={postLimit} />
                 )}
               </div>
+              {isTrial && connectedPlatforms.length === 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Connect a social account to start using your {trial?.postsPerPlatform} posts per platform.
+                </p>
+              ) : null}
             </section>
 
             {isTrial ? (

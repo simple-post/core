@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export interface OnboardingState {
   hasConnectedAccount: boolean;
-  /** A post that was actually scheduled or published — a draft is not enough. */
+  /** A post that was actually scheduled or published. A draft is not enough. */
   hasPost: boolean;
   /** Any live MCP, CLI, or API credential: the user has wired up an assistant. */
   hasAiConnection: boolean;

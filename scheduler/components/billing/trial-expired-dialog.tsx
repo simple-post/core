@@ -21,7 +21,7 @@ import {
 
 /**
  * Inert stand-in for the app behind the dialog. Rendering the real dashboard
- * here would fire a wave of requests that all 402 — this keeps the sense of
+ * here would fire a wave of requests that all 402. This keeps the sense of
  * "your workspace is still there" without the failed calls and error logs.
  */
 function BlurredWorkspace() {

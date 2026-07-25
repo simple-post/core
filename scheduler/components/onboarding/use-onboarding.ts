@@ -20,11 +20,19 @@ async function fetchOnboardingState(): Promise<OnboardingState> {
   return (await response.json()) as OnboardingState;
 }
 
-export function useOnboardingState() {
+/**
+ * Onboarding progress, derived from real data on the server.
+ *
+ * Pass `watch` while a surface is waiting for the user to finish something in
+ * another app: connecting an assistant happens in ChatGPT or Claude, so the
+ * only way to notice it is to keep asking.
+ */
+export function useOnboardingState({ watch = false }: { watch?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.onboarding,
     queryFn: fetchOnboardingState,
-    staleTime: 30 * 1000,
+    staleTime: watch ? 0 : 30 * 1000,
+    refetchInterval: watch ? 4000 : false,
   });
 }
 

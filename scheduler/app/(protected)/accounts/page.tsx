@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +42,8 @@ function getCredentialBadge(account: ConnectedAccount): {
 }
 
 export default function AccountsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
@@ -57,6 +61,12 @@ export default function AccountsPage() {
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("onboarding") !== "connect") return;
+    setShowConnectDialog(true);
+    router.replace("/accounts", { scroll: false });
+  }, [router, searchParams]);
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);

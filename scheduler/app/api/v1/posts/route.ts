@@ -230,6 +230,8 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
         await assertCanCreatePost(userId, tx, {
           action: `create_${postingMode}_post`,
+          postingMode,
+          threadPostCount: 1 + (validated.thread?.length ?? 0),
           socialAccounts: toBillingSocialAccounts(validation.accounts),
         });
         const createdPost = await repository.createPost(

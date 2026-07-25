@@ -32,13 +32,29 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
   const billing = session?.user?.id ? await getBillingStatus(session.user.id) : null;
   const complimentaryPlan = billing?.accessType === "complimentary" ? billing.plan : null;
   const complimentaryExpiresAt = billing?.complimentaryAccess?.expiresAt ?? null;
+  const freeTrial = billing?.accessType === "trial" ? billing.freeTrial : null;
   const autoStartPlanKey = checkout === "cancelled" ? null : selectedPlan?.key;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main>
-        {complimentaryPlan ? (
+        {freeTrial ? (
+          <div className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] pt-6">
+            <Alert className="border-primary/30 bg-primary/10">
+              <AlertTitle>You’re on the free trial</AlertTitle>
+              <AlertDescription>
+                Every feature is unlocked through{" "}
+                {new Date(freeTrial.expiresAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+                . No payment method is required unless you choose a paid plan below.
+              </AlertDescription>
+            </Alert>
+          </div>
+        ) : complimentaryPlan ? (
           <div className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] pt-6">
             <Alert className="border-primary/30 bg-primary/10">
               <AlertTitle>You already have complimentary {complimentaryPlan.name} access</AlertTitle>
@@ -63,11 +79,13 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
           </div>
         ) : null}
         <PlanSelection
-          title={complimentaryPlan ? "Start a paid subscription" : undefined}
+          title={freeTrial || complimentaryPlan ? "Choose a paid plan" : undefined}
           description={
-            complimentaryPlan
-              ? "Your complimentary access remains free until you subscribe or it expires. Paid plans are optional."
-              : undefined
+            freeTrial
+              ? "Your free trial stays active until you subscribe or it expires."
+              : complimentaryPlan
+                ? "Your complimentary access remains free until you subscribe or it expires. Paid plans are optional."
+                : undefined
           }
           displayCurrency={displayCurrency}
           autoStartPlanKey={autoStartPlanKey}

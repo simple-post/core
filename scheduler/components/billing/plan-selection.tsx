@@ -20,6 +20,7 @@ interface PlanSelectionProps {
   description?: string;
   displayCurrency?: BillingDisplayCurrency;
   autoStartPlanKey?: PlanKey | null;
+  embedded?: boolean;
 }
 
 export function PlanSelection({
@@ -27,6 +28,7 @@ export function PlanSelection({
   description = "A subscription is required to use the scheduler. Pick a monthly plan to continue in Stripe Checkout.",
   displayCurrency = DEFAULT_BILLING_DISPLAY_CURRENCY,
   autoStartPlanKey = null,
+  embedded = false,
 }: PlanSelectionProps) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [autoStartFailed, setAutoStartFailed] = useState(false);
@@ -93,7 +95,7 @@ export function PlanSelection({
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
+    <section className={embedded ? "w-full py-2" : "mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12"}>
       <div className="mb-7 max-w-2xl">
         <div className="section-kicker">
           <span className="section-kicker-dot" />

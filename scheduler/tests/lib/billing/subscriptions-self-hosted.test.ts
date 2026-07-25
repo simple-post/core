@@ -12,8 +12,12 @@ jest.mock("@/lib/prisma", () => ({
     user: {
       findUnique: jest.fn(),
     },
+    freeTrial: {
+      upsert: jest.fn(),
+    },
     post: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     connectedAccount: {
       count: jest.fn(),
@@ -25,9 +29,21 @@ jest.mock("@/lib/prisma", () => ({
 
 const mockPrisma = prisma as unknown as {
   user: { findUnique: jest.Mock };
-  post: { count: jest.Mock };
+  freeTrial: { upsert: jest.Mock };
+  post: { count: jest.Mock; findMany: jest.Mock };
   connectedAccount: { count: jest.Mock; findFirst: jest.Mock; findUnique: jest.Mock };
 };
+
+function freeTrial(startsAt: string, expiresAt: string) {
+  return {
+    id: "trial-1",
+    userId: "user-1",
+    startsAt: new Date(startsAt),
+    expiresAt: new Date(expiresAt),
+    createdAt: new Date(startsAt),
+    updatedAt: new Date(startsAt),
+  };
+}
 
 describe("billing in self-hosted mode", () => {
   beforeEach(() => {
@@ -82,15 +98,46 @@ describe("billing when self-hosted mode is off", () => {
     jest.useRealTimers();
   });
 
-  it("requires a subscription record for an active status", async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ subscription: null });
+  it("automatically starts a card-free trial when the user has no access", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-25T12:00:00.000Z"));
+    const trial = freeTrial("2026-07-25T12:00:00.000Z", "2026-08-01T12:00:00.000Z");
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "new@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: null,
+    });
+    mockPrisma.freeTrial.upsert.mockResolvedValue(trial);
     mockPrisma.connectedAccount.count.mockResolvedValue(0);
-    mockPrisma.post.count.mockResolvedValue(0);
+    mockPrisma.post.findMany.mockResolvedValue([]);
 
     const status = await getBillingStatus("user-1");
 
-    expect(status.active).toBe(false);
-    expect(status.plan).toBeNull();
+    expect(status).toMatchObject({
+      active: true,
+      accessType: "trial",
+      plan: { key: "pro" },
+      freeTrial: {
+        startsAt: "2026-07-25T12:00:00.000Z",
+        expiresAt: "2026-08-01T12:00:00.000Z",
+        daysRemaining: 7,
+        postsPerPlatform: 10,
+        maxThreadPosts: 20,
+      },
+      usage: {
+        postsThisPeriod: 0,
+        postsByPlatform: {},
+      },
+    });
+    expect(mockPrisma.freeTrial.upsert).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+      create: {
+        userId: "user-1",
+        startsAt: new Date("2026-07-25T12:00:00.000Z"),
+        expiresAt: new Date("2026-08-01T12:00:00.000Z"),
+      },
+      update: {},
+    });
   });
 
   it("uses an active complimentary grant as the effective plan", async () => {
@@ -108,6 +155,7 @@ describe("billing when self-hosted mode is off", () => {
         createdAt: new Date("2026-07-01T00:00:00.000Z"),
         updatedAt: new Date("2026-07-01T00:00:00.000Z"),
       },
+      freeTrial: freeTrial("2026-06-01T00:00:00.000Z", "2026-06-08T00:00:00.000Z"),
     });
     mockPrisma.connectedAccount.count.mockResolvedValue(2);
     mockPrisma.post.count.mockResolvedValue(15);
@@ -145,6 +193,7 @@ describe("billing when self-hosted mode is off", () => {
         expiresAt: new Date("2025-02-01T00:00:00.000Z"),
         source: "manual",
       },
+      freeTrial: freeTrial("2025-01-01T00:00:00.000Z", "2025-01-08T00:00:00.000Z"),
     });
     mockPrisma.connectedAccount.count.mockResolvedValue(0);
 
@@ -178,6 +227,7 @@ describe("billing when self-hosted mode is off", () => {
         expiresAt: new Date("2099-01-01T00:00:00.000Z"),
         source: "manual",
       },
+      freeTrial: freeTrial("2026-01-01T00:00:00.000Z", "2026-01-08T00:00:00.000Z"),
     });
     mockPrisma.connectedAccount.count.mockResolvedValue(0);
     mockPrisma.post.count.mockResolvedValue(0);
@@ -204,12 +254,13 @@ describe("billing when self-hosted mode is off", () => {
         trialEndsAt: null,
       },
       complimentaryAccess: null,
+      freeTrial: freeTrial("2026-01-01T00:00:00.000Z", "2026-01-08T00:00:00.000Z"),
     });
     mockPrisma.connectedAccount.count.mockResolvedValue(0);
     mockPrisma.post.count.mockResolvedValue(0);
 
     await expect(assertActiveSubscription("user-1", { action: "oauth_authorize" })).rejects.toMatchObject({
-      message: "An active SimplePost subscription is required",
+      message: "Your free trial has ended. Choose a plan to keep using SimplePost.",
       logContext: {
         userId: "user-1",
         maskedEmail: "vl***ir@example.com",
@@ -233,6 +284,7 @@ describe("billing when self-hosted mode is off", () => {
         expiresAt: new Date("2026-10-01T00:00:00.000Z"),
         source: "invite",
       },
+      freeTrial: freeTrial("2026-01-01T00:00:00.000Z", "2026-01-08T00:00:00.000Z"),
     });
     mockPrisma.connectedAccount.findUnique.mockResolvedValue(null);
     mockPrisma.connectedAccount.count.mockResolvedValue(5);
@@ -266,6 +318,7 @@ describe("billing when self-hosted mode is off", () => {
       email: "account-owner@example.com",
       subscription: null,
       complimentaryAccess: null,
+      freeTrial: freeTrial("2026-01-01T00:00:00.000Z", "2026-01-08T00:00:00.000Z"),
     });
     mockPrisma.connectedAccount.count.mockResolvedValue(1);
     mockPrisma.connectedAccount.findFirst.mockResolvedValue({
@@ -290,6 +343,93 @@ describe("billing when self-hosted mode is off", () => {
         platformAccountId: "urn:li:person:abc123",
         accountLabel: "vladimir-haltakov",
       },
+    });
+  });
+
+  it("enforces the trial quota per platform target", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "trial@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: freeTrial("2026-07-25T12:00:00.000Z", "2026-08-01T12:00:00.000Z"),
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(2);
+    mockPrisma.post.findMany.mockResolvedValue(
+      Array.from({ length: 10 }, () => ({
+        accounts: [{ platform: "twitter" }],
+      })),
+    );
+
+    await expect(
+      assertCanCreatePost("user-1", prisma, {
+        postingMode: "schedule",
+        socialAccounts: [{ platform: "twitter" }],
+      }),
+    ).rejects.toMatchObject({
+      message: "You’ve reached the free-trial limit of 10 posts for X. Choose a plan to keep posting there.",
+      statusCode: 403,
+    });
+  });
+
+  it("allows trial drafts without consuming the platform quota", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "trial@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: freeTrial("2026-07-25T12:00:00.000Z", "2026-08-01T12:00:00.000Z"),
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(1);
+    mockPrisma.post.findMany.mockResolvedValue(
+      Array.from({ length: 10 }, () => ({
+        accounts: [{ platform: "linkedin" }],
+      })),
+    );
+
+    await expect(
+      assertCanCreatePost("user-1", prisma, {
+        postingMode: "draft",
+        socialAccounts: [{ platform: "linkedin" }],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("unlocks API and CLI features during the trial", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "trial@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: freeTrial("2026-07-25T12:00:00.000Z", "2026-08-01T12:00:00.000Z"),
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(1);
+    mockPrisma.post.findMany.mockResolvedValue([]);
+
+    await expect(assertPlanFeature("user-1", "apiAccess")).resolves.toBeUndefined();
+    await expect(assertPlanFeature("user-1", "cliAccess")).resolves.toBeUndefined();
+  });
+
+  it("limits free-trial threads to twenty posts including the root", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-27T12:00:00.000Z"));
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "trial@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: freeTrial("2026-07-25T12:00:00.000Z", "2026-08-01T12:00:00.000Z"),
+    });
+    mockPrisma.connectedAccount.count.mockResolvedValue(1);
+    mockPrisma.post.findMany.mockResolvedValue([]);
+
+    await expect(
+      assertCanCreatePost("user-1", prisma, {
+        postingMode: "schedule",
+        threadPostCount: 21,
+        socialAccounts: [{ platform: "linkedin" }],
+      }),
+    ).rejects.toMatchObject({
+      message: "Free-trial threads can contain up to 20 posts.",
+      statusCode: 403,
     });
   });
 });

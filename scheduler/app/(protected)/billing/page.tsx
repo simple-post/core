@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, CreditCard, ExternalLink, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
+import { PlanSelection } from "@/components/billing/plan-selection";
 import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ interface BillingPlan {
 
 interface BillingStatus {
   active: boolean;
-  accessType: "stripe" | "complimentary" | "self_hosted" | null;
+  accessType: "stripe" | "complimentary" | "trial" | "self_hosted" | null;
   displayCurrency: BillingDisplayCurrency;
   plan: BillingPlan | null;
   subscription: {
@@ -50,9 +51,17 @@ interface BillingStatus {
     expiresAt: string;
     source: string;
   } | null;
+  freeTrial: {
+    startsAt: string;
+    expiresAt: string;
+    daysRemaining: number;
+    postsPerPlatform: number;
+    maxThreadPosts: number;
+  } | null;
   usage: {
     connectedAccounts: number;
     postsThisPeriod: number;
+    postsByPlatform: Record<string, number>;
   };
   selfHosted?: boolean;
 }
@@ -201,6 +210,8 @@ export default function BillingPage() {
   const accountLimit = plan?.limits.socialAccounts ?? null;
   const postLimit = plan?.limits.postsPerMonth ?? null;
   const isComplimentary = billing?.accessType === "complimentary";
+  const isTrial = billing?.accessType === "trial";
+  const maxTrialPlatformUsage = Math.max(0, ...Object.values(billing?.usage.postsByPlatform ?? {}));
 
   if (billing?.selfHosted) {
     return (
@@ -269,19 +280,16 @@ export default function BillingPage() {
             </div>
           )
         ) : !billing?.active || !plan ? (
-          <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-            <div className="section-kicker">
-              <span className="section-kicker-dot" />
-              <span className="section-kicker-label">No active plan</span>
-            </div>
-            <h2 className="text-xl font-semibold tracking-[-0.025em]">Choose a plan to use SimplePost</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Your account is signed in, but the scheduler requires an active subscription.
-            </p>
-            <Button asChild className="mt-5">
-              <Link href="/subscribe">Choose a plan</Link>
-            </Button>
-          </section>
+          <PlanSelection
+            embedded
+            title={billing?.freeTrial ? "Choose a plan to continue" : undefined}
+            description={
+              billing?.freeTrial
+                ? "Your free trial has ended. Pick a monthly plan to restore access immediately."
+                : undefined
+            }
+            displayCurrency={displayCurrency}
+          />
         ) : (
           <div className="space-y-5">
             <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-1">
@@ -290,13 +298,19 @@ export default function BillingPage() {
                   <div className="section-kicker">
                     <span className="section-kicker-dot" />
                     <span className="section-kicker-label">
-                      {isComplimentary ? "Complimentary access" : "Current plan"}
+                      {isTrial ? "Free trial" : isComplimentary ? "Complimentary access" : "Current plan"}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-[-0.025em]">{plan.name}</h2>
+                    <h2 className="text-2xl font-semibold tracking-[-0.025em]">
+                      {isTrial ? "All features unlocked" : plan.name}
+                    </h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
-                      {isComplimentary ? "Complimentary" : (billing.subscription?.status ?? "active")}
+                      {isTrial
+                        ? `${billing.freeTrial?.daysRemaining ?? 0} days left`
+                        : isComplimentary
+                          ? "Complimentary"
+                          : (billing.subscription?.status ?? "active")}
                     </Badge>
                     {!isComplimentary && billing.subscription?.cancelAtPeriodEnd ? (
                       <Badge variant="outline" className="border-destructive/50 text-destructive">
@@ -305,7 +319,12 @@ export default function BillingPage() {
                     ) : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {isComplimentary ? (
+                    {isTrial ? (
+                      <>
+                        Your 7-day trial includes every feature through{" "}
+                        {formatDate(billing.freeTrial?.expiresAt ?? null)}. No credit card is required.
+                      </>
+                    ) : isComplimentary ? (
                       <>
                         Your {plan.name} plan is complimentary through{" "}
                         {formatDate(billing.complimentaryAccess?.expiresAt ?? null)}. No payment method is required.
@@ -320,7 +339,19 @@ export default function BillingPage() {
                 </div>
 
                 <div className="grid gap-2 sm:min-w-56">
-                  {isComplimentary ? (
+                  {isTrial ? (
+                    <>
+                      <Button asChild className="justify-start gap-2">
+                        <a href="#plans">
+                          <CreditCard className="h-4 w-4" />
+                          Choose a plan
+                        </a>
+                      </Button>
+                      <p className="px-1 text-xs leading-5 text-muted-foreground">
+                        Your trial remains active until it ends or you subscribe.
+                      </p>
+                    </>
+                  ) : isComplimentary ? (
                     <>
                       <Button asChild className="justify-start gap-2">
                         <Link href="/subscribe">
@@ -389,15 +420,33 @@ export default function BillingPage() {
                 </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium">Posts this period</span>
+                    <span className="font-medium">{isTrial ? "Most-used platform" : "Posts this period"}</span>
                     <span className="text-muted-foreground">
-                      {billing.usage.postsThisPeriod.toLocaleString()} / {postLimit?.toLocaleString()}
+                      {isTrial
+                        ? `${maxTrialPlatformUsage} / ${billing.freeTrial?.postsPerPlatform ?? 10}`
+                        : `${billing.usage.postsThisPeriod.toLocaleString()} / ${postLimit?.toLocaleString()}`}
                     </span>
                   </div>
-                  <Progress value={usagePercent(billing.usage.postsThisPeriod, postLimit)} />
+                  <Progress
+                    value={usagePercent(
+                      isTrial ? maxTrialPlatformUsage : billing.usage.postsThisPeriod,
+                      isTrial ? (billing.freeTrial?.postsPerPlatform ?? 10) : postLimit,
+                    )}
+                  />
                 </div>
               </div>
             </section>
+
+            {isTrial ? (
+              <section id="plans" className="scroll-mt-20 rounded-2xl border border-border bg-card p-6 sm:p-8">
+                <PlanSelection
+                  embedded
+                  title="Choose the plan that fits"
+                  description="Upgrade whenever you’re ready. Your paid plan starts immediately, and everything you connected during the trial stays in place."
+                  displayCurrency={displayCurrency}
+                />
+              </section>
+            ) : null}
           </div>
         )}
       </main>

@@ -682,6 +682,33 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
   }
 
+  const replacedAccounts =
+    currentPost.status === "scheduled"
+      ? await prisma.connectedAccount.findMany({
+          where: {
+            userId,
+            id: { in: currentPost.accountIds },
+          },
+          select: {
+            platform: true,
+          },
+        })
+      : [];
+
+  await assertCanCreatePost(userId, prisma, {
+    action: `mcp_update_${targetPostingMode}_post`,
+    postingMode: targetPostingMode,
+    threadPostCount: 1 + (threadForValidation?.length ?? 0),
+    socialAccounts: validation.accounts.map((account) => ({
+      connectedAccountId: account.accountId,
+      platform: account.platform,
+      accountLabel: account.username ?? account.displayName ?? account.accountId,
+    })),
+    replacingSocialAccounts: replacedAccounts,
+    isExistingPostUpdate: currentPost.status !== "draft",
+    postId: currentPost.id,
+  });
+
   await assertCredentialsReadyForPublish({
     accountIds,
     postingMode: targetPostingMode,
@@ -891,6 +918,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
 
       await assertCanCreatePost(userId, tx, {
         action: `mcp_create_${postingMode}_post`,
+        postingMode,
+        threadPostCount: 1 + (threadForPersistence?.length ?? 0),
         socialAccounts: toBillingSocialAccounts(validation.accounts),
       });
       const createdPost = await repository.createPost(

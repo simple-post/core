@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 import { Calendar, CalendarDays, CheckCircle, AlertCircle, FileText } from "lucide-react";
 
+import { TrialRunway } from "@/components/billing/trial-experience";
 import { Navbar } from "@/components/navbar";
 import { PostsList } from "@/components/posts-list";
 import { ScheduleCalendar } from "@/components/schedule-calendar";
@@ -125,6 +126,8 @@ export default function Dashboard() {
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+        <TrialRunway />
+
         <div className="mb-6 flex items-center gap-3 animate-reveal">
           <div className="section-kicker !mb-0">
             <span className="section-kicker-dot" />

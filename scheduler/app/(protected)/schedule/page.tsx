@@ -1,5 +1,6 @@
 "use client";
 
+import { TrialScheduleNotice } from "@/components/billing/trial-experience";
 import { Navbar } from "@/components/navbar";
 import { SchedulePostForm } from "@/components/schedule-post-form";
 
@@ -21,6 +22,7 @@ export default function SchedulePage() {
             </h1>
           </div>
         </div>
+        <TrialScheduleNotice />
         <SchedulePostForm />
       </main>
     </div>

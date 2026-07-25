@@ -2,6 +2,9 @@ import { Prisma } from "@prisma/client";
 
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
+  FREE_TRIAL_DAYS,
+  FREE_TRIAL_MAX_THREAD_POSTS,
+  FREE_TRIAL_POSTS_PER_PLATFORM,
   getPlanByKey,
   getPlanByStripePriceId,
   type BillingPlan,
@@ -11,7 +14,7 @@ import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, PaymentRequiredError } from "@/lib/utils/errors";
 
-import type { ComplimentaryAccess, PrismaClient, UserSubscription } from "@prisma/client";
+import type { ComplimentaryAccess, FreeTrial, PrismaClient, UserSubscription } from "@prisma/client";
 import type Stripe from "stripe";
 
 type PrismaTransactionClient = Omit<
@@ -34,11 +37,12 @@ export type SubscriptionFeature = "apiAccess" | "cliAccess";
 export interface BillingUsage {
   connectedAccounts: number;
   postsThisPeriod: number;
+  postsByPlatform: Record<string, number>;
 }
 
 export interface BillingStatus {
   active: boolean;
-  accessType: "stripe" | "complimentary" | "self_hosted" | null;
+  accessType: "stripe" | "complimentary" | "trial" | "self_hosted" | null;
   plan: BillingPlan | null;
   subscription: {
     status: string;
@@ -58,6 +62,13 @@ export interface BillingStatus {
     expiresAt: string;
     source: string;
   } | null;
+  freeTrial: {
+    startsAt: string;
+    expiresAt: string;
+    daysRemaining: number;
+    postsPerPlatform: number;
+    maxThreadPosts: number;
+  } | null;
   usage: BillingUsage;
 }
 
@@ -74,6 +85,12 @@ export interface BillingGateContext {
     platformAccountId?: string;
     accountLabel?: string | null;
   }>;
+  replacingSocialAccounts?: Array<{
+    platform: string;
+  }>;
+  postingMode?: "now" | "schedule" | "draft";
+  threadPostCount?: number;
+  isExistingPostUpdate?: boolean;
 }
 
 interface BillingEvaluation {
@@ -97,6 +114,20 @@ export function toBillingSocialAccounts(
     platformAccountId: account.platformAccountId,
     accountLabel: account.username ?? account.displayName ?? account.platformAccountId,
   }));
+}
+
+function countPlatforms(accounts: Array<{ platform: string }> | undefined): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const account of accounts ?? []) {
+    const platform = account.platform.toLowerCase();
+    counts[platform] = (counts[platform] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function formatPlatformName(platform: string): string {
+  if (platform === "twitter") return "X";
+  return platform.charAt(0).toUpperCase() + platform.slice(1);
 }
 
 function maskEmail(email: string | null | undefined): string | null {
@@ -139,6 +170,8 @@ function buildBillingLogContext(
     complimentaryPlanKey: status.complimentaryAccess?.planKey ?? null,
     complimentaryStartsAt: status.complimentaryAccess?.startsAt ?? null,
     complimentaryExpiresAt: status.complimentaryAccess?.expiresAt ?? null,
+    trialStartsAt: status.freeTrial?.startsAt ?? null,
+    trialExpiresAt: status.freeTrial?.expiresAt ?? null,
     ...(context.platform && { platform: context.platform }),
     ...(context.connectedAccountId && { connectedAccountId: context.connectedAccountId }),
     ...(context.platformAccountId && { platformAccountId: context.platformAccountId }),
@@ -240,6 +273,68 @@ function isSubscriptionRecordActive(subscription: UserSubscription | null): bool
 function isComplimentaryAccessActive(access: ComplimentaryAccess | null, now: Date): boolean {
   if (!access) return false;
   return access.startsAt.getTime() <= now.getTime() && access.expiresAt.getTime() > now.getTime();
+}
+
+function isFreeTrialActive(trial: FreeTrial | null, now: Date): boolean {
+  if (!trial) return false;
+  return trial.startsAt.getTime() <= now.getTime() && trial.expiresAt.getTime() > now.getTime();
+}
+
+function getTrialDaysRemaining(trial: FreeTrial, now: Date): number {
+  const millisecondsRemaining = trial.expiresAt.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(millisecondsRemaining / (24 * 60 * 60 * 1000)));
+}
+
+async function ensureFreeTrial(userId: string, client: BillingClient, now: Date): Promise<FreeTrial> {
+  const expiresAt = new Date(now);
+  expiresAt.setUTCDate(expiresAt.getUTCDate() + FREE_TRIAL_DAYS);
+
+  return client.freeTrial.upsert({
+    where: { userId },
+    create: {
+      userId,
+      startsAt: now,
+      expiresAt,
+    },
+    update: {},
+  });
+}
+
+async function getTrialPostUsage(
+  userId: string,
+  trial: FreeTrial,
+  client: BillingClient,
+): Promise<{ postsThisPeriod: number; postsByPlatform: Record<string, number> }> {
+  const posts = await client.post.findMany({
+    where: {
+      userId,
+      status: { not: "draft" },
+      createdAt: {
+        gte: trial.startsAt,
+        lt: trial.expiresAt,
+      },
+    },
+    select: {
+      accounts: {
+        select: {
+          platform: true,
+        },
+      },
+    },
+  });
+
+  const postsByPlatform: Record<string, number> = {};
+  for (const post of posts) {
+    for (const account of post.accounts) {
+      const platform = account.platform.toLowerCase();
+      postsByPlatform[platform] = (postsByPlatform[platform] ?? 0) + 1;
+    }
+  }
+
+  return {
+    postsThisPeriod: posts.length,
+    postsByPlatform,
+  };
 }
 
 function getComplimentaryUsagePeriod(access: ComplimentaryAccess, now: Date): { start: Date; end: Date } {
@@ -382,9 +477,11 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
         plan: null,
         subscription: null,
         complimentaryAccess: null,
+        freeTrial: null,
         usage: {
           connectedAccounts,
           postsThisPeriod: 0,
+          postsByPlatform: {},
         },
       },
     };
@@ -396,26 +493,44 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
       email: true,
       subscription: true,
       complimentaryAccess: true,
+      freeTrial: true,
     },
   });
 
   const subscription = user?.subscription ?? null;
   const complimentaryAccess = user?.complimentaryAccess ?? null;
+  const now = new Date();
   const subscriptionPlan = resolvePlanForSubscription(subscription);
   const complimentaryPlan = resolvePlanForComplimentaryAccess(complimentaryAccess);
-  const now = new Date();
+  const trialPlan = getPlanByKey("pro");
   const stripeActive = isSubscriptionRecordActive(subscription) && subscriptionPlan !== null;
   const complimentaryActive = isComplimentaryAccessActive(complimentaryAccess, now) && complimentaryPlan !== null;
-  const accessType = stripeActive ? "stripe" : complimentaryActive ? "complimentary" : null;
+  const freeTrial = user
+    ? (user.freeTrial ?? (!stripeActive && !complimentaryActive ? await ensureFreeTrial(userId, client, now) : null))
+    : null;
+  const trialActive = isFreeTrialActive(freeTrial, now) && trialPlan !== null;
+  const accessType = stripeActive ? "stripe" : complimentaryActive ? "complimentary" : trialActive ? "trial" : null;
   const active = accessType !== null;
-  const plan = stripeActive ? subscriptionPlan : complimentaryActive ? complimentaryPlan : null;
+  const plan = stripeActive
+    ? subscriptionPlan
+    : complimentaryActive
+      ? complimentaryPlan
+      : trialActive
+        ? trialPlan
+        : null;
   const complimentaryPeriod = complimentaryActive
     ? getComplimentaryUsagePeriod(complimentaryAccess as ComplimentaryAccess, now)
     : null;
   const start = stripeActive
     ? (subscription?.currentPeriodStart ?? new Date(0))
-    : (complimentaryPeriod?.start ?? new Date(0));
-  const end = stripeActive ? (subscription?.currentPeriodEnd ?? undefined) : complimentaryPeriod?.end;
+    : complimentaryActive
+      ? (complimentaryPeriod?.start ?? new Date(0))
+      : (freeTrial?.startsAt ?? new Date(0));
+  const end = stripeActive
+    ? (subscription?.currentPeriodEnd ?? undefined)
+    : complimentaryActive
+      ? complimentaryPeriod?.end
+      : freeTrial?.expiresAt;
   const postWhere = {
     userId,
     createdAt: {
@@ -424,9 +539,12 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
     },
   };
 
-  const [connectedAccounts, postsThisPeriod] = await Promise.all([
+  const [connectedAccounts, paidOrComplimentaryPosts, trialUsage] = await Promise.all([
     client.connectedAccount.count({ where: { userId } }),
-    active ? client.post.count({ where: postWhere }) : Promise.resolve(0),
+    active && accessType !== "trial" ? client.post.count({ where: postWhere }) : Promise.resolve(0),
+    accessType === "trial" && freeTrial
+      ? getTrialPostUsage(userId, freeTrial, client)
+      : Promise.resolve({ postsThisPeriod: 0, postsByPlatform: {} }),
   ]);
 
   return {
@@ -457,9 +575,19 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
             source: complimentaryAccess.source,
           }
         : null,
+      freeTrial: freeTrial
+        ? {
+            startsAt: freeTrial.startsAt.toISOString(),
+            expiresAt: freeTrial.expiresAt.toISOString(),
+            daysRemaining: getTrialDaysRemaining(freeTrial, now),
+            postsPerPlatform: FREE_TRIAL_POSTS_PER_PLATFORM,
+            maxThreadPosts: FREE_TRIAL_MAX_THREAD_POSTS,
+          }
+        : null,
       usage: {
         connectedAccounts,
-        postsThisPeriod,
+        postsThisPeriod: accessType === "trial" ? trialUsage.postsThisPeriod : paidOrComplimentaryPosts,
+        postsByPlatform: accessType === "trial" ? trialUsage.postsByPlatform : {},
       },
     },
   };
@@ -492,7 +620,9 @@ async function assertActiveBillingEvaluation(
   if (!status.active || !status.plan) {
     const resolvedContext = await resolveSocialAccountLogContext(userId, context);
     throw new PaymentRequiredError(
-      "An active SimplePost subscription is required",
+      status.freeTrial
+        ? "Your free trial has ended. Choose a plan to keep using SimplePost."
+        : "An active SimplePost subscription is required",
       buildBillingLogContext(userId, email, status, resolvedContext),
     );
   }
@@ -543,10 +673,48 @@ export async function assertCanCreatePost(
   const { status, email } = await getBillingEvaluation(userId, client);
   if (!status.active || !status.plan) {
     throw new PaymentRequiredError(
-      "An active SimplePost subscription is required",
+      status.freeTrial
+        ? "Your free trial has ended. Choose a plan to keep scheduling with SimplePost."
+        : "An active SimplePost subscription is required",
       buildBillingLogContext(userId, email, status, gateContext),
     );
   }
+
+  if (status.accessType === "trial") {
+    const threadPostCount = gateContext.threadPostCount ?? 1;
+    if (threadPostCount > FREE_TRIAL_MAX_THREAD_POSTS) {
+      throw new ForbiddenError(
+        `Free-trial threads can contain up to ${FREE_TRIAL_MAX_THREAD_POSTS} posts.`,
+        buildBillingLogContext(userId, email, status, gateContext),
+      );
+    }
+
+    // Drafts are free to experiment with. The quota is consumed only when a
+    // post is scheduled or sent to a platform.
+    if (gateContext.postingMode === "draft") {
+      return;
+    }
+
+    const requestedByPlatform = countPlatforms(gateContext.socialAccounts);
+    const replacedByPlatform = countPlatforms(gateContext.replacingSocialAccounts);
+    for (const [platform, requestedCount] of Object.entries(requestedByPlatform)) {
+      const currentUsage = status.usage.postsByPlatform[platform] ?? 0;
+      const replacingCount = replacedByPlatform[platform] ?? 0;
+      const projectedUsage = currentUsage - replacingCount + requestedCount;
+      if (projectedUsage > FREE_TRIAL_POSTS_PER_PLATFORM) {
+        throw new ForbiddenError(
+          `You’ve reached the free-trial limit of ${FREE_TRIAL_POSTS_PER_PLATFORM} posts for ${formatPlatformName(platform)}. Choose a plan to keep posting there.`,
+          buildBillingLogContext(userId, email, status, gateContext),
+        );
+      }
+    }
+    return;
+  }
+
+  if (gateContext.isExistingPostUpdate) {
+    return;
+  }
+
   const limit = status.plan?.limits.postsPerMonth;
 
   if (limit && status.usage.postsThisPeriod >= limit) {
@@ -593,7 +761,12 @@ export async function assertCanConnectAccount(
     accountLabel: params.accountLabel,
   });
   if (!status.active || !status.plan) {
-    throw new PaymentRequiredError("An active SimplePost subscription is required to connect accounts", logContext);
+    throw new PaymentRequiredError(
+      status.freeTrial
+        ? "Your free trial has ended. Choose a plan to connect more accounts."
+        : "An active SimplePost subscription is required to connect accounts",
+      logContext,
+    );
   }
 
   const accountLimit = status.plan.limits.socialAccounts;

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { assertCanCreatePost, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
@@ -11,6 +12,7 @@ import {
   sanitizePostingResult,
   wantsPostingProgress,
 } from "@/lib/posting/progress-stream";
+import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
@@ -129,6 +131,29 @@ async function updatePost(
     if (validation.accounts.length !== validated.accountIds.length) {
       throw new BadRequestError("One or more accounts were not found");
     }
+
+    const replacedAccounts =
+      currentPost.status === "scheduled"
+        ? await prisma.connectedAccount.findMany({
+            where: {
+              userId: session.user.id,
+              id: { in: currentPost.accountIds },
+            },
+            select: {
+              platform: true,
+            },
+          })
+        : [];
+
+    await assertCanCreatePost(session.user.id, prisma, {
+      action: `update_${postingMode}_post`,
+      postingMode,
+      threadPostCount: 1 + (validated.thread?.length ?? 0),
+      socialAccounts: toBillingSocialAccounts(validation.accounts),
+      replacingSocialAccounts: replacedAccounts,
+      isExistingPostUpdate: currentPost.status !== "draft",
+      postId: currentPost.id,
+    });
 
     if (postingMode !== "draft" && !validation.summary.isValid) {
       throw new ValidationError(validation);

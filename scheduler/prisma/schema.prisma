@@ -30,6 +30,7 @@ model User {
   mcpAccessTokens              McpAccessToken[]
   apiKeys                      ApiKey[]
   subscription                 UserSubscription?
+  freeTrial                    FreeTrial?
   complimentaryAccess          ComplimentaryAccess?
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
@@ -37,6 +38,21 @@ model User {
 
   @@unique([email])
   @@map("user")
+}
+
+// Card-free product trial. It is kept separate from Stripe so starting a
+// trial never creates a customer, subscription, or payment-method prompt.
+model FreeTrial {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startsAt  DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("free_trial")
 }
 
 // A database-managed plan grant that does not require a Stripe customer or

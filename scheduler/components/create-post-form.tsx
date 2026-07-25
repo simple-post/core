@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { useBillingStatus } from "@/components/billing/billing-context";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -60,6 +61,7 @@ export function CreatePostForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const submitPostMutation = useSubmitPost();
+  const billingContext = useBillingStatus();
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const { data: defaultRepostSettings } = useRepostSettings();
 
@@ -108,6 +110,7 @@ export function CreatePostForm() {
   const [contentTouched, setContentTouched] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [trialSubmissionError, setTrialSubmissionError] = useState<string | null>(null);
 
   const enabledOverrides = useMemo<AccountOverridesMap>(() => {
     if (selectedAccountIds.length === 0) {
@@ -142,6 +145,25 @@ export function CreatePostForm() {
     () => selectedAccounts.filter((account) => account.platform.toLowerCase() === "tiktok"),
     [selectedAccounts],
   );
+  const trial = billingContext?.billing.accessType === "trial" ? billingContext.billing.freeTrial : null;
+  const trialExceededPlatforms = useMemo(() => {
+    if (!trial || postingMode === "draft") return [];
+
+    const selectedByPlatform = selectedAccounts.reduce<Record<string, number>>((counts, account) => {
+      const platform = account.platform.toLowerCase();
+      counts[platform] = (counts[platform] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    return Object.entries(selectedByPlatform)
+      .filter(
+        ([platform, selectedCount]) =>
+          (billingContext?.billing.usage.postsByPlatform[platform] ?? 0) + selectedCount > trial.postsPerPlatform,
+      )
+      .map(([platform]) => getPlatformById(platform)?.name ?? (platform === "twitter" ? "X" : platform));
+  }, [billingContext?.billing.usage.postsByPlatform, postingMode, selectedAccounts, trial]);
+  const trialThreadLimitReached = Boolean(trial && 1 + thread.length >= trial.maxThreadPosts);
+  const trialThreadTooLong = Boolean(trial && 1 + thread.length > trial.maxThreadPosts);
   const hasSelectedRepostCapableAccount = useMemo(
     () => selectedAccounts.some((account) => REPOST_CAPABLE_PLATFORM_IDS.has(account.platform.toLowerCase())),
     [selectedAccounts],
@@ -213,6 +235,10 @@ export function CreatePostForm() {
   useEffect(() => {
     setScheduleError(null);
   }, [postingMode, scheduledDate, scheduledTime]);
+
+  useEffect(() => {
+    setTrialSubmissionError(null);
+  }, [postingMode, selectedAccountIds, thread.length]);
 
   useEffect(() => {
     if (defaultRepostAppliedRef.current || !defaultRepostSettings) {
@@ -407,9 +433,13 @@ export function CreatePostForm() {
   );
 
   const handleAddThreadSegment = useCallback(() => {
+    if (trial && 1 + thread.length >= trial.maxThreadPosts) {
+      toast.error(`Free-trial threads can contain up to ${trial.maxThreadPosts} posts.`);
+      return;
+    }
     setContentTouched(true);
     addThreadSegment();
-  }, [addThreadSegment]);
+  }, [addThreadSegment, thread.length, trial]);
 
   const handleRemoveThreadSegment = useCallback(
     (index: number) => {
@@ -481,6 +511,7 @@ export function CreatePostForm() {
     }
 
     try {
+      setTrialSubmissionError(null);
       if (postingMode !== "draft") {
         const latestValidation = await runBackendValidation();
         if (!latestValidation?.summary.isValid) {
@@ -562,6 +593,10 @@ export function CreatePostForm() {
             : undefined,
       });
 
+      if (postingMode !== "draft") {
+        await billingContext?.refreshBilling();
+      }
+
       if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         const completedResults = data.postingResults;
         setPostingResults((current) => mergePostingProgressResults(current, completedResults));
@@ -585,6 +620,9 @@ export function CreatePostForm() {
       if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
         setScheduleError(errorMessage);
       }
+      if (errorMessage.toLowerCase().includes("free-trial") || errorMessage.toLowerCase().includes("free trial")) {
+        setTrialSubmissionError(errorMessage);
+      }
       if (postingMode === "now") {
         setPostingSucceeded(false);
         setPostingResults((current) => failPendingPostingResults(current, errorMessage));
@@ -601,6 +639,8 @@ export function CreatePostForm() {
     (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
     (postingMode === "draft" || !validationLoading) &&
     (!tiktokConsentRequired || tiktokConsent) &&
+    trialExceededPlatforms.length === 0 &&
+    !trialThreadTooLong &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
@@ -718,9 +758,10 @@ export function CreatePostForm() {
             variant="outline"
             size="sm"
             className="gap-2 text-muted-foreground"
+            disabled={trialThreadLimitReached}
             onClick={handleAddThreadSegment}>
             <Plus className="h-3.5 w-3.5" />
-            Add to thread
+            {trialThreadLimitReached ? `Thread limit (${trial?.maxThreadPosts})` : "Add to thread"}
           </Button>
         </div>
 
@@ -910,6 +951,41 @@ export function CreatePostForm() {
               Select at least one account to publish your content.
             </div>
           )}
+
+          {trialExceededPlatforms.length > 0 ? (
+            <div className="p-3 rounded-lg border border-amber-500/35 bg-amber-500/10 text-sm">
+              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Free-trial limit reached</p>
+              </div>
+              <p className="mt-1 text-muted-foreground">
+                You’ve used the available posts for {trialExceededPlatforms.join(", ")}. Choose a plan or remove those
+                accounts to continue.
+              </p>
+            </div>
+          ) : null}
+
+          {trialSubmissionError ? (
+            <div className="p-3 rounded-lg border border-amber-500/35 bg-amber-500/10 text-sm">
+              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Trial limit</p>
+              </div>
+              <p className="mt-1 text-muted-foreground">{trialSubmissionError}</p>
+            </div>
+          ) : null}
+
+          {trialThreadTooLong ? (
+            <div className="p-3 rounded-lg border border-amber-500/35 bg-amber-500/10 text-sm">
+              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Thread is too long</p>
+              </div>
+              <p className="mt-1 text-muted-foreground">
+                Free-trial threads can contain up to {trial?.maxThreadPosts} posts, including the first post.
+              </p>
+            </div>
+          ) : null}
 
           {shouldShowValidationFeedback && validationError && (
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">

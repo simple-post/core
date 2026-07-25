@@ -2,6 +2,10 @@ import type { BillingDisplayCurrency } from "@/lib/billing/display-currency";
 
 export const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
+export const FREE_TRIAL_DAYS = 7;
+export const FREE_TRIAL_POSTS_PER_PLATFORM = 10;
+export const FREE_TRIAL_MAX_THREAD_POSTS = 20;
+
 export const PLAN_KEYS = ["basic", "advanced", "pro"] as const;
 
 export type PlanKey = (typeof PLAN_KEYS)[number];

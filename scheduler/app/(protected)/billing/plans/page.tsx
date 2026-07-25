@@ -17,7 +17,7 @@ import { type PlanKey } from "@/lib/billing/plans";
 
 interface BillingStatus {
   active: boolean;
-  accessType: "stripe" | "complimentary" | "self_hosted" | null;
+  accessType: "stripe" | "complimentary" | "trial" | "self_hosted" | null;
   displayCurrency: BillingDisplayCurrency;
   plan: {
     key: PlanKey;
@@ -25,6 +25,10 @@ interface BillingStatus {
   } | null;
   complimentaryAccess: {
     expiresAt: string;
+  } | null;
+  freeTrial: {
+    expiresAt: string;
+    daysRemaining: number;
   } | null;
   selfHosted?: boolean;
 }
@@ -110,6 +114,12 @@ export default function BillingPlansPage() {
               </Button>
             </div>
           </section>
+        ) : billing?.accessType === "trial" && billing.freeTrial ? (
+          <PlanSelection
+            title="Choose a plan"
+            description={`You’re on the full-feature free trial for ${billing.freeTrial.daysRemaining} more ${billing.freeTrial.daysRemaining === 1 ? "day" : "days"}, through ${formatDate(billing.freeTrial.expiresAt)}. No card is required until you choose a paid plan.`}
+            displayCurrency={displayCurrency}
+          />
         ) : billing?.accessType === "complimentary" && billing.plan ? (
           <PlanSelection
             title="Start a paid subscription"
@@ -117,21 +127,15 @@ export default function BillingPlansPage() {
             displayCurrency={displayCurrency}
           />
         ) : !billing?.active || !billing.plan ? (
-          <section className="mx-auto w-full max-w-2xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
-            <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-              <div className="section-kicker">
-                <span className="section-kicker-dot" />
-                <span className="section-kicker-label">No active plan</span>
-              </div>
-              <h1 className="text-xl font-semibold tracking-[-0.025em]">Choose a plan first</h1>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Plan changes are available after your first subscription is active.
-              </p>
-              <Button asChild className="mt-5">
-                <Link href="/subscribe">Choose a plan</Link>
-              </Button>
-            </div>
-          </section>
+          <PlanSelection
+            title="Choose a plan to continue"
+            description={
+              billing?.freeTrial
+                ? "Your free trial has ended. Pick a monthly plan to restore your accounts, scheduled posts, and AI workflows."
+                : undefined
+            }
+            displayCurrency={displayCurrency}
+          />
         ) : (
           <ChangePlanSelection
             currentPlanKey={billing.plan.key}

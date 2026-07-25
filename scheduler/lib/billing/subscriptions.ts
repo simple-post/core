@@ -4,14 +4,18 @@ import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   getPlanByKey,
   getPlanByStripePriceId,
+  TRIAL_PLAN,
+  type AccessPlan,
   type BillingPlan,
 } from "@/lib/billing/plans";
 import { getStripe } from "@/lib/billing/stripe";
+import { getTrialDaysRemaining, getTrialPlatformUsage, isTrialActive } from "@/lib/billing/trial";
+import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, PaymentRequiredError } from "@/lib/utils/errors";
 
-import type { ComplimentaryAccess, PrismaClient, UserSubscription } from "@prisma/client";
+import type { ComplimentaryAccess, FreeTrial, PrismaClient, UserSubscription } from "@prisma/client";
 import type Stripe from "stripe";
 
 type PrismaTransactionClient = Omit<
@@ -36,10 +40,21 @@ export interface BillingUsage {
   postsThisPeriod: number;
 }
 
+export interface BillingTrialStatus {
+  status: "active" | "expired";
+  startsAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+  postsPerPlatform: number;
+  maxThreadSegments: number;
+  /** Platform id → posts already charged against that platform's allowance. */
+  platformUsage: Record<string, number>;
+}
+
 export interface BillingStatus {
   active: boolean;
-  accessType: "stripe" | "complimentary" | "self_hosted" | null;
-  plan: BillingPlan | null;
+  accessType: "stripe" | "complimentary" | "trial" | "self_hosted" | null;
+  plan: AccessPlan | null;
   subscription: {
     status: string;
     planKey: string | null;
@@ -58,6 +73,11 @@ export interface BillingStatus {
     expiresAt: string;
     source: string;
   } | null;
+  /**
+   * Present whenever the user has ever had a trial, including after it ended,
+   * so the UI can tell "trial expired, upgrade" apart from "never had access".
+   */
+  trial: BillingTrialStatus | null;
   usage: BillingUsage;
 }
 
@@ -74,6 +94,21 @@ export interface BillingGateContext {
     platformAccountId?: string;
     accountLabel?: string | null;
   }>;
+  /** Total segments in the post, root included. Only the trial caps this. */
+  threadSegments?: number;
+  /** Drafts do not consume the trial allowance, so they skip the volume gate. */
+  isDraft?: boolean;
+  /**
+   * Accounts an edited post already charged for. Subtracted from the projected
+   * usage so re-saving a scheduled post does not pay for it twice.
+   */
+  replacingSocialAccounts?: Array<{ platform: string }>;
+  /**
+   * True when editing a post that already exists and already counted. Skips the
+   * monthly volume check on paid plans, which would otherwise block edits once
+   * the user is at their limit.
+   */
+  isExistingPostUpdate?: boolean;
 }
 
 interface BillingEvaluation {
@@ -139,6 +174,8 @@ function buildBillingLogContext(
     complimentaryPlanKey: status.complimentaryAccess?.planKey ?? null,
     complimentaryStartsAt: status.complimentaryAccess?.startsAt ?? null,
     complimentaryExpiresAt: status.complimentaryAccess?.expiresAt ?? null,
+    trialStatus: status.trial?.status ?? "none",
+    trialExpiresAt: status.trial?.expiresAt ?? null,
     ...(context.platform && { platform: context.platform }),
     ...(context.connectedAccountId && { connectedAccountId: context.connectedAccountId }),
     ...(context.platformAccountId && { platformAccountId: context.platformAccountId }),
@@ -240,6 +277,25 @@ function isSubscriptionRecordActive(subscription: UserSubscription | null): bool
 function isComplimentaryAccessActive(access: ComplimentaryAccess | null, now: Date): boolean {
   if (!access) return false;
   return access.startsAt.getTime() <= now.getTime() && access.expiresAt.getTime() > now.getTime();
+}
+
+function buildTrialStatus(
+  trial: FreeTrial,
+  platformUsage: Record<string, number>,
+  now: Date,
+): BillingTrialStatus | null {
+  const { postsPerPlatform, maxThreadSegments } = TRIAL_PLAN.limits;
+  if (postsPerPlatform === null || maxThreadSegments === null) return null;
+
+  return {
+    status: isTrialActive(trial, now) ? "active" : "expired",
+    startsAt: trial.startsAt.toISOString(),
+    expiresAt: trial.expiresAt.toISOString(),
+    daysRemaining: getTrialDaysRemaining(trial, now),
+    postsPerPlatform,
+    maxThreadSegments,
+    platformUsage,
+  };
 }
 
 function getComplimentaryUsagePeriod(access: ComplimentaryAccess, now: Date): { start: Date; end: Date } {
@@ -382,6 +438,7 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
         plan: null,
         subscription: null,
         complimentaryAccess: null,
+        trial: null,
         usage: {
           connectedAccounts,
           postsThisPeriod: 0,
@@ -396,25 +453,38 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
       email: true,
       subscription: true,
       complimentaryAccess: true,
+      freeTrial: true,
     },
   });
 
   const subscription = user?.subscription ?? null;
   const complimentaryAccess = user?.complimentaryAccess ?? null;
+  const freeTrial = user?.freeTrial ?? null;
   const subscriptionPlan = resolvePlanForSubscription(subscription);
   const complimentaryPlan = resolvePlanForComplimentaryAccess(complimentaryAccess);
   const now = new Date();
   const stripeActive = isSubscriptionRecordActive(subscription) && subscriptionPlan !== null;
   const complimentaryActive = isComplimentaryAccessActive(complimentaryAccess, now) && complimentaryPlan !== null;
-  const accessType = stripeActive ? "stripe" : complimentaryActive ? "complimentary" : null;
+  // Paid access always wins: a user who subscribes mid-trial gets their plan's
+  // limits immediately rather than staying capped at the trial allowance.
+  const trialActive = !stripeActive && !complimentaryActive && isTrialActive(freeTrial, now);
+  const accessType = stripeActive ? "stripe" : complimentaryActive ? "complimentary" : trialActive ? "trial" : null;
   const active = accessType !== null;
-  const plan = stripeActive ? subscriptionPlan : complimentaryActive ? complimentaryPlan : null;
+  const plan = stripeActive
+    ? subscriptionPlan
+    : complimentaryActive
+      ? complimentaryPlan
+      : trialActive
+        ? TRIAL_PLAN
+        : null;
   const complimentaryPeriod = complimentaryActive
     ? getComplimentaryUsagePeriod(complimentaryAccess as ComplimentaryAccess, now)
     : null;
   const start = stripeActive
     ? (subscription?.currentPeriodStart ?? new Date(0))
-    : (complimentaryPeriod?.start ?? new Date(0));
+    : trialActive && freeTrial
+      ? freeTrial.startsAt
+      : (complimentaryPeriod?.start ?? new Date(0));
   const end = stripeActive ? (subscription?.currentPeriodEnd ?? undefined) : complimentaryPeriod?.end;
   const postWhere = {
     userId,
@@ -424,9 +494,13 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
     },
   };
 
-  const [connectedAccounts, postsThisPeriod] = await Promise.all([
+  const [connectedAccounts, postsThisPeriod, trialPlatformUsage] = await Promise.all([
     client.connectedAccount.count({ where: { userId } }),
     active ? client.post.count({ where: postWhere }) : Promise.resolve(0),
+    // Only the trial charges per platform, so nobody else pays for this query.
+    freeTrial && !stripeActive && !complimentaryActive
+      ? getTrialPlatformUsage(userId, freeTrial, client)
+      : Promise.resolve({}),
   ]);
 
   return {
@@ -457,6 +531,7 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
             source: complimentaryAccess.source,
           }
         : null,
+      trial: freeTrial ? buildTrialStatus(freeTrial, trialPlatformUsage, now) : null,
       usage: {
         connectedAccounts,
         postsThisPeriod,
@@ -492,7 +567,7 @@ async function assertActiveBillingEvaluation(
   if (!status.active || !status.plan) {
     const resolvedContext = await resolveSocialAccountLogContext(userId, context);
     throw new PaymentRequiredError(
-      "An active SimplePost subscription is required",
+      paymentRequiredMessage(status, "to keep using SimplePost"),
       buildBillingLogContext(userId, email, status, resolvedContext),
     );
   }
@@ -530,6 +605,70 @@ export async function assertPlanFeature(
   }
 }
 
+/**
+ * A user who has had a trial needs different wording from one who never had
+ * access at all: "your trial ended" explains why something that worked
+ * yesterday stopped working today.
+ */
+function paymentRequiredMessage(status: BillingStatus, purpose: string): string {
+  return status.trial
+    ? `Your free trial has ended. Choose a plan ${purpose}.`
+    : "An active SimplePost subscription is required";
+}
+
+/**
+ * Trial volume gate: an allowance per platform rather than a monthly total, so
+ * a user can try every platform without one busy channel eating the whole quota.
+ * Throws nothing when the caller is not on the trial plan.
+ *
+ * The check is a projection rather than a simple "already at the cap" test, so
+ * a post that would push a platform past its allowance is rejected up front
+ * instead of landing and putting the account over. `replacingSocialAccounts`
+ * carries what an edited post already charged, so re-saving it is free and only
+ * newly added accounts cost anything.
+ */
+function assertTrialAllowance(
+  userId: string,
+  email: string | null,
+  status: BillingStatus,
+  context: BillingGateContext,
+): void {
+  const { postsPerPlatform, maxThreadSegments } = status.plan?.limits ?? {};
+  if (status.accessType !== "trial" || !status.trial) return;
+  // Drafts are free — only scheduling or publishing charges the allowance.
+  if (context.isDraft) return;
+
+  if (maxThreadSegments != null && (context.threadSegments ?? 1) > maxThreadSegments) {
+    throw new ForbiddenError(
+      `The free trial allows up to ${maxThreadSegments} posts in a thread. Upgrade to publish longer threads.`,
+      buildBillingLogContext(userId, email, status, context),
+    );
+  }
+
+  if (postsPerPlatform == null) return;
+
+  const requested = countAccountsByPlatform(context.socialAccounts);
+  const replacing = countAccountsByPlatform(context.replacingSocialAccounts);
+  const exceeded = Object.entries(requested)
+    .filter(([platform, count]) => {
+      const used = status.trial?.platformUsage[platform] ?? 0;
+      return used - (replacing[platform] ?? 0) + count > postsPerPlatform;
+    })
+    .map(([platform]) => getPlatformName(platform));
+
+  if (exceeded.length > 0) {
+    throw new ForbiddenError(
+      `The free trial includes ${postsPerPlatform} posts per platform, and ${exceeded.join(", ")} would go over. Choose a plan to keep posting.`,
+      buildBillingLogContext(userId, email, status, context),
+    );
+  }
+}
+
+/**
+ * Gate for anything that puts a post in front of a platform — creating one, or
+ * editing an existing one. Both paths run through here so the trial allowance
+ * cannot be sidestepped by saving a draft and scheduling it afterwards.
+ */
 export async function assertCanCreatePost(
   userId: string,
   client: BillingClient = prisma,
@@ -543,10 +682,19 @@ export async function assertCanCreatePost(
   const { status, email } = await getBillingEvaluation(userId, client);
   if (!status.active || !status.plan) {
     throw new PaymentRequiredError(
-      "An active SimplePost subscription is required",
+      paymentRequiredMessage(status, "to keep scheduling with SimplePost"),
       buildBillingLogContext(userId, email, status, gateContext),
     );
   }
+
+  assertTrialAllowance(userId, email, status, gateContext);
+
+  // An edit re-saves a post that already counted against the monthly total;
+  // charging it again would block editing as soon as the user hits their limit.
+  if (gateContext.isExistingPostUpdate) {
+    return;
+  }
+
   const limit = status.plan?.limits.postsPerMonth;
 
   if (limit && status.usage.postsThisPeriod >= limit) {
@@ -593,7 +741,12 @@ export async function assertCanConnectAccount(
     accountLabel: params.accountLabel,
   });
   if (!status.active || !status.plan) {
-    throw new PaymentRequiredError("An active SimplePost subscription is required to connect accounts", logContext);
+    throw new PaymentRequiredError(
+      status.trial
+        ? "Your free trial has ended. Choose a plan to connect more accounts."
+        : "An active SimplePost subscription is required to connect accounts",
+      logContext,
+    );
   }
 
   const accountLimit = status.plan.limits.socialAccounts;

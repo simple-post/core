@@ -31,12 +31,31 @@ model User {
   apiKeys                      ApiKey[]
   subscription                 UserSubscription?
   complimentaryAccess          ComplimentaryAccess?
+  freeTrial                    FreeTrial?
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
   postingSlots                 PostingSlot[]
 
   @@unique([email])
   @@map("user")
+}
+
+// The automatic no-credit-card trial every user receives on first sign-in.
+// Exactly one row per user, created once and never replaced: an expired row is
+// what stops a returning user from starting a second trial. Trial access ranks
+// below Stripe subscriptions and complimentary grants, so a paying user keeps
+// their plan limits even while this row is still within its window.
+model FreeTrial {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startsAt  DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("free_trial")
 }
 
 // A database-managed plan grant that does not require a Stripe customer or

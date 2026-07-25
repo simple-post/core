@@ -47,6 +47,8 @@ export function useDisconnectAccount() {
     onSuccess: () => {
       // Invalidate accounts query to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      // The first connected account completes an onboarding step.
+      queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
     },
   });
 }
@@ -81,6 +83,8 @@ export function useConnectTelegram() {
     onSuccess: () => {
       // Invalidate accounts query to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      // The first connected account completes an onboarding step.
+      queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
     },
   });
 }
@@ -98,7 +102,10 @@ export function useConnectForem() {
         throw new Error(data.error || "Failed to connect Forem");
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
+    },
   });
 }
 
@@ -261,6 +268,10 @@ export function useSubmitPost() {
     mutationFn: submitPost,
     onSuccess: (_data: PostMutationResult, variables: PostMutationParams) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      // Posting consumes trial allowance, so the banner and compose-form
+      // counters need the fresh usage numbers.
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing });
+      queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
       if (variables.postId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.post(variables.postId) });
       }

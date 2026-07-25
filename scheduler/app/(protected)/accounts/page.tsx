@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
 import { Navbar } from "@/components/navbar";
+import { PostConnectAiPrompt } from "@/components/onboarding/post-connect-ai-prompt";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -40,6 +43,8 @@ function getCredentialBadge(account: ConnectedAccount): {
 }
 
 export default function AccountsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
@@ -57,6 +62,14 @@ export default function AccountsPage() {
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
+
+  // Hand-off target from the onboarding welcome modal: land here with the
+  // platform picker already open instead of on an empty page.
+  useEffect(() => {
+    if (searchParams.get("onboarding") !== "connect") return;
+    setShowConnectDialog(true);
+    router.replace("/accounts", { scroll: false });
+  }, [router, searchParams]);
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
@@ -94,6 +107,9 @@ export default function AccountsPage() {
     try {
       await connectForemMutation.mutateAsync({ instanceUrl: foremInstance.trim(), apiKey: foremApiKey.trim() });
       closeForemDialog();
+      // Same success params the OAuth callbacks redirect with, so manual
+      // connections get the AI prompt too.
+      router.replace("/accounts?success=true&platform=forem", { scroll: false });
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
@@ -119,6 +135,7 @@ export default function AccountsPage() {
       setTelegramBotToken("");
       setTelegramChatId("");
       setTelegramChannelName("");
+      router.replace("/accounts?success=true&platform=telegram", { scroll: false });
     } catch (error) {
       logClientError(error, "Telegram connection error");
       setTelegramError(error instanceof Error ? error.message : "Failed to connect Telegram account");
@@ -146,6 +163,7 @@ export default function AccountsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+      <PostConnectAiPrompt />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <div className="mb-6 flex items-center justify-between gap-3 animate-reveal">

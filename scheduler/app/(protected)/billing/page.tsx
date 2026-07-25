@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -8,12 +8,15 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, CreditCard, ExternalLink, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
+import { PlanSelection } from "@/components/billing/plan-selection";
 import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useAccounts } from "@/hooks/use-accounts";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
+import { getPlatformById } from "@/lib/config";
 
 interface BillingPlan {
   key: PlanKey;
@@ -31,9 +34,18 @@ interface BillingPlan {
   };
 }
 
+interface BillingTrial {
+  status: "active" | "expired";
+  startsAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+  postsPerPlatform: number;
+  platformUsage: Record<string, number>;
+}
+
 interface BillingStatus {
   active: boolean;
-  accessType: "stripe" | "complimentary" | "self_hosted" | null;
+  accessType: "stripe" | "complimentary" | "trial" | "self_hosted" | null;
   displayCurrency: BillingDisplayCurrency;
   plan: BillingPlan | null;
   subscription: {
@@ -50,6 +62,7 @@ interface BillingStatus {
     expiresAt: string;
     source: string;
   } | null;
+  trial: BillingTrial | null;
   usage: {
     connectedAccounts: number;
     postsThisPeriod: number;
@@ -88,6 +101,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [finalizingCheckout, setFinalizingCheckout] = useState(false);
   const [portalLoading, setPortalLoading] = useState<"manage" | "invoices" | null>(null);
+  const { data: accounts = [] } = useAccounts();
 
   const loadBillingStatus = useCallback(async (): Promise<BillingStatus> => {
     const response = await fetch("/api/billing/subscription", { cache: "no-store" });
@@ -201,6 +215,17 @@ export default function BillingPage() {
   const accountLimit = plan?.limits.socialAccounts ?? null;
   const postLimit = plan?.limits.postsPerMonth ?? null;
   const isComplimentary = billing?.accessType === "complimentary";
+  const isTrial = billing?.accessType === "trial";
+  const trial = billing?.trial ?? null;
+  // Platforms worth a usage row: everything connected now, plus anything already
+  // charged, so posting to an account that was later disconnected still shows.
+  const connectedPlatforms = useMemo(() => {
+    const platforms = new Set(accounts.map((account) => account.platform));
+    for (const platform of Object.keys(trial?.platformUsage ?? {})) {
+      platforms.add(platform);
+    }
+    return [...platforms].sort();
+  }, [accounts, trial]);
 
   if (billing?.selfHosted) {
     return (
@@ -270,17 +295,16 @@ export default function BillingPage() {
           )
         ) : !billing?.active || !plan ? (
           <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-            <div className="section-kicker">
-              <span className="section-kicker-dot" />
-              <span className="section-kicker-label">No active plan</span>
-            </div>
-            <h2 className="text-xl font-semibold tracking-[-0.025em]">Choose a plan to use SimplePost</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Your account is signed in, but the scheduler requires an active subscription.
-            </p>
-            <Button asChild className="mt-5">
-              <Link href="/subscribe">Choose a plan</Link>
-            </Button>
+            <PlanSelection
+              embedded
+              title={trial ? "Your free trial has ended" : "Choose a plan to use SimplePost"}
+              description={
+                trial
+                  ? `Your trial ran out on ${formatDate(trial.expiresAt)}. Your posts and connected accounts are still here — pick a plan to start scheduling again.`
+                  : undefined
+              }
+              displayCurrency={displayCurrency}
+            />
           </section>
         ) : (
           <div className="space-y-5">
@@ -290,22 +314,33 @@ export default function BillingPage() {
                   <div className="section-kicker">
                     <span className="section-kicker-dot" />
                     <span className="section-kicker-label">
-                      {isComplimentary ? "Complimentary access" : "Current plan"}
+                      {isTrial ? "Free trial" : isComplimentary ? "Complimentary access" : "Current plan"}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-2xl font-semibold tracking-[-0.025em]">{plan.name}</h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
-                      {isComplimentary ? "Complimentary" : (billing.subscription?.status ?? "active")}
+                      {isTrial
+                        ? trial && trial.daysRemaining <= 1
+                          ? "Ends today"
+                          : `${trial?.daysRemaining ?? 0} days left`
+                        : isComplimentary
+                          ? "Complimentary"
+                          : (billing.subscription?.status ?? "active")}
                     </Badge>
-                    {!isComplimentary && billing.subscription?.cancelAtPeriodEnd ? (
+                    {!isTrial && !isComplimentary && billing.subscription?.cancelAtPeriodEnd ? (
                       <Badge variant="outline" className="border-destructive/50 text-destructive">
                         Cancels at period end
                       </Badge>
                     ) : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {isComplimentary ? (
+                    {isTrial ? (
+                      <>
+                        Every feature is unlocked through {formatDate(trial?.expiresAt ?? null)}, with{" "}
+                        {trial?.postsPerPlatform} posts per platform. No credit card required.
+                      </>
+                    ) : isComplimentary ? (
                       <>
                         Your {plan.name} plan is complimentary through{" "}
                         {formatDate(billing.complimentaryAccess?.expiresAt ?? null)}. No payment method is required.
@@ -320,7 +355,19 @@ export default function BillingPage() {
                 </div>
 
                 <div className="grid gap-2 sm:min-w-56">
-                  {isComplimentary ? (
+                  {isTrial ? (
+                    <>
+                      <Button asChild className="justify-start gap-2">
+                        <a href="#plans">
+                          <CreditCard className="h-4 w-4" />
+                          Choose a plan
+                        </a>
+                      </Button>
+                      <p className="px-1 text-xs leading-5 text-muted-foreground">
+                        Subscribing now keeps everything you have set up and lifts the trial limits immediately.
+                      </p>
+                    </>
+                  ) : isComplimentary ? (
                     <>
                       <Button asChild className="justify-start gap-2">
                         <Link href="/subscribe">
@@ -387,17 +434,60 @@ export default function BillingPage() {
                   </div>
                   <Progress value={usagePercent(billing.usage.connectedAccounts, accountLimit)} />
                 </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium">Posts this period</span>
-                    <span className="text-muted-foreground">
-                      {billing.usage.postsThisPeriod.toLocaleString()} / {postLimit?.toLocaleString()}
-                    </span>
+                {isTrial && trial ? (
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Posts per platform</div>
+                    {connectedPlatforms.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Connect a social account to start using your {trial.postsPerPlatform} posts per platform.
+                      </p>
+                    ) : (
+                      <ul className="grid gap-3">
+                        {connectedPlatforms.map((platform) => {
+                          const used = trial.platformUsage[platform] ?? 0;
+                          return (
+                            <li key={platform}>
+                              <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                                <span className="text-muted-foreground">
+                                  {getPlatformById(platform)?.name ?? platform}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  {used} / {trial.postsPerPlatform}
+                                </span>
+                              </div>
+                              <Progress value={usagePercent(used, trial.postsPerPlatform)} />
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
-                  <Progress value={usagePercent(billing.usage.postsThisPeriod, postLimit)} />
-                </div>
+                ) : (
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium">Posts this period</span>
+                      <span className="text-muted-foreground">
+                        {billing.usage.postsThisPeriod.toLocaleString()} / {postLimit?.toLocaleString()}
+                      </span>
+                    </div>
+                    <Progress value={usagePercent(billing.usage.postsThisPeriod, postLimit)} />
+                  </div>
+                )}
               </div>
             </section>
+
+            {isTrial ? (
+              <section
+                id="plans"
+                className="scroll-mt-20 rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-2">
+                <PlanSelection
+                  embedded
+                  title="Choose the plan that fits"
+                  description="Upgrade whenever you are ready. Your paid plan starts immediately and everything you connected during the trial stays in place."
+                  displayCurrency={displayCurrency}
+                />
+              </section>
+            ) : null}
           </div>
         )}
       </main>

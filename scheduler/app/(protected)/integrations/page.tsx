@@ -1,7 +1,17 @@
+import { Sparkles } from "lucide-react";
+
 import { AssistantSelector } from "@/components/assistant-selector";
 import { Navbar } from "@/components/navbar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export default function IntegrationsPage() {
+interface IntegrationsPageProps {
+  searchParams?: Promise<{ onboarding?: string | string[] }>;
+}
+
+export default async function IntegrationsPage({ searchParams }: IntegrationsPageProps) {
+  const params = (await searchParams) ?? {};
+  const onboarding = Array.isArray(params.onboarding) ? params.onboarding[0] : params.onboarding;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -16,6 +26,17 @@ export default function IntegrationsPage() {
             Pick the client you use, then copy the URL or command into that app.
           </p>
         </header>
+
+        {onboarding === "ai" ? (
+          <Alert className="mb-5 border-primary/30 bg-primary/10">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <AlertTitle>Your social account is ready. Connect your AI next.</AlertTitle>
+            <AlertDescription className="leading-6">
+              Pick your assistant below. Once it is connected, try: &ldquo;List my SimplePost accounts, then schedule a
+              short introduction post for tomorrow at 9.&rdquo;
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         <AssistantSelector />
       </main>

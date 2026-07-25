@@ -112,10 +112,43 @@ export function isSocialPlatformEnabled(platformId: string): boolean {
 }
 
 /**
+ * Canonical form of a stored platform identifier.
+ *
+ * Connected accounts created before the X rename still carry `"twitter"`, and
+ * casing has not always been consistent. Anything that groups or labels by
+ * platform must normalize first, or a single account ends up counted as two
+ * platforms.
+ */
+export function normalizePlatformId(platformId: string): string {
+  const normalized = platformId.toLowerCase();
+  return normalized === "twitter" ? "x" : normalized;
+}
+
+/**
  * Get a platform configuration by ID
  */
 export function getPlatformById(platformId: string): SocialPlatform | undefined {
   return ALL_SOCIAL_PLATFORMS.find((p) => p.id === platformId);
+}
+
+/** Display name for a stored platform identifier, tolerant of legacy values. */
+export function getPlatformName(platformId: string): string {
+  const normalized = normalizePlatformId(platformId);
+  return getPlatformById(normalized)?.name ?? normalized;
+}
+
+/**
+ * Groups accounts into per-platform counts, collapsing legacy platform ids.
+ * Duplicates are significant: two accounts on the same platform count twice,
+ * because each one is a separate publish.
+ */
+export function countAccountsByPlatform(accounts: Array<{ platform: string }> | undefined): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const account of accounts ?? []) {
+    const platform = normalizePlatformId(account.platform);
+    counts[platform] = (counts[platform] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /**

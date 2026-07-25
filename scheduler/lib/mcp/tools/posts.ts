@@ -682,6 +682,30 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
   }
 
+  // Scheduling a draft is the point where it starts costing trial allowance,
+  // and this tool is the one path that can do that without creating a post.
+  const replacingSocialAccounts =
+    currentPost.status === "scheduled"
+      ? await prisma.connectedAccount.findMany({
+          where: { userId, id: { in: currentPost.accountIds } },
+          select: { platform: true },
+        })
+      : [];
+
+  await assertCanCreatePost(userId, prisma, {
+    action: `mcp_update_${targetPostingMode}_post`,
+    postId: currentPost.id,
+    socialAccounts: validation.accounts.map((account) => ({
+      connectedAccountId: account.accountId,
+      platform: account.platform,
+      accountLabel: account.username ?? account.displayName ?? account.accountId,
+    })),
+    replacingSocialAccounts,
+    threadSegments: (threadForValidation?.length ?? 0) + 1,
+    isDraft: targetPostingMode === "draft",
+    isExistingPostUpdate: currentPost.status !== "draft",
+  });
+
   await assertCredentialsReadyForPublish({
     accountIds,
     postingMode: targetPostingMode,
@@ -892,6 +916,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
       await assertCanCreatePost(userId, tx, {
         action: `mcp_create_${postingMode}_post`,
         socialAccounts: toBillingSocialAccounts(validation.accounts),
+        threadSegments: threadSegments.length + 1,
+        isDraft: postingMode === "draft",
       });
       const createdPost = await repository.createPost(
         {

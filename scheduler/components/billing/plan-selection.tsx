@@ -7,19 +7,26 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { startPlanCheckout } from "@/lib/billing/checkout-client";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
-import { BILLING_PLANS, formatAccountLimit, getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
-
-async function parseApiError(response: Response): Promise<string> {
-  const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-  return data.error || data.message || `Request failed with status ${response.status}`;
-}
+import {
+  BILLING_PLANS,
+  formatAccountLimit,
+  formatPostLimit,
+  getBillingPlanPrice,
+  type PlanKey,
+} from "@/lib/billing/plans";
 
 interface PlanSelectionProps {
   title?: string;
   description?: string;
   displayCurrency?: BillingDisplayCurrency;
   autoStartPlanKey?: PlanKey | null;
+  /**
+   * Drop the page-level width and padding so the grid can sit inside an
+   * existing card or section instead of owning the page.
+   */
+  embedded?: boolean;
 }
 
 export function PlanSelection({
@@ -27,6 +34,7 @@ export function PlanSelection({
   description = "A subscription is required to use the scheduler. Pick a monthly plan to continue in Stripe Checkout.",
   displayCurrency = DEFAULT_BILLING_DISPLAY_CURRENCY,
   autoStartPlanKey = null,
+  embedded = false,
 }: PlanSelectionProps) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [autoStartFailed, setAutoStartFailed] = useState(false);
@@ -36,22 +44,7 @@ export function PlanSelection({
     setAutoStartFailed(false);
     setLoadingPlan(planKey);
     try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planKey }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await parseApiError(response));
-      }
-
-      const data = (await response.json()) as { url?: string };
-      if (!data.url) {
-        throw new Error("Stripe did not return a checkout URL");
-      }
-
-      window.location.href = data.url;
+      await startPlanCheckout(planKey);
     } catch (error) {
       console.error("Failed to start checkout:", error);
       toast.error(error instanceof Error ? error.message : "Failed to start checkout");
@@ -93,13 +86,17 @@ export function PlanSelection({
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
-      <div className="mb-7 max-w-2xl">
+    <section className={embedded ? "w-full" : "mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12"}>
+      <div className={embedded ? "mb-5 max-w-2xl" : "mb-7 max-w-2xl"}>
         <div className="section-kicker">
           <span className="section-kicker-dot" />
           <span className="section-kicker-label">Subscription</span>
         </div>
-        <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground sm:text-3xl">{title}</h1>
+        {embedded ? (
+          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground">{title}</h2>
+        ) : (
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground sm:text-3xl">{title}</h1>
+        )}
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
 
@@ -134,7 +131,7 @@ export function PlanSelection({
                 </div>
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">Posts per month</span>
-                  <span className="font-medium text-foreground">{plan.limits.postsPerMonth.toLocaleString()}</span>
+                  <span className="font-medium text-foreground">{formatPostLimit(plan)}</span>
                 </div>
               </div>
 

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { assertCanCreatePost, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
@@ -11,6 +12,7 @@ import {
   sanitizePostingResult,
   wantsPostingProgress,
 } from "@/lib/posting/progress-stream";
+import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
@@ -144,6 +146,27 @@ async function updatePost(
         throw new BadRequestError(credentialIssues.map((issue) => issue.message).join(" "));
       }
     }
+
+    // A draft consumed no allowance when it was created, so leaving draft state
+    // is where it gets charged. An already scheduled post has paid for the
+    // accounts it currently targets, so only newly added ones cost anything.
+    const replacingSocialAccounts =
+      currentPost.status === "scheduled"
+        ? await prisma.connectedAccount.findMany({
+            where: { userId: session.user.id, id: { in: currentPost.accountIds } },
+            select: { platform: true },
+          })
+        : [];
+
+    await assertCanCreatePost(session.user.id, prisma, {
+      action: `update_${postingMode}_post`,
+      postId: id,
+      socialAccounts: toBillingSocialAccounts(validation.accounts),
+      replacingSocialAccounts,
+      threadSegments: (validated.thread?.length ?? 0) + 1,
+      isDraft: postingMode === "draft",
+      isExistingPostUpdate: currentPost.status !== "draft",
+    });
 
     const repostSettings = validated.repost
       ? normalizeRepostSettings(validated.repost)

@@ -21,6 +21,7 @@ import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@
 import {
   BILLING_PLANS,
   formatAccountLimit,
+  formatPostLimit,
   getBillingPlanPrice,
   getPlanByKey,
   type PlanKey,
@@ -140,7 +141,7 @@ export function ChangePlanSelection({
                 </div>
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">Posts per month</span>
-                  <span className="font-medium text-foreground">{plan.limits.postsPerMonth.toLocaleString()}</span>
+                  <span className="font-medium text-foreground">{formatPostLimit(plan)}</span>
                 </div>
               </div>
 
@@ -190,7 +191,7 @@ export function ChangePlanSelection({
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Posts per month</span>
-                  <span>{pendingPlan.limits.postsPerMonth.toLocaleString()}</span>
+                  <span>{formatPostLimit(pendingPlan)}</span>
                 </div>
               </div>
             </div>

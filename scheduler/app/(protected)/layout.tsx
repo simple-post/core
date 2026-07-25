@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { SubscriptionGate } from "@/components/billing/subscription-gate";
 import { LoginForm } from "@/components/login-form";
+import { WelcomeModal } from "@/components/onboarding/welcome-modal";
 import { useSession } from "@/lib/auth/auth-client";
 import { COMPLIMENTARY_INVITE_STORAGE_KEY } from "@/lib/invites/constants";
 
@@ -106,7 +107,11 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   // Render protected content only after subscription status is known.
   return (
     <InviteRedemptionGate userId={session.user.id}>
-      <SubscriptionGate>{children}</SubscriptionGate>
+      <SubscriptionGate>
+        {/* Inside the gate so it only greets users who actually have access. */}
+        <WelcomeModal />
+        {children}
+      </SubscriptionGate>
     </InviteRedemptionGate>
   );
 }

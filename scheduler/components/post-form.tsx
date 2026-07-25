@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { AlertCircle, Info, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -455,6 +456,15 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     }
   };
 
+  // Duplicate and retry create a new post, so they always charge the trial.
+  // A plain edit only charges when it takes the post out of draft state —
+  // an already scheduled post was charged when it was created.
+  const trialAllowance = useTrialPostAllowance({
+    platforms: selectedAccounts.map((account) => account.platform),
+    threadSegments: thread.length + 1,
+    isDraft: postingMode === "draft" || (!isCreating && existingPost.status !== "draft"),
+  });
+
   const isFormValid =
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
@@ -463,6 +473,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     (postingMode === "draft" || !validationLoading) &&
     (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&
+    !trialAllowance.blocked &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
@@ -579,9 +590,10 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             variant="outline"
             size="sm"
             className="gap-2 text-muted-foreground"
+            disabled={trialAllowance.threadAtLimit}
             onClick={() => setThread((prev) => [...prev, { message: "" }])}>
             <Plus className="h-3.5 w-3.5" />
-            Add to thread
+            {trialAllowance.threadAtLimit ? `Thread limit (${trialAllowance.maxThreadSegments})` : "Add to thread"}
           </Button>
 
           {/* Validation Feedback */}
@@ -712,6 +724,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             </p>
           </div>
         )}
+
+        <TrialLimitNotice allowance={trialAllowance} />
 
         {/* Submit Button */}
         <div className="flex gap-4 pt-4">

@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -108,6 +109,7 @@ export function CreatePostForm() {
   const [contentTouched, setContentTouched] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [trialSubmissionError, setTrialSubmissionError] = useState<string | null>(null);
 
   const enabledOverrides = useMemo<AccountOverridesMap>(() => {
     if (selectedAccountIds.length === 0) {
@@ -213,6 +215,11 @@ export function CreatePostForm() {
   useEffect(() => {
     setScheduleError(null);
   }, [postingMode, scheduledDate, scheduledTime]);
+
+  // The rejection was about this particular set of accounts and thread length.
+  useEffect(() => {
+    setTrialSubmissionError(null);
+  }, [postingMode, selectedAccountIds, thread.length]);
 
   useEffect(() => {
     if (defaultRepostAppliedRef.current || !defaultRepostSettings) {
@@ -585,6 +592,12 @@ export function CreatePostForm() {
       if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
         setScheduleError(errorMessage);
       }
+      // The client-side projection can be stale (another tab, or an agent
+      // posting over MCP). Keep the server's verdict on screen rather than only
+      // in a toast that disappears.
+      if (errorMessage.toLowerCase().includes("free trial")) {
+        setTrialSubmissionError(errorMessage);
+      }
       if (postingMode === "now") {
         setPostingSucceeded(false);
         setPostingResults((current) => failPendingPostingResults(current, errorMessage));
@@ -594,6 +607,12 @@ export function CreatePostForm() {
     }
   };
 
+  const trialAllowance = useTrialPostAllowance({
+    platforms: selectedAccounts.map((account) => account.platform),
+    threadSegments: thread.length + 1,
+    isDraft: postingMode === "draft",
+  });
+
   const isFormValid =
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
@@ -601,6 +620,7 @@ export function CreatePostForm() {
     (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
     (postingMode === "draft" || !validationLoading) &&
     (!tiktokConsentRequired || tiktokConsent) &&
+    !trialAllowance.blocked &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
@@ -718,9 +738,10 @@ export function CreatePostForm() {
             variant="outline"
             size="sm"
             className="gap-2 text-muted-foreground"
+            disabled={trialAllowance.threadAtLimit}
             onClick={handleAddThreadSegment}>
             <Plus className="h-3.5 w-3.5" />
-            Add to thread
+            {trialAllowance.threadAtLimit ? `Thread limit (${trialAllowance.maxThreadSegments})` : "Add to thread"}
           </Button>
         </div>
 
@@ -910,6 +931,18 @@ export function CreatePostForm() {
               Select at least one account to publish your content.
             </div>
           )}
+
+          <TrialLimitNotice allowance={trialAllowance} />
+
+          {trialSubmissionError ? (
+            <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
+              <div className="flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <p className="font-medium">Free trial limit</p>
+              </div>
+              <p className="mt-1 text-muted-foreground">{trialSubmissionError}</p>
+            </div>
+          ) : null}
 
           {shouldShowValidationFeedback && validationError && (
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">

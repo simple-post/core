@@ -244,3 +244,4 @@ export const postingLogger = createLogger("posting");
 export const mediaLogger = createLogger("media");
 export const authLogger = createLogger("auth");
 export const dbLogger = createLogger("db");
+export const billingLogger = createLogger("billing");

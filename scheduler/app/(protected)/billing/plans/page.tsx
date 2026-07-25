@@ -17,7 +17,7 @@ import { type PlanKey } from "@/lib/billing/plans";
 
 interface BillingStatus {
   active: boolean;
-  accessType: "stripe" | "complimentary" | "self_hosted" | null;
+  accessType: "stripe" | "complimentary" | "trial" | "self_hosted" | null;
   displayCurrency: BillingDisplayCurrency;
   plan: {
     key: PlanKey;
@@ -26,7 +26,22 @@ interface BillingStatus {
   complimentaryAccess: {
     expiresAt: string;
   } | null;
+  trial: {
+    status: "active" | "expired";
+    expiresAt: string;
+    daysRemaining: number;
+    postsPerPlatform: number;
+  } | null;
   selfHosted?: boolean;
+}
+
+function describeTrial(trial: NonNullable<BillingStatus["trial"]>): string {
+  if (trial.status === "expired") {
+    return `Your free trial ended on ${formatDate(trial.expiresAt)}. Pick a plan to start scheduling again — everything you created is still here.`;
+  }
+
+  const remaining = trial.daysRemaining <= 1 ? "It ends today" : `You have ${trial.daysRemaining} days left`;
+  return `You are on the free trial, limited to ${trial.postsPerPlatform} posts per platform. ${remaining} — subscribe whenever you are ready, no need to wait for it to run out.`;
 }
 
 async function parseApiError(response: Response): Promise<string> {
@@ -116,7 +131,13 @@ export default function BillingPlansPage() {
             description={`You currently have complimentary ${billing.plan.name} access through ${formatDate(billing.complimentaryAccess?.expiresAt)}. No payment method is required for that access; choose a plan here only if you want to start a paid subscription now.`}
             displayCurrency={displayCurrency}
           />
-        ) : !billing?.active || !billing.plan ? (
+        ) : billing?.trial && billing.accessType !== "stripe" ? (
+          <PlanSelection
+            title={billing.trial.status === "expired" ? "Choose a plan to continue" : "Upgrade from your free trial"}
+            description={describeTrial(billing.trial)}
+            displayCurrency={displayCurrency}
+          />
+        ) : billing?.accessType !== "stripe" || !billing.plan ? (
           <section className="mx-auto w-full max-w-2xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
             <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
               <div className="section-kicker">

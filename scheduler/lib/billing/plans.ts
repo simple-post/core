@@ -2,9 +2,24 @@ import type { BillingDisplayCurrency } from "@/lib/billing/display-currency";
 
 export const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
+/** The purchasable plans. The free trial is deliberately not one of them. */
 export const PLAN_KEYS = ["basic", "advanced", "pro"] as const;
 
 export type PlanKey = (typeof PLAN_KEYS)[number];
+
+export const TRIAL_PLAN_KEY = "trial";
+
+/** Any plan that can grant access, including the non-purchasable free trial. */
+export type AccessPlanKey = PlanKey | typeof TRIAL_PLAN_KEY;
+
+/** Length of the automatic no-credit-card trial. */
+export const TRIAL_DURATION_DAYS = 7;
+
+/** Posts a trial user may schedule or publish per social platform. */
+export const TRIAL_POSTS_PER_PLATFORM = 10;
+
+/** Segments (root post included) a trial user may put in a single thread. */
+export const TRIAL_MAX_THREAD_SEGMENTS = 20;
 
 export interface BillingPlanFeature {
   label: string;
@@ -13,11 +28,17 @@ export interface BillingPlanFeature {
 
 export interface BillingPlanLimits {
   socialAccounts: number | null;
-  postsPerMonth: number;
+  /** Null on the trial, where the per-platform cap is the binding limit. */
+  postsPerMonth: number | null;
+  /** Trial only: posts per social platform for the whole trial window. */
+  postsPerPlatform: number | null;
+  /** Trial only: maximum segments in one thread. */
+  maxThreadSegments: number | null;
   cliAccess: boolean;
   apiAccess: boolean;
 }
 
+/** A plan that can be bought in Stripe Checkout. */
 export interface BillingPlan {
   key: PlanKey;
   name: string;
@@ -26,10 +47,53 @@ export interface BillingPlan {
   priceMonthly: number;
   description: string;
   featured?: boolean;
+  /** Empty on the trial, which is never sold through Stripe. */
   stripePriceEnv: string;
   limits: BillingPlanLimits;
   features: BillingPlanFeature[];
 }
+
+/**
+ * Any plan a user can currently be on. Widens {@link BillingPlan} to include
+ * the trial, which grants access but can never be selected in Checkout — that
+ * distinction is what keeps `"trial"` out of every Stripe code path.
+ */
+export interface AccessPlan extends Omit<BillingPlan, "key"> {
+  key: AccessPlanKey;
+}
+
+/**
+ * The plan a user is on before they ever pay. Capability is deliberately
+ * Pro-level — the point of the trial is to show the AI/MCP integration, not to
+ * ration features — with volume capped per platform instead of per month.
+ * Not part of {@link BILLING_PLANS}, so it can never be selected in Checkout.
+ */
+export const TRIAL_PLAN: AccessPlan = {
+  key: TRIAL_PLAN_KEY,
+  name: "Free trial",
+  price: "$0",
+  prices: { usd: "$0", eur: "€0" },
+  priceMonthly: 0,
+  description: `Every feature for ${TRIAL_DURATION_DAYS} days. No credit card required.`,
+  stripePriceEnv: "",
+  limits: {
+    socialAccounts: null,
+    postsPerMonth: null,
+    postsPerPlatform: TRIAL_POSTS_PER_PLATFORM,
+    maxThreadSegments: TRIAL_MAX_THREAD_SEGMENTS,
+    cliAccess: true,
+    apiAccess: true,
+  },
+  features: [
+    { label: "Unlimited social accounts", included: true },
+    { label: `${TRIAL_POSTS_PER_PLATFORM} posts per platform`, included: true },
+    { label: "All 10 social platforms", included: true },
+    { label: "Connect any AI assistant", included: true },
+    { label: "Web app for scheduling", included: true },
+    { label: "CLI for agents", included: true },
+    { label: "API access", included: true },
+  ],
+};
 
 export const BILLING_PLANS: BillingPlan[] = [
   {
@@ -43,6 +107,8 @@ export const BILLING_PLANS: BillingPlan[] = [
     limits: {
       socialAccounts: 5,
       postsPerMonth: 100,
+      postsPerPlatform: null,
+      maxThreadSegments: null,
       cliAccess: false,
       apiAccess: false,
     },
@@ -68,6 +134,8 @@ export const BILLING_PLANS: BillingPlan[] = [
     limits: {
       socialAccounts: 10,
       postsPerMonth: 500,
+      postsPerPlatform: null,
+      maxThreadSegments: null,
       cliAccess: true,
       apiAccess: false,
     },
@@ -92,6 +160,8 @@ export const BILLING_PLANS: BillingPlan[] = [
     limits: {
       socialAccounts: null,
       postsPerMonth: 2000,
+      postsPerPlatform: null,
+      maxThreadSegments: null,
       cliAccess: true,
       apiAccess: true,
     },
@@ -151,6 +221,14 @@ export function getBillingPlanPrice(
   return plan.prices?.[displayCurrency] ?? plan.price;
 }
 
-export function formatAccountLimit(plan: BillingPlan): string {
+export function formatAccountLimit(plan: AccessPlan): string {
   return plan.limits.socialAccounts === null ? "Unlimited" : plan.limits.socialAccounts.toString();
+}
+
+/** Renders the volume allowance of a plan, which the trial expresses per platform. */
+export function formatPostLimit(plan: AccessPlan): string {
+  if (plan.limits.postsPerPlatform !== null) {
+    return `${plan.limits.postsPerPlatform.toLocaleString()} / platform`;
+  }
+  return plan.limits.postsPerMonth === null ? "Unlimited" : plan.limits.postsPerMonth.toLocaleString();
 }

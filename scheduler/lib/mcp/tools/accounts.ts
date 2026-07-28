@@ -6,7 +6,7 @@ import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account
 
 export const listAccountsSchema = z.object({});
 
-export const mcpAccountSchema = z.object({
+export const mcpAccountIdentitySchema = z.object({
   accountId: z.string().describe("SimplePost connected account ID to pass to posting tools."),
   platform: z.string().describe("Social platform key, such as x, instagram, facebook, or linkedin."),
   username: z.string().nullable().describe("Platform username or handle when available."),
@@ -16,6 +16,9 @@ export const mcpAccountSchema = z.object({
     .nullable()
     .optional()
     .describe("Public URL for the account's profile picture, when available."),
+});
+
+export const mcpAccountSchema = mcpAccountIdentitySchema.extend({
   credentialStatus: z
     .object({
       state: z.string(),
@@ -38,7 +41,7 @@ export const listAccountsOutputSchema = z.object({
   }),
 });
 
-export async function listAccounts(userId: string) {
+export async function listAccounts(userId: string): Promise<z.infer<typeof listAccountsOutputSchema>> {
   const accounts = await prisma.connectedAccount.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },

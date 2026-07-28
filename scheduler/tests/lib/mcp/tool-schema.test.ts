@@ -1,17 +1,18 @@
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 
-import { listAccountsSchema } from "@/lib/mcp/tools/accounts";
+import { listAccountsOutputSchema, listAccountsSchema } from "@/lib/mcp/tools/accounts";
 import { uploadMediaSchema } from "@/lib/mcp/tools/media";
 import { toMediaFiles } from "@/lib/mcp/tools/media-schema";
 import {
   createPostSchema,
   discardScheduledPostSchema,
   inspectPostsSchema,
+  previewPostOutputSchema,
   previewPostSchema,
   updateScheduledPostSchema,
 } from "@/lib/mcp/tools/posts";
-import { validatePostSchema } from "@/lib/mcp/tools/validation";
+import { validatePostOutputSchema, validatePostSchema } from "@/lib/mcp/tools/validation";
 
 import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
@@ -168,5 +169,77 @@ describe("MCP tool JSON schemas", () => {
     expect(toInputJsonSchema(createPostSchema).properties?.quotePostId?.type).toBe("string");
     expect(toInputJsonSchema(previewPostSchema).properties?.quotePostId?.type).toBe("string");
     expect(toInputJsonSchema(updateScheduledPostSchema).properties?.quotePostId).toBeDefined();
+  });
+
+  it("accepts the account identity returned by validation and preview tools", () => {
+    const account = {
+      accountId: "account-1",
+      platform: "x",
+      username: "clompton",
+      displayName: "Clompton",
+      profilePicture: null,
+    };
+    const validation = {
+      kind: "validation" as const,
+      message: "Shipping the new release notes today.",
+      mediaCount: 0,
+      isValid: true,
+      platforms: ["x"],
+      accounts: [
+        {
+          ...account,
+          isValid: true,
+          errors: [],
+          warnings: [],
+        },
+      ],
+      summary: {
+        accountCount: 1,
+        mediaCount: 0,
+        errorCount: 0,
+        warningCount: 0,
+      },
+    };
+    const preview = {
+      kind: "preview" as const,
+      message: validation.message,
+      postingMode: "now" as const,
+      scheduledFor: null,
+      quotePostId: null,
+      mediaCount: 0,
+      accounts: [account],
+      validation,
+      summary: {
+        accountCount: 1,
+        mediaCount: 0,
+        threadSegmentCount: 0,
+        errorCount: 0,
+        warningCount: 0,
+      },
+    };
+
+    expect(validatePostOutputSchema.parse(validation)).toEqual(validation);
+    expect(previewPostOutputSchema.parse(preview)).toEqual(preview);
+  });
+
+  it("continues to require credential health in list_accounts output", () => {
+    const result = listAccountsOutputSchema.safeParse({
+      kind: "accounts",
+      accounts: [
+        {
+          accountId: "account-1",
+          platform: "x",
+          username: "clompton",
+          displayName: "Clompton",
+          profilePicture: null,
+        },
+      ],
+      summary: {
+        total: 1,
+        platforms: ["x"],
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 });

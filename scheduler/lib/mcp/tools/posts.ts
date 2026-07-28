@@ -17,7 +17,7 @@ import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
 
-import { listAccounts, mcpAccountSchema } from "./accounts";
+import { listAccounts, mcpAccountIdentitySchema, mcpAccountSchema } from "./accounts";
 import {
   mcpMediaArraySchema,
   mcpMediaItemSchema,
@@ -111,7 +111,7 @@ export const previewPostOutputSchema = z.object({
   scheduledFor: z.string().nullable(),
   quotePostId: z.string().nullable(),
   mediaCount: z.number(),
-  accounts: z.array(mcpAccountSchema),
+  accounts: z.array(mcpAccountIdentitySchema),
   validation: validatePostOutputSchema,
   summary: z.object({
     accountCount: z.number(),
@@ -513,7 +513,10 @@ function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: 
   return collectMediaForCleanup(oldPost).filter((media) => !keptUrls.has(media.url));
 }
 
-export async function previewPost(userId: string, input: z.infer<typeof previewPostSchema>) {
+export async function previewPost(
+  userId: string,
+  input: z.infer<typeof previewPostSchema>,
+): Promise<z.infer<typeof previewPostOutputSchema>> {
   input = { ...input, accountIds: [...new Set(input.accountIds)] };
   const postingMode = input.postingMode ?? "now";
   const scheduledFor = postingMode === "schedule" ? resolveScheduledFor(input) : null;

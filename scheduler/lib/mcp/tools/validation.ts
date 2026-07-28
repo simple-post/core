@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
-import { mcpAccountSchema } from "./accounts";
+import { mcpAccountIdentitySchema } from "./accounts";
 import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
 
 export const validatePostSchema = z.object({
@@ -24,7 +24,7 @@ const validationIssueSchema = z.object({
   field: z.string().optional(),
 });
 
-export const validationAccountSchema = mcpAccountSchema.extend({
+export const validationAccountSchema = mcpAccountIdentitySchema.extend({
   isValid: z.boolean(),
   errors: z.array(validationIssueSchema),
   warnings: z.array(validationIssueSchema),
@@ -45,7 +45,10 @@ export const validatePostOutputSchema = z.object({
   }),
 });
 
-export async function validatePost(userId: string, input: z.infer<typeof validatePostSchema>) {
+export async function validatePost(
+  userId: string,
+  input: z.infer<typeof validatePostSchema>,
+): Promise<z.infer<typeof validatePostOutputSchema>> {
   const accountIds = [...new Set(input.accountIds)];
   const mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);

@@ -1,13 +1,22 @@
 function getRequired(name: string): string {
-  const value = process.env[name];
+  const value = getRuntimeEnvironmentVariable(name);
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
 }
 
+/**
+ * Read environment variables by dynamic key so Next.js does not replace
+ * public values at build time in server bundles. MCP resources are generated
+ * on the server and must use the deployment's runtime origin.
+ */
+function getRuntimeEnvironmentVariable(name: string): string | undefined {
+  return process.env[name];
+}
+
 export function getBoolean(name: string): boolean {
-  return process.env[name]?.toLowerCase() === "true";
+  return getRuntimeEnvironmentVariable(name)?.toLowerCase() === "true";
 }
 
 /**
@@ -43,7 +52,7 @@ export const env = {
     return getRequired("RESEND_API_KEY");
   },
   get NEXT_PUBLIC_APP_URL() {
-    return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    return getRuntimeEnvironmentVariable("NEXT_PUBLIC_APP_URL") || "http://localhost:3000";
   },
   get RESEND_FROM_ADDRESS() {
     return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.social";

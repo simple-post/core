@@ -19,7 +19,7 @@ const nextConfig = {
     root: workspaceRoot,
   },
 
-  allowedDevOrigins: ["http://localhost:3000", "vlad.creafexlab.com"],
+  allowedDevOrigins: ["http://localhost:3000", "dev.simplepost.social"],
 };
 
 export default nextConfig;

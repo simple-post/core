@@ -10,6 +10,7 @@ jest.mock("@modelcontextprotocol/ext-apps/server", () => ({
 }));
 
 import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } from "@/lib/mcp/ui/resources";
+import { WIDGET_ASSETS } from "@/lib/mcp/ui/widget-assets";
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -55,7 +56,11 @@ describe("MCP UI resources", () => {
     registerMcpUiResources({ registerResource } as unknown as McpServer);
 
     expect(SCHEDULE_WIDGET_URI).toMatch(/^ui:\/\/simplepost\/schedule-v\d+\.html$/);
-    expect(POST_PREVIEW_WIDGET_URI).toMatch(/^ui:\/\/simplepost\/post-preview-v\d+\.html$/);
+    expect(POST_PREVIEW_WIDGET_URI).toBe("ui://simplepost/post-preview-v1.html");
+    expect(WIDGET_ASSETS.schedule.script).toMatch(/^schedule-[A-Z0-9]+\.js$/);
+    expect(WIDGET_ASSETS.schedule.stylesheet).toMatch(/^schedule-[A-Z0-9]+\.css$/);
+    expect(WIDGET_ASSETS["post-preview"].script).toMatch(/^post-preview-[A-Z0-9]+\.js$/);
+    expect(WIDGET_ASSETS["post-preview"].stylesheet).toMatch(/^post-preview-[A-Z0-9]+\.css$/);
     expect(registerResource.mock.calls.map((call) => call[1])).toEqual([SCHEDULE_WIDGET_URI, POST_PREVIEW_WIDGET_URI]);
 
     const callbacks = registerResource.mock.calls.map((call) => call[3] as () => Promise<ResourceResult>);
@@ -68,23 +73,26 @@ describe("MCP UI resources", () => {
       expect.objectContaining({
         uri: SCHEDULE_WIDGET_URI,
         mimeType: "text/html;profile=mcp-app",
-        text: expect.stringContaining("/mcp-widgets/schedule.js"),
+        text: expect.stringContaining(`/mcp-widgets/${WIDGET_ASSETS.schedule.script}`),
       }),
     );
-    expect(schedule?.contents[0].text).toContain("/mcp-widgets/schedule.css");
-    expect(schedule?.contents[0].text).toContain('src="https://dev.simplepost.social/mcp-widgets/schedule.js"');
-    expect(schedule?.contents[0].text).toContain('href="https://dev.simplepost.social/mcp-widgets/schedule.css"');
+    expect(schedule?.contents[0].text).toContain(`/mcp-widgets/${WIDGET_ASSETS.schedule.stylesheet}`);
+    expect(schedule?.contents[0].text).toContain(
+      `src="https://dev.simplepost.social/mcp-widgets/${WIDGET_ASSETS.schedule.script}"`,
+    );
+    expect(schedule?.contents[0].text).toContain(
+      `href="https://dev.simplepost.social/mcp-widgets/${WIDGET_ASSETS.schedule.stylesheet}"`,
+    );
     expect(schedule?.contents[0]._meta?.ui?.csp?.resourceDomains).toContain("https://dev.simplepost.social");
     expect(preview?.contents[0]).toEqual(
       expect.objectContaining({
         uri: POST_PREVIEW_WIDGET_URI,
         mimeType: "text/html;profile=mcp-app",
-        text: expect.stringContaining("/mcp-widgets/post-preview.js"),
+        text: expect.stringContaining(`/mcp-widgets/${WIDGET_ASSETS["post-preview"].script}`),
       }),
     );
-    expect(preview?.contents[0].text).toContain("/mcp-widgets/post-preview.css");
-    expect(preview?.contents[0].text).toMatch(/\/mcp-widgets\/post-preview\.js\?v=\d+/);
-    expect(preview?.contents[0].text).toMatch(/\/mcp-widgets\/post-preview\.css\?v=\d+/);
+    expect(preview?.contents[0].text).toContain(`/mcp-widgets/${WIDGET_ASSETS["post-preview"].stylesheet}`);
+    expect(preview?.contents[0].text).not.toContain("?v=");
     expect(preview?.contents[0]._meta?.ui?.csp?.resourceDomains).toContain("https://*.simplepost.social");
     expect(preview?.contents[0].text).not.toContain("schedule.simplepost.dev");
   });

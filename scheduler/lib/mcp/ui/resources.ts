@@ -1,11 +1,12 @@
 import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 
 import { getAppBaseUrl } from "@/lib/mcp/config";
+import { WIDGET_ASSETS, type WidgetName } from "@/lib/mcp/ui/widget-assets";
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
-const POST_PREVIEW_WIDGET_VERSION = "5";
+const POST_PREVIEW_WIDGET_VERSION = "1";
 export const POST_PREVIEW_WIDGET_URI = `ui://simplepost/post-preview-v${POST_PREVIEW_WIDGET_VERSION}.html`;
 
 const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
@@ -20,15 +21,11 @@ const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
   "https://cdn.bsky.app",
 ];
 
-function widgetHtml(name: string, assetVersion?: string): string {
+function widgetHtml(name: WidgetName): string {
   const baseUrl = getAppBaseUrl();
-  const scriptUrl = new URL(`/mcp-widgets/${name}.js`, `${baseUrl}/`);
-  const stylesheetUrl = new URL(`/mcp-widgets/${name}.css`, `${baseUrl}/`);
-
-  if (assetVersion) {
-    scriptUrl.searchParams.set("v", assetVersion);
-    stylesheetUrl.searchParams.set("v", assetVersion);
-  }
+  const assets = WIDGET_ASSETS[name];
+  const scriptUrl = new URL(`/mcp-widgets/${assets.script}`, `${baseUrl}/`);
+  const stylesheetUrl = new URL(`/mcp-widgets/${assets.stylesheet}`, `${baseUrl}/`);
 
   return `<!doctype html>
 <html lang="en">
@@ -109,7 +106,7 @@ export function registerMcpUiResources(server: McpServer): void {
         {
           uri: POST_PREVIEW_WIDGET_URI,
           mimeType: RESOURCE_MIME_TYPE,
-          text: widgetHtml("post-preview", POST_PREVIEW_WIDGET_VERSION),
+          text: widgetHtml("post-preview"),
           _meta: {
             ui: {
               prefersBorder: true,

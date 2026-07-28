@@ -4,11 +4,9 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "build": "next build",
+    "build": "yarn build:mcp-widgets && next build",
     "build:mcp-widgets": "node scripts/build-mcp-widgets.mjs",
-    "dev": "next dev",
-    "prebuild": "yarn build:mcp-widgets",
-    "predev": "yarn build:mcp-widgets",
+    "dev": "yarn build:mcp-widgets && next dev",
     "preview:link": "yarn link -r ../../preview/packages/preview ../../preview/packages/react",
     "preview:unlink": "yarn unlink ../../preview/packages/preview ../../preview/packages/react",
     "start": "next start",

@@ -2,8 +2,19 @@ import { useCallback, useState } from "react";
 
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 
+type ChatGptWindow = Window & {
+  openai?: {
+    toolOutput?: unknown;
+  };
+};
+
+function initialToolOutput<T>(): T | null {
+  if (typeof window === "undefined") return null;
+  return ((window as ChatGptWindow).openai?.toolOutput as T | undefined) ?? null;
+}
+
 export function useMcpToolData<T>(name: string) {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<T | null>(() => initialToolOutput<T>());
   const [toolError, setToolError] = useState<string | null>(null);
 
   const onAppCreated = useCallback(

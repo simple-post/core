@@ -29,11 +29,24 @@ type ResourceResult = {
 };
 
 describe("MCP UI resources", () => {
+  it("builds widget assets explicitly in scheduler build commands", () => {
+    const packageJson = jest.requireActual("../../../package.json") as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts.build).toMatch(/^yarn build:mcp-widgets && next build/);
+    expect(packageJson.scripts.dev).toMatch(/^yarn build:mcp-widgets && next dev/);
+    expect(packageJson.scripts.prebuild).toBeUndefined();
+    expect(packageJson.scripts.predev).toBeUndefined();
+  });
+
   it("registers self-contained schedule and preview app shells", async () => {
     const registerResource = jest.fn();
     registerMcpUiResources({ registerResource } as unknown as McpServer);
 
     expect(registerResource).toHaveBeenCalledTimes(2);
+    expect(SCHEDULE_WIDGET_URI).toContain("schedule-v2.html");
+    expect(POST_PREVIEW_WIDGET_URI).toContain("post-preview-v2.html");
     expect(registerResource.mock.calls.map((call) => call[1])).toEqual([SCHEDULE_WIDGET_URI, POST_PREVIEW_WIDGET_URI]);
 
     const callbacks = registerResource.mock.calls.map((call) => call[3] as () => Promise<ResourceResult>);

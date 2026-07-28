@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PostPreview, type PostPreviewData, type PreviewPlatform } from "@simple-post/preview-react";
 import { createRoot } from "react-dom/client";
 
+import { PlatformIcon } from "../components/platform-icons";
 import { useMcpToolData } from "./use-mcp-tool-data";
 import "./post-preview.css";
 
@@ -149,8 +150,8 @@ function PostPreviewApp() {
                 aria-controls="post-preview-panel"
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setSelectedPlatform(preview.platform)}>
-                <span className="platform-monogram" aria-hidden="true">
-                  {preview.platformLabel.slice(0, 1)}
+                <span className="platform-icon" data-platform={preview.platform} aria-hidden="true">
+                  <PlatformIcon platform={preview.platform} className="platform-logo" />
                 </span>
                 <span>
                   <strong>{preview.platformLabel}</strong>

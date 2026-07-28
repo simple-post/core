@@ -5,7 +5,8 @@ import { getAppBaseUrl } from "@/lib/mcp/config";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
-export const POST_PREVIEW_WIDGET_URI = "ui://simplepost/post-preview-v2.html";
+const POST_PREVIEW_WIDGET_VERSION = "3";
+export const POST_PREVIEW_WIDGET_URI = `ui://simplepost/post-preview-v${POST_PREVIEW_WIDGET_VERSION}.html`;
 
 const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
   "https://*.simplepost.social",
@@ -19,22 +20,27 @@ const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
   "https://cdn.bsky.app",
 ];
 
-function widgetHtml(name: string): string {
+function widgetHtml(name: string, assetVersion?: string): string {
   const baseUrl = getAppBaseUrl();
-  const scriptUrl = new URL(`/mcp-widgets/${name}.js`, `${baseUrl}/`).toString();
-  const stylesheetUrl = new URL(`/mcp-widgets/${name}.css`, `${baseUrl}/`).toString();
+  const scriptUrl = new URL(`/mcp-widgets/${name}.js`, `${baseUrl}/`);
+  const stylesheetUrl = new URL(`/mcp-widgets/${name}.css`, `${baseUrl}/`);
+
+  if (assetVersion) {
+    scriptUrl.searchParams.set("v", assetVersion);
+    stylesheetUrl.searchParams.set("v", assetVersion);
+  }
 
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="${stylesheetUrl}" />
+    <link rel="stylesheet" href="${stylesheetUrl.toString()}" />
     <title>SimplePost</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="${scriptUrl}"></script>
+    <script type="module" src="${scriptUrl.toString()}"></script>
   </body>
 </html>`;
 }
@@ -102,7 +108,7 @@ export function registerMcpUiResources(server: McpServer): void {
         {
           uri: POST_PREVIEW_WIDGET_URI,
           mimeType: RESOURCE_MIME_TYPE,
-          text: widgetHtml("post-preview"),
+          text: widgetHtml("post-preview", POST_PREVIEW_WIDGET_VERSION),
           _meta: {
             ui: {
               prefersBorder: true,

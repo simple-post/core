@@ -189,24 +189,52 @@ h1 {
   font-size: 10px;
 }
 
-.platform-monogram {
+.platform-icon {
   display: grid;
   width: 29px;
   height: 29px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--sp-border);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  background: var(--sp-card-strong);
-  color: var(--sp-text);
-  font-size: 11px;
-  font-weight: 750;
+  background: #000;
+  color: #fff;
 }
 
-button[aria-selected="true"] .platform-monogram {
-  border-color: var(--sp-accent);
-  background: var(--sp-accent);
-  color: #0a0a0a;
+.platform-icon[data-platform="youtube"],
+.platform-icon[data-platform="pinterest"] {
+  background: #dc2626;
+}
+
+.platform-icon[data-platform="instagram"] {
+  background: linear-gradient(90deg, #9333ea, #db2777);
+}
+
+.platform-icon[data-platform="facebook"] {
+  background: #2563eb;
+}
+
+.platform-icon[data-platform="bluesky"] {
+  background: #0ea5e9;
+}
+
+.platform-icon[data-platform="linkedin"] {
+  background: #1d4ed8;
+}
+
+.platform-icon[data-platform="telegram"] {
+  background: #3b82f6;
+}
+
+.platform-logo {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+
+button[aria-selected="true"] .platform-icon {
+  border-color: var(--sp-text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sp-text) 15%, transparent);
 }
 
 .preview-stage {

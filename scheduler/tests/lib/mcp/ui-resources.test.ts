@@ -83,6 +83,8 @@ describe("MCP UI resources", () => {
       }),
     );
     expect(preview?.contents[0].text).toContain("/mcp-widgets/post-preview.css");
+    expect(preview?.contents[0].text).toMatch(/\/mcp-widgets\/post-preview\.js\?v=\d+/);
+    expect(preview?.contents[0].text).toMatch(/\/mcp-widgets\/post-preview\.css\?v=\d+/);
     expect(preview?.contents[0]._meta?.ui?.csp?.resourceDomains).toContain("https://*.simplepost.social");
     expect(preview?.contents[0].text).not.toContain("schedule.simplepost.dev");
   });

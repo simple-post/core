@@ -127,7 +127,7 @@
       "user_prompt": "Which SimplePost accounts can I post from?",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts",
-      "expected_output": "Returns all of the user's connected accounts with social media platform, the account name and handle",
+      "expected_output": "Shows the user's connected SimplePost accounts.",
       "expected_output_url": null
     },
     {
@@ -135,7 +135,7 @@
       "user_prompt": "Use SimplePost to check whether this post is valid for my X account @clompton: Shipping the new release notes today.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, validate_post",
-      "expected_output": "Calls list_accounts to resolve the matching X account @clompton, then uses validate_post with that accountId. Reports in text and structured JSON whether the draft is valid, includes the exact draft post content, and surfaces any platform-specific errors or warnings.",
+      "expected_output": "Indicates whether the requested draft is valid.",
       "expected_output_url": null
     },
     {
@@ -143,7 +143,7 @@
       "user_prompt": "Use SimplePost to preview this on my Instagram account edmundclompton tomorrow at 9 AM Europe/Berlin using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, preview_post",
-      "expected_output": "Calls list_accounts to resolve the matching Instagram account edmundclompton, then uses preview_post with that accountId. Returns text and structured JSON with resolved target account details, exact post content, media count, scheduled time with timezone, and validation results without creating the post.",
+      "expected_output": "Provides the requested preview without creating or publishing a post.",
       "expected_output_url": null
     },
     {
@@ -151,7 +151,7 @@
       "user_prompt": "Show me my SimplePost drafts and posts that are currently scheduled.",
       "file_attachment_urls": null,
       "tools_triggered": "inspect_posts",
-      "expected_output": "Calls inspect_posts and returns matching SimplePost records with IDs, status, target account metadata, exact content, media count, thread count, and scheduled time when present. The visible response distinguishes drafts from future scheduled posts.",
+      "expected_output": "Shows the user's matching drafts and scheduled posts.",
       "expected_output_url": null
     },
     {
@@ -159,15 +159,15 @@
       "user_prompt": "Use SimplePost to save a temporary draft on my LinkedIn account edmund.clompton@gmail.com with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Calls list_accounts to resolve the matching LinkedIn account edmund.clompton@gmail.com, creates a temporary draft for that accountId, then uses the returned post ID to update the same SimplePost record to scheduled status with the requested future time. The visible response includes the exact content, target account, scheduled status, and scheduled time.",
+      "expected_output": "Confirms that the requested draft was scheduled.",
       "expected_output_url": null
     },
     {
       "description": "Resolve a natural-language quote source and schedule a new post.",
-      "user_prompt": "Use SimplePost to schedule a new post tomorrow at 18:00 Europe/Berlin about my workout and quote my last post about the gym.",
+      "user_prompt": "Use SimplePost to schedule a new post on my X account @clompton tomorrow at 18:00 Europe/Berlin about my workout and quote my last post about the gym.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, inspect_posts, create_post",
-      "expected_output": "Calls list_accounts for destination account IDs, inspect_posts to identify the most recent published or scheduled post whose content is about the gym, and create_post with that exact SimplePost ID as quotePostId plus a timezone-aware scheduledFor. The visible response includes the new content, quote source, accounts, and scheduled time.",
+      "expected_output": "Confirms that the requested quoted post was scheduled.",
       "expected_output_url": null
     }
   ],
@@ -177,7 +177,7 @@
       "user_prompt": "Schedule a team meeting tomorrow at 10 AM.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not invoke SimplePost MCP tools because meeting scheduling is outside SimplePost's supported social posting workflows.",
+      "expected_output": "Does not use SimplePost for the calendar request.",
       "expected_output_url": null
     },
     {
@@ -185,7 +185,7 @@
       "user_prompt": "What is 23 + 19?",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should answer directly without invoking SimplePost MCP tools.",
+      "expected_output": "Answers the question without using SimplePost.",
       "expected_output_url": null
     },
     {
@@ -193,7 +193,7 @@
       "user_prompt": "Write three short caption ideas for a product launch.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not be invoked unless the user asks to validate, preview, upload media for, publish, schedule, save drafts, inspect, edit, or discard posts through SimplePost.",
+      "expected_output": "Provides writing help without using SimplePost.",
       "expected_output_url": null
     }
   ]

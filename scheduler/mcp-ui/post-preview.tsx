@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PostPreview, type PostPreviewData, type PreviewPlatform } from "@simple-post/preview-react";
 import { createRoot } from "react-dom/client";
 
-import { PlatformIcon } from "../components/platform-icons";
+import { PlatformIcon } from "../components/platform-icon";
 import { useMcpToolData } from "./use-mcp-tool-data";
 import "./post-preview.css";
 
@@ -43,7 +43,7 @@ function formatSchedule(value: string | null): string | null {
 }
 
 function PostPreviewApp() {
-  const { app, data, isConnected, error, toolError } = useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
+  const { app, data, error, toolError } = useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
@@ -102,10 +102,10 @@ function PostPreviewApp() {
     }
   }
 
-  if (error || toolError) {
+  if (toolError || (error && !data)) {
     return <div className="preview-state error-card">{error?.message ?? toolError}</div>;
   }
-  if (!isConnected || !data) {
+  if (!data) {
     return <div className="preview-state">Building platform previews…</div>;
   }
 

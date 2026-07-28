@@ -5,7 +5,7 @@ import { getAppBaseUrl } from "@/lib/mcp/config";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
-const POST_PREVIEW_WIDGET_VERSION = "3";
+const POST_PREVIEW_WIDGET_VERSION = "4";
 export const POST_PREVIEW_WIDGET_URI = `ui://simplepost/post-preview-v${POST_PREVIEW_WIDGET_VERSION}.html`;
 
 const SOCIAL_MEDIA_RESOURCE_DOMAINS = [

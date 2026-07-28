@@ -44,8 +44,21 @@ function widgetHtml(name: WidgetName): string {
 }
 
 function resourceDomains(): string[] {
-  const appOrigin = new URL(getAppBaseUrl()).origin;
-  return [...new Set([appOrigin, ...SOCIAL_MEDIA_RESOURCE_DOMAINS])];
+  return [...new Set([widgetOrigin(), ...SOCIAL_MEDIA_RESOURCE_DOMAINS])];
+}
+
+function widgetOrigin(): string {
+  return new URL(getAppBaseUrl()).origin;
+}
+
+function widgetUiMeta() {
+  return {
+    domain: widgetOrigin(),
+    prefersBorder: true,
+    csp: {
+      resourceDomains: resourceDomains(),
+    },
+  };
 }
 
 export function registerMcpUiResources(server: McpServer): void {
@@ -56,12 +69,8 @@ export function registerMcpUiResources(server: McpServer): void {
     {
       description: "Interactive day, week, and month view of posting slots and post activity.",
       _meta: {
-        ui: {
-          prefersBorder: true,
-          csp: {
-            resourceDomains: resourceDomains(),
-          },
-        },
+        ui: widgetUiMeta(),
+        "openai/widgetDomain": widgetOrigin(),
       },
     },
     async () => ({
@@ -71,14 +80,10 @@ export function registerMcpUiResources(server: McpServer): void {
           mimeType: RESOURCE_MIME_TYPE,
           text: widgetHtml("schedule"),
           _meta: {
-            ui: {
-              prefersBorder: true,
-              csp: {
-                resourceDomains: resourceDomains(),
-              },
-            },
+            ui: widgetUiMeta(),
             "openai/widgetDescription":
               "Interactive SimplePost schedule with day, week, and month views, posting slots, and post statuses.",
+            "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
           },
         },
@@ -93,12 +98,8 @@ export function registerMcpUiResources(server: McpServer): void {
     {
       description: "Interactive platform switcher with realistic social post previews.",
       _meta: {
-        ui: {
-          prefersBorder: true,
-          csp: {
-            resourceDomains: resourceDomains(),
-          },
-        },
+        ui: widgetUiMeta(),
+        "openai/widgetDomain": widgetOrigin(),
       },
     },
     async () => ({
@@ -108,14 +109,10 @@ export function registerMcpUiResources(server: McpServer): void {
           mimeType: RESOURCE_MIME_TYPE,
           text: widgetHtml("post-preview"),
           _meta: {
-            ui: {
-              prefersBorder: true,
-              csp: {
-                resourceDomains: resourceDomains(),
-              },
-            },
+            ui: widgetUiMeta(),
             "openai/widgetDescription":
               "Realistic SimplePost platform previews with a switcher for every selected social platform.",
+            "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
           },
         },

@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "SimplePost",
     "subtitle": "Post to social media",
-    "description": "SimplePost helps users work with their connected social media accounts directly from ChatGPT: list available accounts, upload generated or attached media, validate drafts on request, preview post targets and timing, publish immediately, schedule posts for later, quote published or scheduled posts, save drafts, and manage drafts or future scheduled posts. The app replies in plain text and does not render a custom widget.",
+    "description": "SimplePost helps users work with their connected social media accounts directly from ChatGPT: list accounts, upload media, validate drafts, preview posts across platforms, publish or schedule posts, save and manage drafts, and open an interactive day, week, or month schedule showing slots and post activity.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -64,6 +64,20 @@
         "idempotent_justification": "Calling it repeatedly recomputes the same preview and validation result without changing stored data."
       }
     },
+    "show_post_preview": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads saved post or supplied draft data and connected account presentation fields to render a visual platform preview.",
+        "open_world_justification": "Does not publish content, create records, or update any external platform or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform an irreversible action.",
+        "idempotent_justification": "Calling it repeatedly renders the current post preview without changing SimplePost or external platform data."
+      }
+    },
     "create_post": {
       "annotations": {
         "readOnlyHint": false,
@@ -90,6 +104,34 @@
         "open_world_justification": "Does not publish content, update public internet state, or call external social platform write APIs.",
         "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
         "idempotent_justification": "Calling it repeatedly only re-reads the current SimplePost post records and has no side effects."
+      }
+    },
+    "get_schedule": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads posting slots and post records for a requested calendar period and returns text plus structured schedule data.",
+        "open_world_justification": "Does not publish content, create records, or update external systems or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform an irreversible action.",
+        "idempotent_justification": "Repeated calls only refresh the requested schedule period from current stored data without side effects."
+      }
+    },
+    "show_schedule": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads posting slots and post records for a requested day, week, or month and renders them in an interactive calendar.",
+        "open_world_justification": "Does not publish content, create records, or update external systems or public internet state.",
+        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform an irreversible action.",
+        "idempotent_justification": "Repeated calls only render the current schedule for the requested period without changing stored data."
       }
     },
     "update_scheduled_post": {
@@ -142,32 +184,24 @@
       "description": "Preview a scheduled Instagram post with a public media URL.",
       "user_prompt": "Use SimplePost to preview this on my Instagram account edmundclompton tomorrow at 9 AM Europe/Berlin using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, preview_post",
-      "expected_output": "Provides the requested preview without creating or publishing a post.",
-      "expected_output_url": null
-    },
-    {
-      "description": "Inspect drafts and future scheduled posts.",
-      "user_prompt": "Show me my SimplePost drafts and posts that are currently scheduled.",
-      "file_attachment_urls": null,
-      "tools_triggered": "inspect_posts",
-      "expected_output": "Shows the user's matching drafts and scheduled posts.",
+      "tools_triggered": "list_accounts, preview_post, show_post_preview",
+      "expected_output": "Shows a preview of the requested post.",
       "expected_output_url": null
     },
     {
       "description": "Create a temporary LinkedIn draft and schedule it.",
       "user_prompt": "Use SimplePost to save a temporary draft on my LinkedIn account edmund.clompton@gmail.com with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Confirms that the requested draft was scheduled.",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post, show_post_preview",
+      "expected_output": "Shows that the requested post was saved or scheduled.",
       "expected_output_url": null
     },
     {
-      "description": "Resolve a natural-language quote source and schedule a new post.",
-      "user_prompt": "Use SimplePost to schedule a new post on my X account @clompton tomorrow at 18:00 Europe/Berlin about my workout and quote my last post about the gym.",
+      "description": "Open an interactive weekly schedule with slots and post activity.",
+      "user_prompt": "Show my SimplePost schedule for this week in Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, inspect_posts, create_post",
-      "expected_output": "Confirms that the requested quoted post was scheduled.",
+      "tools_triggered": "show_schedule",
+      "expected_output": "Shows the requested schedule view.",
       "expected_output_url": null
     }
   ],

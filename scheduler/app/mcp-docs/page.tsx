@@ -62,8 +62,8 @@ export default function McpDocsPage() {
             </h1>
           </div>
           <p className="text-sm text-muted-foreground max-w-xl mb-5">
-            Text-only remote MCP server for publishing and scheduling posts from any compatible AI assistant, with
-            optional validation, previews, and scheduled-post management when you ask for them.
+            Remote MCP server for publishing and scheduling posts from compatible AI assistants. Data-only tools return
+            text and structured JSON; Show tools render shared MCP Apps UI in ChatGPT and Claude.
           </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>
@@ -75,11 +75,13 @@ export default function McpDocsPage() {
                 "List social accounts connected to your SimplePost account",
                 "Upload generated or attached images and videos through chat file parameters when no public URL exists",
                 "Validate draft post text against platform-specific rules when requested",
-                "Preview target accounts, timing, and validation when requested",
+                "Render realistic post previews with a switcher for each selected platform",
+                "Show day, week, or month schedules with posting slots and post statuses",
+                "Return schedules and post preflights as text and structured data without opening UI",
                 "Create posts for immediate publishing, future scheduling, or draft storage",
                 "Inspect drafts, scheduled, posted, and failed SimplePost records",
                 "Edit or discard drafts and future scheduled posts",
-                "Return text and structured JSON without an embedded widget",
+                "Return text and structured JSON as a fallback when embedded UI is unavailable",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <span className="mt-1.5 w-1 h-1 rounded-full bg-primary flex-shrink-0" />

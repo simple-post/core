@@ -4,7 +4,7 @@ Use the MCP server when an AI assistant should validate, publish, or schedule po
 
 The MCP server is hosted by the Scheduler app and uses the Scheduler app's connected accounts. Users connect their social accounts once in the web app, then authorize the AI client with OAuth.
 
-The ChatGPT app is text-only. Tools return model-readable text plus structured JSON data, and no embedded ChatGPT iframe or component UI is registered.
+The connector uses the shared MCP Apps protocol for interactive schedules and realistic platform previews in both ChatGPT and Claude. Every UI tool also returns model-readable text plus structured JSON data for clients that do not render embedded UI.
 
 Post-related tool responses include the exact root post text, plus thread segments when present, so the conversation history shows what was previewed, posted, scheduled, edited, or discarded.
 
@@ -58,16 +58,19 @@ The MCP server does not expose raw social platform credentials to the AI client.
 
 ## Available Tools
 
-| Tool                     | Purpose                                                                                       |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `list_accounts`          | Lists connected Scheduler accounts and returns the `accountId` values required by other tools |
-| `upload_media`           | Uploads a ChatGPT file parameter to SimplePost storage and returns a public URL               |
-| `validate_post`          | Checks text and media against platform rules without creating anything                        |
-| `preview_post`           | Resolves accounts, media count, schedule time, and validation without writing anything        |
-| `create_post`            | Publishes immediately or schedules for later                                                  |
-| `inspect_posts`          | Lists scheduled, posted, or failed posts, or inspects a single post by ID                     |
-| `update_scheduled_post`  | Edits a future scheduled post after validating the resulting content                          |
-| `discard_scheduled_post` | Deletes a future scheduled post and its stored media                                          |
+| Tool                     | Purpose                                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| `list_accounts`          | Lists connected Scheduler accounts and returns the `accountId` values required by other tools  |
+| `upload_media`           | Uploads a ChatGPT file parameter to SimplePost storage and returns a public URL                |
+| `validate_post`          | Checks text and media against platform rules without creating anything                         |
+| `preview_post`           | Resolves accounts, media count, schedule time, and validation without writing anything         |
+| `show_post_preview`      | Renders a saved or unsaved post using the platform preview library and an interactive switcher |
+| `create_post`            | Publishes immediately or schedules for later                                                   |
+| `inspect_posts`          | Lists scheduled, posted, or failed posts, or inspects a single post by ID                      |
+| `show_schedule`          | Renders an interactive day, week, or month calendar with slots and post activity               |
+| `get_schedule`           | Returns a day, week, or month schedule as text and structured data without rendering UI         |
+| `update_scheduled_post`  | Edits a future scheduled post after validating the resulting content                           |
+| `discard_scheduled_post` | Deletes a future scheduled post and its stored media                                           |
 
 ## Recommended Agent Workflow
 
@@ -75,12 +78,47 @@ The MCP server does not expose raw social platform credentials to the AI client.
 2. Ask the user to connect accounts in the Scheduler app if none are available.
 3. Draft the post and choose target account IDs from `list_accounts`.
 4. If media is needed, use a public URL or call `upload_media` when the client has raw file bytes.
-5. Call `validate_post` or `preview_post`.
+5. Call `validate_post` for an explicit validation request, or `preview_post` for posting-detail preflight.
 6. Ask for confirmation when content, accounts, media, or timing are not explicit.
 7. Call `create_post` with `postingMode: "now"` or `postingMode: "schedule"`.
-8. Inspect the returned summary and per-account results.
-9. Use `inspect_posts` when the user asks what is scheduled, posted, or failed.
-10. Use `update_scheduled_post` or `discard_scheduled_post` only for future scheduled posts after identifying the exact `postId`.
+8. After saving or changing a draft or scheduled post, call `show_post_preview` with its returned `postId`.
+9. Inspect the returned summary and per-account results.
+10. Use `show_schedule` for visual day, week, or month schedule requests, and `inspect_posts` for searches or compact lists.
+11. Use `update_scheduled_post` or `discard_scheduled_post` only for drafts or future scheduled posts after identifying the exact `postId`.
+
+## Tool Naming Contract
+
+- `list_*` enumerates a collection, while `get_*` retrieves a data-only view.
+- `validate_*` checks rules without writing.
+- `preview_*` computes a non-writing text and structured-data preflight.
+- `show_*` renders MCP Apps UI and also returns a useful text fallback.
+- `create_*`, `update_*`, `discard_*`, and `upload_*` change stored or external state.
+
+The data/UI pairs are `get_schedule` / `show_schedule` and `preview_post` / `show_post_preview`. Existing tool names remain stable for backward compatibility; `inspect_posts` is the established read/search tool for post records.
+
+### `show_schedule`
+
+```json
+{
+  "view": "week",
+  "date": "2030-05-01",
+  "timeZone": "Europe/Berlin"
+}
+```
+
+The rendered calendar includes recurring posting slots plus scheduled, pending, published, failed, and past posts. The user can navigate between periods or switch between day, week, and month inside the widget.
+
+### `show_post_preview`
+
+Render a saved draft or scheduled post:
+
+```json
+{
+  "postId": "post_123"
+}
+```
+
+For content that has not been saved, provide `message` and `accountIds`, with optional root `media` and `thread`. The widget uses `@simple-post/preview-react` and lets the user switch among all selected preview-capable platforms.
 
 ## Tool Inputs
 

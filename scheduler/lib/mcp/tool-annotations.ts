@@ -33,6 +33,13 @@ export const MCP_TOOL_ANNOTATIONS = {
     idempotentHint: true,
     openWorldHint: false,
   },
+  show_post_preview: {
+    title: "Show a SimplePost preview",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   create_post: {
     title: "Create or publish a SimplePost post",
     readOnlyHint: false,
@@ -42,6 +49,20 @@ export const MCP_TOOL_ANNOTATIONS = {
   },
   inspect_posts: {
     title: "Inspect SimplePost posts",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  get_schedule: {
+    title: "Get the SimplePost schedule",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  show_schedule: {
+    title: "Show the SimplePost schedule",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,

@@ -64,7 +64,7 @@ describe("ChatGPT app submission metadata", () => {
   });
 
   it("keeps submitted test cases self-contained and tied to registered tools", () => {
-    expect(submission.test_cases).toHaveLength(6);
+    expect(submission.test_cases).toHaveLength(5);
 
     for (const testCase of submission.test_cases) {
       const triggeredTools = parseTriggeredTools(testCase.tools_triggered);
@@ -91,5 +91,18 @@ describe("ChatGPT app submission metadata", () => {
     for (const testCase of submission.negative_test_cases) {
       expect(testCase.tools_triggered).toBeNull();
     }
+  });
+
+  it("uses portable MCP tool names and complete human-facing metadata", () => {
+    for (const [toolName, annotations] of Object.entries(MCP_TOOL_ANNOTATIONS)) {
+      expect(toolName).toMatch(/^[a-z][a-z0-9_]*$/);
+      expect(toolName.length).toBeLessThanOrEqual(64);
+      expect(annotations.title.trim().length).toBeGreaterThan(0);
+    }
+
+    expect(knownToolNameStrings.filter((toolName) => toolName.startsWith("show_")).sort()).toEqual([
+      "show_post_preview",
+      "show_schedule",
+    ]);
   });
 });

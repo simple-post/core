@@ -23,7 +23,7 @@ If multiple options are available, prefer MCP for AI-user posting, SDK for in-pr
 - Never invent account IDs, account aliases, board IDs, chat IDs, or scheduler URLs. List accounts when the interface supports it, otherwise ask or point the user to setup.
 - Do not expose, print, or ask the model to remember raw social credentials. Use the Scheduler account store, CLI secret store, environment variables, or server accounts file.
 - Media sent through MCP or HTTP must be a public URL or an uploaded SimplePost media URL. Local file paths are only appropriate for SDK and local CLI account posting.
-- Do not validate or preview by default. `create_post` and HTTP post creation validate before publishing. Validate only when the user asks for validation-only feedback; preview when the user asks for a preview or essential details are missing.
+- Do not run validation-oriented preflight by default. `create_post` and HTTP post creation validate before publishing. Validate only when the user asks for validation-only feedback; use the MCP visual preview when the user asks to see a post or after an MCP draft or scheduled-post write.
 - For scheduling, resolve relative times to an absolute future ISO 8601 datetime with timezone offset or `Z`. Ask for timezone if it is unknown.
 - A successful API or tool call can still contain per-platform failures. Always inspect `summary.overallSuccess`, per-account results, and `threadResults` for threads.
 - When reporting a preview, scheduled post, draft, edit, discard, or publish result, include the exact root post text and any thread segments in the visible answer.

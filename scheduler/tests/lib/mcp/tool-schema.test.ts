@@ -4,6 +4,7 @@ import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-sc
 import { listAccountsOutputSchema, listAccountsSchema } from "@/lib/mcp/tools/accounts";
 import { uploadMediaSchema } from "@/lib/mcp/tools/media";
 import { toMediaFiles } from "@/lib/mcp/tools/media-schema";
+import { showPostPreviewOutputSchema, showPostPreviewSchema } from "@/lib/mcp/tools/post-preview-ui";
 import {
   createPostSchema,
   discardScheduledPostSchema,
@@ -12,6 +13,7 @@ import {
   previewPostSchema,
   updateScheduledPostSchema,
 } from "@/lib/mcp/tools/posts";
+import { showScheduleOutputSchema, showScheduleSchema } from "@/lib/mcp/tools/schedule";
 import { validatePostOutputSchema, validatePostSchema } from "@/lib/mcp/tools/validation";
 
 import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
@@ -31,8 +33,11 @@ const TOOL_INPUT_SCHEMAS = {
   upload_media: uploadMediaSchema,
   validate_post: validatePostSchema,
   preview_post: previewPostSchema,
+  show_post_preview: showPostPreviewSchema,
   create_post: createPostSchema,
   inspect_posts: inspectPostsSchema,
+  get_schedule: showScheduleSchema,
+  show_schedule: showScheduleSchema,
   update_scheduled_post: updateScheduledPostSchema,
   discard_scheduled_post: discardScheduledPostSchema,
 };
@@ -40,6 +45,7 @@ const TOOL_INPUT_SCHEMAS = {
 const THREAD_INPUT_SCHEMAS = {
   validate_post: validatePostSchema,
   preview_post: previewPostSchema,
+  show_post_preview: showPostPreviewSchema,
   create_post: createPostSchema,
   update_scheduled_post: updateScheduledPostSchema,
 };
@@ -47,6 +53,7 @@ const THREAD_INPUT_SCHEMAS = {
 const ROOT_MEDIA_INPUT_SCHEMAS = {
   validate_post: validatePostSchema,
   preview_post: previewPostSchema,
+  show_post_preview: showPostPreviewSchema,
   create_post: createPostSchema,
   update_scheduled_post: updateScheduledPostSchema,
 };
@@ -241,5 +248,69 @@ describe("MCP tool JSON schemas", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("accepts UI payloads for schedule and platform previews", () => {
+    expect(
+      showScheduleOutputSchema.safeParse({
+        kind: "schedule",
+        view: "week",
+        anchorDate: "2026-07-28",
+        previousAnchorDate: "2026-07-21",
+        nextAnchorDate: "2026-08-04",
+        todayAnchorDate: "2026-07-28",
+        timeZone: "Europe/Berlin",
+        periodLabel: "Jul 27–Aug 2, 2026",
+        rangeStart: "2026-07-26T22:00:00.000Z",
+        rangeEnd: "2026-08-02T22:00:00.000Z",
+        days: [],
+        summary: {
+          openSlotCount: 2,
+          scheduledCount: 1,
+          publishedCount: 3,
+          failedCount: 1,
+          pastCount: 4,
+        },
+      }).success,
+    ).toBe(true);
+
+    expect(
+      showPostPreviewOutputSchema.safeParse({
+        kind: "post_preview",
+        postId: null,
+        status: "preview",
+        scheduledFor: null,
+        message: "Shipping the new release notes today.",
+        previews: [
+          {
+            accountId: "account-1",
+            platform: "x",
+            platformLabel: "X",
+            accountLabel: "@clompton",
+            data: {
+              platform: "x",
+              account: {
+                id: "account-1",
+                platform: "x",
+                displayName: "@clompton",
+                username: "clompton",
+                profilePicture: null,
+              },
+              message: "Shipping the new release notes today.",
+              media: [],
+              options: {},
+              thread: [],
+              previewDate: "2026-07-28T12:00:00.000Z",
+            },
+          },
+        ],
+        summary: {
+          accountCount: 1,
+          platformCount: 1,
+          mediaCount: 0,
+          threadSegmentCount: 0,
+        },
+      }).success,
+    ).toBe(true);
   });
 });

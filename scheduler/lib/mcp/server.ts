@@ -9,6 +9,7 @@ import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
+import { showPostPreview, showPostPreviewOutputSchema, showPostPreviewSchema } from "./tools/post-preview-ui";
 import {
   createPost,
   createPostOutputSchema,
@@ -26,7 +27,9 @@ import {
   updateScheduledPostOutputSchema,
   updateScheduledPostSchema,
 } from "./tools/posts";
+import { getSchedule, showScheduleOutputSchema, showScheduleSchema } from "./tools/schedule";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
+import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } from "./ui/resources";
 
 const log = createLogger("mcp:tools");
 
@@ -47,7 +50,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 3. Do not call \`validate_post\` as a default preflight before posting. \`create_post\` already performs the same blocking validation internally and fails safely with platform-specific errors. Use \`validate_post\` only when the user explicitly asks to validate, check, test, or troubleshoot a draft without creating a post.
 
-4. Use \`preview_post\` only when the user explicitly asks for a preview or when the requested post is missing essential details such as target account, media choice, or scheduling time. If the user has already confirmed the exact content, accounts, media, thread segments (if any), and timing, call \`create_post\` directly after \`list_accounts\` and any required media upload.
+4. Use \`preview_post\` when the user explicitly asks for validation-oriented preview details or when the requested post is missing essential details such as target account, media choice, or scheduling time. Use \`show_post_preview\` when the user asks to see how a post looks, or when a visual preview should be shown after saving or changing a draft or scheduled post. For unsaved content, pass the same message, accountIds, media, and thread to \`show_post_preview\`. If the user has already confirmed the exact content, accounts, media, thread segments (if any), and timing, call \`create_post\` directly after \`list_accounts\` and any required media upload.
 
 5. Use \`postingMode: "now"\` for immediate publishing (the call blocks until each platform responds and returns \`postingResults\` per account). Use \`postingMode: "schedule"\` together with \`scheduledFor\` to schedule for later — the call returns immediately with \`status: "scheduled"\` and the scheduler will publish at that time. Use \`postingMode: "draft"\` to save the post in SimplePost without publishing or scheduling it.
 
@@ -57,9 +60,14 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 7. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, quote source, scheduled time, or move between draft and scheduled. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
 
-# Visible text responses
+8. Use \`get_schedule\` when the user wants a text or structured-data schedule for a day, week, or month. Use \`show_schedule\` when they ask to show or open the interactive calendar. Include the user's IANA timezone. Both include open slots as well as scheduled, pending, published, failed, and past activity. Use \`inspect_posts\` for a post search or one exact post.
 
-- This server returns text and structured data only (no embedded UI). After \`preview_post\`, \`create_post\`, \`inspect_posts\`, \`update_scheduled_post\`, or \`discard_scheduled_post\`, always include the exact post content in the assistant's visible answer so the user can see what was previewed, posted, scheduled, edited, or discarded.
+9. After \`create_post\` saves a draft or scheduled post, or after \`update_scheduled_post\` changes one, call \`show_post_preview\` with the returned post ID so the user sees the rendered result. Do not replace the write call with the show tool: the write tool changes data and the show tool only renders it.
+
+# Visible responses
+
+- \`get_schedule\` and \`preview_post\` are data-only tools. \`show_schedule\` and \`show_post_preview\` render MCP Apps UI. All tools return concise text and structured data so clients without MCP Apps support still receive a useful result.
+- After \`preview_post\`, \`show_post_preview\`, \`create_post\`, \`inspect_posts\`, \`update_scheduled_post\`, or \`discard_scheduled_post\`, always include the exact post content in the assistant's visible answer so the user can see what was previewed, posted, scheduled, edited, or discarded.
 - For threads, show the root post and each follow-up segment in order. Do not hide the post text behind only a status, count, or URL.
 
 # Media
@@ -124,6 +132,17 @@ function toolMeta(invoking: string, invoked: string) {
     securitySchemes: OAUTH_SECURITY_SCHEMES,
     "openai/toolInvocation/invoking": invoking,
     "openai/toolInvocation/invoked": invoked,
+  };
+}
+
+function widgetToolMeta(invoking: string, invoked: string, resourceUri: string) {
+  return {
+    ...toolMeta(invoking, invoked),
+    ui: {
+      resourceUri,
+      visibility: ["model", "app"] as Array<"model" | "app">,
+    },
+    "openai/outputTemplate": resourceUri,
   };
 }
 
@@ -425,12 +444,14 @@ function formatManagedPosts(posts: Array<Parameters<typeof formatManagedPostDeta
  * The userId is bound to tool handlers so they operate on the authenticated user's data.
  */
 export function registerTools(server: McpServer, context: McpToolAuthContext): void {
+  registerMcpUiResources(server);
+
   registerAppTool(
     server,
     "list_accounts",
     {
       title: "List Connected Accounts",
-      description: `List the social media accounts the authenticated user has connected to SimplePost. Call this first in posting workflows that need target account IDs. Do not call this for requests to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for accounts; account management happens in the SimplePost web app. The returned accountId values are required by validate_post, preview_post, and create_post, and account IDs are not guessable.`,
+      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
       inputSchema: listAccountsSchema.shape,
       outputSchema: listAccountsOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
@@ -466,7 +487,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "upload_media",
     {
       title: "Upload Media",
-      description: `Upload an image/video file generated in or attached to the chat to SimplePost storage and get back a public URL you can pass into validate_post, preview_post, or create_post through the media field. This tool requires the file parameter; do not pass base64 media data. If the user already gave a fetchable URL, skip this tool and use the URL directly.`,
+      description: `Use this to upload an image or video file from the chat to SimplePost storage. It returns a public media URL and metadata for posting tools. The file parameter is required; publicly fetchable URLs can be passed directly to posting tools instead.`,
       inputSchema: uploadMediaSchema.shape,
       outputSchema: uploadMediaOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.upload_media,
@@ -503,7 +524,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "validate_post",
     {
       title: "Validate Post",
-      description: `Validate post text and optional media against the rules of each selected connected account without creating or publishing anything. Use this only when the user explicitly asks to validate, check, test, or troubleshoot a draft. Do not call it as a default preflight before create_post because create_post validates internally.`,
+      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.`,
       inputSchema: validatePostSchema.shape,
       outputSchema: validatePostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.validate_post,
@@ -544,7 +565,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Preview a post before it is created. This resolves target accounts, optional media, thread, quotePostId, scheduled time, and validation without writing to SimplePost. For a natural-language quote request, call inspect_posts first and pass the matching published or scheduled post's exact ID as quotePostId. If scheduling, pass scheduledFor as a full ISO 8601 datetime with timezone. A scheduled source must be quoted by a post scheduled after it. Use this only when the user asks for a preview or essential posting details are missing.`,
+      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without writing to SimplePost or rendering UI. scheduledFor must be a timezone-aware ISO 8601 datetime.`,
       inputSchema: previewPostSchema.shape,
       outputSchema: previewPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.preview_post,
@@ -584,10 +605,44 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
 
   registerAppTool(
     server,
+    "show_post_preview",
+    {
+      title: "Show Post Preview",
+      description: `Use this when the user asks to see a post. It renders a realistic MCP Apps preview with a platform switcher for either a saved postId or supplied unsaved content. It is read-only and also returns a text fallback; use preview_post for a data-only preflight.`,
+      inputSchema: showPostPreviewSchema.shape,
+      outputSchema: showPostPreviewOutputSchema.shape,
+      annotations: MCP_TOOL_ANNOTATIONS.show_post_preview,
+      _meta: widgetToolMeta("Building platform previews", "Platform previews ready", POST_PREVIEW_WIDGET_URI),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "accounts:read");
+        requireScope(context, input.postId ? "posts:read" : "posts:validate");
+        const result = await showPostPreview(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: "text",
+              text: `Showing a visual preview across ${plural(
+                result.summary.platformCount,
+                "platform",
+              )}.\n\n${formatPostContent(result.message, result.previews[0]?.data.thread)}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
     "create_post",
     {
       title: "Create Post",
-      description: `Create a SimplePost post with text plus optional images/videos, a thread, and quotePostId. For natural-language quote requests, call inspect_posts first and pass the exact ID of the matching published or scheduled source; never invent it. Native quotes are used on supported platforms and other destinations publish normally. Use postingMode "now" to publish immediately, "schedule" with a future timezone-aware scheduledFor, or "draft" to save. A scheduled source can only be quoted by a post scheduled after it. This write action validates internally, so do not call validate_post first unless requested. Always call list_accounts first for account IDs.`,
+      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
@@ -639,7 +694,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: "Inspect Posts",
-      description: `Use this when the user asks to review SimplePost records that are drafts, scheduled, already posted, or failed, and whenever a quote source is described in natural language (for example, "my last post about the gym"). Match the source by message, status, and recency, then pass its exact id as quotePostId to create_post. It can also inspect an exact postId before editing or discarding a draft or scheduled post. This tool only reads SimplePost data.`,
+      description: `Use this to search or inspect SimplePost records that are drafts, scheduled, posted, or failed. It supports text/status filters and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI.`,
       inputSchema: inspectPostsSchema.shape,
       outputSchema: inspectPostsOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
@@ -683,10 +738,70 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
 
   registerAppTool(
     server,
+    "get_schedule",
+    {
+      title: "Get Schedule",
+      description: `Use this when the user wants a text or structured-data view of a day, week, or month of SimplePost posting slots and activity. It includes open slots and scheduled, pending, published, failed, and past posts without rendering UI.`,
+      inputSchema: showScheduleSchema.shape,
+      outputSchema: showScheduleOutputSchema.shape,
+      annotations: MCP_TOOL_ANNOTATIONS.get_schedule,
+      _meta: toolMeta("Reading your schedule", "Schedule ready"),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "posts:read");
+        const result = await getSchedule(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: "text",
+              text: `Loaded ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    "show_schedule",
+    {
+      title: "Show Schedule",
+      description: `Use this when the user asks to show or open a day, week, or month SimplePost schedule. It renders an interactive MCP Apps calendar with open slots and scheduled, pending, published, failed, and past activity, and also returns a text fallback. Use get_schedule for the same period as data without UI.`,
+      inputSchema: showScheduleSchema.shape,
+      outputSchema: showScheduleOutputSchema.shape,
+      annotations: MCP_TOOL_ANNOTATIONS.show_schedule,
+      _meta: widgetToolMeta("Opening your schedule", "Schedule ready", SCHEDULE_WIDGET_URI),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "posts:read");
+        const result = await getSchedule(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: "text",
+              text: `Showing ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
     "update_scheduled_post",
     {
       title: "Update Scheduled Post",
-      description: `Use this when the user asks to edit a draft or future scheduled SimplePost post. Provide the postId from inspect_posts and only the fields that should change: message, accountIds, media, thread, postingMode, or scheduledFor. Set postingMode to "draft" to move a scheduled post to drafts, or "schedule" with scheduledFor to move a draft to scheduled. This validates the final scheduled post before saving and cannot edit already posted, failed, pending, or due posts.`,
+      description: `Use this to change a draft or future scheduled SimplePost post by postId. Omitted fields stay unchanged; postingMode can move a post between draft and scheduled. Scheduled results are validated before saving. It cannot edit posted, failed, pending, or due posts.`,
       inputSchema: updateScheduledPostSchema.shape,
       outputSchema: updateScheduledPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,
@@ -723,7 +838,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "discard_scheduled_post",
     {
       title: "Discard Scheduled Post",
-      description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post. Provide the postId from inspect_posts. Do not call this for tweets or posts already published on external social platforms. This permanently deletes the SimplePost record and stored media, and it cannot undo content that has already been posted to social platforms.`,
+      description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post by postId. It permanently deletes the SimplePost record and stored media. It cannot remove or undo posts already published to external platforms.`,
       inputSchema: discardScheduledPostSchema.shape,
       outputSchema: discardScheduledPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.discard_scheduled_post,

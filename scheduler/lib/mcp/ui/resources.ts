@@ -5,7 +5,7 @@ import { getAppBaseUrl } from "@/lib/mcp/config";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
-const POST_PREVIEW_WIDGET_VERSION = "4";
+const POST_PREVIEW_WIDGET_VERSION = "5";
 export const POST_PREVIEW_WIDGET_URI = `ui://simplepost/post-preview-v${POST_PREVIEW_WIDGET_VERSION}.html`;
 
 const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
@@ -35,6 +35,7 @@ function widgetHtml(name: string, assetVersion?: string): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="simplepost-base-url" content="${baseUrl}" />
     <link rel="stylesheet" href="${stylesheetUrl.toString()}" />
     <title>SimplePost</title>
   </head>

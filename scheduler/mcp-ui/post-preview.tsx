@@ -30,22 +30,12 @@ type PostPreviewToolData = {
   };
 };
 
-function formatStatus(status: PostPreviewToolData["status"]): string {
-  return status === "preview" ? "Unsaved preview" : status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function formatSchedule(value: string | null): string | null {
-  if (!value) return null;
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
 function PostPreviewApp() {
-  const { app, data, error, toolError } = useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
+  const { data, error, toolError } = useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
+  const appBaseUrl = document.querySelector<HTMLMetaElement>('meta[name="simplepost-base-url"]')?.content;
+  const logoUrl = appBaseUrl ? new URL("/simplepost-logo.png", appBaseUrl).toString() : null;
 
   useEffect(() => {
     if (data && !data.previews.some((preview) => preview.platform === selectedPlatform)) {
@@ -109,29 +99,15 @@ function PostPreviewApp() {
     return <div className="preview-state">Building platform previews…</div>;
   }
 
-  const scheduledLabel = formatSchedule(data.scheduledFor);
-
   return (
     <main className="preview-app">
-      <header className="preview-toolbar">
-        <div className="preview-title">
-          <span className="brand-mark" />
-          <div>
-            <span className="eyebrow">SimplePost preview</span>
-            <h1>{active?.platformLabel ?? "Post preview"}</h1>
-          </div>
-        </div>
-        <div className="preview-meta">
-          <span className={`status status-${data.status}`}>{formatStatus(data.status)}</span>
-          {app ? (
-            <button type="button" onClick={() => app.requestDisplayMode({ mode: "fullscreen" })}>
-              Expand
-            </button>
-          ) : null}
-        </div>
+      <header className="preview-brand">
+        {logoUrl ? <img src={logoUrl} alt="" /> : <span className="brand-fallback">SP</span>}
+        <strong>SimplePost</strong>
+        <span>Preview</span>
       </header>
 
-      <section className="preview-body">
+      <section className="preview-content" aria-label="Post preview">
         <div
           ref={tabsRef}
           className="platform-switcher"
@@ -145,42 +121,26 @@ function PostPreviewApp() {
                 key={preview.platform}
                 type="button"
                 role="tab"
+                id={`preview-tab-${preview.platform}`}
                 data-platform={preview.platform}
                 aria-selected={selected}
                 aria-controls="post-preview-panel"
+                aria-label={`Preview ${preview.platformLabel} for ${preview.accountLabel}`}
+                title={preview.platformLabel}
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setSelectedPlatform(preview.platform)}>
-                <span className="platform-icon" data-platform={preview.platform} aria-hidden="true">
-                  <PlatformIcon platform={preview.platform} className="platform-logo" />
-                </span>
-                <span>
-                  <strong>{preview.platformLabel}</strong>
-                  <small>{preview.accountLabel}</small>
-                </span>
+                <PlatformIcon platform={preview.platform} className="platform-logo" />
               </button>
             );
           })}
         </div>
 
-        <div className="preview-stage">
-          <div className="stage-grid" aria-hidden="true" />
-          <div
-            id="post-preview-panel"
-            className="preview-frame"
-            role="tabpanel"
-            aria-label={`${active?.platformLabel ?? "Platform"} post preview`}>
-            {previewData ? <PostPreview key={active?.platform} data={previewData} /> : null}
-          </div>
-          <div className="preview-facts">
-            <span>
-              {data.summary.platformCount} platform{data.summary.platformCount === 1 ? "" : "s"}
-            </span>
-            {data.summary.mediaCount > 0 ? <span>{data.summary.mediaCount} media</span> : null}
-            {data.summary.threadSegmentCount > 0 ? (
-              <span>{data.summary.threadSegmentCount + 1}-post thread</span>
-            ) : null}
-            {scheduledLabel ? <time dateTime={data.scheduledFor ?? undefined}>{scheduledLabel}</time> : null}
-          </div>
+        <div
+          id="post-preview-panel"
+          className="preview-frame"
+          role="tabpanel"
+          aria-labelledby={active ? `preview-tab-${active.platform}` : undefined}>
+          {previewData ? <PostPreview key={active?.platform} data={previewData} /> : null}
         </div>
       </section>
     </main>

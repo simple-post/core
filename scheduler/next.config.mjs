@@ -20,6 +20,24 @@ const nextConfig = {
   },
 
   allowedDevOrigins: ["http://localhost:3000", "dev.simplepost.social"],
+
+  async headers() {
+    return [
+      {
+        source: "/mcp-widgets/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

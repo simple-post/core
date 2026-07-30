@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authLogger } from "@/lib/logger";
+import { getBlueskyOAuthIssuer, getBlueskyTokenEndpointAuthMethod } from "@/lib/oauth/bluesky-client";
 import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
@@ -71,7 +72,9 @@ export async function handleBlueskyCallback(ctx: CallbackContext): Promise<NextR
     tokenMetadata = {
       ...ctx.tokenMetadata,
       clientId: config.clientId,
+      oauthIssuer: getBlueskyOAuthIssuer(),
       pdsUrl,
+      tokenEndpointAuthMethod: getBlueskyTokenEndpointAuthMethod(),
       tokenUrl: config.tokenUrl,
     } as Prisma.InputJsonValue;
   }

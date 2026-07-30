@@ -14,7 +14,7 @@
   "scripts": {
     "check": "yarn workspaces foreach --all --parallel run check",
     "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test",
-    "test:coverage": "jest --coverage --runInBand",
+    "test:coverage": "jest --coverage --maxWorkers=1 --workerIdleMemoryLimit=2GB",
     "test:watch": "jest --watch"
   },
   "resolutions": {

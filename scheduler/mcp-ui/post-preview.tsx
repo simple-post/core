@@ -4,6 +4,7 @@ import { PostPreview, type PostPreviewData, type PreviewPlatform } from "@simple
 import { createRoot } from "react-dom/client";
 
 import { PlatformIcon } from "../components/platform-icon";
+
 import { useMcpToolData } from "./use-mcp-tool-data";
 import "./post-preview.css";
 

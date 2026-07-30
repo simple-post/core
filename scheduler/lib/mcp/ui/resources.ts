@@ -6,19 +6,43 @@ import { WIDGET_ASSETS, type WidgetName } from "@/lib/mcp/ui/widget-assets";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
-const POST_PREVIEW_WIDGET_VERSION = "1";
+const POST_PREVIEW_WIDGET_VERSION = "2";
 export const POST_PREVIEW_WIDGET_URI = `ui://simplepost/post-preview-v${POST_PREVIEW_WIDGET_VERSION}.html`;
 
 const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
   "https://*.simplepost.social",
+
+  // X
   "https://pbs.twimg.com",
+
+  // LinkedIn
   "https://media.licdn.com",
+  "https://media.licdn-ei.com",
+
+  // Facebook, Instagram, and Threads
   "https://*.fbcdn.net",
+  "https://*.fbsbx.com",
   "https://*.cdninstagram.com",
+
+  // YouTube / Google profiles
   "https://*.googleusercontent.com",
+  "https://*.ggpht.com",
   "https://*.ytimg.com",
+
+  // TikTok
   "https://*.tiktokcdn.com",
+  "https://*.tiktokcdn-us.com",
+
+  // Bluesky
   "https://cdn.bsky.app",
+
+  // Pinterest
+  "https://*.pinimg.com",
+
+  // DEV and the default Forem image CDN
+  "https://dev.to",
+  "https://*.dev.to",
+  "https://res.cloudinary.com",
 ];
 
 function widgetHtml(name: WidgetName): string {
@@ -61,6 +85,13 @@ function widgetUiMeta() {
   };
 }
 
+function openAiWidgetCspMeta() {
+  return {
+    connect_domains: [],
+    resource_domains: resourceDomains(),
+  };
+}
+
 export function registerMcpUiResources(server: McpServer): void {
   registerAppResource(
     server,
@@ -70,6 +101,7 @@ export function registerMcpUiResources(server: McpServer): void {
       description: "Interactive day, week, and month view of posting slots and post activity.",
       _meta: {
         ui: widgetUiMeta(),
+        "openai/widgetCSP": openAiWidgetCspMeta(),
         "openai/widgetDomain": widgetOrigin(),
       },
     },
@@ -83,6 +115,7 @@ export function registerMcpUiResources(server: McpServer): void {
             ui: widgetUiMeta(),
             "openai/widgetDescription":
               "Interactive SimplePost schedule with day, week, and month views, posting slots, and post statuses.",
+            "openai/widgetCSP": openAiWidgetCspMeta(),
             "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
           },
@@ -99,6 +132,7 @@ export function registerMcpUiResources(server: McpServer): void {
       description: "Interactive platform switcher with realistic social post previews.",
       _meta: {
         ui: widgetUiMeta(),
+        "openai/widgetCSP": openAiWidgetCspMeta(),
         "openai/widgetDomain": widgetOrigin(),
       },
     },
@@ -112,6 +146,7 @@ export function registerMcpUiResources(server: McpServer): void {
             ui: widgetUiMeta(),
             "openai/widgetDescription":
               "Realistic SimplePost platform previews with a switcher for every selected social platform.",
+            "openai/widgetCSP": openAiWidgetCspMeta(),
             "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
           },

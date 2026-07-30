@@ -26,6 +26,10 @@ type ResourceResult = {
           resourceDomains?: string[];
         };
       };
+      "openai/widgetCSP"?: {
+        connect_domains?: string[];
+        resource_domains?: string[];
+      };
       "openai/widgetDomain"?: string;
     };
   }>;
@@ -58,7 +62,7 @@ describe("MCP UI resources", () => {
     registerMcpUiResources({ registerResource } as unknown as McpServer);
 
     expect(SCHEDULE_WIDGET_URI).toMatch(/^ui:\/\/simplepost\/schedule-v\d+\.html$/);
-    expect(POST_PREVIEW_WIDGET_URI).toBe("ui://simplepost/post-preview-v1.html");
+    expect(POST_PREVIEW_WIDGET_URI).toBe("ui://simplepost/post-preview-v2.html");
     expect(WIDGET_ASSETS.schedule.script).toMatch(/^schedule-[A-Z0-9]+\.js$/);
     expect(WIDGET_ASSETS.schedule.stylesheet).toMatch(/^schedule-[A-Z0-9]+\.css$/);
     expect(WIDGET_ASSETS["post-preview"].script).toMatch(/^post-preview-[A-Z0-9]+\.js$/);
@@ -88,6 +92,9 @@ describe("MCP UI resources", () => {
     expect(schedule?.contents[0]._meta?.ui?.domain).toBe("https://dev.simplepost.social");
     expect(schedule?.contents[0]._meta?.["openai/widgetDomain"]).toBe("https://dev.simplepost.social");
     expect(schedule?.contents[0]._meta?.ui?.csp?.resourceDomains).toContain("https://dev.simplepost.social");
+    expect(schedule?.contents[0]._meta?.["openai/widgetCSP"]?.resource_domains).toContain(
+      "https://dev.simplepost.social",
+    );
     expect(preview?.contents[0]).toEqual(
       expect.objectContaining({
         uri: POST_PREVIEW_WIDGET_URI,
@@ -100,6 +107,29 @@ describe("MCP UI resources", () => {
     expect(preview?.contents[0]._meta?.ui?.domain).toBe("https://dev.simplepost.social");
     expect(preview?.contents[0]._meta?.["openai/widgetDomain"]).toBe("https://dev.simplepost.social");
     expect(preview?.contents[0]._meta?.ui?.csp?.resourceDomains).toContain("https://*.simplepost.social");
+    expect(preview?.contents[0]._meta?.ui?.csp?.resourceDomains).toEqual(
+      expect.arrayContaining([
+        "https://pbs.twimg.com",
+        "https://media.licdn.com",
+        "https://media.licdn-ei.com",
+        "https://*.fbcdn.net",
+        "https://*.fbsbx.com",
+        "https://*.cdninstagram.com",
+        "https://*.googleusercontent.com",
+        "https://*.ggpht.com",
+        "https://*.tiktokcdn.com",
+        "https://*.tiktokcdn-us.com",
+        "https://cdn.bsky.app",
+        "https://*.pinimg.com",
+        "https://dev.to",
+        "https://*.dev.to",
+        "https://res.cloudinary.com",
+      ]),
+    );
+    expect(preview?.contents[0]._meta?.["openai/widgetCSP"]?.connect_domains).toEqual([]);
+    expect(preview?.contents[0]._meta?.["openai/widgetCSP"]?.resource_domains).toEqual(
+      preview?.contents[0]._meta?.ui?.csp?.resourceDomains,
+    );
     expect(preview?.contents[0].text).not.toContain("schedule.simplepost.dev");
   });
 });

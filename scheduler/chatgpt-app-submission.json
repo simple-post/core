@@ -72,9 +72,9 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads saved post or supplied draft data and connected account presentation fields to render a visual platform preview.",
-        "open_world_justification": "Does not publish content, create records, or update any external platform or public internet state.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform an irreversible action.",
+        "read_only_justification": "Only reads a saved post or supplied draft and connected account presentation fields to render a visual preview without creating or updating data.",
+        "open_world_justification": "Does not publish content, call external social platform write APIs, or otherwise change public internet state.",
+        "destructive_justification": "Cannot delete, overwrite, publish, revoke access, or perform any other irreversible action.",
         "idempotent_justification": "Calling it repeatedly renders the current post preview without changing SimplePost or external platform data."
       }
     },
@@ -114,9 +114,9 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads posting slots and post records for a requested calendar period and returns text plus structured schedule data.",
-        "open_world_justification": "Does not publish content, create records, or update external systems or public internet state.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform an irreversible action.",
+        "read_only_justification": "Only reads posting slots and post records for the requested calendar period and returns text plus structured schedule data without creating or updating data.",
+        "open_world_justification": "Does not publish content, call external social platform write APIs, or otherwise change public internet state.",
+        "destructive_justification": "Cannot delete, overwrite, publish, revoke access, or perform any other irreversible action.",
         "idempotent_justification": "Repeated calls only refresh the requested schedule period from current stored data without side effects."
       }
     },
@@ -128,9 +128,9 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads posting slots and post records for a requested day, week, or month and renders them in an interactive calendar.",
-        "open_world_justification": "Does not publish content, create records, or update external systems or public internet state.",
-        "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform an irreversible action.",
+        "read_only_justification": "Only reads posting slots and post records for the requested day, week, or month and renders them in an interactive calendar without creating or updating data.",
+        "open_world_justification": "Does not publish content, call external social platform write APIs, or otherwise change public internet state.",
+        "destructive_justification": "Cannot delete, overwrite, publish, revoke access, or perform any other irreversible action.",
         "idempotent_justification": "Repeated calls only render the current schedule for the requested period without changing stored data."
       }
     },
@@ -177,15 +177,15 @@
       "user_prompt": "Use SimplePost to check whether this post is valid for my X account @clompton: Shipping the new release notes today.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, validate_post",
-      "expected_output": "Indicates whether the requested draft is valid.",
+      "expected_output": "Reports whether the draft is valid and any relevant issues.",
       "expected_output_url": null
     },
     {
-      "description": "Preview a scheduled Instagram post with a public media URL.",
-      "user_prompt": "Use SimplePost to preview this on my Instagram account edmundclompton tomorrow at 9 AM Europe/Berlin using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
+      "description": "Show an Instagram post preview with a public media URL.",
+      "user_prompt": "Use SimplePost to show how this would look on my Instagram account edmundclompton using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, preview_post, show_post_preview",
-      "expected_output": "Shows a preview of the requested post.",
+      "tools_triggered": "list_accounts, show_post_preview",
+      "expected_output": "Shows a visual preview of the requested post.",
       "expected_output_url": null
     },
     {
@@ -193,15 +193,15 @@
       "user_prompt": "Use SimplePost to save a temporary draft on my LinkedIn account edmund.clompton@gmail.com with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, create_post, update_scheduled_post, show_post_preview",
-      "expected_output": "Shows that the requested post was saved or scheduled.",
+      "expected_output": "Shows that the temporary post was created and scheduled for the requested time.",
       "expected_output_url": null
     },
     {
-      "description": "Open an interactive weekly schedule with slots and post activity.",
+      "description": "Open an interactive weekly schedule.",
       "user_prompt": "Show my SimplePost schedule for this week in Europe/Berlin.",
       "file_attachment_urls": null,
       "tools_triggered": "show_schedule",
-      "expected_output": "Shows the requested schedule view.",
+      "expected_output": "Shows the requested weekly SimplePost schedule.",
       "expected_output_url": null
     }
   ],

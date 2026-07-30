@@ -3,7 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
-import * as prettier from "prettier";
+
+const { format } = await import("prettier");
 
 const schedulerRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outdir = path.resolve(schedulerRoot, "public/mcp-widgets");
@@ -68,4 +69,4 @@ export const WIDGET_ASSETS = ${JSON.stringify(widgetAssets, null, 2)} as const;
 export type WidgetName = keyof typeof WIDGET_ASSETS;
 `;
 
-await writeFile(generatedAssetsPath, await prettier.format(generatedModule, { parser: "typescript" }));
+await writeFile(generatedAssetsPath, await format(generatedModule, { parser: "typescript" }));

@@ -58,7 +58,7 @@ describe("MCP UI resources", () => {
     registerMcpUiResources({ registerResource } as unknown as McpServer);
 
     expect(SCHEDULE_WIDGET_URI).toMatch(/^ui:\/\/simplepost\/schedule-v\d+\.html$/);
-    expect(POST_PREVIEW_WIDGET_URI).toBe("ui://simplepost/post-preview-v2.html");
+    expect(POST_PREVIEW_WIDGET_URI).toBe("ui://simplepost/post-preview-v1.html");
     expect(WIDGET_ASSETS.schedule.script).toMatch(/^schedule-[A-Z0-9]+\.js$/);
     expect(WIDGET_ASSETS.schedule.stylesheet).toMatch(/^schedule-[A-Z0-9]+\.css$/);
     expect(WIDGET_ASSETS["post-preview"].script).toMatch(/^post-preview-[A-Z0-9]+\.js$/);

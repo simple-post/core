@@ -26,10 +26,6 @@ type ResourceResult = {
           resourceDomains?: string[];
         };
       };
-      "openai/widgetCSP"?: {
-        connect_domains?: string[];
-        resource_domains?: string[];
-      };
       "openai/widgetDomain"?: string;
     };
   }>;
@@ -92,9 +88,6 @@ describe("MCP UI resources", () => {
     expect(schedule?.contents[0]._meta?.ui?.domain).toBe("https://dev.simplepost.social");
     expect(schedule?.contents[0]._meta?.["openai/widgetDomain"]).toBe("https://dev.simplepost.social");
     expect(schedule?.contents[0]._meta?.ui?.csp?.resourceDomains).toContain("https://dev.simplepost.social");
-    expect(schedule?.contents[0]._meta?.["openai/widgetCSP"]?.resource_domains).toContain(
-      "https://dev.simplepost.social",
-    );
     expect(preview?.contents[0]).toEqual(
       expect.objectContaining({
         uri: POST_PREVIEW_WIDGET_URI,
@@ -119,16 +112,13 @@ describe("MCP UI resources", () => {
         "https://*.ggpht.com",
         "https://*.tiktokcdn.com",
         "https://*.tiktokcdn-us.com",
+        "https://*.tiktokcdn-eu.com",
         "https://cdn.bsky.app",
         "https://*.pinimg.com",
         "https://dev.to",
         "https://*.dev.to",
         "https://res.cloudinary.com",
       ]),
-    );
-    expect(preview?.contents[0]._meta?.["openai/widgetCSP"]?.connect_domains).toEqual([]);
-    expect(preview?.contents[0]._meta?.["openai/widgetCSP"]?.resource_domains).toEqual(
-      preview?.contents[0]._meta?.ui?.csp?.resourceDomains,
     );
     expect(preview?.contents[0].text).not.toContain("schedule.simplepost.dev");
   });

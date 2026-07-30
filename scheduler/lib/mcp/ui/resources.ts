@@ -32,6 +32,7 @@ const SOCIAL_MEDIA_RESOURCE_DOMAINS = [
   // TikTok
   "https://*.tiktokcdn.com",
   "https://*.tiktokcdn-us.com",
+  "https://*.tiktokcdn-eu.com",
 
   // Bluesky
   "https://cdn.bsky.app",
@@ -85,13 +86,6 @@ function widgetUiMeta() {
   };
 }
 
-function openAiWidgetCspMeta() {
-  return {
-    connect_domains: [],
-    resource_domains: resourceDomains(),
-  };
-}
-
 export function registerMcpUiResources(server: McpServer): void {
   registerAppResource(
     server,
@@ -101,7 +95,6 @@ export function registerMcpUiResources(server: McpServer): void {
       description: "Interactive day, week, and month view of posting slots and post activity.",
       _meta: {
         ui: widgetUiMeta(),
-        "openai/widgetCSP": openAiWidgetCspMeta(),
         "openai/widgetDomain": widgetOrigin(),
       },
     },
@@ -115,7 +108,6 @@ export function registerMcpUiResources(server: McpServer): void {
             ui: widgetUiMeta(),
             "openai/widgetDescription":
               "Interactive SimplePost schedule with day, week, and month views, posting slots, and post statuses.",
-            "openai/widgetCSP": openAiWidgetCspMeta(),
             "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
           },
@@ -132,7 +124,6 @@ export function registerMcpUiResources(server: McpServer): void {
       description: "Interactive platform switcher with realistic social post previews.",
       _meta: {
         ui: widgetUiMeta(),
-        "openai/widgetCSP": openAiWidgetCspMeta(),
         "openai/widgetDomain": widgetOrigin(),
       },
     },
@@ -146,7 +137,6 @@ export function registerMcpUiResources(server: McpServer): void {
             ui: widgetUiMeta(),
             "openai/widgetDescription":
               "Realistic SimplePost platform previews with a switcher for every selected social platform.",
-            "openai/widgetCSP": openAiWidgetCspMeta(),
             "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
           },

@@ -185,14 +185,14 @@
       "user_prompt": "Use SimplePost to show how this would look on my Instagram account edmundclompton using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, show_post_preview",
-      "expected_output": "Shows a visual preview of the requested post.",
+      "expected_output": "Shows a visual preview of the requested post using the MCP UI.",
       "expected_output_url": null
     },
     {
       "description": "Create a temporary LinkedIn draft and schedule it.",
       "user_prompt": "Use SimplePost to save a temporary draft on my LinkedIn account edmund.clompton@gmail.com with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post, show_post_preview",
+      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
       "expected_output": "Shows that the temporary post was created and scheduled for the requested time.",
       "expected_output_url": null
     },

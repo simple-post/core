@@ -19,7 +19,7 @@ const nextConfig = {
     root: workspaceRoot,
   },
 
-  allowedDevOrigins: ["http://localhost:3000", "dev.simplepost.social"],
+  allowedDevOrigins: ["http://localhost:3000", "dev.simplepost.social", "vlad.creafexlab.com"],
 
   async headers() {
     return [

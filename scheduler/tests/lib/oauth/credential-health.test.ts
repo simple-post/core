@@ -439,6 +439,28 @@ describe("refreshExpiringConnectedAccounts", () => {
     expect(prismaMock.connectedAccount.updateMany).not.toHaveBeenCalled();
   });
 
+  it("does not rotate a Bluesky refresh token thirty minutes before access-token expiry", async () => {
+    prismaMock.connectedAccount.findMany.mockResolvedValue([
+      encryptConnectedAccountSecrets(
+        account({
+          expiresAt: new Date("2026-07-07T10:20:00.000Z"),
+          platform: "bluesky",
+          refreshToken: "current-refresh",
+          tokenMetadata: {
+            clientId: "https://simplepost.social/oauth/client-metadata.json",
+            tokenUrl: "https://bsky.social/oauth/token",
+          },
+        }),
+      ),
+    ]);
+
+    const result = await refreshExpiringConnectedAccounts();
+
+    expect(result).toMatchObject({ checked: 1, failed: 0, refreshed: 0, skipped: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(prismaMock.connectedAccount.updateMany).not.toHaveBeenCalled();
+  });
+
   it("skips broken accounts that are still in their retry cooldown", async () => {
     prismaMock.connectedAccount.findMany.mockResolvedValue([
       encryptConnectedAccountSecrets(

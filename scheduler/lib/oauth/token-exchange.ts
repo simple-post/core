@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { derToRaw } from "@simple-post/sdk";
 
 import { authLogger } from "@/lib/logger";
+import { addBlueskyClientAuthentication, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
 import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import type { OAuthTokenResponse } from "@/lib/oauth/types";
 
@@ -71,16 +72,20 @@ export async function exchangeCodeForBlueskyToken(
   const config = getPlatformOAuthConfig("bluesky")!;
   const { privateKey, publicJwk, privateJwk } = generateDpopKeyPair();
 
-  const body = new URLSearchParams({
-    client_id: config.clientId,
-    code,
-    redirect_uri: redirectUri,
-    grant_type: "authorization_code",
-  });
+  const createBody = () => {
+    const body = new URLSearchParams({
+      client_id: config.clientId,
+      code,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    });
 
-  if (codeVerifier) {
-    body.set("code_verifier", codeVerifier);
-  }
+    if (codeVerifier) {
+      body.set("code_verifier", codeVerifier);
+    }
+    addBlueskyClientAuthentication(body, getBlueskyOAuthIssuer());
+    return body;
+  };
 
   const initialDpopProof = createDpopProof({
     url: config.tokenUrl,
@@ -95,7 +100,7 @@ export async function exchangeCodeForBlueskyToken(
       "Content-Type": "application/x-www-form-urlencoded",
       DPoP: initialDpopProof,
     },
-    body,
+    body: createBody(),
   });
 
   const dpopNonce = initialResponse.headers.get("DPoP-Nonce");
@@ -130,7 +135,7 @@ export async function exchangeCodeForBlueskyToken(
       "Content-Type": "application/x-www-form-urlencoded",
       DPoP: dpopProofWithNonce,
     },
-    body,
+    body: createBody(),
   });
 
   if (!response.ok) {

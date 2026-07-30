@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { derToRaw } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
-import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
+import { addBlueskyClientAuthentication, getBlueskyClientId, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
 import {
   acquireConnectedAccountCredentialLock,
   CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS,
@@ -687,13 +687,16 @@ async function refreshBluesky(account: ConnectedAccount, now: Date): Promise<Tok
       dpopPublicJwk && dpopPrivateJwk
         ? buildDpopProof({ nonce, privateJwk: dpopPrivateJwk, publicJwk: dpopPublicJwk, tokenUrl })
         : null;
+    const body = new URLSearchParams({
+      client_id: clientId,
+      grant_type: "refresh_token",
+      refresh_token: account.refreshToken!,
+    });
+    const oauthIssuer = typeof metadata.oauthIssuer === "string" ? metadata.oauthIssuer : getBlueskyOAuthIssuer();
+    addBlueskyClientAuthentication(body, oauthIssuer);
 
     return fetch(tokenUrl, {
-      body: new URLSearchParams({
-        client_id: clientId,
-        grant_type: "refresh_token",
-        refresh_token: account.refreshToken!,
-      }),
+      body,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         ...(proof ? { DPoP: proof } : {}),
@@ -1152,8 +1155,12 @@ export async function refreshExpiringConnectedAccounts(options?: {
 
       const result = await withAccountLock(account.id, async () => {
         const freshAccount = await reloadAccountSecrets(account);
+        const accountMinValidityMs =
+          freshAccount.platform.toLowerCase() === "bluesky"
+            ? Math.min(minValidityMs, POST_CREDENTIAL_MIN_VALIDITY_MS)
+            : minValidityMs;
         return await refreshConnectedAccountIfNeeded(freshAccount, {
-          minValidityMs,
+          minValidityMs: accountMinValidityMs,
           now,
           reason: "background",
         });

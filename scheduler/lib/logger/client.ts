@@ -1,5 +1,6 @@
 "use client";
 
+import { isBrowserExtensionError } from "@/lib/logger/browser-extension";
 import { isSensitiveKey } from "@/lib/logger/sensitive-keys";
 
 type ClientLogLevel = "error" | "warn";
@@ -106,6 +107,7 @@ function isDuplicate(payload: ClientErrorPayload): boolean {
 }
 
 function postClientLog(payload: ClientErrorPayload): void {
+  if (isBrowserExtensionError(payload.error, payload.context)) return;
   if (isDuplicate(payload)) return;
 
   try {
@@ -150,12 +152,15 @@ export function logClientError(
   message: string = "Client error",
   context?: Record<string, unknown>,
 ): void {
+  const serializedError = serializeError(error);
+  if (isBrowserExtensionError(serializedError, context)) return;
+
   console.error(message, error, context || "");
 
   postClientLog({
     level: "error",
     message,
-    error: serializeError(error),
+    error: serializedError,
     context: context ? (sanitizeValue(context) as Record<string, unknown>) : undefined,
     url: getClientUrl(),
     userAgent: getUserAgent(),
@@ -164,6 +169,8 @@ export function logClientError(
 }
 
 export function logClientWarning(message: string, context?: Record<string, unknown>): void {
+  if (isBrowserExtensionError(undefined, context)) return;
+
   console.warn(message, context || "");
 
   postClientLog({

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createLogger, serializeError } from "@/lib/logger";
+import { isBrowserExtensionError } from "@/lib/logger/browser-extension";
 import { getSession } from "@/lib/middleware/auth";
 
 const log = createLogger("api:internal:client-errors");
@@ -92,6 +93,10 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = clientErrorSchema.parse(JSON.parse(bodyText));
+    if (isBrowserExtensionError(payload.error, payload.context)) {
+      return new NextResponse(null, { status: 204 });
+    }
+
     const session = await getSession(req).catch(() => null);
     const userId = session?.user?.id;
 

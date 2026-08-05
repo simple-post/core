@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
+import { fetchFreshProfilePicture } from "@/lib/oauth/profile-picture";
 import { prisma } from "@/lib/prisma";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { BadRequestError, ForbiddenError, handleApiError, NotFoundError } from "@/lib/utils/errors";
 
 export const dynamic = "force-dynamic";
 
-const SUPPORTED_PLATFORMS = new Set(["x", "twitter", "linkedin"]);
+const SUPPORTED_PLATFORMS = new Set(["x", "linkedin", "threads"]);
 
 function normalizePlatform(platform: string): string {
   return platform.toLowerCase() === "twitter" ? "x" : platform.toLowerCase();
@@ -37,7 +39,34 @@ function isAllowedAvatarHost(url: URL, platform: string): boolean {
     return host === "media.licdn.com" || host.endsWith(".licdn.com");
   }
 
+  if (platformId === "threads") {
+    return host === "cdninstagram.com" || host.endsWith(".cdninstagram.com");
+  }
+
   return false;
+}
+
+function getAllowedAvatarUrl(value: string | null, platform: string): URL | null {
+  if (!value) return null;
+
+  try {
+    const url = normalizeAvatarUrl(value, platform);
+    return url.protocol === "https:" && isAllowedAvatarHost(url, platform) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAvatar(url: URL | null): Promise<Response | null> {
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url, { cache: "no-store", redirect: "follow" });
+    const contentType = response.headers.get("content-type") ?? "";
+    return response.ok && contentType.toLowerCase().startsWith("image/") ? response : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -52,6 +81,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         userId: true,
         platform: true,
         profilePicture: true,
+        accessToken: true,
+        refreshToken: true,
+        tokenMetadata: true,
       },
     });
 
@@ -68,19 +100,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new BadRequestError("Avatar proxy is not supported for this platform");
     }
 
-    if (!account.profilePicture) {
-      throw new NotFoundError("Account profile picture not found");
-    }
-
-    const avatarUrl = normalizeAvatarUrl(account.profilePicture, platform);
-    if (avatarUrl.protocol !== "https:" || !isAllowedAvatarHost(avatarUrl, platform)) {
+    const storedAvatarUrl = getAllowedAvatarUrl(account.profilePicture, platform);
+    if (account.profilePicture && !storedAvatarUrl) {
       throw new BadRequestError("Account profile picture URL is not supported");
     }
 
-    const imageResponse = await fetch(avatarUrl, { cache: "no-store", redirect: "follow" });
-    const contentType = imageResponse.headers.get("content-type") ?? "";
+    let imageResponse = await fetchAvatar(storedAvatarUrl);
 
-    if (!imageResponse.ok || !contentType.toLowerCase().startsWith("image/")) {
+    if (!imageResponse && (platform === "linkedin" || platform === "threads")) {
+      const { accessToken } = decryptConnectedAccountSecrets(account);
+      const freshProfilePicture = await fetchFreshProfilePicture(platform, accessToken);
+      const freshAvatarUrl = getAllowedAvatarUrl(freshProfilePicture, platform);
+
+      imageResponse = await fetchAvatar(freshAvatarUrl);
+      if (imageResponse && freshProfilePicture && freshProfilePicture !== account.profilePicture) {
+        await prisma.connectedAccount.update({
+          where: { id: account.id },
+          data: { profilePicture: freshProfilePicture },
+        });
+      }
+    }
+
+    if (!imageResponse) {
       return new NextResponse(null, {
         status: 502,
         headers: {
@@ -89,6 +130,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       });
     }
 
+    const contentType = imageResponse.headers.get("content-type") ?? "application/octet-stream";
     return new NextResponse(await imageResponse.arrayBuffer(), {
       status: 200,
       headers: {

@@ -34,9 +34,10 @@ interface PlatformAccount {
 }
 
 function previewProfilePicture(account: ConnectedAccount, platform: string): string | null {
-  if (!account.profilePicture) return null;
-  if (platform !== "x" && platform !== "linkedin") return account.profilePicture;
-  return `/api/v1/accounts/${encodeURIComponent(account.id)}/avatar?v=${encodeURIComponent(String(account.updatedAt))}`;
+  if (platform === "linkedin" || platform === "threads" || (platform === "x" && account.profilePicture)) {
+    return `/api/v1/accounts/${encodeURIComponent(account.id)}/avatar?v=${encodeURIComponent(String(account.updatedAt))}`;
+  }
+  return account.profilePicture;
 }
 
 function toPreviewMedia(media: MediaFile[]): PreviewMedia[] {

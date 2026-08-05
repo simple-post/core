@@ -17,7 +17,8 @@ export default defineRoute({
       operationId: "getAccountAvatar",
       tags: ["Accounts"],
       summary: "Fetch a connected account avatar",
-      description: "Proxies an allowlisted X or LinkedIn profile image for the authenticated account owner.",
+      description:
+        "Proxies an allowlisted X, Threads, or LinkedIn profile image for the authenticated account owner and refreshes expired provider URLs when supported.",
       security: userAuthSecurity,
       requestParams: {
         path: z.object({

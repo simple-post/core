@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authLogger } from "@/lib/logger";
 import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import { fetchPinterestDisplayName } from "@/lib/oauth/pinterest-profile";
+import { fetchLinkedInProfilePicture } from "@/lib/oauth/profile-picture";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 
@@ -44,23 +45,6 @@ interface LinkedInProfile {
   name?: string;
   given_name?: string;
   picture?: string;
-}
-
-interface LinkedInProfilePictureElement {
-  data?: {
-    "com.linkedin.digitalmedia.mediaartifact.StillImage"?: {
-      storageSize?: { width?: number; height?: number };
-    };
-  };
-  identifiers?: Array<{ identifier?: string }>;
-}
-
-interface LinkedInProfileV2 {
-  profilePicture?: {
-    "displayImage~"?: {
-      elements?: LinkedInProfilePictureElement[];
-    };
-  };
 }
 
 interface PinterestProfile {
@@ -125,28 +109,6 @@ function normalizeXProfileImageUrl(url: string | null): string | null {
   return url.replace(/^http:\/\//, "https://");
 }
 
-function getLinkedInImageArea(element: LinkedInProfilePictureElement): number {
-  const storageSize = element.data?.["com.linkedin.digitalmedia.mediaartifact.StillImage"]?.storageSize;
-  return (storageSize?.width ?? 0) * (storageSize?.height ?? 0);
-}
-
-function extractLinkedInDecoratedProfilePicture(profile: LinkedInProfileV2): string | null {
-  const elements = profile.profilePicture?.["displayImage~"]?.elements ?? [];
-  const candidates: Array<{ area: number; identifier: string }> = [];
-
-  for (const element of elements) {
-    const area = getLinkedInImageArea(element);
-    for (const { identifier } of element.identifiers ?? []) {
-      if (identifier) {
-        candidates.push({ area, identifier });
-      }
-    }
-  }
-
-  candidates.sort((a, b) => b.area - a.area);
-  return candidates[0]?.identifier ?? null;
-}
-
 async function fetchUserProfile(platform: string, accessToken: string): Promise<PlatformProfile> {
   const config = getPlatformOAuthConfig(platform)!;
   if (!config.userInfoUrl) {
@@ -182,30 +144,6 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   }
 
   return data;
-}
-
-async function fetchLinkedInDecoratedProfilePicture(accessToken: string): Promise<string | null> {
-  if (!accessToken) return null;
-
-  try {
-    const picRes = await fetch(
-      "https://api.linkedin.com/v2/me?projection=(id,profilePicture(displayImage~digitalmediaAsset:playableStreams))",
-      { cache: "no-store", headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!picRes.ok) {
-      authLogger.warn(
-        { status: picRes.status, statusText: picRes.statusText },
-        "Failed to fetch decorated LinkedIn profile picture",
-      );
-      return null;
-    }
-
-    const picData = (await picRes.json()) as LinkedInProfileV2;
-    return extractLinkedInDecoratedProfilePicture(picData);
-  } catch (error) {
-    authLogger.warn({ error }, "Failed to fetch decorated LinkedIn profile picture");
-    return null;
-  }
 }
 
 async function extractProfileData(platform: string, profile: PlatformProfile, tokenData: CallbackContext["tokenData"]) {
@@ -263,7 +201,7 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       email = p.email || stringClaim(idTokenPayload, "email");
       profilePicture = p.picture || stringClaim(idTokenPayload, "picture");
       if (!profilePicture) {
-        profilePicture = await fetchLinkedInDecoratedProfilePicture(
+        profilePicture = await fetchLinkedInProfilePicture(
           typeof tokenData.access_token === "string" ? tokenData.access_token : "",
         );
       }

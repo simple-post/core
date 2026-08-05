@@ -55,14 +55,12 @@ function getProfilePictureSrc({
   const normalized = normalizeProfilePictureForDisplay(profilePicture, platform);
   const platformId = normalizePlatform(platform);
 
-  if (!normalized) return null;
-
-  if (accountId && (platformId === "x" || platformId === "linkedin")) {
+  if (accountId && (platformId === "linkedin" || platformId === "threads" || (platformId === "x" && normalized))) {
     const version = avatarVersion ? `?v=${encodeURIComponent(String(avatarVersion))}` : "";
     return `/api/v1/accounts/${encodeURIComponent(accountId)}/avatar${version}`;
   }
 
-  return normalized;
+  return normalized ?? null;
 }
 
 export function AccountAvatar({ accountId, avatarVersion, profilePicture, platform, size = "lg" }: AccountAvatarProps) {

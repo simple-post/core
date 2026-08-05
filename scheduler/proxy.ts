@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { hasAllowedOrigin } from "@/lib/middleware/origin";
+
 const PROTECTED_API_PREFIXES = ["/api/v1/", "/api/connect/", "/api/billing/"];
 
 const MCP_CORS_PREFIXES = ["/mcp", "/.well-known/oauth-", "/api/oauth/"];
@@ -52,11 +54,7 @@ export function proxy(req: NextRequest) {
   }
 
   // Verify Origin header
-  const origin = req.headers.get("origin");
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const allowedOrigin = new URL(appUrl).origin;
-
-  if (origin && origin !== allowedOrigin) {
+  if (!hasAllowedOrigin(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -65,7 +63,11 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/api/v1/:path*",
+    // Keep the streaming multipart endpoint out of Proxy. Next.js buffers
+    // Proxy request bodies and truncates them at 10 MB by default. The upload
+    // route performs the same origin check itself without buffering the body.
+    "/api/v1",
+    "/api/v1/((?!upload/?$).*)",
     "/api/connect/:path*",
     "/api/billing/:path*",
     "/mcp",

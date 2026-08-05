@@ -7,7 +7,8 @@ import { ALLOWED_MEDIA_TYPES, mediaHeaderMatchesContentType, normalizeContentTyp
 import Busboy from "busboy";
 
 import { requireAuth } from "@/lib/middleware/auth";
-import { BadRequestError, handleApiError } from "@/lib/utils/errors";
+import { hasAllowedOrigin } from "@/lib/middleware/origin";
+import { BadRequestError, ForbiddenError, handleApiError } from "@/lib/utils/errors";
 
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
@@ -181,6 +182,12 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
 // object-storage URL. The request is never materialized as a 500 MB Buffer.
 export async function POST(req: NextRequest) {
   try {
+    // This endpoint intentionally bypasses Proxy so large request bodies stay
+    // streaming. Preserve Proxy's CSRF protection at the route boundary.
+    if (!hasAllowedOrigin(req)) {
+      throw new ForbiddenError();
+    }
+
     const session = await requireAuth(req);
     return NextResponse.json(await streamMultipartUpload(req, session.user.id));
   } catch (error) {

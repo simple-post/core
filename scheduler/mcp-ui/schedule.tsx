@@ -310,7 +310,8 @@ function ScheduleApp() {
   );
 }
 
-const rootElement = document.querySelector("#root");
-if (rootElement) {
+export function mountScheduleWidget() {
+  const rootElement = document.querySelector("#root");
+  if (!rootElement) throw new Error("SimplePost schedule root element is missing.");
   createRoot(rootElement).render(<ScheduleApp />);
 }

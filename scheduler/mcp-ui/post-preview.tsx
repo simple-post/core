@@ -148,7 +148,8 @@ function PostPreviewApp() {
   );
 }
 
-const rootElement = document.querySelector("#root");
-if (rootElement) {
+export function mountPostPreviewWidget() {
+  const rootElement = document.querySelector("#root");
+  if (!rootElement) throw new Error("SimplePost post preview root element is missing.");
   createRoot(rootElement).render(<PostPreviewApp />);
 }

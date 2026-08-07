@@ -46,6 +46,7 @@ describe("TelegramPublisher", () => {
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
+    mockedFs.statSync.mockReturnValue({ size: 1024 } as any);
 
     // Create a new publisher instance
     publisher = new TelegramPublisher({
@@ -62,7 +63,7 @@ describe("TelegramPublisher", () => {
     it("should initialize axios client with correct bot token", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({
         baseURL: "https://api.telegram.org/bottest_bot_token",
-        timeout: 30_000,
+        timeout: 120_000,
       });
     });
 
@@ -163,6 +164,35 @@ describe("TelegramPublisher", () => {
         headers: { "content-type": "multipart/form-data" },
       });
       expect(result).toEqual({ id: "101112", error: PostErrorType.NO_ERROR });
+    });
+
+    it("should upload prepared URL media as multipart instead of passing the URL to Telegram", async () => {
+      const content: Content = {
+        text: "Image caption",
+        media: [
+          {
+            type: "image",
+            url: "https://cdn.example.com/generated-image.png",
+            path: "/tmp/generated-image.png",
+            size: 5_506_166,
+          },
+        ],
+      };
+
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { result: { message_id: 202_608 } },
+      });
+
+      const result = await publisher.postContent(content, options);
+      const formData = mockAxiosInstance.post.mock.calls[0][1];
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", formData, {
+        headers: { "content-type": "multipart/form-data" },
+      });
+      expect(formData.append).toHaveBeenCalledWith("photo", "mock-stream", {
+        filename: "generated-image.png",
+      });
+      expect(result).toEqual({ id: "202608", error: PostErrorType.NO_ERROR });
     });
 
     it("should throw error if chatId is not provided", async () => {
@@ -308,6 +338,28 @@ describe("TelegramPublisher", () => {
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].code).toBe("caption_too_long");
+    });
+
+    it("should accept URL photos above 5 MiB now that they use multipart upload", () => {
+      const result = TelegramPublisher.validate({
+        media: [{ type: "image", url: "https://example.com/image.png", size: 5 * 1024 * 1024 + 1 }],
+      });
+
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should reject photos above the 10 MiB multipart limit", () => {
+      const result = TelegramPublisher.validate({
+        media: [{ type: "image", url: "https://example.com/image.png", size: 10 * 1024 * 1024 + 1 }],
+      });
+
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          code: "image_too_large",
+          limit: 10 * 1024 * 1024,
+          actual: 10 * 1024 * 1024 + 1,
+        }),
+      );
     });
   });
 

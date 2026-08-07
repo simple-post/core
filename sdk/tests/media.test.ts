@@ -203,6 +203,24 @@ describe("Media Utilities", () => {
       expect(result).toBe("/tmp/simplepost_mock-uuid-v7.mov");
     });
 
+    it("should enforce a caller-provided download limit", async () => {
+      const mockStream = { ...createMockStreamData(), destroy: jest.fn() };
+      mockedAxios.get.mockResolvedValue({
+        data: mockStream,
+        headers: { "content-length": String(10 * 1024 * 1024 + 1) },
+      });
+
+      await expect(downloadToTempFile("https://example.com/image.png", undefined, 10 * 1024 * 1024)).rejects.toThrow(
+        "exceeds the maximum download size of 10485760 bytes",
+      );
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        "https://example.com/image.png",
+        expect.objectContaining({ maxContentLength: 10 * 1024 * 1024 }),
+      );
+      expect(mockStream.destroy).toHaveBeenCalled();
+    });
+
     it("should detect extension from content-type when URL has no extension", async () => {
       mockedAxios.get.mockResolvedValue({
         data: createMockStreamData(),

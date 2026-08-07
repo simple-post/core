@@ -23,19 +23,17 @@ const cases: SizeCase[] = [
     limit: 256 * GB,
   },
   {
-    name: "Telegram URL photo",
+    name: "Telegram multipart photo from URL",
     platform: "telegram",
     media: { type: "image", url: "https://example.com/image.jpg" },
-    limit: 5 * MB,
+    limit: 10 * MB,
   },
   {
-    name: "Telegram URL video",
+    name: "Telegram multipart video from URL",
     platform: "telegram",
     media: { type: "video", url: "https://example.com/video.mp4" },
-    limit: 20 * MB,
+    limit: 50 * MB,
   },
-  { name: "Telegram upload photo", platform: "telegram", media: { type: "image", path: "image.jpg" }, limit: 10 * MB },
-  { name: "Telegram upload video", platform: "telegram", media: { type: "video", path: "video.mp4" }, limit: 50 * MB },
   {
     name: "Facebook image",
     platform: "facebook",

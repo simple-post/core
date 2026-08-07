@@ -60,7 +60,10 @@ export abstract class Publisher {
     return {
       ...content,
       media: content.media.map((item) => {
-        if (item.size !== undefined || !item.path) return item;
+        // Once media has been prepared to a local path, prefer the actual
+        // file size over caller metadata. Some URL-based callers use 0 to
+        // mean "unknown", and supplied metadata can also become stale.
+        if (!item.path) return item;
         try {
           return { ...item, size: fs.statSync(item.path).size };
         } catch {

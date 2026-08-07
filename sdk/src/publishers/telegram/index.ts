@@ -1,9 +1,15 @@
 import fs from "node:fs";
+import path from "node:path";
 
 import axios from "axios";
 import FormData from "form-data";
 
-import { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./validation";
+import {
+  TELEGRAM_VALIDATION_RULES,
+  TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES,
+  TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES,
+  validateTelegramContent,
+} from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, TempFileManager } from "../../utils";
@@ -15,7 +21,9 @@ import type { PlatformValidationRules, ValidationResult } from "../../types/vali
 import type { AxiosInstance } from "axios";
 
 export class TelegramPublisher extends Publisher {
-  static readonly mediaRequirement = "either" as const; // prefers url but accepts path
+  // Telegram's URL-fetch limits are lower and its fetch errors are opaque.
+  // Always prepare a local path and upload with multipart/form-data instead.
+  static readonly mediaRequirement = "path" as const;
 
   static getValidationRules(): PlatformValidationRules {
     return TELEGRAM_VALIDATION_RULES;
@@ -39,7 +47,7 @@ export class TelegramPublisher extends Publisher {
 
     this.client = axios.create({
       baseURL: `https://api.telegram.org/bot${this.botToken}`,
-      timeout: 30_000,
+      timeout: 120_000,
     });
   }
 
@@ -56,29 +64,9 @@ export class TelegramPublisher extends Publisher {
       const endpoint = media.type === "image" ? "/sendPhoto" : "/sendVideo";
       const mediaField = media.type === "image" ? "photo" : "video";
 
-      // Telegram API can accept URLs directly - no need to download
-      if (media.url) {
-        const payload: Record<string, unknown> = {
-          chat_id: chatId,
-          [mediaField]: media.url,
-        };
-
-        if (caption) {
-          payload.caption = caption;
-          if (parseMode) {
-            payload.parse_mode = parseMode;
-          }
-        }
-
-        if (replyTo) {
-          payload.reply_to_message_id = Number.parseInt(replyTo);
-        }
-
-        const response = await this.client.post(endpoint, payload);
-        return { messageId: response.data.result.message_id.toString(), cleanup: async () => {} };
-      }
-
-      // For file path, use FormData upload
+      // URL-backed media is downloaded by resolveMediaPath. Sending the
+      // resulting file as multipart raises Telegram's photo/video limits to
+      // 10/50 MiB and avoids Telegram's fragile server-side URL fetch.
       const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
       tempFileManager.add(cleanup);
 
@@ -86,9 +74,28 @@ export class TelegramPublisher extends Publisher {
         throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${resolvedPath}`);
       }
 
+      const actualSize = fs.statSync(resolvedPath).size;
+      const maxSize =
+        media.type === "image" ? TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES : TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES;
+      if (actualSize > maxSize) {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          `Telegram ${media.type}s cannot exceed ${maxSize / (1024 * 1024)} MB.`,
+          { limit: maxSize, actual: actualSize },
+        );
+      }
+
       const formData = new FormData();
       formData.append("chat_id", chatId);
-      formData.append(mediaField, fs.createReadStream(resolvedPath));
+      const sourceFilename = (() => {
+        if (!media.url) return path.basename(resolvedPath);
+        try {
+          return path.basename(new URL(media.url).pathname) || path.basename(resolvedPath);
+        } catch {
+          return path.basename(resolvedPath);
+        }
+      })();
+      formData.append(mediaField, fs.createReadStream(resolvedPath), { filename: sourceFilename });
 
       if (caption) {
         formData.append("caption", caption);
@@ -109,8 +116,11 @@ export class TelegramPublisher extends Publisher {
 
       return { messageId: response.data.result.message_id.toString(), cleanup: () => tempFileManager.cleanup() };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { description?: string } }; message?: string };
       await tempFileManager.cleanup();
+      if (error instanceof PostError) {
+        throw error;
+      }
+      const err = error as { response?: { data?: { description?: string } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,

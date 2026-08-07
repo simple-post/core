@@ -228,7 +228,11 @@ const MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;
  * Downloads a file from a URL to a temporary local file
  * Returns the path to the downloaded file
  */
-export const downloadToTempFile = async (url: string, preferredExtension?: string): Promise<string> => {
+export const downloadToTempFile = async (
+  url: string,
+  preferredExtension?: string,
+  maxBytes = MAX_DOWNLOAD_BYTES,
+): Promise<string> => {
   // Validate URL to prevent SSRF attacks
   validateUrlForSSRF(url);
 
@@ -246,7 +250,7 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
     const response = await axios.get<Readable>(url, {
       responseType: "stream",
       timeout: 120_000, // 2 minutes timeout for large files
-      maxContentLength: MAX_DOWNLOAD_BYTES,
+      maxContentLength: maxBytes,
       maxBodyLength: Infinity,
       maxRedirects: 5,
       // Validate the address actually connected to, not just the URL string.
@@ -265,9 +269,9 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
     });
 
     const contentLength = Number(response.headers["content-length"]);
-    if (Number.isFinite(contentLength) && contentLength > MAX_DOWNLOAD_BYTES) {
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
       response.data.destroy();
-      throw new Error(`Media at ${url} exceeds the maximum download size of ${MAX_DOWNLOAD_BYTES} bytes`);
+      throw new Error(`Media at ${url} exceeds the maximum download size of ${maxBytes} bytes`);
     }
 
     // Try to get extension from content-type if not available
@@ -301,10 +305,8 @@ export const downloadToTempFile = async (url: string, preferredExtension?: strin
     const sizeLimiter = new Transform({
       transform(chunk: Buffer, _encoding, transformCallback) {
         receivedBytes += chunk.length;
-        if (receivedBytes > MAX_DOWNLOAD_BYTES) {
-          transformCallback(
-            new Error(`Media at ${url} exceeds the maximum download size of ${MAX_DOWNLOAD_BYTES} bytes`),
-          );
+        if (receivedBytes > maxBytes) {
+          transformCallback(new Error(`Media at ${url} exceeds the maximum download size of ${maxBytes} bytes`));
           return;
         }
         transformCallback(null, chunk);

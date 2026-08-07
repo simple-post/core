@@ -135,8 +135,10 @@ export class MediaResolver {
       } else {
         // Download URL to file if needed
         if (needsFile && item.url && !item.path) {
-          const extension = item.type === "video" ? ".mp4" : ".jpg";
-          resolvedItem.path = await this.downloadUrl(item.url, extension);
+          // Preserve the URL/content-type extension. This matters for
+          // multipart consumers such as Telegram, where form-data derives
+          // the upload MIME type from the local filename.
+          resolvedItem.path = await this.downloadUrl(item.url);
           resolvedItem.url = item.url; // Keep original URL
         } else if (item.path) {
           resolvedItem.path = item.path;

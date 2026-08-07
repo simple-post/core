@@ -5,6 +5,7 @@
 - **Text**: With HTML/Markdown formatting
 - **Media**: Images (JPG, PNG, GIF), Videos (MP4, MOV, AVI)
 - **Limit**: One media file per message
+- **File size**: Images up to 10 MiB; videos up to 50 MiB
 - **Requirements**: Must have text OR media
 
 ## Platform-Specific Options
@@ -75,6 +76,10 @@ const content = {
   media: [{ type: "image", url: "https://cdn.example.com/photo.jpg" }],
 };
 ```
+
+SimplePost downloads URL-backed media and uploads it to Telegram using
+`multipart/form-data`. This avoids Telegram's lower URL-fetch limits and gives
+URL media the same 10 MiB image and 50 MiB video limits as local files.
 
 ## Authentication
 

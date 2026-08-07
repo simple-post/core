@@ -210,6 +210,10 @@ export type { PostUrlContext, QuoteCapablePlatform } from "./platform-names";
 export { ALLOWED_MEDIA_TYPES, EXTENSION_TO_TYPE, normalizeContentType } from "./media-types";
 export { MediaResolver } from "./utils/media-resolver";
 export { downloadToTempFile } from "./utils/media";
+export {
+  TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES,
+  TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES,
+} from "./publishers/telegram/validation";
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";

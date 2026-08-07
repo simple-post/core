@@ -15,6 +15,7 @@ import { summarizeRepostOutcome } from "@/lib/repost/results";
 import { buildPublishedRepostState } from "@/lib/repost/settings";
 import { buildRepostTargets } from "@/lib/repost/targets";
 import { apiErrorLogPayload, PaymentRequiredError, sanitizeForJson } from "@/lib/utils/errors";
+import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
 
@@ -400,6 +401,27 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       postId: post.id,
       socialAccounts: toBillingSocialAccounts(post.accounts),
     });
+
+    // Revalidate at dispatch time as well as creation time. Remote URLs can
+    // change while a post is waiting in the queue, and this also protects
+    // posts scheduled before trusted size measurement was introduced.
+    const validation = await validatePostForAccounts({
+      userId: post.userId,
+      message: post.message,
+      media: post.media,
+      accountIds,
+      accountOptions: (post.accountOptions as AccountOptionsMap | null) ?? undefined,
+      accountOverrides: (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
+      thread: post.thread ?? undefined,
+    });
+    if (validation.accounts.length !== accountIds.length) {
+      throw new Error("One or more accounts for this scheduled post no longer exist.");
+    }
+    if (!validation.summary.isValid) {
+      throw new Error(
+        `Scheduled post failed validation: ${validation.summary.errors.map((issue) => issue.message).join("; ")}`,
+      );
+    }
 
     let quoteTargets;
     if (post.quotePostId) {

@@ -184,6 +184,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       message: validated.message,
       media: mediaFiles,
       accountIds: validated.accountIds,
+      accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
       thread: validated.thread,
     });

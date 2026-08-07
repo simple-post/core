@@ -1,15 +1,11 @@
-import fs, { type Stats } from "node:fs";
-
-import { downloadToTempFile } from "@simple-post/sdk";
+import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
-jest.mock("node:fs");
-
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
-  downloadToTempFile: jest.fn(),
+  hydrateRemoteMediaSizesForAccounts: jest.fn(),
 }));
 
 jest.mock("@/lib/prisma", () => ({
@@ -30,8 +26,9 @@ const prismaMock = prisma as unknown as {
     findMany: jest.Mock;
   };
 };
-const downloadToTempFileMock = downloadToTempFile as jest.MockedFunction<typeof downloadToTempFile>;
-const fsMock = fs as jest.Mocked<typeof fs>;
+const hydrateRemoteMediaSizesMock = hydrateRemoteMediaSizesForAccounts as jest.MockedFunction<
+  typeof hydrateRemoteMediaSizesForAccounts
+>;
 
 const connectedAccount = {
   id: "account-1",
@@ -56,8 +53,7 @@ const connectedAccount = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  downloadToTempFileMock.mockResolvedValue("/tmp/telegram-media.png");
-  fsMock.statSync.mockReturnValue({ size: 1024 } as Stats);
+  hydrateRemoteMediaSizesMock.mockResolvedValue([]);
 });
 
 it("marks preview-only accounts as unpublishable and strips credentials from validation output", async () => {
@@ -83,11 +79,46 @@ it("marks preview-only accounts as unpublishable and strips credentials from val
   });
 });
 
-it("measures unknown Telegram URL media before validation and persists the measured size", async () => {
+it("passes shared, override, thread, and account-option media to the SDK boundary", async () => {
   prismaMock.connectedAccount.findMany.mockResolvedValue([
-    { ...connectedAccount, platform: "telegram", tokenMetadata: { previewOnly: false } },
+    { ...connectedAccount, platform: "youtube", tokenMetadata: { previewOnly: false } },
   ]);
-  fsMock.statSync.mockReturnValue({ size: 5_506_166 } as Stats);
+  const media = [
+    {
+      id: "media-1",
+      url: "https://cdn.example.com/video.mp4",
+      type: "video" as const,
+      filename: "video.mp4",
+      size: 0,
+    },
+  ];
+  const accountOptions = { "account-1": { thumbnailUrl: "https://cdn.example.com/thumbnail.png" } };
+  const accountOverrides = { "account-1": { message: "Override", media } };
+  const thread = [{ message: "Reply" }];
+
+  await validatePostForAccounts({
+    userId: "user-1",
+    message: "Hello",
+    media,
+    accountIds: ["account-1"],
+    accountOptions,
+    accountOverrides,
+    thread,
+  });
+
+  expect(hydrateRemoteMediaSizesMock).toHaveBeenCalledWith({
+    media,
+    accounts: [expect.objectContaining({ id: "account-1", platform: "youtube", accessToken: "" })],
+    accountOptions,
+    accountOverrides,
+    thread,
+  });
+});
+
+it("validates and persists the measured size returned through the SDK boundary", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([
+    { ...connectedAccount, platform: "x", tokenMetadata: { previewOnly: false } },
+  ]);
   const media = [
     {
       id: "media-1",
@@ -97,6 +128,10 @@ it("measures unknown Telegram URL media before validation and persists the measu
       size: 0,
     },
   ];
+  hydrateRemoteMediaSizesMock.mockImplementation(async ({ media: inspectedMedia }) => {
+    inspectedMedia[0].size = 5_506_166;
+    return [];
+  });
 
   const result = await validatePostForAccounts({
     userId: "user-1",
@@ -105,41 +140,36 @@ it("measures unknown Telegram URL media before validation and persists the measu
     accountIds: ["account-1"],
   });
 
-  expect(downloadToTempFileMock).toHaveBeenCalledWith(media[0].url, undefined, 10 * 1024 * 1024);
-  expect(fsMock.unlinkSync).toHaveBeenCalledWith("/tmp/telegram-media.png");
   expect(media[0].size).toBe(5_506_166);
-  expect(result.summary.errors.filter((issue) => issue.code === "image_too_large")).toHaveLength(0);
+  expect(result.summary.errors).toContainEqual(
+    expect.objectContaining({ platform: "x", code: "image_too_large", actual: 5_506_166 }),
+  );
 });
 
-it("rejects unknown Telegram URL media before scheduling when it exceeds the multipart limit", async () => {
+it("merges SDK media inspection failures into account and summary validation", async () => {
   prismaMock.connectedAccount.findMany.mockResolvedValue([
-    { ...connectedAccount, platform: "telegram", tokenMetadata: { previewOnly: false } },
+    { ...connectedAccount, platform: "x", tokenMetadata: { previewOnly: false } },
   ]);
-  downloadToTempFileMock.mockRejectedValue(new Error("Media exceeds the maximum download size of 10485760 bytes"));
-  const media = [
+  hydrateRemoteMediaSizesMock.mockResolvedValue([
     {
-      id: "media-1",
-      url: "https://cdn.example.com/oversized.png",
-      type: "image" as const,
-      filename: "oversized.png",
-      size: 0,
+      platform: "x",
+      severity: "error",
+      code: "media_size_unavailable",
+      message: "Size unavailable",
+      field: "text.media[0]",
+      meta: { accountId: "account-1" },
     },
-  ];
+  ]);
 
   const result = await validatePostForAccounts({
     userId: "user-1",
     message: "Hello",
-    media,
+    media: [],
     accountIds: ["account-1"],
   });
 
-  expect(media[0].size).toBe(10 * 1024 * 1024 + 1);
-  expect(result.summary.errors).toContainEqual(
-    expect.objectContaining({
-      platform: "telegram",
-      code: "image_too_large",
-      limit: 10 * 1024 * 1024,
-      actual: 10 * 1024 * 1024 + 1,
-    }),
-  );
+  expect(result.summary.isValid).toBe(false);
+  expect(result.results[0]).toMatchObject({ isValid: false });
+  expect(result.results[0].errors).toContainEqual(expect.objectContaining({ code: "media_size_unavailable" }));
+  expect(result.summary.errors).toContainEqual(expect.objectContaining({ code: "media_size_unavailable" }));
 });

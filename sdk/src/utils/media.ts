@@ -220,6 +220,88 @@ const ssrfSafeLookup: SsrfSafeLookup = (hostname, options, callback) => {
   });
 };
 
+const remoteRequestConfig = (): AxiosRequestConfig => ({
+  timeout: 15_000,
+  maxRedirects: 5,
+  lookup: ssrfSafeLookup,
+  beforeRedirect: (options: Record<string, unknown>) => {
+    const redirectUrl =
+      typeof options.href === "string"
+        ? options.href
+        : `${String(options.protocol)}//${String(options.hostname)}${String(options.path ?? "")}`;
+    validateUrlForSSRF(redirectUrl);
+  },
+});
+
+const parseByteCount = (value: unknown): number | undefined => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string" && typeof raw !== "number") return undefined;
+
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+const parseContentRangeSize = (value: unknown): number | undefined => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return undefined;
+
+  const match = /\/(\d+)$/.exec(raw.trim());
+  return match ? parseByteCount(match[1]) : undefined;
+};
+
+/**
+ * Determines a remote media file's actual byte size without downloading the
+ * full payload. Caller-provided size metadata is intentionally not trusted:
+ * external clients may omit it, send 0, or retain a stale value.
+ *
+ * A HEAD request is preferred. Servers that do not expose Content-Length on
+ * HEAD are retried with a one-byte range request and the total is read from
+ * Content-Range. All requests use the same SSRF and redirect protections as
+ * full media downloads.
+ */
+export const getRemoteMediaSize = async (url: string): Promise<number> => {
+  validateUrlForSSRF(url);
+
+  try {
+    const response = await axios.head(url, {
+      ...remoteRequestConfig(),
+      headers: { "Accept-Encoding": "identity" },
+    });
+    const size = parseByteCount(response.headers["content-length"]);
+    if (size !== undefined) return size;
+  } catch {
+    // Some media origins reject HEAD. Fall back to a one-byte GET below.
+  }
+
+  let stream: Readable | undefined;
+  try {
+    const response = await axios.get<Readable>(url, {
+      ...remoteRequestConfig(),
+      responseType: "stream",
+      headers: {
+        "Accept-Encoding": "identity",
+        Range: "bytes=0-0",
+      },
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 416,
+    });
+    stream = response.data;
+
+    const contentRangeSize = parseContentRangeSize(response.headers["content-range"]);
+    if (contentRangeSize !== undefined) return contentRangeSize;
+
+    // A server may ignore Range and return 200. In that case Content-Length
+    // describes the complete identity-encoded response.
+    if (response.status === 200) {
+      const contentLength = parseByteCount(response.headers["content-length"]);
+      if (contentLength !== undefined) return contentLength;
+    }
+  } finally {
+    stream?.destroy();
+  }
+
+  throw new Error(`The remote server did not provide a reliable file size for ${url}`);
+};
+
 // Maximum size of a downloaded media file. Matches the 500 MB upload limit
 // enforced by the HTTP server and scheduler upload endpoints.
 const MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;

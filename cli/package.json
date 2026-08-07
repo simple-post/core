@@ -1,6 +1,6 @@
 {
   "name": "@simple-post/cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Post to X, Telegram, YouTube, Instagram, and more from your terminal.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
   "license": "MIT",

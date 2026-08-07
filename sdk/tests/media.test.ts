@@ -9,6 +9,7 @@ import {
   getMediaSource,
   hasValidSource,
   downloadToTempFile,
+  getRemoteMediaSize,
   resolveMediaPath,
   resolveThumbnailPath,
   resolveMediaUrl,
@@ -153,6 +154,75 @@ describe("Media Utilities", () => {
   const createMockStreamData = (): object => {
     return { mockStream: true };
   };
+
+  describe("getRemoteMediaSize", () => {
+    it("uses the identity-encoded Content-Length from HEAD", async () => {
+      mockedAxios.head.mockResolvedValue({ headers: { "content-length": "5506166" } } as any);
+
+      await expect(getRemoteMediaSize("https://example.com/image.png")).resolves.toBe(5_506_166);
+      expect(mockedAxios.head).toHaveBeenCalledWith(
+        "https://example.com/image.png",
+        expect.objectContaining({
+          headers: { "Accept-Encoding": "identity" },
+          lookup: expect.any(Function),
+          beforeRedirect: expect.any(Function),
+        }),
+      );
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+
+    it("falls back to a one-byte range request and reads the total size", async () => {
+      const stream = { destroy: jest.fn() };
+      mockedAxios.head.mockRejectedValue(new Error("Method not allowed"));
+      mockedAxios.get.mockResolvedValue({
+        status: 206,
+        headers: { "content-range": "bytes 0-0/5506166", "content-length": "1" },
+        data: stream,
+      } as any);
+
+      await expect(getRemoteMediaSize("https://example.com/image.png")).resolves.toBe(5_506_166);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        "https://example.com/image.png",
+        expect.objectContaining({
+          responseType: "stream",
+          headers: { "Accept-Encoding": "identity", Range: "bytes=0-0" },
+        }),
+      );
+      expect(stream.destroy).toHaveBeenCalled();
+    });
+
+    it("uses Content-Length when an origin ignores the range request", async () => {
+      const stream = { destroy: jest.fn() };
+      mockedAxios.head.mockResolvedValue({ headers: {} } as any);
+      mockedAxios.get.mockResolvedValue({
+        status: 200,
+        headers: { "content-length": "4096" },
+        data: stream,
+      } as any);
+
+      await expect(getRemoteMediaSize("https://example.com/image.png")).resolves.toBe(4096);
+      expect(stream.destroy).toHaveBeenCalled();
+    });
+
+    it("rejects media origins that do not expose a reliable size", async () => {
+      const stream = { destroy: jest.fn() };
+      mockedAxios.head.mockResolvedValue({ headers: {} } as any);
+      mockedAxios.get.mockResolvedValue({ status: 206, headers: {}, data: stream } as any);
+
+      await expect(getRemoteMediaSize("https://example.com/image.png")).rejects.toThrow(
+        "did not provide a reliable file size",
+      );
+      expect(stream.destroy).toHaveBeenCalled();
+    });
+
+    it("applies SSRF checks before making either request", async () => {
+      await expect(getRemoteMediaSize("http://127.0.0.1/image.png")).rejects.toThrow(
+        "Access to localhost URLs is not allowed",
+      );
+      expect(mockedAxios.head).not.toHaveBeenCalled();
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+  });
 
   describe("downloadToTempFile", () => {
     beforeEach(() => {

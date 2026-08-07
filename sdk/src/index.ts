@@ -209,11 +209,14 @@ export { mapPlatformName, generatePostUrl, QUOTE_CAPABLE_PLATFORMS, isQuoteCapab
 export type { PostUrlContext, QuoteCapablePlatform } from "./platform-names";
 export { ALLOWED_MEDIA_TYPES, EXTENSION_TO_TYPE, normalizeContentType } from "./media-types";
 export { MediaResolver } from "./utils/media-resolver";
-export { downloadToTempFile } from "./utils/media";
+export { downloadToTempFile, getRemoteMediaSize } from "./utils/media";
+export { hydrateRemoteMediaSizesForAccounts } from "./utils/remote-media-validation";
+export type { RemoteMediaValidationAccount, RemoteMediaValidationParams } from "./utils/remote-media-validation";
 export {
   TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES,
   TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES,
 } from "./publishers/telegram/validation";
+export { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES } from "./publishers/youtube/validation";
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";

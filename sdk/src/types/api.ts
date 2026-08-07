@@ -167,6 +167,7 @@ export const validationRequestSchema = z.object({
   message: z.string().default(""),
   media: z.array(MediaFileSchema).default([]),
   accountIds: AccountIdsSchema,
+  accountOptions: AccountOptionsMapSchema.optional(),
   accountOverrides: AccountOverridesMapSchema.optional(),
   thread: ThreadSchema.optional(),
 });

@@ -124,6 +124,7 @@ async function updatePost(
       message: validated.message,
       media: finalMedia,
       accountIds: validated.accountIds,
+      accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
       thread: validated.thread,
     });

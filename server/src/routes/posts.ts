@@ -35,10 +35,11 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const mediaFiles: MediaFile[] = validated.media || [];
 
-    const validation = validatePostForAccounts({
+    const validation = await validatePostForAccounts({
       message: validated.message,
       media: mediaFiles,
       accountIds,
+      accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
       thread: validated.thread,
     });

@@ -2,6 +2,7 @@ import {
   BlueskyPublisher,
   FacebookPublisher,
   ForemPublisher,
+  hydrateRemoteMediaSizesForAccounts,
   InstagramPublisher,
   isThreadCapable,
   LinkedInPublisher,
@@ -17,6 +18,7 @@ import { getAccountsByIds, type ConfiguredAccount } from "../config/accounts.js"
 
 import type {
   AccountOverridesMap,
+  AccountOptionsMap,
   Content,
   Media,
   MediaFile,
@@ -112,16 +114,24 @@ function summarize(account: ConfiguredAccount): AccountSummary {
   };
 }
 
-export function validatePostForAccounts(params: {
+export async function validatePostForAccounts(params: {
   message: string;
   media: MediaFile[];
   accountIds: string[];
+  accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
-}): ValidationResultByPlatform {
+}): Promise<ValidationResultByPlatform> {
   const accounts = getAccountsByIds(params.accountIds);
   const foundIds = new Set(accounts.map((a) => a.id));
   const missingAccountIds = params.accountIds.filter((id) => !foundIds.has(id));
+  const inspectionFailures = await hydrateRemoteMediaSizesForAccounts({
+    media: params.media,
+    accounts,
+    accountOptions: params.accountOptions,
+    accountOverrides: params.accountOverrides,
+    thread: params.thread,
+  });
 
   const platforms = [...new Set(accounts.map((account) => account.platform))];
   const overrides = params.accountOverrides || {};
@@ -180,6 +190,14 @@ export function validatePostForAccounts(params: {
       usesCommonContent,
     };
   });
+
+  for (const failure of inspectionFailures) {
+    const result = results.find((candidate) => candidate.accountId === failure.meta?.accountId);
+    if (result) {
+      result.errors.push(failure);
+      result.isValid = false;
+    }
+  }
 
   // Cross-account check: if any thread segments exist but no selected account
   // supports threads, that's a hard error.

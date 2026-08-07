@@ -16,10 +16,11 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     const validated = parseResult.data;
-    const validation = validatePostForAccounts({
+    const validation = await validatePostForAccounts({
       message: validated.message,
       media: validated.media,
       accountIds: validated.accountIds,
+      accountOptions: validated.accountOptions,
       accountOverrides: validated.accountOverrides,
       thread: validated.thread,
     });

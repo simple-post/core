@@ -4,6 +4,7 @@ import type { PostingResult } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
 import { prisma } from "@/lib/prisma";
+import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: jest.fn() }));
 
@@ -40,6 +41,10 @@ jest.mock("@/lib/posting", () => ({
   },
 }));
 
+jest.mock("@/lib/validation/sdk-validation", () => ({
+  validatePostForAccounts: jest.fn(),
+}));
+
 jest.mock("@simple-post/sdk", () => ({
   isThreadCapable: (platform: string) => ["x", "threads", "bluesky", "mastodon"].includes(platform),
   isRepostCapablePlatform: (platform: string) => ["x", "bluesky", "threads", "linkedin"].includes(platform),
@@ -69,6 +74,7 @@ const prismaMock = prisma as unknown as {
 const postToAccountsMock = postToAccounts as jest.Mock;
 const repostToAccountsMock = repostToAccounts as jest.Mock;
 const isSocialPlatformEnabledMock = isSocialPlatformEnabled as jest.MockedFunction<typeof isSocialPlatformEnabled>;
+const validatePostForAccountsMock = validatePostForAccounts as jest.MockedFunction<typeof validatePostForAccounts>;
 
 interface DuePostFixture {
   id: string;
@@ -200,6 +206,12 @@ beforeEach(() => {
   prismaMock.post.count.mockResolvedValue(0);
   prismaMock.post.update.mockResolvedValue({});
   prismaMock.post.findFirst.mockResolvedValue(null);
+  validatePostForAccountsMock.mockImplementation(async ({ accountIds }) => ({
+    platforms: ["x"],
+    results: [],
+    summary: { errors: [], warnings: [], isValid: true },
+    accounts: accountIds.map((id) => ({ id })) as Awaited<ReturnType<typeof validatePostForAccounts>>["accounts"],
+  }));
   mockUpdateMany({});
 });
 
@@ -263,6 +275,55 @@ describe("dispatchDueScheduledPosts", () => {
       expect.objectContaining({
         where: { id: "p1" },
         data: expect.objectContaining({ status: "published" }),
+      }),
+    );
+  });
+
+  it("remeasures and rejects invalid media before dispatching a scheduled post", async () => {
+    const media = [
+      {
+        id: "media-1",
+        url: "https://cdn.example.com/oversized.png",
+        type: "image" as const,
+        filename: "oversized.png",
+        size: 0,
+      },
+    ];
+    mockFindMany({
+      due: [duePost({ id: "p1", media, accounts: [{ id: "a1", platform: "x" }] })],
+    });
+    validatePostForAccountsMock.mockResolvedValue({
+      platforms: ["x"],
+      results: [],
+      summary: {
+        errors: [
+          {
+            platform: "x",
+            severity: "error",
+            code: "image_too_large",
+            message: "X images cannot exceed 5 MB.",
+          },
+        ],
+        warnings: [],
+        isValid: false,
+      },
+      accounts: [{ id: "a1" }] as Awaited<ReturnType<typeof validatePostForAccounts>>["accounts"],
+    });
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(validatePostForAccountsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", media, accountIds: ["a1"] }),
+    );
+    expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(result.failedPosts).toBe(1);
+    expect(prismaMock.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "p1" },
+        data: expect.objectContaining({
+          status: "failed",
+          errorMessage: "Scheduled post failed validation: X images cannot exceed 5 MB.",
+        }),
       }),
     );
   });

@@ -83,3 +83,28 @@ describe("collectPostInput boolean flags", () => {
     });
   });
 });
+
+describe("collectPostInput Forem flags", () => {
+  it("builds DEV/Forem article options from CLI flags", async () => {
+    const result = await collectPostInput(
+      {
+        account: ["forem:main"],
+        text: "# Release notes",
+        "forem-title": "SimplePost 1.2",
+        "forem-tags": "simplepost, sdk, release",
+        "forem-published": false,
+        "forem-canonical-url": "https://simple-post.io/blog/1-2",
+      },
+      {} as any,
+      { accounts: [] },
+    );
+
+    expect(result.post.platforms).toEqual(["forem"]);
+    expect(result.post.options?.forem).toEqual({
+      title: "SimplePost 1.2",
+      tags: ["simplepost", "sdk", "release"],
+      published: false,
+      canonicalUrl: "https://simple-post.io/blog/1-2",
+    });
+  });
+});

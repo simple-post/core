@@ -65,6 +65,11 @@ export default function McpDocsPage() {
             Remote MCP server for publishing and scheduling posts from compatible AI assistants. Data-only tools return
             text and structured JSON; Show tools render shared MCP Apps UI in ChatGPT and Claude.
           </p>
+          <p className="max-w-xl rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground mb-5">
+            <span className="font-semibold text-foreground">App listings are coming soon.</span> Until SimplePost
+            appears in the ChatGPT and Claude directories, add the server URL below manually as a custom MCP app or
+            connector. OAuth handles sign-in; no SimplePost API key is required.
+          </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>
 
@@ -120,9 +125,9 @@ export default function McpDocsPage() {
 
           <DocCard icon={<ExternalLink className="h-4 w-4" />} label="Disconnect" title="Disconnecting">
             <p>
-              You can disconnect SimplePost in your AI assistant&apos;s connector settings (Claude&apos;s Connectors
-              settings or ChatGPT&apos;s Apps &amp; Connectors settings). You can also manage connected social accounts
-              inside the SimplePost web app.
+              You can disconnect SimplePost in your AI assistant&apos;s settings (Claude&apos;s Connectors settings or
+              ChatGPT&apos;s Apps settings). You can also manage connected social accounts inside the SimplePost web
+              app.
             </p>
             <p>
               See the{" "}

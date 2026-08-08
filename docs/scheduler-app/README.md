@@ -103,6 +103,9 @@ Configure `SCHEDULED_POST_DISPATCH_SECRET` in the scheduler environment and run 
 
 The Integrations page shows how to connect MCP-compatible clients such as ChatGPT, Claude Code, Claude Desktop, Cursor, and Windsurf. The MCP server URL is:
 
+Until the SimplePost app listings are available in the ChatGPT and Claude directories, users add this URL manually as
+a custom MCP app or connector and complete OAuth in their browser:
+
 ```text
 https://your-scheduler-domain.example/mcp
 ```

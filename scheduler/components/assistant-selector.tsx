@@ -34,14 +34,15 @@ const options: AssistantOption[] = [
     label: "ChatGPT",
     Icon: OpenAIIcon,
     description:
-      "In ChatGPT Settings, open Apps & Connectors, enable developer mode if required, then create a custom connector named SimplePost with this URL. ChatGPT will open SimplePost OAuth for approval.",
+      "The directory app is coming soon. In ChatGPT on the web, open Settings → Apps, turn on Developer mode under Advanced settings, then click Create and add this URL as the MCP server endpoint. Your plan or workspace must allow custom MCP apps with write actions. Scan the tools, create the app, and approve SimplePost OAuth.",
     commands: [{ code: MCP_URL, label: "Remote MCP URL" }],
   },
   {
     id: "claude-desktop",
     label: "Claude Desktop",
     Icon: ClaudeIcon,
-    description: "In Claude Desktop, add a custom connector and paste this remote MCP URL.",
+    description:
+      "The directory listing is coming soon. In Claude or Claude Desktop, open Settings → Connectors, click Add custom connector, name it SimplePost, and paste this remote MCP URL. Click Connect and approve SimplePost OAuth.",
     commands: [{ code: MCP_URL, href: MCP_URL, label: "Remote MCP URL" }],
   },
   {
@@ -144,46 +145,54 @@ export function AssistantSelector() {
   const ActiveIcon = activeOption.Icon;
 
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
-      <div className="grid min-w-0 grid-cols-2 gap-2 self-start sm:grid-cols-3 lg:grid-cols-1">
-        {options.map((option) => {
-          const isActive = option.id === activeId;
-          const Icon = option.Icon;
-
-          return (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => setActiveId(option.id)}
-              className={cn(
-                "flex h-10 min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-sm font-medium transition-colors",
-                isActive
-                  ? "border-primary/45 bg-primary/10 text-foreground"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
-              )}>
-              <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-              <span className="truncate">{option.label}</span>
-            </button>
-          );
-        })}
+    <div className="grid min-w-0 gap-4">
+      <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground">
+        <span className="font-semibold text-foreground">App listings are coming soon.</span> SimplePost is not in the
+        ChatGPT or Claude directories yet. Choose your assistant below and add the remote MCP URL manually. OAuth
+        handles sign-in, so you do not need a SimplePost API key.
       </div>
 
-      <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-primary">
-            <ActiveIcon className="h-4 w-4" />
-          </span>
-          <h2 className="text-base font-semibold text-foreground">{activeOption.label}</h2>
-        </div>
-        <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 self-start sm:grid-cols-3 lg:grid-cols-1">
+          {options.map((option) => {
+            const isActive = option.id === activeId;
+            const Icon = option.Icon;
 
-        <div className="grid gap-4">
-          {activeOption.commands.map((command) => (
-            <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
-          ))}
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setActiveId(option.id)}
+                className={cn(
+                  "flex h-10 min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-sm font-medium transition-colors",
+                  isActive
+                    ? "border-primary/45 bg-primary/10 text-foreground"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                )}>
+                <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                <span className="truncate">{option.label}</span>
+              </button>
+            );
+          })}
         </div>
-      </section>
+
+        <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-primary">
+              <ActiveIcon className="h-4 w-4" />
+            </span>
+            <h2 className="text-base font-semibold text-foreground">{activeOption.label}</h2>
+          </div>
+          <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
+
+          <div className="grid gap-4">
+            {activeOption.commands.map((command) => (
+              <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

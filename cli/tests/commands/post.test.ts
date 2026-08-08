@@ -1,6 +1,11 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { CLI_ROOT, createCliTestEnv, makeTempHome } from "../helpers.js";
+
+const CLI_VERSION = (JSON.parse(readFileSync(path.join(CLI_ROOT, "package.json"), "utf8")) as { version: string })
+  .version;
 
 async function runCli(args: string[]): Promise<{ stderr: string; stdout: string }> {
   const home = await makeTempHome();
@@ -57,5 +62,14 @@ describe("post command", () => {
     expect(stdout).toContain("SimplePost CLI status");
     expect(stdout).toContain("not connected");
     expect(stdout).toContain("Secret storage: not configured");
+  });
+});
+
+describe("version flags", () => {
+  it.each(["-v", "--version"])("prints only the package version for %s", async (flag) => {
+    const { stderr, stdout } = await runCli([flag]);
+
+    expect(stderr).toBe("");
+    expect(stdout).toBe(`${CLI_VERSION}\n`);
   });
 });

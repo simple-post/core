@@ -68,7 +68,7 @@ The MCP server does not expose raw social platform credentials to the AI client.
 | `create_post`            | Publishes immediately or schedules for later                                                   |
 | `inspect_posts`          | Lists scheduled, posted, or failed posts, or inspects a single post by ID                      |
 | `show_schedule`          | Renders an interactive day, week, or month calendar with slots and post activity               |
-| `get_schedule`           | Returns a day, week, or month schedule as text and structured data without rendering UI         |
+| `get_schedule`           | Returns a day, week, or month schedule as text and structured data without rendering UI        |
 | `update_scheduled_post`  | Edits a future scheduled post after validating the resulting content                           |
 | `discard_scheduled_post` | Deletes a future scheduled post and its stored media                                           |
 
@@ -199,7 +199,10 @@ Discarding deletes the future scheduled SimplePost record and best-effort delete
 
 ### ChatGPT
 
-In ChatGPT, open Apps and Connectors, enable developer mode, then add the Scheduler app MCP URL:
+The SimplePost directory app is coming soon. Until it is listed, use ChatGPT on the web and add it manually. Open
+**Settings → Apps**, enable **Developer mode** under **Advanced settings**, then click **Create** and use the Scheduler
+app MCP URL as the MCP server endpoint. The ChatGPT plan or workspace must allow custom MCP apps with write actions.
+Scan the tools, create the app, and complete SimplePost OAuth when prompted:
 
 ```text
 https://your-scheduler-domain.example/mcp
@@ -213,7 +216,9 @@ claude mcp add simplepost https://your-scheduler-domain.example/mcp
 
 ### Claude Desktop, Cursor, Windsurf, and other clients
 
-Add a remote MCP server using the same `/mcp` URL. The client should start the OAuth flow automatically when it first needs authorization.
+The Claude directory listing is coming soon. Until it is listed, open **Settings → Connectors**, click **Add custom
+connector**, name it SimplePost, and add a remote MCP server using the same `/mcp` URL. Other clients can use the same
+URL. The client should start the OAuth flow automatically when it first needs authorization.
 
 ## What MCP Cannot Do
 

@@ -6,9 +6,25 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-07
+
+### Fixed
+
+- `simplepost -v` and `simplepost --version` now both print only the CLI version number.
+
+## [1.2.0] - 2026-08-07
+
 ### Added
 
 - DEV/Forem article publishing across the SDK, CLI, HTTP API, Scheduler app, and examples, including drafts, tags, series, canonical URLs, organizations, and self-hosted instances.
+- Cross-platform media-size validation, including optional byte-size metadata for URL-backed media.
+- X account and subscription context in publishing errors, with clearer guidance when long posts require Premium access.
+
+### Fixed
+
+- Telegram media uploads now use multipart requests and enforce the correct upload limits for photos and videos.
+- Threads preview links now use the current `threads.com` domain.
+- Bluesky and YouTube validate resolved media sizes before attempting provider uploads.
 
 ## [1.1.0] - 2026-07-10
 
@@ -72,6 +88,8 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 - Self-hosted HTTP server, Scheduler application, and remote MCP server.
 - Public MIT-licensed source, examples, platform guides, and release tooling.
 
-[Unreleased]: https://github.com/simple-post/core/compare/sdk-v1.1.0...HEAD
+[Unreleased]: https://github.com/simple-post/core/compare/cli-v1.2.1...HEAD
+[1.2.1]: https://github.com/simple-post/core/compare/cli-v1.2.0...cli-v1.2.1
+[1.2.0]: https://github.com/simple-post/core/compare/sdk-v1.1.0...sdk-v1.2.0
 [1.1.0]: https://github.com/simple-post/core/compare/sdk-v1.0.0...sdk-v1.1.0
 [1.0.0]: https://github.com/simple-post/core/tree/sdk-v1.0.0

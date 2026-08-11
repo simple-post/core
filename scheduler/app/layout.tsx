@@ -28,6 +28,17 @@ export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: "SimplePost Scheduler",
   description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+      noarchive: true,
+      nosnippet: true,
+      noimageindex: true,
+    },
+  },
   openGraph: {
     title: "SimplePost Scheduler",
     description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",

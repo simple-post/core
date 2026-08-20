@@ -68,7 +68,14 @@ it("continues to log application errors", async () => {
   expect(response.status).toBe(204);
   expect(getSessionMock).toHaveBeenCalledTimes(1);
   expect(logger.error).toHaveBeenCalledWith(
-    expect.objectContaining({ err: expect.objectContaining({ message: "Failed to publish" }) }),
+    expect.objectContaining({
+      err: expect.objectContaining({ message: "Failed to publish" }),
+      errorName: "TypeError",
+      errorMessage: "Failed to publish",
+      errorStack: expect.stringContaining("publishPost"),
+      clientUrl: undefined,
+      clientUserAgent: undefined,
+    }),
     "Unhandled browser error",
   );
 });

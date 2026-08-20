@@ -1,4 +1,18 @@
-import { formatTelegramLogNotification } from "@/lib/logger/telegram";
+import { context as otelContext } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
+
+import { formatTelegramLogNotification, sendTelegramLogNotification } from "@/lib/logger/telegram";
+
+jest.mock("@opentelemetry/api", () => ({
+  context: {
+    active: jest.fn(() => ({ active: true })),
+    with: jest.fn((_context: unknown, callback: () => unknown) => callback()),
+  },
+}));
+
+jest.mock("@opentelemetry/core", () => ({
+  suppressTracing: jest.fn(() => ({ suppressed: true })),
+}));
 
 describe("Telegram log notifications", () => {
   it("promotes publishing identifiers, reason, trace, and content into the alert", () => {
@@ -50,5 +64,40 @@ describe("Telegram log notifications", () => {
     expect(notification).toContain("<b>Account:</b> Creafex Lab");
     expect(notification).toContain("<b>Account ID:</b> account-123");
     expect(notification).not.toContain("<b>Handle:</b>");
+  });
+
+  it("suppresses tracing for the token-bearing Telegram request", async () => {
+    const previousToken = process.env.LOG_TELEGRAM_BOT_TOKEN;
+    const previousChatId = process.env.LOG_TELEGRAM_CHAT_ID;
+    const previousDisabled = process.env.LOG_TELEGRAM_DISABLED;
+    const originalFetch = global.fetch;
+
+    process.env.LOG_TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.LOG_TELEGRAM_CHAT_ID = "test-chat";
+    delete process.env.LOG_TELEGRAM_DISABLED;
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+
+    try {
+      await sendTelegramLogNotification({
+        level: "error",
+        message: "Test failure",
+        timestamp: "2026-08-20T12:00:00.000Z",
+      });
+
+      expect(suppressTracing).toHaveBeenCalledWith({ active: true });
+      expect(otelContext.with).toHaveBeenCalledWith({ suppressed: true }, expect.any(Function));
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.telegram.org/bottest-token/sendMessage",
+        expect.objectContaining({ method: "POST" }),
+      );
+    } finally {
+      global.fetch = originalFetch;
+      if (previousToken === undefined) delete process.env.LOG_TELEGRAM_BOT_TOKEN;
+      else process.env.LOG_TELEGRAM_BOT_TOKEN = previousToken;
+      if (previousChatId === undefined) delete process.env.LOG_TELEGRAM_CHAT_ID;
+      else process.env.LOG_TELEGRAM_CHAT_ID = previousChatId;
+      if (previousDisabled === undefined) delete process.env.LOG_TELEGRAM_DISABLED;
+      else process.env.LOG_TELEGRAM_DISABLED = previousDisabled;
+    }
   });
 });

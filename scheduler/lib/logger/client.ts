@@ -140,7 +140,11 @@ function postClientLog(payload: ClientErrorPayload): void {
 }
 
 function getClientUrl(): string | undefined {
-  return typeof window === "undefined" ? undefined : window.location.href;
+  if (typeof window === "undefined") return undefined;
+
+  // Query strings and fragments can contain OAuth codes, invite tokens, or
+  // other secrets that should not be copied into logs.
+  return `${window.location.origin}${window.location.pathname}`;
 }
 
 function getUserAgent(): string | undefined {

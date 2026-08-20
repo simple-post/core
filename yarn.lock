@@ -4813,6 +4813,7 @@ __metadata:
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/api-logs": "npm:^0.220.0"
+    "@opentelemetry/core": "npm:2.9.0"
     "@opentelemetry/exporter-logs-otlp-http": "npm:^0.220.0"
     "@opentelemetry/exporter-metrics-otlp-http": "npm:^0.220.0"
     "@opentelemetry/instrumentation": "npm:^0.220.0"

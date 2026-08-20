@@ -1,3 +1,6 @@
+import { context as otelContext } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
+
 type TelegramLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
 export interface TelegramLogNotification {
@@ -190,17 +193,22 @@ export async function sendTelegramLogNotification(notification: TelegramLogNotif
   const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: config.chatId,
-        text: formatTelegramLogNotification(notification),
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
+    // Telegram requires the bot token in the request path. Suppress tracing
+    // for this fetch so auto-instrumentation cannot export that secret as a
+    // span name or URL attribute.
+    const response = await otelContext.with(suppressTracing(otelContext.active()), () =>
+      fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: config.chatId,
+          text: formatTelegramLogNotification(notification),
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+        }),
+        signal: controller.signal,
       }),
-      signal: controller.signal,
-    });
+    );
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");

@@ -24,6 +24,11 @@ const clientErrorSchema = z.object({
 
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
+function getStringField(value: Record<string, unknown> | undefined, key: string): string | undefined {
+  const field = value?.[key];
+  return typeof field === "string" ? field : undefined;
+}
+
 function getClientKey(req: NextRequest): string {
   return (
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -99,11 +104,25 @@ export async function POST(req: NextRequest) {
 
     const session = await getSession(req).catch(() => null);
     const userId = session?.user?.id;
+    const errorName = getStringField(payload.error, "name") || getStringField(payload.error, "type");
+    const errorMessage = getStringField(payload.error, "message");
+    const errorStack = getStringField(payload.error, "stack");
+    const errorDigest = getStringField(payload.error, "digest") || getStringField(payload.context, "digest");
 
     const logPayload = {
       err: payload.error,
+      // OpenTelemetry log exporters may omit nested Pino objects such as
+      // `err`. Keep the structured object for stdout/Telegram and duplicate
+      // the diagnostic fields as primitives so SigNoz retains them.
+      errorName,
+      errorMessage,
+      errorStack,
+      errorDigest,
       userId,
       clientKey,
+      clientUrl: payload.url,
+      clientUserAgent: payload.userAgent,
+      clientTimestamp: payload.timestamp,
       client: {
         url: payload.url,
         userAgent: payload.userAgent,

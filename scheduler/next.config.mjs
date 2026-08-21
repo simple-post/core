@@ -21,6 +21,17 @@ const nextConfig = {
 
   allowedDevOrigins: ["http://localhost:3000", "dev.simplepost.social", "vlad.creafexlab.com"],
 
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "schedule.simplepost.dev" }],
+        destination: "https://app.simplepost.social/:path*",
+        permanent: true,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

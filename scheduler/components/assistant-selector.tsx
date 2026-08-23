@@ -22,7 +22,8 @@ type AssistantOption = {
   label: string;
   Icon: IconComponent;
   description: string;
-  commands: CodeBlock[];
+  action?: { href: string; label: string };
+  commands?: CodeBlock[];
 };
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social").replace(/\/+$/, "");
@@ -42,9 +43,8 @@ const options: AssistantOption[] = [
     id: "claude-desktop",
     label: "Claude",
     Icon: ClaudeIcon,
-    description:
-      "SimplePost is available in Claude's Connectors Directory. Open the listing, review its capabilities, click Connect, then sign in to SimplePost and approve Claude access.",
-    commands: [{ code: CLAUDE_DIRECTORY_URL, href: CLAUDE_DIRECTORY_URL, label: "Claude connector directory" }],
+    description: "Open SimplePost in Claude, click Connect, then approve access.",
+    action: { href: CLAUDE_DIRECTORY_URL, label: "Connect SimplePost in Claude" },
   },
   {
     id: "claude-code",
@@ -148,9 +148,15 @@ export function AssistantSelector() {
   return (
     <div className="grid min-w-0 gap-4">
       <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground">
-        <span className="font-semibold text-foreground">SimplePost is now available in Claude.</span> Connect it from
-        Claude&apos;s directory, or choose another assistant below and follow its MCP setup. OAuth handles sign-in, so
-        you do not need a SimplePost API key.
+        Using Claude?{" "}
+        <a
+          href={CLAUDE_DIRECTORY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
+          Connect SimplePost
+        </a>
+        . For other assistants, choose an option below.
       </div>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
@@ -187,11 +193,22 @@ export function AssistantSelector() {
           </div>
           <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
 
-          <div className="grid gap-4">
-            {activeOption.commands.map((command) => (
-              <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
-            ))}
-          </div>
+          {activeOption.action ? (
+            <Button asChild>
+              <a href={activeOption.action.href} target="_blank" rel="noopener noreferrer">
+                {activeOption.action.label}
+                <ExternalLink />
+              </a>
+            </Button>
+          ) : null}
+
+          {activeOption.commands?.length ? (
+            <div className="grid gap-4">
+              {activeOption.commands.map((command) => (
+                <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
+              ))}
+            </div>
+          ) : null}
         </section>
       </div>
     </div>

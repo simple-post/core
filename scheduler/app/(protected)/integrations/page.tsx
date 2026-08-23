@@ -22,9 +22,7 @@ export default async function IntegrationsPage({ searchParams }: IntegrationsPag
             <span className="section-kicker-label">AI Integrations</span>
           </div>
           <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">Connect an assistant</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Connect from Claude&apos;s directory, or pick another client and follow its MCP setup.
-          </p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose your assistant and connect.</p>
         </header>
 
         {onboarding === "ai" ? (

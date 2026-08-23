@@ -68,16 +68,14 @@ export default function McpDocsPage() {
             text and structured JSON; Show tools render shared MCP Apps UI in ChatGPT and Claude.
           </p>
           <p className="max-w-xl rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground mb-5">
-            <span className="font-semibold text-foreground">SimplePost is now available in Claude.</span>{" "}
             <a
               href={claudeDirectoryUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-foreground underline underline-offset-4 transition-colors hover:text-primary">
-              Open the connector directory listing
+              className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
+              Connect SimplePost to Claude
             </a>{" "}
-            and click Connect, or use the server URL below with another compatible client. OAuth handles sign-in; no
-            SimplePost API key is required.
+            and approve access. For other clients, use the server URL below.
           </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>

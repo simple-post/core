@@ -6,6 +6,8 @@ import { TerminalBlock } from "@/components/terminal-block";
 import { Button } from "@/components/ui/button";
 import { getMcpResourceUrl } from "@/lib/mcp/config";
 
+const claudeDirectoryUrl = "https://claude.ai/directory/simplepost";
+
 export const metadata = {
   title: "SimplePost MCP Server",
   description: "Public documentation for the SimplePost MCP server used by Claude, ChatGPT, and other MCP clients.",
@@ -66,9 +68,16 @@ export default function McpDocsPage() {
             text and structured JSON; Show tools render shared MCP Apps UI in ChatGPT and Claude.
           </p>
           <p className="max-w-xl rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground mb-5">
-            <span className="font-semibold text-foreground">App listings are coming soon.</span> Until SimplePost
-            appears in the ChatGPT and Claude directories, add the server URL below manually as a custom MCP app or
-            connector. OAuth handles sign-in; no SimplePost API key is required.
+            <span className="font-semibold text-foreground">SimplePost is now available in Claude.</span>{" "}
+            <a
+              href={claudeDirectoryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground underline underline-offset-4 transition-colors hover:text-primary">
+              Open the connector directory listing
+            </a>{" "}
+            and click Connect, or use the server URL below with another compatible client. OAuth handles sign-in; no
+            SimplePost API key is required.
           </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>

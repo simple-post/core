@@ -23,7 +23,7 @@ export default async function IntegrationsPage({ searchParams }: IntegrationsPag
           </div>
           <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">Connect an assistant</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Pick the client you use, then add the MCP URL or command manually. Directory app listings are coming soon.
+            Connect from Claude&apos;s directory, or pick another client and follow its MCP setup.
           </p>
         </header>
 

@@ -27,6 +27,7 @@ type AssistantOption = {
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social").replace(/\/+$/, "");
 const MCP_URL = `${APP_URL}/mcp`;
+const CLAUDE_DIRECTORY_URL = "https://claude.ai/directory/simplepost";
 
 const options: AssistantOption[] = [
   {
@@ -39,11 +40,11 @@ const options: AssistantOption[] = [
   },
   {
     id: "claude-desktop",
-    label: "Claude Desktop",
+    label: "Claude",
     Icon: ClaudeIcon,
     description:
-      "The directory listing is coming soon. In Claude or Claude Desktop, open Settings → Connectors, click Add custom connector, name it SimplePost, and paste this remote MCP URL. Click Connect and approve SimplePost OAuth.",
-    commands: [{ code: MCP_URL, href: MCP_URL, label: "Remote MCP URL" }],
+      "SimplePost is available in Claude's Connectors Directory. Open the listing, review its capabilities, click Connect, then sign in to SimplePost and approve Claude access.",
+    commands: [{ code: CLAUDE_DIRECTORY_URL, href: CLAUDE_DIRECTORY_URL, label: "Claude connector directory" }],
   },
   {
     id: "claude-code",
@@ -147,9 +148,9 @@ export function AssistantSelector() {
   return (
     <div className="grid min-w-0 gap-4">
       <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground">
-        <span className="font-semibold text-foreground">App listings are coming soon.</span> SimplePost is not in the
-        ChatGPT or Claude directories yet. Choose your assistant below and add the remote MCP URL manually. OAuth
-        handles sign-in, so you do not need a SimplePost API key.
+        <span className="font-semibold text-foreground">SimplePost is now available in Claude.</span> Connect it from
+        Claude&apos;s directory, or choose another assistant below and follow its MCP setup. OAuth handles sign-in, so
+        you do not need a SimplePost API key.
       </div>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">

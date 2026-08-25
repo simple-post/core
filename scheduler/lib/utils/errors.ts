@@ -179,6 +179,10 @@ function formatZodErrorMessage(error: ZodError): string {
 export function apiErrorLogPayload(error: ApiError): Record<string, unknown> {
   return {
     err: serializeError(error),
+    // Keep the canonical nested error while also exposing the two fields that
+    // alerting systems can reliably interpolate without nested-object access.
+    error: error.name,
+    errorMessage: error.message,
     statusCode: error.statusCode,
     code: error.code,
     ...error.logContext,

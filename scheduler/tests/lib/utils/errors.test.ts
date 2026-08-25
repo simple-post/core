@@ -37,6 +37,8 @@ describe("API error logging", () => {
         subscriptionStatus: "past_due",
         platform: "x",
         platformAccountId: "123456789",
+        error: "PaymentRequiredError",
+        errorMessage: "An active SimplePost subscription is required",
         statusCode: 402,
         code: "PAYMENT_REQUIRED",
       }),

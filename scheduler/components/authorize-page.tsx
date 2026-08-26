@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { Check } from "lucide-react";
@@ -27,6 +28,7 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   const [isLoading, setIsLoading] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingRequired, setBillingRequired] = useState(false);
 
   const paramsValid = config.validateParams(searchParams);
 
@@ -61,12 +63,14 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   const handleApprove = async () => {
     setIsLoading(true);
     setError(null);
+    setBillingRequired(false);
 
     try {
       const res = await config.authorize(searchParams);
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        setBillingRequired(res.status === 402 || data.code === "PAYMENT_REQUIRED");
         throw new Error(data.error_description || data.error || `Failed to authorize (${res.status})`);
       }
 
@@ -109,7 +113,14 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
 
         {error && (
           <div className="p-3 mb-4 text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-lg">
-            {error}
+            <p>{error}</p>
+            {billingRequired && (
+              <Button asChild size="sm" className="mt-3">
+                <Link href="/billing/plans" target="_blank" rel="noreferrer">
+                  Choose a plan
+                </Link>
+              </Button>
+            )}
           </div>
         )}
 

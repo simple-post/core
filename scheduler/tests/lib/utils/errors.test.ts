@@ -42,7 +42,7 @@ describe("API error logging", () => {
         statusCode: 402,
         code: "PAYMENT_REQUIRED",
       }),
-      "API error occurred",
+      "API request rejected",
     );
 
     await expect(response.json()).resolves.toEqual({

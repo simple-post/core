@@ -531,6 +531,7 @@ export const OAuthAuthorizeRequestSchema = z
     code_challenge_method: z.literal("S256").optional(),
     scope: z.string().optional(),
     resource: z.string().optional(),
+    nonce: z.string().max(512).optional(),
   })
   .meta({ id: "OAuthAuthorizeRequest" });
 
@@ -575,8 +576,18 @@ export const OAuthTokenResponseSchema = z
     token_type: z.literal("Bearer"),
     expires_in: z.number().int().positive(),
     scope: z.string(),
+    id_token: z.string().optional(),
   })
   .meta({ id: "OAuthTokenResponse" });
+
+export const OidcUserInfoSchema = z
+  .object({
+    sub: z.string(),
+    email: z.email(),
+    email_verified: z.boolean(),
+    name: z.string().optional(),
+  })
+  .meta({ id: "OidcUserInfo" });
 
 export const OAuthRevokeRequestSchema = z
   .object({

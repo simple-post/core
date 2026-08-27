@@ -52,12 +52,66 @@ export function prepareReviewMcpPayload(body: string): { structured: unknown; te
   }
 }
 
+interface ReviewToolCallSummary {
+  arguments: string;
+  error?: string;
+  succeeded: boolean;
+  toolName: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function findToolCall(value: unknown): Record<string, unknown> | null {
+  const messages = Array.isArray(value) ? value : [value];
+  return messages.map((message) => asRecord(message)).find((message) => message?.method === "tools/call") ?? null;
+}
+
+function firstResponseError(response: Record<string, unknown> | null): string | undefined {
+  const protocolError = asRecord(response?.error);
+  if (typeof protocolError?.message === "string") return protocolError.message;
+
+  const result = asRecord(response?.result);
+  if (result?.isError !== true) return undefined;
+
+  const content = Array.isArray(result.content) ? result.content : [];
+  const textBlock = content
+    .map((block) => asRecord(block))
+    .find((block) => block?.type === "text" && typeof block.text === "string");
+  return typeof textBlock?.text === "string" ? textBlock.text : "Tool returned an error";
+}
+
+export function prepareReviewToolCallSummary(
+  request: unknown,
+  response: unknown,
+  status: number,
+): ReviewToolCallSummary | null {
+  const toolCall = findToolCall(request);
+  if (!toolCall) return null;
+
+  const params = asRecord(toolCall.params);
+  const toolName = typeof params?.name === "string" ? params.name : "unknown";
+  const toolArguments = params?.arguments ?? {};
+  const responseMessage = Array.isArray(response) ? asRecord(response[0]) : asRecord(response);
+  const error = firstResponseError(responseMessage);
+  const succeeded = status >= 200 && status < 300 && !error;
+
+  return {
+    arguments: JSON.stringify(toolArguments),
+    ...(error ? { error } : {}),
+    succeeded,
+    toolName,
+  };
+}
+
 export async function logReviewMcpExchange(exchange: ReviewMcpExchange): Promise<void> {
   if (!shouldLogReviewMcpExchange(exchange.auth)) return;
 
   const request = prepareReviewMcpPayload(exchange.requestBody);
   const response = prepareReviewMcpPayload(exchange.responseBody);
-  const timestamp = new Date().toISOString();
 
   log.info(
     {
@@ -73,14 +127,16 @@ export async function logReviewMcpExchange(exchange: ReviewMcpExchange): Promise
     "Review/demo account MCP request and response",
   );
 
-  await sendTelegramReviewExchange({
-    requestId: exchange.requestId,
-    timestamp,
-    userId: exchange.auth.userId,
-    userEmail: exchange.auth.userEmail,
-    status: exchange.status,
-    durationMs: exchange.durationMs,
-    request: request.text,
-    response: response.text,
-  });
+  const toolCall = prepareReviewToolCallSummary(request.structured, response.structured, exchange.status);
+  if (toolCall) {
+    await sendTelegramReviewExchange({
+      userEmail: exchange.auth.userEmail,
+      toolName: toolCall.toolName,
+      arguments: toolCall.arguments,
+      succeeded: toolCall.succeeded,
+      ...(toolCall.error ? { error: toolCall.error } : {}),
+      status: exchange.status,
+      durationMs: exchange.durationMs,
+    });
+  }
 }

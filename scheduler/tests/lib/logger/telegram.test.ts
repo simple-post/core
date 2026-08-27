@@ -71,23 +71,23 @@ describe("Telegram log notifications", () => {
     expect(notification).not.toContain("<b>Handle:</b>");
   });
 
-  it("formats complete review request and response details", () => {
+  it("formats a compact demo tool-call notification", () => {
     const notification = formatTelegramReviewExchange({
-      requestId: "request-123",
-      timestamp: "2026-08-27T08:00:00.000Z",
       userEmail: "openai@simplepost.social",
-      userId: "review-user",
+      toolName: "validate_post",
+      arguments: '{"content":"Unique review post"}',
       status: 200,
       durationMs: 123,
-      request: '{"method":"tools/call"}',
-      response: '{"result":{"isValid":true}}',
+      succeeded: true,
     });
 
-    expect(notification).toContain("SimplePost review/demo MCP exchange");
-    expect(notification).toContain("openai@simplepost.social (review-user)");
-    expect(notification).toContain('{"method":"tools/call"}');
-    expect(notification).toContain('{"result":{"isValid":true}}');
-    expect(notification).toContain("not the full ChatGPT conversation");
+    expect(notification).toContain("SimplePost demo tool call");
+    expect(notification).toContain("Account: openai@simplepost.social");
+    expect(notification).toContain("Tool: validate_post");
+    expect(notification).toContain('Args: {"content":"Unique review post"}');
+    expect(notification).toContain("Result: Success");
+    expect(notification).toContain("HTTP: 200 · 123 ms");
+    expect(notification).not.toContain("MCP response");
   });
 
   it("suppresses tracing for the token-bearing Telegram request", async () => {
@@ -140,14 +140,12 @@ describe("Telegram log notifications", () => {
 
     try {
       await sendTelegramReviewExchange({
-        requestId: "request-123",
-        timestamp: "2026-08-27T08:00:00.000Z",
         userEmail: "openai@simplepost.social",
-        userId: "review-user",
+        toolName: "list_accounts",
+        arguments: "{}",
         status: 200,
         durationMs: 123,
-        request: '{"method":"tools/call"}',
-        response: '{"result":{}}',
+        succeeded: true,
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -157,7 +155,7 @@ describe("Telegram log notifications", () => {
       const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
       const body = JSON.parse(request.body as string) as { parse_mode?: string; text: string };
       expect(body.parse_mode).toBeUndefined();
-      expect(body.text).toContain("SimplePost review/demo MCP exchange");
+      expect(body.text).toContain("SimplePost demo tool call");
     } finally {
       global.fetch = originalFetch;
       if (previousToken === undefined) delete process.env.LOG_TELEGRAM_BOT_TOKEN;

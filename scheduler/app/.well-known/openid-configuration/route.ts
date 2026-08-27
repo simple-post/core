@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAppBaseUrl, getOidcJwksUrl, getOidcUserInfoUrl, MCP_AUTHORIZATION_SCOPES } from "@/lib/mcp/config";
 
-/**
- * RFC 8414 — OAuth 2.0 Authorization Server Metadata.
- * MCP clients discover OAuth endpoints from this document.
- */
+/** OpenID Connect Discovery 1.0 provider metadata. */
 export function GET() {
   const baseUrl = getAppBaseUrl();
 
@@ -14,18 +11,18 @@ export function GET() {
       issuer: baseUrl,
       authorization_endpoint: `${baseUrl}/oauth/authorize`,
       token_endpoint: `${baseUrl}/api/oauth/token`,
-      revocation_endpoint: `${baseUrl}/api/oauth/revoke`,
-      registration_endpoint: `${baseUrl}/api/oauth/register`,
       userinfo_endpoint: getOidcUserInfoUrl(),
       jwks_uri: getOidcJwksUrl(),
+      registration_endpoint: `${baseUrl}/api/oauth/register`,
+      revocation_endpoint: `${baseUrl}/api/oauth/revoke`,
       response_types_supported: ["code"],
+      response_modes_supported: ["query"],
       grant_types_supported: ["authorization_code"],
-      token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
-      revocation_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
-      code_challenge_methods_supported: ["S256"],
-      scopes_supported: MCP_AUTHORIZATION_SCOPES,
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["ES256"],
+      token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
+      code_challenge_methods_supported: ["S256"],
+      scopes_supported: MCP_AUTHORIZATION_SCOPES,
       claims_supported: ["sub", "email", "email_verified", "name"],
     },
     {

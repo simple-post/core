@@ -11,6 +11,7 @@ import oauthAuthorizeRoutes from "@/app/api/oauth/authorize/openapi";
 import oauthRegisterRoutes from "@/app/api/oauth/register/openapi";
 import oauthRevokeRoutes from "@/app/api/oauth/revoke/openapi";
 import oauthTokenRoutes from "@/app/api/oauth/token/openapi";
+import oauthUserInfoRoutes from "@/app/api/oauth/userinfo/openapi";
 import openApiRoutes from "@/app/api/openapi.json/openapi";
 import accountAvatarRoutes from "@/app/api/v1/accounts/[id]/avatar/openapi";
 import accountBoardsRoutes from "@/app/api/v1/accounts/[id]/boards/openapi";
@@ -50,6 +51,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   oauthRegisterRoutes,
   oauthRevokeRoutes,
   oauthTokenRoutes,
+  oauthUserInfoRoutes,
   accountsRoutes,
   accountRoutes,
   accountAvatarRoutes,

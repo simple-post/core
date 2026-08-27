@@ -2,7 +2,14 @@ import crypto from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 
-import { DEFAULT_MCP_SCOPE, getMcpResourceUrl, parseMcpScopes, resolveMcpResource } from "./config";
+import {
+  DEFAULT_MCP_SCOPE,
+  getMcpResourceUrl,
+  hasMcpAuthorizationScope,
+  parseMcpScopes,
+  resolveMcpResource,
+} from "./config";
+import { createOidcIdToken } from "./oidc";
 
 const TOKEN_PREFIX = "sp_mcp_";
 const CODE_BYTES = 32;
@@ -50,6 +57,7 @@ export async function createAuthorizationCode(params: {
   userId: string;
   redirectUri: string;
   resource?: string;
+  nonce?: string;
   codeChallenge: string;
   codeChallengeMethod: string;
   scope?: string;
@@ -65,6 +73,7 @@ export async function createAuthorizationCode(params: {
       userId: params.userId,
       redirectUri: params.redirectUri,
       resource,
+      nonce: params.nonce,
       codeChallenge: params.codeChallenge,
       codeChallengeMethod: params.codeChallengeMethod,
       scope: params.scope ?? DEFAULT_MCP_SCOPE,
@@ -77,6 +86,7 @@ export async function createAuthorizationCode(params: {
 
 export type TokenExchangeError =
   | "code_not_found"
+  | "user_not_found"
   | "client_mismatch"
   | "redirect_uri_mismatch"
   | "resource_mismatch"
@@ -84,7 +94,7 @@ export type TokenExchangeError =
   | "pkce_failed";
 
 export type TokenExchangeResult =
-  | { ok: true; accessToken: string; expiresIn: number; scope: string }
+  | { ok: true; accessToken: string; expiresIn: number; idToken?: string; scope: string }
   | { ok: false; error: TokenExchangeError };
 
 /** Exchange an authorization code for an access token. */
@@ -120,6 +130,10 @@ export async function exchangeCodeForToken(params: {
   const accessToken = generateAccessToken();
   const tokenHash = hashValue(accessToken);
   const expiresIn = 90 * 24 * 60 * 60; // 90 days in seconds
+  const scope = authCode.scope ?? DEFAULT_MCP_SCOPE;
+  const includesOpenId = hasMcpAuthorizationScope(scope, "openid");
+  const user = includesOpenId ? await prisma.user.findUnique({ where: { id: authCode.userId } }) : null;
+  if (includesOpenId && !user) return { ok: false, error: "user_not_found" };
 
   await prisma.mcpAccessToken.create({
     data: {
@@ -132,7 +146,22 @@ export async function exchangeCodeForToken(params: {
     },
   });
 
-  return { ok: true, accessToken, expiresIn, scope: authCode.scope ?? DEFAULT_MCP_SCOPE };
+  let idToken: string | undefined;
+  if (user) {
+    idToken = createOidcIdToken({
+      clientId: authCode.clientId,
+      includeEmail: hasMcpAuthorizationScope(scope, "email"),
+      identity: {
+        email: user.email,
+        emailVerified: user.emailVerified,
+        name: user.name,
+        userId: user.id,
+      },
+      nonce: authCode.nonce,
+    });
+  }
+
+  return { ok: true, accessToken, expiresIn, idToken, scope };
 }
 
 /** Authenticate an MCP access token. Returns user info or null. */
@@ -164,6 +193,7 @@ export async function authenticateMcpToken(token: string, resource = getMcpResou
       id: mcpToken.user.id,
       name: mcpToken.user.name,
       email: mcpToken.user.email,
+      emailVerified: mcpToken.user.emailVerified,
       image: mcpToken.user.image,
     },
     session: {

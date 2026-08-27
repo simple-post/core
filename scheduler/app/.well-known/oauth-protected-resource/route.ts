@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAppBaseUrl, getMcpDocumentationUrl, getMcpResourceUrl, MCP_SCOPES } from "@/lib/mcp/config";
+import { getAppBaseUrl, getMcpDocumentationUrl, getMcpResourceUrl, MCP_AUTHORIZATION_SCOPES } from "@/lib/mcp/config";
 
 /**
  * RFC 9728 — OAuth 2.0 Protected Resource Metadata.
@@ -13,7 +13,7 @@ export function GET() {
     {
       resource: getMcpResourceUrl(),
       authorization_servers: [baseUrl],
-      scopes_supported: MCP_SCOPES,
+      scopes_supported: MCP_AUTHORIZATION_SCOPES,
       resource_documentation: getMcpDocumentationUrl(),
       bearer_methods_supported: ["header"],
     },

@@ -32,6 +32,7 @@ export default function OAuthAuthorizePage() {
               code_challenge_method: params.get("code_challenge_method") || "S256",
               scope: params.get("scope"),
               resource: params.get("resource"),
+              nonce: params.get("nonce"),
             }),
           }),
         buildCancelUrl: (params) => {

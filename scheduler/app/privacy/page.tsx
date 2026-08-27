@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Privacy <span className="text-primary">policy</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: July 10, 2026
+            Last updated: August 27, 2026
           </p>
         </div>
 
@@ -102,6 +102,14 @@ export default function PrivacyPage() {
               tool requests containing draft post text, selected SimplePost account IDs, posting mode, and scheduled
               time. SimplePost may return connected account metadata, validation results, previews, and posting results
               to the authorized client. We do not return social platform access tokens or credentials through MCP tools.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              When one of our designated review/demo accounts is used, we log the MCP tool request payloads and tool
+              results sent across the SimplePost server boundary so we can diagnose submission tests. These logs apply
+              only to those accounts, redact known credential fields, and may be sent to a private SimplePost operator
+              chat through Telegram. SimplePost does not receive or reconstruct the full ChatGPT conversation. Review
+              logs are retained for up to 30 days unless they are needed longer to investigate an active security or
+              reliability issue.
             </p>
           </section>
 

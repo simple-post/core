@@ -11,6 +11,17 @@ export interface TelegramLogNotification {
   error?: unknown;
 }
 
+export interface TelegramReviewExchangeNotification {
+  requestId: string;
+  timestamp: string;
+  userEmail: string;
+  userId: string;
+  durationMs: number;
+  status: number;
+  request: string;
+  response: string;
+}
+
 const LEVEL_VALUES: Record<TelegramLogLevel, number> = {
   trace: 10,
   debug: 20,
@@ -21,10 +32,15 @@ const LEVEL_VALUES: Record<TelegramLogLevel, number> = {
 };
 
 const DEFAULT_MAX_PER_MINUTE = 10;
+const DEFAULT_REVIEW_MAX_PER_MINUTE = 60;
 const MAX_MESSAGE_LENGTH = 3900;
+const REVIEW_CHUNK_LENGTH = 3500;
+const MAX_REVIEW_PAYLOAD_LENGTH = 24_000;
 
 let windowStartedAt = 0;
 let sentInWindow = 0;
+let reviewWindowStartedAt = 0;
+let reviewExchangesInWindow = 0;
 
 function getTelegramConfig() {
   const botToken = process.env.LOG_TELEGRAM_BOT_TOKEN;
@@ -37,12 +53,17 @@ function getTelegramConfig() {
   const configuredLevel = process.env.LOG_TELEGRAM_MIN_LEVEL as TelegramLogLevel | undefined;
   const minLevel = configuredLevel && configuredLevel in LEVEL_VALUES ? configuredLevel : "error";
   const maxPerMinute = Number.parseInt(process.env.LOG_TELEGRAM_MAX_PER_MINUTE || "", 10);
+  const reviewMaxPerMinute = Number.parseInt(process.env.LOG_TELEGRAM_REVIEW_MAX_PER_MINUTE || "", 10);
 
   return {
     botToken,
     chatId,
     minLevel,
     maxPerMinute: Number.isFinite(maxPerMinute) && maxPerMinute > 0 ? maxPerMinute : DEFAULT_MAX_PER_MINUTE,
+    reviewMaxPerMinute:
+      Number.isFinite(reviewMaxPerMinute) && reviewMaxPerMinute > 0
+        ? reviewMaxPerMinute
+        : DEFAULT_REVIEW_MAX_PER_MINUTE,
   };
 }
 
@@ -72,6 +93,21 @@ function consumeRateLimit(maxPerMinute: number): boolean {
   }
 
   sentInWindow += 1;
+  return true;
+}
+
+function consumeReviewRateLimit(maxPerMinute: number): boolean {
+  const now = Date.now();
+  if (now - reviewWindowStartedAt > 60_000) {
+    reviewWindowStartedAt = now;
+    reviewExchangesInWindow = 0;
+  }
+
+  if (reviewExchangesInWindow >= maxPerMinute) {
+    return false;
+  }
+
+  reviewExchangesInWindow += 1;
   return true;
 }
 
@@ -178,32 +214,57 @@ export function formatTelegramLogNotification(notification: TelegramLogNotificat
   return truncate(lines.join("\n"), MAX_MESSAGE_LENGTH);
 }
 
-export async function sendTelegramLogNotification(notification: TelegramLogNotification): Promise<void> {
-  const config = getTelegramConfig();
-  if (!config || !shouldNotify(notification.level, config.minLevel)) {
-    return;
-  }
+function truncateReviewPayload(value: string): string {
+  if (value.length <= MAX_REVIEW_PAYLOAD_LENGTH) return value;
+  return `${value.slice(0, MAX_REVIEW_PAYLOAD_LENGTH)}\n... [truncated after ${MAX_REVIEW_PAYLOAD_LENGTH} characters]`;
+}
 
-  if (!consumeRateLimit(config.maxPerMinute)) {
-    console.warn("Telegram log notification skipped because LOG_TELEGRAM_MAX_PER_MINUTE was reached.");
-    return;
-  }
+export function formatTelegramReviewExchange(notification: TelegramReviewExchangeNotification): string {
+  return truncateReviewPayload(
+    [
+      "SimplePost review/demo MCP exchange",
+      `Time: ${notification.timestamp}`,
+      `User: ${notification.userEmail} (${notification.userId})`,
+      `Request: ${notification.requestId}`,
+      `HTTP: ${notification.status}`,
+      `Duration: ${notification.durationMs} ms`,
+      "",
+      "MCP request (the tool payload sent to SimplePost; not the full ChatGPT conversation):",
+      notification.request,
+      "",
+      "MCP response:",
+      notification.response,
+    ].join("\n"),
+  );
+}
 
+function splitTelegramText(value: string): string[] {
+  const chunks: string[] = [];
+  for (let offset = 0; offset < value.length; offset += REVIEW_CHUNK_LENGTH) {
+    chunks.push(value.slice(offset, offset + REVIEW_CHUNK_LENGTH));
+  }
+  return chunks.length > 0 ? chunks : [""];
+}
+
+async function postTelegramMessage(
+  config: NonNullable<ReturnType<typeof getTelegramConfig>>,
+  text: string,
+  parseMode?: "HTML",
+): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
     // Telegram requires the bot token in the request path. Suppress tracing
-    // for this fetch so auto-instrumentation cannot export that secret as a
-    // span name or URL attribute.
+    // so auto-instrumentation cannot export that secret as a URL attribute.
     const response = await otelContext.with(suppressTracing(otelContext.active()), () =>
       fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: config.chatId,
-          text: formatTelegramLogNotification(notification),
-          parse_mode: "HTML",
+          text,
+          ...(parseMode ? { parse_mode: parseMode } : {}),
           disable_web_page_preview: true,
         }),
         signal: controller.signal,
@@ -220,5 +281,40 @@ export async function sendTelegramLogNotification(notification: TelegramLogNotif
     console.error("Telegram log notification failed:", error);
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+export async function sendTelegramLogNotification(notification: TelegramLogNotification): Promise<void> {
+  const config = getTelegramConfig();
+  if (!config || !shouldNotify(notification.level, config.minLevel)) {
+    return;
+  }
+
+  if (!consumeRateLimit(config.maxPerMinute)) {
+    console.warn("Telegram log notification skipped because LOG_TELEGRAM_MAX_PER_MINUTE was reached.");
+    return;
+  }
+
+  await postTelegramMessage(config, formatTelegramLogNotification(notification), "HTML");
+}
+
+/**
+ * Send a review-account MCP exchange regardless of the normal minimum log
+ * level. Review events have their own rate limit because a submission test can
+ * make several successful tool calls in quick succession.
+ */
+export async function sendTelegramReviewExchange(notification: TelegramReviewExchangeNotification): Promise<void> {
+  const config = getTelegramConfig();
+  if (!config) return;
+
+  if (!consumeReviewRateLimit(config.reviewMaxPerMinute)) {
+    console.warn("Telegram review notification skipped because LOG_TELEGRAM_REVIEW_MAX_PER_MINUTE was reached.");
+    return;
+  }
+
+  const chunks = splitTelegramText(formatTelegramReviewExchange(notification));
+  for (const [index, chunk] of chunks.entries()) {
+    const part = chunks.length > 1 ? `Review MCP log ${index + 1}/${chunks.length}\n` : "";
+    await postTelegramMessage(config, `${part}${chunk}`);
   }
 }

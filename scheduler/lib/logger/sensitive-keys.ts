@@ -23,6 +23,8 @@ export const SENSITIVE_KEYS = [
   "client_secret",
   "botToken",
   "bot_token",
+  "downloadUrl",
+  "download_url",
 ] as const;
 
 /**
@@ -37,6 +39,7 @@ export const SENSITIVE_KEY_SUBSTRINGS = [
   "cookie",
   "apikey",
   "credential",
+  "downloadurl",
 ] as const;
 
 /** Normalize a key to lowercase with separators stripped, then substring-match. */

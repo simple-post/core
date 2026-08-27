@@ -14,8 +14,12 @@ const TEST_USERS: Record<string, TestUser> = {
   },
 };
 
+export function isTestUserEmail(email: string | null | undefined): boolean {
+  return typeof email === "string" && Object.hasOwn(TEST_USERS, email.trim().toLowerCase());
+}
+
 export function authenticateTestUser(email: string, password: string): Pick<TestUser, "name"> | undefined {
-  const testUser = TEST_USERS[email];
+  const testUser = TEST_USERS[email.trim().toLowerCase()];
   if (!testUser || password !== testUser.password) {
     return undefined;
   }

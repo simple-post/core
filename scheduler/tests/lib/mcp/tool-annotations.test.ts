@@ -76,6 +76,7 @@ describe("ChatGPT app submission metadata", () => {
 
       expect(testCase.user_prompt).not.toMatch(/@clompton|edmundclompton|edmund\.clompton@gmail\.com/i);
       expect(testCase.user_prompt).not.toMatch(/that same returned|same returned draft/i);
+      expect(testCase.user_prompt).not.toMatch(/\b(two|both|exactly\s+\d+|[2-9]\s+accounts?)\b/i);
       expect(testCase.expected_output.length).toBeLessThanOrEqual(100);
 
       if (triggeredTools.includes("update_scheduled_post") || triggeredTools.includes("discard_scheduled_post")) {
@@ -88,9 +89,9 @@ describe("ChatGPT app submission metadata", () => {
       parseTriggeredTools(testCase.tools_triggered).includes("create_post"),
     );
     for (const testCase of createCases) {
-      expect(testCase.user_prompt).toMatch(/current UTC date and time/i);
-      expect(testCase.user_prompt).toMatch(/random 8-character suffix/i);
-      expect(testCase.user_prompt).toMatch(/Do not schedule or publish/i);
+      expect(testCase.user_prompt).toMatch(/connected X account only/i);
+      expect(testCase.user_prompt).toMatch(/current Unix timestamp in seconds/i);
+      expect(testCase.user_prompt).toMatch(/save a draft/i);
     }
 
     const uploadCase = submission.test_cases.find((testCase) =>

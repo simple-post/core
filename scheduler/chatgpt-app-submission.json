@@ -165,43 +165,43 @@
   },
   "test_cases": [
     {
-      "description": "List connected social accounts before starting a posting workflow.",
-      "user_prompt": "Which SimplePost accounts can I post from?",
+      "description": "List all social accounts currently connected to the review account.",
+      "user_prompt": "List my connected SimplePost accounts.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts",
-      "expected_output": "Shows the user's connected SimplePost accounts.",
+      "expected_output": "Returns the connected accounts.",
       "expected_output_url": null
     },
     {
-      "description": "Validate a text-only draft for X.",
-      "user_prompt": "Use SimplePost to check whether this post is valid for my X account @clompton: Shipping the new release notes today.",
+      "description": "Validate a unique text-only post for the connected X account.",
+      "user_prompt": "Validate this text-only post for my connected X account: SimplePost validation test <current Unix timestamp in seconds>.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, validate_post",
-      "expected_output": "Reports whether the draft is valid and any relevant issues.",
+      "expected_output": "Returns a validation result or a clear explanation of any issue.",
       "expected_output_url": null
     },
     {
-      "description": "Show an Instagram post preview with a public media URL.",
-      "user_prompt": "Use SimplePost to show how this would look on my Instagram account edmundclompton using https://app.simplepost.social/simplepost-logo.png: New product photos are live.",
+      "description": "Show a standalone preview for the connected X account.",
+      "user_prompt": "Preview this post for my connected X account: SimplePost preview test <current Unix timestamp in seconds>.",
       "file_attachment_urls": null,
       "tools_triggered": "list_accounts, show_post_preview",
-      "expected_output": "Shows a visual preview of the requested post using the MCP UI.",
+      "expected_output": "Shows a preview or clearly explains why it cannot be shown.",
       "expected_output_url": null
     },
     {
-      "description": "Create a temporary LinkedIn draft and schedule it.",
-      "user_prompt": "Use SimplePost to save a temporary draft on my LinkedIn account edmund.clompton@gmail.com with text 'Review managed post flow', then schedule that same returned draft for tomorrow at 18:00 Europe/Berlin.",
+      "description": "Create one unique draft for the connected X account.",
+      "user_prompt": "Save a draft for my connected X account only with this text: SimplePost review draft <current Unix timestamp in seconds>.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post, update_scheduled_post",
-      "expected_output": "Shows that the temporary post was created and scheduled for the requested time.",
+      "tools_triggered": "list_accounts, create_post",
+      "expected_output": "Saves the draft or clearly explains why it could not be saved.",
       "expected_output_url": null
     },
     {
-      "description": "Open an interactive weekly schedule.",
-      "user_prompt": "Show my SimplePost schedule for this week in Europe/Berlin.",
+      "description": "Open a standalone schedule view for the review account.",
+      "user_prompt": "Show my SimplePost schedule for the current week in UTC.",
       "file_attachment_urls": null,
       "tools_triggered": "show_schedule",
-      "expected_output": "Shows the requested weekly SimplePost schedule.",
+      "expected_output": "Shows the schedule or a clear empty-state result.",
       "expected_output_url": null
     }
   ],
@@ -211,7 +211,7 @@
       "user_prompt": "Schedule a team meeting tomorrow at 10 AM.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "Does not use SimplePost for the calendar request.",
+      "expected_output": "Handles the request without using SimplePost because it is not a social-posting task.",
       "expected_output_url": null
     },
     {
@@ -219,7 +219,7 @@
       "user_prompt": "What is 23 + 19?",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "Answers the question without using SimplePost.",
+      "expected_output": "Handles the request without using SimplePost because it is unrelated to the app.",
       "expected_output_url": null
     },
     {
@@ -227,7 +227,7 @@
       "user_prompt": "Write three short caption ideas for a product launch.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "Provides writing help without using SimplePost.",
+      "expected_output": "Handles the request without using SimplePost because no posting action was requested.",
       "expected_output_url": null
     }
   ]

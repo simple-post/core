@@ -1,4 +1,4 @@
-import { authenticateTestUser } from "@/lib/auth/test-users";
+import { authenticateTestUser, isTestUserEmail } from "@/lib/auth/test-users";
 
 describe("authenticateTestUser", () => {
   it.each([
@@ -14,5 +14,12 @@ describe("authenticateTestUser", () => {
     ["someone@example.com", "demo"],
   ])("rejects invalid credentials for %s", (email, password) => {
     expect(authenticateTestUser(email, password)).toBeUndefined();
+  });
+
+  it("identifies only the configured review accounts", () => {
+    expect(isTestUserEmail(" DEMO@simplepost.social ")).toBe(true);
+    expect(isTestUserEmail("openai@simplepost.social")).toBe(true);
+    expect(isTestUserEmail("someone@example.com")).toBe(false);
+    expect(isTestUserEmail(undefined)).toBe(false);
   });
 });

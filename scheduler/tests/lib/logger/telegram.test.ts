@@ -1,7 +1,12 @@
 import { context as otelContext } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 
-import { formatTelegramLogNotification, sendTelegramLogNotification } from "@/lib/logger/telegram";
+import {
+  formatTelegramLogNotification,
+  formatTelegramReviewExchange,
+  sendTelegramLogNotification,
+  sendTelegramReviewExchange,
+} from "@/lib/logger/telegram";
 
 jest.mock("@opentelemetry/api", () => ({
   context: {
@@ -66,6 +71,25 @@ describe("Telegram log notifications", () => {
     expect(notification).not.toContain("<b>Handle:</b>");
   });
 
+  it("formats complete review request and response details", () => {
+    const notification = formatTelegramReviewExchange({
+      requestId: "request-123",
+      timestamp: "2026-08-27T08:00:00.000Z",
+      userEmail: "openai@simplepost.social",
+      userId: "review-user",
+      status: 200,
+      durationMs: 123,
+      request: '{"method":"tools/call"}',
+      response: '{"result":{"isValid":true}}',
+    });
+
+    expect(notification).toContain("SimplePost review/demo MCP exchange");
+    expect(notification).toContain("openai@simplepost.social (review-user)");
+    expect(notification).toContain('{"method":"tools/call"}');
+    expect(notification).toContain('{"result":{"isValid":true}}');
+    expect(notification).toContain("not the full ChatGPT conversation");
+  });
+
   it("suppresses tracing for the token-bearing Telegram request", async () => {
     const previousToken = process.env.LOG_TELEGRAM_BOT_TOKEN;
     const previousChatId = process.env.LOG_TELEGRAM_CHAT_ID;
@@ -98,6 +122,52 @@ describe("Telegram log notifications", () => {
       else process.env.LOG_TELEGRAM_CHAT_ID = previousChatId;
       if (previousDisabled === undefined) delete process.env.LOG_TELEGRAM_DISABLED;
       else process.env.LOG_TELEGRAM_DISABLED = previousDisabled;
+    }
+  });
+
+  it("sends review exchanges even when normal Telegram logs require errors", async () => {
+    const previousToken = process.env.LOG_TELEGRAM_BOT_TOKEN;
+    const previousChatId = process.env.LOG_TELEGRAM_CHAT_ID;
+    const previousDisabled = process.env.LOG_TELEGRAM_DISABLED;
+    const previousMinLevel = process.env.LOG_TELEGRAM_MIN_LEVEL;
+    const originalFetch = global.fetch;
+
+    process.env.LOG_TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.LOG_TELEGRAM_CHAT_ID = "test-chat";
+    process.env.LOG_TELEGRAM_MIN_LEVEL = "fatal";
+    delete process.env.LOG_TELEGRAM_DISABLED;
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+
+    try {
+      await sendTelegramReviewExchange({
+        requestId: "request-123",
+        timestamp: "2026-08-27T08:00:00.000Z",
+        userEmail: "openai@simplepost.social",
+        userId: "review-user",
+        status: 200,
+        durationMs: 123,
+        request: '{"method":"tools/call"}',
+        response: '{"result":{}}',
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.telegram.org/bottest-token/sendMessage",
+        expect.objectContaining({ method: "POST" }),
+      );
+      const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const body = JSON.parse(request.body as string) as { parse_mode?: string; text: string };
+      expect(body.parse_mode).toBeUndefined();
+      expect(body.text).toContain("SimplePost review/demo MCP exchange");
+    } finally {
+      global.fetch = originalFetch;
+      if (previousToken === undefined) delete process.env.LOG_TELEGRAM_BOT_TOKEN;
+      else process.env.LOG_TELEGRAM_BOT_TOKEN = previousToken;
+      if (previousChatId === undefined) delete process.env.LOG_TELEGRAM_CHAT_ID;
+      else process.env.LOG_TELEGRAM_CHAT_ID = previousChatId;
+      if (previousDisabled === undefined) delete process.env.LOG_TELEGRAM_DISABLED;
+      else process.env.LOG_TELEGRAM_DISABLED = previousDisabled;
+      if (previousMinLevel === undefined) delete process.env.LOG_TELEGRAM_MIN_LEVEL;
+      else process.env.LOG_TELEGRAM_MIN_LEVEL = previousMinLevel;
     }
   });
 });

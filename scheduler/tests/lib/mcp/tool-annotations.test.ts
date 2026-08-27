@@ -16,6 +16,7 @@ type SubmissionTool = {
 };
 
 type SubmissionCase = {
+  expected_output: string;
   user_prompt: string;
   file_attachment_urls: string[] | null;
   tools_triggered: string | null;
@@ -73,10 +74,23 @@ describe("ChatGPT app submission metadata", () => {
         expect(knownToolNameStrings).toContain(tool);
       }
 
+      expect(testCase.user_prompt).not.toMatch(/@clompton|edmundclompton|edmund\.clompton@gmail\.com/i);
+      expect(testCase.user_prompt).not.toMatch(/that same returned|same returned draft/i);
+      expect(testCase.expected_output.length).toBeLessThanOrEqual(100);
+
       if (triggeredTools.includes("update_scheduled_post") || triggeredTools.includes("discard_scheduled_post")) {
         expect(triggeredTools).toContain("create_post");
         expect(testCase.user_prompt).not.toMatch(/post_123/i);
       }
+    }
+
+    const createCases = submission.test_cases.filter((testCase) =>
+      parseTriggeredTools(testCase.tools_triggered).includes("create_post"),
+    );
+    for (const testCase of createCases) {
+      expect(testCase.user_prompt).toMatch(/current UTC date and time/i);
+      expect(testCase.user_prompt).toMatch(/random 8-character suffix/i);
+      expect(testCase.user_prompt).toMatch(/Do not schedule or publish/i);
     }
 
     const uploadCase = submission.test_cases.find((testCase) =>

@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
@@ -7,6 +7,7 @@ import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
+import { logReviewMcpExchange, shouldLogReviewMcpExchange } from "@/lib/mcp/review-logging";
 import { registerTools, SERVER_INSTRUCTIONS, type McpToolAuthContext } from "@/lib/mcp/server";
 import { apiErrorLogPayload, PaymentRequiredError } from "@/lib/utils/errors";
 
@@ -31,6 +32,7 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
 
   return {
     userId: session.user.id,
+    userEmail: session.user.email,
     scope: session.session.scope,
   };
 }
@@ -98,6 +100,47 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
   return transport.handleRequest(req);
 }
 
+async function recordReviewExchange(
+  authContext: McpToolAuthContext,
+  requestBody: Promise<string> | undefined,
+  responseBody: Promise<string>,
+  responseStatus: number,
+  requestId: string,
+  startedAt: number,
+): Promise<void> {
+  if (!requestBody) return;
+
+  try {
+    const [resolvedRequestBody, resolvedResponseBody] = await Promise.all([requestBody, responseBody]);
+    await logReviewMcpExchange({
+      auth: authContext,
+      requestBody: resolvedRequestBody,
+      responseBody: resolvedResponseBody,
+      requestId,
+      status: responseStatus,
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (error) {
+    log.error(
+      { err: serializeError(error), requestId, userId: authContext.userId },
+      "Failed to record review MCP exchange",
+    );
+  }
+}
+
+function scheduleReviewExchange(
+  authContext: McpToolAuthContext,
+  requestBody: Promise<string> | undefined,
+  response: Response,
+  requestId: string,
+  startedAt: number,
+): void {
+  if (!requestBody) return;
+
+  const responseBody = response.clone().text();
+  after(() => recordReviewExchange(authContext, requestBody, responseBody, response.status, requestId, startedAt));
+}
+
 /**
  * POST /mcp — Handle MCP JSON-RPC requests via Streamable HTTP.
  */
@@ -110,11 +153,19 @@ export async function POST(req: NextRequest) {
     return unauthorizedResponse();
   }
 
+  const startedAt = Date.now();
+  const requestId = crypto.randomUUID();
+  // Clone before the MCP transport consumes the body. The server boundary only
+  // contains JSON-RPC tool payloads, not the complete ChatGPT conversation.
+  const reviewRequestBody = shouldLogReviewMcpExchange(authContext) ? req.clone().text() : undefined;
+
   try {
-    return await handleMcpRequest(req, authContext);
+    const response = await handleMcpRequest(req, authContext);
+    scheduleReviewExchange(authContext, reviewRequestBody, response, requestId, startedAt);
+    return response;
   } catch (error) {
     log.error({ err: serializeError(error), userId: authContext.userId }, "MCP request error");
-    return new Response(
+    const response = new Response(
       JSON.stringify({
         jsonrpc: "2.0",
         error: { code: -32_603, message: error instanceof Error ? error.message : "Internal error" },
@@ -122,6 +173,8 @@ export async function POST(req: NextRequest) {
       }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
+    scheduleReviewExchange(authContext, reviewRequestBody, response, requestId, startedAt);
+    return response;
   }
 }
 

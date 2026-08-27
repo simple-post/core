@@ -316,6 +316,10 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
                   </svg>
                   Sign in with email link
                 </Button>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Review/demo account MCP tool requests and results are logged for debugging and may be sent to a
+                  private SimplePost operator chat on Telegram. SimplePost cannot see the full ChatGPT conversation.
+                </p>
               </form>
             ) : (
               <form onSubmit={handleMagicLinkSignIn} className="space-y-3">

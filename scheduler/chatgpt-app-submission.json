@@ -200,7 +200,7 @@
       "description": "Open a standalone schedule view for the review account.",
       "user_prompt": "Show my SimplePost schedule for the current week in UTC.",
       "file_attachment_urls": null,
-      "tools_triggered": "show_schedule",
+      "tools_triggered": "show_schedule, inspect_posts",
       "expected_output": "Shows the schedule or a clear empty-state result.",
       "expected_output_url": null
     }

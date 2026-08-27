@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (nonce !== undefined && (typeof nonce !== "string" || nonce.length > 512)) {
+    if (nonce != null && (typeof nonce !== "string" || nonce.length > 512)) {
       return NextResponse.json(
         { error: "invalid_request", error_description: "nonce must be a string of at most 512 characters" },
         { status: 400 },
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       redirectUri: redirect_uri,
       resource: resolvedResource,
-      nonce,
+      nonce: typeof nonce === "string" && nonce.length > 0 ? nonce : undefined,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method || "S256",
       scope: scopeResult.scope,

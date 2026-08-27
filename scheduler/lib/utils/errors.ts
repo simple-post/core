@@ -73,7 +73,9 @@ export class ApiError extends Error {
     public logContext?: Record<string, unknown>,
   ) {
     super(message);
-    this.name = this.constructor.name;
+    // Constructor names are minified in production bundles. Subclasses assign
+    // a stable public name so logs and alerts never degrade to values like `i`.
+    this.name = "ApiError";
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -84,6 +86,7 @@ export class ApiError extends Error {
 export class UnauthorizedError extends ApiError {
   constructor(message: string = "Unauthorized") {
     super(message, 401, "UNAUTHORIZED");
+    this.name = "UnauthorizedError";
   }
 }
 
@@ -93,6 +96,7 @@ export class UnauthorizedError extends ApiError {
 export class PaymentRequiredError extends ApiError {
   constructor(message: string = "An active subscription is required", logContext?: Record<string, unknown>) {
     super(message, 402, "PAYMENT_REQUIRED", logContext);
+    this.name = "PaymentRequiredError";
   }
 }
 
@@ -102,6 +106,7 @@ export class PaymentRequiredError extends ApiError {
 export class ForbiddenError extends ApiError {
   constructor(message: string = "Forbidden", logContext?: Record<string, unknown>) {
     super(message, 403, "FORBIDDEN", logContext);
+    this.name = "ForbiddenError";
   }
 }
 
@@ -111,6 +116,7 @@ export class ForbiddenError extends ApiError {
 export class NotFoundError extends ApiError {
   constructor(message: string = "Resource not found") {
     super(message, 404, "NOT_FOUND");
+    this.name = "NotFoundError";
   }
 }
 
@@ -120,6 +126,7 @@ export class NotFoundError extends ApiError {
 export class BadRequestError extends ApiError {
   constructor(message: string = "Bad request") {
     super(message, 400, "BAD_REQUEST");
+    this.name = "BadRequestError";
   }
 }
 
@@ -132,6 +139,7 @@ export class ValidationError extends ApiError {
     message: string = "Validation failed",
   ) {
     super(message, 400, "VALIDATION_ERROR");
+    this.name = "ValidationError";
   }
 }
 
@@ -141,6 +149,7 @@ export class ValidationError extends ApiError {
 export class ConflictError extends ApiError {
   constructor(message: string = "Resource conflict") {
     super(message, 409, "CONFLICT");
+    this.name = "ConflictError";
   }
 }
 
@@ -150,6 +159,7 @@ export class ConflictError extends ApiError {
 export class GoneError extends ApiError {
   constructor(message: string = "Resource is no longer available") {
     super(message, 410, "GONE");
+    this.name = "GoneError";
   }
 }
 
@@ -159,6 +169,7 @@ export class GoneError extends ApiError {
 export class InternalServerError extends ApiError {
   constructor(message: string = "Internal server error") {
     super(message, 500, "INTERNAL_SERVER_ERROR");
+    this.name = "InternalServerError";
   }
 }
 
@@ -179,6 +190,10 @@ function formatZodErrorMessage(error: ZodError): string {
 export function apiErrorLogPayload(error: ApiError): Record<string, unknown> {
   return {
     err: serializeError(error),
+    // Keep the canonical nested error while also exposing the two fields that
+    // alerting systems can reliably interpolate without nested-object access.
+    error: error.name,
+    errorMessage: error.message,
     statusCode: error.statusCode,
     code: error.code,
     ...error.logContext,
@@ -195,10 +210,10 @@ export function handleApiError(error: unknown): NextResponse {
     if (error.statusCode >= 500) {
       apiLogger.error(payload, "API error occurred");
     } else {
-      apiLogger.warn(payload, "API error occurred");
+      apiLogger.warn(payload, "API request rejected");
     }
   } else if (error instanceof ZodError) {
-    apiLogger.warn({ err: serializeError(error), statusCode: 400, code: "VALIDATION_ERROR" }, "API error occurred");
+    apiLogger.warn({ err: serializeError(error), statusCode: 400, code: "VALIDATION_ERROR" }, "API request rejected");
   } else {
     apiLogger.error({ err: serializeError(error) }, "Unexpected API error");
   }

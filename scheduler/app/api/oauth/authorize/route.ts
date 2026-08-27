@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
   canUpgradeLegacyMcpClientScope,
   isMcpScopeSubset,
@@ -18,7 +19,6 @@ import { handleApiError } from "@/lib/utils/errors";
 export async function POST(req: NextRequest) {
   try {
     const session = await requireBrowserSession(req);
-    await assertActiveSubscription(session.user.id, { action: "oauth_authorize" });
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
@@ -73,6 +73,14 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Connector-first users return directly here after signing in and never
+    // pass through the dashboard billing query that normally initializes a
+    // first trial. Validate the OAuth request before granting access, then use
+    // the same idempotent one-trial-ever helper as the dashboard.
+    await ensureTrialStarted(session.user.id);
+    await assertActiveSubscription(session.user.id, { action: "oauth_authorize" });
+
     if (!isMcpScopeSubset(scopeResult.scope, client.scope)) {
       // Existing ChatGPT dynamic clients registered before posts:read need a
       // one-time compatibility upgrade when the user approves the new scope.

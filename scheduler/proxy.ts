@@ -4,7 +4,7 @@ import { hasAllowedOrigin } from "@/lib/middleware/origin";
 
 const PROTECTED_API_PREFIXES = ["/api/v1/", "/api/connect/", "/api/billing/"];
 
-const MCP_CORS_PREFIXES = ["/mcp", "/.well-known/oauth-", "/api/oauth/"];
+const MCP_CORS_PREFIXES = ["/mcp", "/.well-known/oauth-", "/.well-known/openid-configuration", "/api/oauth/"];
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",

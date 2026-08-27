@@ -12,14 +12,13 @@ export interface TelegramLogNotification {
 }
 
 export interface TelegramReviewExchangeNotification {
-  requestId: string;
-  timestamp: string;
   userEmail: string;
-  userId: string;
+  toolName: string;
+  arguments: string;
   durationMs: number;
+  error?: string;
   status: number;
-  request: string;
-  response: string;
+  succeeded: boolean;
 }
 
 const LEVEL_VALUES: Record<TelegramLogLevel, number> = {
@@ -34,8 +33,8 @@ const LEVEL_VALUES: Record<TelegramLogLevel, number> = {
 const DEFAULT_MAX_PER_MINUTE = 10;
 const DEFAULT_REVIEW_MAX_PER_MINUTE = 60;
 const MAX_MESSAGE_LENGTH = 3900;
-const REVIEW_CHUNK_LENGTH = 3500;
-const MAX_REVIEW_PAYLOAD_LENGTH = 24_000;
+const MAX_REVIEW_ARGUMENTS_LENGTH = 1500;
+const MAX_REVIEW_ERROR_LENGTH = 600;
 
 let windowStartedAt = 0;
 let sentInWindow = 0;
@@ -214,36 +213,20 @@ export function formatTelegramLogNotification(notification: TelegramLogNotificat
   return truncate(lines.join("\n"), MAX_MESSAGE_LENGTH);
 }
 
-function truncateReviewPayload(value: string): string {
-  if (value.length <= MAX_REVIEW_PAYLOAD_LENGTH) return value;
-  return `${value.slice(0, MAX_REVIEW_PAYLOAD_LENGTH)}\n... [truncated after ${MAX_REVIEW_PAYLOAD_LENGTH} characters]`;
-}
-
 export function formatTelegramReviewExchange(notification: TelegramReviewExchangeNotification): string {
-  return truncateReviewPayload(
-    [
-      "SimplePost review/demo MCP exchange",
-      `Time: ${notification.timestamp}`,
-      `User: ${notification.userEmail} (${notification.userId})`,
-      `Request: ${notification.requestId}`,
-      `HTTP: ${notification.status}`,
-      `Duration: ${notification.durationMs} ms`,
-      "",
-      "MCP request (the tool payload sent to SimplePost; not the full ChatGPT conversation):",
-      notification.request,
-      "",
-      "MCP response:",
-      notification.response,
-    ].join("\n"),
-  );
-}
-
-function splitTelegramText(value: string): string[] {
-  const chunks: string[] = [];
-  for (let offset = 0; offset < value.length; offset += REVIEW_CHUNK_LENGTH) {
-    chunks.push(value.slice(offset, offset + REVIEW_CHUNK_LENGTH));
+  const lines = [
+    "SimplePost demo tool call",
+    `Account: ${notification.userEmail}`,
+    `Tool: ${notification.toolName}`,
+    `Args: ${truncate(notification.arguments, MAX_REVIEW_ARGUMENTS_LENGTH)}`,
+    `Result: ${notification.succeeded ? "Success" : "Failed"}`,
+  ];
+  if (notification.error) {
+    lines.push(`Error: ${truncate(notification.error, MAX_REVIEW_ERROR_LENGTH)}`);
   }
-  return chunks.length > 0 ? chunks : [""];
+  lines.push(`HTTP: ${notification.status} · ${notification.durationMs} ms`);
+
+  return truncate(lines.join("\n"), MAX_MESSAGE_LENGTH);
 }
 
 async function postTelegramMessage(
@@ -312,9 +295,5 @@ export async function sendTelegramReviewExchange(notification: TelegramReviewExc
     return;
   }
 
-  const chunks = splitTelegramText(formatTelegramReviewExchange(notification));
-  for (const [index, chunk] of chunks.entries()) {
-    const part = chunks.length > 1 ? `Review MCP log ${index + 1}/${chunks.length}\n` : "";
-    await postTelegramMessage(config, `${part}${chunk}`);
-  }
+  await postTelegramMessage(config, formatTelegramReviewExchange(notification));
 }

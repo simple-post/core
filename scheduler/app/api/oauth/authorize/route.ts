@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const session = await requireBrowserSession(req);
     const body = await req.json();
 
-    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource } = body;
+    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
 
     if (!client_id || !redirect_uri || !state || !code_challenge) {
       return NextResponse.json(
@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
     if (code_challenge_method && code_challenge_method !== "S256") {
       return NextResponse.json(
         { error: "invalid_request", error_description: "Only S256 code_challenge_method is supported" },
+        { status: 400 },
+      );
+    }
+
+    if (nonce !== undefined && (typeof nonce !== "string" || nonce.length > 512)) {
+      return NextResponse.json(
+        { error: "invalid_request", error_description: "nonce must be a string of at most 512 characters" },
         { status: 400 },
       );
     }
@@ -93,6 +100,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       redirectUri: redirect_uri,
       resource: resolvedResource,
+      nonce,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method || "S256",
       scope: scopeResult.scope,

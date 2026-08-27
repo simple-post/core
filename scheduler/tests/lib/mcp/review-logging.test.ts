@@ -1,4 +1,8 @@
-import { prepareReviewMcpPayload, shouldLogReviewMcpExchange } from "@/lib/mcp/review-logging";
+import {
+  prepareReviewMcpPayload,
+  prepareReviewToolCallSummary,
+  shouldLogReviewMcpExchange,
+} from "@/lib/mcp/review-logging";
 
 describe("review MCP logging", () => {
   const previousEnabled = process.env.ENABLE_OPENAI_TEST_LOGIN;
@@ -44,5 +48,49 @@ describe("review MCP logging", () => {
 
   it("does not copy unexpected non-JSON request bodies into logs", () => {
     expect(prepareReviewMcpPayload("password=do-not-log-this").text).toBe("[unparseable non-JSON payload omitted]");
+  });
+
+  it("summarizes only the basics of an actual tool call", () => {
+    expect(
+      prepareReviewToolCallSummary(
+        {
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: { name: "create_post", arguments: { content: "Unique demo post", publishNow: false } },
+          id: 7,
+        },
+        { jsonrpc: "2.0", result: { isError: false, structuredContent: { postId: "post-123" } }, id: 7 },
+        200,
+      ),
+    ).toEqual({
+      arguments: '{"content":"Unique demo post","publishNow":false}',
+      succeeded: true,
+      toolName: "create_post",
+    });
+  });
+
+  it("does not create Telegram summaries for MCP setup traffic", () => {
+    expect(
+      prepareReviewToolCallSummary(
+        { jsonrpc: "2.0", method: "tools/list", id: 1 },
+        { jsonrpc: "2.0", result: { tools: [] }, id: 1 },
+        200,
+      ),
+    ).toBeNull();
+  });
+
+  it("reduces tool errors to one short outcome", () => {
+    expect(
+      prepareReviewToolCallSummary(
+        { method: "tools/call", params: { name: "validate_post", arguments: { content: "test" } } },
+        { result: { isError: true, content: [{ type: "text", text: "No connected account was found" }] } },
+        200,
+      ),
+    ).toEqual({
+      arguments: '{"content":"test"}',
+      error: "No connected account was found",
+      succeeded: false,
+      toolName: "validate_post",
+    });
   });
 });

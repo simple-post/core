@@ -9,6 +9,7 @@ const log = createLogger("api:oauth:token");
 
 const ERROR_DESCRIPTIONS: Record<string, string> = {
   code_not_found: "Authorization code not found or already used",
+  user_not_found: "The authorizing user no longer exists",
   client_mismatch: "Client ID does not match the authorization code",
   redirect_uri_mismatch: "Redirect URI does not match the authorization code",
   resource_mismatch: "Resource does not match the authorization code",
@@ -142,6 +143,7 @@ export async function POST(req: NextRequest) {
       token_type: "Bearer",
       expires_in: result.expiresIn,
       scope: result.scope,
+      ...(result.idToken ? { id_token: result.idToken } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

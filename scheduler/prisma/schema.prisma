@@ -452,6 +452,7 @@ model McpAuthorizationCode {
   userId              String
   redirectUri         String
   resource            String?
+  nonce               String?
   codeChallenge       String // PKCE S256
   codeChallengeMethod String         @default("S256")
   scope               String?

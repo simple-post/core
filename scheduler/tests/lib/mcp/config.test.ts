@@ -1,4 +1,4 @@
-import { isAllowedMcpRedirectUri } from "@/lib/mcp/config";
+import { canUpgradeLegacyMcpClientScope, isAllowedMcpRedirectUri, validateMcpScope } from "@/lib/mcp/config";
 
 const originalNodeEnv = process.env.NODE_ENV;
 
@@ -39,4 +39,26 @@ describe("isAllowedMcpRedirectUri", () => {
       expect(isAllowedMcpRedirectUri(uri)).toBe(false);
     },
   );
+});
+
+describe("OIDC scopes", () => {
+  it("accepts openid and email alongside MCP tool scopes", () => {
+    expect(validateMcpScope("openid email accounts:read")).toEqual({
+      ok: true,
+      scope: "openid email accounts:read",
+    });
+  });
+
+  it("allows existing clients to add the identity scopes during reauthorization", () => {
+    expect(
+      canUpgradeLegacyMcpClientScope(
+        "openid email accounts:read posts:read posts:validate posts:write",
+        "accounts:read posts:read posts:validate posts:write",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not allow arbitrary registered-scope expansion", () => {
+    expect(canUpgradeLegacyMcpClientScope("openid email posts:write", "accounts:read")).toBe(false);
+  });
 });

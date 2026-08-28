@@ -197,11 +197,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Open a standalone schedule view for the review account.",
-      "user_prompt": "Show my SimplePost schedule for the current week in UTC.",
+      "description": "List the review account's scheduled posts.",
+      "user_prompt": "List my scheduled SimplePost posts.",
       "file_attachment_urls": null,
-      "tools_triggered": "show_schedule, inspect_posts",
-      "expected_output": "Shows the schedule or a clear empty-state result.",
+      "tools_triggered": "inspect_posts",
+      "expected_output": "Returns scheduled posts or a clear empty-state result.",
       "expected_output_url": null
     }
   ],

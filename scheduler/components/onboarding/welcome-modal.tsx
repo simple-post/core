@@ -24,8 +24,8 @@ const STEPS = [
   },
   {
     Icon: Bot,
-    title: "Connect ChatGPT, Claude, or another AI",
-    description: "Schedule by describing what you want in a conversation.",
+    title: "Install SimplePost in your AI",
+    description: "One click in ChatGPT, then schedule from the conversation.",
   },
   {
     Icon: PenLine,

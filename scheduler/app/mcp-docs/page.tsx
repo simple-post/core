@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getMcpResourceUrl } from "@/lib/mcp/config";
 
 const claudeDirectoryUrl = "https://claude.ai/directory/simplepost";
+const chatgptPluginUrl = "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795";
 
 export const metadata = {
   title: "SimplePost MCP Server",
@@ -69,13 +70,21 @@ export default function McpDocsPage() {
           </p>
           <p className="max-w-xl rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground mb-5">
             <a
+              href={chatgptPluginUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
+              Install SimplePost in ChatGPT
+            </a>
+            , or{" "}
+            <a
               href={claudeDirectoryUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
-              Connect SimplePost to Claude
-            </a>{" "}
-            and approve access. For other clients, use the server URL below.
+              connect it to Claude
+            </a>
+            . For other clients, use the server URL below.
           </p>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>

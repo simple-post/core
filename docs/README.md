@@ -6,13 +6,14 @@ You own the code. The default path is self-hosted software with full source acce
 
 ## Start Here
 
-| If you want to...                                                     | Use this interface | Read this                                  |
-| --------------------------------------------------------------------- | ------------------ | ------------------------------------------ |
-| Add posting directly to a TypeScript app or agent                     | TypeScript SDK     | [TypeScript SDK](typescript-sdk/README.md) |
-| Post from another language, service, or backend over HTTP             | HTTP API server    | [HTTP API server](http-server/README.md)   |
-| Give humans a web UI for writing, previewing, posting, and scheduling | Scheduler app      | [Scheduler app](scheduler-app/README.md)   |
-| Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                       |
-| Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)         |
+| If you want to...                                                     | Use this interface | Read this                                                                                          |
+| --------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------- |
+| Publish from ChatGPT without manual setup                             | ChatGPT plugin     | [Install SimplePost](https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795) |
+| Add posting directly to a TypeScript app or agent                     | TypeScript SDK     | [TypeScript SDK](typescript-sdk/README.md)                                                         |
+| Post from another language, service, or backend over HTTP             | HTTP API server    | [HTTP API server](http-server/README.md)                                                           |
+| Give humans a web UI for writing, previewing, posting, and scheduling | Scheduler app      | [Scheduler app](scheduler-app/README.md)                                                           |
+| Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                                                                               |
+| Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)                                                                 |
 
 Most users only need one row. The common concepts below explain how the pieces fit together.
 

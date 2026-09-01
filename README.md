@@ -4,6 +4,9 @@ SimplePost is a platform for AI agents, apps, and humans to post on social media
 
 SimplePost is open source and ownership first: get the code, run it yourself, modify it, and connect it to your own social platform apps and credentials. Learn more at [simplepost.social](https://simplepost.social).
 
+Using ChatGPT? [Open the SimplePost plugin](https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795),
+select **+** to install it, then start a new chat.
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                 |

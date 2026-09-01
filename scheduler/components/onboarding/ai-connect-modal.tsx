@@ -38,7 +38,7 @@ export function AiConnectModal({ open, onClose }: { open: boolean; onClose: () =
           </div>
           <DialogTitle className="text-2xl tracking-[-0.025em]">Now let your AI do the posting</DialogTitle>
           <DialogDescription className="mt-2.5 text-base leading-7">
-            Add the SimplePost remote MCP URL to ChatGPT or Claude manually, then just ask it to schedule.
+            Install SimplePost in ChatGPT, or choose another assistant below. Then just ask it to schedule.
           </DialogDescription>
         </DialogHeader>
 

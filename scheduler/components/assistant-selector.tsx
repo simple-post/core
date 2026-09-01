@@ -29,15 +29,15 @@ type AssistantOption = {
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social").replace(/\/+$/, "");
 const MCP_URL = `${APP_URL}/mcp`;
 const CLAUDE_DIRECTORY_URL = "https://claude.ai/directory/simplepost";
+const CHATGPT_PLUGIN_URL = "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795";
 
 const options: AssistantOption[] = [
   {
     id: "chatgpt",
     label: "ChatGPT",
     Icon: OpenAIIcon,
-    description:
-      "The directory app is coming soon. In ChatGPT on the web, open Settings → Apps, turn on Developer mode under Advanced settings, then click Create and add this URL as the MCP server endpoint. Your plan or workspace must allow custom MCP apps with write actions. Scan the tools, create the app, and approve SimplePost OAuth.",
-    commands: [{ code: MCP_URL, label: "Remote MCP URL" }],
+    description: "Open the SimplePost plugin, select + to install it, then start a new chat.",
+    action: { href: CHATGPT_PLUGIN_URL, label: "Install SimplePost in ChatGPT" },
   },
   {
     id: "claude-desktop",
@@ -148,13 +148,13 @@ export function AssistantSelector() {
   return (
     <div className="grid min-w-0 gap-4">
       <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground">
-        Using Claude?{" "}
+        Using ChatGPT?{" "}
         <a
-          href={CLAUDE_DIRECTORY_URL}
+          href={CHATGPT_PLUGIN_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
-          Connect SimplePost
+          Install SimplePost
         </a>
         . For other assistants, choose an option below.
       </div>

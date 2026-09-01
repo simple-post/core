@@ -92,11 +92,11 @@ export function OnboardingChecklist() {
     },
     {
       id: "ai",
-      title: "Connect your AI assistant",
-      description: "Schedule posts by chatting with ChatGPT or Claude. This is the part people stay for.",
+      title: "Install SimplePost in your AI",
+      description: "In ChatGPT, install the SimplePost plugin in one click. Claude and other MCP clients work too.",
       done: state.hasAiConnection,
-      Icon: ClaudeIcon,
-      action: { label: "Set up", onClick: () => setAiModalOpen(true) },
+      Icon: OpenAIIcon,
+      action: { label: "Install", onClick: () => setAiModalOpen(true) },
     },
     {
       id: "post",

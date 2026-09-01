@@ -199,14 +199,14 @@ Discarding deletes the future scheduled SimplePost record and best-effort delete
 
 ### ChatGPT
 
-The SimplePost directory app is coming soon. Until it is listed, use ChatGPT on the web and add it manually. Open
-**Settings → Apps**, enable **Developer mode** under **Advanced settings**, then click **Create** and use the Scheduler
-app MCP URL as the MCP server endpoint. The ChatGPT plan or workspace must allow custom MCP apps with write actions.
-Scan the tools, create the app, and complete SimplePost OAuth when prompted:
+[Open the SimplePost plugin](https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795),
+select **+** to install it, then start a new chat.
 
-```text
-https://your-scheduler-domain.example/mcp
-```
+For a self-hosted deployment, create a custom MCP app with your own `/mcp` URL instead.
+
+### Claude
+
+[Open SimplePost in Claude](https://claude.ai/directory/simplepost), select **Connect**, and approve access.
 
 ### Claude Code
 
@@ -214,11 +214,10 @@ https://your-scheduler-domain.example/mcp
 claude mcp add simplepost https://your-scheduler-domain.example/mcp
 ```
 
-### Claude Desktop, Cursor, Windsurf, and other clients
+### Cursor, Windsurf, and other clients
 
-The Claude directory listing is coming soon. Until it is listed, open **Settings → Connectors**, click **Add custom
-connector**, name it SimplePost, and add a remote MCP server using the same `/mcp` URL. Other clients can use the same
-URL. The client should start the OAuth flow automatically when it first needs authorization.
+Add a remote MCP server using the Scheduler app's `/mcp` URL. The client should start the OAuth flow automatically
+when it first needs authorization.
 
 ## What MCP Cannot Do
 

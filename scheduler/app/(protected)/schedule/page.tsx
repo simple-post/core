@@ -1,9 +1,9 @@
 "use client";
 
 import { TrialScheduleNotice } from "@/components/billing/trial-post-allowance";
+import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { Navbar } from "@/components/navbar";
 import { SchedulePostForm } from "@/components/schedule-post-form";
-import { WebMcpPreviewHint } from "@/components/webmcp-preview-hint";
 
 export default function SchedulePage() {
   return (
@@ -21,11 +21,9 @@ export default function SchedulePage() {
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
               Create a <span className="text-primary">post</span>
             </h1>
-            <div className="ml-auto">
-              <WebMcpPreviewHint />
-            </div>
           </div>
         </div>
+        <CreatePostWebMcp />
         <TrialScheduleNotice />
         <SchedulePostForm />
       </main>

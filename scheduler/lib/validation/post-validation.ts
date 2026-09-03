@@ -3,7 +3,7 @@ import { getValidationRulesForPlatform, validateContentForPlatform } from "@simp
 
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getPlatformById, isSocialPlatformEnabled } from "@/lib/config";
-import type { AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type {
   Content,
@@ -16,6 +16,12 @@ import type {
 } from "@simple-post/sdk";
 
 const THREAD_CAPABLE_PLATFORMS = new Set<Platform>(["x", "bluesky", "threads", "telegram"]);
+const TIKTOK_PRIVACY_LEVELS = new Set([
+  "PUBLIC_TO_EVERYONE",
+  "MUTUAL_FOLLOW_FRIENDS",
+  "FOLLOWER_OF_CREATOR",
+  "SELF_ONLY",
+]);
 
 const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
   const media: Media[] = mediaFiles.map((file) =>
@@ -42,6 +48,81 @@ const buildContent = (message: string, mediaFiles: MediaFile[]): Content => {
 
 function isThreadCapable(platform: Platform): boolean {
   return THREAD_CAPABLE_PLATFORMS.has(platform);
+}
+
+function getTikTokPrivacyLevel(options: Record<string, unknown>): string | undefined {
+  const privacyLevel = options.privacyLevel;
+  if (typeof privacyLevel === "string" && TIKTOK_PRIVACY_LEVELS.has(privacyLevel)) {
+    return privacyLevel;
+  }
+
+  switch (options.visibility) {
+    case "public": {
+      return "PUBLIC_TO_EVERYONE";
+    }
+    case "friends": {
+      return "MUTUAL_FOLLOW_FRIENDS";
+    }
+    case "private": {
+      return "SELF_ONLY";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+function validateAccountOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): ValidationIssue[] {
+  if (mapPlatformName(account.platform) !== "tiktok") {
+    return [];
+  }
+
+  const options = accountOptions?.[account.id] ?? {};
+  if (options.publishMode === "draft") {
+    return [];
+  }
+
+  const errors: ValidationIssue[] = [];
+  const privacyLevel = getTikTokPrivacyLevel(options);
+
+  if (!privacyLevel) {
+    errors.push({
+      platform: "tiktok",
+      severity: "error",
+      code: "tiktok_privacy_status_required",
+      message: "Select a TikTok privacy status before posting or scheduling this account.",
+      field: "accountOptions.privacyLevel",
+      meta: { accountId: account.id },
+    });
+  }
+
+  if (
+    options.commercialContentDisclosure === true &&
+    options.discloseYourBrand !== true &&
+    options.discloseBrandedContent !== true
+  ) {
+    errors.push({
+      platform: "tiktok",
+      severity: "error",
+      code: "tiktok_commercial_disclosure_required",
+      message: "Indicate whether this content promotes your brand, a third-party brand, or both.",
+      field: "accountOptions.commercialContentDisclosure",
+      meta: { accountId: account.id },
+    });
+  }
+
+  if (options.discloseBrandedContent === true && privacyLevel === "SELF_ONLY") {
+    errors.push({
+      platform: "tiktok",
+      severity: "error",
+      code: "tiktok_branded_content_private",
+      message: "Branded content visibility cannot be set to private.",
+      field: "accountOptions.privacyLevel",
+      meta: { accountId: account.id },
+    });
+  }
+
+  return errors;
 }
 
 export interface PlatformValidationResponse {
@@ -71,6 +152,7 @@ export function validatePostForResolvedAccounts(params: {
   message: string;
   media: MediaFile[];
   accounts: ConnectedAccount[];
+  accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
 }): ValidationResultByPlatform {
@@ -99,6 +181,8 @@ export function validatePostForResolvedAccounts(params: {
 
     const errors: ValidationResult["errors"] = [];
     const warnings: ValidationResult["warnings"] = [];
+
+    errors.push(...validateAccountOptions(account, params.accountOptions));
 
     if (!isSocialPlatformEnabled(account.platform)) {
       errors.push({

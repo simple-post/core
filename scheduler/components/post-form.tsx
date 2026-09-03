@@ -180,10 +180,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       message,
       media,
       accounts: selectedAccounts,
+      accountOptions,
       accountOverrides: enabledOverrides,
       thread: thread.length > 0 ? thread : undefined,
     });
-  }, [enabledOverrides, media, message, selectedAccountIds, selectedAccounts, thread]);
+  }, [accountOptions, enabledOverrides, media, message, selectedAccountIds, selectedAccounts, thread]);
 
   useEffect(() => {
     setServerValidation(null);
@@ -209,6 +210,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             message,
             media,
             accountIds: selectedAccountIds,
+            accountOptions,
             accountOverrides: enabledOverrides,
             thread: thread.length > 0 ? thread : undefined,
           }),
@@ -235,7 +237,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         setValidationLoading(false);
       }
     },
-    [enabledOverrides, media, message, selectedAccountIds, thread],
+    [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread],
   );
 
   const maxTextLength = useMemo(() => {

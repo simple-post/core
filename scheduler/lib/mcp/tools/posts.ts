@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { AccountIdsSchema } from "@simple-post/sdk";
+import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
@@ -33,6 +33,9 @@ export const createPostSchema = z.object({
   message: z.string().describe("The post text content"),
   accountIds: AccountIdsSchema.describe(
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
+  ),
+  accountOptions: AccountOptionsMapSchema.optional().describe(
+    "Optional per-account platform settings, including TikTok privacy status and disclosure choices.",
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -177,6 +180,9 @@ export const updateScheduledPostSchema = z.object({
   message: z.string().optional().describe("Replacement root post text. Omit to keep the current text."),
   accountIds: AccountIdsSchema.optional().describe(
     "Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets.",
+  ),
+  accountOptions: AccountOptionsMapSchema.optional().describe(
+    "Replacement per-account platform settings. Omit to keep the current settings.",
   ),
   media: mcpMediaArraySchema
     .nullable()
@@ -531,6 +537,7 @@ export async function previewPost(
   const validation = await validatePost(userId, {
     message: input.message,
     accountIds: input.accountIds,
+    accountOptions: input.accountOptions,
     media: input.media,
     thread: input.thread,
   });
@@ -628,6 +635,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.accountIds !== undefined ||
     input.media !== undefined ||
     input.thread !== undefined ||
+    input.accountOptions !== undefined ||
     input.postingMode !== undefined ||
     input.scheduledFor !== undefined ||
     input.quotePostId !== undefined;
@@ -647,6 +655,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
+  const accountOptions = input.accountOptions ?? currentPost.accountOptions;
   const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   const thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
@@ -667,6 +676,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const validation = await validatePost(userId, {
     message,
     accountIds,
+    accountOptions,
     media,
     thread: threadForValidation,
   });
@@ -719,6 +729,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const updates: Partial<SocialPost> = {};
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
+  if (input.accountOptions !== undefined) updates.accountOptions = input.accountOptions;
   if (input.media !== undefined) updates.media = media;
   if (input.thread !== undefined) updates.thread = thread ?? [];
   if (targetPostingMode !== currentPostingMode)
@@ -876,6 +887,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     message: input.message,
     media: mediaFiles,
     accountIds: input.accountIds,
+    accountOptions: input.accountOptions,
     thread: threadForPersistence,
   });
 

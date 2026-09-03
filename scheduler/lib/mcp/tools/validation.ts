@@ -1,4 +1,4 @@
-import { AccountIdsSchema } from "@simple-post/sdk";
+import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -10,6 +10,9 @@ export const validatePostSchema = z.object({
   message: z.string().describe("The post text content"),
   accountIds: AccountIdsSchema.describe(
     "IDs of connected accounts to validate against. Use list_accounts to get available IDs.",
+  ),
+  accountOptions: AccountOptionsMapSchema.optional().describe(
+    "Optional per-account platform settings, including TikTok privacy status and disclosure choices.",
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -57,6 +60,7 @@ export async function validatePost(
     message: input.message,
     media: mediaFiles,
     accountIds,
+    accountOptions: input.accountOptions,
     thread: threadSegments.length > 0 ? threadSegments : undefined,
   });
 

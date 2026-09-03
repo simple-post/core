@@ -70,6 +70,7 @@ export async function validatePostForAccounts(params: {
     message: params.message,
     media: params.media,
     accounts: resolvedAccounts,
+    accountOptions: params.accountOptions,
     accountOverrides: params.accountOverrides,
     thread: params.thread,
   });

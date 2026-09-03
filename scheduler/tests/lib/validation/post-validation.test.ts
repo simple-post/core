@@ -21,6 +21,14 @@ const blueskyAccount: ConnectedAccount = {
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 
+const tikTokAccount: ConnectedAccount = {
+  ...blueskyAccount,
+  id: "tiktok-account",
+  platform: "tiktok",
+  platformAccountId: "tiktok-user",
+  username: "test.tiktok",
+};
+
 function image(size: number, id = "image"): MediaFile {
   return {
     id,
@@ -69,5 +77,49 @@ describe("post validation", () => {
         actual: BLUESKY_MAX_IMAGE_SIZE_BYTES + 1,
       }),
     ]);
+  });
+
+  it("rejects TikTok posts without a selected privacy status before publishing", () => {
+    const result = validatePostForResolvedAccounts({
+      message: "TikTok post",
+      media: [image(100, "tiktok-image")],
+      accounts: [tikTokAccount],
+    });
+
+    expect(result.summary.errors).toContainEqual(
+      expect.objectContaining({
+        platform: "tiktok",
+        code: "tiktok_privacy_status_required",
+        field: "accountOptions.privacyLevel",
+        meta: { accountId: tikTokAccount.id },
+      }),
+    );
+    expect(result.summary.isValid).toBe(false);
+  });
+
+  it("accepts configured TikTok privacy and skips publishing-only checks for drafts", () => {
+    const configured = validatePostForResolvedAccounts({
+      message: "TikTok post",
+      media: [image(100, "configured-tiktok-image")],
+      accounts: [tikTokAccount],
+      accountOptions: {
+        [tikTokAccount.id]: { privacyLevel: "PUBLIC_TO_EVERYONE" },
+      },
+    });
+    const draft = validatePostForResolvedAccounts({
+      message: "TikTok draft",
+      media: [image(100, "draft-tiktok-image")],
+      accounts: [tikTokAccount],
+      accountOptions: {
+        [tikTokAccount.id]: { publishMode: "draft" },
+      },
+    });
+
+    expect(configured.summary.errors).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "tiktok_privacy_status_required" })]),
+    );
+    expect(draft.summary.errors).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "tiktok_privacy_status_required" })]),
+    );
   });
 });

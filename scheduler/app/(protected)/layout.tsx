@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { SubscriptionGate } from "@/components/billing/subscription-gate";
+import { WebMcpProvider } from "@/components/create-post-webmcp";
 import { LoginForm } from "@/components/login-form";
 import { WelcomeModal } from "@/components/onboarding/welcome-modal";
 import { useSession } from "@/lib/auth/auth-client";
@@ -107,11 +108,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   // Render protected content only after subscription status is known.
   return (
     <InviteRedemptionGate userId={session.user.id}>
-      <SubscriptionGate>
-        {/* Inside the gate so it only greets users who actually have access. */}
-        <WelcomeModal />
-        {children}
-      </SubscriptionGate>
+      <WebMcpProvider key={session.user.id}>
+        <SubscriptionGate>
+          {/* Inside the gate so it only greets users who actually have access. */}
+          <WelcomeModal />
+          {children}
+        </SubscriptionGate>
+      </WebMcpProvider>
     </InviteRedemptionGate>
   );
 }

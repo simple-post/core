@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Calendar, CalendarDays, CheckCircle, AlertCircle, FileText } from "lucide-react";
 
 import { TrialBanner } from "@/components/billing/trial-banner";
+import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { Navbar } from "@/components/navbar";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 import { PostsList } from "@/components/posts-list";
@@ -140,6 +141,8 @@ export default function Dashboard() {
             Your <span className="text-primary">posts</span>
           </h1>
         </div>
+
+        <CreatePostWebMcp />
 
         <section className="animate-reveal animate-reveal-delay-1">
           <div className="mb-4 flex items-center gap-2">

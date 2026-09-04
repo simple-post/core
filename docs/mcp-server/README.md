@@ -58,19 +58,20 @@ The MCP server does not expose raw social platform credentials to the AI client.
 
 ## Available Tools
 
-| Tool                     | Purpose                                                                                        |
-| ------------------------ | ---------------------------------------------------------------------------------------------- |
-| `list_accounts`          | Lists connected Scheduler accounts and returns the `accountId` values required by other tools  |
-| `upload_media`           | Uploads a ChatGPT file parameter to SimplePost storage and returns a public URL                |
-| `validate_post`          | Checks text and media against platform rules without creating anything                         |
-| `preview_post`           | Resolves accounts, media count, schedule time, and validation without writing anything         |
-| `show_post_preview`      | Renders a saved or unsaved post using the platform preview library and an interactive switcher |
-| `create_post`            | Publishes immediately or schedules for later                                                   |
-| `inspect_posts`          | Lists scheduled, posted, or failed posts, or inspects a single post by ID                      |
-| `show_schedule`          | Renders an interactive day, week, or month calendar with slots and post activity               |
-| `get_schedule`           | Returns a day, week, or month schedule as text and structured data without rendering UI        |
-| `update_scheduled_post`  | Edits a future scheduled post after validating the resulting content                           |
-| `discard_scheduled_post` | Deletes a future scheduled post and its stored media                                           |
+| Tool                      | Purpose                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `list_accounts`           | Lists connected Scheduler accounts and returns the `accountId` values required by other tools     |
+| `get_tiktok_creator_info` | Retrieves a TikTok creator’s current privacy choices, interaction restrictions and posting limits |
+| `upload_media`            | Uploads a ChatGPT file parameter to SimplePost storage and returns a public URL                   |
+| `validate_post`           | Checks text and media against platform rules without creating anything                            |
+| `preview_post`            | Resolves accounts, media count, schedule time, and validation without writing anything            |
+| `show_post_preview`       | Renders a saved or unsaved post using the platform preview library and an interactive switcher    |
+| `create_post`             | Publishes immediately or schedules for later                                                      |
+| `inspect_posts`           | Lists scheduled, posted, or failed posts, or inspects a single post by ID                         |
+| `show_schedule`           | Renders an interactive day, week, or month calendar with slots and post activity                  |
+| `get_schedule`            | Returns a day, week, or month schedule as text and structured data without rendering UI           |
+| `update_scheduled_post`   | Edits a future scheduled post after validating the resulting content                              |
+| `discard_scheduled_post`  | Deletes a future scheduled post and its stored media                                              |
 
 ## Recommended Agent Workflow
 
@@ -227,3 +228,23 @@ when it first needs authorization.
 - It cannot read analytics or previous social media posts.
 
 Manage social account connections in the Scheduler app.
+
+### TikTok privacy
+
+TikTok posts through MCP default to public (`PUBLIC_TO_EVERYONE`) when privacy is omitted. The default is applied server-side only to TikTok targets and is preserved when saving drafts, scheduling, and publishing. A generic posting request does not need a privacy question or a creator-info preflight.
+
+Override the audience through `accountOptions`, keyed by the connected account ID:
+
+```json
+{
+  "accountOptions": {
+    "TIKTOK_ACCOUNT_ID": { "privacyLevel": "SELF_ONLY" }
+  }
+}
+```
+
+Supported values are `PUBLIC_TO_EVERYONE` (everyone), `MUTUAL_FOLLOW_FRIENDS` (mutual friends), `FOLLOWER_OF_CREATOR` (followers), and `SELF_ONLY` (only me). Explicit privacy and legacy `visibility` choices take precedence over the default. Existing choices are preserved when editing without replacement settings. Creation and inspection results include `accountOptions`.
+
+TikTok enforces the creator's available audiences at publishing time. If public or another requested audience is unavailable, surface the error and call `get_tiktok_creator_info` to inspect supported choices and posting restrictions. Ask for an alternative; never silently fall back to a different audience.
+
+`postingMode: "draft"` saves a SimplePost draft without publishing. The separate TikTok inbox option, `accountOptions[accountId].publishMode: "draft"`, bypasses the direct-post privacy default. Comments, Duet and Stitch remain off unless explicitly enabled and allowed.

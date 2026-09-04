@@ -17,6 +17,7 @@ import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
 
+import { resolveMcpAccountOptions } from "./account-options";
 import { listAccounts, mcpAccountIdentitySchema, mcpAccountSchema } from "./accounts";
 import {
   mcpMediaArraySchema,
@@ -35,7 +36,7 @@ export const createPostSchema = z.object({
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    "Optional per-account platform settings, including TikTok privacy status and disclosure choices.",
+    'Platform settings keyed by account ID, not platform name. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -77,6 +78,7 @@ const mcpPostSchema = z.object({
   id: z.string(),
   message: z.string(),
   accountIds: z.array(z.string()),
+  accountOptions: AccountOptionsMapSchema,
   scheduledFor: z.string().nullable(),
   status: z.string(),
   publishedAt: z.string().nullable(),
@@ -182,7 +184,7 @@ export const updateScheduledPostSchema = z.object({
     "Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    "Replacement per-account platform settings. Omit to keep the current settings.",
+    "Replacement platform settings keyed by account ID, including TikTok privacyLevel. Use get_tiktok_creator_info for allowed privacy choices. Omit to keep current settings; when supplied, this replaces the entire map.",
   ),
   media: mcpMediaArraySchema
     .nullable()
@@ -235,6 +237,7 @@ const managedPostSchema = z.object({
   id: z.string(),
   message: z.string(),
   accountIds: z.array(z.string()),
+  accountOptions: AccountOptionsMapSchema,
   accounts: z.array(mcpAccountSchema),
   media: z.array(storedMediaSchema),
   thread: z.array(storedThreadSegmentSchema),
@@ -348,6 +351,7 @@ function mapPost(post: {
   id: string;
   message: string;
   accountIds: string[];
+  accountOptions?: SocialPost["accountOptions"];
   scheduledFor: Date | null;
   status: string;
   publishedAt?: Date | null;
@@ -361,6 +365,7 @@ function mapPost(post: {
     id: post.id,
     message: post.message,
     accountIds: post.accountIds,
+    accountOptions: post.accountOptions ?? {},
     scheduledFor: post.scheduledFor?.toISOString() ?? null,
     status: post.status,
     publishedAt: post.publishedAt?.toISOString() ?? null,
@@ -409,6 +414,7 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
     id: post.id,
     message: post.message,
     accountIds: post.accountIds,
+    accountOptions: post.accountOptions ?? {},
     accounts: post.accountIds.map((accountId) => accountMap.get(accountId)).filter((account) => account !== undefined),
     media: post.media.map((media) => mapStoredMedia(media)),
     thread,
@@ -655,7 +661,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
-  const accountOptions = input.accountOptions ?? currentPost.accountOptions;
+  const accountOptions = await resolveMcpAccountOptions(
+    userId,
+    accountIds,
+    input.accountOptions ?? currentPost.accountOptions,
+  );
   const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   const thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
@@ -729,7 +739,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const updates: Partial<SocialPost> = {};
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
-  if (input.accountOptions !== undefined) updates.accountOptions = input.accountOptions;
+  if (accountOptions !== undefined) updates.accountOptions = accountOptions;
   if (input.media !== undefined) updates.media = media;
   if (input.thread !== undefined) updates.thread = thread ?? [];
   if (targetPostingMode !== currentPostingMode)
@@ -867,6 +877,8 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     }
   }
 
+  input = { ...input, accountOptions: await resolveMcpAccountOptions(userId, input.accountIds, input.accountOptions) };
+
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
   const mediaFiles = toMediaFiles(input.media);
@@ -938,6 +950,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         {
           message: input.message,
           accountIds: input.accountIds,
+          accountOptions: input.accountOptions,
           media: mediaFiles,
           scheduledFor,
           status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
@@ -991,7 +1004,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
         input.message,
         mediaFiles,
         input.accountIds,
-        undefined,
+        input.accountOptions,
         undefined,
         threadForPersistence,
         quoteTargets,

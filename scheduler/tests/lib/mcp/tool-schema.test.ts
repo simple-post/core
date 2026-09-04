@@ -14,11 +14,14 @@ import {
   updateScheduledPostSchema,
 } from "@/lib/mcp/tools/posts";
 import { showScheduleOutputSchema, showScheduleSchema } from "@/lib/mcp/tools/schedule";
+import { getTikTokCreatorInfoSchema } from "@/lib/mcp/tools/tiktok";
 import { validatePostOutputSchema, validatePostSchema } from "@/lib/mcp/tools/validation";
 
 import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 type JsonSchemaObject = {
+  additionalProperties?: JsonSchemaObject | boolean;
+  default?: unknown;
   anyOf?: JsonSchemaObject[];
   enum?: string[];
   items?: JsonSchemaObject;
@@ -30,6 +33,7 @@ type JsonSchemaObject = {
 
 const TOOL_INPUT_SCHEMAS = {
   list_accounts: listAccountsSchema,
+  get_tiktok_creator_info: getTikTokCreatorInfoSchema,
   upload_media: uploadMediaSchema,
   validate_post: validatePostSchema,
   preview_post: previewPostSchema,
@@ -137,6 +141,20 @@ describe("MCP tool JSON schemas", () => {
     }
 
     expect(issues).toEqual([]);
+  });
+
+  it("exposes TikTok privacy overrides without applying a TikTok default to other platforms", () => {
+    for (const schema of [createPostSchema, previewPostSchema, validatePostSchema, updateScheduledPostSchema]) {
+      const options = toInputJsonSchema(schema).properties?.accountOptions;
+      const account = options?.additionalProperties as JsonSchemaObject;
+      expect(account?.properties?.privacyLevel?.enum).toEqual([
+        "PUBLIC_TO_EVERYONE",
+        "MUTUAL_FOLLOW_FRIENDS",
+        "FOLLOWER_OF_CREATOR",
+        "SELF_ONLY",
+      ]);
+      expect(account?.properties?.privacyLevel?.default).toBeUndefined();
+    }
   });
 
   it("describes root media items wherever root media input is accepted", () => {

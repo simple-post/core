@@ -28,6 +28,7 @@ import {
   updateScheduledPostSchema,
 } from "./tools/posts";
 import { getSchedule, showScheduleOutputSchema, showScheduleSchema } from "./tools/schedule";
+import { getTikTokCreatorInfo, getTikTokCreatorInfoSchema, getTikTokCreatorInfoOutputSchema } from "./tools/tiktok";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
 import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } from "./ui/resources";
 
@@ -95,6 +96,15 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 - **Limits**: at most 24 follow-up segments after the root (25 posts total on X). Each follow-up segment has its own text. Images/videos can be attached through the root \`media\` field.
 - **When to validate**: do not call \`validate_post\` automatically just because \`thread\` is non-empty. \`create_post\` validates every segment before creating or publishing. Use \`validate_post\` only when the user asks for validation-only feedback, and use \`preview_post\` only when the user asks for a preview or details are missing.
 - After \`create_post\` with \`postingMode: "now"\`, inspect \`postingResults[].threadResults\` for per-segment success, \`postId\`, and \`postUrl\` when the platform returned them.
+
+# TikTok privacy and posting settings
+
+- A request to post on TikTok through MCP means publish publicly unless the user specifies another audience. Omitted privacy defaults to \`PUBLIC_TO_EVERYONE\` for TikTok accounts. Do not ask a privacy question or require a creator-info preflight solely because the user omitted privacy.
+- Override privacy using \`accountOptions[accountId].privacyLevel\` on \`create_post\`, \`preview_post\`, \`validate_post\`, and \`update_scheduled_post\`. The map is keyed by account ID, not platform name. Everyone/public = \`PUBLIC_TO_EVERYONE\`, mutual friends = \`MUTUAL_FOLLOW_FRIENDS\`, followers = \`FOLLOWER_OF_CREATOR\`, only me/private = \`SELF_ONLY\`.
+- Preserve explicit privacy choices and existing saved settings when editing posts. Creation and inspection results include \`accountOptions\` so you can see the effective audience. Public defaults are saved for scheduled posts as well as immediate posts.
+- TikTok still verifies the audience against the creator's allowed settings when publishing. If the requested or default public audience is unavailable, surface the error and use \`get_tiktok_creator_info\` to inspect allowed choices and posting restrictions. Ask for another audience rather than silently choosing a fallback.
+- Keep comments, Duet and Stitch disabled unless the user explicitly enables them and creator info allows them. Pass those choices as \`allowComment\`, \`allowDuet\`, and \`allowStitch\` in the same account options. Respect commercial disclosure choices and creator duration limits.
+- \`postingMode: "draft"\` saves a SimplePost draft without publishing. This differs from TikTok's \`accountOptions[accountId].publishMode: "draft"\`, which uploads to the TikTok inbox for completion there and does not receive a direct-post privacy default.
 
 # Time and scheduling
 
@@ -485,6 +495,32 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
 
   registerAppTool(
     server,
+    "get_tiktok_creator_info",
+    {
+      title: "Get TikTok Posting Settings",
+      description:
+        "Get a connected TikTok creator's current identity, allowed privacy levels, interaction settings and posting limits when inspecting settings or troubleshooting publishing. MCP posts default to public; pass accountOptions[accountId].privacyLevel to create_post to override that audience. Does not publish content.",
+      inputSchema: getTikTokCreatorInfoSchema.shape,
+      outputSchema: getTikTokCreatorInfoOutputSchema.shape,
+      annotations: MCP_TOOL_ANNOTATIONS.get_tiktok_creator_info,
+      _meta: toolMeta("Checking TikTok posting settings", "TikTok settings loaded"),
+    },
+    async (input) => {
+      try {
+        requireScope(context, "accounts:read");
+        const result = await getTikTokCreatorInfo(context.userId, input);
+        return {
+          structuredContent: result,
+          content: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
     "upload_media",
     {
       title: "Upload Media",
@@ -643,7 +679,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results.`,
+      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,

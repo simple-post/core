@@ -161,6 +161,20 @@
         "destructive_justification": "Permanently deletes the selected draft or scheduled post record and stored media from SimplePost.",
         "idempotent_justification": "Calling it again with the same post ID returns a not-found error after the first successful deletion instead of returning the same successful result."
       }
+    },
+    "get_tiktok_creator_info": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves creator settings without creating or publishing content; connection credentials may be refreshed as internal authentication maintenance.",
+        "open_world_justification": "Queries the external TikTok creator information API using the authenticated user's connected account.",
+        "destructive_justification": "Does not delete, overwrite content, publish posts, or revoke account access.",
+        "idempotent_justification": "Repeated calls retrieve current creator settings without duplicating content or changing creator preferences."
+      }
     }
   },
   "test_cases": [

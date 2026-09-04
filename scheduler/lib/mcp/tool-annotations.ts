@@ -12,6 +12,13 @@ export const MCP_TOOL_ANNOTATIONS = {
     idempotentHint: true,
     openWorldHint: false,
   },
+  get_tiktok_creator_info: {
+    title: "Get TikTok creator posting settings",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
   upload_media: {
     title: "Upload media to SimplePost",
     readOnlyHint: false,

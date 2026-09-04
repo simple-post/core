@@ -90,7 +90,7 @@ function validateAccountOptions(account: ConnectedAccount, accountOptions?: Acco
       platform: "tiktok",
       severity: "error",
       code: "tiktok_privacy_status_required",
-      message: "Select a TikTok privacy status before posting or scheduling this account.",
+      message: `Select a TikTok privacy status before posting or scheduling this account. Set accountOptions["${account.id}"].privacyLevel to the user-selected value; MCP clients can call get_tiktok_creator_info for available choices.`,
       field: "accountOptions.privacyLevel",
       meta: { accountId: account.id },
     });

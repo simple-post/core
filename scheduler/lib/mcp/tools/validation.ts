@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
+import { resolveMcpAccountOptions } from "./account-options";
 import { mcpAccountIdentitySchema } from "./accounts";
 import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
 
@@ -12,7 +13,7 @@ export const validatePostSchema = z.object({
     "IDs of connected accounts to validate against. Use list_accounts to get available IDs.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    "Optional per-account platform settings, including TikTok privacy status and disclosure choices.",
+    'Platform settings keyed by account ID, not platform name. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -60,7 +61,7 @@ export async function validatePost(
     message: input.message,
     media: mediaFiles,
     accountIds,
-    accountOptions: input.accountOptions,
+    accountOptions: await resolveMcpAccountOptions(userId, accountIds, input.accountOptions),
     thread: threadSegments.length > 0 ? threadSegments : undefined,
   });
 

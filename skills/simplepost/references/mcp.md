@@ -89,3 +89,23 @@ For immediate publishing, inspect:
 - `postingResults[].threadResults` for threads
 
 Always show the exact content that was previewed, created, scheduled, drafted, edited, or discarded.
+
+## TikTok privacy
+
+TikTok posts through MCP default to public (`PUBLIC_TO_EVERYONE`) when privacy is omitted. The default is applied server-side only to TikTok targets and is preserved when saving drafts, scheduling, and publishing. A generic posting request does not need a privacy question or a creator-info preflight.
+
+Override the audience through `accountOptions`, keyed by the connected account ID:
+
+```json
+{
+  "accountOptions": {
+    "TIKTOK_ACCOUNT_ID": { "privacyLevel": "SELF_ONLY" }
+  }
+}
+```
+
+Supported values are `PUBLIC_TO_EVERYONE` (everyone), `MUTUAL_FOLLOW_FRIENDS` (mutual friends), `FOLLOWER_OF_CREATOR` (followers), and `SELF_ONLY` (only me). Explicit privacy and legacy `visibility` choices take precedence over the default. Existing choices are preserved when editing without replacement settings. Creation and inspection results include `accountOptions`.
+
+TikTok enforces the creator's available audiences at publishing time. If public or another requested audience is unavailable, surface the error and call `get_tiktok_creator_info` to inspect supported choices and posting restrictions. Ask for an alternative; never silently fall back to a different audience.
+
+`postingMode: "draft"` saves a SimplePost draft without publishing. The separate TikTok inbox option, `accountOptions[accountId].publishMode: "draft"`, bypasses the direct-post privacy default. Comments, Duet and Stitch remain off unless explicitly enabled and allowed.

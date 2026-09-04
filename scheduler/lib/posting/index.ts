@@ -415,6 +415,16 @@ async function postSegmentsToAccount(
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
+  }).catch((error: unknown) => {
+    // Media preparation and credential loading happen outside the SDK's
+    // error boundary. Keep their failure local to this account so the batch
+    // waits for other publishers before cleaning up their shared media.
+    const message = error instanceof Error ? error.message : "Failed to prepare this account for publishing";
+    log.warn({ err: serializeError(error) }, "Account publishing interrupted");
+    segmentResults.push({ index: segmentResults.length, success: false, error: "OTHER", message });
+    if (!rootResult) {
+      rootResult = { accountId: account.id, platform: account.platform, success: false, error: "OTHER", message };
+    }
   });
 
   if (credentialFailure) {

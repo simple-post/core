@@ -74,6 +74,7 @@ interface DispatchPostResult {
 
 interface DuePost {
   id: string;
+  updatedAt: Date;
   userId: string;
   message: string;
   accountOptions: unknown;
@@ -98,6 +99,7 @@ interface DuePost {
 
 interface DueRepostPost {
   id: string;
+  updatedAt: Date;
   userId: string;
   message: string;
   accountOptions: unknown;
@@ -185,26 +187,25 @@ async function recoverStalePendingPosts(): Promise<number> {
     return 0;
   }
 
-  const { count } = await prisma.post.updateMany({
-    where: { id: { in: stalePosts.map((post) => post.id) }, status: "pending" },
-    data: {
-      status: "failed",
-      errorMessage,
-    },
-  });
-
-  log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending posts");
-
-  await Promise.all(
-    stalePosts.map((post) =>
-      dispatchPostWebhooks(post.userId, "post.failed", {
-        id: post.id,
-        status: "failed",
-        message: post.message,
-        errorMessage,
-      }),
-    ),
+  const recovered = await Promise.all(
+    stalePosts.map(async (post) => {
+      const { count } = await prisma.post.updateMany({
+        where: { id: post.id, status: "pending", updatedAt: { lt: cutoff } },
+        data: { status: "failed", errorMessage },
+      });
+      if (count === 1) {
+        await dispatchPostWebhooks(post.userId, "post.failed", {
+          id: post.id,
+          status: "failed",
+          message: post.message,
+          errorMessage,
+        });
+      }
+      return count;
+    }),
   );
+  const count = recovered.reduce((total, value) => total + value, 0);
+  log.warn({ count, staleMinutes: STALE_PENDING_MINUTES }, "Recovered stale pending posts");
 
   return count;
 }
@@ -226,7 +227,7 @@ async function recoverStalePendingReposts(): Promise<number> {
   }
 
   const { count } = await prisma.post.updateMany({
-    where: { id: { in: stalePosts.map((post) => post.id) }, repostStatus: "pending" },
+    where: { id: { in: stalePosts.map((post) => post.id) }, repostStatus: "pending", updatedAt: { lt: cutoff } },
     data: {
       repostStatus: "failed",
       repostErrorMessage: errorMessage,
@@ -257,7 +258,7 @@ async function claimPosts(posts: DuePost[]): Promise<DuePost[]> {
     }
 
     const { count } = await prisma.post.updateMany({
-      where: { id: post.id, status: "scheduled" },
+      where: { id: post.id, status: "scheduled", updatedAt: post.updatedAt, scheduledFor: post.scheduledFor },
       data: { status: "pending" },
     });
 
@@ -314,7 +315,13 @@ async function claimReposts(posts: DueRepostPost[]): Promise<DueRepostPost[]> {
 
   for (const post of posts) {
     const { count } = await prisma.post.updateMany({
-      where: { id: post.id, repostStatus: "scheduled" },
+      where: {
+        id: post.id,
+        status: "published",
+        repostStatus: "scheduled",
+        updatedAt: post.updatedAt,
+        repostDueAt: post.repostDueAt,
+      },
       data: { repostStatus: "pending" },
     });
 

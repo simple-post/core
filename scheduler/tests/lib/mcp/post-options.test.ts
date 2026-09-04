@@ -227,6 +227,7 @@ it.each([undefined, { "tiktok-1": { privacyLevel: "SELF_ONLY" } }])(
       accountOptions: savedOptions,
       media: [],
       createdAt: new Date(),
+      updatedAt: new Date("2026-09-05T00:00:00Z"),
       scheduledFor: null,
     };
     loadPost.mockResolvedValue(post);
@@ -246,7 +247,10 @@ it.each([undefined, { "tiktok-1": { privacyLevel: "SELF_ONLY" } }])(
       }),
     );
     const expected = savedOptions ?? { "tiktok-1": { privacyLevel: "PUBLIC_TO_EVERYONE" } };
-    expect(updatePost).toHaveBeenCalledWith("post-1", expect.objectContaining({ accountOptions: expected }));
+    expect(updatePost).toHaveBeenCalledWith("post-1", expect.objectContaining({ accountOptions: expected }), {
+      status: "draft",
+      updatedAt: post.updatedAt,
+    });
     expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOptions: expected }));
   },
 );

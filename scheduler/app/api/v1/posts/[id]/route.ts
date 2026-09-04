@@ -197,30 +197,34 @@ async function updatePost(
     ).filter((url) => !newMediaUrls.has(url) && !newMediaThumbnailUrls.has(url));
 
     // Update the post
-    const post = await repository.updatePost(id, {
-      message: validated.message,
-      accountIds: validated.accountIds,
-      scheduledFor,
-      status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
-      errorMessage: null,
-      errorDetails: null,
-      publishedAt: null,
-      threadResults: null,
-      accountResults: null,
-      accountOptions: validated.accountOptions,
-      accountOverrides: validated.accountOverrides,
-      repostEnabled: repostSettings.enabled,
-      repostDelayHours: repostSettings.delayHours,
-      repostDueAt: null,
-      repostStatus: "not_applicable",
-      repostedAt: null,
-      repostResults: null,
-      repostErrorMessage: null,
-      repostErrorDetails: null,
-      media: finalMedia,
-      thread: validated.thread,
-      quotePostId,
-    });
+    const post = await repository.updatePost(
+      id,
+      {
+        message: validated.message,
+        accountIds: validated.accountIds,
+        scheduledFor,
+        status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+        errorMessage: null,
+        errorDetails: null,
+        publishedAt: null,
+        threadResults: null,
+        accountResults: null,
+        accountOptions: validated.accountOptions,
+        accountOverrides: validated.accountOverrides,
+        repostEnabled: repostSettings.enabled,
+        repostDelayHours: repostSettings.delayHours,
+        repostDueAt: null,
+        repostStatus: "not_applicable",
+        repostedAt: null,
+        repostResults: null,
+        repostErrorMessage: null,
+        repostErrorDetails: null,
+        media: finalMedia,
+        thread: validated.thread,
+        quotePostId,
+      },
+      { status: currentPost.status, updatedAt: currentPost.updatedAt },
+    );
 
     // Clean up removed media from R2 (best-effort, don't fail the request)
     if (removedMedia.length > 0) {
@@ -374,13 +378,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const postMedia = [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
 
+    // Claim deletion before touching storage; an active publisher or a newer
+    // edit must retain its media when this request loses the race.
+    await repository.deletePost(id, post.updatedAt);
+
     // Delete uploaded files from R2
     await Promise.all([
       deleteMediaFiles(session.user.id, postMedia),
       deleteAccountOptionFiles(session.user.id, post.accountOptions),
     ]);
-
-    await repository.deletePost(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

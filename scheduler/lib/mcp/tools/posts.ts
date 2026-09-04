@@ -750,7 +750,10 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
   if (input.quotePostId !== undefined) updates.quotePostId = quotePostId;
 
-  const updatedPost = await repository.updatePost(input.postId, updates);
+  const updatedPost = await repository.updatePost(input.postId, updates, {
+    status: currentPost.status,
+    updatedAt: currentPost.updatedAt,
+  });
 
   if (input.media !== undefined || input.thread !== undefined) {
     const removedMedia = getRemovedMedia(currentPost, media, threadForValidation);
@@ -790,7 +793,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const mappedPost = mapManagedPost(post, accountMap);
   const media = collectMediaForCleanup(post);
 
-  await repository.deletePost(input.postId);
+  await repository.deletePost(input.postId, post.updatedAt);
   if (media.length > 0) {
     await deleteMediaFiles(userId, media);
   }

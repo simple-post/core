@@ -5,6 +5,9 @@ import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
+
+jest.mock("@/lib/webhooks", () => ({ dispatchPostWebhooks: jest.fn() }));
 
 jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: jest.fn() }));
 
@@ -92,6 +95,9 @@ interface DuePostFixture {
 function duePost(fixture: DuePostFixture) {
   return {
     userId: "user-1",
+    updatedAt: new Date("2026-09-01T10:00:00Z"),
+    scheduledFor: new Date("2026-09-01T11:00:00Z"),
+    repostDueAt: new Date("2026-09-01T12:00:00Z"),
     message: "hello",
     accountOptions: null,
     accountOverrides: null,
@@ -109,6 +115,9 @@ function duePost(fixture: DuePostFixture) {
 function dueRepost(fixture: DuePostFixture) {
   return {
     userId: "user-1",
+    updatedAt: new Date("2026-09-01T10:00:00Z"),
+    scheduledFor: new Date("2026-09-01T11:00:00Z"),
+    repostDueAt: new Date("2026-09-01T12:00:00Z"),
     message: "hello",
     accountOptions: null,
     accountResults: null,
@@ -140,6 +149,7 @@ function mockUpdateMany({
   prismaMock.post.updateMany.mockImplementation(
     ({ where }: { where: { status?: string; repostStatus?: string; id?: unknown } }) => {
       if (where.status === "pending") {
+        if (typeof where.id === "string") return Promise.resolve({ count: 1 });
         const ids = (where.id as { in?: string[] } | undefined)?.in ?? [];
         return Promise.resolve({ count: ids.length });
       }
@@ -216,6 +226,99 @@ beforeEach(() => {
 });
 
 describe("dispatchDueScheduledPosts", () => {
+  it.each(["edited", "rescheduled"])("does not publish a snapshot that was %s after selection", async (change) => {
+    const selected = duePost({ id: "p1", accounts: [{ id: "a1", platform: "x" }] });
+    mockFindMany({ due: [selected] });
+    const currentUpdatedAt = new Date(selected.updatedAt.getTime() + 1000);
+    const currentScheduledFor = change === "rescheduled" ? new Date(Date.now() + 60_000) : selected.scheduledFor;
+    prismaMock.post.updateMany.mockImplementation(async ({ where }) => ({
+      count:
+        where.updatedAt?.getTime() === currentUpdatedAt.getTime() &&
+        where.scheduledFor?.getTime() === currentScheduledFor.getTime()
+          ? 1
+          : 0,
+    }));
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(result.processedPosts).toBe(0);
+    expect(result.skippedPosts).toBe(1);
+    expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(prismaMock.post.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: selected.id,
+          status: "scheduled",
+          updatedAt: selected.updatedAt,
+          scheduledFor: selected.scheduledFor,
+        },
+      }),
+    );
+  });
+
+  it("does not auto-repost a snapshot changed after selection", async () => {
+    const selected = dueRepost({
+      id: "p1",
+      accounts: [{ id: "a1", platform: "x" }],
+      accountResults: toAccountResultsMap(successFor(["a1"])),
+    });
+    mockFindMany({ dueReposts: [selected] });
+    prismaMock.post.updateMany.mockResolvedValue({ count: 0 });
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(result.processedReposts).toBe(0);
+    expect(repostToAccountsMock).not.toHaveBeenCalled();
+    expect(prismaMock.post.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: selected.id,
+          status: "published",
+          repostStatus: "scheduled",
+          updatedAt: selected.updatedAt,
+          repostDueAt: selected.repostDueAt,
+        },
+      }),
+    );
+  });
+
+  it("only emits recovery webhooks for posts this run actually recovered", async () => {
+    mockFindMany({
+      stale: [
+        { id: "recovered", userId: "u1", message: "stuck" },
+        { id: "completed-elsewhere", userId: "u1", message: "already published" },
+      ],
+    });
+    prismaMock.post.updateMany.mockImplementation(async ({ where }) => ({ count: where.id === "recovered" ? 1 : 0 }));
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(result.staleRecoveredPosts).toBe(1);
+    expect(dispatchPostWebhooks).toHaveBeenCalledTimes(1);
+    expect(dispatchPostWebhooks).toHaveBeenCalledWith(
+      "u1",
+      "post.failed",
+      expect.objectContaining({ id: "recovered" }),
+    );
+    expect(prismaMock.post.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "completed-elsewhere", status: "pending", updatedAt: { lt: expect.any(Date) } },
+      }),
+    );
+  });
+
+  it("rechecks the stale cutoff when recovering reposts", async () => {
+    mockFindMany({ staleReposts: [{ id: "r1" }] });
+    prismaMock.post.updateMany.mockResolvedValue({ count: 0 });
+    const result = await dispatchDueScheduledPosts();
+    expect(result.staleRecoveredReposts).toBe(0);
+    expect(prismaMock.post.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["r1"] }, repostStatus: "pending", updatedAt: { lt: expect.any(Date) } },
+      }),
+    );
+  });
+
   it("returns an empty result when no posts are due", async () => {
     const result = await dispatchDueScheduledPosts();
 
@@ -454,7 +557,7 @@ describe("dispatchDueScheduledPosts", () => {
       undefined,
       [expect.objectContaining({ accountId: "a1", postId: "source-tweet" })],
       undefined,
-      { postId: "quote-1", source: "scheduler" },
+      expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
     );
   });
 
@@ -490,7 +593,7 @@ describe("dispatchDueScheduledPosts", () => {
       undefined,
       [expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" })],
       undefined,
-      { postId: "quote-1", source: "scheduler" },
+      expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
     );
     expect(result.publishedPosts).toBe(1);
   });

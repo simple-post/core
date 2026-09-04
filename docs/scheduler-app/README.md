@@ -152,3 +152,7 @@ The generated OpenAPI document is available at `/api/openapi.json`. It includes 
 - The MCP server cannot connect accounts by itself; users connect accounts in the Scheduler app first.
 - The CLI can use Scheduler accounts after `simplepost connect`.
 - For backend-only posting without users or scheduling UI, use the [HTTP API server](../http-server/README.md).
+
+## TikTok photos and music
+
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../platforms/TikTok.md).

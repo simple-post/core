@@ -96,7 +96,29 @@ export const postFlags = {
     helpGroup: "Facebook",
   }),
   "tiktok-publish-mode": Flags.string({
-    description: "TikTok publish mode",
+    description: "public: Direct Post; draft: upload to TikTok inbox to add music and publish manually",
+    options: ["public", "draft"],
+    helpGroup: "TikTok",
+  }),
+  "tiktok-auto-add-music": Flags.boolean({
+    allowNo: true,
+    description: "Automatically add TikTok-recommended music (photo Direct Post only)",
+    helpGroup: "TikTok",
+  }),
+  "tiktok-title": Flags.string({ description: "TikTok title (up to 90 characters for photos)", helpGroup: "TikTok" }),
+  "tiktok-description": Flags.string({
+    description: "TikTok photo description (up to 4000 characters; defaults to --text)",
+    helpGroup: "TikTok",
+  }),
+  "tiktok-photo-cover-index": Flags.integer({
+    min: 0,
+    max: 34,
+    description: "Zero-based cover photo index (default 0)",
+    helpGroup: "TikTok",
+  }),
+  "tiktok-privacy-level": Flags.string({
+    options: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"],
+    description: "TikTok creator privacy choice for Direct Post",
     helpGroup: "TikTok",
   }),
   "tiktok-visibility": Flags.string({

@@ -41,6 +41,8 @@ describe("post command", () => {
 
     expect(stdout).toContain("--account");
     expect(stdout).toContain("--app-account-id");
+    expect(stdout).toContain("--tiktok-auto-add-music");
+    expect(stdout).toContain("--tiktok-publish-mode");
     expect(stdout).not.toContain("--platforms");
     expect(stdout).not.toContain("--prepare-media");
   });

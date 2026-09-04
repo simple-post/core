@@ -123,3 +123,25 @@ describe("post validation", () => {
     );
   });
 });
+
+it("validates TikTok photos and options consistently for UI, HTTP and MCP", () => {
+  const media = Array.from({ length: 7 }, (_, i) => image(1024, String(i)));
+  const validate = (options: Record<string, unknown>, count = 7) =>
+    validatePostForResolvedAccounts({
+      message: "x".repeat(4000),
+      media: media.slice(0, count),
+      accounts: [tikTokAccount],
+      accountOptions: { [tikTokAccount.id]: options },
+    });
+  expect(
+    validate({ privacyLevel: "SELF_ONLY", autoAddMusic: true, title: "Title", photoCoverIndex: 6 }).summary.isValid,
+  ).toBe(true);
+  expect(validate({ publishMode: "draft" }).summary.isValid).toBe(true);
+  expect(validate({ publishMode: "draft", autoAddMusic: true }).summary.errors).toContainEqual(
+    expect.objectContaining({ code: "auto_music_unavailable" }),
+  );
+  expect(validate({ privacyLevel: "SELF_ONLY", photoCoverIndex: 7 }).summary.errors).toContainEqual(
+    expect.objectContaining({ code: "photo_cover_invalid" }),
+  );
+  expect(validate({ privacyLevel: "SELF_ONLY", title: "x".repeat(91) }).summary.isValid).toBe(false);
+});

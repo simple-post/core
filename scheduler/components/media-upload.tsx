@@ -207,7 +207,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
   {
     media,
     onMediaChange,
-    maxFiles = 10,
+    maxFiles = 35,
     maxFileSize = 50 * 1024 * 1024, // 50MB
     acceptedTypes = ["image/*", "video/*"],
     compact = false,

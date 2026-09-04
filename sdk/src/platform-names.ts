@@ -51,6 +51,8 @@ export function isQuoteCapablePlatform(platform: string): platform is QuoteCapab
 export interface PostUrlContext {
   username?: string;
   platformAccountId?: string;
+  mediaType?: "image" | "video";
+  publishMode?: "public" | "draft";
 }
 
 /**
@@ -85,6 +87,7 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
       return `https://www.instagram.com/p/${postId}/`;
     }
     case "tiktok": {
+      if (ctx.publishMode === "draft") return undefined;
       // TikTok's Direct Post API returns a `publish_id` like
       // `v_pub_file~v2-1.7635755340554061846` immediately; the real numeric
       // video id is only available after the publish-status poll completes,
@@ -95,7 +98,9 @@ export function generatePostUrl(platform: string, postId: string, ctx: PostUrlCo
       // post from there.
       const username = ctx.username?.replace("@", "");
       if (!/^\d+$/.test(postId)) return username ? `https://www.tiktok.com/@${username}` : undefined;
-      return username ? `https://www.tiktok.com/@${username}/video/${postId}` : undefined;
+      return username
+        ? `https://www.tiktok.com/@${username}/${ctx.mediaType === "image" ? "photo" : "video"}/${postId}`
+        : undefined;
     }
     case "telegram": {
       // Telegram only has public post URLs for public channels (@-handles).

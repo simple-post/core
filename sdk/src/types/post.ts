@@ -138,7 +138,13 @@ export const TikTokPrivacyLevelSchema = z.enum([
 
 export const TikTokOptionsSchema = z.object({
   title: z.string().max(2200).optional(),
-  publishMode: z.enum(["draft", "public"]).optional(),
+  description: z.string().max(4000).optional().describe("TikTok photo description; defaults to content.text."),
+  autoAddMusic: z.boolean().optional().describe("Let TikTok add recommended music to a directly published photo post."),
+  photoCoverIndex: z.number().int().min(0).max(34).optional().describe("Zero-based photo cover index; defaults to 0."),
+  publishMode: z
+    .enum(["draft", "public"])
+    .optional()
+    .describe("public: Direct Post; draft: upload to TikTok inbox to edit, add music, and publish manually."),
   privacyLevel: TikTokPrivacyLevelSchema.optional(),
   visibility: z.enum(["public", "friends", "private"]).optional(),
   allowComment: z.boolean().optional(),

@@ -26,6 +26,7 @@ import type {
   PlatformValidationRules,
   ThreadSegment,
   ValidationResult,
+  TikTokOptions,
 } from "@simple-post/sdk";
 
 const publishers: Record<
@@ -159,7 +160,10 @@ export async function validatePostForAccounts(params: {
     const warnings: ValidationResult["warnings"] = [];
 
     for (const { field, content } of segments) {
-      const validation = validateContent(account.platform, content);
+      const validation =
+        account.platform === "tiktok"
+          ? TikTokPublisher.validate(content, params.accountOptions?.[account.id] as TikTokOptions | undefined)
+          : validateContent(account.platform, content);
       const withMeta = (issue: ValidationResult["errors"][number]) => ({
         ...issue,
         field: issue.field === "text" ? field : `${field}.${issue.field}`,

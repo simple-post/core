@@ -79,3 +79,7 @@ For upgrade guarantees and release changes, see the [SDK compatibility policy](h
 ## License
 
 MIT
+
+## TikTok photos and music
+
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../docs/platforms/TikTok.md).

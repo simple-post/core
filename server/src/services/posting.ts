@@ -103,6 +103,8 @@ async function postToAccountWithPreparedMedia(
         generatePostUrl(account.platform, result.id, {
           username: account.username,
           platformAccountId: account.platformAccountId,
+          mediaType: processedMedia[0]?.type,
+          publishMode: options?.tiktok?.publishMode,
         });
       return {
         accountId: account.id,
@@ -183,6 +185,8 @@ async function postSegmentsToAccount(
           generatePostUrl(account.platform, result.id, {
             username: account.username,
             platformAccountId: account.platformAccountId,
+            mediaType: processedMedia[0]?.type,
+            publishMode: options?.tiktok?.publishMode,
           });
         segmentResult = {
           accountId: account.id,

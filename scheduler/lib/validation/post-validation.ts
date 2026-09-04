@@ -13,6 +13,7 @@ import type {
   ValidationIssue,
   ValidationResult,
   PlatformValidationRules,
+  TikTokOptions,
 } from "@simple-post/sdk";
 
 const THREAD_CAPABLE_PLATFORMS = new Set<Platform>(["x", "bluesky", "threads", "telegram"]);
@@ -207,7 +208,9 @@ export function validatePostForResolvedAccounts(params: {
     }
 
     for (const { field, content } of segments) {
-      const validation = validateContentForPlatform(platform, content);
+      const validation = validateContentForPlatform(platform, content, {
+        tiktok: params.accountOptions?.[account.id] as TikTokOptions | undefined,
+      });
       const withMeta = (issue: ValidationIssue) => ({
         ...issue,
         field: issue.field === "text" ? field : `${field}.${issue.field}`,

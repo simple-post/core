@@ -204,3 +204,46 @@ it.each([undefined, { "tiktok-1": { privacyLevel: "SELF_ONLY" } }])(
     expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOptions: expected }));
   },
 );
+
+it.each(["public", "draft"])(
+  "preserves TikTok carousel and %s options through MCP validation, saving and dispatch",
+  async (publishMode) => {
+    const options = {
+      "tiktok-1": {
+        publishMode,
+        autoAddMusic: publishMode === "public",
+        photoCoverIndex: 3,
+        title: "Title",
+        description: "Description",
+        ...(publishMode === "public" ? { privacyLevel: "SELF_ONLY" } : {}),
+      },
+    };
+    (validatePostForAccounts as jest.Mock).mockResolvedValue({
+      accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+      results: [],
+      summary: { isValid: true, errors: [], warnings: [] },
+    });
+    const media = Array.from({ length: 7 }, (_, i) => ({ type: "image", url: `https://media.example.com/${i}.jpg` }));
+    const result = await createPost(
+      "user-1",
+      createPostSchema.parse({
+        message: "Photos",
+        media,
+        accountIds: ["tiktok-1"],
+        accountOptions: options,
+        postingMode: "now",
+      }),
+    );
+    expect(result.post.accountOptions).toEqual(options);
+    expect(savePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountOptions: options,
+        media: expect.arrayContaining(media.map((item) => expect.objectContaining(item))),
+      }),
+      "user-1",
+      {},
+    );
+    expect((postToAccounts as jest.Mock).mock.calls[0][4]).toEqual(options);
+    expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOptions: options }));
+  },
+);

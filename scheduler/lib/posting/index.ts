@@ -244,6 +244,8 @@ async function postSingleSegment(
         generatePostUrl(platform, result.id, {
           username: account.username ?? undefined,
           platformAccountId: account.platformAccountId ?? undefined,
+          mediaType: processedMedia[0]?.type,
+          publishMode: options?.tiktok?.publishMode,
         });
       const durationMs = Date.now() - startTime;
       log.info(

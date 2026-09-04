@@ -248,3 +248,16 @@ Supported values are `PUBLIC_TO_EVERYONE` (everyone), `MUTUAL_FOLLOW_FRIENDS` (m
 TikTok enforces the creator's available audiences at publishing time. If public or another requested audience is unavailable, surface the error and call `get_tiktok_creator_info` to inspect supported choices and posting restrictions. Ask for an alternative; never silently fall back to a different audience.
 
 `postingMode: "draft"` saves a SimplePost draft without publishing. The separate TikTok inbox option, `accountOptions[accountId].publishMode: "draft"`, bypasses the direct-post privacy default. Comments, Duet and Stitch remain off unless explicitly enabled and allowed.
+
+## TikTok photo carousels, music and inbox upload
+
+TikTok supports 1–35 JPEG/WebP photos in the root `media` array, in order. Do not mix images and videos. Use `upload_media` to host attachments on SimplePost's media storage (its domain/prefix must be verified with TikTok); photos need public HTTPS URLs without redirects. Maximum 20 MB per image and 1080p.
+
+Use the same account-scoped options in `create_post`, `preview_post`, `validate_post` and `update_scheduled_post`:
+
+- `autoAddMusic: true`: TikTok selects recommended music for a photo Direct Post.
+- `publishMode: "draft"`: upload to TikTok inbox to add music, edit and publish manually. Omit `autoAddMusic` or set false. This does not directly publish.
+- `photoCoverIndex`: zero-based cover image index (default 0).
+- `title`: up to 90 characters for photos; `description`: up to 4000, defaults to `message`.
+
+For inbox upload **now**, set top-level `postingMode: "now"` and `accountOptions[accountId].publishMode: "draft"`. Top-level `postingMode: "draft"` only saves a SimplePost draft and performs no TikTok upload. `postingMode: "schedule"` schedules the selected TikTok operation. Return the result message to the user: inbox uploads require opening the TikTok notification to finish publishing. A specific song cannot be selected through the photo API.

@@ -509,3 +509,7 @@ Both expose the same `/api/v1/*` shapes. Differences you'll observe in practice:
 - [Scheduler app](../scheduler-app/README.md) — UI, account connections, scheduling, MCP server, multi-user.
 - [TypeScript SDK](../typescript-sdk/README.md) — call the publishing layer in-process, no HTTP.
 - [CLI](../cli/README.md) — terminal workflows talking to either the server or the scheduler.
+
+## TikTok photos and music
+
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../platforms/TikTok.md).

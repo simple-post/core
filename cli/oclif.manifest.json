@@ -305,11 +305,60 @@
           "type": "option"
         },
         "tiktok-publish-mode": {
-          "description": "TikTok publish mode",
+          "description": "public: Direct Post; draft: upload to TikTok inbox to add music and publish manually",
           "helpGroup": "TikTok",
           "name": "tiktok-publish-mode",
           "hasDynamicHelp": false,
           "multiple": false,
+          "options": [
+            "public",
+            "draft"
+          ],
+          "type": "option"
+        },
+        "tiktok-auto-add-music": {
+          "description": "Automatically add TikTok-recommended music (photo Direct Post only)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-auto-add-music",
+          "allowNo": true,
+          "type": "boolean"
+        },
+        "tiktok-title": {
+          "description": "TikTok title (up to 90 characters for photos)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-title",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-description": {
+          "description": "TikTok photo description (up to 4000 characters; defaults to --text)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-description",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-photo-cover-index": {
+          "description": "Zero-based cover photo index (default 0)",
+          "helpGroup": "TikTok",
+          "name": "tiktok-photo-cover-index",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "tiktok-privacy-level": {
+          "description": "TikTok creator privacy choice for Direct Post",
+          "helpGroup": "TikTok",
+          "name": "tiktok-privacy-level",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "PUBLIC_TO_EVERYONE",
+            "MUTUAL_FOLLOW_FRIENDS",
+            "FOLLOWER_OF_CREATOR",
+            "SELF_ONLY"
+          ],
           "type": "option"
         },
         "tiktok-visibility": {

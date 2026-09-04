@@ -36,7 +36,7 @@ export const createPostSchema = z.object({
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    'Platform settings keyed by account ID, not platform name. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
+    'Platform settings keyed by account ID, not platform name. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. For TikTok photo carousels pass 1–35 image URLs, autoAddMusic:true for recommended music on Direct Post, photoCoverIndex (zero-based, default 0), title (90 characters), and description (4000 characters, defaults to message). Set publishMode:"draft" to upload to the TikTok inbox and manually add music/edit/publish; omit autoAddMusic or set false. Use postingMode:"now" (or "schedule") for the upload to run; postingMode:"draft" only saves a SimplePost draft. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -47,7 +47,9 @@ export const createPostSchema = z.object({
   postingMode: z
     .enum(["now", "schedule", "draft"])
     .default("now")
-    .describe("'now' to post immediately, 'schedule' to schedule for later, or 'draft' to save without publishing"),
+    .describe(
+      "'now' to post immediately, 'schedule' to schedule for later, or 'draft' to save in SimplePost without uploading. To upload to TikTok inbox, use 'now' with accountOptions[accountId].publishMode='draft'",
+    ),
   scheduledFor: z
     .string()
     .datetime({ offset: true })
@@ -184,7 +186,7 @@ export const updateScheduledPostSchema = z.object({
     "Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    "Replacement platform settings keyed by account ID, including TikTok privacyLevel. Use get_tiktok_creator_info for allowed privacy choices. Omit to keep current settings; when supplied, this replaces the entire map.",
+    "Replacement platform settings keyed by account ID, including TikTok privacyLevel, publishMode (public or draft for TikTok inbox upload), autoAddMusic (photo Direct Post only), title, description, and photoCoverIndex. Use get_tiktok_creator_info for allowed privacy choices. Omit to keep current settings; when supplied, this replaces the entire map.",
   ),
   media: mcpMediaArraySchema
     .nullable()

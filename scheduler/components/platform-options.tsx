@@ -221,20 +221,39 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             </Label>
             <Select
               value={options.tiktok?.publishMode || "public"}
-              onValueChange={(value) => updateOption("tiktok", "publishMode", value as "draft" | "public")}>
+              onValueChange={(value) =>
+                onOptionsChange({
+                  ...options,
+                  tiktok: {
+                    ...options.tiktok,
+                    publishMode: value as "draft" | "public",
+                    ...(value === "draft" ? { autoAddMusic: false } : {}),
+                  },
+                })
+              }>
               <SelectTrigger id="tiktok-publishMode" className="mt-1 border-border">
                 <SelectValue placeholder="Select publish mode" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="public">Publish Immediately</SelectItem>
-                <SelectItem value="draft">Save as Draft</SelectItem>
+                <SelectItem value="draft">Upload to TikTok inbox</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
-              Publish immediately or save to drafts for later review in TikTok app
+              Upload to TikTok inbox to add music, edit, and publish manually in TikTok.
             </p>
           </div>
 
+          {options.tiktok?.publishMode !== "draft" && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="tiktok-autoAddMusic"
+                checked={options.tiktok?.autoAddMusic === true}
+                onCheckedChange={(checked) => updateOption("tiktok", "autoAddMusic", checked === true)}
+              />
+              <Label htmlFor="tiktok-autoAddMusic">Automatically add music (photo posts only)</Label>
+            </div>
+          )}
           {options.tiktok?.publishMode !== "draft" && (
             <>
               <div>

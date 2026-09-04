@@ -12,7 +12,7 @@ jest.mock("axios");
 jest.mock("fs");
 jest.mock("../src/utils/s3", () => ({
   S3MediaUploader: jest.fn().mockImplementation(() => ({
-    uploadFile: jest.fn(),
+    uploadFile: jest.fn().mockResolvedValue("https://media.example.com/photo.jpg"),
     deleteFile: jest.fn(),
   })),
 }));
@@ -37,6 +37,7 @@ describe("TikTokPublisher", () => {
       get: jest.fn(),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
+    mockedAxios.head.mockResolvedValue({ headers: { "content-type": "image/jpeg", "content-length": "1024" } });
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
@@ -203,7 +204,7 @@ describe("TikTokPublisher", () => {
       expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
       // Verify photo endpoint is used
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        "/v2/post/publish/photo/init/",
+        "/v2/post/publish/content/init/",
         expect.objectContaining({
           post_info: expect.any(Object),
           source_info: expect.any(Object),
@@ -280,6 +281,7 @@ describe("TikTokPublisher", () => {
       mockAxiosInstance.post.mockResolvedValueOnce({
         data: {
           data: {
+            publish_id: "draft_123",
             upload_url: "https://upload.tiktok.com/video?upload_id=draft_123",
           },
         },
@@ -308,7 +310,7 @@ describe("TikTokPublisher", () => {
       const result = await publisher.postContent(videoContent, options);
 
       expect(result.error).toBe(PostErrorType.NO_ERROR);
-      expect(result.id).toBe("draft_uploaded");
+      expect(result.id).toBe("draft_123");
 
       // Verify the inbox init endpoint was called (without post_info)
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
@@ -341,7 +343,7 @@ describe("TikTokPublisher", () => {
       await expect(publisher.postContent(videoContent)).rejects.toThrow(PostError);
     });
 
-    it("should warn about multiple media items", async () => {
+    it("should publish all images in one photo post", async () => {
       const contentWithMultipleMedia: Content = {
         text: "Test with multiple images",
         media: [
@@ -425,7 +427,7 @@ describe("TikTokPublisher", () => {
       expect(result.errors[0].code).toBe("caption_too_long");
     });
 
-    it("should warn when multiple media items are provided", () => {
+    it("should accept multiple photo attachments", () => {
       const contentWithMultipleMedia: Content = {
         text: "Multiple media",
         media: [
@@ -437,8 +439,7 @@ describe("TikTokPublisher", () => {
       const result = TikTokPublisher.validate(contentWithMultipleMedia);
 
       expect(result.errors).toHaveLength(0);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].code).toBe("too_many_media");
+      expect(result.warnings).toHaveLength(0);
     });
   });
 });

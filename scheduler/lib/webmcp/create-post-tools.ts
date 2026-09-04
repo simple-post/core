@@ -41,7 +41,7 @@ const contentSchema = z.object({
     .record(z.string(), z.record(z.string(), z.unknown()))
     .optional()
     .describe(
-      "Platform settings keyed by account ID, e.g. YouTube title, privacyStatus and selfDeclaredMadeForKids, Pinterest boardId, or Forem title. validate_post reports missing requirements.",
+      "Platform settings keyed by account ID, e.g. YouTube title, privacyStatus and selfDeclaredMadeForKids, Pinterest boardId, or Forem title. TikTok supports autoAddMusic (photo Direct Post only), photoCoverIndex, title, description, and publishMode: draft to upload to the TikTok inbox for manual music/editing/publishing. Use postingMode: now to run the inbox upload; postingMode: draft only saves in SimplePost. validate_post reports missing requirements.",
     ),
 });
 const createSchema = contentSchema

@@ -334,6 +334,21 @@ export function AccountOptionsComponent({
     .filter((file) => file.type === "video" && typeof file.durationSec === "number")
     .reduce<number | null>((max, file) => Math.max(max ?? 0, file.durationSec ?? 0), null);
 
+  useEffect(() => {
+    for (const account of selectedAccounts) {
+      if (account.platform.toLowerCase() !== "tiktok") continue;
+      const current = options[account.id] ?? {};
+      const patch: Record<string, unknown> = {};
+      if (!hasTikTokPhotoOnly && current.autoAddMusic === true) patch.autoAddMusic = false;
+      if (
+        current.photoCoverIndex !== undefined &&
+        (!hasTikTokPhotoOnly || Number(current.photoCoverIndex) >= media.length)
+      )
+        patch.photoCoverIndex = undefined;
+      if (Object.keys(patch).length > 0) updateOptions(account.id, patch);
+    }
+  }, [hasTikTokPhotoOnly, media.length, options, selectedAccounts, updateOptions]);
+
   const getTikTokPrivacyLevel = useCallback(
     (accountOptions: Record<string, unknown>): TikTokPrivacyLevel | undefined => {
       const privacyLevel = asString(accountOptions.privacyLevel);
@@ -805,39 +820,91 @@ export function AccountOptionsComponent({
                   </Label>
                   <Select
                     value={asString(accountOptions.publishMode) || "public"}
-                    onValueChange={(value) => updateOption(account.id, "publishMode", value as "draft" | "public")}>
+                    onValueChange={(value) =>
+                      updateOptions(account.id, {
+                        publishMode: value,
+                        ...(value === "draft" ? { autoAddMusic: false } : {}),
+                      })
+                    }>
                     <SelectTrigger id={`${account.id}-publishMode`} className="mt-1 border-border">
                       <SelectValue placeholder="Select publish mode" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="public">Publish Immediately</SelectItem>
-                      <SelectItem value="draft">Save as Draft</SelectItem>
+                      <SelectItem value="draft">Upload to TikTok inbox</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Publish immediately or save to drafts for later review in TikTok app
+                    Upload to TikTok inbox to add music and edit in TikTok before publishing manually. This is separate
+                    from saving a SimplePost draft.
                   </p>
                 </div>
 
+                <div>
+                  <Label htmlFor={`${account.id}-tiktok-title`}>
+                    Title {hasTikTokPhotoOnly ? "(optional, 90 characters)" : "(optional)"}
+                  </Label>
+                  <Input
+                    id={`${account.id}-tiktok-title`}
+                    value={asString(accountOptions.title)}
+                    onChange={(e) => updateOption(account.id, "title", e.target.value)}
+                    maxLength={hasTikTokPhotoOnly ? 90 : 2200}
+                    placeholder="Enter a TikTok title"
+                  />
+                </div>
+                {hasTikTokPhotoOnly && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Up to 35 JPEG or WebP photos, in attachment order. The post text becomes the photo description (up
+                      to 4,000 characters).
+                    </p>
+                    <div>
+                      <Label htmlFor={`${account.id}-tiktok-description`}>Photo description (optional override)</Label>
+                      <Textarea
+                        id={`${account.id}-tiktok-description`}
+                        value={asString(accountOptions.description)}
+                        onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
+                        maxLength={4000}
+                        placeholder="Use the post text"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`${account.id}-tiktok-cover`}>Cover photo</Label>
+                      <Select
+                        value={String(accountOptions.photoCoverIndex ?? 0)}
+                        onValueChange={(value) => updateOption(account.id, "photoCoverIndex", Number(value))}>
+                        <SelectTrigger id={`${account.id}-tiktok-cover`}>
+                          <SelectValue placeholder="Choose cover photo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {media.map((file, index) => (
+                            <SelectItem key={file.id} value={String(index)}>
+                              Photo {index + 1}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {accountOptions.publishMode !== "draft" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`${account.id}-autoAddMusic`}
+                            checked={asBoolean(accountOptions.autoAddMusic, false)}
+                            onCheckedChange={(checked) => updateOption(account.id, "autoAddMusic", checked)}
+                          />
+                          <Label htmlFor={`${account.id}-autoAddMusic`}>Automatically add music</Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          TikTok chooses recommended music. To choose music yourself, upload to TikTok inbox instead.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {(asString(accountOptions.publishMode) || "public") !== "draft" && (
                   <>
-                    <div>
-                      <Label htmlFor={`${account.id}-tiktok-title`} className="text-sm text-muted-foreground">
-                        Title
-                      </Label>
-                      <Input
-                        id={`${account.id}-tiktok-title`}
-                        value={asString(accountOptions.title)}
-                        onChange={(e) => updateOption(account.id, "title", e.target.value)}
-                        placeholder="Enter the TikTok title"
-                        maxLength={2200}
-                        className="mt-1 border-border"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Preset text and hashtags remain editable before posting.
-                      </p>
-                    </div>
-
                     <div>
                       <Label htmlFor={`${account.id}-visibility`} className="text-sm text-muted-foreground">
                         Privacy Status

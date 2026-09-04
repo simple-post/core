@@ -24,7 +24,14 @@ export const AccountOptionsValueSchema = z
     selfDeclaredMadeForKids: z.boolean().optional(),
     publishAt: z.string().optional(),
     privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
-    publishMode: z.enum(["draft", "public"]).optional(),
+    publishMode: z
+      .enum(["draft", "public"])
+      .optional()
+      .describe(
+        "TikTok: public directly posts; draft uploads to the TikTok inbox for manual editing and publishing. Separate from SimplePost postingMode=draft.",
+      ),
+    autoAddMusic: z.boolean().optional().describe("TikTok photo Direct Post only: add TikTok-recommended music."),
+    photoCoverIndex: z.number().int().min(0).max(34).optional().describe("TikTok photo cover index, starting at 0."),
     privacyLevel: z
       .enum(["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"])
       .optional(),

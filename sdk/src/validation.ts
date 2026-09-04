@@ -10,7 +10,7 @@ import { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tik
 import { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation";
 import { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";
 
-import type { Content, Platform } from "./types/post";
+import type { Content, Platform, PostOptions } from "./types/post";
 import type { PlatformValidationRules, ValidationResult } from "./types/validation";
 
 interface PlatformValidator {
@@ -36,7 +36,12 @@ export function getValidationRulesForPlatform(platform: Platform): PlatformValid
   return PLATFORM_VALIDATORS[platform]?.rules ?? {};
 }
 
-export function validateContentForPlatform(platform: Platform, content: Content): ValidationResult {
+export function validateContentForPlatform(
+  platform: Platform,
+  content: Content,
+  options?: PostOptions,
+): ValidationResult {
+  if (platform === "tiktok") return validateTikTokContent(content, options?.tiktok);
   return PLATFORM_VALIDATORS[platform]?.validate(content) ?? { errors: [], warnings: [], isValid: true };
 }
 

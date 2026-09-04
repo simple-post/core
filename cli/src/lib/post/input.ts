@@ -55,6 +55,11 @@ export type PostFlagValues = {
   "youtube-privacy-status"?: string;
   "facebook-publish-at"?: string;
   "tiktok-publish-mode"?: string;
+  "tiktok-auto-add-music"?: boolean;
+  "tiktok-title"?: string;
+  "tiktok-description"?: string;
+  "tiktok-photo-cover-index"?: number;
+  "tiktok-privacy-level"?: string;
   "tiktok-visibility"?: string;
   "tiktok-allow-comment"?: boolean;
   "tiktok-allow-duet"?: boolean;
@@ -165,12 +170,26 @@ function buildOptions(flags: PostFlagValues): PostOptions | undefined {
 
   if (
     flags["tiktok-publish-mode"] ||
+    flags["tiktok-auto-add-music"] !== undefined ||
+    flags["tiktok-title"] !== undefined ||
+    flags["tiktok-description"] !== undefined ||
+    flags["tiktok-photo-cover-index"] !== undefined ||
+    flags["tiktok-privacy-level"] ||
     flags["tiktok-visibility"] ||
     flags["tiktok-allow-comment"] !== undefined ||
     flags["tiktok-allow-duet"] !== undefined ||
     flags["tiktok-allow-stitch"] !== undefined
   ) {
     options.tiktok = {
+      ...(flags["tiktok-auto-add-music"] === undefined ? {} : { autoAddMusic: flags["tiktok-auto-add-music"] }),
+      ...(flags["tiktok-title"] === undefined ? {} : { title: flags["tiktok-title"] }),
+      ...(flags["tiktok-description"] === undefined ? {} : { description: flags["tiktok-description"] }),
+      ...(flags["tiktok-photo-cover-index"] === undefined
+        ? {}
+        : { photoCoverIndex: flags["tiktok-photo-cover-index"] }),
+      ...(flags["tiktok-privacy-level"]
+        ? { privacyLevel: flags["tiktok-privacy-level"] as NonNullable<PostOptions["tiktok"]>["privacyLevel"] }
+        : {}),
       ...(flags["tiktok-publish-mode"]
         ? { publishMode: flags["tiktok-publish-mode"] as NonNullable<PostOptions["tiktok"]>["publishMode"] }
         : {}),
@@ -395,7 +414,7 @@ function describePlatformSettings(options: PostOptions | undefined, platforms: P
     parts.push("Facebook schedule");
   }
 
-  if (platforms.includes("tiktok") && (options.tiktok?.publishMode || options.tiktok?.visibility)) {
+  if (platforms.includes("tiktok") && options.tiktok) {
     parts.push("TikTok settings");
   }
 
@@ -464,6 +483,7 @@ async function collectInteractivePlatformOptions(
   platforms: Platform[],
   existingOptions?: PostOptions,
   selectedAccounts?: SelectedAccountInfo[],
+  media: NonNullable<Post["content"]["media"]> = [],
 ): Promise<PostOptions | undefined> {
   const currentOptions = filterOptionsForPlatforms(existingOptions, platforms);
   const currentSummary = describePlatformSettings(currentOptions, platforms);
@@ -614,32 +634,42 @@ async function collectInteractivePlatformOptions(
 
   if (platforms.includes("tiktok") && (await prompt.confirm("Add TikTok-specific settings?", false))) {
     logInteractiveSection(prompt, "TikTok");
-    const publishMode = await prompt.select(
+    const publishMode = await prompt.select<"public" | "draft">(
       "Publish mode",
       [
-        { label: "Skip", value: "skip" },
-        { label: "Draft", value: "draft" },
-        { label: "Public", value: "public" },
+        { label: "Direct Post", value: "public" },
+        { label: "Upload to TikTok inbox (add music and publish manually)", value: "draft" },
       ],
-      currentOptions?.tiktok?.publishMode ?? "skip",
+      currentOptions?.tiktok?.publishMode ?? "public",
     );
-    const visibility = await prompt.select(
-      "Visibility",
-      [
-        { label: "Skip", value: "skip" },
-        { label: "Public", value: "public" },
-        { label: "Friends", value: "friends" },
-        { label: "Private", value: "private" },
-      ],
-      currentOptions?.tiktok?.visibility ?? "skip",
-    );
-
-    options.tiktok = {
-      ...(publishMode === "skip"
-        ? {}
-        : { publishMode: publishMode as NonNullable<PostOptions["tiktok"]>["publishMode"] }),
-      ...(visibility === "skip" ? {} : { visibility: visibility as NonNullable<PostOptions["tiktok"]>["visibility"] }),
-    };
+    options.tiktok = { publishMode };
+    if (publishMode === "public") {
+      options.tiktok.privacyLevel = await prompt.select<
+        NonNullable<NonNullable<PostOptions["tiktok"]>["privacyLevel"]>
+      >(
+        "Privacy (choose an option available to your TikTok account)",
+        [
+          { label: "Everyone", value: "PUBLIC_TO_EVERYONE" },
+          { label: "Friends", value: "MUTUAL_FOLLOW_FRIENDS" },
+          { label: "Followers", value: "FOLLOWER_OF_CREATOR" },
+          { label: "Only me", value: "SELF_ONLY" },
+        ],
+        currentOptions?.tiktok?.privacyLevel,
+      );
+    }
+    if (media.length > 0 && media.every((item) => item.type === "image")) {
+      const title = (
+        await prompt.text("Photo title (optional, up to 90 characters)", {
+          defaultValue: currentOptions?.tiktok?.title,
+        })
+      ).trim();
+      if (title) options.tiktok.title = title;
+      if (publishMode === "public")
+        options.tiktok.autoAddMusic = await prompt.confirm(
+          "Automatically add TikTok-recommended music?",
+          currentOptions?.tiktok?.autoAddMusic ?? false,
+        );
+    }
   }
 
   if (platforms.includes("linkedin") && (await prompt.confirm("Add LinkedIn visibility settings?", false))) {
@@ -716,7 +746,7 @@ async function askInteractivePost(
   );
   const targetSelection = resolveInteractiveTargets(selectedTargets, targetOptions.options);
 
-  // Only collect platform options for local accounts (app accounts are handled server-side)
+  // Local account metadata supplies stored chat IDs; posting options apply to all targets.
   const localPlatforms = targetSelection.platforms.filter(
     (platform) =>
       (targetSelection.accountSelections[platform]?.length ?? 0) > 0 || targetSelection.appAccountIds.length === 0,
@@ -731,15 +761,14 @@ async function askInteractivePost(
   const text = (await prompt.text("Post text (optional)")).trim();
   const media = await collectInteractiveMedia(prompt, []);
 
-  const hasLocalAccounts = Object.values(targetSelection.accountSelections).some(
-    (aliases) => (aliases?.length ?? 0) > 0,
+  const postPlatforms = targetSelection.platforms;
+  const postOptions = await collectInteractivePlatformOptions(
+    prompt,
+    postPlatforms,
+    undefined,
+    selectedAccountInfos,
+    media,
   );
-  const postOptions = hasLocalAccounts
-    ? await collectInteractivePlatformOptions(prompt, localPlatforms, undefined, selectedAccountInfos)
-    : undefined;
-
-  // For local accounts, we need platforms. For app-only, we just pass a dummy platforms list.
-  const postPlatforms = hasLocalAccounts ? localPlatforms : targetSelection.platforms;
 
   return {
     accountSelections: targetSelection.accountSelections,

@@ -264,3 +264,7 @@ For more examples, check out the [`/examples`](../../examples) directory.
 - **Need terminal posting?** → [CLI docs](../cli/README.md)
 - **Need AI assistant posting?** → [MCP server docs](../mcp-server/README.md)
 - **Found a bug?** → [Open an issue](https://github.com/simple-post/core/issues)
+
+## TikTok photos and music
+
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../platforms/TikTok.md).

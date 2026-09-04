@@ -73,7 +73,7 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                 ? "Posting complete. Finishing up…"
                 : `${completedPosts} of ${results.length} platform${results.length === 1 ? "" : "s"} complete.`
               : successfulPosts.length > 0
-                ? `Successfully posted to ${successfulPosts.length} platform${successfulPosts.length > 1 ? "s" : ""}.`
+                ? `Successfully completed for ${successfulPosts.length} platform${successfulPosts.length > 1 ? "s" : ""}.`
                 : "Posting completed."}
           </DialogDescription>
         </DialogHeader>
@@ -94,7 +94,7 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
             return (
               <div
                 key={result.accountId}
-                className="flex h-14 min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-border bg-secondary/40 px-3">
+                className="flex min-h-14 min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-border bg-secondary/40 px-3 py-2">
                 <div className="flex w-5 flex-shrink-0 items-center justify-center">
                   {result.success === undefined ? (
                     <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -105,40 +105,47 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                   )}
                 </div>
 
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden">
-                  <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                    <PlatformIcon platform={result.platform} className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate text-sm font-medium">{getPlatformDisplayName(result.platform)}</span>
-                    {result.accountName && (
-                      <span className="truncate text-xs text-muted-foreground">{result.accountName}</span>
-                    )}
-                    {isThread && (
-                      <span className="flex-shrink-0 font-mono text-xs text-muted-foreground">
-                        {succeededSegments}/{totalSegments} posts
-                      </span>
-                    )}
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center justify-between gap-2 overflow-hidden">
+                    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                      <PlatformIcon platform={result.platform} className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate text-sm font-medium">{getPlatformDisplayName(result.platform)}</span>
+                      {result.accountName && (
+                        <span className="truncate text-xs text-muted-foreground">{result.accountName}</span>
+                      )}
+                      {isThread && (
+                        <span className="flex-shrink-0 font-mono text-xs text-muted-foreground">
+                          {succeededSegments}/{totalSegments} posts
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex h-8 w-20 flex-shrink-0 items-center justify-end">
-                    {result.success === undefined ? (
-                      <span className="text-xs text-muted-foreground">Posting…</span>
-                    ) : result.success && postUrl ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-20 justify-end gap-2 px-0"
-                        onClick={() => window.open(postUrl, "_blank", "noopener,noreferrer")}>
-                        <ExternalLink className="h-4 w-4" />
-                        View
-                      </Button>
-                    ) : result.success ? (
-                      <span className="text-xs text-primary">Posted</span>
-                    ) : (
-                      <span className="text-xs text-destructive" title={result.message || result.error}>
-                        Failed
-                      </span>
-                    )}
+                    <div className="flex h-8 w-20 flex-shrink-0 items-center justify-end">
+                      {result.success === undefined ? (
+                        <span className="text-xs text-muted-foreground">Posting…</span>
+                      ) : result.success && postUrl ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-20 justify-end gap-2 px-0"
+                          onClick={() => window.open(postUrl, "_blank", "noopener,noreferrer")}>
+                          <ExternalLink className="h-4 w-4" />
+                          View
+                        </Button>
+                      ) : result.success ? (
+                        <span className="text-xs text-primary" title={result.message}>
+                          {result.message ? "Submitted" : "Posted"}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-destructive" title={result.message || result.error}>
+                          Failed
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  {result.success && result.message && (
+                    <p className="mt-1 text-xs text-muted-foreground">{result.message}</p>
+                  )}
                 </div>
               </div>
             );

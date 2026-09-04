@@ -168,3 +168,19 @@ Publishing is automated by [`.github/workflows/release.yml`](../../.github/workf
 The npm dist-tag is derived from the version: stable versions publish as `latest`, prerelease versions publish under their prerelease identifier (`cli-v1.1.0-beta.1` → `@simple-post/cli@1.1.0-beta.1` with dist-tag `beta`, installable via `npm i -g @simple-post/cli@beta`).
 
 The CLI depends on `@simple-post/sdk` from the public npm registry, so the SDK version tested by the workspace must already be published and must satisfy the CLI dependency range before a CLI release is tagged.
+
+## TikTok photo posts and music
+
+Attach 1–35 JPEG/WebP photos with repeated `--image` flags. Use `--tiktok-auto-add-music` for TikTok-recommended music on Direct Post, or `--tiktok-publish-mode draft` to upload to TikTok's inbox and add music/edit/publish manually. `--no-tiktok-auto-add-music` disables automatic music. These work for both `--account tiktok:alias` and `--app-account-id ID`, including local files.
+
+```bash
+simplepost post --app-account-id TIKTOK_ACCOUNT_ID \
+  --image ./1.jpg --image ./2.jpg --image ./3.jpg --image ./4.jpg \
+  --text "My photo story" --tiktok-title "This week" \
+  --tiktok-privacy-level SELF_ONLY --tiktok-auto-add-music
+
+simplepost post --app-account-id TIKTOK_ACCOUNT_ID \
+  --image ./1.jpg --image ./2.jpg --tiktok-publish-mode draft
+```
+
+Additional fields: `--tiktok-description` (photo description override) and `--tiktok-photo-cover-index` (zero-based, default 0). The interactive flow and JSON inputs expose the same behavior. Local-account SDK uploads need S3-compatible storage whose public domain/prefix is verified with TikTok. Public image URLs must also be verified, HTTPS and without redirects.

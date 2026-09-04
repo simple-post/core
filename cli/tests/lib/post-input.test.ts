@@ -108,3 +108,75 @@ describe("collectPostInput Forem flags", () => {
     });
   });
 });
+
+describe("TikTok photo flags", () => {
+  it.each([true, false])("preserves photo order, title, cover, and explicit auto music %s", async (autoAddMusic) => {
+    const images = Array.from({ length: 7 }, (_, i) => `https://media.example.com/${i}.jpg`);
+    const result = await collectPostInput(
+      {
+        account: ["tiktok:main"],
+        image: images,
+        "tiktok-auto-add-music": autoAddMusic,
+        "tiktok-title": "Title",
+        "tiktok-description": "Description",
+        "tiktok-photo-cover-index": 0,
+        "tiktok-privacy-level": "SELF_ONLY",
+        "tiktok-publish-mode": "public",
+      },
+      {} as any,
+      { accounts: [] },
+    );
+    expect(result.post.content.media?.map((item) => item.url)).toEqual(images);
+    expect(result.post.options?.tiktok).toEqual({
+      autoAddMusic,
+      title: "Title",
+      description: "Description",
+      photoCoverIndex: 0,
+      privacyLevel: "SELF_ONLY",
+      publishMode: "public",
+    });
+  });
+  it("supports inbox upload without a privacy choice", async () => {
+    const result = await collectPostInput(
+      { account: ["tiktok:main"], image: ["a.jpg", "b.jpg"], "tiktok-publish-mode": "draft" },
+      {} as any,
+      { accounts: [] },
+    );
+    expect(result.post.options?.tiktok).toEqual({ publishMode: "draft" });
+    expect(result.post.content.media).toHaveLength(2);
+  });
+});
+
+it.each(["public", "draft"])(
+  "offers TikTok photo music/inbox settings for interactive app accounts (%s)",
+  async (publishMode) => {
+    const prompt = {
+      interactive: true,
+      log: jest.fn(),
+      multiSelect: jest.fn().mockResolvedValue(["app:tt"]),
+      confirm: jest.fn(async (message: string) => message !== "Add another media item?"),
+      select: jest.fn(async (message: string) =>
+        message === "Media type" ? "image" : message === "Publish mode" ? publishMode : "SELF_ONLY",
+      ),
+      text: jest.fn(async (message: string) =>
+        message === "Path or URL"
+          ? "https://media.example.com/1.jpg"
+          : message.startsWith("Photo title")
+            ? "Title"
+            : "",
+      ),
+    } as any;
+    const result = await collectPostInput({ interactive: true }, prompt, {
+      accounts: [{ alias: "creator", appAccountId: "tt", platform: "tiktok", source: "app" }],
+    });
+    expect(result.appAccountIds).toEqual(["tt"]);
+    expect(result.post.options?.tiktok).toEqual({
+      publishMode,
+      title: "Title",
+      ...(publishMode === "public" ? { autoAddMusic: true, privacyLevel: "SELF_ONLY" } : {}),
+    });
+    expect(prompt.confirm.mock.calls.some(([message]: [string]) => message.includes("recommended music"))).toBe(
+      publishMode === "public",
+    );
+  },
+);

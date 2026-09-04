@@ -7,3 +7,10 @@ describe("generatePostUrl", () => {
     );
   });
 });
+
+it("builds photo permalinks and never invents a published link for inbox uploads", () => {
+  expect(generatePostUrl("tiktok", "123", { username: "creator", mediaType: "image" })).toBe(
+    "https://www.tiktok.com/@creator/photo/123",
+  );
+  expect(generatePostUrl("tiktok", "123", { username: "creator", publishMode: "draft" })).toBeUndefined();
+});

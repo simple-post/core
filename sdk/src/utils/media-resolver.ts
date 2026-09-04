@@ -117,11 +117,16 @@ export class MediaResolver {
    * Returns resolved media with both path and url set when needed
    */
   async resolve(media: Media[], platforms: Platform[]): Promise<ResolvedMedia[]> {
-    const { needsPath, needsUrl, needsEither } = getPlatformRequirements(platforms);
+    // TikTok manages photo staging itself so generic cleanup cannot remove
+    // its URLs while TikTok is still downloading. Video preparation is unchanged.
+    const photoPlatforms = platforms.filter((platform) => platform !== "tiktok");
 
     const resolved: ResolvedMedia[] = [];
 
     for (const item of media) {
+      const { needsPath, needsUrl, needsEither } = getPlatformRequirements(
+        item.type === "image" ? photoPlatforms : platforms,
+      );
       const resolvedItem: ResolvedMedia = { ...item };
 
       // Determine what we need based on platform requirements

@@ -1,3 +1,6 @@
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
+
 import { createEmptyCliConfig, saveCliConfig } from "../../src/lib/config.js";
 import { runPostWorkflow } from "../../src/lib/post/run.js";
 import { createSecretStore, clearSecretPasswordCache } from "../../src/lib/secrets.js";
@@ -275,3 +278,75 @@ describe("runPostWorkflow", () => {
     ).rejects.toThrow(/no posting targets were selected/i);
   });
 });
+
+it.each(["public", "draft"])(
+  "forwards TikTok photo options and uploads local files for app-connected %s",
+  async (publishMode) => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = { interactive: false, log: jest.fn() } as any;
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    config.scheduler = { url: "https://schedule.example.com", userId: "user-1", connectedAt: "2026-01-01T00:00:00Z" };
+    await saveCliConfig(paths, config);
+    const store = createSecretStore(paths, { backend: "file-plain" }, prompt);
+    await store.write("scheduler-token", { token: "cli-token" });
+    const localPhoto = path.join(home, "photo.jpg");
+    await writeFile(localPhoto, Buffer.from([255, 216, 255, 217]));
+    const settings = {
+      publishMode,
+      autoAddMusic: publishMode === "public",
+      ...(publishMode === "public" ? { privacyLevel: "SELF_ONLY" } : {}),
+      photoCoverIndex: 0,
+    };
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accounts: [{ id: "tt", platform: "tiktok", username: "creator" }] })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ url: "https://media.example.com/local.jpg", filename: "photo.jpg", size: 4 })),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            post: {},
+            postingResults: [
+              {
+                accountId: "tt",
+                platform: "tiktok",
+                success: true,
+                postId: "p_pub_url~123",
+                message: publishMode === "draft" ? "Uploaded to TikTok inbox. Publish manually." : undefined,
+              },
+            ],
+          }),
+        ),
+      );
+    (globalThis as any).fetch = fetchMock;
+    const outputs: string[] = [];
+    await runPostWorkflow({
+      config: { configDir: paths.configDir } as any,
+      prompt,
+      writeOutput: (message) => outputs.push(message),
+      flags: {
+        "app-account-id": ["tt"],
+        image: [localPhoto, "https://media.example.com/second.jpg"],
+        text: "Carousel",
+        "options-json": JSON.stringify({ tiktok: { ...settings, credentials: { accessToken: "must-not-be-sent" } } }),
+      },
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe("https://schedule.example.com/api/v1/upload");
+    expect(fetchMock.mock.calls[1][1].body.get("file").name).toBe("photo.jpg");
+    const body = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(body.accountOptions).toEqual({ tt: settings });
+    expect(body.postingMode).toBe("now");
+    expect(body.media.map((item: { url: string }) => item.url)).toEqual([
+      "https://media.example.com/local.jpg",
+      "https://media.example.com/second.jpg",
+    ]);
+    expect(JSON.stringify(body)).not.toContain("must-not-be-sent");
+    if (publishMode === "draft") expect(outputs[0]).toContain("Publish manually");
+    delete (globalThis as any).fetch;
+  },
+);

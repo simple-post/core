@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { openAsBlob } from "node:fs";
+import path from "node:path";
 
 import { PostErrorType, post as publishPost } from "@simple-post/sdk";
+import { normalizeContentType } from "@simple-post/sdk/media-types";
 
 import { collectPostInput } from "./input.js";
 
@@ -95,7 +98,9 @@ function formatPostSummary(results: ExecutionOutcome[]): string {
     lines.push(c.lime(`Succeeded (${successes.length})`));
     for (const entry of successes) {
       const idPart = entry.result.id ? ` (id: ${entry.result.id})` : "";
-      lines.push(`  ${c.lime("✓")} ${formatTargetLabel(entry)}: posted successfully${idPart}`);
+      lines.push(
+        `  ${c.lime("✓")} ${formatTargetLabel(entry)}: ${entry.result.message || "posted successfully"}${idPart}`,
+      );
     }
   }
 
@@ -112,7 +117,7 @@ function formatPostSummary(results: ExecutionOutcome[]): string {
   }
 
   if (failures.length === 0) {
-    lines.push(c.lime("All selected targets posted successfully."));
+    lines.push(c.lime("All selected targets completed successfully."));
   }
 
   return lines.join("\n");
@@ -207,6 +212,7 @@ async function postViaScheduler(
   ctx: SchedulerContext,
   post: Post,
   appAccountIds: string[],
+  accounts: Array<{ appAccountId?: string; platform: Platform }>,
 ): Promise<ExecutionOutcome[]> {
   const body: Record<string, unknown> = {
     message: post.content.text ?? "",
@@ -215,15 +221,46 @@ async function postViaScheduler(
     postingMode: "now",
   };
 
-  if (post.content.media && post.content.media.length > 0) {
-    body.media = post.content.media
-      .filter((m) => "url" in m && m.url)
-      .map((m) => ({
-        url: (m as { url: string }).url,
-        type: m.type,
-        filename: (m as { url: string }).url.split("/").pop() || m.type,
-        size: 0,
-      }));
+  const accountOptions: Record<string, Record<string, unknown>> = {};
+  for (const accountId of appAccountIds) {
+    const account = accounts.find((candidate) => candidate.appAccountId === accountId);
+    if (!account) throw new Error(`Unknown SimplePost app account: ${accountId}`);
+    const settings = post.options?.[account.platform];
+    if (settings) {
+      // Credentials are owned by the scheduler; never transmit SDK credentials.
+      const { credentials: _credentials, ...publicOptions } = settings;
+      accountOptions[accountId] = publicOptions;
+    }
+  }
+  if (Object.keys(accountOptions).length > 0) body.accountOptions = accountOptions;
+  if (post.content.media?.length) {
+    const media = [];
+    for (const item of post.content.media) {
+      if (item.url) {
+        media.push({
+          id: randomUUID(),
+          url: item.url,
+          type: item.type,
+          filename: new URL(item.url).pathname.split("/").pop() || item.type,
+          size: item.size ?? 0,
+          ...(item.type === "video" ? { thumbnailUrl: item.thumbnailUrl, durationSec: item.durationSec } : {}),
+        });
+      } else if (item.path) {
+        const form = new FormData();
+        form.append(
+          "file",
+          await openAsBlob(item.path, { type: normalizeContentType("", item.path) ?? "application/octet-stream" }),
+          path.basename(item.path),
+        );
+        const uploaded = await fetchSchedulerApi<{ url: string; filename: string; size: number }>(
+          ctx,
+          "/api/v1/upload",
+          { method: "POST", body: form },
+        );
+        media.push({ id: randomUUID(), ...uploaded, type: item.type });
+      }
+    }
+    body.media = media;
   }
 
   const response = await fetchSchedulerApi<RemotePostResponse>(ctx, "/api/v1/posts", {
@@ -242,7 +279,7 @@ async function postViaScheduler(
     result: {
       error: result.success ? PostErrorType.NO_ERROR : PostErrorType.OTHER,
       id: result.postId,
-      message: result.success ? undefined : result.message || result.error || "Unknown error",
+      message: result.message || (result.success ? undefined : result.error || "Unknown error"),
       url: result.postUrl,
     },
   }));
@@ -329,7 +366,12 @@ export async function runPostWorkflow(options: {
     const executionPlan = await buildExecutionTargets({
       cliConfig,
       paths,
-      post: postInput.post,
+      post: {
+        ...postInput.post,
+        platforms: postInput.post.platforms.filter(
+          (platform) => (postInput.accountSelections[platform]?.length ?? 0) > 0,
+        ),
+      },
       prompt: options.prompt,
       selections: postInput.accountSelections,
     });
@@ -355,7 +397,7 @@ export async function runPostWorkflow(options: {
 
   // Handle app account posting via scheduler
   if (hasAppSelections && schedulerCtx) {
-    const appOutcomes = await postViaScheduler(schedulerCtx, postInput.post, postInput.appAccountIds);
+    const appOutcomes = await postViaScheduler(schedulerCtx, postInput.post, postInput.appAccountIds, appAccounts);
     outcomes.push(...appOutcomes);
   }
 

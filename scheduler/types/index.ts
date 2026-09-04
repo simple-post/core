@@ -5,6 +5,7 @@ import type {
   MediaFile,
   ThreadSegment,
   ThreadSegmentResult,
+  TikTokOptions,
 } from "@simple-post/sdk";
 
 // Shared with @simple-post/server via @simple-post/sdk
@@ -56,18 +57,7 @@ export interface AccountPlatformOptions {
     privacyStatus?: "public" | "private" | "unlisted";
     publishAt?: string;
   };
-  tiktok?: {
-    title?: string;
-    publishMode?: "draft" | "public";
-    privacyLevel?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
-    visibility?: "public" | "friends" | "private";
-    allowComment?: boolean;
-    allowDuet?: boolean;
-    allowStitch?: boolean;
-    commercialContentDisclosure?: boolean;
-    discloseYourBrand?: boolean;
-    discloseBrandedContent?: boolean;
-  };
+  tiktok?: Omit<TikTokOptions, "credentials">;
   facebook?: {
     publishAt?: string;
   };
@@ -159,18 +149,7 @@ export interface PlatformOptions {
     privacyStatus?: "public" | "private" | "unlisted";
     publishAt?: string;
   };
-  tiktok?: {
-    title?: string;
-    publishMode?: "draft" | "public";
-    privacyLevel?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
-    visibility?: "public" | "friends" | "private";
-    allowComment?: boolean;
-    allowDuet?: boolean;
-    allowStitch?: boolean;
-    commercialContentDisclosure?: boolean;
-    discloseYourBrand?: boolean;
-    discloseBrandedContent?: boolean;
-  };
+  tiktok?: Omit<TikTokOptions, "credentials">;
   facebook?: {
     publishAt?: string;
   };

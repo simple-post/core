@@ -5,13 +5,13 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 
 export const TELEGRAM_MAX_TEXT_LENGTH = 4096;
 export const TELEGRAM_MAX_CAPTION_LENGTH = 1024;
-export const TELEGRAM_MAX_MEDIA_COUNT = 1;
+export const TELEGRAM_MAX_MEDIA_COUNT = 10;
 export const TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 export const TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const TELEGRAM_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: TELEGRAM_MAX_TEXT_LENGTH, maxCaptionLength: TELEGRAM_MAX_CAPTION_LENGTH },
-  media: { maxCount: TELEGRAM_MAX_MEDIA_COUNT },
+  media: { maxCount: TELEGRAM_MAX_MEDIA_COUNT, allowsMixed: true },
   image: { maxSizeBytes: TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES },
   video: { maxSizeBytes: TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES },
   notes: ["SimplePost downloads URL media and uploads it to Telegram using multipart/form-data."],
@@ -72,11 +72,11 @@ export function validateTelegramContent(content: Content): ValidationResult {
   }
 
   if (mediaCount > TELEGRAM_MAX_MEDIA_COUNT) {
-    warnings.push({
+    errors.push({
       platform: "telegram",
-      severity: "warning",
+      severity: "error",
       code: "too_many_media",
-      message: "Telegram supports only one media item per message. Only the first media will be sent.",
+      message: `Telegram albums cannot contain more than ${TELEGRAM_MAX_MEDIA_COUNT} media items.`,
       field: "media",
       limit: TELEGRAM_MAX_MEDIA_COUNT,
       actual: mediaCount,

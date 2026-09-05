@@ -4,6 +4,7 @@ import axios from "axios";
 
 import { TelegramPublisher } from "../src/publishers/telegram";
 import { PostError, PostErrorType } from "../src/types";
+import * as mediaUtils from "../src/utils/media";
 
 import type { Content, PostOptions, PostOptionsWithCredentials } from "../src/types/post";
 
@@ -25,6 +26,7 @@ jest.mock("form-data", () => {
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
+const mockStream = { destroy: jest.fn() };
 
 describe("TelegramPublisher", () => {
   it("blocks an existing connection to the bot itself before sending", async () => {
@@ -54,7 +56,7 @@ describe("TelegramPublisher", () => {
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
+    mockedFs.createReadStream.mockReturnValue(mockStream as any);
     mockedFs.statSync.mockReturnValue({ size: 1024 } as any);
 
     // Create a new publisher instance
@@ -66,6 +68,10 @@ describe("TelegramPublisher", () => {
         },
       },
     });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe("constructor", () => {
@@ -198,7 +204,7 @@ describe("TelegramPublisher", () => {
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", formData, {
         headers: { "content-type": "multipart/form-data" },
       });
-      expect(formData.append).toHaveBeenCalledWith("photo", "mock-stream", {
+      expect(formData.append).toHaveBeenCalledWith("photo", mockStream, {
         filename: "generated-image.png",
       });
       expect(result).toEqual({ id: "202608", error: PostErrorType.NO_ERROR });
@@ -257,25 +263,170 @@ describe("TelegramPublisher", () => {
       );
     });
 
-    it("should handle multiple media by using only the first one", async () => {
+    it.each([2, 4, 7, 10])("should publish %i images as one ordered album with a single caption", async (count) => {
       const content: Content = {
-        text: "Multiple media",
-        media: [
-          { type: "image", path: "/path/to/image1.jpg" },
-          { type: "image", path: "/path/to/image2.jpg" },
-        ],
+        text: "<b>Project photos</b>",
+        media: Array.from({ length: count }, (_, index) => ({ type: "image", path: `/photos/${index}.jpg` })),
       };
-
       mockAxiosInstance.post.mockResolvedValue({
-        data: { result: { message_id: 131_415 } },
+        data: { result: Array.from({ length: count }, (_, index) => ({ message_id: 100 + index })) },
       });
 
       const result = await publisher.postContent(content, options);
+      const formData = mockAxiosInstance.post.mock.calls[0][1];
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendPhoto", expect.any(Object), {
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/sendMediaGroup", formData, {
         headers: { "content-type": "multipart/form-data" },
       });
-      expect(result).toEqual({ id: "131415", error: PostErrorType.NO_ERROR });
+      expect(formData.append).toHaveBeenCalledWith("chat_id", options.telegram!.chatId);
+      expect(formData.append).toHaveBeenCalledWith(
+        "media",
+        JSON.stringify(
+          content.media!.map((_, index) => ({
+            type: "photo",
+            media: `attach://media_${index}`,
+            ...(index === 0 ? { caption: content.text, parse_mode: "HTML" } : {}),
+          })),
+        ),
+      );
+      for (let index = 0; index < count; index++) {
+        expect(mockedFs.createReadStream).toHaveBeenNthCalledWith(index + 1, `/photos/${index}.jpg`);
+        expect(formData.append).toHaveBeenCalledWith(`media_${index}`, mockStream, { filename: `${index}.jpg` });
+      }
+      expect(result).toEqual({ id: "100", error: PostErrorType.NO_ERROR });
+    });
+
+    it.each(["image", "video"] as const)(
+      "should group videos with %s media without a caption and support replies",
+      async (type) => {
+        mockAxiosInstance.post.mockResolvedValue({ data: { result: [{ message_id: 200 }, { message_id: 201 }] } });
+        await publisher.postContent(
+          {
+            media: [
+              { type, path: "/photos/first" },
+              { type: "video", path: "/photos/second.mp4" },
+            ],
+          },
+          { telegram: { ...options.telegram!, replyTo: "42" } },
+        );
+        const formData = mockAxiosInstance.post.mock.calls[0][1];
+        expect(formData.append).toHaveBeenCalledWith(
+          "media",
+          JSON.stringify([
+            { type: type === "image" ? "photo" : "video", media: "attach://media_0" },
+            { type: "video", media: "attach://media_1" },
+          ]),
+        );
+        expect(formData.append).toHaveBeenCalledWith("reply_parameters", JSON.stringify({ message_id: 42 }));
+      },
+    );
+
+    it.each([undefined, "MarkdownV2"] as const)("should preserve album caption parse mode %s", async (parseMode) => {
+      mockAxiosInstance.post.mockResolvedValue({ data: { result: [{ message_id: 200 }, { message_id: 201 }] } });
+      await publisher.postContent(
+        {
+          text: "Caption",
+          media: [
+            { type: "image", path: "/photos/first.jpg" },
+            { type: "image", path: "/photos/second.jpg" },
+          ],
+        },
+        { telegram: { ...options.telegram!, parseMode } },
+      );
+      const formData = mockAxiosInstance.post.mock.calls[0][1];
+      expect(formData.append).toHaveBeenCalledWith(
+        "media",
+        JSON.stringify([
+          {
+            type: "photo",
+            media: "attach://media_0",
+            caption: "Caption",
+            ...(parseMode ? { parse_mode: parseMode } : {}),
+          },
+          { type: "photo", media: "attach://media_1" },
+        ]),
+      );
+    });
+
+    it.each([false, true])("should clean up downloaded album media after API failure=%s", async (fail) => {
+      const cleanups = [jest.fn(async () => {}), jest.fn(async () => {})];
+      const resolve = jest.spyOn(mediaUtils, "resolveMediaPath");
+      for (const [index, cleanup] of cleanups.entries())
+        resolve.mockResolvedValueOnce({ path: `/tmp/${index}`, cleanup, isTemp: true });
+      if (fail) {
+        mockAxiosInstance.post.mockRejectedValue({ response: { data: { description: "Bad Request: invalid media" } } });
+      } else {
+        mockAxiosInstance.post.mockResolvedValue({ data: { result: [{ message_id: 200 }, { message_id: 201 }] } });
+      }
+      const content: Content = {
+        media: [
+          { type: "image", url: "https://cdn.example.com/first.jpg" },
+          { type: "image", url: "https://cdn.example.com/second.jpg" },
+        ],
+      };
+      const result = await publisher.post(content, options);
+      expect(result).toMatchObject(
+        fail
+          ? {
+              error: PostErrorType.API_ERROR,
+              message: "Failed to send media group: Bad Request: invalid media",
+            }
+          : { id: "200", error: PostErrorType.NO_ERROR },
+      );
+      expect(resolve).toHaveBeenNthCalledWith(1, content.media![0]);
+      expect(resolve).toHaveBeenNthCalledWith(2, content.media![1]);
+      const formData = mockAxiosInstance.post.mock.calls[0][1];
+      expect(formData.append).toHaveBeenCalledWith("media_0", mockStream, { filename: "first.jpg" });
+      expect(formData.append).toHaveBeenCalledWith("media_1", mockStream, { filename: "second.jpg" });
+      for (const cleanup of cleanups) expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(mockStream.destroy).toHaveBeenCalledTimes(2);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["missing", "oversized", "download"])(
+      "should clean up and send nothing when a later album item is %s",
+      async (failure) => {
+        const cleanup = jest.fn(async () => {});
+        const resolve = jest
+          .spyOn(mediaUtils, "resolveMediaPath")
+          .mockResolvedValueOnce({ path: "/tmp/first.jpg", cleanup, isTemp: true });
+        if (failure === "download") {
+          resolve.mockRejectedValueOnce(new Error("Download failed"));
+        } else {
+          resolve.mockResolvedValueOnce({ path: "/tmp/second.jpg", cleanup, isTemp: true });
+          if (failure === "missing") mockedFs.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(false);
+          else
+            mockedFs.statSync
+              .mockReturnValueOnce({ size: 1024 } as any)
+              .mockReturnValueOnce({ size: 11 * 1024 * 1024 } as any);
+        }
+        await expect(
+          publisher.postContent(
+            {
+              media: [
+                { type: "image", url: "https://cdn.example.com/first.jpg" },
+                { type: "image", url: "https://cdn.example.com/second.jpg" },
+              ],
+            },
+            options,
+          ),
+        ).rejects.toMatchObject({
+          errorType: failure === "download" ? PostErrorType.API_ERROR : PostErrorType.INVALID_CONTENT,
+        });
+        expect(cleanup).toHaveBeenCalledTimes(failure === "download" ? 1 : 2);
+        expect(mockStream.destroy).toHaveBeenCalledTimes(1);
+        expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should reject more than ten items before sending anything", async () => {
+      const media: Content["media"] = Array.from({ length: 11 }, () => ({ type: "image", path: "/photos/image.jpg" }));
+      await expect(publisher.postContent({ media }, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+      });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      expect(mockedFs.createReadStream).not.toHaveBeenCalled();
     });
 
     it("should use default parse mode if not specified", async () => {
@@ -321,7 +472,7 @@ describe("TelegramPublisher", () => {
       publisher = new TelegramPublisher(options);
     });
 
-    it("should warn when multiple media items are provided", () => {
+    it("should accept multiple media items without warnings", () => {
       const content: Content = {
         text: "Multiple media",
         media: [
@@ -333,8 +484,8 @@ describe("TelegramPublisher", () => {
       const result = TelegramPublisher.validate(content);
 
       expect(result.errors).toHaveLength(0);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].code).toBe("too_many_media");
+      expect(result.warnings).toHaveLength(0);
+      expect(TelegramPublisher.getValidationRules().media?.maxCount).toBe(10);
     });
 
     it("should error when caption is too long", () => {

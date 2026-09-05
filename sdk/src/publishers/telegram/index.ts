@@ -53,51 +53,68 @@ export class TelegramPublisher extends Publisher {
 
   private async sendMedia(
     chatId: string,
-    media: Media,
+    mediaItems: Media[],
     caption?: string,
     parseMode?: string,
     replyTo?: string,
-  ): Promise<{ messageId: string; cleanup: () => Promise<void> }> {
+  ): Promise<string> {
     const tempFileManager = new TempFileManager();
+    const streams: fs.ReadStream[] = [];
+    const isAlbum = mediaItems.length > 1;
 
     try {
-      const endpoint = media.type === "image" ? "/sendPhoto" : "/sendVideo";
-      const mediaField = media.type === "image" ? "photo" : "video";
-
-      // URL-backed media is downloaded by resolveMediaPath. Sending the
-      // resulting file as multipart raises Telegram's photo/video limits to
-      // 10/50 MiB and avoids Telegram's fragile server-side URL fetch.
-      const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
-      tempFileManager.add(cleanup);
-
-      if (!fs.existsSync(resolvedPath)) {
-        throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${resolvedPath}`);
-      }
-
-      const actualSize = fs.statSync(resolvedPath).size;
-      const maxSize =
-        media.type === "image" ? TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES : TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES;
-      if (actualSize > maxSize) {
-        throw new PostError(
-          PostErrorType.INVALID_CONTENT,
-          `Telegram ${media.type}s cannot exceed ${maxSize / (1024 * 1024)} MB.`,
-          { limit: maxSize, actual: actualSize },
-        );
-      }
-
       const formData = new FormData();
       formData.append("chat_id", chatId);
-      const sourceFilename = (() => {
-        if (!media.url) return path.basename(resolvedPath);
-        try {
-          return path.basename(new URL(media.url).pathname) || path.basename(resolvedPath);
-        } catch {
-          return path.basename(resolvedPath);
-        }
-      })();
-      formData.append(mediaField, fs.createReadStream(resolvedPath), { filename: sourceFilename });
+      const album: { type: string; media: string; caption?: string; parse_mode?: string }[] = [];
 
-      if (caption) {
+      for (const [index, media] of mediaItems.entries()) {
+        // URL-backed media is downloaded by resolveMediaPath. Sending the
+        // resulting file as multipart raises Telegram's photo/video limits to
+        // 10/50 MiB and avoids Telegram's fragile server-side URL fetch.
+        const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
+        tempFileManager.add(cleanup);
+
+        if (!fs.existsSync(resolvedPath)) {
+          throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found at path: ${resolvedPath}`);
+        }
+
+        const actualSize = fs.statSync(resolvedPath).size;
+        const maxSize =
+          media.type === "image" ? TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES : TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES;
+        if (actualSize > maxSize) {
+          throw new PostError(
+            PostErrorType.INVALID_CONTENT,
+            `Telegram ${media.type}s cannot exceed ${maxSize / (1024 * 1024)} MB.`,
+            { limit: maxSize, actual: actualSize },
+          );
+        }
+
+        const sourceFilename = (() => {
+          if (!media.url) return path.basename(resolvedPath);
+          try {
+            return path.basename(new URL(media.url).pathname) || path.basename(resolvedPath);
+          } catch {
+            return path.basename(resolvedPath);
+          }
+        })();
+        const mediaType = media.type === "image" ? "photo" : "video";
+        const mediaField = isAlbum ? `media_${index}` : mediaType;
+        const stream = fs.createReadStream(resolvedPath);
+        streams.push(stream);
+        formData.append(mediaField, stream, { filename: sourceFilename });
+
+        if (isAlbum) {
+          album.push({
+            type: mediaType,
+            media: `attach://${mediaField}`,
+            ...(index === 0 && caption ? { caption, ...(parseMode ? { parse_mode: parseMode } : {}) } : {}),
+          });
+        }
+      }
+
+      if (isAlbum) {
+        formData.append("media", JSON.stringify(album));
+      } else if (caption) {
         formData.append("caption", caption);
         if (parseMode) {
           formData.append("parse_mode", parseMode);
@@ -105,18 +122,21 @@ export class TelegramPublisher extends Publisher {
       }
 
       if (replyTo) {
-        formData.append("reply_to_message_id", replyTo);
+        formData.append("reply_parameters", JSON.stringify({ message_id: Number.parseInt(replyTo) }));
       }
 
+      const singleMediaEndpoint = mediaItems[0].type === "image" ? "/sendPhoto" : "/sendVideo";
+      const endpoint = isAlbum ? "/sendMediaGroup" : singleMediaEndpoint;
       const response = await this.client.post(endpoint, formData, {
         headers: {
           ...formData.getHeaders(),
         },
       });
 
-      return { messageId: response.data.result.message_id.toString(), cleanup: () => tempFileManager.cleanup() };
+      // Use the first album message as the post ID for links and thread replies.
+      const message = isAlbum ? response.data.result[0] : response.data.result;
+      return message.message_id.toString();
     } catch (error: unknown) {
-      await tempFileManager.cleanup();
       if (error instanceof PostError) {
         throw error;
       }
@@ -124,9 +144,14 @@ export class TelegramPublisher extends Publisher {
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
         PostErrorType.API_ERROR,
-        `Failed to send ${media.type}: ${err.response?.data?.description || err.message || "Unknown error"}`,
+        `Failed to send ${isAlbum ? "media group" : mediaItems[0].type}: ${err.response?.data?.description || err.message || "Unknown error"}`,
         err.response?.data,
       );
+    } finally {
+      for (const stream of streams) {
+        stream.destroy();
+      }
+      await tempFileManager.cleanup();
     }
   }
 
@@ -192,10 +217,7 @@ export class TelegramPublisher extends Publisher {
 
     // If there's media, send with caption
     if (content.media && content.media.length > 0) {
-      const media = content.media[0];
-
-      const { messageId, cleanup } = await this.sendMedia(chatId, media, content.text, parseMode, replyTo);
-      await cleanup();
+      const messageId = await this.sendMedia(chatId, content.media, content.text, parseMode, replyTo);
       return { id: messageId, error: PostErrorType.NO_ERROR };
     }
 

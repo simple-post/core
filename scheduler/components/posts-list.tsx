@@ -447,6 +447,8 @@ function PostCard({
                     </svg>
                     {isScheduled && post.scheduledFor ? (
                       <span>{formatDate(post.scheduledFor)}</span>
+                    ) : isFailed ? (
+                      <span>{formatTimeAgo(post.scheduledFor || post.createdAt)}</span>
                     ) : isDraft ? (
                       <span>Saved {formatTimeAgo(post.createdAt)}</span>
                     ) : (

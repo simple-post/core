@@ -64,6 +64,51 @@ it("includes overdue scheduled posts in the queue and pagination count", async (
   expect(postMock.count).toHaveBeenCalledWith({ where: { userId: "u1", status: "scheduled" } });
 });
 
+it.each([
+  {
+    method: "getScheduledPosts" as const,
+    status: "scheduled",
+    orderBy: [{ scheduledFor: { sort: "asc", nulls: "last" } }, { id: "asc" }],
+  },
+  {
+    method: "getPastPosts" as const,
+    status: "published",
+    orderBy: [
+      { publishedAt: { sort: "desc", nulls: "last" } },
+      { scheduledFor: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+      { id: "desc" },
+    ],
+  },
+  {
+    method: "getFailedPosts" as const,
+    status: "failed",
+    orderBy: [{ scheduledFor: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
+  },
+])("$method orders by the post timestamp before pagination", async ({ method, status, orderBy }) => {
+  postMock.findMany.mockResolvedValue([]);
+  postMock.count.mockResolvedValue(60);
+
+  const result = await new PostsModel("u1")[method]({ page: 2, limit: 25 });
+
+  expect(postMock.findMany).toHaveBeenCalledWith({
+    where: { userId: "u1", status },
+    include: { media: true, accounts: true },
+    orderBy,
+    skip: 25,
+    take: 25,
+  });
+  expect(postMock.count).toHaveBeenCalledWith({ where: { userId: "u1", status } });
+  expect(result.pagination).toEqual({
+    page: 2,
+    limit: 25,
+    total: 60,
+    totalPages: 3,
+    hasNextPage: true,
+    hasPreviousPage: true,
+  });
+});
+
 it.each(["pending", "scheduled"])("rejects an edit when a %s row changed during validation", async (status) => {
   const original = row();
   postMock.findFirst.mockResolvedValue(original as never);

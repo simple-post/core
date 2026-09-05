@@ -482,3 +482,43 @@ model McpAccessToken {
   @@index([expiresAt])
   @@map("mcp_access_token")
 }
+
+// Keep rate history independent of post deletion. An attempt is a provider
+// publish operation (one account/segment), including failed requests.
+model PublishAttempt {
+  postId    String
+  id        String   @id @default(cuid())
+  platform  String
+  accountId String
+  createdAt DateTime @default(now())
+  @@index([platform, createdAt])
+  @@index([createdAt])
+  @@index([postId, createdAt])
+  @@map("publish_attempt")
+}
+
+// Intent is committed before external I/O. A started/unknown operation must
+// be reconciled, never automatically replayed after a crash.
+model PublishCheckpoint {
+  postId      String
+  accountId   String
+  operation   String
+  segment     Int
+  fingerprint String
+  state       String
+  result      Json?
+  updatedAt   DateTime @updatedAt
+  @@id([postId, accountId, operation, segment])
+  @@map("publish_checkpoint")
+}
+
+// Tombstones prevent a save racing with asynchronous object deletion.
+model StorageDeletion {
+  key       String   @id
+  userId    String
+  state     String   @default("queued")
+  dueAt     DateTime
+  updatedAt DateTime @updatedAt
+  @@index([state, dueAt])
+  @@map("storage_deletion")
+}

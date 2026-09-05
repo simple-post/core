@@ -153,45 +153,80 @@ export const mergeOptions = (envOptions: PostOptions, userOptions?: PostOptions)
   if (!userOptions) return envOptions as PostOptionsWithCredentials;
 
   const merged = {
+    ...envOptions,
     ...userOptions,
     x: userOptions.x
-      ? { ...userOptions.x, credentials: userOptions.x.credentials || envOptions.x?.credentials }
+      ? { ...envOptions.x, ...userOptions.x, credentials: userOptions.x.credentials || envOptions.x?.credentials }
       : envOptions.x,
     telegram: userOptions.telegram
-      ? { ...userOptions.telegram, credentials: userOptions.telegram.credentials || envOptions.telegram?.credentials }
+      ? {
+          ...envOptions.telegram,
+          ...userOptions.telegram,
+          credentials: userOptions.telegram.credentials || envOptions.telegram?.credentials,
+        }
       : envOptions.telegram,
     youtube: userOptions.youtube
-      ? { ...userOptions.youtube, credentials: userOptions.youtube.credentials || envOptions.youtube?.credentials }
+      ? {
+          ...envOptions.youtube,
+          ...userOptions.youtube,
+          credentials: userOptions.youtube.credentials || envOptions.youtube?.credentials,
+        }
       : envOptions.youtube,
     facebook: userOptions.facebook
-      ? { ...userOptions.facebook, credentials: userOptions.facebook.credentials || envOptions.facebook?.credentials }
+      ? {
+          ...envOptions.facebook,
+          ...userOptions.facebook,
+          credentials: userOptions.facebook.credentials || envOptions.facebook?.credentials,
+        }
       : envOptions.facebook,
     instagram: userOptions.instagram
       ? {
+          ...envOptions.instagram,
           ...userOptions.instagram,
           credentials: userOptions.instagram.credentials || envOptions.instagram?.credentials,
         }
       : envOptions.instagram,
     tiktok: userOptions.tiktok
-      ? { ...userOptions.tiktok, credentials: userOptions.tiktok.credentials || envOptions.tiktok?.credentials }
+      ? {
+          ...envOptions.tiktok,
+          ...userOptions.tiktok,
+          credentials: userOptions.tiktok.credentials || envOptions.tiktok?.credentials,
+        }
       : envOptions.tiktok,
     bluesky: userOptions.bluesky
-      ? { ...userOptions.bluesky, credentials: userOptions.bluesky.credentials || envOptions.bluesky?.credentials }
+      ? {
+          ...envOptions.bluesky,
+          ...userOptions.bluesky,
+          credentials: userOptions.bluesky.credentials || envOptions.bluesky?.credentials,
+        }
       : envOptions.bluesky,
     threads: userOptions.threads
-      ? { ...userOptions.threads, credentials: userOptions.threads.credentials || envOptions.threads?.credentials }
+      ? {
+          ...envOptions.threads,
+          ...userOptions.threads,
+          credentials: userOptions.threads.credentials || envOptions.threads?.credentials,
+        }
       : envOptions.threads,
     linkedin: userOptions.linkedin
-      ? { ...userOptions.linkedin, credentials: userOptions.linkedin.credentials || envOptions.linkedin?.credentials }
+      ? {
+          ...envOptions.linkedin,
+          ...userOptions.linkedin,
+          credentials: userOptions.linkedin.credentials || envOptions.linkedin?.credentials,
+        }
       : envOptions.linkedin,
     pinterest: userOptions.pinterest
       ? {
+          ...envOptions.pinterest,
           ...userOptions.pinterest,
           credentials: userOptions.pinterest.credentials || envOptions.pinterest?.credentials,
         }
       : envOptions.pinterest,
     forem: userOptions.forem
-      ? { ...userOptions.forem, credentials: userOptions.forem.credentials || envOptions.forem?.credentials }
+      ? {
+          ...envOptions.forem,
+          ...userOptions.forem,
+          credentials: userOptions.forem.credentials || envOptions.forem?.credentials,
+        }
       : envOptions.forem,
   };
 

@@ -217,7 +217,8 @@ export const LinkedInOptionsSchema = z.object({
 });
 
 export const PinterestOptionsSchema = z.object({
-  boardId: z.string(),
+  // May be supplied by PINTEREST_BOARD_ID; validated after option merging.
+  boardId: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   link: z.url().optional(),

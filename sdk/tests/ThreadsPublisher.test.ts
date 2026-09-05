@@ -112,6 +112,7 @@ describe("ThreadsPublisher", () => {
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(mockedAxios.get).toHaveBeenCalledWith(
         expect.stringContaining("https://graph.threads.net/refresh_access_token"),
+        { timeout: 30_000 },
       );
       expect(mockAxiosInstance.post.mock.calls[0][1]).toMatchObject({
         access_token: "new_access_token",

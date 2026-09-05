@@ -4,7 +4,7 @@
 
 - **Text**: With HTML/Markdown formatting
 - **Media**: Images (JPG, PNG, GIF), Videos (MP4, MOV, AVI)
-- **Limit**: One media file per message
+- **Limit**: Up to 10 media files per post; multiple photos/videos are grouped into one album
 - **File size**: Images up to 10 MiB; videos up to 50 MiB
 - **Requirements**: Must have text OR media
 
@@ -65,6 +65,30 @@ const options = {
   telegram: { chatId: 123456789 },
 };
 ```
+
+### Media Album
+
+Provide 2–10 photos or videos in one post's `media` array to publish an album:
+
+```typescript
+const content = {
+  text: "Photos from our latest project",
+  media: [
+    { type: "image", path: "./project-1.jpg" },
+    { type: "image", path: "./project-2.jpg" },
+    { type: "image", path: "./project-3.jpg" },
+  ],
+};
+
+const options = {
+  telegram: { chatId: "@mychannel" },
+};
+```
+
+Items keep their order, with the post text attached to the first item as the
+album caption (up to 1,024 characters). Photos and videos can share an album.
+The returned post ID is the first album message's ID, which can be used for replies.
+Posts with more than 10 attachments fail validation before anything is sent.
 
 ### Using URLs
 

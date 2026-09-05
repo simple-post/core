@@ -164,6 +164,25 @@ describe("YouTubePublisher", () => {
       expect(result).toEqual({ id: "video_id_123", error: PostErrorType.NO_ERROR });
     });
 
+    it("shortens a caption-derived title while preserving the full description", async () => {
+      const text = "Underwater ambience. ".repeat(23).slice(0, 444);
+      mockYouTubeClient.videos.insert.mockResolvedValue({ data: { id: "video_id_123" } });
+
+      const result = await publisher.postContent(
+        { text, media: [{ type: "video", path: "/path/to/video.mp4" }] },
+        options,
+      );
+
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            snippet: expect.objectContaining({ title: text.slice(0, 100), description: text.trim() }),
+          }),
+        }),
+      );
+    });
+
     it("should post video with thumbnail successfully", async () => {
       const content: Content = {
         text: "Video with thumbnail",

@@ -3,8 +3,9 @@
 ## Scope and method
 
 Reviewed the SDK and scheduler in `simple-post/core`, starting at
-`fad2764` on `main`. The fix branch was subsequently rebased onto `d737a1d`
-(the newer TikTok account-options change), with its MCP tests adapted and rerun.
+`fad2764` on `main`. The completed fix branch was rebased onto `2b2ccca`
+(the latest main at the start of implementation). Upstream TikTok and error
+sanitization changes are retained.
 Focus areas: the public publishing entry points,
 publisher initialization, media preparation and validation, scheduled dispatch,
 API/MCP post mutations, account-result persistence, storage cleanup, authentication,
@@ -19,24 +20,25 @@ functions containing the evidence so they remain useful after line numbers chang
 
 P1 means a substantial publishing or data-integrity problem; P2 means a narrower
 correctness, operational, or maintenance issue. “Fixed” refers to this review's PR.
-“Follow-up” is explicitly outside its implementation.
+All numbered findings below are addressed; operational limits are explicit.
 
 ## Findings at a glance
 
-| ID | Priority | Finding | Disposition |
-| --- | --- | --- | --- |
-| C01 | P1 | SDK initialization failure aborts the entire multi-platform call | Fixed |
-| C02 | P1 | One account's media failure can interrupt other publishers and trigger early cleanup | Fixed |
-| C03 | P1 | Dispatch, edits, and deletion race on stale post snapshots | Fixed |
-| C04 | P2 | Stale recovery can report failure for a post another run completed | Fixed |
-| C05 | P2 | Overdue scheduled posts disappear from the scheduled-post list | Fixed |
-| C06 | P2 | OAuth regression test reaches an unmocked database dependency | Fixed |
-| C07 | P1 | Deleting a post can delete media still referenced by another post | Follow-up |
-| C08 | P2 | Dispatch rate budgets count posts instead of actual platform operations | Follow-up |
-| C09 | P1 | Crash recovery and thread retries can duplicate already published content | Partially mitigated; follow-up |
-| C11 | P2 | JSON sanitization does not handle cycles despite its documented contract | Follow-up |
-| C12 | P2 | Pinterest option overrides discard an environment-provided board ID | Follow-up |
-| C13 | P2 | Some SDK token-refresh calls have no request timeout | Follow-up |
+| ID  | Priority | Finding                                                                              | Disposition |
+| --- | -------- | ------------------------------------------------------------------------------------ | ----------- |
+| C01 | P1       | SDK initialization failure aborts the entire multi-platform call                     | Fixed       |
+| C02 | P1       | One account's media failure can interrupt other publishers and trigger early cleanup | Fixed       |
+| C03 | P1       | Dispatch, edits, and deletion race on stale post snapshots                           | Fixed       |
+| C04 | P2       | Stale recovery can report failure for a post another run completed                   | Fixed       |
+| C05 | P2       | Overdue scheduled posts disappear from the scheduled-post list                       | Fixed       |
+| C06 | P2       | OAuth regression test reaches an unmocked database dependency                        | Fixed       |
+| C07 | P1       | Deleting a post can delete media still referenced by another post                    | Fixed       |
+| C08 | P2       | Dispatch rate budgets count posts instead of actual platform operations              | Fixed       |
+| C09 | P1       | Crash recovery and thread retries can duplicate already published content            | Fixed       |
+| C10 | P2       | Concurrent draft promotion can overconsume the final quota slot                      | Fixed       |
+| C11 | P2       | JSON sanitization does not handle cycles despite its documented contract             | Fixed       |
+| C12 | P2       | Pinterest option overrides discard an environment-provided board ID                  | Fixed       |
+| C13 | P2       | Some SDK token-refresh calls have no request timeout                                 | Fixed       |
 
 ## Fixed findings
 
@@ -122,11 +124,12 @@ complete before any file deletion starts. MCP discard uses the same guard.
 selection and claim. `scheduler/tests/lib/db/posts.test.ts` verifies ownership,
 version/status predicates, conflict conversion, and the unchanged-snapshot path.
 
-**Limits:** This reuses the existing timestamp and needs no migration. It is
-optimistic concurrency control, not an exactly-once publishing guarantee. A
-monotonic version counter and a real PostgreSQL concurrency test would strengthen
-coverage, particularly for same-millisecond updates. Shared file ownership is a
-separate issue (C07).
+**Version protection:** A PostgreSQL trigger makes `updatedAt` strictly advance
+by at least one millisecond for every update, including direct dispatcher writes.
+This closes the same-millisecond hole without changing the API snapshot format.
+A real PostgreSQL test forces an identical timestamp and verifies a stale edit
+cannot overwrite the intervening change. This remains optimistic concurrency
+control; publishing durability is handled separately in C09.
 
 ### C04 — Stale recovery emits events for rows it did not change
 
@@ -178,138 +181,188 @@ only mocks the subscription gate and OAuth helpers. The baseline suite returned
 to it. Production OAuth behavior is unchanged. Trial-helper behavior continues
 to have its own dedicated tests.
 
-## Follow-up findings and recommended work
+## Additional findings fixed in the completed PR
 
 ### C07 — Shared media can be deleted while another post still needs it
 
-**Evidence:** `scheduler/components/post-form.tsx` initializes duplicate-post
-media from `existingPost.media`; `scheduler/lib/utils/media-cleanup.ts` deletes
-an owned storage URL without checking other references. Post API/MCP mutations
-call these cleanup helpers. The upload-ownership check protects other users'
-keys, but does not distinguish multiple posts belonging to the same user.
+**Evidence/reproduction:** Duplicating a post reuses its storage URLs. The old
+`deleteStorageUrl` deleted those objects as soon as the original post was deleted.
+References in thread JSON, account overrides and option thumbnails were invisible
+to root-media-only cleanup. A concurrent save could also race a reference check.
 
-**Reproduction:** Publish a post with uploaded media, duplicate it for a future
-date, then delete the original. Both posts use the same URL. Deleting the
-original can remove the storage object needed by the scheduled duplicate.
+**Fix:** `storage-lifecycle.ts` tracks deletion candidates by canonical owned
+storage key, with a 24-hour grace period. `PostsModel` queues the complete old
+content transactionally on edits and deletes, including nested JSON media.
+Collection runs during scheduled dispatch, scans all of the user's remaining
+post media/options/overrides/threads, and retains any reachable object. Both saves
+and collection lock the user's database row. Collection commits a `deleting`
+tombstone before external deletion; a racing save rejects the unavailable media.
+Successful deletions retain tombstones. Interrupted deletions are retried.
+Legacy cleanup callers now queue candidates instead of deleting synchronously.
 
-**Impact:** Missing images/videos in saved posts and later publishing failures.
-The deletion-order fix in C03 does not solve this cross-post ownership issue.
+**Coverage:** Real PostgreSQL tests duplicate root, thread, override-thread and
+thumbnail references, delete the original, and verify no storage deletion. They
+then remove the last reference, pause deletion, and verify a concurrent duplicate
+is rejected before saving a broken URL. Provider storage calls are mocked.
 
-**Recommendation:** Introduce storage-object identity/reference tracking for root
-media, thumbnails, per-account overrides, and thread media. Delete objects only
-after references are removed and a delayed garbage-collection pass rechecks
-reachability. Include duplicates and concurrent saves in integration tests.
-Do not add a root-media-only check that leaves JSON-held references unprotected.
-This needs a separate storage-lifecycle change and migration/design review.
+**Limits:** Collection requires dispatch to run. Objects removed from posts are
+retained for at least 24 hours; objects never attached to a saved post are not
+inventoried by this migration. Reachability currently scans each user's saved
+content. A normalized reference index can optimize large accounts later without
+changing the locking/tombstone protocol. Previously deleted media is not restored.
 
-### C08 — Rate budgeting undercounts multi-account and threaded publishing
+### C08 — Rate budgeting undercounts actual publishing operations
 
-**Evidence:** `scheduler/lib/posting/scheduled-dispatcher.ts`,
-`getSentCountForPlatform` and the `costFor` calculation.
+**Evidence:** Counting recent post rows treated two accounts on one platform as
+one operation, ignored per-account thread overrides, and allowed separate workers
+to reserve the same remaining capacity. Failed attempts did not count.
 
-The recent-history query counts post rows, not actual account publishes or thread
-segments. Within a run, platforms are deduplicated and charged once per shared
-thread length. A post targeting two X accounts with three segments each costs
-six platform operations, but reserves three slots. Account-specific thread
-overrides are ignored. Concurrent dispatch runs also compute independent budgets.
+**Fix:** `durable-publish.ts` commits a `PublishAttempt` for each account/segment
+or repost immediately before SDK publishing. A PostgreSQL advisory lock keyed by
+normalized platform serializes the sliding-window count and reservation across
+API, MCP and scheduler processes. Database time defines the authoritative window.
+X and Twitter share one budget. Existing conservative limits remain 15 operations
+per minute per platform, or 10 for Forem. Failed requests consume capacity;
+reused successes and media-preparation failures do not. History is retained for a
+day and has indexes for collection and per-run summaries.
 
-**Impact:** Provider throttling under load; the summary's `sent` value is a
-reservation estimate rather than a confirmed operation count.
+Dispatch selection now counts each remaining account's effective thread and
+subtracts successful checkpoints. This is only a scheduling estimate: the shared
+reservation is authoritative. Long threads can advance across windows. Local
+capacity exhaustion reschedules automatic posts/reposts for the next minute,
+retaining successful segments. `platformSummary.sent` counts actual reserved
+attempts for the claimed posts, not selected rows or estimated thread cost.
 
-**Recommendation:** Calculate cost for each remaining account's effective
-segments, normalize aliases, and reserve provider/account budgets atomically
-across runs. Record actual attempts and provider retry times. Add multi-account,
-override, partial-retry, and concurrent-dispatch tests. Changing only the local
-calculation would leave the history and cross-process problems intact.
+**Coverage:** 24 concurrent operations across different accounts and both X
+aliases produce exactly 15 SDK calls and nine local-limit responses against a
+real PostgreSQL database. Separate tests cover checkpoint replay without charging
+again. Dispatcher tests cover account overrides and partial progress.
 
-### C09 — Partial progress is not durable and thread retries restart roots
+**Limits:** These are application safety limits, not a complete model of every
+provider's changing account/app/endpoint quotas. Provider API errors are retained
+and treated conservatively by C09; arbitrary provider errors are not automatically
+replayed and no unsupported Retry-After guarantee is implied.
 
-**Evidence:** `scheduler/lib/posting/index.ts`, `postSegmentsToAccount`;
-`scheduler/lib/posting/account-results.ts`; scheduler dispatch persistence;
-`scheduler/components/post-form.tsx`, `getFailedRetryAccountIds`.
+### C09 — Crashes and partial thread retries can duplicate published content
 
-Account/segment results are primarily persisted after the batch completes. A
-process can die after an external publish but before that success reaches the
-database. Recovery labels it failed, leaving a retry unable to know what already
-went live. Even when a partial thread result is saved, retry selection is by
-failed account, and publishing starts with a fresh chain rather than resuming
-after the last successful segment.
+**Evidence/reproduction:** The old pipeline saved aggregate results after the
+batch. A worker could disappear after provider acceptance but before persistence.
+The retry form created a new post, so even saved partial threads restarted roots.
 
-**Reproduction:** Publish a root successfully and fail the next reply; retry
-that failed account. A new root is created. Alternatively, terminate a worker
-after a provider accepts a post but before the batch result is persisted.
+**Fix:** A durable checkpoint identifies each post/account/operation/segment.
+Intent is committed before publishing; results are saved immediately afterward.
+Success stores only sanitized result data and necessary provider chain metadata,
+never refreshed credentials. Retries use the existing post ID and reuse successful
+segments. Prefix fingerprints prevent changing already published content while
+allowing correction of segments conclusively rejected before publication. X reply
+IDs and Bluesky URI/CID root/parent references are rebuilt from saved results.
+Successful account results survive retries targeting only failed accounts.
 
-**Recommendation:** Persist account/segment checkpoints as work completes,
-retain root/parent IDs and provider-specific chain metadata, and model ambiguous
-provider outcomes explicitly. Resume known partial threads; require
-reconciliation when a publish result is unknown. C01/C02 prevent avoidable loss
-from ordinary exceptions but do not solve process-crash recovery.
+`started` and `unknown` results block automatic replay. Conclusive SDK content or
+credential failures and failures before media preparation completes remain
+retryable. Transport and generic API errors may follow provider acceptance and
+therefore require checking the provider. Older failed posts without a durable
+record cannot be blindly replayed: inspect the platform and explicitly duplicate
+only the content still needed, except conclusively unattempted account failures.
 
-### C11 — The JSON sanitizer recurses indefinitely on cyclic objects
+**Reconciliation:** Authenticated `GET /api/v1/posts/{id}/reconcile` exposes the
+owned post's checkpoint states and versions. After verifying the provider and
+ensuring the old worker has stopped, `POST` to the same endpoint with
+`accountId`, `operation`, `segment`, the returned `updatedAt`, `confirmed: true`,
+and `outcome: "published"` or `"not_published"`. Published outcomes also require
+`platformPostId`; Bluesky requires `bluesky: { uri, cid }`. An optional `postUrl`
+can be supplied. The endpoint rejects other users' posts, pending operations and
+stale confirmations. Retry the existing post afterward; reconciliation itself
+sends nothing to a social platform. The endpoint is documented in OpenAPI.
 
-**Evidence:** `scheduler/lib/utils/errors.ts`, `sanitizeForJson`.
+**Coverage:** PostgreSQL tests pause a live publish and race another attempt,
+reuse a persisted result, simulate lost responses, change fingerprints, correct
+preparation failures, and reconcile with ownership/status/version guards. Full
+X and Bluesky pipeline tests fail a reply then resume it without republishing
+the root, checking the actual SDK reply options.
 
-The comment promises removal of circular references, but recursion has no
-ancestor tracking. For `const details = {}; details.self = details`, calling the
-helper recurses until a stack overflow. Raw provider/network error details can
-contain object graphs even though ordinary request JSON cannot contain cycles.
-The helper also returns `bigint` unchanged and turns `Date` into `{}`.
+**Limits:** This provides durable progress and safe handling of ambiguity, not
+exactly-once external delivery. Provider acceptance and the database commit are
+not a distributed transaction. Human confirmation must reflect a real provider
+check; do not mark an operation unpublished while an old worker may still run.
+Explicit duplication intentionally creates independent publishing work.
 
-**Recommendation:** Define the desired JSON representation of cycles, dates,
-bigints, non-finite values, and repeated non-cyclic references. Use ancestor
-tracking, retain the current credential/error filtering, and test real error
-shapes. Keep arbitrary raw objects out of persisted failure details.
+### C10 — Concurrent draft promotion bypasses serialized quota checks
 
-### C12 — Pinterest defaults disappear when an option is overridden
+**Evidence:** HTTP PATCH and MCP `updateScheduledPost` checked allowance before
+the update transaction. Two drafts could both observe the final trial slot and
+then both become scheduled, while creation already used `lockUserForQuota`.
 
-**Evidence:** `sdk/src/utils/credentials.ts`, `getCredentialsFromEnv` and
-`mergeOptions`; `sdk/src/publishers/pinterest/index.ts`, `validateOptions`.
+**Fix:** Both update paths now acquire the same user lock, evaluate quota through
+the transaction client, and perform the snapshot-guarded post update before that
+transaction commits. Credential/provider validation remains outside the lock.
+Already charged failed posts retain their account allowance when retried.
 
-Environment configuration supplies both Pinterest credentials and `boardId`.
-When a caller supplies `options.pinterest` with only a title/description, merging
-retains the environment credentials but discards the environment board. An
-otherwise configured account then fails the required-board check.
+**Coverage:** The disposable PostgreSQL suite creates nine charged X posts and
+two drafts on a ten-post trial. Concurrent promotion attempts yield exactly one
+scheduled post and one rejected attempt; the other remains draft. Existing MCP
+regressions verify the update receives the transaction client.
 
-**Recommendation:** Merge platform defaults before the supplied platform
-options, preserving explicit override semantics. Test a title-only override,
-an explicit board replacement, and supplied credentials. Audit other non-secret
-platform defaults at the same time.
+### C11 — Circular and unusual error values break JSON serialization
 
-### C13 — Some SDK refresh requests can wait indefinitely
+**Evidence:** Original recursion overflowed on cycles, lost Dates and returned
+unserializable bigints. The latest main already supplied ancestor tracking,
+credential redaction, bounded depth and Date/bigint conversion.
 
-**Evidence:** Static refresh requests in `sdk/src/publishers/instagram/index.ts`
-and `sdk/src/publishers/threads/index.ts` use bare `axios.get(...)`, whereas normal
-publisher clients configure timeouts.
+**Fix:** Preserve that upstream fix and additionally normalize non-finite numbers
+to JSON null before Prisma storage. Existing tests cover Axios credential fields,
+cycles, shared noncyclic references, Date and bigint; a new regression covers
+NaN and infinity. Arbitrary provider `toJSON` functions are never invoked.
 
-**Impact:** A refresh endpoint that accepts a connection but stalls can leave
-direct SDK users waiting without the normal publisher deadline. Scheduler
-credential refresh has its own handling and must be evaluated separately; the
-client timeout does not automatically apply to a static Axios request.
+### C12 — Pinterest option overrides discard the environment board
 
-**Recommendation:** Set explicit deadlines on refresh calls and media-upload
-requests, and test timeout propagation. Choose separate limits for short
-credential requests and potentially large uploads.
+**Evidence:** A title-only override retained environment credentials but lost
+`PINTEREST_BOARD_ID`, causing the required-board check to fail.
 
-## Validation and remaining limits
+**Fix:** Merge each platform's environment defaults before user options. Explicit
+platform values override defaults, and supplied credential objects still replace
+environment credentials rather than mixing accounts. Pinterest's input schema
+allows omitting the board so environment configuration can supply it; its publisher
+still validates the final merged board before posting.
 
-- Baseline SDK: 18 suites, 317 tests passed.
-- Baseline scheduler: 57 suites passed, 1 failed; 344 tests passed, 1 failed.
-- Fixed SDK: 19 suites, 329 tests passed.
-- Fixed scheduler before the rebase: 60 suites, 357 tests passed.
-- Rebased scheduler: 63 suites, 386 tests passed, including the new upstream
-  TikTok account-options tests and the snapshot guard assertions.
-- SDK distribution build passed; `yarn check` passed across all workspaces.
-- CLI: 11 suites, 39 tests passed after allowing its localhost OAuth test
-  listener outside the sandbox.
-- External services are mocked in regression tests. They send no real social
-  posts, contact messages, or billing requests.
-- Database predicates and race outcomes are tested with mocks, not a live
-  PostgreSQL instance. A disposable PostgreSQL concurrency suite is the highest
-  value next verification improvement for C03/C04.
-- This PR does not claim exactly-once delivery, a durable webhook outbox,
-  distributed provider quotas, or safe shared-media garbage collection.
+**Coverage:** Tests retain the environment board for a title-only override and
+verify explicit board/credential replacement without mutating defaults.
 
-Recommended next implementation order: shared-media references (C07), durable
-publish checkpoints/thread resumption (C09), then accurate distributed rate
-budgeting (C08). The smaller SDK and
-serialization fixes can be handled independently.
+### C13 — Static requests and media processing can wait indefinitely
+
+**Evidence:** Configured Axios client timeouts do not apply to static requests.
+The audit found unbounded Instagram/Threads refresh, X user lookup/refresh/repost,
+Bluesky refresh, LinkedIn repost/uploads and Pinterest uploads. Instagram container
+processing could also loop forever despite per-request deadlines.
+
+**Fix:** Short static API calls have 30-second deadlines; whole-file LinkedIn and
+Pinterest uploads allow ten minutes. Existing bounded download/chunk calls retain
+their own deadlines. Instagram container polling has a ten-minute elapsed-time
+limit (an in-flight request is still governed by its request timeout).
+
+**Coverage:** Publisher tests assert refresh/lookup deadlines, verify Instagram
+refresh failure stops before publishing, and advance a fake clock while an
+Instagram container never finishes to verify polling terminates.
+
+## Deployment and validation
+
+Two additive migrations create publishing attempts/checkpoints, storage deletion
+markers and supporting indexes, and enforce monotonic post timestamps. The Docker
+runtime now includes the Prisma schema/migrations and runs `prisma migrate deploy`
+before Next starts. A migration failure exits startup; it cannot silently serve
+code against an older schema. Non-container deployments must run the same migration
+command before starting the scheduler. No destructive data migration is required.
+
+CI now provisions PostgreSQL 17, applies the full migration history, and runs the
+same integration suite as local verification. Tests mock external publishing,
+credential refresh and object deletion; they send no real social posts. Type,
+lint, formatting, SDK/scheduler/CLI tests and a production build are checked before
+merge. Local verification passed: SDK 364 tests, scheduler 421, CLI 46, PostgreSQL
+integration 14 (845 total); `yarn check`, SDK distribution build and the scheduler
+production webpack build also passed. Deployment outcome is recorded in the PR.
+
+Operational limits remain: webhook delivery is not backed by a transactional
+outbox; external outcomes can require reconciliation; legacy missing media cannot
+be recovered; and storage candidates need the scheduled dispatcher to collect
+them. These are stated explicitly rather than treating mocks as proof of external
+provider behavior. `core2/` is untouched.

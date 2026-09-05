@@ -4,6 +4,23 @@ This document lists deployment and client changes that require an explicit
 action when upgrading SimplePost. Read it together with the
 [changelog](../../CHANGELOG.md).
 
+## Publishing reliability update — 2026-09-05
+
+Apply `20260905000000_publishing_reliability` and
+`20260905000100_post_versions_and_attempt_indexes` before serving the updated
+scheduler. They add three tables and indexes, plus a trigger that makes post
+`updatedAt` timestamps strictly increase. The runtime Docker entrypoint now runs
+`prisma migrate deploy` before starting Next and exits if migration fails. Other
+runtimes must run the migration command explicitly. The added tables and trigger
+are compatible with the previous application; leave them in place if rolling
+application code back.
+
+Deleted post media is now queued for collection after 24 hours, with shared
+references protected. Keep the scheduled dispatcher running to collect it.
+Retries use the existing post ID to reuse successful segments. Unknown outcomes
+require provider verification and the authenticated reconciliation endpoint before
+retrying. See the [review and reconciliation protocol](../reviews/2026-09-05-codebase-review.md).
+
 ## 1.1.0
 
 ### Install the updated dependencies

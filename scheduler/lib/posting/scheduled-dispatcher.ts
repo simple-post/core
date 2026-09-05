@@ -15,6 +15,7 @@ import { summarizeRepostOutcome } from "@/lib/repost/results";
 import { buildPublishedRepostState } from "@/lib/repost/settings";
 import { buildRepostTargets } from "@/lib/repost/targets";
 import { apiErrorLogPayload, PaymentRequiredError, sanitizeForJson } from "@/lib/utils/errors";
+import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, MediaFile } from "@/types";
@@ -68,7 +69,7 @@ interface DispatchPlatformSummary {
 interface DispatchPostResult {
   postId: string;
   success: boolean;
-  status: "published" | "failed";
+  status: "published" | "failed" | "scheduled";
   errorMessage?: string;
 }
 
@@ -342,15 +343,8 @@ function getRateLimit(platform: string): PlatformRateLimit {
 async function getSentCountForPlatform(platform: string, intervalMinutes: number): Promise<number> {
   const windowStart = new Date(Date.now() - intervalMinutes * 60 * 1000);
 
-  return await prisma.post.count({
-    where: {
-      OR: [{ publishedAt: { gte: windowStart } }, { repostedAt: { gte: windowStart } }],
-      accounts: {
-        some: {
-          platform,
-        },
-      },
-    },
+  return prisma.publishAttempt.count({
+    where: { platform: mapPlatformName(platform), createdAt: { gt: windowStart } },
   });
 }
 
@@ -528,6 +522,19 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     }
 
     const failedResults = postingResults.filter((result) => !result.success);
+    if (failedResults.length > 0 && failedResults.every((result) => result.error === "LOCAL_RATE_LIMIT")) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: {
+          status: "scheduled",
+          scheduledFor: new Date(Date.now() + 60_000),
+          accountResults: sanitizedAccountResults,
+          threadResults: sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue,
+        },
+      });
+      return { postId: post.id, success: false, status: "scheduled" };
+    }
+
     const errorMessage =
       failedResults.length === 1
         ? failedResults[0].message || failedResults[0].error || "Unknown error"
@@ -648,6 +655,17 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
     const outcome = summarizeRepostOutcome(results);
     const repostResults = outcome.repostResults as unknown as Prisma.InputJsonValue;
 
+    if (
+      results.some((result) => !result.success) &&
+      results.filter((result) => !result.success).every((result) => result.error === "LOCAL_RATE_LIMIT")
+    ) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: { repostStatus: "scheduled", repostDueAt: new Date(Date.now() + 60_000), repostResults },
+      });
+      return { postId: post.id, success: false, status: "scheduled" };
+    }
+
     if (outcome.summary.overallSuccess) {
       await prisma.post.update({
         where: { id: post.id },
@@ -699,6 +717,9 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
 
 async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResult> {
   const startedAt = new Date();
+  await collectUnusedStorage().catch((error: unknown) => log.error({ error }, "Storage sweep failed"));
+  // Rate history is only needed for the sliding window. Keep a day for diagnostics.
+  await prisma.publishAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 86_400_000) } } });
   const now = new Date();
 
   // Runs concurrently with the dispatch below so a slow provider can't delay
@@ -793,7 +814,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
       const disabledPlatforms = [
         ...new Set(
           post.accounts
-            .map((account) => account.platform.toLowerCase())
+            .map((account) => mapPlatformName(account.platform))
             .filter((platform) => !isSocialPlatformEnabled(platform)),
         ),
       ];
@@ -819,12 +840,12 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
   );
 
   const dispatchableDueReposts = dueReposts.filter((post) => {
-    const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
+    const accountById = new Map(post.accounts.map((account) => [account.id, mapPlatformName(account.platform)]));
     const disabledPlatforms = [
       ...new Set(
         (repostTargetsByPostId.get(post.id) ?? [])
           .map((target) => accountById.get(target.accountId))
-          .filter((platform): platform is string => typeof platform === "string")
+          .filter((platform) => platform !== undefined)
           .filter((platform) => !isSocialPlatformEnabled(platform)),
       ),
     ];
@@ -864,12 +885,12 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
 
   const uniquePlatforms = [
     ...new Set<string>([
-      ...dispatchableDuePosts.flatMap((post) => post.accounts.map((account) => account.platform.toLowerCase())),
+      ...dispatchableDuePosts.flatMap((post) => post.accounts.map((account) => mapPlatformName(account.platform))),
       ...dispatchableDueReposts.flatMap((post) => {
-        const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
+        const accountById = new Map(post.accounts.map((account) => [account.id, mapPlatformName(account.platform)]));
         return (repostTargetsByPostId.get(post.id) ?? [])
           .map((target) => accountById.get(target.accountId))
-          .filter((platform): platform is string => typeof platform === "string");
+          .filter((platform) => platform !== undefined);
       }),
     ]),
   ];
@@ -904,12 +925,30 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
       continue;
     }
 
-    const platforms = [...new Set(post.accounts.map((account) => account.platform.toLowerCase()))];
+    const platforms = [...new Set(post.accounts.map((account) => mapPlatformName(account.platform)))];
 
-    // Per-platform cost: thread-capable platforms post N segments;
-    // non-capable platforms always post just the root.
-    const threadSegmentCount = post.thread?.length ?? 0;
-    const costFor = (platform: string) => (isThreadCapable(mapPlatformName(platform)) ? 1 + threadSegmentCount : 1);
+    const succeeded = getSucceededAccountIds(post.accountResults as AccountResultsMap | undefined);
+    const checkpoints = await prisma.publishCheckpoint.findMany({
+      where: { postId: post.id, operation: "post", state: "succeeded" },
+      select: { accountId: true, segment: true },
+    });
+    const overrides = post.accountOverrides as AccountOverridesMap | undefined;
+    const costFor = (platform: string) => {
+      const cost = post.accounts
+        .filter((account) => mapPlatformName(account.platform) === platform && !succeeded.has(account.id))
+        .reduce((sum, account) => {
+          const segmentCount = isThreadCapable(platform)
+            ? 1 + (overrides?.[account.id]?.thread ?? post.thread ?? []).length
+            : 1;
+          const completed = checkpoints.filter(
+            (checkpoint) => checkpoint.accountId === account.id && checkpoint.segment < segmentCount,
+          ).length;
+          return sum + Math.max(0, segmentCount - completed);
+        }, 0);
+      // Long threads make bounded progress across windows; the durable per-operation
+      // reservation is authoritative even when other processes consume capacity.
+      return Math.min(getRateLimit(platform).maxPosts, cost);
+    };
 
     const canSend = platforms.every((platform) => {
       const budget = platformBudgets.get(platform);
@@ -938,13 +977,18 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
 
   for (const post of dispatchableDueReposts) {
     const targets = repostTargetsByPostId.get(post.id) ?? [];
-    const accountById = new Map(post.accounts.map((account) => [account.id, account.platform.toLowerCase()]));
+    const accountById = new Map(post.accounts.map((account) => [account.id, mapPlatformName(account.platform)]));
     const costs = new Map<string, number>();
 
+    const completed = await prisma.publishCheckpoint.findMany({
+      where: { postId: post.id, operation: "repost", state: "succeeded" },
+      select: { accountId: true },
+    });
     for (const target of targets) {
+      if (completed.some((checkpoint) => checkpoint.accountId === target.accountId)) continue;
       const platform = accountById.get(target.accountId);
       if (platform) {
-        costs.set(platform, (costs.get(platform) ?? 0) + 1);
+        costs.set(platform, Math.min(getRateLimit(platform).maxPosts, (costs.get(platform) ?? 0) + 1));
       }
     }
 
@@ -993,8 +1037,16 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
   const publishedPosts = postResults.filter((result) => result.status === "published").length;
   const failedPosts = postResults.filter((result) => result.status === "failed").length;
   const completedReposts = repostResults.filter((result) => result.success).length;
-  const failedReposts = repostResults.filter((result) => !result.success).length;
+  const failedReposts = repostResults.filter((result) => result.status === "failed").length;
 
+  const actualAttempts = await prisma.publishAttempt.groupBy({
+    by: ["platform"],
+    where: {
+      createdAt: { gte: startedAt },
+      postId: { in: [...claimedPosts, ...claimedReposts].map((post) => post.id) },
+    },
+    _count: true,
+  });
   const platformSummary: DispatchPlatformSummary[] = uniquePlatforms
     .map((platform) => {
       const budget = platformBudgets.get(platform);
@@ -1004,7 +1056,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
 
       return {
         platform,
-        sent: budget.sent,
+        sent: actualAttempts.find((attempt) => attempt.platform === platform)?._count ?? 0,
         availableSlots: budget.availableSlots,
         queued: skippedByPlatform.get(platform) ?? 0,
         rateLimit: budget.rateLimit,

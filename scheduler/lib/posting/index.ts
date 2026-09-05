@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   buildReplyOverlay,
   extractChainStep,
@@ -19,6 +21,7 @@ import {
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/telemetry";
 import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
+import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -316,6 +319,7 @@ async function postSegmentsToAccount(
   resolver: MediaResolver,
   accountOptions?: AccountOptionsMap,
   quoteTarget?: AccountQuoteTarget,
+  postId: string = randomUUID(),
 ): Promise<PostingResult> {
   const log = postingLogger.child({
     fn: "postSegmentsToAccount",
@@ -367,18 +371,39 @@ async function postSegmentsToAccount(
       // The resolver is shared across every account and segment of this
       // postToAccounts call: downloads/uploads are cached by source, so the
       // same media is fetched once no matter how many accounts post it.
-      const preparedMedia = media.length > 0 ? await resolver.resolve(media, [platform]) : [];
+      let preparedMedia: Media[] = [];
 
       const overlay = buildReplyOverlay(platform, chain);
       const segmentLog = log.child({ segmentIndex: i });
-      const segmentResult = await postSingleSegment(
-        segment.message,
-        preparedMedia,
-        freshAccount,
-        accountOptions,
-        overlay,
-        segmentLog,
-        i === 0 ? quoteTarget : undefined,
+      const segmentResult = await runDurablePublish(
+        {
+          postId,
+          accountId: account.id,
+          platform,
+          operation: "post",
+          segment: i,
+          fingerprint: publishFingerprint({
+            segments: effectiveSegments
+              .slice(0, i + 1)
+              .map((entry) => ({ message: entry.message, media: mapMediaFilesToSdk(entry.mediaFiles) })),
+            options: accountOptions?.[account.id],
+            quoteTarget,
+          }),
+        },
+        async () => {
+          return postSingleSegment(
+            segment.message,
+            preparedMedia,
+            freshAccount,
+            accountOptions,
+            overlay,
+            segmentLog,
+            i === 0 ? quoteTarget : undefined,
+          );
+        },
+        async () => {
+          preparedMedia = media.length > 0 ? await resolver.resolve(media, [platform]) : [];
+        },
       );
 
       if (segmentResult.success) {
@@ -445,7 +470,13 @@ async function postSegmentsToAccount(
   };
 
   if (effectiveSegments.length > 1) {
-    return { ...base, success: overallSuccess, threadResults: segmentResults };
+    const failed = segmentResults.find((segment) => !segment.success);
+    return {
+      ...base,
+      success: overallSuccess,
+      ...(failed ? { error: failed.error, message: failed.message } : {}),
+      threadResults: segmentResults,
+    };
   }
   return base;
 }
@@ -589,6 +620,7 @@ async function postToAccountsInternal(
                 resolver,
                 accountOptions,
                 quoteTargetByAccountId.get(account.id),
+                observability?.postId,
               ),
           );
 
@@ -820,7 +852,18 @@ async function repostToAccountsInternal(
           "simplepost.account.id": account.id,
           ...(observability?.postId ? { "simplepost.post.id": observability.postId } : {}),
         },
-        () => repostSingleTarget(account, target, accountOptions, accountLog),
+        () =>
+          runDurablePublish(
+            {
+              postId: observability?.postId ?? randomUUID(),
+              accountId: account.id,
+              platform: account.platform,
+              operation: "repost",
+              segment: 0,
+              fingerprint: publishFingerprint({ target, options: accountOptions?.[account.id] }),
+            },
+            () => repostSingleTarget(account, target, accountOptions, accountLog),
+          ),
       );
     }),
   );

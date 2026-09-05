@@ -718,20 +718,6 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
         })
       : [];
 
-  await assertCanCreatePost(userId, prisma, {
-    action: `mcp_update_${targetPostingMode}_post`,
-    postId: currentPost.id,
-    socialAccounts: validation.accounts.map((account) => ({
-      connectedAccountId: account.accountId,
-      platform: account.platform,
-      accountLabel: account.username ?? account.displayName ?? account.accountId,
-    })),
-    replacingSocialAccounts,
-    threadSegments: (threadForValidation?.length ?? 0) + 1,
-    isDraft: targetPostingMode === "draft",
-    isExistingPostUpdate: currentPost.status !== "draft",
-  });
-
   await assertCredentialsReadyForPublish({
     accountIds,
     postingMode: targetPostingMode,
@@ -750,9 +736,30 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
   if (input.quotePostId !== undefined) updates.quotePostId = quotePostId;
 
-  const updatedPost = await repository.updatePost(input.postId, updates, {
-    status: currentPost.status,
-    updatedAt: currentPost.updatedAt,
+  const updatedPost = await prisma.$transaction(async (tx) => {
+    await lockUserForQuota(tx, userId);
+    await assertCanCreatePost(userId, tx, {
+      action: `mcp_update_${targetPostingMode}_post`,
+      postId: currentPost.id,
+      socialAccounts: validation.accounts.map((account) => ({
+        connectedAccountId: account.accountId,
+        platform: account.platform,
+        accountLabel: account.username ?? account.displayName ?? account.accountId,
+      })),
+      replacingSocialAccounts,
+      threadSegments: (threadForValidation?.length ?? 0) + 1,
+      isDraft: targetPostingMode === "draft",
+      isExistingPostUpdate: currentPost.status !== "draft",
+    });
+    return repository.updatePost(
+      input.postId,
+      updates,
+      {
+        status: currentPost.status,
+        updatedAt: currentPost.updatedAt,
+      },
+      tx,
+    );
   });
 
   if (input.media !== undefined || input.thread !== undefined) {

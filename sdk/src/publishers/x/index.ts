@@ -140,6 +140,7 @@ export class XPublisher extends Publisher {
     const accessToken = this.getCurrentAccessToken();
     this.authenticatedUserLookupAttempted = true;
     const response = await axios.get<{ data?: XAuthenticatedUser }>("https://api.x.com/2/users/me", {
+      timeout: 30_000,
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -213,6 +214,7 @@ export class XPublisher extends Publisher {
           client_id: clientId,
         }),
         {
+          timeout: 30_000,
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
             ...(clientSecret
@@ -464,6 +466,7 @@ export class XPublisher extends Publisher {
         `https://api.x.com/2/users/${userId}/retweets`,
         { tweet_id: target.postId },
         {
+          timeout: 30_000,
           headers: {
             Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",

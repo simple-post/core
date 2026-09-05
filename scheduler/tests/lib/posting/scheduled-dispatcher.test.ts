@@ -13,6 +13,8 @@ jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: jest.fn() }));
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    publishAttempt: { count: jest.fn(), deleteMany: jest.fn(), groupBy: jest.fn() },
+    publishCheckpoint: { findMany: jest.fn() },
     post: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -214,6 +216,10 @@ beforeEach(() => {
   prismaMock.webhookEndpoint.findMany.mockResolvedValue([]);
   mockFindMany({});
   prismaMock.post.count.mockResolvedValue(0);
+  jest.mocked(prisma.publishAttempt.count).mockResolvedValue(0);
+  jest.mocked(prisma.publishAttempt.deleteMany).mockResolvedValue({ count: 0 });
+  jest.mocked(prisma.publishAttempt.groupBy).mockResolvedValue([]);
+  jest.mocked(prisma.publishCheckpoint.findMany).mockResolvedValue([]);
   prismaMock.post.update.mockResolvedValue({});
   prismaMock.post.findFirst.mockResolvedValue(null);
   validatePostForAccountsMock.mockImplementation(async ({ accountIds }) => ({
@@ -709,7 +715,7 @@ describe("dispatchDueScheduledPosts", () => {
       ],
     });
     // 14 of 15 per-minute slots already used: only one post fits.
-    prismaMock.post.count.mockResolvedValue(14);
+    jest.mocked(prisma.publishAttempt.count).mockResolvedValue(14);
     postToAccountsMock.mockResolvedValue(successFor(["a1"]));
 
     const result = await dispatchDueScheduledPosts();
@@ -733,11 +739,100 @@ describe("dispatchDueScheduledPosts", () => {
       ],
     });
     // Only 5 slots left -> the 6-slot thread does not fit.
-    prismaMock.post.count.mockResolvedValue(10);
+    jest.mocked(prisma.publishAttempt.count).mockResolvedValue(10);
 
     const result = await dispatchDueScheduledPosts();
 
     expect(postToAccountsMock).not.toHaveBeenCalled();
     expect(result.skippedPosts).toBe(1);
   });
+});
+
+jest.mock("@/lib/utils/storage-lifecycle", () => ({ collectUnusedStorage: jest.fn().mockResolvedValue(undefined) }));
+
+it("counts separate accounts on one platform in the thread budget", async () => {
+  mockFindMany({
+    due: [
+      duePost({
+        id: "multi",
+        accounts: [
+          { id: "a1", platform: "x" },
+          { id: "a2", platform: "twitter" },
+        ],
+        thread: [{}, {}],
+      }),
+    ],
+  });
+  jest.mocked(prisma.publishAttempt.count).mockResolvedValue(10);
+  const result = await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).not.toHaveBeenCalled();
+  expect(result.skippedPosts).toBe(1);
+});
+
+it("uses an account's thread override rather than the shared thread cost", async () => {
+  mockFindMany({
+    due: [
+      duePost({
+        id: "overridden",
+        accounts: [{ id: "a1", platform: "x" }],
+        thread: [],
+        accountOverrides: { a1: { thread: [{}, {}, {}, {}, {}] } },
+      }),
+    ],
+  });
+  jest.mocked(prisma.publishAttempt.count).mockResolvedValue(10);
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).not.toHaveBeenCalled();
+});
+
+it("deducts successful checkpoints when estimating a partial retry", async () => {
+  mockFindMany({
+    due: [duePost({ id: "partial", accounts: [{ id: "a1", platform: "x" }], thread: [{}, {}, {}, {}, {}] })],
+  });
+  jest.mocked(prisma.publishAttempt.count).mockResolvedValue(14);
+  jest
+    .mocked(prisma.publishCheckpoint.findMany)
+    .mockResolvedValue(Array.from({ length: 5 }, (_, segment) => ({ accountId: "a1", segment })) as never);
+  postToAccountsMock.mockResolvedValue(successFor(["a1"]));
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).toHaveBeenCalledTimes(1);
+});
+
+it("reschedules a partial thread when another process consumes the remaining capacity", async () => {
+  mockFindMany({ due: [duePost({ id: "limited", accounts: [{ id: "a1", platform: "x" }] })] });
+  postToAccountsMock.mockResolvedValue([
+    {
+      accountId: "a1",
+      platform: "x",
+      success: false,
+      error: "LOCAL_RATE_LIMIT",
+      threadResults: [
+        { index: 0, success: true, postId: "saved-root" },
+        { index: 1, success: false, error: "LOCAL_RATE_LIMIT" },
+      ],
+    },
+  ]);
+  const result = await dispatchDueScheduledPosts();
+  expect(result.failedPosts).toBe(0);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        status: "scheduled",
+        scheduledFor: expect.any(Date),
+        threadResults: { a1: expect.arrayContaining([expect.objectContaining({ postId: "saved-root" })]) },
+      }),
+    }),
+  );
+  expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
+});
+
+it("allows a thread larger than one rate window to start making progress", async () => {
+  mockFindMany({
+    due: [
+      duePost({ id: "long", accounts: [{ id: "a1", platform: "x" }], thread: Array.from({ length: 20 }, () => ({})) }),
+    ],
+  });
+  postToAccountsMock.mockResolvedValue(successFor(["a1"]));
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).toHaveBeenCalledTimes(1);
 });

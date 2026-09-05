@@ -35,31 +35,6 @@ ENV NODE_ENV=production
 RUN yarn workspace @simple-post/sdk build
 RUN yarn workspace @simple-post/scheduler build --webpack
 
-FROM base AS launcher
-RUN cat > /app/docker-entrypoint.mjs <<'EOF'
-import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
-
-mkdirSync("/app/scheduler/data", { recursive: true });
-
-const child = spawn(process.execPath, ["../node_modules/next/dist/bin/next", "start"], {
-  stdio: "inherit",
-  env: process.env,
-});
-
-for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
-  process.on(signal, () => child.kill(signal));
-}
-
-child.on("exit", (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal);
-    return;
-  }
-  process.exit(code ?? 0);
-});
-EOF
-
 FROM ${DISTROLESS_IMAGE} AS runtime-distroless
 WORKDIR /app
 ENV NODE_ENV=production
@@ -75,7 +50,8 @@ COPY --from=builder --chown=nonroot:nonroot /app/scheduler/package.json ./schedu
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/next.config.mjs ./scheduler/next.config.mjs
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/public ./scheduler/public
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/.next ./scheduler/.next
-COPY --from=launcher --chown=nonroot:nonroot /app/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
+COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
+COPY --from=builder --chown=nonroot:nonroot /app/scheduler/prisma ./scheduler/prisma
 USER nonroot:nonroot
 WORKDIR /app/scheduler
 EXPOSE 3000
@@ -109,7 +85,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/scheduler/package.json ./schedule
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/next.config.mjs ./scheduler/next.config.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/public ./scheduler/public
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/.next ./scheduler/.next
-COPY --from=launcher --chown=nextjs:nodejs /app/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler/prisma ./scheduler/prisma
 USER nextjs
 WORKDIR /app/scheduler
 EXPOSE 3000

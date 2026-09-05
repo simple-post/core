@@ -118,3 +118,11 @@ it("retains a published thread root when a later segment's media cannot be prepa
   expect(sdkPost).toHaveBeenCalledTimes(1);
   expect(mockCleanup).toHaveBeenCalledTimes(1);
 });
+
+jest.mock("@/lib/posting/durable-publish", () => ({
+  publishFingerprint: () => "fingerprint",
+  runDurablePublish: async (_input: unknown, publish: () => unknown, prepare?: () => Promise<void>) => {
+    await prepare?.();
+    return publish();
+  },
+}));

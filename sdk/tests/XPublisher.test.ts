@@ -237,6 +237,7 @@ describe("XPublisher", () => {
       });
       expect(mockV2Client.tweet).not.toHaveBeenCalled();
       expect(mockedAxios.get).toHaveBeenCalledWith("https://api.x.com/2/users/me", {
+        timeout: 30_000,
         headers: { Authorization: "Bearer test_access_token" },
         params: { "user.fields": "username,subscription_type" },
       });
@@ -373,6 +374,7 @@ describe("XPublisher", () => {
       const result = await publisher.postContent({ text: "Hello after refresh!" });
 
       expect(mockedAxios.post).toHaveBeenCalledWith("https://api.x.com/2/oauth2/token", expect.any(URLSearchParams), {
+        timeout: 30_000,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Basic ${Buffer.from("test_client_id:test_client_secret").toString("base64")}`,
@@ -452,6 +454,7 @@ describe("XPublisher", () => {
       const result = await publisher.postContent({ text: "Hello from public OAuth!" });
 
       expect(mockedAxios.post).toHaveBeenCalledWith("https://api.x.com/2/oauth2/token", expect.any(URLSearchParams), {
+        timeout: 30_000,
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
       expect(MockedTwitterApi).toHaveBeenCalledWith("new_public_access_token");

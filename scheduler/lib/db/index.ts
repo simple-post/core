@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 
+import { lockUserForQuota } from "@/lib/billing/subscriptions";
 import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
+import { assertStorageAvailable, queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import {
   type AccountOptionsMap,
   type AccountOverridesMap,
@@ -11,9 +13,7 @@ import {
   type ThreadSegmentResult,
 } from "@/types";
 
-import type { PrismaClient } from "@prisma/client";
-
-type PostWriteClient = Pick<PrismaClient, "post">;
+type PostWriteClient = Prisma.TransactionClient;
 type PostSnapshot = SocialPost & { updatedAt: Date };
 
 export interface PaginationOptions {
@@ -283,6 +283,9 @@ export class PostsModel {
     userId: string,
     client: PostWriteClient = prisma,
   ): Promise<SocialPost> {
+    if (client === prisma) return prisma.$transaction((tx) => this.createPost(postData, userId, tx));
+    await lockUserForQuota(client, userId);
+    await assertStorageAvailable(client, userId, postData);
     const post = await client.post.create({
       data: {
         userId,
@@ -326,7 +329,21 @@ export class PostsModel {
     id: string,
     updates: Partial<SocialPost>,
     expected?: Pick<PostSnapshot, "status" | "updatedAt">,
+    client: PostWriteClient = prisma,
   ): Promise<SocialPost> {
+    if (client === prisma) return prisma.$transaction((tx) => this.updatePost(id, updates, expected, tx));
+    await lockUserForQuota(client, this.userId);
+    await assertStorageAvailable(client, this.userId, updates);
+    // Queue the full old content, including JSON-held overrides. Collection
+    // rechecks reachability, so unchanged/shared objects remain available.
+    if (
+      [updates.media, updates.thread, updates.accountOptions, updates.accountOverrides].some(
+        (value) => value !== undefined,
+      )
+    ) {
+      const previous = await client.post.findFirst({ where: { id, userId: this.userId }, include: { media: true } });
+      await queueStorageDeletion(client, this.userId, previous);
+    }
     const updateData: {
       message?: string;
       scheduledFor?: Date | null;
@@ -396,7 +413,7 @@ export class PostsModel {
       };
     }
 
-    const post = await prisma.post
+    const post = await client.post
       .update({
         where: { id, userId: this.userId, ...expected },
         data: updateData as Parameters<typeof prisma.post.update>[0]["data"],
@@ -434,8 +451,12 @@ export class PostsModel {
     return this.mapPostToSocialPost(post);
   }
 
-  async deletePost(id: string, expectedUpdatedAt?: Date): Promise<void> {
-    await prisma.post
+  async deletePost(id: string, expectedUpdatedAt?: Date, client: PostWriteClient = prisma): Promise<void> {
+    if (client === prisma) return prisma.$transaction((tx) => this.deletePost(id, expectedUpdatedAt, tx));
+    await lockUserForQuota(client, this.userId);
+    const previous = await client.post.findFirst({ where: { id, userId: this.userId }, include: { media: true } });
+    await queueStorageDeletion(client, this.userId, previous);
+    await client.post
       .delete({
         where: {
           id,

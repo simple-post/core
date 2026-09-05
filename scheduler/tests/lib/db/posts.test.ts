@@ -6,6 +6,7 @@ import { ConflictError } from "@/lib/utils/errors";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(),
     post: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -45,6 +46,9 @@ function missingRow() {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  jest
+    .mocked(prisma.$transaction)
+    .mockImplementation((async (callback: (tx: unknown) => unknown) => callback({ ...prisma })) as never);
 });
 
 it("includes overdue scheduled posts in the queue and pagination count", async () => {
@@ -115,3 +119,9 @@ it("turns a conflicting delete into an actionable conflict and excludes active p
     },
   });
 });
+
+jest.mock("@/lib/billing/subscriptions", () => ({ lockUserForQuota: jest.fn() }));
+jest.mock("@/lib/utils/storage-lifecycle", () => ({
+  assertStorageAvailable: jest.fn(),
+  queueStorageDeletion: jest.fn(),
+}));

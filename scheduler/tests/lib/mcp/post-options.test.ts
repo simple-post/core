@@ -247,10 +247,15 @@ it.each([undefined, { "tiktok-1": { privacyLevel: "SELF_ONLY" } }])(
       }),
     );
     const expected = savedOptions ?? { "tiktok-1": { privacyLevel: "PUBLIC_TO_EVERYONE" } };
-    expect(updatePost).toHaveBeenCalledWith("post-1", expect.objectContaining({ accountOptions: expected }), {
-      status: "draft",
-      updatedAt: post.updatedAt,
-    });
+    expect(updatePost).toHaveBeenCalledWith(
+      "post-1",
+      expect.objectContaining({ accountOptions: expected }),
+      {
+        status: "draft",
+        updatedAt: post.updatedAt,
+      },
+      {},
+    );
     expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOptions: expected }));
   },
 );

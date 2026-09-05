@@ -6,6 +6,26 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-05
+
+### Added
+
+- Telegram albums containing up to 10 photos and videos, including mixed media, captions, and reply support. The first album message is returned as the post ID.
+- TikTok photo carousels, optional recommended music, photo titles and descriptions, cover selection, and uploads to the TikTok inbox for manual editing and publishing.
+- CLI flags and interactive prompts for TikTok photo and privacy settings.
+- Public SDK helpers for resolving remote media sizes and validating media across account targets.
+- WebMCP access to the Scheduler Create Post workflow.
+
+### Fixed
+
+- CLI posts to hosted accounts now upload local files, forward platform settings, preserve media metadata and provider result messages, and correctly handle mixed local and hosted targets.
+- SDK publishing preserves other destinations' results when one publisher cannot initialize, and merges environment defaults with explicit platform options.
+- Remote media sizes are checked before publishing, with clearer validation for X cashtags and invalid Telegram bot destinations.
+- Provider requests have bounded timeouts, and Instagram media processing stops after 10 minutes instead of polling indefinitely.
+- TikTok photo staging preserves media while TikTok downloads it, and account settings are retained through Scheduler and MCP publishing.
+- Scheduler publishing retries, quota enforcement, scheduled post mutations, and shared media cleanup are more durable.
+- Scheduler startup resolves its CLIs from workspace dependencies.
+
 ## [1.2.1] - 2026-08-07
 
 ### Fixed
@@ -88,7 +108,8 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 - Self-hosted HTTP server, Scheduler application, and remote MCP server.
 - Public MIT-licensed source, examples, platform guides, and release tooling.
 
-[Unreleased]: https://github.com/simple-post/core/compare/cli-v1.2.1...HEAD
+[Unreleased]: https://github.com/simple-post/core/compare/sdk-v1.3.0...HEAD
+[1.3.0]: https://github.com/simple-post/core/compare/sdk-v1.2.0...sdk-v1.3.0
 [1.2.1]: https://github.com/simple-post/core/compare/cli-v1.2.0...cli-v1.2.1
 [1.2.0]: https://github.com/simple-post/core/compare/sdk-v1.1.0...sdk-v1.2.0
 [1.1.0]: https://github.com/simple-post/core/compare/sdk-v1.0.0...sdk-v1.1.0

@@ -1,6 +1,6 @@
 {
   "name": "@simple-post/sdk",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Post to all social platforms with one TypeScript library.",
   "author": "Vladimir Haltakov <vlad@creafexlab.com>",
   "license": "MIT",

@@ -46,6 +46,7 @@ export interface PlatformValidationRules {
   video?: {
     requiresVideo?: boolean;
     maxSizeBytes?: number;
+    maxDurationSec?: number;
     maxTitleLength?: number;
     maxDescriptionLength?: number;
   };

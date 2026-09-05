@@ -257,7 +257,12 @@ async function postViaScheduler(
           "/api/v1/upload",
           { method: "POST", body: form },
         );
-        media.push({ id: randomUUID(), ...uploaded, type: item.type });
+        media.push({
+          id: randomUUID(),
+          ...uploaded,
+          type: item.type,
+          ...(item.type === "video" ? { durationSec: item.durationSec } : {}),
+        });
       }
     }
     body.media = media;

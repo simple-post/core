@@ -192,6 +192,7 @@ export const PlatformValidationRulesSchema = z
       .object({
         requiresVideo: z.boolean().optional(),
         maxSizeBytes: z.number().int().positive().optional(),
+        maxDurationSec: z.number().positive().optional(),
         maxTitleLength: z.number().int().positive().optional(),
         maxDescriptionLength: z.number().int().positive().optional(),
       })

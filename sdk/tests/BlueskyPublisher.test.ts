@@ -1,10 +1,13 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
+import { Readable } from "node:stream";
 
 import axios from "axios";
 
 import { BlueskyPublisher } from "../src/publishers/bluesky";
-import { BLUESKY_MAX_IMAGE_SIZE_BYTES } from "../src/publishers/bluesky/validation";
+import { BLUESKY_MAX_IMAGE_SIZE_BYTES, BLUESKY_MAX_VIDEO_SIZE_BYTES } from "../src/publishers/bluesky/validation";
 import { PostError, PostErrorType } from "../src/types";
+import * as mediaUtils from "../src/utils/media";
 
 import type { Content } from "../src/types/post";
 
@@ -13,12 +16,15 @@ jest.mock("fs", () => ({
   ...jest.requireActual("fs"),
   existsSync: jest.fn(),
   readFileSync: jest.fn(),
+  statSync: jest.fn(),
+  createReadStream: jest.fn(),
 }));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe("BlueskyPublisher", () => {
+  afterEach(() => jest.restoreAllMocks());
   let publisher: BlueskyPublisher;
   let mockAxiosInstance: any;
 
@@ -35,15 +41,18 @@ describe("BlueskyPublisher", () => {
     });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
 
     mockAxiosInstance = {
       post: jest.fn(),
+      get: jest.fn(),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
 
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(Buffer.from("mock file"));
+    mockedFs.statSync.mockReturnValue({ size: 1024 } as fs.Stats);
+    mockedFs.createReadStream.mockImplementation(() => Readable.from([Buffer.from("video")]) as fs.ReadStream);
 
     publisher = makeOAuthPublisher();
   });
@@ -83,6 +92,48 @@ describe("BlueskyPublisher", () => {
   });
 
   describe("validation", () => {
+    it("accepts one video without text and exposes shared video limits", () => {
+      expect(
+        BlueskyPublisher.validate({
+          media: [
+            {
+              type: "video",
+              url: "https://cdn.example.com/video.mp4",
+              size: BLUESKY_MAX_VIDEO_SIZE_BYTES,
+              durationSec: 600,
+            },
+          ],
+        }).isValid,
+      ).toBe(true);
+      expect(BlueskyPublisher.getValidationRules()).toMatchObject({
+        media: { maxVideos: 1, allowsMixed: false },
+        video: { maxSizeBytes: BLUESKY_MAX_VIDEO_SIZE_BYTES, maxDurationSec: 600 },
+      });
+    });
+
+    it.each([
+      [
+        [
+          { type: "video", path: "a.mp4" },
+          { type: "video", path: "b.mp4" },
+        ],
+        "too_many_videos",
+      ],
+      [
+        [
+          { type: "video", path: "a.mp4" },
+          { type: "image", path: "b.jpg" },
+        ],
+        "mixed_media_not_supported",
+      ],
+      [[{ type: "video", path: "a.mp4", size: BLUESKY_MAX_VIDEO_SIZE_BYTES + 1 }], "video_too_large"],
+      [[{ type: "video", path: "a.mp4", durationSec: 601 }], "video_too_long"],
+      [[{ type: "video", url: "https://cdn.example.com/a.webm?token=abc" }], "video_format_not_supported"],
+    ])("rejects unsupported video input %j", (media, code) => {
+      expect(BlueskyPublisher.validate({ media: media as Content["media"] }).errors).toContainEqual(
+        expect.objectContaining({ code }),
+      );
+    });
     it("rejects images larger than Bluesky's blob limit", () => {
       const result = BlueskyPublisher.validate({
         text: "Oversized image",
@@ -141,15 +192,6 @@ describe("BlueskyPublisher", () => {
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(result.id).toBe("at://did:plc:123/app.bsky.feed.post/abc");
       expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
-    });
-
-    it("should reject video content", async () => {
-      const content: Content = {
-        text: "Video not supported",
-        media: [{ type: "video", path: "./video.mp4" }],
-      };
-
-      await expect(publisher.postContent(content)).rejects.toThrow(PostError);
     });
 
     it("should reject an oversized resolved image before uploading it", async () => {
@@ -316,6 +358,159 @@ describe("BlueskyPublisher", () => {
         error: PostErrorType.INVALID_CONTENT,
         message: "Bluesky quotes require both uri and cid for the target post.",
       });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("video publishing", () => {
+    const blob = { $type: "blob", ref: { $link: "video-ref" }, mimeType: "video/mp4", size: 1024 };
+    const session = {
+      data: { didDoc: { service: [{ id: "#atproto_pds", serviceEndpoint: "https://actual-pds.bsky.network" }] } },
+    };
+    const video: Content = { media: [{ type: "video", path: "video.mp4", description: "A short demo" }] };
+
+    beforeEach(() => {
+      mockAxiosInstance.get.mockResolvedValueOnce(session).mockResolvedValueOnce({ data: { token: "service-token" } });
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { jobStatus: { jobId: "job", state: "JOB_STATE_COMPLETED", blob } },
+      });
+      mockAxiosInstance.post.mockResolvedValue({ data: { uri: "at://did:plc:123/app.bsky.feed.post/video" } });
+    });
+
+    it("uses the actual PDS audience and only sends the service token to the video host", async () => {
+      const result = await publisher.postContent(video);
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockAxiosInstance.get).toHaveBeenLastCalledWith(
+        "/xrpc/com.atproto.server.getServiceAuth",
+        expect.objectContaining({
+          params: {
+            aud: "did:web:actual-pds.bsky.network",
+            lxm: "com.atproto.repo.uploadBlob",
+            exp: expect.any(Number),
+          },
+        }),
+      );
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo",
+        expect.any(Readable),
+        expect.objectContaining({
+          params: { did: "did:plc:123", name: "video.mp4" },
+          headers: { Authorization: "Bearer service-token", "Content-Type": "video/mp4", "Content-Length": "1024" },
+        }),
+      );
+      expect(mockAxiosInstance.post.mock.calls[0][1].record.embed).toEqual({
+        $type: "app.bsky.embed.video",
+        video: blob,
+        alt: "A short demo",
+      });
+    });
+
+    it("preserves video embeds in quotes and replies", async () => {
+      const ref = { uri: "at://source", cid: "source-cid" };
+      await publisher.postContent(
+        video,
+        {
+          bluesky: {
+            replyTo: { root: ref, parent: ref },
+            credentials: { accessToken: "token", did: "did:plc:123", pdsUrl: "https://bsky.social" },
+          },
+        },
+        { postId: "source", ...ref },
+      );
+      expect(mockAxiosInstance.post.mock.calls[0][1].record).toMatchObject({
+        reply: { root: ref, parent: ref },
+        embed: {
+          $type: "app.bsky.embed.recordWithMedia",
+          record: { $type: "app.bsky.embed.record", record: ref },
+          media: { $type: "app.bsky.embed.video", video: blob },
+        },
+      });
+    });
+
+    it("handles OAuth DPoP nonce challenges when obtaining video authorization", async () => {
+      const keys = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+      publisher = makeOAuthPublisher({
+        dpopPrivateJwk: keys.privateKey.export({ format: "jwk" }),
+        dpopPublicJwk: keys.publicKey.export({ format: "jwk" }),
+      });
+      mockAxiosInstance.get
+        .mockReset()
+        .mockResolvedValueOnce(session)
+        .mockRejectedValueOnce({
+          response: { data: { error: "use_dpop_nonce" }, headers: { "dpop-nonce": "video-nonce" } },
+        })
+        .mockResolvedValueOnce({ data: { token: "service-token" } });
+      await publisher.postContent(video);
+      const headers = mockAxiosInstance.get.mock.calls[2][1].headers;
+      expect(headers.Authorization).toBe("DPoP test_access_token");
+      expect(JSON.parse(Buffer.from(headers.DPoP.split(".")[1], "base64url").toString())).toMatchObject({
+        nonce: "video-nonce",
+        htm: "GET",
+        htu: "https://bsky.social/xrpc/com.atproto.server.getServiceAuth",
+      });
+    });
+
+    it("refreshes an expired OAuth token during video authorization", async () => {
+      publisher = makeOAuthPublisher({
+        refreshToken: "refresh",
+        tokenUrl: "https://bsky.social/oauth/token",
+        clientId: "client",
+      });
+      mockAxiosInstance.get
+        .mockReset()
+        .mockRejectedValueOnce({ response: { status: 401, data: { error: "ExpiredToken" } } })
+        .mockResolvedValueOnce(session)
+        .mockResolvedValueOnce({ data: { token: "service-token" } });
+      mockedAxios.post
+        .mockReset()
+        .mockResolvedValueOnce({ data: { access_token: "refreshed", refresh_token: "new-refresh", expires_in: 3600 } })
+        .mockResolvedValueOnce({ data: { jobStatus: { blob } } });
+      const result = await publisher.postContent(video);
+      expect(mockAxiosInstance.get.mock.calls[1][1].headers.Authorization).toBe("Bearer refreshed");
+      expect(result.extraData?.refreshedCredentials).toMatchObject({ accessToken: "refreshed" });
+    });
+
+    it("publishes video using an app-password session", async () => {
+      publisher = new BlueskyPublisher({
+        bluesky: { credentials: { identifier: "alice.bsky.social", appPassword: "app-password" } },
+      });
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: { accessJwt: "app-token", refreshJwt: "refresh", did: "did:plc:app" },
+      });
+      await publisher.postContent(video);
+      expect(mockAxiosInstance.get.mock.calls[0][1].headers.Authorization).toBe("Bearer app-token");
+      expect(mockedAxios.post.mock.calls[0][2]?.params.did).toBe("did:plc:app");
+    });
+
+    it("does not create a post when processing fails", async () => {
+      mockedAxios.post.mockReset().mockResolvedValueOnce({
+        data: { jobStatus: { jobId: "job", state: "JOB_STATE_FAILED", message: "Unsupported codec" } },
+      });
+      await expect(publisher.postContent(video)).rejects.toThrow("Unsupported codec");
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])("cleans a downloaded video after publishing succeeds=%s", async (succeeds) => {
+      const cleanup = jest.fn();
+      jest
+        .spyOn(mediaUtils, "resolveMediaPath")
+        .mockResolvedValueOnce({ path: "downloaded.mp4", cleanup, isTemp: true });
+      if (!succeeds) {
+        mockedAxios.post
+          .mockReset()
+          .mockRejectedValueOnce({ response: { data: { error: "DailyUploadLimitExceeded" } } });
+      }
+      const promise = publisher.postContent({ media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }] });
+      await (succeeds
+        ? expect(promise).resolves.toMatchObject({ error: PostErrorType.NO_ERROR })
+        : expect(promise).rejects.toThrow("DailyUploadLimitExceeded"));
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails before upload when the actual PDS is unavailable", async () => {
+      mockAxiosInstance.get.mockReset().mockResolvedValueOnce({ data: {} });
+      await expect(publisher.postContent(video)).rejects.toThrow("PDS endpoint");
+      expect(mockedAxios.post).not.toHaveBeenCalled();
       expect(mockAxiosInstance.post).not.toHaveBeenCalled();
     });
   });

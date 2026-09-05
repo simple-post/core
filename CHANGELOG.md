@@ -6,6 +6,13 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-06
+
+### Added
+
+- Bluesky MP4 video publishing across the SDK, Scheduler, MCP, CLI, and HTTP APIs, including replies and quotes. Supports one video up to 300 MB and 10 minutes, OAuth and app passwords, streaming uploads, processing timeouts, and reuse of previously processed videos.
+- Shared Bluesky video validation, duration metadata in MCP inputs, and video duration limits in API validation responses.
+
 ## [1.3.0] - 2026-09-05
 
 ### Added

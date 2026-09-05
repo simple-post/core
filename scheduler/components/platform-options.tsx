@@ -367,7 +367,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             <h4 className="text-sm font-medium">Bluesky Options</h4>
           </div>
           <p className="text-xs text-muted-foreground">
-            No additional options required. Your text and images will be posted to Bluesky.
+            No additional options required. Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes).
           </p>
         </Card>
       )}

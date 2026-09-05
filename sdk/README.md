@@ -83,3 +83,7 @@ MIT
 ## TikTok photos and music
 
 TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../docs/platforms/TikTok.md).
+
+## Bluesky video
+
+Bluesky supports one MP4 video per post (300 MB, 10 minutes), including replies and quotes, with OAuth or app-password credentials. The SDK uploads and waits for processing before creating the post. The Scheduler, CLI, HTTP APIs, and MCP tools use the same support. See [Bluesky requirements and examples](../docs/platforms/Bluesky.md).

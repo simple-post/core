@@ -9,6 +9,7 @@ import {
   BLUESKY_VALIDATION_RULES,
   validateBlueskyContent,
 } from "./validation";
+import { uploadBlueskyVideo } from "./video";
 
 import { PostError, PostErrorType } from "../../types";
 import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
@@ -50,6 +51,10 @@ interface BlueskySessionResponse {
   refreshJwt: string;
   did: string;
   handle?: string;
+}
+
+interface BlueskySessionInfo {
+  didDoc?: { service?: { id: string; serviceEndpoint: string }[] };
 }
 
 const PROACTIVE_REFRESH_SECONDS = 60;
@@ -487,6 +492,46 @@ export class BlueskyPublisher extends Publisher {
     return headers["dpop-nonce"] || headers["DPoP-Nonce"];
   }
 
+  private async authenticatedGet<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+    const request = () =>
+      this.client.get<T>(path, {
+        params,
+        headers: this.buildAuthHeaders("GET", path, this.dpopNonce),
+      });
+    const response = await this.withTokenRefresh(async () => {
+      try {
+        return await request();
+      } catch (error) {
+        if (this.isNonceError(error)) {
+          const nonce = this.extractNonce(error);
+          if (nonce) {
+            this.dpopNonce = nonce;
+            return request();
+          }
+        }
+        throw error;
+      }
+    });
+    return response.data;
+  }
+
+  private async getVideoServiceToken(): Promise<string> {
+    // bsky.social is an entryway, not the user's PDS. Mint the token for the
+    // actual PDS from the DID document, where the video service stores the blob.
+    const session = await this.authenticatedGet<BlueskySessionInfo>("/xrpc/com.atproto.server.getSession");
+    const pdsUrl = session.didDoc?.service?.find((service) => service.id.endsWith("#atproto_pds"))?.serviceEndpoint;
+    if (!pdsUrl) {
+      throw new PostError(PostErrorType.API_ERROR, "Bluesky did not return a PDS endpoint for video upload.");
+    }
+    const { token } = await this.authenticatedGet<{ token: string }>("/xrpc/com.atproto.server.getServiceAuth", {
+      aud: `did:web:${new URL(pdsUrl).host}`,
+      lxm: "com.atproto.repo.uploadBlob",
+      exp: Math.floor(Date.now() / 1000) + 30 * 60,
+    });
+    if (!token) throw new PostError(PostErrorType.API_ERROR, "Bluesky did not return a video service token.");
+    return token;
+  }
+
   private async uploadImage(_image: Image, resolvedPath: string): Promise<UploadBlobResponse["blob"]> {
     if (!fs.existsSync(resolvedPath)) {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${resolvedPath}`);
@@ -581,6 +626,18 @@ export class BlueskyPublisher extends Publisher {
         .filter((item): item is Image => item.type === "image")
         .slice(0, BLUESKY_MAX_IMAGES);
       let mediaEmbed: Record<string, unknown> | undefined;
+
+      const video = content.media?.find((item) => item.type === "video");
+      if (video) {
+        const { path: resolvedPath, cleanup } = await resolveMediaPath(video);
+        tempFileManager.add(cleanup);
+        const blob = await uploadBlueskyVideo(resolvedPath, this.did, () => this.getVideoServiceToken());
+        mediaEmbed = {
+          $type: "app.bsky.embed.video",
+          video: blob,
+          ...(video.description ? { alt: video.description } : {}),
+        };
+      }
 
       if (images.length > 0) {
         const uploadedImages = [];

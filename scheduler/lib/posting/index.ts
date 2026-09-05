@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import {
   buildReplyOverlay,
   extractChainStep,
@@ -21,7 +19,6 @@ import {
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/telemetry";
 import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
-import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -319,7 +316,6 @@ async function postSegmentsToAccount(
   resolver: MediaResolver,
   accountOptions?: AccountOptionsMap,
   quoteTarget?: AccountQuoteTarget,
-  postId: string = randomUUID(),
 ): Promise<PostingResult> {
   const log = postingLogger.child({
     fn: "postSegmentsToAccount",
@@ -371,39 +367,18 @@ async function postSegmentsToAccount(
       // The resolver is shared across every account and segment of this
       // postToAccounts call: downloads/uploads are cached by source, so the
       // same media is fetched once no matter how many accounts post it.
-      let preparedMedia: Media[] = [];
+      const preparedMedia = media.length > 0 ? await resolver.resolve(media, [platform]) : [];
 
       const overlay = buildReplyOverlay(platform, chain);
       const segmentLog = log.child({ segmentIndex: i });
-      const segmentResult = await runDurablePublish(
-        {
-          postId,
-          accountId: account.id,
-          platform,
-          operation: "post",
-          segment: i,
-          fingerprint: publishFingerprint({
-            segments: effectiveSegments
-              .slice(0, i + 1)
-              .map((entry) => ({ message: entry.message, media: mapMediaFilesToSdk(entry.mediaFiles) })),
-            options: accountOptions?.[account.id],
-            quoteTarget,
-          }),
-        },
-        async () => {
-          return postSingleSegment(
-            segment.message,
-            preparedMedia,
-            freshAccount,
-            accountOptions,
-            overlay,
-            segmentLog,
-            i === 0 ? quoteTarget : undefined,
-          );
-        },
-        async () => {
-          preparedMedia = media.length > 0 ? await resolver.resolve(media, [platform]) : [];
-        },
+      const segmentResult = await postSingleSegment(
+        segment.message,
+        preparedMedia,
+        freshAccount,
+        accountOptions,
+        overlay,
+        segmentLog,
+        i === 0 ? quoteTarget : undefined,
       );
 
       if (segmentResult.success) {
@@ -440,16 +415,6 @@ async function postSegmentsToAccount(
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
-  }).catch((error: unknown) => {
-    // Media preparation and credential loading happen outside the SDK's
-    // error boundary. Keep their failure local to this account so the batch
-    // waits for other publishers before cleaning up their shared media.
-    const message = error instanceof Error ? error.message : "Failed to prepare this account for publishing";
-    log.warn({ err: serializeError(error) }, "Account publishing interrupted");
-    segmentResults.push({ index: segmentResults.length, success: false, error: "OTHER", message });
-    if (!rootResult) {
-      rootResult = { accountId: account.id, platform: account.platform, success: false, error: "OTHER", message };
-    }
   });
 
   if (credentialFailure) {
@@ -470,13 +435,7 @@ async function postSegmentsToAccount(
   };
 
   if (effectiveSegments.length > 1) {
-    const failed = segmentResults.find((segment) => !segment.success);
-    return {
-      ...base,
-      success: overallSuccess,
-      ...(failed ? { error: failed.error, message: failed.message } : {}),
-      threadResults: segmentResults,
-    };
+    return { ...base, success: overallSuccess, threadResults: segmentResults };
   }
   return base;
 }
@@ -620,7 +579,6 @@ async function postToAccountsInternal(
                 resolver,
                 accountOptions,
                 quoteTargetByAccountId.get(account.id),
-                observability?.postId,
               ),
           );
 
@@ -852,18 +810,7 @@ async function repostToAccountsInternal(
           "simplepost.account.id": account.id,
           ...(observability?.postId ? { "simplepost.post.id": observability.postId } : {}),
         },
-        () =>
-          runDurablePublish(
-            {
-              postId: observability?.postId ?? randomUUID(),
-              accountId: account.id,
-              platform: account.platform,
-              operation: "repost",
-              segment: 0,
-              fingerprint: publishFingerprint({ target, options: accountOptions?.[account.id] }),
-            },
-            () => repostSingleTarget(account, target, accountOptions, accountLog),
-          ),
+        () => repostSingleTarget(account, target, accountOptions, accountLog),
       );
     }),
   );

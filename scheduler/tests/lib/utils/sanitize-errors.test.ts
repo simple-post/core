@@ -40,11 +40,3 @@ it("redacts bearer credentials and credentials embedded in URLs", () => {
   expect(JSON.stringify(result)).not.toContain("private-token");
   expect(JSON.stringify(result)).not.toContain('"secret"');
 });
-
-it("normalizes non-finite values for Prisma JSON storage", () => {
-  expect(sanitizeForJson({ n: Number.NaN, infinity: Infinity, valid: 12 })).toEqual({
-    n: null,
-    infinity: null,
-    valid: 12,
-  });
-});

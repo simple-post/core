@@ -90,7 +90,6 @@ export class ThreadsPublisher extends Publisher {
 
       const response = await axios.get<{ access_token: string; token_type: string; expires_in: number }>(
         url.toString(),
-        { timeout: 30_000 },
       );
       const { access_token, expires_in } = response.data;
       const expiresAt = Math.floor(Date.now() / 1000) + expires_in;

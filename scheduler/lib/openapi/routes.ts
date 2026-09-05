@@ -23,7 +23,6 @@ import apiKeyRotateRoutes from "@/app/api/v1/api-keys/[id]/rotate/openapi";
 import apiKeyRoutes from "@/app/api/v1/api-keys/openapi";
 import postingSlotsRoutes from "@/app/api/v1/posting-slots/openapi";
 import postRoutes from "@/app/api/v1/posts/[id]/openapi";
-import reconcilePostRoutes from "@/app/api/v1/posts/[id]/reconcile/openapi";
 import repostPostRoutes from "@/app/api/v1/posts/[id]/repost/openapi";
 import postsCalendarRoutes from "@/app/api/v1/posts/calendar/openapi";
 import postsRoutes from "@/app/api/v1/posts/openapi";
@@ -65,7 +64,6 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   postRoutes,
   postsCalendarRoutes,
   repostPostRoutes,
-  reconcilePostRoutes,
   repostSettingsRoutes,
   postingSlotsRoutes,
   uploadRoutes,

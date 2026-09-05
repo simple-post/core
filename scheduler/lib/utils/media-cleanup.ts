@@ -1,8 +1,6 @@
-import { getOwnedStorageKeyFromUrl } from "@simple-post/sdk";
+import { deleteFromStorage, getOwnedStorageKeyFromUrl } from "@simple-post/sdk";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
-import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import type { AccountOptionsMap, MediaFile } from "@/types";
 
 async function deleteStorageUrl(userId: string, url: string, context: string): Promise<void> {
@@ -12,7 +10,7 @@ async function deleteStorageUrl(userId: string, url: string, context: string): P
   }
 
   try {
-    await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+    await deleteFromStorage(key);
   } catch (error) {
     mediaLogger.error({ err: serializeError(error), key, context }, "Failed to delete file from storage");
   }

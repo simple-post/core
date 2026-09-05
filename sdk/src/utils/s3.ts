@@ -202,19 +202,13 @@ export async function getPresignedUploadUrl(
  * Delete a file from S3-compatible storage
  * @param key - The key (path) of the file to delete
  */
-export async function deleteFromStorage(key: string, options: { timeoutMs?: number } = {}): Promise<void> {
+export async function deleteFromStorage(key: string): Promise<void> {
   const { client, bucket } = createStorageClient();
   const command = new DeleteObjectCommand({
     Bucket: bucket,
     Key: key,
   });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000);
-  try {
-    await client.send(command, { abortSignal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
+  await client.send(command);
 }
 
 /**

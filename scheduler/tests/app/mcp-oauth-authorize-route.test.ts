@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 
 import { POST } from "@/app/api/oauth/authorize/route";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
-import { ensureTrialStarted } from "@/lib/billing/trial";
 import { createAuthorizationCode, updateClientScope, validateClient } from "@/lib/mcp/oauth";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 
@@ -11,8 +10,6 @@ jest.mock("@/lib/billing/trial", () => ({ ensureTrialStarted: jest.fn().mockReso
 jest.mock("@/lib/billing/subscriptions", () => ({
   assertActiveSubscription: jest.fn(),
 }));
-
-jest.mock("@/lib/billing/trial", () => ({ ensureTrialStarted: jest.fn() }));
 
 jest.mock("@/lib/mcp/oauth", () => ({
   createAuthorizationCode: jest.fn(),
@@ -34,7 +31,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   requireBrowserSessionMock.mockResolvedValue({ user: { id: "review-user" } } as never);
   assertActiveSubscriptionMock.mockResolvedValue({} as never);
-  jest.mocked(ensureTrialStarted).mockResolvedValue(null);
   validateClientMock.mockResolvedValue({
     clientId: "chatgpt-client",
     scope: "openid email accounts:read posts:read posts:validate posts:write",
@@ -61,7 +57,6 @@ it("treats a null OIDC nonce as absent", async () => {
   );
 
   expect(response.status).toBe(200);
-  expect(ensureTrialStarted).toHaveBeenCalledWith("review-user");
   await expect(response.json()).resolves.toEqual({
     redirectUrl: "https://chatgpt.com/connector_platform_oauth_redirect?code=authorization-code&state=state-123",
   });

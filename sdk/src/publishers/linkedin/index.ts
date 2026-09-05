@@ -115,7 +115,6 @@ export class LinkedInPublisher extends Publisher {
 
     try {
       await axios.put(uploadInfo.uploadUrl, fileStream, {
-        timeout: 600_000,
         headers: {
           ...uploadInfo.headers,
           "Content-Type": getContentType(resolvedPath),
@@ -252,7 +251,6 @@ export class LinkedInPublisher extends Publisher {
           },
         },
         {
-          timeout: 30_000,
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
             "X-Restli-Protocol-Version": "2.0.0",

@@ -86,7 +86,6 @@ export class PinterestPublisher extends Publisher {
 
     try {
       await axios.put(upload_url, fs.createReadStream(resolvedPath), {
-        timeout: 600_000,
         headers: {
           "Content-Type": getContentType(resolvedPath),
         },

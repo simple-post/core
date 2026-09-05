@@ -684,7 +684,7 @@ export const DispatchScheduledPostsResponseSchema = z
       z.object({
         postId: z.string(),
         success: z.boolean(),
-        status: z.enum(["published", "failed", "scheduled"]),
+        status: z.enum(["published", "failed"]),
         errorMessage: z.string().optional(),
       }),
     ),
@@ -692,7 +692,7 @@ export const DispatchScheduledPostsResponseSchema = z
       z.object({
         postId: z.string(),
         success: z.boolean(),
-        status: z.enum(["published", "failed", "scheduled"]),
+        status: z.enum(["published", "failed"]),
         errorMessage: z.string().optional(),
       }),
     ),

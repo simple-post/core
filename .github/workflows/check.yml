@@ -9,20 +9,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: simplepost_review
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     strategy:
       matrix:
         node-version: [20.x]
@@ -62,14 +48,6 @@ jobs:
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: yarn workspace @simple-post/scheduler test
-
-      - name: Apply migrations and test PostgreSQL concurrency
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/simplepost_review
-          INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/simplepost_review
-        run: |
-          yarn workspace @simple-post/scheduler prisma migrate deploy
-          yarn workspace @simple-post/scheduler jest -c jest.integration.config.cjs --runInBand
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4

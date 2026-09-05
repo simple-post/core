@@ -53,40 +53,6 @@ describe("InstagramPublisher", () => {
     });
   });
 
-  it("bounds the token refresh request before any publishing operation", async () => {
-    const options: PostOptionsWithCredentials = {
-      instagram: {
-        credentials: {
-          accessToken: "test",
-          businessAccountId: "business",
-          expiresAt: Math.floor(Date.now() / 1000) + 60,
-        },
-      },
-    };
-    const expiring = new InstagramPublisher(options);
-    mockedAxios.get.mockRejectedValueOnce(new Error("timeout"));
-    await expect(expiring.postContent({ text: "hello" }, options)).rejects.toThrow(
-      "Instagram access token has expired",
-    );
-    expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining("/refresh_access_token"), { timeout: 30_000 });
-    expect(mockAxiosInstance.post).not.toHaveBeenCalled();
-  });
-
-  it("stops waiting for an Instagram container that never finishes processing", async () => {
-    jest.useFakeTimers();
-    try {
-      mockAxiosInstance.get.mockResolvedValue({ data: { status_code: "IN_PROGRESS" } });
-      const pending = (publisher as unknown as { waitForMediaReady(id: string): Promise<void> }).waitForMediaReady(
-        "container",
-      );
-      const assertion = expect(pending).rejects.toThrow("timed out");
-      await jest.advanceTimersByTimeAsync(600_000);
-      await assertion;
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
   describe("constructor", () => {
     it("should initialize with valid credentials", () => {
       expect(mockedAxios.create).toHaveBeenCalledWith({

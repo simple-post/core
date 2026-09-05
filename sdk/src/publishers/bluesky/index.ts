@@ -285,7 +285,6 @@ export class BlueskyPublisher extends Publisher {
           client_id: this.clientId!,
         }),
         {
-          timeout: 30_000,
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
             ...(dpopProof && { DPoP: dpopProof }),

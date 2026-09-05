@@ -1,5 +1,4 @@
 import { getPublisher } from "./publishers";
-import { PostError, PostErrorType } from "./types";
 import { getCredentialsFromEnv, mergeOptions } from "./utils/credentials";
 import { MediaResolver } from "./utils/media-resolver";
 
@@ -9,23 +8,6 @@ import type { Content, Platform, Post, Quote, Repost } from "./types/post";
 export interface PreparedPost {
   post: Post;
   cleanup: () => Promise<void>;
-}
-
-// Publisher construction can fail before Publisher.post/repost/quote gets a
-// chance to normalize errors (for example when credentials are missing).
-// Preserve the results of other destinations even when that happens.
-async function runForPlatform(publish: () => Promise<PostResult>): Promise<PostResult> {
-  try {
-    return await publish();
-  } catch (error) {
-    if (error instanceof PostError) {
-      return { error: error.errorType, message: error.message, details: error.details };
-    }
-    return {
-      error: PostErrorType.OTHER,
-      message: error instanceof Error ? error.message : "Unknown publishing error",
-    };
-  }
 }
 
 /**
@@ -89,10 +71,8 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
   const mergedOptions = mergeOptions(envCredentials, post.options);
 
   for (const platform of post.platforms) {
-    results.set(
-      platform,
-      await runForPlatform(() => getPublisher(platform, mergedOptions).post(post.content, mergedOptions)),
-    );
+    const publisher = getPublisher(platform, mergedOptions);
+    results.set(platform, await publisher.post(post.content, mergedOptions));
   }
 
   return results;
@@ -104,10 +84,8 @@ export async function repost(repostRequest: Repost): Promise<Map<Platform, Repos
   const mergedOptions = mergeOptions(envCredentials, repostRequest.options);
 
   for (const platform of repostRequest.platforms) {
-    results.set(
-      platform,
-      await runForPlatform(() => getPublisher(platform, mergedOptions).repost(repostRequest.target, mergedOptions)),
-    );
+    const publisher = getPublisher(platform, mergedOptions);
+    results.set(platform, await publisher.repost(repostRequest.target, mergedOptions));
   }
 
   return results;
@@ -123,15 +101,13 @@ export async function quote(quoteRequest: Quote): Promise<Map<Platform, QuoteRes
   const mergedOptions = mergeOptions(envCredentials, quoteRequest.options);
 
   for (const platform of quoteRequest.platforms) {
+    const publisher = getPublisher(platform, mergedOptions);
+    const target = quoteRequest.targets?.[platform] ?? quoteRequest.target;
     results.set(
       platform,
-      await runForPlatform(() => {
-        const publisher = getPublisher(platform, mergedOptions);
-        const target = quoteRequest.targets?.[platform] ?? quoteRequest.target;
-        return target
-          ? publisher.quote(quoteRequest.content, target, mergedOptions)
-          : publisher.post(quoteRequest.content, mergedOptions);
-      }),
+      target
+        ? await publisher.quote(quoteRequest.content, target, mergedOptions)
+        : await publisher.post(quoteRequest.content, mergedOptions),
     );
   }
 

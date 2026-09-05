@@ -102,14 +102,14 @@ function getFailedRetryAccountIds(post: SocialPost): string[] {
 function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: "duplicate" | "edit" | "retry" }) {
   const isRetry = mode === "retry";
   const isDuplicate = mode === "duplicate";
-  const isCreating = isDuplicate;
+  const isCreating = isRetry || isDuplicate;
   const router = useRouter();
   const [message, setMessage] = useState(existingPost.message || "");
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     isRetry ? getFailedRetryAccountIds(existingPost) : existingPost.accountIds || [],
   );
   const [postingMode, setPostingMode] = useState<PostingMode>(
-    isCreating || isRetry ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
+    isCreating ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
   );
   const [scheduledDate, setScheduledDate] = useState(
     !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",

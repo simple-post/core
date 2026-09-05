@@ -1,9 +1,4 @@
-import { Prisma } from "@prisma/client";
-
-import { lockUserForQuota } from "@/lib/billing/subscriptions";
 import { prisma } from "@/lib/prisma";
-import { ConflictError } from "@/lib/utils/errors";
-import { assertStorageAvailable, queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import {
   type AccountOptionsMap,
   type AccountOverridesMap,
@@ -13,8 +8,9 @@ import {
   type ThreadSegmentResult,
 } from "@/types";
 
-type PostWriteClient = Prisma.TransactionClient;
-type PostSnapshot = SocialPost & { updatedAt: Date };
+import type { PrismaClient } from "@prisma/client";
+
+type PostWriteClient = Pick<PrismaClient, "post">;
 
 export interface PaginationOptions {
   page?: number;
@@ -43,9 +39,14 @@ export class PostsModel {
   async getScheduledPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
+    const now = new Date();
+
     const where = {
       userId: this.userId,
       status: "scheduled",
+      scheduledFor: {
+        gt: now,
+      },
     };
 
     const [posts, total] = await Promise.all([
@@ -283,9 +284,6 @@ export class PostsModel {
     userId: string,
     client: PostWriteClient = prisma,
   ): Promise<SocialPost> {
-    if (client === prisma) return prisma.$transaction((tx) => this.createPost(postData, userId, tx));
-    await lockUserForQuota(client, userId);
-    await assertStorageAvailable(client, userId, postData);
     const post = await client.post.create({
       data: {
         userId,
@@ -325,25 +323,7 @@ export class PostsModel {
     return this.mapPostToSocialPost(post as Parameters<typeof this.mapPostToSocialPost>[0]);
   }
 
-  async updatePost(
-    id: string,
-    updates: Partial<SocialPost>,
-    expected?: Pick<PostSnapshot, "status" | "updatedAt">,
-    client: PostWriteClient = prisma,
-  ): Promise<SocialPost> {
-    if (client === prisma) return prisma.$transaction((tx) => this.updatePost(id, updates, expected, tx));
-    await lockUserForQuota(client, this.userId);
-    await assertStorageAvailable(client, this.userId, updates);
-    // Queue the full old content, including JSON-held overrides. Collection
-    // rechecks reachability, so unchanged/shared objects remain available.
-    if (
-      [updates.media, updates.thread, updates.accountOptions, updates.accountOverrides].some(
-        (value) => value !== undefined,
-      )
-    ) {
-      const previous = await client.post.findFirst({ where: { id, userId: this.userId }, include: { media: true } });
-      await queueStorageDeletion(client, this.userId, previous);
-    }
+  async updatePost(id: string, updates: Partial<SocialPost>): Promise<SocialPost> {
     const updateData: {
       message?: string;
       scheduledFor?: Date | null;
@@ -413,26 +393,19 @@ export class PostsModel {
       };
     }
 
-    const post = await client.post
-      .update({
-        where: { id, userId: this.userId, ...expected },
-        data: updateData as Parameters<typeof prisma.post.update>[0]["data"],
-        include: {
-          media: true,
-          accounts: true,
-        },
-      })
-      .catch((error: unknown) => {
-        if (expected && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-          throw new ConflictError("This post changed or started publishing. Reload it before trying again.");
-        }
-        throw error;
-      });
+    const post = await prisma.post.update({
+      where: { id, userId: this.userId },
+      data: updateData as Parameters<typeof prisma.post.update>[0]["data"],
+      include: {
+        media: true,
+        accounts: true,
+      },
+    });
 
     return this.mapPostToSocialPost(post);
   }
 
-  async getPostById(id: string): Promise<PostSnapshot | null> {
+  async getPostById(id: string): Promise<SocialPost | null> {
     const post = await prisma.post.findFirst({
       where: {
         id,
@@ -451,27 +424,10 @@ export class PostsModel {
     return this.mapPostToSocialPost(post);
   }
 
-  async deletePost(id: string, expectedUpdatedAt?: Date, client: PostWriteClient = prisma): Promise<void> {
-    if (client === prisma) return prisma.$transaction((tx) => this.deletePost(id, expectedUpdatedAt, tx));
-    await lockUserForQuota(client, this.userId);
-    const previous = await client.post.findFirst({ where: { id, userId: this.userId }, include: { media: true } });
-    await queueStorageDeletion(client, this.userId, previous);
-    await client.post
-      .delete({
-        where: {
-          id,
-          userId: this.userId,
-          updatedAt: expectedUpdatedAt,
-          status: { not: "pending" },
-          repostStatus: { not: "pending" },
-        },
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-          throw new ConflictError("This post changed or is publishing. Reload it before trying again.");
-        }
-        throw error;
-      });
+  async deletePost(id: string): Promise<void> {
+    await prisma.post.delete({
+      where: { id, userId: this.userId },
+    });
   }
 
   private mapPostToSocialPost(post: {
@@ -482,7 +438,6 @@ export class PostsModel {
     errorMessage: string | null;
     errorDetails: unknown;
     createdAt: Date;
-    updatedAt: Date;
     publishedAt: Date | null;
     accountOptions: unknown;
     accountOverrides?: unknown;
@@ -508,7 +463,7 @@ export class PostsModel {
       size: number;
       durationSec: number | null;
     }>;
-  }): PostSnapshot {
+  }): SocialPost {
     return {
       id: post.id,
       message: post.message,
@@ -527,7 +482,6 @@ export class PostsModel {
       errorMessage: post.errorMessage ?? undefined,
       errorDetails: (post.errorDetails as Record<string, unknown> | null) ?? undefined,
       createdAt: new Date(post.createdAt),
-      updatedAt: new Date(post.updatedAt),
       publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
       accountOptions: (post.accountOptions as AccountOptionsMap | null) || undefined,
       accountOverrides: (post.accountOverrides as AccountOverridesMap | null) || undefined,

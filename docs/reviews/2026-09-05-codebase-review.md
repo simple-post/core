@@ -193,7 +193,8 @@ to root-media-only cleanup. A concurrent save could also race a reference check.
 **Fix:** `storage-lifecycle.ts` tracks deletion candidates by canonical owned
 storage key, with a 24-hour grace period. `PostsModel` queues the complete old
 content transactionally on edits and deletes, including nested JSON media.
-Collection runs during scheduled dispatch, scans all of the user's remaining
+Collection runs concurrently with scheduled dispatch within a 30-second budget,
+with individual storage deletes bounded to five seconds. It scans the user's remaining
 post media/options/overrides/threads, and retains any reachable object. Both saves
 and collection lock the user's database row. Collection commits a `deleting`
 tombstone before external deletion; a racing save rejects the unavailable media.
@@ -357,9 +358,11 @@ CI now provisions PostgreSQL 17, applies the full migration history, and runs th
 same integration suite as local verification. Tests mock external publishing,
 credential refresh and object deletion; they send no real social posts. Type,
 lint, formatting, SDK/scheduler/CLI tests and a production build are checked before
-merge. Local verification passed: SDK 364 tests, scheduler 421, CLI 46, PostgreSQL
-integration 14 (845 total); `yarn check`, SDK distribution build and the scheduler
-production webpack build also passed. Deployment outcome is recorded in the PR.
+merge. Local verification passed: SDK 365 tests, scheduler 422, CLI 46, PostgreSQL
+integration 14 (847 total); `yarn check`, SDK distribution build and the scheduler
+production webpack build also passed. The container entrypoint also passed success/failure smoke checks. A full local
+Docker build was blocked by registry metadata timeouts; deployment outcome is
+recorded in the PR.
 
 Operational limits remain: webhook delivery is not backed by a transactional
 outbox; external outcomes can require reconciliation; legacy missing media cannot

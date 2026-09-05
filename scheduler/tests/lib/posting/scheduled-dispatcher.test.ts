@@ -4,6 +4,7 @@ import type { PostingResult } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
 import { prisma } from "@/lib/prisma";
+import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 
@@ -835,4 +836,29 @@ it("allows a thread larger than one rate window to start making progress", async
   postToAccountsMock.mockResolvedValue(successFor(["a1"]));
   await dispatchDueScheduledPosts();
   expect(postToAccountsMock).toHaveBeenCalledTimes(1);
+});
+
+it("publishes due posts while storage collection is still waiting for its provider", async () => {
+  let finishCollection!: () => void;
+  let reportPublished!: () => void;
+  const published = new Promise<void>((resolve) => {
+    reportPublished = resolve;
+  });
+  jest.mocked(collectUnusedStorage).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishCollection = resolve;
+      }),
+  );
+  mockFindMany({ due: [duePost({ id: "during-collection", accounts: [{ id: "a1", platform: "x" }] })] });
+  postToAccountsMock.mockImplementationOnce(async () => {
+    reportPublished();
+    return successFor(["a1"]);
+  });
+  const dispatch = dispatchDueScheduledPosts();
+  await published;
+  expect(postToAccountsMock).toHaveBeenCalledTimes(1);
+  finishCollection();
+  const result = await dispatch;
+  expect(result.publishedPosts).toBe(1);
 });

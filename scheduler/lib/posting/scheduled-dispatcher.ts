@@ -717,7 +717,9 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
 
 async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResult> {
   const startedAt = new Date();
-  await collectUnusedStorage().catch((error: unknown) => log.error({ error }, "Storage sweep failed"));
+  const storageCollectionPromise = collectUnusedStorage().catch((error: unknown) =>
+    log.error({ error }, "Storage sweep failed"),
+  );
   // Rate history is only needed for the sliding window. Keep a day for diagnostics.
   await prisma.publishAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 86_400_000) } } });
   const now = new Date();
@@ -857,7 +859,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
   });
 
   if (duePosts.length === 0 && dueReposts.length === 0) {
-    const credentialRefresh = await credentialRefreshPromise;
+    const [credentialRefresh] = await Promise.all([credentialRefreshPromise, storageCollectionPromise]);
     return {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
@@ -1065,7 +1067,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
     .filter((value): value is DispatchPlatformSummary => value !== null)
     .sort((left, right) => left.platform.localeCompare(right.platform));
 
-  const credentialRefresh = await credentialRefreshPromise;
+  const [credentialRefresh] = await Promise.all([credentialRefreshPromise, storageCollectionPromise]);
   const finishedAt = new Date();
 
   log.info(

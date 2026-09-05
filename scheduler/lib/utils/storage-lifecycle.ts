@@ -53,12 +53,14 @@ export async function queueStorageDeletion(
 }
 
 export async function collectUnusedStorage(): Promise<void> {
+  const deadline = Date.now() + 30_000;
   const candidates = await prisma.storageDeletion.findMany({
     where: { state: { in: ["queued", "deleting"] }, dueAt: { lte: new Date() } },
     orderBy: { dueAt: "asc" },
     take: 100,
   });
   for (const candidate of candidates) {
+    if (Date.now() >= deadline) break;
     try {
       const claimed = await prisma.$transaction(async (tx) => {
         await lockUserForQuota(tx, candidate.userId);
@@ -81,10 +83,16 @@ export async function collectUnusedStorage(): Promise<void> {
       if (!claimed) continue;
       // A durable tombstone now prevents a concurrent save from reviving this key.
       // Deletion is idempotent; interrupted attempts are picked up by the next sweep.
-      await deleteFromStorage(candidate.key);
+      await deleteFromStorage(candidate.key, { timeoutMs: Math.max(1, Math.min(5000, deadline - Date.now())) });
       await prisma.storageDeletion.update({ where: { key: candidate.key }, data: { state: "deleted" } });
     } catch (error) {
       mediaLogger.error({ err: serializeError(error), key: candidate.key }, "Storage collection failed; will retry");
+      await prisma.storageDeletion
+        .updateMany({
+          where: { key: candidate.key, state: { not: "deleted" } },
+          data: { dueAt: new Date(Date.now() + 300_000) },
+        })
+        .catch(() => undefined);
     }
   }
 }

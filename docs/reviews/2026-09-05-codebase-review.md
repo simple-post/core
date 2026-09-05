@@ -181,6 +181,13 @@ only mocks the subscription gate and OAuth helpers. The baseline suite returned
 to it. Production OAuth behavior is unchanged. Trial-helper behavior continues
 to have its own dedicated tests.
 
+**CI improvement:** Root coverage used the broad monorepo TypeScript program and
+repeated expensive compilation after worker recycling. SDK tests now use a scoped
+configuration with isolated transpilation, while `yarn check` explicitly type-checks
+the full SDK test project once. Test selection and coverage collection are unchanged.
+The same 365 tests took 277 seconds locally before this change and 3.5 seconds
+afterward, with the separate type-check also passing.
+
 ## Additional findings fixed in the completed PR
 
 ### C07 — Shared media can be deleted while another post still needs it

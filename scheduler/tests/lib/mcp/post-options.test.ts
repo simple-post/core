@@ -46,6 +46,33 @@ const accountOptions = {
   "youtube-1": { privacyStatus: "unlisted" as const },
 };
 
+it.each(["now", "schedule", "draft"] as const)(
+  "persists photo music defaults and caption options for %s",
+  async (postingMode) => {
+    const result = await createPost(
+      "user-1",
+      createPostSchema.parse({
+        message: "هدوء التفاصيل ✨ #IBDesign",
+        accountIds: ["tiktok-1", "youtube-1"],
+        media: [{ type: "image", url: "https://example.com/photo.jpg" }],
+        accountOptions: { "tiktok-1": { title: "Title", description: "Caption #tag", privacyLevel: "SELF_ONLY" } },
+        postingMode,
+        ...(postingMode === "schedule" ? { scheduledFor: "2099-01-01T10:00:00Z" } : {}),
+      }),
+    );
+    expect(result.post.accountOptions).toEqual({
+      "tiktok-1": { title: "Title", description: "Caption #tag", privacyLevel: "SELF_ONLY", autoAddMusic: true },
+    });
+    expect(savePost).toHaveBeenCalledWith(
+      expect.objectContaining({ accountOptions: result.post.accountOptions }),
+      "user-1",
+      {},
+    );
+    if (postingMode === "now")
+      expect((postToAccounts as jest.Mock).mock.calls[0][4]).toEqual(result.post.accountOptions);
+  },
+);
+
 beforeEach(() => {
   jest.clearAllMocks();
   (PostsModel as jest.Mock).mockImplementation(() => ({
@@ -167,6 +194,25 @@ it("uses the same public default for validation and previews", async () => {
   await previewPost("user-1", previewPostSchema.parse(input));
   for (const [params] of (validatePostForAccounts as jest.Mock).mock.calls) {
     expect(params.accountOptions).toEqual({ "tiktok-1": { privacyLevel: "PUBLIC_TO_EVERYONE" } });
+  }
+});
+
+it("uses the same photo music default for validation and previews", async () => {
+  (validatePostForAccounts as jest.Mock).mockResolvedValue({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    platforms: ["tiktok"],
+    results: [{ accountId: "tiktok-1", platform: "tiktok", isValid: true, errors: [], warnings: [] }],
+    summary: { isValid: true, errors: [], warnings: [] },
+  });
+  const input = {
+    message: "Caption #tag",
+    accountIds: ["tiktok-1"],
+    media: [{ type: "image", url: "https://example.com/photo.jpg" }],
+  };
+  await validatePost("user-1", validatePostSchema.parse(input));
+  await previewPost("user-1", previewPostSchema.parse(input));
+  for (const [params] of (validatePostForAccounts as jest.Mock).mock.calls) {
+    expect(params.accountOptions).toEqual({ "tiktok-1": { privacyLevel: "PUBLIC_TO_EVERYONE", autoAddMusic: true } });
   }
 });
 

@@ -119,6 +119,24 @@ describe("XPublisher", () => {
       expect(result).toEqual({ id: "tweet_id_123", error: PostErrorType.NO_ERROR });
     });
 
+    it("rejects repeated cashtags before contacting X", async () => {
+      await expect(publisher.postContent({ text: "$TOOF is live. Just $TOOF." }, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        details: { errors: [expect.objectContaining({ code: "too_many_cashtags" })] },
+      });
+      expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+
+    it("reports provider cashtag rejections without blaming account authorization or Premium", async () => {
+      mockV2Client.tweet.mockRejectedValue({ code: 403, data: { detail: "Posts are limited to one cashtag." } });
+      await expect(publisher.postContent({ text: "A post" }, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        message: expect.stringContaining("one cashtag"),
+        details: { code: "too_many_cashtags" },
+      });
+    });
+
     it("should post content with media successfully", async () => {
       const content: Content = {
         text: "Check out this image!",

@@ -555,7 +555,12 @@ export class TikTokPublisher extends Publisher {
         }
 
         if (status === "FAILED") {
-          throw new PostError(PostErrorType.API_ERROR, `TikTok processing failed: ${data?.fail_reason || "unknown"}`);
+          const reason = data?.fail_reason || "unknown";
+          const hint =
+            reason === "picture_size_check_failed"
+              ? " Resize photos to fit within 1080×1920 (portrait) or 1920×1080 (landscape), preserving their aspect ratio."
+              : "";
+          throw new PostError(PostErrorType.API_ERROR, `TikTok processing failed: ${reason}.${hint}`);
         }
 
         // Inbox uploads finish when TikTok notifies the creator. There is

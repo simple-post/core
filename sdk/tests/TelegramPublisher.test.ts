@@ -27,6 +27,15 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe("TelegramPublisher", () => {
+  it("blocks an existing connection to the bot itself before sending", async () => {
+    const options = { telegram: { chatId: "123", credentials: { botToken: "123:test-token" } } };
+    const bot = new TelegramPublisher(options);
+    await expect(bot.postContent({ text: "Hello" }, options)).rejects.toMatchObject({
+      errorType: PostErrorType.INVALID_CONTENT,
+      message: expect.stringContaining("bots cannot post to themselves"),
+    });
+    expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+  });
   let publisher: TelegramPublisher;
   let mockAxiosInstance: any;
 

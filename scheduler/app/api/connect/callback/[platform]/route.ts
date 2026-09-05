@@ -40,9 +40,9 @@ function mergeTokenMetadata(
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const baseURL = env.NEXT_PUBLIC_APP_URL;
+  const { platform } = await params;
 
   try {
-    const { platform } = await params;
     if (!isSocialPlatformEnabled(platform)) {
       authLogger.warn({ platform }, "OAuth callback rejected for disabled platform");
       return NextResponse.redirect(getErrorRedirectUrl("unknown_error", baseURL));
@@ -123,6 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const accessToken = tokenData.access_token;
     if (!accessToken) {
+      authLogger.warn({ platform, userId }, "OAuth token response did not contain an access token");
       return NextResponse.redirect(getErrorRedirectUrl("no_access_token", baseURL));
     }
     tokenMetadata = mergeTokenMetadata(tokenMetadata, tokenData);
@@ -148,7 +149,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return response;
   } catch (error) {
     const code = mapErrorToCode(error);
-    authLogger.error({ err: serializeError(error), code }, "OAuth callback failed");
+    if (code === "session_mismatch") {
+      authLogger.warn({ platform, code }, "OAuth callback requires a fresh login");
+    } else {
+      authLogger.error({ platform, err: serializeError(error), code }, "OAuth callback failed");
+    }
     return NextResponse.redirect(getErrorRedirectUrl(code, baseURL));
   }
 }

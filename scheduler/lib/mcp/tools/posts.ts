@@ -36,7 +36,7 @@ export const createPostSchema = z.object({
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    'Platform settings keyed by account ID, not platform name. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. For TikTok photo carousels pass 1–35 image URLs, autoAddMusic:true for recommended music on Direct Post, photoCoverIndex (zero-based, default 0), title (90 characters), and description (4000 characters, defaults to message). Set publishMode:"draft" to upload to the TikTok inbox and manually add music/edit/publish; omit autoAddMusic or set false. Use postingMode:"now" (or "schedule") for the upload to run; postingMode:"draft" only saves a SimplePost draft. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
+    'Platform settings keyed by account ID, not platform name. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. For TikTok photo carousels pass 1–35 image URLs, autoAddMusic (defaults to true for photo Direct Post; pass false for no music), photoCoverIndex (zero-based, default 0), title (90 characters, defaults to the start of message), and description (4000 characters, defaults to the full message including hashtags). Set publishMode:"draft" to upload to the TikTok inbox and manually add music/edit/publish; omit autoAddMusic or set false. Use postingMode:"now" (or "schedule") for the upload to run; postingMode:"draft" only saves a SimplePost draft. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -663,12 +663,13 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
+  const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   const accountOptions = await resolveMcpAccountOptions(
     userId,
     accountIds,
     input.accountOptions ?? currentPost.accountOptions,
+    media,
   );
-  const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   const thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
   const threadForValidation = thread && thread.length > 0 ? thread : undefined;
@@ -879,7 +880,10 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     }
   }
 
-  input = { ...input, accountOptions: await resolveMcpAccountOptions(userId, input.accountIds, input.accountOptions) };
+  input = {
+    ...input,
+    accountOptions: await resolveMcpAccountOptions(userId, input.accountIds, input.accountOptions, input.media),
+  };
 
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";

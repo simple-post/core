@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
+import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const response = NextResponse.redirect(authUrl.toString());
+    authLogger.info({ platform, userId: session.user.id }, "OAuth connection started");
     if (pkceVerifier) {
       setPkceCookie(response, pkceVerifier, platform);
     }

@@ -5,6 +5,8 @@ import { derToRaw } from "@simple-post/sdk";
 import { authLogger } from "@/lib/logger";
 import { addBlueskyClientAuthentication, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
 import { getPlatformOAuthConfig } from "@/lib/oauth/config";
+import { OAuthCallbackError } from "@/lib/oauth/errors";
+import { readMetaError } from "@/lib/oauth/meta-error";
 import type { OAuthTokenResponse } from "@/lib/oauth/types";
 
 const base64UrlEncode = (input: string | Buffer): string => Buffer.from(input).toString("base64url");
@@ -208,9 +210,21 @@ export async function exchangeCodeForToken(
   });
 
   if (!response.ok) {
-    authLogger.error({ platform, status: response.status, statusText: response.statusText }, "Token exchange failed");
-    throw new Error(`Failed to exchange code for token: ${response.statusText}`);
+    const providerError = platform === "instagram" ? await readMetaError(response) : undefined;
+    authLogger.error(
+      { platform, status: response.status, statusText: response.statusText, providerError },
+      "Token exchange failed",
+    );
+    throw new OAuthCallbackError("token_exchange_failed", `Failed to exchange code for token: ${response.statusText}`);
   }
 
-  return await response.json();
+  const tokenData = await response.json();
+  // Accept Instagram's data envelope as well as the flat token response.
+  if (platform === "instagram" && !tokenData.access_token && Array.isArray(tokenData.data)) {
+    const token = tokenData.data[0];
+    if (typeof token?.access_token === "string") {
+      return { ...token, scope: Array.isArray(token.permissions) ? token.permissions.join(",") : token.scope };
+    }
+  }
+  return tokenData;
 }

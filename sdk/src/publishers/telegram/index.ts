@@ -180,6 +180,13 @@ export class TelegramPublisher extends Publisher {
     this.validateOptions(options);
 
     const chatId = options.telegram.chatId;
+    const botId = this.botToken.match(/^(\d+):/)?.[1];
+    if (botId && String(chatId).trim() === botId) {
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "Telegram bots cannot post to themselves. Reconnect using your own numeric user ID after sending /start to the bot, or use a channel/group where the bot is an admin.",
+      );
+    }
     const parseMode = options.telegram.parseMode;
     const replyTo = options.telegram.replyTo;
 

@@ -4,6 +4,7 @@ import axios from "axios";
 import { EUploadMimeType, TwitterApi } from "twitter-api-v2";
 
 import {
+  X_CASHTAG_LIMIT_MESSAGE,
   X_MAX_GIF_SIZE_BYTES,
   X_MAX_IMAGE_SIZE_BYTES,
   X_MAX_MEDIA_COUNT,
@@ -394,6 +395,16 @@ export class XPublisher extends Publisher {
         status?: number;
       };
       const status = err.code ?? err.status ?? err.response?.status ?? err.data?.status;
+      if (err.data?.detail?.toLowerCase().includes("cashtag")) {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          X_CASHTAG_LIMIT_MESSAGE,
+          this.accountDetails({
+            code: "too_many_cashtags",
+            provider: err.data,
+          }),
+        );
+      }
       if (status === 403 && textLength > X_STANDARD_POST_MAX_LENGTH) {
         const accountLabel = this.cachedUsername ? ` for @${this.cachedUsername}` : "";
         const reportedSubscription = this.cachedSubscriptionType

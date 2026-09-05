@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
 
       // Extract the numeric chat ID from the API response (works for usernames like @channel)
       const numericChatId = chatInfo.result.id.toString();
+      if (numericChatId === String(botInfo.result.id)) {
+        throw new BadRequestError(
+          "The destination is the bot itself. Use your own numeric user ID after sending /start to the bot, or a channel/group where the bot is an admin.",
+        );
+      }
       const chatTitle = chatInfo.result.title || channelName || chatInfo.result.username || numericChatId;
       const chatUsername = chatInfo.result.username || null;
 

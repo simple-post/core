@@ -9,6 +9,9 @@ export const X_STANDARD_POST_MAX_LENGTH = 280;
 export const X_LONG_POST_MAX_LENGTH = 25_000;
 export const X_MAX_MEDIA_COUNT = 4;
 export const X_MAX_VIDEOS = 1;
+export const X_MAX_CASHTAGS = 1;
+export const X_CASHTAG_LIMIT_MESSAGE =
+  "X allows only one cashtag ($SYMBOL) per post, including repeated symbols. Remove the $ from additional mentions or put them in separate thread posts.";
 export const X_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 export const X_MAX_GIF_SIZE_BYTES = 15 * 1024 * 1024;
 export const X_MAX_VIDEO_SIZE_BYTES = 512 * 1024 * 1024;
@@ -28,7 +31,7 @@ export const X_VALIDATION_RULES: PlatformValidationRules = {
   media: { maxCount: X_MAX_MEDIA_COUNT, maxImages: X_MAX_MEDIA_COUNT, maxVideos: X_MAX_VIDEOS, allowsMixed: false },
   image: { maxSizeBytes: X_MAX_IMAGE_SIZE_BYTES },
   video: { maxSizeBytes: X_MAX_VIDEO_SIZE_BYTES },
-  notes: [`Animated GIFs may be up to ${X_MAX_GIF_SIZE_BYTES / (1024 * 1024)} MB.`],
+  notes: [`Animated GIFs may be up to ${X_MAX_GIF_SIZE_BYTES / (1024 * 1024)} MB.`, X_CASHTAG_LIMIT_MESSAGE],
 };
 
 export function validateXContent(content: Content): ValidationResult {
@@ -38,6 +41,23 @@ export function validateXContent(content: Content): ValidationResult {
   const media = content.media ?? [];
   const mediaCount = media.length;
   const { images, videos } = countMedia(media);
+
+  // Count occurrences, not unique symbols. URLs and currency amounts are not
+  // cashtags. X's API rejects even two mentions of the same ticker.
+  // eslint-disable-next-line unicorn/prefer-string-replace-all -- Also typechecked by the ES2020 server workspace.
+  const cashtagText = text.replace(/https?:\/\/\S+/gi, "");
+  const cashtags = cashtagText.match(/(?<![\p{L}\p{N}_])\$[a-z]{1,6}(?:[._][a-z]{1,2})?(?![\p{L}\p{N}_])/giu) ?? [];
+  if (cashtags.length > X_MAX_CASHTAGS) {
+    errors.push({
+      platform: "x",
+      severity: "error",
+      code: "too_many_cashtags",
+      message: X_CASHTAG_LIMIT_MESSAGE,
+      field: "text",
+      limit: X_MAX_CASHTAGS,
+      actual: cashtags.length,
+    });
+  }
 
   if (!text.trim() && mediaCount === 0) {
     errors.push({

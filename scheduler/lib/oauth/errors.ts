@@ -1,4 +1,4 @@
-import { authLogger } from "@/lib/logger";
+import { UnauthorizedError } from "@/lib/utils/errors";
 
 import { OAuthStateError } from "./state";
 
@@ -14,6 +14,16 @@ export type OAuthErrorCode =
   | "no_access_token"
   | "authorization_denied"
   | "unknown_error";
+
+export class OAuthCallbackError extends Error {
+  constructor(
+    public readonly code: OAuthErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "OAuthCallbackError";
+  }
+}
 
 const ERROR_MESSAGES: Record<OAuthErrorCode, string> = {
   invalid_state: "Invalid authorization request. Please try connecting again.",
@@ -35,14 +45,10 @@ export function getErrorRedirectUrl(code: OAuthErrorCode, baseUrl: string): stri
 }
 
 export function mapErrorToCode(error: unknown): OAuthErrorCode {
+  if (error instanceof UnauthorizedError) return "session_mismatch";
+  if (error instanceof OAuthCallbackError) return error.code;
   if (error instanceof OAuthStateError) {
     return error.code as OAuthErrorCode;
-  }
-
-  if (error instanceof Error) {
-    authLogger.error({ error: error.message, stack: error.stack }, "OAuth callback error");
-  } else {
-    authLogger.error({ error: String(error) }, "OAuth callback error");
   }
 
   return "unknown_error";

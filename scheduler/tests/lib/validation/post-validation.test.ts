@@ -40,6 +40,18 @@ function image(size: number, id = "image"): MediaFile {
 }
 
 describe("post validation", () => {
+  it("checks cashtags separately for each X thread segment and account override", () => {
+    const account = { ...blueskyAccount, id: "x-account", platform: "x" };
+    const input = { message: "$BTC", media: [], accounts: [account], thread: [{ message: "$ETH" }] };
+    expect(validatePostForResolvedAccounts(input).summary.isValid).toBe(true);
+    expect(validatePostForResolvedAccounts({ ...input, thread: [{ message: "$ETH $ETH" }] }).summary.errors).toEqual([
+      expect.objectContaining({ code: "too_many_cashtags", field: "thread[0]", meta: { accountId: account.id } }),
+    ]);
+    expect(
+      validatePostForResolvedAccounts({ ...input, accountOverrides: { [account.id]: { message: "$BTC $ETH" } } })
+        .summary.errors,
+    ).toEqual([expect.objectContaining({ code: "too_many_cashtags", field: "text", meta: { accountId: account.id } })]);
+  });
   it("rejects an oversized Bluesky image using uploaded media metadata", () => {
     const result = validatePostForResolvedAccounts({
       message: "Oversized image",

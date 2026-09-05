@@ -45,7 +45,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://api.instagram.com/oauth/access_token",
     clientId: process.env.INSTAGRAM_CLIENT_ID || "",
     clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
-    scope: "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages",
+    scope: "instagram_business_basic,instagram_business_content_publish",
     responseType: "code",
     userInfoUrl: "https://graph.instagram.com/me?fields=user_id,username,name,profile_picture_url,account_type",
     requiresPkce: false,

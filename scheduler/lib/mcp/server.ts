@@ -99,6 +99,8 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 
 # TikTok privacy and posting settings
 
+- Photo Direct Posts default to recommended music. To disable it, set \`accountOptions[accountId].autoAddMusic: false\`. Inbox uploads and videos do not get this default. TikTok chooses the track; a specific song cannot be selected here.
+- For photos, \`message\` becomes the full description, including hashtags, and supplies the first 90 UTF-16 characters of the title. Override \`title\` or \`description\` in \`accountOptions[accountId]\`; explicit empty strings are preserved. The schema also exposes \`photoCoverIndex\` (zero-based).
 - A request to post on TikTok through MCP means publish publicly unless the user specifies another audience. Omitted privacy defaults to \`PUBLIC_TO_EVERYONE\` for TikTok accounts. Do not ask a privacy question or require a creator-info preflight solely because the user omitted privacy.
 - Override privacy using \`accountOptions[accountId].privacyLevel\` on \`create_post\`, \`preview_post\`, \`validate_post\`, and \`update_scheduled_post\`. The map is keyed by account ID, not platform name. Everyone/public = \`PUBLIC_TO_EVERYONE\`, mutual friends = \`MUTUAL_FOLLOW_FRIENDS\`, followers = \`FOLLOWER_OF_CREATOR\`, only me/private = \`SELF_ONLY\`.
 - Preserve explicit privacy choices and existing saved settings when editing posts. Creation and inspection results include \`accountOptions\` so you can see the effective audience. Public defaults are saved for scheduled posts as well as immediate posts.
@@ -679,7 +681,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
+      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
       inputSchema: createPostSchema.shape,
       outputSchema: createPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,

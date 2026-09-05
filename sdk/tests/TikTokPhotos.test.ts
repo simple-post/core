@@ -3,7 +3,7 @@ import fs from "node:fs";
 import axios from "axios";
 
 import { TikTokPublisher } from "../src/publishers/tiktok";
-import { validateTikTokContent } from "../src/publishers/tiktok/validation";
+import { getTikTokPostText, validateTikTokContent } from "../src/publishers/tiktok/validation";
 import { PostErrorType } from "../src/types";
 import { MediaResolver } from "../src/utils/media-resolver";
 import { S3MediaUploader } from "../src/utils/s3";
@@ -51,6 +51,22 @@ beforeEach(() => {
   (fs.statSync as jest.Mock).mockReturnValue({ size: 1024 });
   uploadFile.mockImplementation(async (_path, key) => `https://media.example.com/${key}`);
   (S3MediaUploader as jest.Mock).mockImplementation(() => ({ uploadFile, deleteFile }));
+});
+it("preserves Arabic text, emoji and hashtags in the photo title and description", async () => {
+  mockPublish();
+  const content = { ...photos(), text: "هدوء التفاصيل يصنع فخامة المكان ✨ #IBDesign" };
+  await publisher().postContent(content, options({ autoAddMusic: true }));
+  expect(api.post.mock.calls[1][1].post_info).toMatchObject({
+    title: content.text,
+    description: content.text,
+    auto_add_music: true,
+  });
+});
+it("shortens only the derived title without splitting emoji or losing the full caption", () => {
+  const content = { ...photos(), text: `${"a".repeat(89)}✨😀 #tag` };
+  expect(getTikTokPostText(content)).toEqual({ title: `${"a".repeat(89)}✨`, description: content.text });
+  expect(getTikTokPostText({ ...content, text: `${"a".repeat(89)}😀 #tag` }).title).toBe("a".repeat(89));
+  expect(getTikTokPostText(content, { title: "", description: "" })).toEqual({ title: "", description: "" });
 });
 it.each([1, 4, 7, 35])("publishes %i photos in order with recommended music and a cover", async (count) => {
   mockPublish();

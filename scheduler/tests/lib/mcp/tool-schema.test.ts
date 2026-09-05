@@ -147,6 +147,10 @@ describe("MCP tool JSON schemas", () => {
     for (const schema of [createPostSchema, previewPostSchema, validatePostSchema, updateScheduledPostSchema]) {
       const options = toInputJsonSchema(schema).properties?.accountOptions;
       const account = options?.additionalProperties as JsonSchemaObject;
+      expect(account?.properties?.autoAddMusic?.type).toBe("boolean");
+      expect(account?.properties?.title?.type).toBe("string");
+      expect(account?.properties?.description?.type).toBe("string");
+      expect(account?.properties?.photoCoverIndex?.type).toBe("integer");
       expect(account?.properties?.privacyLevel?.enum).toEqual([
         "PUBLIC_TO_EVERYONE",
         "MUTUAL_FOLLOW_FRIENDS",

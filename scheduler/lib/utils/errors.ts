@@ -3,46 +3,18 @@ import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { apiLogger, serializeError } from "@/lib/logger";
+import { isSensitiveKey } from "@/lib/logger/sensitive-keys";
 
 /**
  * Recursively sanitizes an object for JSON/Prisma storage by removing
  * non-serializable values (functions, streams, circular refs, etc.)
  */
 export function sanitizeForJson<T>(value: T): unknown {
-  if (value === null || value === undefined) {
-    return value;
-  }
-  if (typeof value === "function" || typeof value === "symbol") {
-    return undefined;
-  }
-  if (typeof value !== "object") {
-    return value;
-  }
-  // Handle Error instances
-  if (value instanceof Error) {
-    return { name: value.name, message: value.message, stack: value.stack };
-  }
-  // Handle arrays
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeForJson(item)).filter((item) => item !== undefined);
-  }
-  // Handle plain objects - extract API error structure when present
-  const obj = value as Record<string, unknown>;
-  if (obj.response && typeof obj.response === "object") {
-    const response = obj.response as Record<string, unknown>;
-    const result: Record<string, unknown> = {};
-    if (response.data && typeof response.data === "object") {
-      const data = response.data as Record<string, unknown>;
-      if (data.error) result.error = sanitizeForJson(data.error);
-    }
-    if (response.status !== undefined) result.status = response.status;
-    if (response.statusText) result.statusText = response.statusText;
-    if (obj.code !== undefined) result.code = obj.code;
-    if (obj.message) result.message = obj.message;
-    return result;
-  }
-  // Generic object - filter out known problematic keys and non-serializable values
+  const ancestors = new WeakSet<object>();
   const skipKeys = new Set([
+    "config",
+    "request",
+    "headers",
     "paramsSerializer",
     "validateStatus",
     "transformRequest",
@@ -50,15 +22,44 @@ export function sanitizeForJson<T>(value: T): unknown {
     "adapter",
     "errorRedactor",
   ]);
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (skipKeys.has(k)) continue;
-    if (typeof v === "function" || typeof v === "symbol") continue;
-    if (v && typeof v === "object" && "pipe" in v) continue; // Skip streams
-    const sanitized = sanitizeForJson(v);
-    if (sanitized !== undefined) result[k] = sanitized;
-  }
-  return result;
+  const visit = (item: unknown, depth: number): unknown => {
+    if (item === null || item === undefined) return item;
+    if (typeof item === "function" || typeof item === "symbol") return undefined;
+    if (typeof item === "bigint") return item.toString();
+    if (typeof item === "string") {
+      return item
+        .replaceAll(/Bearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
+        .replaceAll(/([?&](?:access_token|refresh_token|client_secret|api_key|token)=)[^&\s"'<>]*/gi, "$1[REDACTED]")
+        .replaceAll(/(api\.telegram\.org\/bot)[^/\s]+/gi, "$1[REDACTED]");
+    }
+    if (typeof item !== "object") return item;
+    if (item instanceof Date) return item.toJSON();
+    if (depth > 12) return "[Truncated]";
+    if (ancestors.has(item)) return "[Circular]";
+    if ("pipe" in item) return undefined;
+    ancestors.add(item);
+    try {
+      if (Array.isArray(item)) return item.map((entry) => visit(entry, depth + 1));
+      const obj = item as Record<string, unknown>;
+      const result: Record<string, unknown> = {};
+      // Never invoke provider toJSON methods: Axios includes credentials in config.
+      if (item instanceof Error) {
+        result.name = item.name;
+        result.message = visit(item.message, depth + 1);
+        result.stack = visit(item.stack, depth + 1);
+        if (item.cause) result.cause = visit(item.cause, depth + 1);
+      }
+      for (const [key, entry] of Object.entries(obj)) {
+        if (skipKeys.has(key)) continue;
+        const sanitized = isSensitiveKey(key) ? "[REDACTED]" : visit(entry, depth + 1);
+        if (sanitized !== undefined) result[key] = sanitized;
+      }
+      return result;
+    } finally {
+      ancestors.delete(item);
+    }
+  };
+  return visit(value, 0);
 }
 
 /**

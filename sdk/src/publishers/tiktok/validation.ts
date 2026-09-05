@@ -34,7 +34,13 @@ export const TIKTOK_VALIDATION_RULES: PlatformValidationRules = {
 export function getTikTokPostText(content: Content, options: TikTokOptions = {}) {
   const media = content.media?.[0];
   if (media?.type === "image") {
-    return { title: options.title ?? media.caption ?? "", description: options.description ?? content.text ?? "" };
+    // TikTok displays a separate photo title. Keep the complete message and
+    // hashtags in description, and derive a short title without splitting emoji.
+    const defaultTitle = (content.text ?? "").slice(0, TIKTOK_MAX_PHOTO_TITLE_LENGTH).replace(/[\uD800-\uDBFF]$/, "");
+    return {
+      title: options.title ?? media.caption ?? defaultTitle,
+      description: options.description ?? content.text ?? "",
+    };
   }
   return {
     title:

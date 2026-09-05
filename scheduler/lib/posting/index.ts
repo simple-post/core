@@ -264,7 +264,7 @@ async function postSingleSegment(
         postUrl,
         postId: result.id,
         message: result.message,
-        details: result.details,
+        details: sanitizeForJson(result.details),
         platformData: result.extraData?.platformData,
         extraData: result.extraData,
       };
@@ -288,7 +288,7 @@ async function postSingleSegment(
       success: false,
       error: errorMsg,
       message: errorMessage,
-      details: result?.details,
+      details: sanitizeForJson(result?.details),
       platformData: result?.extraData?.platformData,
       extraData: result?.extraData,
     };
@@ -626,7 +626,7 @@ async function postToAccountsInternal(
             platform: result.platform,
             error: result.error,
             message: result.message,
-            details: result.details,
+            details: sanitizeForJson(result.details),
             failedSegments: result.threadResults?.filter((segment) => !segment.success),
           },
           "Platform post failed",
@@ -725,7 +725,7 @@ async function repostSingleTarget(
         postId: repostId,
         postUrl,
         message: result.message,
-        details: result.details,
+        details: sanitizeForJson(result.details),
         platformData: result.extraData?.platformData,
         extraData: result.extraData,
       };
@@ -738,7 +738,7 @@ async function repostSingleTarget(
       success: false,
       error: errorMsg,
       message: result?.message ?? errorMsg,
-      details: result?.details,
+      details: sanitizeForJson(result?.details),
       platformData: result?.extraData?.platformData,
       extraData: result?.extraData,
     };
@@ -827,7 +827,7 @@ async function repostToAccountsInternal(
           platform: result.platform,
           error: result.error,
           message: result.message,
-          details: result.details,
+          details: sanitizeForJson(result.details),
         },
         "Platform repost failed",
       );

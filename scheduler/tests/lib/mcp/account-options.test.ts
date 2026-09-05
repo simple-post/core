@@ -45,3 +45,28 @@ it("does not create defaults for unknown accounts or other platforms", async () 
   (prisma.connectedAccount.findMany as jest.Mock).mockResolvedValue([{ id: "youtube-1", platform: "youtube" }]);
   expect(await resolveMcpAccountOptions("user-1", ["unknown", "youtube-1"])).toBeUndefined();
 });
+
+it("defaults music only for directly posted photos, preserving the audience and explicit music choices", async () => {
+  const media = [{ type: "image" }, { type: "image" }];
+  const result = await resolveMcpAccountOptions(
+    "user-1",
+    ["tiktok-1", "tiktok-2", "youtube-1"],
+    {
+      "tiktok-1": { privacyLevel: "SELF_ONLY" },
+      "tiktok-2": { autoAddMusic: false },
+    },
+    media,
+  );
+  expect(result).toEqual({
+    "tiktok-1": { privacyLevel: "SELF_ONLY", autoAddMusic: true },
+    "tiktok-2": { privacyLevel: "PUBLIC_TO_EVERYONE", autoAddMusic: false },
+  });
+  const inbox = await resolveMcpAccountOptions("user-1", ["tiktok-1"], { "tiktok-1": { publishMode: "draft" } }, media);
+  expect(inbox?.["tiktok-1"]).toEqual({ publishMode: "draft" });
+  for (const items of [[], [{ type: "video" }], [{ type: "image" }, { type: "video" }]]) {
+    const result = await resolveMcpAccountOptions("user-1", ["tiktok-1"], undefined, items);
+    expect(result?.["tiktok-1"]).toEqual({
+      privacyLevel: "PUBLIC_TO_EVERYONE",
+    });
+  }
+});

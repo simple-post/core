@@ -100,19 +100,6 @@ export interface AccountQuoteTarget extends QuoteTarget {
   postUrl?: string;
 }
 
-function applyYouTubeDefaults(media: Media[], message: string, platform: string): Media[] {
-  return media.map((m) => {
-    if (m.type === "video" && platform === "youtube" && !m.title) {
-      return {
-        ...m,
-        title: message.trim() || "Untitled Video",
-        description: message.trim() || undefined,
-      };
-    }
-    return m;
-  });
-}
-
 function mergeReplyOverlay(
   options: ReturnType<typeof buildPostOptions>,
   overlay: ReturnType<typeof buildReplyOverlay>,
@@ -202,12 +189,12 @@ async function postSingleSegment(
     const platform = mapPlatformName(account.platform);
     const baseOptions = buildPostOptions(account, accountOptions);
     const options = mergeReplyOverlay(baseOptions, replyOverlay);
-    const processedMedia = applyYouTubeDefaults(preparedMedia, message, platform);
-
     const postData: Post = {
       content: {
         text: message,
-        media: processedMedia.length > 0 ? processedMedia : undefined,
+        // Keep caption-derived titles implicit so SDK validation and publishing
+        // apply the same platform defaults as preflight validation.
+        media: preparedMedia.length > 0 ? preparedMedia : undefined,
       },
       platforms: [platform],
       options,
@@ -247,7 +234,7 @@ async function postSingleSegment(
         generatePostUrl(platform, result.id, {
           username: account.username ?? undefined,
           platformAccountId: account.platformAccountId ?? undefined,
-          mediaType: processedMedia[0]?.type,
+          mediaType: preparedMedia[0]?.type,
           publishMode: options?.tiktok?.publishMode,
         });
       const durationMs = Date.now() - startTime;

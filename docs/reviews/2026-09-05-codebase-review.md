@@ -365,11 +365,18 @@ CI now provisions PostgreSQL 17, applies the full migration history, and runs th
 same integration suite as local verification. Tests mock external publishing,
 credential refresh and object deletion; they send no real social posts. Type,
 lint, formatting, SDK/scheduler/CLI tests and a production build are checked before
-merge. Local verification passed: SDK 365 tests, scheduler 422, CLI 46, PostgreSQL
-integration 14 (847 total); `yarn check`, SDK distribution build and the scheduler
-production webpack build also passed. The container entrypoint also passed success/failure smoke checks. A full local
-Docker build was blocked by registry metadata timeouts; deployment outcome is
-recorded in the PR.
+merge. Local verification passed: SDK 365 tests, scheduler 427, CLI 46, PostgreSQL
+integration 14 (852 total); `yarn check`, SDK distribution build and the scheduler
+production webpack build also passed. The original synthetic container entrypoint checks missed Yarn's workspace-local
+Prisma installation. The first rollout returned HTTP 503 because startup looked
+for Prisma in the root dependency directory. Production was restored to the
+previous healthy code with a forward-only rollback commit. The follow-up resolves
+both CLIs using Node's module resolver and adds five regression tests covering the
+installed dependencies, both hoisted/workspace layouts, and migration failure.
+The corrected entrypoint also ran real PostgreSQL migrations and started the built
+Next app locally, including the new reconciliation API. A full local Docker build
+was blocked by registry metadata timeouts; the final deployment outcome is recorded
+in the PR.
 
 Operational limits remain: webhook delivery is not backed by a transactional
 outbox; external outcomes can require reconciliation; legacy missing media cannot

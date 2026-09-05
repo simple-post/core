@@ -1,8 +1,11 @@
 /* eslint-disable unicorn/no-process-exit -- This is the container CLI entrypoint. */
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 
-mkdirSync("/app/scheduler/data", { recursive: true });
+const require = createRequire(import.meta.url);
+
+mkdirSync("data", { recursive: true });
 let child;
 let stopping = false;
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
@@ -22,14 +25,14 @@ function run(args) {
 
 try {
   const migrated = await run([
-    "../node_modules/prisma/build/index.js",
+    require.resolve("prisma/build/index.js"),
     "migrate",
     "deploy",
     "--schema",
     "prisma/schema.prisma",
   ]);
   if (migrated !== 0 || stopping) process.exit(migrated || 1);
-  process.exit(await run(["../node_modules/next/dist/bin/next", "start"]));
+  process.exit(await run([require.resolve("next/dist/bin/next"), "start"]));
 } catch (error) {
   console.error("Scheduler startup failed", error);
   process.exit(1);

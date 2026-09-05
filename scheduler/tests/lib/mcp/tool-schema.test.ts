@@ -118,6 +118,7 @@ function assertMediaItems(schema: JsonSchemaObject): void {
   expect(mediaItem?.properties?.url.type).toBe("string");
   expect(mediaItem?.properties?.filename?.type).toBe("string");
   expect(mediaItem?.properties?.size?.type).toBe("integer");
+  expect(mediaItem?.properties?.durationSec?.type).toBe("number");
 }
 
 function assertTextOnlyThreadSegments(schema: JsonSchemaObject): void {
@@ -133,6 +134,24 @@ function assertTextOnlyThreadSegments(schema: JsonSchemaObject): void {
 }
 
 describe("MCP tool JSON schemas", () => {
+  it("preserves Bluesky video metadata through every posting tool schema", () => {
+    for (const schema of [createPostSchema, previewPostSchema, validatePostSchema, updateScheduledPostSchema]) {
+      const input = schema.parse({
+        postId: "post-1",
+        message: "Demo",
+        accountIds: ["bluesky-account"],
+        media: [
+          { type: "video", url: "https://cdn.example.com/demo.mp4", filename: "demo.mp4", size: 1024, durationSec: 60 },
+        ],
+      });
+      expect(toMediaFiles(input.media ?? undefined)[0]).toMatchObject({
+        type: "video",
+        url: "https://cdn.example.com/demo.mp4",
+        size: 1024,
+        durationSec: 60,
+      });
+    }
+  });
   it("does not expose opaque array arguments", () => {
     const issues: string[] = [];
 

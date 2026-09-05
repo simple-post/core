@@ -7,13 +7,22 @@ import type { MediaFile, ThreadSegment } from "@/types";
 
 function createMcpMediaItemSchema() {
   return z.object({
-    type: z.enum(["image", "video"]).describe("Media kind."),
+    type: z
+      .enum(["image", "video"])
+      .describe(
+        "Media kind. Bluesky accepts up to 4 images or one MP4 video (300 MB, 10 minutes); images and video cannot be mixed.",
+      ),
     url: z
       .string()
       .url()
       .describe("Public URL of the media. Either a URL the user provided, or a URL returned by the upload_media tool."),
     thumbnailUrl: z.string().url().optional().describe("Optional public thumbnail URL. Recommended for videos."),
     filename: z.string().min(1).optional().describe("Original filename when known, such as the upload_media result."),
+    durationSec: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe("Video duration in seconds, when known, for platform validation."),
     size: z
       .number()
       .int()
@@ -32,7 +41,7 @@ export const mcpMediaItemSchema = createMcpMediaItemSchema();
 export type McpMediaItem = z.infer<typeof mcpMediaItemSchema>;
 
 export const mcpMediaArraySchema = createMcpMediaArraySchema(
-  'Media items. Each item must have {"type":"image"|"video","url":"https://..."}. Preserve optional filename, size, and thumbnailUrl values returned by upload_media so platform validation can enforce file-size limits.',
+  'Media items. Each item must have {"type":"image"|"video","url":"https://..."}. Preserve optional filename, size, durationSec, and thumbnailUrl values returned by upload_media so platform validation can enforce media limits. Bluesky supports up to 4 images or one MP4 video (300 MB, 10 minutes); images and video cannot be mixed.',
 );
 
 /** Follow-up text segments after the root post. Segment media is intentionally omitted from MCP inputs. */
@@ -80,6 +89,7 @@ export function toMediaFiles(items: McpMediaItem[] | undefined): MediaFile[] {
       type: item.type,
       filename: item.filename ?? filename,
       size: item.size ?? 0,
+      ...(item.durationSec === undefined ? {} : { durationSec: item.durationSec }),
     };
   });
 }

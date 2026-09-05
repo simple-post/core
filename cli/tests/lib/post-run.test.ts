@@ -16,6 +16,50 @@ const sdk = jest.requireMock("@simple-post/sdk") as {
 };
 
 describe("runPostWorkflow", () => {
+  it("passes a local Bluesky video and stored credentials to the SDK", async () => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = { interactive: false, log: jest.fn() } as any;
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    config.bluesky.accounts = [
+      {
+        alias: "main",
+        connectedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        secretRef: "bsky-1",
+        userId: "did:plc:user",
+        username: "alice.bsky.social",
+      },
+    ];
+    await saveCliConfig(paths, config);
+    await createSecretStore(paths, { backend: "file-plain" }, prompt).write("bsky-1", {
+      accessToken: "token",
+      tokenMetadata: { pdsUrl: "https://bsky.social", clientId: "https://app.example.com/client-metadata.json" },
+    });
+    const videoPath = path.join(home, "video.mp4");
+    await writeFile(videoPath, "video fixture");
+    sdk.post.mockResolvedValueOnce(
+      new Map([["bluesky", { error: "NO_ERROR", id: "at://did:plc:user/app.bsky.feed.post/video" }]]),
+    );
+    await runPostWorkflow({
+      config: { configDir: paths.configDir } as any,
+      flags: { account: ["bluesky:main"], video: [videoPath], text: "Demo" },
+      prompt,
+      writeOutput: jest.fn(),
+    });
+    expect(sdk.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platforms: ["bluesky"],
+        content: expect.objectContaining({ media: [expect.objectContaining({ type: "video", path: videoPath })] }),
+        options: expect.objectContaining({
+          bluesky: expect.objectContaining({
+            credentials: expect.objectContaining({ did: "did:plc:user", accessToken: "token" }),
+          }),
+        }),
+      }),
+    );
+  });
   afterEach(() => {
     clearSecretPasswordCache();
     sdk.post.mockReset();

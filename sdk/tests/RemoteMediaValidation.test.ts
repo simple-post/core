@@ -67,6 +67,7 @@ it.each([
   ["x", "image"],
   ["x", "video"],
   ["bluesky", "image"],
+  ["bluesky", "video"],
   ["facebook", "image"],
   ["facebook", "video"],
   ["instagram", "image"],

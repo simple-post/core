@@ -1115,7 +1115,9 @@ export function AccountOptionsComponent({
 
             {/* Bluesky - No additional options needed */}
             {account.platform === "bluesky" && (
-              <p className="text-xs text-muted-foreground">No additional options required for Bluesky posts.</p>
+              <p className="text-xs text-muted-foreground">
+                Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes). Images and video cannot be mixed.
+              </p>
             )}
 
             {/* Threads - No additional options needed */}

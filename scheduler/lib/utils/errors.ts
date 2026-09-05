@@ -25,6 +25,7 @@ export function sanitizeForJson<T>(value: T): unknown {
   const visit = (item: unknown, depth: number): unknown => {
     if (item === null || item === undefined) return item;
     if (typeof item === "function" || typeof item === "symbol") return undefined;
+    if (typeof item === "number") return Number.isFinite(item) ? item : null;
     if (typeof item === "bigint") return item.toString();
     if (typeof item === "string") {
       return item

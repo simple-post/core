@@ -99,7 +99,7 @@ export class InstagramPublisher extends Publisher {
       url.searchParams.set("grant_type", "ig_refresh_token");
       url.searchParams.set("access_token", currentToken);
 
-      const response = await axios.get<InstagramRefreshResponse>(url.toString());
+      const response = await axios.get<InstagramRefreshResponse>(url.toString(), { timeout: 30_000 });
       const { access_token, expires_in } = response.data;
       const expiresAt = Math.floor(Date.now() / 1000) + expires_in;
 
@@ -192,7 +192,8 @@ export class InstagramPublisher extends Publisher {
   }
 
   private async waitForMediaReady(containerId: string): Promise<void> {
-    while (true) {
+    const deadline = Date.now() + 600_000;
+    while (Date.now() < deadline) {
       const statusRes = await this.apiRequest<{ status_code: string; status: string }>(
         "get",
         `/${containerId}?fields=status_code,status`,
@@ -210,6 +211,10 @@ export class InstagramPublisher extends Publisher {
 
       await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL));
     }
+    throw new PostError(
+      PostErrorType.API_ERROR,
+      `Instagram media container ${containerId} processing timed out after 10 minutes.`,
+    );
   }
 
   private async createMediaObject(media: Media, isCarousel: boolean, caption?: string): Promise<string> {

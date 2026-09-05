@@ -72,7 +72,7 @@
     "clean": "rm -rf dist",
     "build": "tsup",
     "compile": "tsc --noEmit",
-    "check": "tsc --noEmit && eslint . && prettier --check .",
+    "check": "tsc --noEmit && tsc --project tsconfig.tests.json && eslint . && prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",

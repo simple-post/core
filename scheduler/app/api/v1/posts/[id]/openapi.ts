@@ -33,7 +33,9 @@ export default defineRoute({
     patch: {
       operationId: "updatePost",
       tags: ["Posts"],
-      summary: "Update a scheduled post or draft",
+      summary: "Update a scheduled post, draft, or retry a failed post",
+      description:
+        "Retry a failed post using its existing ID to resume durable progress. Successful segments are reused; uncertain outcomes require explicit reconciliation. A retry cannot add accounts.",
       security: userAuthSecurity,
       requestParams,
       requestBody: {

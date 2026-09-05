@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { assertCanCreatePost, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
+import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
-import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { mergeAccountResults } from "@/lib/posting/account-results";
 import {
   createPostingProgressStream,
   sanitizePostingResult,
@@ -97,13 +97,28 @@ async function updatePost(
     if (!currentPost) {
       throw new NotFoundError("Post not found");
     }
-    if (currentPost.status !== "scheduled" && currentPost.status !== "draft") {
-      throw new BadRequestError("Only scheduled posts and drafts can be edited");
+    if (currentPost.status !== "scheduled" && currentPost.status !== "draft" && currentPost.status !== "failed") {
+      throw new BadRequestError("Only scheduled posts, drafts and failed posts can be edited");
     }
 
     // Parse and validate body
     const body = await req.json();
     const validated = updatePostSchema.parse(body);
+    const isRetry = currentPost.status === "failed";
+    if (isRetry) {
+      if (validated.accountIds.some((accountId) => !currentPost.accountIds.includes(accountId)))
+        throw new BadRequestError("A retry cannot add accounts. Duplicate the post to target new accounts.");
+      const checkpoints = await prisma.publishCheckpoint.count({ where: { postId: id } });
+      const safelyUnattempted = currentPost.accountIds.every((accountId) =>
+        ["CREDENTIALS_ERROR", "ACCOUNT_NOT_FOUND", "LOCAL_RATE_LIMIT"].includes(
+          currentPost.accountResults?.[accountId]?.error ?? "",
+        ),
+      );
+      if (!checkpoints && !safelyUnattempted)
+        throw new BadRequestError(
+          "This post has no durable publishing record. Check its platform results, then explicitly duplicate only the content that still needs publishing.",
+        );
+    }
     const currentPostingMode: PostingMode = currentPost.status === "draft" ? "draft" : "schedule";
     const postingMode = validated.postingMode ?? (validated.scheduledFor ? "schedule" : currentPostingMode);
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor, currentPost.scheduledFor);
@@ -151,23 +166,12 @@ async function updatePost(
     // A draft consumed no allowance when it was created, so leaving draft state
     // is where it gets charged. An already scheduled post has paid for the
     // accounts it currently targets, so only newly added ones cost anything.
-    const replacingSocialAccounts =
-      currentPost.status === "scheduled"
-        ? await prisma.connectedAccount.findMany({
-            where: { userId: session.user.id, id: { in: currentPost.accountIds } },
-            select: { platform: true },
-          })
-        : [];
-
-    await assertCanCreatePost(session.user.id, prisma, {
-      action: `update_${postingMode}_post`,
-      postId: id,
-      socialAccounts: toBillingSocialAccounts(validation.accounts),
-      replacingSocialAccounts,
-      threadSegments: (validated.thread?.length ?? 0) + 1,
-      isDraft: postingMode === "draft",
-      isExistingPostUpdate: currentPost.status !== "draft",
-    });
+    const replacingSocialAccounts = ["scheduled", "failed"].includes(currentPost.status)
+      ? await prisma.connectedAccount.findMany({
+          where: { userId: session.user.id, id: { in: currentPost.accountIds } },
+          select: { platform: true },
+        })
+      : [];
 
     const repostSettings = validated.repost
       ? normalizeRepostSettings(validated.repost)
@@ -197,29 +201,46 @@ async function updatePost(
     ).filter((url) => !newMediaUrls.has(url) && !newMediaThumbnailUrls.has(url));
 
     // Update the post
-    const post = await repository.updatePost(id, {
-      message: validated.message,
-      accountIds: validated.accountIds,
-      scheduledFor,
-      status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
-      errorMessage: null,
-      errorDetails: null,
-      publishedAt: null,
-      threadResults: null,
-      accountResults: null,
-      accountOptions: validated.accountOptions,
-      accountOverrides: validated.accountOverrides,
-      repostEnabled: repostSettings.enabled,
-      repostDelayHours: repostSettings.delayHours,
-      repostDueAt: null,
-      repostStatus: "not_applicable",
-      repostedAt: null,
-      repostResults: null,
-      repostErrorMessage: null,
-      repostErrorDetails: null,
-      media: finalMedia,
-      thread: validated.thread,
-      quotePostId,
+    const post = await prisma.$transaction(async (tx) => {
+      await lockUserForQuota(tx, session.user.id);
+      await assertCanCreatePost(session.user.id, tx, {
+        action: `update_${postingMode}_post`,
+        postId: id,
+        socialAccounts: toBillingSocialAccounts(validation.accounts),
+        replacingSocialAccounts,
+        threadSegments: (validated.thread?.length ?? 0) + 1,
+        isDraft: postingMode === "draft",
+        isExistingPostUpdate: currentPost.status !== "draft",
+      });
+      return repository.updatePost(
+        id,
+        {
+          message: validated.message,
+          accountIds: isRetry ? currentPost.accountIds : validated.accountIds,
+          scheduledFor,
+          status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+          errorMessage: null,
+          errorDetails: null,
+          publishedAt: null,
+          threadResults: isRetry ? currentPost.threadResults : null,
+          accountResults: isRetry ? currentPost.accountResults : null,
+          accountOptions: validated.accountOptions,
+          accountOverrides: validated.accountOverrides,
+          repostEnabled: repostSettings.enabled,
+          repostDelayHours: repostSettings.delayHours,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
+          repostedAt: null,
+          repostResults: null,
+          repostErrorMessage: null,
+          repostErrorDetails: null,
+          media: finalMedia,
+          thread: validated.thread,
+          quotePostId,
+        },
+        { status: currentPost.status, updatedAt: currentPost.updatedAt },
+        tx,
+      );
     });
 
     // Clean up removed media from R2 (best-effort, don't fail the request)
@@ -250,14 +271,21 @@ async function updatePost(
       );
       const summary = getPostingSummary(results);
 
-      const threadResultsByAccount: Record<string, ThreadSegmentResult[]> = {};
+      const threadResultsByAccount: Record<string, ThreadSegmentResult[]> = isRetry
+        ? { ...currentPost.threadResults }
+        : {};
       for (const result of results) {
         if (result.threadResults) threadResultsByAccount[result.accountId] = result.threadResults;
       }
       const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
-      const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
+      const accountResults = sanitizeForJson(
+        mergeAccountResults(isRetry ? (currentPost.accountResults ?? undefined) : undefined, results),
+      ) as AccountResultsMap;
 
-      if (summary.overallSuccess) {
+      if (
+        summary.overallSuccess &&
+        currentPost.accountIds.every((accountId) => accountResults[accountId]?.success || !isRetry)
+      ) {
         const publishedAt = new Date();
         const repostState = buildPublishedRepostState({
           enabled: repostSettings.enabled,
@@ -288,7 +316,9 @@ async function updatePost(
         const errorMessage =
           failedResults.length === 1
             ? failedResults[0].message || failedResults[0].error || "Unknown error"
-            : `Failed on ${failedResults.length} platform(s)`;
+            : failedResults.length > 0
+              ? `Failed on ${failedResults.length} platform(s)`
+              : "Some accounts still need publishing";
         const errorDetails = sanitizeForJson({
           failedPlatforms: failedResults.map((result) => ({
             accountId: result.accountId,
@@ -374,13 +404,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const postMedia = [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
 
+    // Claim deletion before touching storage; an active publisher or a newer
+    // edit must retain its media when this request loses the race.
+    await repository.deletePost(id, post.updatedAt);
+
     // Delete uploaded files from R2
     await Promise.all([
       deleteMediaFiles(session.user.id, postMedia),
       deleteAccountOptionFiles(session.user.id, post.accountOptions),
     ]);
-
-    await repository.deletePost(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

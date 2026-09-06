@@ -178,7 +178,15 @@ yarn e2e:live --platform telegram --all --verify-only --run-id YOUR_PREVIOUS_RUN
 
 This mode does not create posts or transition saved drafts. It rechecks successful published receipts even if they were previously verified, so corrected observers can audit earlier passes. Ordinary resume still skips verified cases. Reconcile any ambiguous attempt on the social platform and in the scheduler before using a new run ID. A crashed process leaves `.local/runs/.live.lock`; only remove that lock after verifying no runner remains and reviewing pending submissions. Do not erase journals to reset quota accounting.
 
-Open the latest HTML report from the repository root with `yarn e2e:report`.
+Open the full cross-platform report from the repository root:
+
+```sh
+yarn e2e:report --all
+```
+
+This regenerates `.local/runs/index.html` and `aggregate.csv` from the current catalog, configured accounts, and all saved journals, then serves them locally. Filter by platform, interface, status, or free text. Expand a case to see its media/options and every attempt; run-report and journal links provide screenshots, assertions, and actual receipts. Unrun cases stay visible, while unsupported combinations and unconfigured accounts are excluded from the completion denominator. Earlier successes never count for a changed case definition or account. A later failure is labeled **Passed previously**, preserving its earlier verified evidence without calling the latest attempt a pass. These are results across deployments, not a fresh full run on the current build.
+
+Use `yarn e2e:report` for the latest individual run, or `yarn e2e:report --run-id RUN_ID` for a specific one. The server prints its local URL; `--port PORT` selects a port if needed.
 
 Artifacts are scoped to each run under `.local/runs/RUN_ID/`, including `test-results/`, `html/`, `results.json`, `{coverage,report,cleanup,run}.json`, per-scenario receipts, sanitized CLI output, and platform screenshots. `aggregate.json` at the run root is journal-first across every run ID and records both the latest status and whether a scenario-interface has ever been verified. Open a specific report with `yarn e2e:report --run-id RUN_ID`. `report.json` shows the selected denominator, verified cases, unsupported combinations, and incomplete cases. The cleanup ledger lists exact run-owned posts and pending schedules. It is written even on failure; do not delete unrelated posts by searching for a caption marker.
 

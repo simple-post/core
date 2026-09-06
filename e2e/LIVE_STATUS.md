@@ -77,6 +77,6 @@ Run them one at a time, sign in normally, and resume Playwright Inspector to sav
 
 ## Evidence and resumption
 
-Private journals, screenshots, reports, fixtures hosted by the app, and authentication state remain ignored by Git under `e2e/.local/` and `e2e/config.local.json`. Run evidence lives in `e2e/.local/runs/<run-id>/`; the aggregate is `e2e/.local/runs/aggregate.json`. Open the latest report with `yarn e2e:report`, or select one with `--run-id`.
+Private journals, screenshots, reports, fixtures hosted by the app, and authentication state remain ignored by Git under `e2e/.local/` and `e2e/config.local.json`. Run evidence lives in `e2e/.local/runs/<run-id>/`; the aggregate is `e2e/.local/runs/aggregate.json`. Open the combined searchable matrix with `yarn e2e:report --all`. It includes every current case, attempt history, requested settings, receipt/run links, and a CSV download. Open the latest individual report with `yarn e2e:report`, or select one with `--run-id`.
 
 Reuse the run ID to verify an existing receipt. Do not start a replacement upload for an uncertain outcome. Known YouTube quota failures and earlier provider failures retain their evidence; they are not counted as passes. Failed schedule records have been read back and are no longer pending dispatch. External test posts remain available for review; only run-owned cancellation targets were deleted.

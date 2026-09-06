@@ -2,6 +2,21 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function validationDetailMessages(value: unknown): string[] {
+  if (!isObject(value)) return [];
+  const messages: string[] = [];
+  const collect = (items: unknown) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (isObject(item) && typeof item.message === "string" && item.message.trim()) messages.push(item.message);
+    }
+  };
+  collect(value.errors);
+  if (isObject(value.summary)) collect(value.summary.errors);
+  for (const result of Array.isArray(value.results) ? value.results : []) if (isObject(result)) collect(result.errors);
+  return [...new Set(messages)];
+}
+
 export function extractErrorMessage(data: unknown, fallback: string): string {
   if (typeof data === "string" && data.trim()) {
     return data;
@@ -33,6 +48,14 @@ export function extractErrorMessage(data: unknown, fallback: string): string {
     const igType = typeof data.error_type === "string" ? data.error_type : undefined;
     if (igMsg) {
       return igType ? `${igType}: ${igMsg}` : igMsg;
+    }
+
+    if (data.code === "VALIDATION_ERROR") {
+      const details = validationDetailMessages(data.details);
+      if (details.length > 0) {
+        const message = typeof data.error === "string" && data.error.trim() ? data.error : fallback;
+        return `${message}: ${details.join("; ")}`;
+      }
     }
 
     for (const key of ["error_description", "detail", "message", "title", "error"]) {

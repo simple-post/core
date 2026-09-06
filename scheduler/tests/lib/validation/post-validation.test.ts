@@ -43,6 +43,22 @@ function image(size: number, id = "image"): MediaFile {
 }
 
 describe("post validation", () => {
+  it("requires a board for each Pinterest target before dispatch", () => {
+    const accounts = [
+      { ...blueskyAccount, id: "pin-1", platform: "pinterest" },
+      { ...blueskyAccount, id: "pin-2", platform: "pinterest" },
+    ];
+    const result = validatePostForResolvedAccounts({
+      message: "Pin",
+      media: [image(1024)],
+      accounts,
+      accountOptions: { "pin-1": { boardId: "selected-board" }, "pin-2": { boardId: "  " } },
+    });
+    expect(result.results[0].isValid).toBe(true);
+    expect(result.results[1].errors).toContainEqual(
+      expect.objectContaining({ code: "pinterest_board_required", meta: { accountId: "pin-2" } }),
+    );
+  });
   const video: MediaFile = {
     id: "video",
     url: "https://example.com/video.mp4",

@@ -86,7 +86,12 @@ export const YouTubeOptionsSchema = z.object({
   description: z.string().max(5000).optional(),
   tags: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
-  playlistId: z.string().optional(),
+  playlistId: z
+    .string()
+    .optional()
+    .describe(
+      "Temporarily unavailable for YouTube. Omit this field; add videos to playlists manually in YouTube Studio after publishing.",
+    ),
   thumbnailPath: z.string().optional(),
   thumbnailUrl: z.url().optional(),
   selfDeclaredMadeForKids: z.boolean().optional(),

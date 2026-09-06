@@ -19,7 +19,12 @@ export const AccountOptionsValueSchema = z
     replyToId: z.string().optional(),
     tags: z.array(z.string()).optional(),
     categoryId: z.string().optional(),
-    playlistId: z.string().optional(),
+    playlistId: z
+      .string()
+      .optional()
+      .describe(
+        "Temporarily unavailable for YouTube. Omit this field; add videos to playlists manually in YouTube Studio after publishing.",
+      ),
     thumbnailUrl: z.url().optional(),
     selfDeclaredMadeForKids: z.boolean().optional(),
     publishAt: z.string().optional(),

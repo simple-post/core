@@ -75,7 +75,8 @@ export const postFlags = {
     helpGroup: "YouTube",
   }),
   "youtube-playlist-id": Flags.string({
-    description: "YouTube playlist ID",
+    description: "Temporarily unavailable; add videos to playlists in YouTube Studio after publishing",
+    hidden: true,
     helpGroup: "YouTube",
   }),
   "youtube-made-for-kids": Flags.boolean({

@@ -314,7 +314,6 @@ describe("YouTubePublisher", () => {
           privacyStatus: "private",
           tags: ["tag1", "tag2"],
           categoryId: "22",
-          playlistId: "playlist_123",
           credentials: {
             clientId: "test_client_id",
             clientSecret: "test_client_secret",
@@ -326,7 +325,6 @@ describe("YouTubePublisher", () => {
       mockYouTubeClient.videos.insert.mockResolvedValue({
         data: { id: "video_id_789" },
       });
-      mockYouTubeClient.playlistItems.insert.mockResolvedValue({});
 
       const result = await publisher.postContent(content, optionsWithYouTube);
 
@@ -349,18 +347,7 @@ describe("YouTubePublisher", () => {
           body: "mock-stream",
         },
       });
-      expect(mockYouTubeClient.playlistItems.insert).toHaveBeenCalledWith({
-        part: ["snippet"],
-        requestBody: {
-          snippet: {
-            playlistId: "playlist_123",
-            resourceId: {
-              kind: "youtube#video",
-              videoId: "video_id_789",
-            },
-          },
-        },
-      });
+      expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
       expect(result).toEqual({ id: "video_id_789", error: PostErrorType.NO_ERROR });
     });
 
@@ -475,7 +462,7 @@ describe("YouTubePublisher", () => {
       expect(result).toEqual({ id: "video_id_warn", error: PostErrorType.NO_ERROR });
     });
 
-    it("should warn if playlist addition fails", async () => {
+    it("rejects disabled playlist assignment before any upload or media processing", async () => {
       const content: Content = {
         text: "Playlist addition will fail",
         media: [
@@ -498,15 +485,13 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_playlist_warn" },
+      await expect(publisher.postContent(content, optionsWithPlaylist)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        message: expect.stringContaining("playlist assignment is temporarily unavailable"),
       });
-      mockYouTubeClient.playlistItems.insert.mockRejectedValue(new Error("Playlist not found"));
-
-      const result = await publisher.postContent(content, optionsWithPlaylist);
-
-      // Should still succeed even if playlist addition fails
-      expect(result).toEqual({ id: "video_id_playlist_warn", error: PostErrorType.NO_ERROR });
+      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
+      expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
+      expect(mockedFs.createReadStream).not.toHaveBeenCalled();
     });
 
     it("should schedule a video correctly", async () => {

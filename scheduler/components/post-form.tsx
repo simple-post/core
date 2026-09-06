@@ -10,6 +10,8 @@ import { AlertCircle, Info, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
+import { HelpLink } from "@/components/help-link";
+import { PublishingHelp } from "@/components/publishing-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -278,12 +280,12 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const charCounter = useMemo(
     () =>
       getMainFieldCharCounterState({
-        messageLength: message.length,
+        message,
         maxTextLength,
         validationResults: validation?.results ?? [],
         requireXCommonContent: false,
       }),
-    [maxTextLength, message.length, validation?.results],
+    [maxTextLength, message, validation?.results],
   );
 
   const formattedIssue = (issue: ValidationIssue) => {
@@ -481,6 +483,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
+        <PublishingHelp platforms={selectedAccounts.map((account) => account.platform)} />
         {quotePostId ? (
           <QuotePostCard
             sourcePost={quotePost}
@@ -529,7 +532,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               {maxTextLength ? (
                 <>
                   <span className={charCounter.countClassName}>
-                    {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
+                    {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
                   </span>
                   {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
                 </>
@@ -661,6 +664,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
         {postingMode === "schedule" && (
           <div className="space-y-2">
+            <HelpLink path="/scheduling#timezones">Scheduling and timezone help</HelpLink>
             <SchedulePicker
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}

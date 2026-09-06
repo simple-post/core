@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Bot, CheckCircle2, ExternalLink, LockKeyhole, Send } from "lucide-react";
 
+import { HelpLink } from "@/components/help-link";
 import { TerminalBlock } from "@/components/terminal-block";
 import { Button } from "@/components/ui/button";
 import { getMcpResourceUrl } from "@/lib/mcp/config";
@@ -86,6 +87,9 @@ export default function McpDocsPage() {
             </a>
             . For other clients, use the server URL below.
           </p>
+          <HelpLink path="/mcp" className="mb-4">
+            Full MCP guide, client setup, and tool reference
+          </HelpLink>
           <TerminalBlock title="server url">{mcpUrl}</TerminalBlock>
         </div>
 

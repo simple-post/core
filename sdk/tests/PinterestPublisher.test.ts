@@ -48,6 +48,38 @@ describe("PinterestPublisher", () => {
   });
 
   describe("postContent", () => {
+    it("waits for slow processing without registering or uploading the video again", async () => {
+      jest.useFakeTimers();
+      const videoPath = path.join(process.cwd(), `.pinterest-slow-${Date.now()}.mp4`);
+      fs.writeFileSync(videoPath, "video fixture");
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: {
+            media_id: "media_123",
+            upload_url: "https://uploads.pinterest.test/media",
+            upload_parameters: { policy: "test" },
+          },
+        })
+        .mockResolvedValueOnce({ data: { id: "pin_123" } });
+      for (let i = 0; i < 40; i += 1) mockAxiosInstance.get.mockResolvedValueOnce({ data: { status: "processing" } });
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { status: "succeeded" } });
+      mockedAxios.post.mockResolvedValueOnce({ status: 204 } as any);
+      try {
+        const result = publisher.postContent(
+          { media: [{ type: "video", path: videoPath }] },
+          {
+            pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+          },
+        );
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "pin_123" });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+        fs.rmSync(videoPath, { force: true });
+      }
+    });
     it("should create an image pin successfully", async () => {
       mockAxiosInstance.post.mockResolvedValueOnce({
         data: { id: "pin_123" },
@@ -153,20 +185,36 @@ describe("PinterestPublisher", () => {
       );
     });
 
-    it("should reject a video without a cover image before uploading", async () => {
-      await expect(
-        publisher.postContent(
-          { media: [{ type: "video", path: "./video.mp4" }] },
-          {
-            pinterest: {
-              boardId: "board_123",
-              credentials: { accessToken: "test_access_token" },
-            },
+    it("uses the first video frame when no thumbnail is supplied", async () => {
+      const videoPath = path.join(process.cwd(), `.pinterest-cover-${Date.now()}.mp4`);
+      fs.writeFileSync(videoPath, "video fixture");
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: {
+            media_id: "media_123",
+            upload_url: "https://uploads.pinterest.test/media",
+            upload_parameters: { policy: "policy" },
           },
-        ),
-      ).rejects.toThrow("thumbnailUrl");
-      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
-      expect(mockedAxios.post).not.toHaveBeenCalled();
+        })
+        .mockResolvedValueOnce({ data: { id: "pin_123" } });
+      mockAxiosInstance.get.mockResolvedValue({ data: { status: "succeeded" } });
+      mockedAxios.post.mockResolvedValueOnce({ status: 204 } as any);
+      try {
+        await publisher.postContent(
+          { media: [{ type: "video", path: videoPath }] },
+          {
+            pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+          },
+        );
+        expect(mockAxiosInstance.post).toHaveBeenLastCalledWith(
+          "/pins",
+          expect.objectContaining({
+            media_source: { source_type: "video_id", media_id: "media_123", cover_image_key_frame_time: 0 },
+          }),
+        );
+      } finally {
+        fs.rmSync(videoPath, { force: true });
+      }
     });
   });
 });

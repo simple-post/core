@@ -30,7 +30,6 @@ await post({
       privacyStatus: "unlisted",
       tags: ["tutorial", "education"],
       categoryId: "27",
-      playlistId: "PL1234567890",
       thumbnailPath: "./thumbnail.jpg",
       selfDeclaredMadeForKids: true,
       publishAt: "2024-12-31T12:00:00Z",
@@ -86,9 +85,11 @@ The category ID for the video. Category IDs vary and must be fetched from the Yo
 | 43          | Shows                 |
 | 44          | Trailers              |
 
-### `playlistId`
+### Playlist assignment (temporarily unavailable)
 
-The playlist ID to add the video to. Find your playlist ID by going to [YouTube Studio](https://studio.youtube.com/), clicking on your playlist, and checking the URL: `https://studio.youtube.com/playlist/<PLAYLIST_ID>/edit`.
+Automatic playlist assignment is disabled. Omit `playlistId`; supplying it is rejected before uploading the video. Add the video to a playlist manually in YouTube Studio after publishing.
+
+The app requests only `youtube.upload`, `youtube.readonly`, and the existing profile scope. Google requires an additional approved write scope for playlist insertion; ordinary video uploads do not require that broader permission.
 
 ### `thumbnailPath` / `thumbnailUrl`
 

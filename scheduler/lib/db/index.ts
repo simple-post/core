@@ -55,9 +55,7 @@ export class PostsModel {
           media: true,
           accounts: true,
         },
-        orderBy: {
-          scheduledFor: "asc",
-        },
+        orderBy: [{ scheduledFor: { sort: "asc", nulls: "last" } }, { id: "asc" }],
         skip,
         take: limit,
       }),
@@ -145,52 +143,7 @@ export class PostsModel {
   }
 
   async getPastPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
-    const { page = 1, limit = 25 } = options;
-    const skip = (page - 1) * limit;
-    const now = new Date();
-
-    const where = {
-      userId: this.userId,
-      OR: [
-        { status: "published" },
-        {
-          status: "scheduled",
-          scheduledFor: {
-            lte: now,
-          },
-        },
-      ],
-    };
-
-    const [posts, total] = await Promise.all([
-      prisma.post.findMany({
-        where,
-        include: {
-          media: true,
-          accounts: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        skip,
-        take: limit,
-      }),
-      prisma.post.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data: posts.map((post) => this.mapPostToSocialPost(post)),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
-    };
+    return this.getPublishedPosts(options);
   }
 
   async getPublishedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
@@ -211,11 +164,11 @@ export class PostsModel {
         },
         orderBy: [
           {
-            publishedAt: "desc",
+            publishedAt: { sort: "desc", nulls: "last" },
           },
-          {
-            createdAt: "desc",
-          },
+          { scheduledFor: { sort: "desc", nulls: "last" } },
+          { createdAt: "desc" },
+          { id: "desc" },
         ],
         skip,
         take: limit,
@@ -254,9 +207,7 @@ export class PostsModel {
           media: true,
           accounts: true,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [{ scheduledFor: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
         skip,
         take: limit,
       }),

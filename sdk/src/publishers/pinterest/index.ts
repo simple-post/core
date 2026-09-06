@@ -22,7 +22,7 @@ interface PinterestMediaResponse {
 }
 
 const MEDIA_POLL_INTERVAL = 2000;
-const MEDIA_POLL_MAX_ATTEMPTS = 30;
+const MEDIA_POLL_MAX_ATTEMPTS = 150;
 
 export class PinterestPublisher extends Publisher {
   static readonly mediaRequirement = "either" as const;
@@ -69,7 +69,7 @@ export class PinterestPublisher extends Publisher {
   private validateOptions(options?: PostOptionsWithCredentials): asserts options is PostOptionsWithCredentials & {
     pinterest: { boardId: string };
   } {
-    if (!options?.pinterest?.boardId) {
+    if (!options?.pinterest?.boardId?.trim()) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Pinterest boardId is required in options.pinterest.boardId");
     }
   }
@@ -110,16 +110,21 @@ export class PinterestPublisher extends Publisher {
       );
     }
 
+    let lastStatus = "unknown";
     for (let attempt = 0; attempt < MEDIA_POLL_MAX_ATTEMPTS; attempt += 1) {
       const statusResponse = await this.client.get(`/media/${media_id}`);
       const status = String(statusResponse.data?.status ?? "").toLowerCase();
-      if (["succeeded", "success", "finished", "ready"].includes(status)) return media_id;
+      lastStatus = status || "unknown";
+      if (status === "succeeded") return media_id;
       if (["failed", "error", "rejected"].includes(status))
         throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} failed processing.`);
       await new Promise((resolve) => setTimeout(resolve, MEDIA_POLL_INTERVAL));
     }
 
-    throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} processing timed out.`);
+    throw new PostError(
+      PostErrorType.API_ERROR,
+      `Pinterest video media ${media_id} processing timed out (last status: ${lastStatus}). No Pin was created.`,
+    );
   }
 
   static validate(content: Content): ValidationResult {
@@ -162,11 +167,6 @@ export class PinterestPublisher extends Publisher {
     this.validateOptions(options);
 
     const media = content.media?.[0];
-    if (media?.type === "video" && !media.thumbnailUrl)
-      throw new PostError(
-        PostErrorType.INVALID_CONTENT,
-        "Pinterest video posts require media.thumbnailUrl for the video cover image.",
-      );
     const tempFileManager = new TempFileManager();
 
     try {
@@ -179,7 +179,8 @@ export class PinterestPublisher extends Publisher {
         const mediaId = await this.createVideoMedia(resolvedPath);
         mediaSource = {
           source_type: "video_id",
-          ...(media.thumbnailUrl ? { cover_image_url: media.thumbnailUrl } : {}),
+          // Pinterest accepts either a supplied cover or a frame from the video.
+          ...(media.thumbnailUrl ? { cover_image_url: media.thumbnailUrl } : { cover_image_key_frame_time: 0 }),
           media_id: mediaId,
         };
       } else if (media) {

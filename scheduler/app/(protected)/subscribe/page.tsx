@@ -33,7 +33,8 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
   const complimentaryPlan = billing?.accessType === "complimentary" ? billing.plan : null;
   const complimentaryExpiresAt = billing?.complimentaryAccess?.expiresAt ?? null;
   const freeTrial = billing?.accessType === "trial" ? billing.trial : null;
-  const autoStartPlanKey = checkout === "cancelled" ? null : selectedPlan?.key;
+  // A linked plan is a preference only. Checkout requires an explicit button click.
+  const selectedPlanKey = selectedPlan?.key;
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,7 +89,7 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
                 : undefined
           }
           displayCurrency={displayCurrency}
-          autoStartPlanKey={autoStartPlanKey}
+          selectedPlanKey={selectedPlanKey}
         />
       </main>
     </div>

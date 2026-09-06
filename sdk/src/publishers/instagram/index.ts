@@ -250,7 +250,7 @@ export class InstagramPublisher extends Publisher {
       this.logger.error(error instanceof Error ? error : String(error));
       const apiMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
-      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${apiMessage}`, err);
+      throw new PostError(PostErrorType.PUBLISH_REJECTED, `Failed to create media object: ${apiMessage}`, err);
     }
   }
 
@@ -259,6 +259,8 @@ export class InstagramPublisher extends Publisher {
     const mediaObjectIds: string[] = [];
     for (const media of content.media!) {
       const mediaObjectId = await this.createMediaObject(media, content.media!.length > 1, content.text);
+      // A carousel cannot reference a video child that is still processing.
+      if (content.media!.length > 1 && media.type === "video") await this.waitForMediaReady(mediaObjectId);
       mediaObjectIds.push(mediaObjectId);
     }
 

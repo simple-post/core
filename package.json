@@ -14,7 +14,7 @@
   },
   "scripts": {
     "check": "yarn workspaces foreach --all --parallel run check",
-    "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test",
+    "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/server test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test",
     "test:coverage": "jest --coverage --maxWorkers=1 --workerIdleMemoryLimit=2GB",
     "test:watch": "jest --watch",
     "e2e:check": "yarn workspace @simple-post/e2e check",
@@ -25,7 +25,8 @@
     "e2e:auth": "yarn workspace @simple-post/e2e auth",
     "e2e:setup": "yarn workspace @simple-post/e2e setup",
     "e2e:fixtures": "yarn workspace @simple-post/e2e fixtures",
-    "e2e:report": "yarn workspace @simple-post/e2e report"
+    "e2e:report": "yarn workspace @simple-post/e2e report",
+    "docs:export": "node scripts/export-docs.mjs"
   },
   "resolutions": {
     "postcss": "^8.5.16"

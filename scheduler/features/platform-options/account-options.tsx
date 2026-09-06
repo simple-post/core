@@ -663,18 +663,22 @@ export function AccountOptionsComponent({
                   </Select>
                 </div>
 
-                <div>
-                  <Label htmlFor={`${account.id}-playlistId`} className="text-sm text-muted-foreground">
-                    Playlist ID (optional)
-                  </Label>
-                  <Input
-                    id={`${account.id}-playlistId`}
-                    placeholder="PL1234567890"
-                    value={asString(accountOptions.playlistId)}
-                    onChange={(e) => updateOption(account.id, "playlistId", e.target.value)}
-                    className="mt-1 border-border"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
+                <div className="text-sm text-muted-foreground">
+                  <p>
+                    Playlist assignment is temporarily unavailable. Add your video to a playlist in YouTube Studio after
+                    publishing.
+                  </p>
+                  {Boolean(accountOptions.playlistId) && (
+                    <div className="mt-2 space-y-2">
+                      <p role="alert">Remove the saved playlist option before publishing this post.</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => updateOption(account.id, "playlistId", undefined)}>
+                        Remove playlist
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -863,10 +867,24 @@ export function AccountOptionsComponent({
                       <Textarea
                         id={`${account.id}-tiktok-description`}
                         value={asString(accountOptions.description)}
-                        onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
+                        onChange={(e) => updateOption(account.id, "description", e.target.value)}
                         maxLength={4000}
-                        placeholder="Use the post text"
+                        placeholder={accountOptions.description === undefined ? "Use the post text" : "No description"}
                       />
+                      <div className="mt-1 flex gap-3 text-xs">
+                        <button
+                          type="button"
+                          className="text-muted-foreground underline"
+                          onClick={() => updateOption(account.id, "description", undefined)}>
+                          Use post text
+                        </button>
+                        <button
+                          type="button"
+                          className="text-muted-foreground underline"
+                          onClick={() => updateOption(account.id, "description", "")}>
+                          No description
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor={`${account.id}-tiktok-cover`}>Cover photo</Label>
@@ -1115,7 +1133,9 @@ export function AccountOptionsComponent({
 
             {/* Bluesky - No additional options needed */}
             {account.platform === "bluesky" && (
-              <p className="text-xs text-muted-foreground">No additional options required for Bluesky posts.</p>
+              <p className="text-xs text-muted-foreground">
+                Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes). Images and video cannot be mixed.
+              </p>
             )}
 
             {/* Threads - No additional options needed */}

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 
 import { LayoutGrid, Plus, Users } from "lucide-react";
 
+import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
@@ -106,6 +107,7 @@ export function Navbar({ actions }: NavbarProps) {
               </Link>
             </Button>
           )}
+          <HelpLink className="shrink-0 py-2" />
           <UserMenu />
         </div>
       </div>

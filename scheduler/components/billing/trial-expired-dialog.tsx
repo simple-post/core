@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,14 +72,17 @@ export function TrialExpiredDialog({
           showCloseButton={false}
           onEscapeKeyDown={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}
-          className="sm:max-w-3xl">
+          className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl tracking-[-0.025em]">Your free trial has ended</DialogTitle>
             <DialogDescription>
-              Your posts and connected accounts are safe. Choose a plan to start scheduling again.
+              Your stored posts and account connections remain saved. Posts that become due without active access fail;
+              subscribing does not automatically send them. After subscribing, review Failed posts and use Edit and
+              Retry.
             </DialogDescription>
           </DialogHeader>
 
+          <HelpLink path="/billing#when-access-ends">Trial expiry and recovery help</HelpLink>
           <div className="grid gap-3 sm:grid-cols-3">
             {BILLING_PLANS.map((plan) => (
               <article

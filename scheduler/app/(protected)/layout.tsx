@@ -11,6 +11,7 @@ import { SubscriptionGate } from "@/components/billing/subscription-gate";
 import { WebMcpProvider } from "@/components/create-post-webmcp";
 import { LoginForm } from "@/components/login-form";
 import { WelcomeModal } from "@/components/onboarding/welcome-modal";
+import { ScheduleCalendarProvider } from "@/components/schedule-calendar-context";
 import { useSession } from "@/lib/auth/auth-client";
 import { COMPLIMENTARY_INVITE_STORAGE_KEY } from "@/lib/invites/constants";
 
@@ -109,11 +110,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <InviteRedemptionGate userId={session.user.id}>
       <WebMcpProvider key={session.user.id}>
-        <SubscriptionGate>
-          {/* Inside the gate so it only greets users who actually have access. */}
-          <WelcomeModal />
-          {children}
-        </SubscriptionGate>
+        <ScheduleCalendarProvider>
+          <SubscriptionGate>
+            {/* Inside the gate so it only greets users who actually have access. */}
+            <WelcomeModal />
+            {children}
+          </SubscriptionGate>
+        </ScheduleCalendarProvider>
       </WebMcpProvider>
     </InviteRedemptionGate>
   );

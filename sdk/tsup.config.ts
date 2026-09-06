@@ -16,6 +16,7 @@ export default defineConfig({
     "@aws-sdk/lib-storage",
     "@aws-sdk/s3-request-presigner",
     "axios",
+    "sharp",
     "form-data",
     "googleapis",
     "twitter-api-v2",

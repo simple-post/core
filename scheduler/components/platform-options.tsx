@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -143,18 +144,22 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="youtube-playlistId" className="text-sm text-muted-foreground">
-              Playlist ID (optional)
-            </Label>
-            <Input
-              id="youtube-playlistId"
-              placeholder="PL1234567890"
-              value={options.youtube?.playlistId || ""}
-              onChange={(e) => updateOption("youtube", "playlistId", e.target.value)}
-              className="mt-1 border-border"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
+          <div className="text-sm text-muted-foreground">
+            <p>
+              Playlist assignment is temporarily unavailable. Add your video to a playlist in YouTube Studio after
+              publishing.
+            </p>
+            {options.youtube?.playlistId && (
+              <div className="mt-2 space-y-2">
+                <p role="alert">Remove the saved playlist option before publishing this post.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => updateOption("youtube", "playlistId", undefined)}>
+                  Remove playlist
+                </Button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -367,7 +372,7 @@ export function PlatformOptionsComponent({ selectedPlatforms, options, onOptions
             <h4 className="text-sm font-medium">Bluesky Options</h4>
           </div>
           <p className="text-xs text-muted-foreground">
-            No additional options required. Your text and images will be posted to Bluesky.
+            No additional options required. Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes).
           </p>
         </Card>
       )}

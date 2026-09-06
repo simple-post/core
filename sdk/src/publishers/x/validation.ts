@@ -1,3 +1,5 @@
+import twitterText from "twitter-text";
+
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content, Media } from "../../types/post";
@@ -15,6 +17,11 @@ export const X_CASHTAG_LIMIT_MESSAGE =
 export const X_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 export const X_MAX_GIF_SIZE_BYTES = 15 * 1024 * 1024;
 export const X_MAX_VIDEO_SIZE_BYTES = 512 * 1024 * 1024;
+
+/** X weights CJK and emoji and counts each URL as 23 characters. */
+export function getXTextLength(text: string): number {
+  return twitterText.parseTweet(text).weightedLength;
+}
 
 function isGif(media: Media): boolean {
   const source = media.path ?? media.url;
@@ -38,6 +45,7 @@ export function validateXContent(content: Content): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
   const text = content.text ?? "";
+  const textLength = getXTextLength(text);
   const media = content.media ?? [];
   const mediaCount = media.length;
   const { images, videos } = countMedia(media);
@@ -69,25 +77,25 @@ export function validateXContent(content: Content): ValidationResult {
     });
   }
 
-  if (text.length > X_LONG_POST_MAX_LENGTH) {
+  if (textLength > X_LONG_POST_MAX_LENGTH) {
     errors.push({
       platform: "x",
       severity: "error",
       code: "text_too_long",
-      message: `X text cannot exceed ${X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")} characters.`,
+      message: `X text cannot exceed ${X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")} weighted characters.`,
       field: "text",
       limit: X_LONG_POST_MAX_LENGTH,
-      actual: text.length,
+      actual: textLength,
     });
-  } else if (text.length > X_STANDARD_POST_MAX_LENGTH) {
+  } else if (textLength > X_STANDARD_POST_MAX_LENGTH) {
     warnings.push({
       platform: "x",
       severity: "warning",
       code: "long_post",
-      message: `This ${text.length}-character X post requires X Premium long-post access. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} characters or split it into a thread if the account is not eligible.`,
+      message: `X counts this post as ${textLength} characters, which requires X Premium long-post access. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} weighted characters or split it into a thread if the account is not eligible.`,
       field: "text",
       limit: X_STANDARD_POST_MAX_LENGTH,
-      actual: text.length,
+      actual: textLength,
     });
   }
 

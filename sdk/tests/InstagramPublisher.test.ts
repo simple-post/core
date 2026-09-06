@@ -332,6 +332,7 @@ describe("InstagramPublisher", () => {
         .mockResolvedValueOnce({ data: { id: "mixed_post_id" } });
       mockAxiosInstance.get
         .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
         .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/MIXED_SHORTCODE/" } });
 
       await publisher.postContent(content, options);
@@ -378,9 +379,12 @@ describe("InstagramPublisher", () => {
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Failed to create media object: Invalid media URL", apiError),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        message: "Failed to create media object: Invalid media URL",
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post.mock.calls[0][0]).toMatch(/\/media$/);
     });
 
     it("should handle media container status errors", async () => {

@@ -7,6 +7,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 
+import { HelpLink } from "@/components/help-link";
+import { useScheduleCalendarState, type CalendarView } from "@/components/schedule-calendar-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -15,8 +17,6 @@ import { useCalendarPosts } from "@/hooks/use-posts";
 import { WEEKDAYS, getSlotOccurrencesInRange, slotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { cn } from "@/lib/utils";
 import type { SocialPost } from "@/types";
-
-type CalendarView = "month" | "week" | "day";
 
 interface DayEntry {
   key: string;
@@ -137,8 +137,7 @@ function isSameDay(left: Date, right: Date): boolean {
  * touch-friendly agendas on mobile.
  */
 export function ScheduleCalendar() {
-  const [view, setView] = useState<CalendarView>("week");
-  const [anchorDate, setAnchorDate] = useState(() => new Date());
+  const { view, setView, anchorDate, setAnchorDate } = useScheduleCalendarState();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -214,6 +213,9 @@ export function ScheduleCalendar() {
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_55px_rgba(0,0,0,0.16)]">
       <div className="p-3 sm:p-4">
+        <HelpLink path="/scheduling" className="mb-3">
+          Calendar, timezones, and posting slots
+        </HelpLink>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-1">
             <Button
@@ -611,6 +613,7 @@ function DayAgenda({
   onOpenDay?: (date: Date) => void;
 }) {
   const isToday = isSameDay(day, now);
+  const itemCount = entries.reduce((count, entry) => count + Math.max(1, entry.posts.length), 0);
 
   return (
     <section className="p-3 sm:p-4" aria-label={format(day, "EEEE, MMMM d")}>
@@ -642,7 +645,7 @@ function DayAgenda({
           </div>
           {entries.length > 0 ? (
             <span className="ml-auto rounded-full bg-secondary px-2 py-1 text-[10px] tabular-nums text-muted-foreground">
-              {entries.length} {entries.length === 1 ? "item" : "items"}
+              {itemCount} {itemCount === 1 ? "item" : "items"}
             </span>
           ) : null}
         </div>
@@ -732,8 +735,30 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
     );
   }
 
-  const post = entry.posts[0];
-  const extraCount = entry.posts.length - 1;
+  return (
+    <div
+      className={cn(
+        "grid gap-1.5",
+        variant === "compact"
+          ? "grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))]"
+          : "grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]",
+      )}>
+      {entry.posts.map((post) => (
+        <CalendarPost key={post.id} post={post} timeLabel={timeLabel} variant={variant} />
+      ))}
+    </div>
+  );
+}
+
+function CalendarPost({
+  post,
+  timeLabel,
+  variant,
+}: {
+  post: SocialPost;
+  timeLabel: string;
+  variant: "compact" | "agenda";
+}) {
   const isFailed = post.status === "failed";
   const isPublished = post.status === "published";
   const message = post.message.trim() || "Untitled post";
@@ -751,7 +776,7 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
         href={`/posts/${post.id}`}
         title={message}
         className={cn(
-          "block rounded-md border px-1.5 py-1 text-[10px] transition-colors",
+          "block min-w-0 rounded-md border px-1.5 py-1 text-[10px] transition-colors",
           isFailed
             ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20"
             : isPublished
@@ -765,9 +790,8 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
             <CheckCircle2 className="h-3 w-3 shrink-0" />
           ) : null}
           <span className="truncate tabular-nums">{timeLabel}</span>
-          {extraCount > 0 ? <span className="ml-auto shrink-0 font-semibold">+{extraCount}</span> : null}
         </span>
-        <span className="mt-1 hidden truncate text-[10px] opacity-75 lg:block">{message}</span>
+        <span className="mt-1 block truncate text-[10px] opacity-75">{message}</span>
       </Link>
     );
   }
@@ -776,7 +800,7 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
     <Link
       href={`/posts/${post.id}`}
       className={cn(
-        "group flex min-h-16 items-center gap-3 rounded-xl border px-3 py-3 transition-colors",
+        "group flex min-h-16 min-w-0 items-center gap-3 rounded-xl border px-3 py-3 transition-colors",
         isFailed
           ? "border-destructive/35 bg-destructive/[0.06] hover:bg-destructive/10"
           : isPublished
@@ -809,7 +833,6 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
         <span className="block truncate text-sm font-medium text-foreground">{message}</span>
         <span className={cn("mt-0.5 block text-[11px]", isFailed ? "text-destructive" : "text-muted-foreground")}>
           {statusLabel}
-          {extraCount > 0 ? ` · ${extraCount} more at this time` : ""}
         </span>
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-50 transition-transform group-hover:translate-x-0.5" />

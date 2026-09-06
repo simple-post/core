@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ interface PlanSelectionProps {
   title?: string;
   description?: string;
   displayCurrency?: BillingDisplayCurrency;
-  autoStartPlanKey?: PlanKey | null;
+  selectedPlanKey?: PlanKey | null;
   /**
    * Drop the page-level width and padding so the grid can sit inside an
    * existing card or section instead of owning the page.
@@ -33,57 +33,21 @@ export function PlanSelection({
   title = "Choose your SimplePost plan",
   description = "A subscription is required to use the scheduler. Pick a monthly plan to continue in Stripe Checkout.",
   displayCurrency = DEFAULT_BILLING_DISPLAY_CURRENCY,
-  autoStartPlanKey = null,
+  selectedPlanKey = null,
   embedded = false,
 }: PlanSelectionProps) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
-  const [autoStartFailed, setAutoStartFailed] = useState(false);
-  const autoStartedRef = useRef(false);
 
   const startCheckout = useCallback(async (planKey: PlanKey) => {
-    setAutoStartFailed(false);
     setLoadingPlan(planKey);
     try {
       await startPlanCheckout(planKey);
     } catch (error) {
       console.error("Failed to start checkout:", error);
       toast.error(error instanceof Error ? error.message : "Failed to start checkout");
-      setAutoStartFailed(true);
       setLoadingPlan(null);
     }
   }, []);
-
-  useEffect(() => {
-    if (!autoStartPlanKey || autoStartedRef.current) return;
-    autoStartedRef.current = true;
-    void startCheckout(autoStartPlanKey);
-  }, [autoStartPlanKey, startCheckout]);
-
-  const autoStartPlan = autoStartPlanKey ? BILLING_PLANS.find((plan) => plan.key === autoStartPlanKey) : null;
-
-  if (autoStartPlan && !autoStartFailed) {
-    return (
-      <section className="mx-auto flex min-h-[55vh] w-full max-w-2xl items-center px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
-        <div className="w-full rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <div className="flex items-start gap-4">
-            <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
-              <Loader2 className="h-5 w-5 animate-spin" />
-            </span>
-            <div>
-              <div className="section-kicker !mb-2">
-                <span className="section-kicker-dot" />
-                <span className="section-kicker-label">Checkout</span>
-              </div>
-              <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground">Opening Stripe Checkout</h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Taking you to Checkout for the {autoStartPlan.name} plan.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className={embedded ? "w-full" : "mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12"}>
@@ -107,7 +71,9 @@ export function PlanSelection({
             <article
               key={plan.key}
               className={`relative flex h-full flex-col rounded-2xl border p-6 ${
-                plan.featured ? "border-primary/50 bg-primary/10" : "border-border bg-card"
+                plan.key === selectedPlanKey || plan.featured
+                  ? "border-primary/50 bg-primary/10"
+                  : "border-border bg-card"
               }`}>
               {plan.featured ? (
                 <Badge className="absolute right-5 top-5 bg-primary text-primary-foreground hover:bg-primary">

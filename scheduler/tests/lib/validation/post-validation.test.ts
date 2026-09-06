@@ -1,7 +1,10 @@
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ConnectedAccount, MediaFile } from "@/types";
 
-import { BLUESKY_MAX_IMAGE_SIZE_BYTES } from "../../../../sdk/src/publishers/bluesky/validation";
+import {
+  BLUESKY_MAX_IMAGE_SIZE_BYTES,
+  BLUESKY_MAX_VIDEO_SIZE_BYTES,
+} from "../../../../sdk/src/publishers/bluesky/validation";
 
 const blueskyAccount: ConnectedAccount = {
   id: "bluesky-account",
@@ -40,6 +43,110 @@ function image(size: number, id = "image"): MediaFile {
 }
 
 describe("post validation", () => {
+  it("rejects playlist assignment regardless of granted scopes while allowing ordinary uploads", () => {
+    const account = {
+      ...blueskyAccount,
+      platform: "youtube",
+      scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+    };
+    const params = {
+      message: "Video title",
+      media: [
+        {
+          id: "video",
+          url: "https://example.com/video.mp4",
+          type: "video" as const,
+          filename: "video.mp4",
+          size: 1024,
+        },
+      ],
+      accounts: [account],
+    };
+    expect(validatePostForResolvedAccounts(params).summary.isValid).toBe(true);
+    const withPlaylist = { ...params, accountOptions: { [account.id]: { playlistId: "PL-test" } } };
+    expect(validatePostForResolvedAccounts(withPlaylist).summary.errors).toContainEqual(
+      expect.objectContaining({ code: "youtube_playlist_unavailable" }),
+    );
+    for (const scope of [null, "", account.scope + " https://www.googleapis.com/auth/youtube.force-ssl"]) {
+      const result = validatePostForResolvedAccounts({
+        ...withPlaylist,
+        accounts: [{ ...account, scope }],
+      });
+      expect(result.summary.isValid).toBe(false);
+      expect(result.summary.errors).toContainEqual(expect.objectContaining({ code: "youtube_playlist_unavailable" }));
+    }
+  });
+  it("requires a board for each Pinterest target before dispatch", () => {
+    const accounts = [
+      { ...blueskyAccount, id: "pin-1", platform: "pinterest" },
+      { ...blueskyAccount, id: "pin-2", platform: "pinterest" },
+    ];
+    const result = validatePostForResolvedAccounts({
+      message: "Pin",
+      media: [image(1024)],
+      accounts,
+      accountOptions: { "pin-1": { boardId: "selected-board" }, "pin-2": { boardId: "  " } },
+    });
+    expect(result.results[0].isValid).toBe(true);
+    expect(result.results[1].errors).toContainEqual(
+      expect.objectContaining({ code: "pinterest_board_required", meta: { accountId: "pin-2" } }),
+    );
+  });
+  const video: MediaFile = {
+    id: "video",
+    url: "https://example.com/video.mp4",
+    type: "video",
+    filename: "video.mp4",
+    size: 1024,
+    durationSec: 60,
+  };
+
+  it("accepts Bluesky video roots, replies and account overrides", () => {
+    const result = validatePostForResolvedAccounts({
+      message: "",
+      media: [video],
+      accounts: [blueskyAccount],
+      thread: [{ message: "Reply", media: [video] }],
+    });
+    expect(result.summary.isValid).toBe(true);
+    expect(result.results[0].rules.video).toMatchObject({
+      maxSizeBytes: BLUESKY_MAX_VIDEO_SIZE_BYTES,
+      maxDurationSec: 600,
+    });
+    expect(
+      validatePostForResolvedAccounts({
+        message: "",
+        media: [],
+        accounts: [blueskyAccount],
+        accountOverrides: { [blueskyAccount.id]: { media: [video] } },
+      }).summary.isValid,
+    ).toBe(true);
+  });
+
+  it.each([
+    [[{ ...video, size: BLUESKY_MAX_VIDEO_SIZE_BYTES + 1 }], "video_too_large"],
+    [[{ ...video, durationSec: 601 }], "video_too_long"],
+    [[video, video], "too_many_videos"],
+    [[video, image(1024)], "mixed_media_not_supported"],
+  ])("rejects unsupported Bluesky video input %j", (media, code) => {
+    expect(
+      validatePostForResolvedAccounts({ message: "Video", media, accounts: [blueskyAccount] }).summary.errors,
+    ).toContainEqual(expect.objectContaining({ code }));
+  });
+
+  it("validates video duration in replies and overrides", () => {
+    const result = validatePostForResolvedAccounts({
+      message: "Root",
+      media: [],
+      accounts: [blueskyAccount],
+      accountOverrides: {
+        [blueskyAccount.id]: { thread: [{ message: "Reply", media: [{ ...video, durationSec: 601 }] }] },
+      },
+    });
+    expect(result.summary.errors).toContainEqual(
+      expect.objectContaining({ code: "video_too_long", field: "thread[0].media[0]" }),
+    );
+  });
   it("checks cashtags separately for each X thread segment and account override", () => {
     const account = { ...blueskyAccount, id: "x-account", platform: "x" };
     const input = { message: "$BTC", media: [], accounts: [account], thread: [{ message: "$ETH" }] };

@@ -1,7 +1,11 @@
 export enum PostErrorType {
   NO_ERROR = "NO_ERROR",
   CREDENTIALS_ERROR = "CREDENTIALS_ERROR",
+  /** A conclusive quota rejection with no publication; never use for an uncertain transport outcome. */
+  RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR",
   INVALID_CONTENT = "INVALID_CONTENT",
+  /** The provider explicitly rejected the request without publishing a post. */
+  PUBLISH_REJECTED = "PUBLISH_REJECTED",
   API_ERROR = "API_ERROR",
   OTHER = "OTHER",
 }

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 
 import { LowAllowanceWarning, LOW_REMAINING } from "@/components/billing/trial-post-allowance";
+import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { useBillingStatus } from "@/hooks/use-billing";
 import { getPlatformName } from "@/lib/config";
@@ -61,6 +62,7 @@ export function TrialBanner() {
             </p>
           </div>
 
+          <HelpLink path="/billing#free-trial">Trial limits and expiry</HelpLink>
           <Button asChild className="shrink-0">
             <Link href="/billing/plans">Choose a plan</Link>
           </Button>

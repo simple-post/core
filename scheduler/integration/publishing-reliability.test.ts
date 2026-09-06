@@ -121,16 +121,21 @@ it("blocks changed content and transport ambiguity without consuming another ope
   expect(publish).toHaveBeenCalledTimes(1);
 });
 
-it("resumes after a conclusive validation failure without repeating the root", async () => {
-  const publish = jest.fn().mockResolvedValue(success);
-  await runDurablePublish(identity, publish);
-  const reply = { ...identity, segment: 1, fingerprint: "reply" };
-  await runDurablePublish(reply, async () => ({ ...success, success: false, error: "INVALID_CONTENT" }));
-  await runDurablePublish(identity, publish);
-  await runDurablePublish(reply, publish);
-  expect(publish).toHaveBeenCalledTimes(2);
-  expect(await prisma.publishAttempt.count()).toBe(3);
-});
+it.each(["INVALID_CONTENT", "CREDENTIALS_ERROR", "RATE_LIMIT_ERROR"])(
+  "resumes after a conclusive %s rejection without repeating the root",
+  async (error) => {
+    const publish = jest.fn().mockResolvedValue(success);
+    await runDurablePublish(identity, publish);
+    const reply = { ...identity, segment: 1, fingerprint: "reply" };
+    const rejection = await runDurablePublish(reply, async () => ({ ...success, success: false, error }));
+    expect(rejection.error).toBe(error);
+    expect((await prisma.publishCheckpoint.findFirst({ where: { segment: 1 } }))?.state).toBe("failed");
+    await runDurablePublish(identity, publish);
+    await runDurablePublish(reply, publish);
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(await prisma.publishAttempt.count()).toBe(3);
+  },
+);
 
 it.each(["root", "thread", "override", "thumbnail"])(
   "retains shared %s references and blocks saves once deletion is claimed",

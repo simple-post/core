@@ -436,6 +436,21 @@ describe("YouTubePublisher", () => {
       );
     });
 
+    it.each([
+      [400, "uploadLimitExceeded", PostErrorType.RATE_LIMIT_ERROR],
+      [500, "uploadLimitExceeded", PostErrorType.API_ERROR],
+      [400, "otherError", PostErrorType.API_ERROR],
+    ])("classifies videos.insert rejection %s/%s as %s", async (status, reason, errorType) => {
+      const content: Content = { text: "Quota test", media: [{ type: "video", path: "/path/to/video.mp4" }] };
+      mockYouTubeClient.videos.insert.mockRejectedValue({
+        response: { status, data: { error: { message: "Upload rejected", errors: [{ reason }] } } },
+      });
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({ errorType });
+      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledTimes(1);
+      expect(mockYouTubeClient.thumbnails.set).not.toHaveBeenCalled();
+      expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
+    });
+
     it("should warn if thumbnail upload fails", async () => {
       const content: Content = {
         text: "Thumbnail upload will fail",

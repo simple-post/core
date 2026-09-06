@@ -22,7 +22,7 @@ const rows = selectedCases().flatMap((c) =>
     interface: iface,
     supported: c.interfaces.includes(iface) && !c.unsupportedReason,
     mode: c.mode ?? "now",
-    posts: postCost(c),
+    posts: postCost(c, iface),
     requires: (c.requirements ?? []).join(","),
     reason: c.unsupportedReason,
   })),

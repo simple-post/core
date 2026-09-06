@@ -20,12 +20,8 @@ const cases = selectedCases(selected);
 
 test("automatic budget covers the whole supported Telegram selection, albums, threads and invalid cases", () => {
   expect(config().maxPosts).toBe("auto");
-  const expected = cases.reduce(
-    (total, s) => total + postCost(s) * selected.interfaces.filter((i) => s.interfaces.includes(i)).length,
-    0,
-  );
-  expect(budgetPlan(cases, selected.interfaces, [])).toEqual({ spent: 0, remaining: expected, total: expected });
-  expect(expected).toBeGreaterThan(12);
+  expect(budgetPlan(cases, selected.interfaces, [])).toEqual({ spent: 0, remaining: 115, total: 115 });
+  expect(115).toBeGreaterThan(12);
   const album = catalog.find((s) => s.id === "telegram.album-10")!;
   expect(budgetPlan([album], ["ui", "ui", "mcp"], []).total).toBe(20);
   const unsupported = catalog.find((s) => s.id === "telegram.remote-image")!;
@@ -38,6 +34,35 @@ test("resuming does not count completed scenarios twice and retains earlier sele
   expect(budgetPlan([s], ["ui", "mcp"], [entry])).toEqual({ spent: 10, remaining: 10, total: 20 });
   const text = cases.find((s) => s.id === "telegram.text")!;
   expect(budgetPlan([text], ["ui"], [entry])).toEqual({ spent: 10, remaining: 1, total: 11 });
+});
+
+test("only MCP expected-error scenarios are zero-cost and CLI remains conservatively capped", async () => {
+  const runDir = await mkdtemp(path.join(tmpdir(), "e2e-invalid-budget-"));
+  const cfg = config({ runDir, perPlatformBudget: { tiktok: 1 } });
+  const scenario = catalog.find((s) => s.id === "tiktok.cover-invalid")!;
+  const positive = materialize(
+    catalog.find((s) => s.id === "tiktok.smoke")!,
+    account(),
+    "mcp",
+    "positive",
+    cfg.mediaBaseUrl,
+  );
+  const invalidMcp = materialize(scenario, account(), "mcp", "invalid-mcp", cfg.mediaBaseUrl);
+  const invalidCli = materialize(scenario, account(), "cli-app", "invalid-cli", cfg.mediaBaseUrl);
+  try {
+    expect(postCost(invalidMcp, "mcp")).toBe(0);
+    expect(postCost(invalidCli, "cli-app")).toBe(1);
+    expect(postCost(invalidCli)).toBe(1);
+    await new Journal(cfg, "positive").reserve(positive, "mcp", account());
+    await expect(new Journal(cfg, "invalid-mcp").reserve(invalidMcp, "mcp", account())).resolves.toMatchObject({
+      phase: "reserved",
+    });
+    await expect(new Journal(cfg, "invalid-cli").reserve(invalidCli, "cli-app", account())).rejects.toThrow(
+      "24-hour budget",
+    );
+  } finally {
+    await rm(runDir, { recursive: true, force: true });
+  }
 });
 
 test("the real journal can reserve and resume every selected Telegram case with the automatic budget", async () => {
@@ -61,7 +86,11 @@ test("the real journal can reserve and resume every selected Telegram case with 
       }
     const entries = await journal.entries();
     expect(entries).toHaveLength(61);
-    expect(budgetPlan(chosen, selected.interfaces, entries)).toEqual({ spent: 129, remaining: 0, total: 129 });
+    expect(budgetPlan(chosen, selected.interfaces, entries)).toEqual({
+      spent: 115,
+      remaining: 0,
+      total: 115,
+    });
     for (const entry of entries) {
       const original = materialize(
         chosen.find((s) => s.id === entry.scenario.id)!,
@@ -113,7 +142,7 @@ test("an explicit budget too small for the selection fails preflight before acce
     });
     delete process.env.E2E_VERIFY_ONLY;
     delete process.env.E2E_SCENARIO;
-    await expect(preflight()).rejects.toThrow("Selected suite needs a total budget of 129, but maxPosts is 12");
+    await expect(preflight()).rejects.toThrow("Selected suite needs a total budget of 115, but maxPosts is 12");
     expect(await new Journal(config({ runDir: dir }), "fixed").entries()).toEqual([]);
     await expect(access(path.join(dir, ".live.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally {

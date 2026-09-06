@@ -80,8 +80,8 @@ export class Journal {
       return existing;
     }
     const entries = await this.entries();
-    const proposed = cost(scenario);
-    const spent = entries.reduce((n, e) => n + cost(e.scenario), 0);
+    const proposed = cost(scenario, iface);
+    const spent = entries.reduce((n, e) => n + cost(e.scenario, e.interface), 0);
     const selected = selection(this.config);
     const maxPosts =
       this.config.maxPosts === "auto"
@@ -99,7 +99,7 @@ export class Journal {
         if (run.isDirectory()) {
           for (const e of await this.entries(path.join(this.config.runDir, run.name)))
             if (e.accountId === account.id && Date.parse(e.createdAt) > Date.now() - 86_400_000)
-              used += cost(e.scenario);
+              used += cost(e.scenario, e.interface);
         }
       if (used + proposed > cap)
         throw new Error(

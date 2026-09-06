@@ -554,8 +554,9 @@ export async function verifyOnPlatform(
 ): Promise<string[]> {
   if (s.platform === "telegram") assertTelegramObserver(account);
   const linkedinPublic = s.platform === "linkedin" && s.expectedFields.visibility === "PUBLIC";
+  const tiktokPublic = s.platform === "tiktok" && s.expectedFields.privacyLevel === "PUBLIC_TO_EVERYONE";
   const context = await browser.newContext({
-    storageState: linkedinPublic ? { cookies: [], origins: [] } : account.observer.storageState,
+    storageState: linkedinPublic || tiktokPublic ? { cookies: [], origins: [] } : account.observer.storageState,
     locale: "en-US",
     viewport: { width: 1440, height: 1100 },
   });
@@ -595,6 +596,9 @@ export async function verifyOnPlatform(
         if (s.options.publishMode !== "draft") assertPostId(s.platform, page.url(), result.postId);
         for (const selector of account.observer.open) await page.locator(selector).click();
         const browserScenario = { ...s, expectedFields: { ...s.expectedFields } };
+        // Viewing the exact post with no account session proves public access.
+        // All identity, content, playback and receipt checks still run below.
+        if (tiktokPublic) delete browserScenario.expectedFields.privacyLevel;
         let browserAccount = account;
         let linkedinVisibilityProof:
           | {
@@ -712,10 +716,21 @@ export async function verifyOnPlatform(
               text: s.expectedText,
               verificationMode: youtube?.privateMediaProof
                 ? "private-view/ownerAPI"
-                : linkedinVisibilityProof
+                : linkedinVisibilityProof || tiktokPublic
                   ? "unauthenticated-public-view"
                   : "browser-visual",
               ...(linkedinVisibilityProof ? { linkedinVisibilityProof, observerAuthenticated: false } : {}),
+              ...(tiktokPublic
+                ? {
+                    observerAuthenticated: false,
+                    tiktokVisibilityProof: {
+                      source: "unauthenticated-public-view",
+                      platformPostId: result.postId,
+                      author: account.username,
+                      connectedAccountId: account.id,
+                    },
+                  }
+                : {}),
               ...(youtube?.privateMediaProof
                 ? {
                     publicVisualProof: false,
@@ -740,6 +755,16 @@ export async function verifyOnPlatform(
         return evidence;
       } catch (error) {
         if (error instanceof VerificationSetupError) throw error;
+        if (
+          s.platform === "tiktok" &&
+          (await page
+            .getByText("Drag the slider to fit the puzzle", { exact: true })
+            .isVisible()
+            .catch(() => false))
+        )
+          throw new VerificationSetupError(
+            "TikTok requires an interactive verification challenge. Complete it in your browser and save a working owner session; the existing receipt is retained. Do not republish.",
+          );
         lastError = error;
         console.log(
           `[${s.id}] Waiting for platform verification (${Math.max(0, Math.ceil((deadline - Date.now()) / 1000))}s remaining): ${redact((error as Error).message).split("\n")[0]}`,

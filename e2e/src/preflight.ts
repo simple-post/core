@@ -41,6 +41,11 @@ export function assertRequirements(s: Materialized, account: Account) {
         !(s.platform === "x" && key === "replyToId" && /^\d+$/.test(String(s.expectedFields[key]))) &&
         !(s.platform === "linkedin" && key === "visibility" && s.expectedFields.visibility === "PUBLIC") &&
         !(
+          s.platform === "tiktok" &&
+          key === "privacyLevel" &&
+          s.expectedFields.privacyLevel === "PUBLIC_TO_EVERYONE"
+        ) &&
+        !(
           s.platform === "youtube" &&
           (account.observer.youtubeAccessTokenEnv || account.observer.youtubeReadback) &&
           ["privacyStatus", "selfDeclaredMadeForKids", "tags", "categoryId", "playlistId", "thumbnailImage"].includes(

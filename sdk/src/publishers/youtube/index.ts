@@ -185,7 +185,10 @@ export class YouTubePublisher extends Publisher {
         this.logger.info(`[YouTubePublisher] Upload completed in ${Date.now() - startTime}ms`);
       } catch (error: unknown) {
         const err = error as {
-          response?: { data?: { error?: { message?: string; code?: number } } };
+          response?: {
+            status?: number;
+            data?: { error?: { message?: string; code?: number; errors?: { reason?: string }[] } };
+          };
           message?: string;
         };
         this.logger.error(
@@ -213,7 +216,18 @@ export class YouTubePublisher extends Publisher {
           ? { error: err.response.data.error, status: (err as { response?: { status?: number } }).response?.status }
           : undefined;
 
-        throw new PostError(PostErrorType.API_ERROR, errorMessage, apiErrorDetails);
+        // This documented videos.insert rejection conclusively creates no video.
+        // Transport failures and all other API responses remain ambiguous.
+        const uploadLimitExceeded =
+          err.response?.status === 400 &&
+          err.response.data?.error?.errors?.some((issue) => issue.reason === "uploadLimitExceeded");
+        throw new PostError(
+          uploadLimitExceeded ? PostErrorType.RATE_LIMIT_ERROR : PostErrorType.API_ERROR,
+          uploadLimitExceeded
+            ? "YouTube rejected this upload because the channel's upload limit is exhausted. Try again after YouTube restores the allowance. No video was created by this attempt."
+            : errorMessage,
+          apiErrorDetails,
+        );
       }
 
       // Upload the thumbnail if provided

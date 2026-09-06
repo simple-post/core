@@ -115,7 +115,9 @@ export async function runDurablePublish(
   }
   // Only these SDK errors conclusively reject a publish. API/transport errors
   // can occur after acceptance, especially on multipart and threaded providers.
-  const safeToRetry = ["INVALID_CONTENT", "CREDENTIALS_ERROR", "RATE_LIMIT_ERROR"].includes(result.error ?? "");
+  const safeToRetry = ["INVALID_CONTENT", "CREDENTIALS_ERROR", "RATE_LIMIT_ERROR", "PUBLISH_REJECTED"].includes(
+    result.error ?? "",
+  );
   const state = result.success ? "succeeded" : safeToRetry ? "failed" : "unknown";
   const persisted = { ...result, extraData: result.platformData ? { platformData: result.platformData } : undefined };
   await prisma.publishCheckpoint.update({

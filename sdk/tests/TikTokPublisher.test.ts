@@ -83,6 +83,103 @@ describe("TikTokPublisher", () => {
     },
   };
 
+  describe("video upload chunks", () => {
+    const mib = 1024 * 1024;
+
+    it.each([
+      [1, 1, 1],
+      [mib, mib, 1],
+      [10 * mib, 10 * mib, 1],
+      [10 * mib + 1, 10 * mib, 1],
+      [20 * mib, 10 * mib, 2],
+      [25 * mib, 10 * mib, 2],
+      [64 * mib + 1, 10 * mib, 6],
+      [4 * 1024 * mib, 10 * mib, 409],
+    ])("plans %i bytes using chunk size %i and %i chunks", (fileSize, chunkSize, totalChunks) => {
+      expect(TikTokPublisher["calculateChunks"](fileSize)).toEqual({ chunkSize, totalChunks });
+    });
+
+    it.each([0, -1, Number.NaN, 4 * 1024 * mib + 1])("rejects invalid size %i before initialization", (size) => {
+      expect(() => TikTokPublisher["calculateChunks"](size)).toThrow(
+        expect.objectContaining({ errorType: PostErrorType.INVALID_CONTENT }),
+      );
+    });
+
+    it.each(["public", "draft"] as const)(
+      "uploads the declared chunks with all trailing bytes in %s mode",
+      async (mode) => {
+        const file = Buffer.alloc(25 * mib, 7);
+        mockedFs.statSync.mockReturnValue({ size: file.length } as any);
+        jest.spyOn(fs, "createReadStream").mockReturnValue({
+          [Symbol.asyncIterator]: async function* () {
+            yield file;
+          },
+        } as any);
+        if (mode === "public") mockCreatorInfoOnce();
+        mockAxiosInstance.post.mockResolvedValueOnce({
+          data: { data: { publish_id: "publish_chunks", upload_url: "https://upload.tiktok.com/video" } },
+        });
+        if (mode === "public") {
+          mockAxiosInstance.post.mockResolvedValueOnce({
+            data: { data: { status: "PUBLISH_COMPLETE", publicaly_available_post_id: ["public_chunks"] } },
+          });
+        }
+        mockedAxios.put.mockResolvedValue({ status: 201 });
+        const result = await publisher.postContent(
+          { media: [{ type: "video", path: "./test-video.mp4" }] },
+          { tiktok: { ...directOptions.tiktok, credentials: { accessToken: "test_access_token" }, publishMode: mode } },
+        );
+        expect(result.error).toBe(PostErrorType.NO_ERROR);
+        expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+          mode === "public" ? "/v2/post/publish/video/init/" : "/v2/post/publish/inbox/video/init/",
+          expect.objectContaining({
+            source_info: { source: "FILE_UPLOAD", video_size: file.length, chunk_size: 10 * mib, total_chunk_count: 2 },
+          }),
+        );
+        expect(mockedAxios.put).toHaveBeenCalledTimes(2);
+        const calls = mockedAxios.put.mock.calls;
+        expect(calls[0][2]?.headers).toEqual({
+          "Content-Type": "video/mp4",
+          "Content-Length": String(10 * mib),
+          "Content-Range": `bytes 0-${10 * mib - 1}/${file.length}`,
+        });
+        expect(calls[1][2]?.headers).toEqual({
+          "Content-Type": "video/mp4",
+          "Content-Length": String(15 * mib),
+          "Content-Range": `bytes ${10 * mib}-${file.length - 1}/${file.length}`,
+        });
+        expect(Buffer.concat(calls.map((call) => call[1] as Buffer)).equals(file)).toBe(true);
+      },
+    );
+
+    describe.each(["public", "draft"] as const)("%s initialization failures", (mode) => {
+      it.each([
+        [400, "invalid_params", PostErrorType.PUBLISH_REJECTED],
+        [401, "access_token_invalid", PostErrorType.PUBLISH_REJECTED],
+        [429, "rate_limit_exceeded", PostErrorType.PUBLISH_REJECTED],
+        [408, "timeout", PostErrorType.API_ERROR],
+        [500, "internal_error", PostErrorType.API_ERROR],
+        [400, undefined, PostErrorType.API_ERROR],
+        [undefined, undefined, PostErrorType.API_ERROR],
+      ])("classifies HTTP %s / %s as %s", async (status, code, errorType) => {
+        if (mode === "public") mockCreatorInfoOnce();
+        mockAxiosInstance.post.mockRejectedValueOnce({
+          message: "Request failed",
+          ...(status ? { response: { status, data: { error: { code, message: "Initialization rejected" } } } } : {}),
+        });
+        await expect(
+          publisher.postContent(
+            { media: [{ type: "video", path: "./test-video.mp4" }] },
+            {
+              tiktok: { ...directOptions.tiktok, credentials: { accessToken: "test_access_token" }, publishMode: mode },
+            },
+          ),
+        ).rejects.toMatchObject({ errorType });
+        expect(mockedAxios.put).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("constructor", () => {
     it("should throw an error if credentials are missing", () => {
       expect(() => {

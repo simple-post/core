@@ -8,7 +8,7 @@ import { McpClient } from "./adapters/mcp.js";
 import { checkCliIdentity, runCli } from "./adapters/cli.js";
 import { mediaFiles, prepareMediaSources } from "./media.js";
 import { allowedHost } from "./verification/browser.js";
-import type { MediaKey, Materialized } from "./types.js";
+import type { Interface, MediaKey, Materialized, Scenario } from "./types.js";
 import { Journal } from "./journal.js";
 import { budgetPlan } from "./budget.js";
 import { assertTelegramObserver } from "./verification/telegram.js";
@@ -63,6 +63,15 @@ export function assertRequirements(s: Materialized, account: Account) {
   if (!allowedHost(s.platform, account.observer.profileUrl, account))
     throw new Error(`Invalid ${s.platform} profile URL`);
 }
+export function coverageStatus(
+  s: Scenario,
+  iface: Interface,
+): { status: "ready" } | { status: "unsupported"; reason: string } {
+  if (s.unsupportedReason) return { status: "unsupported", reason: s.unsupportedReason };
+  if (!s.interfaces.includes(iface))
+    return { status: "unsupported", reason: "Unsupported interface for this scenario; included in coverage.json" };
+  return { status: "ready" };
+}
 export function matchesApiUsername(account: Account, actual: unknown): boolean {
   const expected = account.apiUsername === undefined ? account.username : account.apiUsername;
   return expected === null
@@ -96,7 +105,8 @@ export default async function setup() {
   const config = loadConfig(),
     run = runId(),
     selected = selection(),
-    cases = selectedCases();
+    cases = selectedCases(),
+    runnableCases = cases.filter((scenario) => !scenario.unsupportedReason);
   const invocationDir = path.join(config.runDir, run);
   await mkdir(invocationDir, { recursive: true, mode: 0o700 });
   const lock = path.join(invocationDir, ".live.lock");
@@ -122,7 +132,7 @@ export default async function setup() {
       throw new Error(
         `Selected suite needs a total budget of ${budget.total}, but maxPosts is ${maxPosts}. Set maxPosts to "auto" or increase the explicit limit before starting. No new posts were submitted.`,
       );
-    const missing = cases.flatMap((s) =>
+    const missing = runnableCases.flatMap((s) =>
       selected.interfaces.flatMap((iface) => {
         if (!s.interfaces.includes(iface)) return [];
         const account = config.accounts[s.platform];
@@ -141,13 +151,13 @@ export default async function setup() {
       );
     const api = new SchedulerApi(config);
     const { accounts } = await api.request<{ accounts: Record<string, unknown>[] }>("/api/v1/accounts");
-    const targeted = [...new Set(cases.map((s) => s.platform))];
+    const targeted = [...new Set(runnableCases.map((s) => s.platform))];
     for (const p of targeted) {
       const account = config.accounts[p];
       if (!account) throw new Error(`Run yarn e2e:setup --platform ${p} to discover the missing test account.`);
       if (
         p === "telegram" &&
-        cases.some(
+        runnableCases.some(
           (s) =>
             s.platform === p &&
             !s.expectedError &&
@@ -213,7 +223,7 @@ export default async function setup() {
       for (const p of targeted) await checkCliIdentity(config, iface, config.accounts[p]!, p);
     // UI/local-file CLI cases upload through their own customer paths. Only URL-consuming
     // cases need source fixtures staged in the deployment's normal media storage.
-    const remoteKeys: MediaKey[] = cases.flatMap((s) => {
+    const remoteKeys: MediaKey[] = runnableCases.flatMap((s) => {
       const needsUrls = selected.interfaces.some(
         (iface) =>
           s.interfaces.includes(iface) &&
@@ -224,12 +234,16 @@ export default async function setup() {
       return needsUrls ? [...s.media, ...(s.options.thumbnailUrl ? ["image" as const] : [])] : [];
     });
     if (process.env.E2E_VERIFY_ONLY !== "1") await prepareMediaSources(config, remoteKeys, api);
-    const keys = [...new Set(cases.flatMap((c) => c.media))];
+    const keys = [...new Set(runnableCases.flatMap((c) => c.media))];
     const files = await mediaFiles(config, keys);
     const dir = path.join(config.runDir, run);
     await mkdir(dir, { recursive: true, mode: 0o700 });
     let cliVersion: string | undefined;
-    if (selected.interfaces.some((x) => x.startsWith("cli")))
+    if (
+      selected.interfaces.some(
+        (iface) => iface.startsWith("cli") && runnableCases.some((s) => s.interfaces.includes(iface)),
+      )
+    )
       cliVersion = (await runCli(config, ["--version"])).stdout.trim();
     await writeFile(
       path.join(dir, "run.json"),
@@ -251,7 +265,8 @@ export default async function setup() {
     );
     const matrix = cases.flatMap((s) =>
       selected.interfaces.map((iface) => {
-        if (!s.interfaces.includes(iface)) return { id: s.id, interface: iface, status: "unsupported" };
+        const support = coverageStatus(s, iface);
+        if (support.status === "unsupported") return { id: s.id, interface: iface, ...support };
         try {
           assertRequirements(
             materialize(s, config.accounts[s.platform]!, iface, run, config.mediaBaseUrl, config.fixtureUrls),

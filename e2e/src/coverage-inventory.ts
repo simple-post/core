@@ -9,6 +9,8 @@ const gaps: Record<string, string> = {
     "Platform-native scheduling needs a separate owner scheduled-post verifier; SimplePost scheduling is covered.",
   "youtube.publishAt":
     "Platform-native private-to-public transition is not yet covered by the live scheduler scenarios.",
+  "youtube.playlistId":
+    "YouTube playlist publishing is paused because it needs unapproved OAuth scopes; the catalog scenario remains retained for coverage.",
   "youtube.thumbnailPath":
     "Custom thumbnail content is covered through URL input and the UI file picker; this local CLI option variant remains untested live.",
   "tiktok.visibility": "Legacy audience alias; live cases exercise explicit privacyLevel values.",
@@ -24,9 +26,8 @@ export function optionCoverage() {
     const shape = PostOptionsSchema.shape[platform].unwrap().shape;
     return Object.keys(shape).map((option) => {
       const key = `${platform}.${option}`;
-      const scenarios = catalog
-        .filter((s) => s.platform === platform && Object.hasOwn(s.options, option))
-        .map((s) => s.id);
+      const definitions = catalog.filter((s) => s.platform === platform && Object.hasOwn(s.options, option));
+      const scenarios = definitions.map((s) => s.id);
       scenarios.push(...(defaults[key] ?? []));
       return {
         key,
@@ -39,7 +40,7 @@ export function optionCoverage() {
                 ? "gap"
                 : "unclassified",
         scenarios,
-        reason: gaps[key],
+        reason: gaps[key] ?? definitions.find((s) => s.unsupportedReason)?.unsupportedReason,
       };
     });
   });

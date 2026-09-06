@@ -13,6 +13,8 @@ import { allowedHost, postUrl, assertPostId } from "../src/verification/browser.
 import { assertUiPayload } from "../src/adapters/ui.js";
 import { redact } from "../src/redact.js";
 import { optionCoverage } from "../src/coverage-inventory.js";
+import { coverageStatus } from "../src/preflight.js";
+import { postCost } from "../src/budget.js";
 import { clearVerifiedError, runScenario, publishingFailure } from "../src/run.js";
 test("publishing failures retain provider reason alongside classification and redact credentials", () => {
   const result = {
@@ -29,6 +31,17 @@ test("publishing failures retain provider reason alongside classification and re
 const scenario = catalog.find((x) => x.id === "tiktok.photos-2-music-false-custom")!;
 test("every current SDK platform option has a scenario or an explicit coverage gap", () => {
   expect(optionCoverage().filter((o) => o.status === "unclassified")).toEqual([]);
+});
+test("YouTube playlist stays cataloged and explicitly paused without entering the live denominator", () => {
+  const playlist = catalog.find((s) => s.id === "youtube.playlist")!;
+  expect(playlist.options.playlistId).toBe("$playlistId");
+  expect(playlist.unsupportedReason).toMatch(/needs unapproved OAuth scopes/i);
+  expect(coverageStatus(playlist, "mcp")).toEqual({ status: "unsupported", reason: playlist.unsupportedReason });
+  expect(postCost(playlist)).toBe(0);
+  const inventory = optionCoverage().find((option) => option.key === "youtube.playlistId");
+  expect(inventory).toMatchObject({ scenarios: expect.arrayContaining(["youtube.playlist"]) });
+  expect(inventory?.status).toBe("scenario");
+  expect(inventory?.reason).toMatch(/unapproved OAuth scopes/i);
 });
 test("catalog accounts for every platform and executable interface", () => {
   expect(new Set(catalog.map((c) => c.id)).size).toBe(catalog.length);

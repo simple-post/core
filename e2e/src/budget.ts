@@ -1,7 +1,7 @@
 import type { Scenario, Interface, JournalEntry } from "./types.js";
 
 export function postCost(s: Scenario): number {
-  if (s.mode === "cancel" || s.mode === "draft") return 0;
+  if (s.unsupportedReason || s.mode === "cancel" || s.mode === "draft") return 0;
   // Telegram returns only the first ID, but an album creates one message per attachment.
   // Invalid cases retain a conservative cost in case a validation regression publishes them.
   return (s.platform === "telegram" ? Math.max(1, s.media.length) : 1) + (s.thread?.length ?? 0);
@@ -19,7 +19,7 @@ export function budgetPlan(
   for (const s of cases)
     for (const iface of new Set(interfaces)) {
       const key = `${iface}/${s.id}`;
-      if (!s.interfaces.includes(iface) || reserved.has(key)) continue;
+      if (s.unsupportedReason || !s.interfaces.includes(iface) || reserved.has(key)) continue;
       const cost = postCost(s);
       reserved.set(key, cost);
       remaining += cost;

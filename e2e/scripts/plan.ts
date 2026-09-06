@@ -20,10 +20,11 @@ const rows = selectedCases().flatMap((c) =>
     scenario: c.id,
     platform: c.platform,
     interface: iface,
-    supported: c.interfaces.includes(iface),
+    supported: c.interfaces.includes(iface) && !c.unsupportedReason,
     mode: c.mode ?? "now",
     posts: postCost(c),
     requires: (c.requirements ?? []).join(","),
+    reason: c.unsupportedReason,
   })),
 );
 console.table(rows);

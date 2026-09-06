@@ -9,6 +9,7 @@ for (const scenario of selectedCases()) {
     browser,
   }, info) => {
     const iface = info.project.name as Interface;
+    test.skip(Boolean(scenario.unsupportedReason), scenario.unsupportedReason ?? "Unsupported scenario");
     test.skip(
       !scenario.interfaces.includes(iface),
       `Unsupported interface for this scenario; included in coverage.json`,

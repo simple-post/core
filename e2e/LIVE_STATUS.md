@@ -1,10 +1,10 @@
 # Live E2E status
 
-Updated 2026-09-06 13:41 UTC. X testing was subsequently authorized and completed. Application fixes belong to `core`; the live harness and local evidence belong to `core2`.
+Updated 2026-09-06 21:05 UTC. X testing was authorized and completed; Forem/DEV is now excluded at the user’s request. Application fixes belong to `core`; the live harness and local evidence belong to `core2`.
 
 ## Verified coverage
 
-The current catalog has **531 supported scenario/interface combinations** across scheduler UI, MCP, and CLI-app, including X. **339 have verified evidence** for the configured test accounts. These are deduplicated results from saved runs across the observed deployments, not a claim that every case was rerun against the final commit. Unsupported combinations are excluded from the denominator; missing accounts, owner sessions, permissions, and provider limits remain incomplete. CLI-local is available in the harness but was not run because separate local provider credentials/aliases are not configured.
+The current catalog has **501 supported scenario/interface combinations** across scheduler UI, MCP, and CLI-app, including X and excluding the 27 Forem/DEV cases and 3 paused YouTube playlist cases. **344 have verified evidence** for the configured test accounts. These are deduplicated results from saved runs across the observed deployments, not a claim that every case was rerun against the final commit. Unsupported combinations are excluded from the denominator; missing accounts, owner sessions, permissions, and provider limits remain incomplete. CLI-local is available in the harness but was not run because separate local provider credentials/aliases are not configured.
 
 | Platform  |  UI | MCP | CLI-app | Verified / supported |
 | --------- | --: | --: | ------: | -------------------: |
@@ -13,14 +13,13 @@ The current catalog has **531 supported scenario/interface combinations** across
 | facebook  |   9 |  11 |       9 |              29 / 29 |
 | threads   |  12 |  15 |      12 |              39 / 39 |
 | pinterest |   8 |  11 |       9 |              28 / 28 |
-| linkedin  |  10 |  12 |      10 |              32 / 35 |
-| bluesky   |   8 |  12 |       9 |              29 / 35 |
-| youtube   |   3 |  10 |       1 |              14 / 42 |
+| linkedin  |  11 |  13 |      11 |              35 / 35 |
+| bluesky   |  10 |  12 |       9 |              31 / 35 |
+| youtube   |   3 |  10 |       1 |              14 / 39 |
 | tiktok    |   1 |   7 |       7 |             15 / 143 |
-| forem     |   0 |   0 |       0 |               0 / 27 |
 | x         |  11 |  13 |      10 |              34 / 34 |
 
-Telegram, Instagram, Facebook, Threads, Pinterest, and X have verified evidence for every supported case in these three interfaces. All 27 existing LinkedIn published-post receipts were reobserved with the corrected exact-author check; the additional UI PUBLIC case also passed. The remaining LinkedIn cases are CONNECTIONS visibility checks.
+Telegram, Instagram, Facebook, Threads, Pinterest, LinkedIn, and X have verified evidence for every supported case in these three interfaces. All 27 existing LinkedIn published-post receipts were reobserved with the corrected exact-author check; the additional UI PUBLIC case also passed. The saved owner session now verifies all three CONNECTIONS cases too.
 
 ## Application fixes and release
 
@@ -34,13 +33,13 @@ Telegram, Instagram, Facebook, Threads, Pinterest, and X have verified evidence 
 | `8deeac5`   | `261aa17`        | Conclusive YouTube upload-limit rejection stays a failed checkpoint instead of an unknown publishing outcome                                                                                            |
 | `c992808`   | `7dcd335`        | Pass common/overridden media to advanced account options, restoring TikTok photo controls                                                                                                               |
 
-All seven changes were committed and pushed to `main` and `release/prod`. Production behavior confirmed the YouTube readback routes, Threads mixed-media validation, expanded YouTube reconnect scope, and owner processing readback. On the final rollout, the advanced-page chunk changed to `page-223e49319367776e.js`; a normal Playwright upload showed the photo music, description, and cover controls. The saved TikTok UI cancellation regression then passed against production. The Coolify dashboard still requires login in the available Chrome session, so no exact deployed Git hash is claimed from its dashboard.
+The first seven changes were committed and pushed to `main` and `release/prod`. Production behavior confirmed the YouTube readback routes, Threads mixed-media validation, expanded YouTube reconnect scope, and owner processing readback. On the final rollout, the advanced-page chunk changed to `page-223e49319367776e.js`; a normal Playwright upload showed the photo music, description, and cover controls. The saved TikTok UI cancellation regression then passed against production. The Coolify dashboard still requires login in the available Chrome session, so no exact deployed Git hash is claimed from its dashboard.
 
 App checks passed: SDK 24 suites/422 tests, scheduler 72 suites/449 tests, CLI 12 suites/48 tests before the later focused patches; then Pinterest 6, post validation 14, CLI scope consumers 9, YouTube readback 7, Bluesky 53, YouTube publisher 24, and disposable-database publishing reliability 16. Relevant SDK builds, TypeScript, ESLint, formatting, and scheduler checks passed. The final one-line advanced-media fix passed the scheduler check and the live cancellation regression.
 
 ## Harness verification and recovery
 
-The final full offline harness passed **419/419 tests**, TypeScript, and formatting. It targets the canonical application SDK inferred from the configured `/core/cli/bin/run.js`, rather than copying application code into `core2` or weakening contracts against its older SDK.
+The final full offline harness passed **420/420 tests**, TypeScript, and formatting. It targets the canonical application SDK inferred from the configured `/core/cli/bin/run.js`, rather than copying application code into `core2` or weakening contracts against its older SDK.
 
 The harness now checks exact platform authors and receipts, carousel order and contents, video playback, and independently observable settings. Private YouTube uploads use owner-only source-file and processing evidence plus a visit to the exact private-video page; artifacts label this `private-view/ownerAPI` and `publicVisualProof: false`. LinkedIn PUBLIC uses a fresh unauthenticated browser and exact owner profile. CONNECTIONS never falls back to that public proof.
 
@@ -59,11 +58,11 @@ Key completed runs:
 
 ## Remaining account and provider blockers
 
-- **TikTok: 128 cases remain.** A saved owner Playwright session is needed to calibrate and verify privacy, music, interaction, and inbox settings. The account is private; approval to make it public is still pending. Creator info currently excludes PUBLIC and disables Duet/Stitch. Inbox cases may need owner/mobile observation if the relevant UI is unavailable on the web. No account-wide visibility setting was changed.
-- **YouTube: 28 cases remain.** New uploads stopped when YouTube returned HTTP 400 `uploadLimitExceeded`; the channel allowance must recover before the remaining positive cases can run. Playlist cases additionally require the broader reconnect consent, still pending at Google's unverified-app warning. A dedicated unlisted test playlist was created and discovered: `PLeD-eN5w7UMM`. No broader OAuth grant was approved automatically.
-- **Bluesky: 6 video cases remain.** The authenticated video service returned `unconfirmed_email`; the regular OAuth connection is valid. Verify the test account email in Bluesky settings. Replacing the SimplePost connection is not required for that prerequisite.
-- **LinkedIn: 3 CONNECTIONS cases remain.** Save an owner Playwright session so the audience can be observed independently.
-- **Forem: 27 cases remain.** No Forem/DEV test account is connected.
+- **TikTok: 128 cases remain.** The user reports making the test account public. Owner browser login is still failing; the saved TikTok browser state does not yet establish an authenticated owner session. A working session is needed to calibrate privacy, music, interaction, and inbox settings. Creator capabilities must be refreshed after the account change. Inbox cases may need owner/mobile observation if the relevant UI is unavailable on the web.
+- **YouTube: 25 runnable cases remain; 3 playlist cases are explicitly paused.** Earlier new uploads stopped at HTTP 400 `uploadLimitExceeded`. The user wants to avoid additional Google verification. Main `c144e5f` / production merge `12d78e3` restores the original upload/read/profile OAuth scopes and disables playlist assignment before upload, including for older callers and accounts with broad scopes. Playlist cases stay cataloged with an unsupported reason. No new Google scope consent was granted. Production verified at 2026-09-06 21:04 UTC: the connection redirect requests only the original three scopes, and the validation endpoint returns `youtube_playlist_unavailable`. No upload or Google consent was performed during verification.
+- **Bluesky: 4 video cases remain.** Email verification is confirmed by successful UI video and video-no-caption posts. MCP video and video-no-caption, plus CLI-app video, returned `PUBLISH_OUTCOME_UNKNOWN: Bluesky video processing returned no video blob or usable job`; their receipts are retained and must be reconciled before retrying. CLI-app video-no-caption has not run. This is now an application/provider-response investigation, not an email prerequisite. Latest MCP silent-video receipt: `cmtqary9a0011n53dcin3868a`, run `live-20260906210154966-e72f8a4a`.
+- **LinkedIn: complete.** All three CONNECTIONS cases passed with the authenticated owner session and the platform audience label `Sichtbarkeit: Nur Kontakte`. Runs: `live-20260906205821903-7a1c727b` and `live-20260906210102027-c5a4d423`.
+- **Forem/DEV: excluded.** The user explicitly removed these 27 cases from the current completion scope.
 
 The user has been sent owner-session commands from the `core2` repository root:
 

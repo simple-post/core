@@ -200,7 +200,11 @@ add(
   "playlist",
   ["video"],
   { playlistId: "$playlistId" },
-  { requirements: ["resource:playlistId"], expectedFields: { playlistId: "$playlistId" } },
+  {
+    requirements: ["resource:playlistId"],
+    expectedFields: { playlistId: "$playlistId" },
+    unsupportedReason: "Paused: YouTube playlist publishing needs unapproved OAuth scopes.",
+  },
 );
 add(
   "youtube",

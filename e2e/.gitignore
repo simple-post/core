@@ -1,0 +1,4 @@
+.local/
+test-results/
+playwright-report/
+config.local.json

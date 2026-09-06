@@ -1,0 +1,30 @@
+{
+  "name": "@simple-post/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && prettier --check .",
+    "test": "node --import tsx scripts/self-test.ts",
+    "live": "node --import tsx scripts/live.ts",
+    "plan": "node --import tsx scripts/plan.ts",
+    "auth": "node --import tsx scripts/auth.ts",
+    "fixtures": "node --import tsx scripts/fixtures.ts",
+    "reliability": "node --import tsx scripts/reliability.ts",
+    "mcp-auth": "node --import tsx scripts/mcp-auth.ts",
+    "configure": "node --import tsx scripts/setup.ts",
+    "setup": "node --import tsx scripts/setup.ts",
+    "report": "node --import tsx scripts/report.ts"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@playwright/test": "^1.58.2",
+    "@simple-post/sdk": "workspace:*",
+    "@types/node": "^24.0.0",
+    "prettier": "^3.4.2",
+    "sharp": "^0.34.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3",
+    "zod": "^4.4.3"
+  }
+}

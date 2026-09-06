@@ -2,7 +2,7 @@
 
 SimplePost is a posting toolkit for AI agents, apps, and humans. The same TypeScript SDK powers every interface, so you can start with the interface that matches your use case and ignore the rest until you need it.
 
-You own the code. The default path is self-hosted software with full source access and your own social platform credentials, not a subscription-only hosted dependency.
+For hosted onboarding and product help, start at [docs.simplepost.social](https://docs.simplepost.social/getting-started). This directory keeps repository setup and release instructions. You can also self-host with your own infrastructure and provider credentials.
 
 ## Start Here
 
@@ -36,7 +36,7 @@ The SDK contains the shared posting model, platform adapters, media handling, va
 
 ## Common Posting Model
 
-Every interface ultimately creates a post with the same shape:
+The SDK accepts the following shape. HTTP and MCP have their own input schemas and translate them into the SDK model; see the [posting model](https://docs.simplepost.social/posting-model).
 
 ```typescript
 {
@@ -62,27 +62,27 @@ Every interface ultimately creates a post with the same shape:
 
 SimplePost supports these platform keys in the SDK and the interfaces built on top of it:
 
-| Platform  | Key         | Guide                               |
-| --------- | ----------- | ----------------------------------- |
-| X         | `x`         | [X](platforms/X.md)                 |
-| Telegram  | `telegram`  | [Telegram](platforms/Telegram.md)   |
-| Instagram | `instagram` | [Instagram](platforms/Instagram.md) |
-| Facebook  | `facebook`  | [Facebook](platforms/Facebook.md)   |
-| Threads   | `threads`   | [Threads](platforms/Threads.md)     |
-| TikTok    | `tiktok`    | [TikTok](platforms/TikTok.md)       |
-| YouTube   | `youtube`   | [YouTube](platforms/YouTube.md)     |
-| Pinterest | `pinterest` | [Pinterest](platforms/Pinterest.md) |
-| LinkedIn  | `linkedin`  | [LinkedIn](platforms/LinkedIn.md)   |
-| Bluesky   | `bluesky`   | [Bluesky](platforms/Bluesky.md)     |
-| DEV/Forem | `forem`     | [DEV/Forem](platforms/Forem.md)     |
+| Platform  | Key         | Guide                                                 |
+| --------- | ----------- | ----------------------------------------------------- |
+| X         | `x`         | [X](https://docs.simplepost.social/x)                 |
+| Telegram  | `telegram`  | [Telegram](https://docs.simplepost.social/telegram)   |
+| Instagram | `instagram` | [Instagram](https://docs.simplepost.social/instagram) |
+| Facebook  | `facebook`  | [Facebook](https://docs.simplepost.social/facebook)   |
+| Threads   | `threads`   | [Threads](https://docs.simplepost.social/threads)     |
+| TikTok    | `tiktok`    | [TikTok](https://docs.simplepost.social/tiktok)       |
+| YouTube   | `youtube`   | [YouTube](https://docs.simplepost.social/youtube)     |
+| Pinterest | `pinterest` | [Pinterest](https://docs.simplepost.social/pinterest) |
+| LinkedIn  | `linkedin`  | [LinkedIn](https://docs.simplepost.social/linkedin)   |
+| Bluesky   | `bluesky`   | [Bluesky](https://docs.simplepost.social/bluesky)     |
+| DEV/Forem | `forem`     | [DEV/Forem](https://docs.simplepost.social/forem)     |
 
-Use the platform guides in this public repository for credential setup. You can clone the repo and run SimplePost today, or use the hosted Scheduler app when you do not want to manage raw tokens directly.
+Use the canonical [provider guides](https://docs.simplepost.social/platforms) for credential setup and the [platform matrix](https://docs.simplepost.social/platform-matrix) for published-versus-hosted differences. You can clone the repo and run SimplePost today, or use the hosted Scheduler app when you do not want to manage raw tokens directly.
 
 ## Choosing A Credential Strategy
 
 You have three common options:
 
-- Use environment variables with the SDK or HTTP API server.
+- Use environment variables or explicit credentials with the SDK; use an accounts JSON file with the stateless HTTP server.
 - Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, and Scheduler API keys use them.
 - Store accounts locally in the CLI for terminal-only workflows.
 
@@ -103,7 +103,7 @@ Ownership matters here: you can set up your own apps on each social platform and
 
 - Issues and bugs: [GitHub Issues](https://github.com/simple-post/core/issues)
 - Questions and discussions: [GitHub Discussions](https://github.com/simple-post/core/discussions)
-- Credential setup: [platform guides](platforms/)
+- Credential setup: [platform guides](https://docs.simplepost.social/platforms)
 
 ## Releases And Upgrades
 

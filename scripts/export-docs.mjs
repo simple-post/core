@@ -18,11 +18,13 @@ const entry = `
 import { createSchedulerOpenApiDocument } from './scheduler/lib/openapi/document';
 import { createServerOpenApiDocument } from './server/src/openapi/document';
 import { BILLING_PLANS, TRIAL_DURATION_DAYS, TRIAL_POSTS_PER_PLATFORM, TRIAL_MAX_THREAD_SEGMENTS } from './scheduler/lib/billing/plans';
+import { WEB_UPLOAD_MAX_BYTES, API_UPLOAD_MAX_BYTES } from './scheduler/lib/media-limits';
 import { ALL_SOCIAL_PLATFORMS } from './scheduler/lib/config';
 import { getValidationRulesForPlatform } from './sdk/src/validation';
 export const scheduler = createSchedulerOpenApiDocument();
 export const server = createServerOpenApiDocument();
 export const facts = {
+  uploadLimits: { webBytes: WEB_UPLOAD_MAX_BYTES, apiBytes: API_UPLOAD_MAX_BYTES },
   plans: BILLING_PLANS.map(({key,name,prices,limits}) => ({key,name,prices,limits})),
   trial: { days: TRIAL_DURATION_DAYS, postsPerPlatform: TRIAL_POSTS_PER_PLATFORM, maxThreadSegments: TRIAL_MAX_THREAD_SEGMENTS },
   platforms: ALL_SOCIAL_PLATFORMS.map(({id,name}) => ({ id, name, rules: getValidationRulesForPlatform(id) }))

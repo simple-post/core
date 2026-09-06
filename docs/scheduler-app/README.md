@@ -4,6 +4,8 @@ Use the Scheduler app when humans need a web UI to connect social accounts, comp
 
 The app is also the account hub for the AI features. The MCP server and scheduler-connected CLI use the accounts stored in the Scheduler app.
 
+For hosted users: [Get started](https://docs.simplepost.social/getting-started), [publishing](https://docs.simplepost.social/publishing), and [plans](https://docs.simplepost.social/billing). This README covers running the Scheduler yourself.
+
 ## When To Use It
 
 Choose the Scheduler app when:
@@ -24,7 +26,7 @@ Use the [SDK](../typescript-sdk/README.md) or [HTTP API server](../http-server/R
 - Validates drafts against platform rules before publishing.
 - Shows previews and per-platform validation messages.
 - Publishes immediately or saves scheduled posts for later dispatch.
-- Shows scheduled, published, and failed posts.
+- Shows draft, scheduled, published, and failed posts.
 - Exposes the remote MCP server at `/mcp`.
 - Exposes API routes used by the app, CLI, MCP, and user-managed API keys.
 
@@ -35,7 +37,7 @@ Publishing still goes through `@simple-post/sdk`; the Scheduler app handles user
 From the repo root:
 
 ```bash
-yarn install
+yarn install --immutable
 cp scheduler/.env.example scheduler/.env
 ```
 
@@ -83,6 +85,7 @@ Connected accounts are then available to:
 
 Go to the compose screen, select one or more accounts, write the message, attach media if needed, and choose:
 
+- `Save as Draft` to save incomplete work without publishing.
 - `Post Now` to publish immediately.
 - `Schedule for Later` to save a future post.
 
@@ -155,4 +158,4 @@ The generated OpenAPI document is available at `/api/openapi.json`. It includes 
 
 ## TikTok photos and music
 
-TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../platforms/TikTok.md).
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. The web app requires manual TikTok consent before submitting non-draft posts. See [TikTok requirements and examples](https://docs.simplepost.social/tiktok#hosted-posting) and [upload limits](https://docs.simplepost.social/publishing#upload-limits).

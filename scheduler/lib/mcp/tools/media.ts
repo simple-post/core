@@ -6,8 +6,9 @@ import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/medi
 import { z } from "zod";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
+import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024;
+const MAX_FILE_SIZE = API_UPLOAD_MAX_BYTES;
 const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
 const MIME_EXTENSION: Record<string, string> = {
@@ -90,7 +91,7 @@ function mimeLabel(mimeType: string): string {
   return MIME_LABEL[mimeType] ?? mimeType;
 }
 
-const FILE_TOO_LARGE_MESSAGE = `This file is too large — the maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`;
+const FILE_TOO_LARGE_MESSAGE = `This file is too large — the maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB.`;
 
 function corruptedFileError(mimeType: string): Error {
   return new Error(

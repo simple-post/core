@@ -8,23 +8,23 @@ npm install @simple-post/sdk
 
 ## Quick start
 
-```typescript
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (for example `@mychannel`), then give the bot permission to post in that chat. The chat ID is passed explicitly. [Telegram setup](https://docs.simplepost.social/telegram).
+
+```typescript title="telegram-quickstart.ts"
 import { post } from "@simple-post/sdk";
 
-// Single platform
-await post({
-  content: { text: "Hello world!" },
-  platforms: ["x"],
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+const chatId = process.env.TELEGRAM_CHAT_ID;
+if (!botToken || !chatId) throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID");
+
+const results = await post({
+  content: { text: "Hello from SimplePost" },
+  platforms: ["telegram"],
+  options: { telegram: { chatId, credentials: { botToken } } },
 });
 
-// Multiple platforms, with media
-await post({
-  content: {
-    text: "Check out this video!",
-    media: [{ type: "video", path: "./video.mp4" }],
-  },
-  platforms: ["x", "youtube"],
-});
+const result = results.get("telegram");
+console.log(result);
 ```
 
 `post()` returns a `Map` with a result per platform, including the post ID or a typed error when posting failed.
@@ -48,14 +48,14 @@ await quote({
       cid: "bluesky-record-cid",
     },
   },
-  platforms: ["x", "bluesky", "instagram"],
+  platforms: ["x", "bluesky"],
 });
 ```
 
 Use `target` instead when every selected platform shares one target. A
 platform omitted from `targets` receives an ordinary post.
 
-Credentials are provided per platform via environment variables or explicitly through `options.<platform>.credentials`. See the [platform guides](https://github.com/simple-post/core/tree/main/docs/platforms) for how to obtain them.
+Credentials are provided per platform via environment variables or explicitly through `options.<platform>.credentials`. See the [platform guides](https://docs.simplepost.social/platforms) for how to obtain them.
 
 ## Highlights
 
@@ -72,7 +72,7 @@ The same engine powers the rest of SimplePost — the [Scheduler app](https://ap
 
 ## Documentation
 
-Full documentation lives in the [SimplePost core repository](https://github.com/simple-post/core/tree/main/docs/typescript-sdk).
+Read the [SDK guide](https://docs.simplepost.social/sdk), [platform limits](https://docs.simplepost.social/platform-matrix), and [published versus hosted behavior](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features). The docs check examples against published SDK 1.3.1; the main branch can contain later changes.
 
 For upgrade guarantees and release changes, see the [SDK compatibility policy](https://github.com/simple-post/core/blob/main/docs/release/SDK_COMPATIBILITY.md), [migration notes](https://github.com/simple-post/core/blob/main/docs/release/MIGRATIONS.md), and repository [changelog](https://github.com/simple-post/core/blob/main/CHANGELOG.md).
 
@@ -82,8 +82,8 @@ MIT
 
 ## TikTok photos and music
 
-TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../docs/platforms/TikTok.md).
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. The SDK supports these options; hosted interfaces add their own permissions, upload limits, and consent flows. See [TikTok requirements and examples](https://docs.simplepost.social/tiktok).
 
 ## Bluesky video
 
-Bluesky supports one MP4 video per post (300 MB, 10 minutes), including replies and quotes, with OAuth or app-password credentials. The SDK uploads and waits for processing before creating the post. The Scheduler, CLI, HTTP APIs, and MCP tools use the same support. See [Bluesky requirements and examples](../docs/platforms/Bluesky.md).
+Bluesky supports one MP4 video per post (300 MB, 10 minutes), including replies and quotes, with OAuth or app-password credentials. The SDK uploads and waits for processing before creating the post. Hosted interfaces impose additional [upload limits](https://docs.simplepost.social/publishing#upload-limits), including 50 MiB per file in the web app. See [Bluesky requirements and examples](https://docs.simplepost.social/bluesky).

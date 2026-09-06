@@ -4,17 +4,14 @@ import { getPresignedUploadUrl, generateFileKey } from "@simple-post/sdk";
 import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 import { z } from "zod";
 
+import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 const presignRequestSchema = z.object({
   filename: z.string().min(1),
   contentType: z.string().min(1),
-  size: z
-    .number()
-    .int()
-    .positive()
-    .max(500 * 1024 * 1024),
+  size: z.number().int().positive().max(API_UPLOAD_MAX_BYTES),
   isThumbnail: z.boolean().optional(),
 });
 

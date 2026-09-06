@@ -9,6 +9,8 @@ simplepost connect   # link the CLI to your SimplePost account
 simplepost post      # pick accounts and write your post interactively
 ```
 
+Hosted CLI access requires Advanced, Pro, or an active trial. Direct local publishing uses your own credentials and has no hosted plan requirement.
+
 ## Two ways to connect accounts
 
 The CLI supports exactly two modes — pick whichever fits you:
@@ -48,7 +50,7 @@ simplepost account add x --alias main
 simplepost post --account x:main --text "Hello from my own X app"
 ```
 
-Every platform uses the same variable names:
+OAuth providers use these variable names:
 
 | Variable                               | Meaning                                          |
 | -------------------------------------- | ------------------------------------------------ |
@@ -86,6 +88,10 @@ simplepost setup            Choose how local secrets are stored
 Run `simplepost <command> --help` for all flags.
 
 ## Posting
+
+Posting submits immediately. The CLI does not create SimplePost drafts or calendar schedules; use the [web app](https://docs.simplepost.social/publishing), [MCP](https://docs.simplepost.social/mcp), or [API](https://docs.simplepost.social/api) for those. Provider-specific scheduling and TikTok inbox uploads remain provider actions.
+
+Both local and Scheduler-connected accounts accept local image/video files and public URLs. The CLI uploads local files to Scheduler for app accounts (500 MiB per file); the web app has a separate 50 MiB limit. [Upload limits](https://docs.simplepost.social/publishing#upload-limits).
 
 Interactive (default when no flags are given):
 
@@ -130,7 +136,7 @@ Tokens are stored with the backend chosen during `simplepost setup` (it runs aut
 
 ## Documentation
 
-Full documentation lives in the [SimplePost core repository](https://github.com/simple-post/core/tree/main/docs/cli).
+Read the [CLI guide](https://docs.simplepost.social/cli), [local quickstart](https://docs.simplepost.social/local-quickstart), and [published versus hosted behavior](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features). Maintainers: [development and npm release instructions](https://github.com/simple-post/core/blob/main/docs/cli/README.md).
 
 ## License
 

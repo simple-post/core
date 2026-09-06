@@ -1,6 +1,6 @@
 # @simple-post/server
 
-Self-hosted HTTP API for posting to social media. Speaks the same `/api/v1` request and response shapes as the SimplePost scheduler app, so the same client code targets either deployment.
+Self-hosted HTTP API for posting to social media. Implements an immediate-posting subset of the Scheduler API. Shared content fields do not imply identical authentication, endpoints, or workflow support. See the canonical [API comparison and reference](https://docs.simplepost.social/api).
 
 ## Overview
 
@@ -12,7 +12,7 @@ Use this interface when:
 - You manage social platform credentials yourself (you have the tokens) and do not need a UI to connect accounts.
 - You only need immediate posting — the scheduler app handles `postingMode: "schedule"`.
 
-If you want scheduling, OAuth-based account connection, multi-user accounts, or an MCP server, run the [scheduler app](../scheduler-app/README.md) instead. The HTTP contract is the same on both, so you can migrate later without rewriting client code.
+If you want scheduling, OAuth-based account connection, multi-user accounts, or an MCP server, run the [scheduler app](../scheduler-app/README.md) instead. When migrating, update authentication (`x-api-key` here, bearer tokens in Scheduler), account IDs, and any workflow-specific requests.
 
 ## Endpoints
 
@@ -186,7 +186,7 @@ Short-lived (direct access token):
 
 #### Instagram
 
-`businessAccountId` is the Instagram Business Account id (separate from the page id).
+`businessAccountId` is the Instagram professional account ID (separate from a Facebook Page ID). This example uses an Instagram Login token. For a Facebook Page token, set `graphApi: "facebook"` explicitly. Follow the [matching credential flow](https://docs.simplepost.social/instagram#set-up-credentials).
 
 ```json
 {
@@ -284,12 +284,14 @@ OAuth (if you already have OAuth tokens):
 ### Development
 
 ```bash
-cd server
-yarn install
-yarn dev
+# From the repository root:
+yarn install --immutable
+yarn workspace @simple-post/server dev
 ```
 
 ### Production (local)
+
+From `server/`:
 
 ```bash
 yarn build
@@ -297,6 +299,8 @@ yarn start
 ```
 
 ### Production with PM2
+
+From `server/`:
 
 ```bash
 yarn build
@@ -365,7 +369,7 @@ curl -X POST https://posts.example.com/api/v1/upload \
 
 The returned `url` points at this server's public `/media/:filename` route. Platforms fetch it to obtain the bytes, so the URL **must** be reachable from the public internet — set `SIMPLE_POST_PUBLIC_URL` accordingly.
 
-Limits: 500MB per file. The multipart parser streams to disk, caps files/fields/parts, and verifies the file signature against the declared media type before finalizing it. Supported types are JPEG, PNG, GIF, WebP, MP4, MOV, and WebM.
+Limits: 500 MiB per file. The multipart parser streams to disk, caps files/fields/parts, and verifies the file signature against the declared media type before finalizing it. Supported types are JPEG, PNG, GIF, WebP, MP4, MOV, and WebM.
 
 ### `POST /api/v1/upload/presign`
 
@@ -495,21 +499,21 @@ Standard JSON error shape:
 
 ## Differences from the scheduler app
 
-Both expose the same `/api/v1/*` shapes. Differences you'll observe in practice:
+The common posting payload uses account IDs, message, media, and per-account options. Differences include:
 
 - **No scheduling.** `postingMode` must be `"now"`. Pass `"schedule"` and you get a 400.
 - **No account connection flow.** Accounts come from the JSON file you write, not OAuth.
 - **No multi-user model.** The API key gates all access; everyone using it shares the same set of accounts.
 - **No persistence.** The `post` object in the response has fresh ids and is not stored anywhere — query it from `postingResults` if you need it.
 - **Media storage.** Multipart uploads land on local disk and serve from `/media/:filename`. When `S3_STORAGE_*` is configured, `/api/v1/upload/presign` lets clients PUT directly to S3/R2 and use the returned public media URL.
-- **No token refresh persistence.** The SDK still refreshes tokens during a request, but the new tokens are not written back anywhere — long-lived refresh tokens (X user tokens, YouTube, Bluesky OAuth) keep working because the SDK gets a fresh access token on every call.
+- **No token refresh persistence.** The SDK still refreshes tokens during a request, but the new tokens are not written back anywhere — rotating providers such as X invalidate the previous refresh token. Reusing an unchanged accounts file can therefore fail after a refresh. This server neither saves nor returns rotated credential data to the client. Use the Scheduler or stored local CLI accounts for managed persistence, or call the SDK from an integration that securely persists refreshed credentials.
 
 ## Related interfaces
 
 - [Scheduler app](../scheduler-app/README.md) — UI, account connections, scheduling, MCP server, multi-user.
 - [TypeScript SDK](../typescript-sdk/README.md) — call the publishing layer in-process, no HTTP.
-- [CLI](../cli/README.md) — terminal workflows talking to either the server or the scheduler.
+- [CLI](../cli/README.md) — terminal workflows using local accounts or Scheduler-connected accounts.
 
 ## TikTok photos and music
 
-TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../platforms/TikTok.md).
+TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. See [TikTok requirements and examples](https://docs.simplepost.social/tiktok) for media, consent, and inbox behavior.

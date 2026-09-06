@@ -38,6 +38,7 @@ export function assertRequirements(s: Materialized, account: Account) {
     if (!(s.platform === "telegram" && key === "replyTo" && account.resources.replyToId !== undefined))
       if (
         !account.observer.fields[key] &&
+        !(s.platform === "x" && key === "replyToId" && /^\d+$/.test(String(s.expectedFields[key]))) &&
         !(s.platform === "linkedin" && key === "visibility" && s.expectedFields.visibility === "PUBLIC") &&
         !(
           s.platform === "youtube" &&

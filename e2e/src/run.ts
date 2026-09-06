@@ -312,7 +312,7 @@ export async function runScenario(
       const segment = segments[i + 1];
       expect(segment, `Thread segment ${i + 1} receipt`).toBeTruthy();
       expect(segment.success, publishingFailure(segment)).toBe(true);
-      const child = {
+      const child: Materialized = {
         ...s,
         // The child text contains the run token, but not the synthetic segment
         // suffix used for local evidence filenames. Match the actual text so
@@ -322,7 +322,7 @@ export async function runScenario(
         message: s.thread![i],
         expectedText: s.thread![i],
         media: [],
-        expectedFields: {},
+        expectedFields: s.platform === "x" ? { replyToId: segments[i].postId! } : {},
         expectedTitle: undefined,
         thread: undefined,
       };

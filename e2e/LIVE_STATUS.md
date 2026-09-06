@@ -1,10 +1,10 @@
 # Live E2E status
 
-Updated 2026-09-06 12:10 UTC. X is intentionally excluded. Application fixes belong to `core`; the live harness and local evidence belong to `core2`.
+Updated 2026-09-06 13:41 UTC. X testing was subsequently authorized and completed. Application fixes belong to `core`; the live harness and local evidence belong to `core2`.
 
 ## Verified coverage
 
-The current catalog has **497 supported scenario/interface combinations** across scheduler UI, MCP, and CLI-app, excluding X. **305 have verified evidence** for the configured test accounts. These are deduplicated results from saved runs across the observed deployments, not a claim that every case was rerun against the final commit. Unsupported combinations are excluded from the denominator; missing accounts, owner sessions, permissions, and provider limits remain incomplete. CLI-local is available in the harness but was not run because separate local provider credentials/aliases are not configured.
+The current catalog has **531 supported scenario/interface combinations** across scheduler UI, MCP, and CLI-app, including X. **339 have verified evidence** for the configured test accounts. These are deduplicated results from saved runs across the observed deployments, not a claim that every case was rerun against the final commit. Unsupported combinations are excluded from the denominator; missing accounts, owner sessions, permissions, and provider limits remain incomplete. CLI-local is available in the harness but was not run because separate local provider credentials/aliases are not configured.
 
 | Platform  |  UI | MCP | CLI-app | Verified / supported |
 | --------- | --: | --: | ------: | -------------------: |
@@ -18,8 +18,9 @@ The current catalog has **497 supported scenario/interface combinations** across
 | youtube   |   3 |  10 |       1 |              14 / 42 |
 | tiktok    |   1 |   7 |       7 |             15 / 143 |
 | forem     |   0 |   0 |       0 |               0 / 27 |
+| x         |  11 |  13 |      10 |              34 / 34 |
 
-Telegram, Instagram, Facebook, Threads, and Pinterest have verified evidence for every supported case in these three interfaces. All 27 existing LinkedIn published-post receipts were reobserved with the corrected exact-author check; the additional UI PUBLIC case also passed. The remaining LinkedIn cases are CONNECTIONS visibility checks.
+Telegram, Instagram, Facebook, Threads, Pinterest, and X have verified evidence for every supported case in these three interfaces. All 27 existing LinkedIn published-post receipts were reobserved with the corrected exact-author check; the additional UI PUBLIC case also passed. The remaining LinkedIn cases are CONNECTIONS visibility checks.
 
 ## Application fixes and release
 
@@ -39,7 +40,7 @@ App checks passed: SDK 24 suites/422 tests, scheduler 72 suites/449 tests, CLI 1
 
 ## Harness verification and recovery
 
-The final full offline harness passed **410/410 tests**, TypeScript, and formatting. It targets the canonical application SDK inferred from the configured `/core/cli/bin/run.js`, rather than copying application code into `core2` or weakening contracts against its older SDK.
+The final full offline harness passed **419/419 tests**, TypeScript, and formatting. It targets the canonical application SDK inferred from the configured `/core/cli/bin/run.js`, rather than copying application code into `core2` or weakening contracts against its older SDK.
 
 The harness now checks exact platform authors and receipts, carousel order and contents, video playback, and independently observable settings. Private YouTube uploads use owner-only source-file and processing evidence plus a visit to the exact private-video page; artifacts label this `private-view/ownerAPI` and `publicVisualProof: false`. LinkedIn PUBLIC uses a fresh unauthenticated browser and exact owner profile. CONNECTIONS never falls back to that public proof.
 
@@ -47,6 +48,7 @@ GET retries are limited to transient 502/503/504 responses. Composer retries hap
 
 Key completed runs:
 
+- X UI/MCP/CLI-app: `live-20260906131834879-97685a15`, **34/34 supported cases verified**, 8 explicitly unsupported combinations. Receipts contain exactly **34 unique external post IDs**, including thread segments, with no replacement posts during verification fixes. Both cancellation cases were discarded before publication and both empty-input cases were rejected. Use `--headed` for X: headless navigation returned 403. Guest DOM selectors now identify the exact permalink, captionless media, author, and image order; replies and thread children verify their immediate parent. The reply target reuses this run's verified smoke post. No application fix or deployment was needed; all changes are in the test harness. The UI thread was additionally rechecked without posting after the direct-parent assertion was added.
 - Telegram UI/MCP: `live-20260905225015733-c3e21e46` (61 supported cases); CLI-app: `live-20260906-telegram-cliapp-01` (29).
 - Instagram: `live-20260906-instagram-ui` and `live-20260906-instagram-cli-app`; existing carousel and draft-edit receipts were reverified, not reposted. Mixed carousel MCP: `live-20260906093114220-a3cf4d7a`.
 - Facebook: `live-20260906-facebook-ui` and `live-20260906-facebook-cli-app`; captioned video MCP was reverified in `live-20260906093230702-510ce13f`.

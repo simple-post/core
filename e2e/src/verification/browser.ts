@@ -28,10 +28,10 @@ export interface Surface {
 // No fallback to document.body: navigation chrome or a login screen must never count as a post.
 export const surfaces: Record<Platform, Surface> = {
   x: {
-    root: 'article[data-testid="tweet"]',
-    author: '[data-testid="User-Name"] a',
-    text: '[data-testid="tweetText"]',
-    images: '[data-testid="tweetPhoto"] img',
+    root: 'article[data-testid="tweet"], article:has(a[data-timezone][href*="/status/"])',
+    author: '[data-testid="User-Name"] a, a:has(img[alt^="@"])',
+    text: '[data-testid="tweetText"], :scope:not([data-testid]) div[dir="auto"]',
+    images: '[data-testid="tweetPhoto"] img, a[aria-label="Image"][href*="/photo/"] img',
     video: "video",
   },
   instagram: {
@@ -310,7 +310,16 @@ export async function verifyPage(page: Page, s: Materialized, account: Account):
   // A direct permalink can still contain recommendation cards, while media-only
   // posts have no caption marker to identify their card. Thread permalinks also
   // render every segment with the root marker, so the first card is the root.
-  const root = s.thread || !s.expectedText ? roots.first() : roots.filter({ hasText: s.token });
+  const root =
+    s.platform === "x"
+      ? roots.filter({
+          has: page.locator(
+            `a[href=${JSON.stringify(new URL(page.url()).pathname)}], a[href=${JSON.stringify(page.url())}]`,
+          ),
+        })
+      : s.thread || !s.expectedText
+        ? roots.first()
+        : roots.filter({ hasText: s.token });
   if (s.platform === "youtube" || s.platform === "instagram") {
     await expect
       .poll(
@@ -477,6 +486,34 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
   };
   for (const [key, value] of Object.entries(required)) {
     if (s.platform === "telegram" && account.observer.telegramWeb && key === "replyTo") continue;
+    if (s.platform === "x" && key === "replyToId") {
+      // X's permalink conversation renders ancestors in order before the current
+      // post. Match the immediate predecessor, never any earlier ancestor or a
+      // recommendation appearing below the reply.
+      const parent = root.locator("xpath=preceding::article[1]");
+      await expect(parent, "X reply must display its immediate parent").toHaveCount(1);
+      await expect(parent, "X reply parent must be visible").toBeVisible();
+      await expect
+        .poll(
+          async () => {
+            const hrefs = await parent
+              .locator("a[href]")
+              .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href") ?? ""));
+            return [
+              ...new Set(
+                hrefs.flatMap((href) => {
+                  const url = new URL(href, page.url());
+                  const match = url.pathname.match(/^\/[^/]+\/status\/(\d+)\/?$/);
+                  return allowedHost("x", url.href, account) && match ? [match[1]] : [];
+                }),
+              ),
+            ];
+          },
+          { message: "X reply must be attached to the requested direct parent", timeout: 15_000 },
+        )
+        .toEqual([String(value)]);
+      continue;
+    }
     const probe = account.observer.fields[key];
     if (!probe)
       throw new Error(`NEEDS VERIFICATION: ${s.platform}.${key} has no platform-side observation configured.`);

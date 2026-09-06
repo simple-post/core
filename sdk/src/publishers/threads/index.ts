@@ -171,7 +171,7 @@ export class ThreadsPublisher extends Publisher {
           return;
         }
 
-        if (status === "ERROR") {
+        if (status === "ERROR" || status === "EXPIRED") {
           throw new PostError(
             PostErrorType.API_ERROR,
             `Threads media container ${containerId} creation failed.`,
@@ -287,7 +287,26 @@ export class ThreadsPublisher extends Publisher {
         basePayload.quote_post_id = quoteTarget.postId;
       }
 
-      if (media) {
+      if ((content.media?.length ?? 0) > 1) {
+        const children: string[] = [];
+        for (const item of content.media!) {
+          const resolved = await this.resolveMedia(item);
+          const child = await this.withTokenRefresh(() =>
+            this.client.post(`/${threadsUserId}/threads`, {
+              access_token: this.accessToken,
+              media_type: resolved.type,
+              is_carousel_item: true,
+              ...(resolved.type === "IMAGE" ? { image_url: resolved.url } : { video_url: resolved.url }),
+            }),
+          );
+          const childId = String(child.data?.id ?? "");
+          if (!childId) throw new PostError(PostErrorType.API_ERROR, "Threads API did not return a carousel child id.");
+          await this.waitForMediaReady(childId);
+          children.push(childId);
+        }
+        basePayload.media_type = "CAROUSEL";
+        basePayload.children = children.join(",");
+      } else if (media) {
         const resolvedMedia = await this.resolveMedia(media);
         basePayload.media_type = resolvedMedia.type;
         if (resolvedMedia.type === "IMAGE") {

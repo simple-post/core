@@ -52,6 +52,78 @@ describe("ThreadsPublisher", () => {
   });
 
   describe("postContent", () => {
+    it("publishes every image and video in order in one carousel, with text and reply on the parent", async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { id: "user_123" } })
+        .mockResolvedValueOnce({ data: { status: "FINISHED" } })
+        .mockResolvedValueOnce({ data: { status: "FINISHED" } })
+        .mockResolvedValueOnce({ data: { status: "FINISHED" } })
+        .mockResolvedValueOnce({ data: { permalink: "https://www.threads.net/@test/post/carousel" } });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "image-child" } })
+        .mockResolvedValueOnce({ data: { id: "video-child" } })
+        .mockResolvedValueOnce({ data: { id: "parent" } })
+        .mockResolvedValueOnce({ data: { id: "published" } });
+      const result = await publisher.postContent(
+        {
+          text: "Carousel caption",
+          media: [
+            { type: "image", url: "https://cdn.example.com/one.jpg" },
+            { type: "video", url: "https://cdn.example.com/two.mp4" },
+          ],
+        },
+        {
+          threads: { replyToId: "reply-source", credentials: { accessToken: "test_access_token", userId: "user_123" } },
+        },
+      );
+      expect(result.id).toBe("published");
+      expect(mockAxiosInstance.post.mock.calls[0][1]).toMatchObject({
+        media_type: "IMAGE",
+        image_url: "https://cdn.example.com/one.jpg",
+        is_carousel_item: true,
+      });
+      expect(mockAxiosInstance.post.mock.calls[1][1]).toMatchObject({
+        media_type: "VIDEO",
+        video_url: "https://cdn.example.com/two.mp4",
+        is_carousel_item: true,
+      });
+      expect(mockAxiosInstance.post.mock.calls[0][1]).not.toHaveProperty("reply_to_id");
+      expect(mockAxiosInstance.post.mock.calls[2][1]).toMatchObject({
+        media_type: "CAROUSEL",
+        children: "image-child,video-child",
+        text: "Carousel caption",
+        reply_to_id: "reply-source",
+      });
+      expect(mockAxiosInstance.post.mock.calls[3][1]).toMatchObject({ creation_id: "parent" });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(4);
+    });
+
+    it("does not publish a partial carousel when a child fails processing", async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { id: "user_123" } })
+        .mockResolvedValueOnce({ data: { status: "ERROR" } });
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "failed-child" } });
+      await expect(
+        publisher.postContent({
+          media: [
+            { type: "image", url: "https://cdn.example.com/one.jpg" },
+            { type: "image", url: "https://cdn.example.com/two.jpg" },
+          ],
+        }),
+      ).rejects.toThrow("creation failed");
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("accepts 20 carousel items and rejects 21 before making provider calls", async () => {
+      const media = Array.from({ length: 20 }, (_, i) => ({
+        type: "image" as const,
+        url: `https://cdn.example.com/${i}.jpg`,
+      }));
+      expect(ThreadsPublisher.validate({ media }).isValid).toBe(true);
+      await expect(publisher.postContent({ media: [...media, media[0]] })).rejects.toThrow("validation failed");
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
     it("waits longer than the old 24-second limit without creating duplicate containers", async () => {
       jest.useFakeTimers();
       mockAxiosInstance.get.mockResolvedValueOnce({ data: { id: "user_123" } });

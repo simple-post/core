@@ -4,14 +4,19 @@ import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const THREADS_MAX_TEXT_LENGTH = 500;
-export const THREADS_MAX_MEDIA_COUNT = 1;
-export const THREADS_MAX_VIDEOS = 1;
+export const THREADS_MAX_MEDIA_COUNT = 20;
+export const THREADS_MAX_VIDEOS = 20;
 export const THREADS_MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 export const THREADS_MAX_VIDEO_SIZE_BYTES = 1024 * 1024 * 1024;
 
 export const THREADS_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: THREADS_MAX_TEXT_LENGTH },
-  media: { maxCount: THREADS_MAX_MEDIA_COUNT, maxImages: 1, maxVideos: THREADS_MAX_VIDEOS, allowsMixed: false },
+  media: {
+    maxCount: THREADS_MAX_MEDIA_COUNT,
+    maxImages: THREADS_MAX_MEDIA_COUNT,
+    maxVideos: THREADS_MAX_VIDEOS,
+    allowsMixed: true,
+  },
   image: { maxSizeBytes: THREADS_MAX_IMAGE_SIZE_BYTES },
   video: { maxSizeBytes: THREADS_MAX_VIDEO_SIZE_BYTES },
 };
@@ -68,7 +73,7 @@ export function validateThreadsContent(content: Content): ValidationResult {
       platform: "threads",
       severity: "error",
       code: "too_many_videos",
-      message: "Threads supports only one video per post.",
+      message: `Threads supports up to ${THREADS_MAX_VIDEOS} videos per carousel.`,
       field: "media",
       limit: THREADS_MAX_VIDEOS,
       actual: videos,
@@ -76,11 +81,11 @@ export function validateThreadsContent(content: Content): ValidationResult {
   }
 
   if (mediaCount > THREADS_MAX_MEDIA_COUNT) {
-    warnings.push({
+    errors.push({
       platform: "threads",
-      severity: "warning",
+      severity: "error",
       code: "too_many_media",
-      message: "Threads supports only one media item per post. Only the first will be posted.",
+      message: `Threads supports up to ${THREADS_MAX_MEDIA_COUNT} media items per carousel.`,
       field: "media",
       limit: THREADS_MAX_MEDIA_COUNT,
       actual: mediaCount,

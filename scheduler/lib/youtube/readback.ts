@@ -12,6 +12,8 @@ interface YouTubeResource {
   };
   status?: Record<string, unknown>;
   contentDetails?: Record<string, unknown>;
+  fileDetails?: Record<string, unknown>;
+  processingDetails?: Record<string, unknown>;
 }
 interface YouTubeList {
   items?: YouTubeResource[];
@@ -69,7 +71,10 @@ export async function getYouTubeVideo(userId: string, accountId: string, videoId
   const { get } = await ownerClient(userId, accountId);
   const channels = await get("channels", { part: "id", mine: "true", maxResults: "50" });
   const channelIds = new Set((channels.items ?? []).map((item) => item.id));
-  const data = await get("videos", { part: "snippet,status,contentDetails", id: videoId });
+  const data = await get("videos", {
+    part: "snippet,status,contentDetails,fileDetails,processingDetails",
+    id: videoId,
+  });
   const video = data.items?.find((item) => item.id === videoId && channelIds.has(item.snippet?.channelId ?? ""));
   if (!video) throw new NotFoundError("Video not found on this connected YouTube channel");
   if (!playlistId) return { video };

@@ -17,7 +17,7 @@ export default defineRoute({
       tags: ["Accounts"],
       summary: "Read a connected channel video from YouTube",
       description:
-        "Fetches current owner-authorized data from YouTube using the connected account. Does not return tokens or infer metadata from saved posting options.",
+        "Fetches current owner-authorized data from YouTube using the connected account, including upload file details and processing status when available. Does not return tokens or infer metadata from saved posting options.",
       security: userAuthSecurity,
       requestParams: {
         path: z.object({ id: z.string(), videoId: z.string() }),

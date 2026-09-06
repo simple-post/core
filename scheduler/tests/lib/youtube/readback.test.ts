@@ -23,6 +23,8 @@ const video = {
   id: "abcdefghijk",
   snippet: { channelId: "UC-owner", title: "Provider title" },
   status: { privacyStatus: "private", selfDeclaredMadeForKids: false },
+  fileDetails: { fileSize: "12345", durationMs: "4000", videoStreams: [{ widthPixels: 1080, heightPixels: 1920 }] },
+  processingDetails: { processingStatus: "succeeded" },
 };
 function response(items: unknown[]) {
   return { ok: true, json: async () => ({ items }) };
@@ -60,7 +62,9 @@ it("reads actual provider status without exposing credentials", async () => {
   const result = await getYouTubeVideo("owner", "account", video.id);
   expect(result).toEqual({ video });
   expect(JSON.stringify(result)).not.toContain("private-token");
-  expect(String(fetchMock.mock.calls[1][0])).toContain("part=snippet%2Cstatus%2CcontentDetails");
+  expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("part")).toBe(
+    "snippet,status,contentDetails,fileDetails,processingDetails",
+  );
   expect(fetchMock.mock.calls[1][1]).toMatchObject({ cache: "no-store", redirect: "error" });
 });
 it("rejects videos from another channel even when publicly readable", async () => {

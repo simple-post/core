@@ -370,7 +370,8 @@ describe("BlueskyPublisher", () => {
     const video: Content = { media: [{ type: "video", path: "video.mp4", description: "A short demo" }] };
 
     beforeEach(() => {
-      mockAxiosInstance.get.mockResolvedValueOnce(session).mockResolvedValueOnce({ data: { token: "service-token" } });
+      mockAxiosInstance.get.mockResolvedValueOnce(session).mockResolvedValue({ data: { token: "service-token" } });
+      mockedAxios.get.mockResolvedValue({ data: { canUpload: true } });
       mockedAxios.post.mockResolvedValueOnce({
         data: { jobStatus: { jobId: "job", state: "JOB_STATE_COMPLETED", blob } },
       });
@@ -403,6 +404,29 @@ describe("BlueskyPublisher", () => {
         video: blob,
         alt: "A short demo",
       });
+    });
+
+    it("reports unverified email before uploading bytes or creating a post", async () => {
+      mockedAxios.get.mockRejectedValueOnce({ response: { status: 401, data: { error: "unconfirmed_email" } } });
+      await expect(publisher.postContent(video)).rejects.toMatchObject({
+        errorType: PostErrorType.CREDENTIALS_ERROR,
+        message: expect.stringContaining("Verify your Bluesky account email"),
+      });
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.get).toHaveBeenLastCalledWith(
+        "/xrpc/com.atproto.server.getServiceAuth",
+        expect.objectContaining({
+          params: expect.objectContaining({ aud: "did:web:video.bsky.app", lxm: "app.bsky.video.getUploadLimits" }),
+        }),
+      );
+    });
+
+    it("does not upload or publish when the video quota is unavailable", async () => {
+      mockedAxios.get.mockResolvedValueOnce({ data: { canUpload: false } });
+      await expect(publisher.postContent(video)).rejects.toMatchObject({ errorType: PostErrorType.INVALID_CONTENT });
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
     });
 
     it("preserves video embeds in quotes and replies", async () => {
@@ -439,7 +463,7 @@ describe("BlueskyPublisher", () => {
         .mockRejectedValueOnce({
           response: { data: { error: "use_dpop_nonce" }, headers: { "dpop-nonce": "video-nonce" } },
         })
-        .mockResolvedValueOnce({ data: { token: "service-token" } });
+        .mockResolvedValue({ data: { token: "service-token" } });
       await publisher.postContent(video);
       const headers = mockAxiosInstance.get.mock.calls[2][1].headers;
       expect(headers.Authorization).toBe("DPoP test_access_token");
@@ -460,7 +484,7 @@ describe("BlueskyPublisher", () => {
         .mockReset()
         .mockRejectedValueOnce({ response: { status: 401, data: { error: "ExpiredToken" } } })
         .mockResolvedValueOnce(session)
-        .mockResolvedValueOnce({ data: { token: "service-token" } });
+        .mockResolvedValue({ data: { token: "service-token" } });
       mockedAxios.post
         .mockReset()
         .mockResolvedValueOnce({ data: { access_token: "refreshed", refresh_token: "new-refresh", expires_in: 3600 } })

@@ -8,14 +8,24 @@
       "examples",
       "server",
       "scheduler",
-      "cli"
+      "cli",
+      "e2e"
     ]
   },
   "scripts": {
     "check": "yarn workspaces foreach --all --parallel run check",
     "test": "yarn workspace @simple-post/sdk test && yarn workspace @simple-post/scheduler test && yarn workspace @simple-post/cli test",
     "test:coverage": "jest --coverage --maxWorkers=1 --workerIdleMemoryLimit=2GB",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "e2e:check": "yarn workspace @simple-post/e2e check",
+    "e2e:test": "yarn workspace @simple-post/e2e test",
+    "e2e:reliability": "yarn workspace @simple-post/e2e reliability",
+    "e2e:plan": "yarn workspace @simple-post/e2e plan",
+    "e2e:live": "yarn workspace @simple-post/e2e live",
+    "e2e:auth": "yarn workspace @simple-post/e2e auth",
+    "e2e:setup": "yarn workspace @simple-post/e2e setup",
+    "e2e:fixtures": "yarn workspace @simple-post/e2e fixtures",
+    "e2e:report": "yarn workspace @simple-post/e2e report"
   },
   "resolutions": {
     "postcss": "^8.5.16"

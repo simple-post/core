@@ -243,6 +243,7 @@ export default function AdvancedAccountSettingsPage() {
               selectedAccountIds={[accountId]}
               options={accountOptions}
               onOptionsChange={setAccountOptions}
+              media={effectiveMedia}
             />
           </div>
 

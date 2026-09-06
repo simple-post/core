@@ -158,7 +158,7 @@ const blockedHostPatterns = [/^metadata\./i, /\.internal$/i, /^internal\./i];
  * that resolve to private addresses are caught at connection time by
  * ssrfSafeLookup below.
  */
-const validateUrlForSSRF = (urlString: string): void => {
+export const validateUrlForSSRF = (urlString: string): void => {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(urlString);
@@ -220,7 +220,7 @@ const ssrfSafeLookup: SsrfSafeLookup = (hostname, options, callback) => {
   });
 };
 
-const remoteRequestConfig = (): AxiosRequestConfig => ({
+export const remoteRequestConfig = (): AxiosRequestConfig => ({
   timeout: 15_000,
   maxRedirects: 5,
   lookup: ssrfSafeLookup,

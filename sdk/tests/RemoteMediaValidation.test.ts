@@ -1,16 +1,16 @@
-import { getRemoteMediaSize } from "../src/utils/media";
+import { inspectRemoteMedia } from "../src/utils/media-inspection";
 import { hydrateRemoteMediaSizesForAccounts } from "../src/utils/remote-media-validation";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "../src/validation";
 
 import type { MediaFile } from "../src/types/api";
 import type { Content } from "../src/types/post";
 
-jest.mock("../src/utils/media", () => ({
-  ...jest.requireActual("../src/utils/media"),
-  getRemoteMediaSize: jest.fn(),
+jest.mock("../src/utils/media-inspection", () => ({
+  ...jest.requireActual("../src/utils/media-inspection"),
+  inspectRemoteMedia: jest.fn(),
 }));
 
-const getRemoteMediaSizeMock = getRemoteMediaSize as jest.MockedFunction<typeof getRemoteMediaSize>;
+const inspectRemoteMediaMock = inspectRemoteMedia as jest.MockedFunction<typeof inspectRemoteMedia>;
 
 function mediaFile(type: "image" | "video", url?: string, size = 0): MediaFile {
   const extension = type === "image" ? "png" : "mp4";
@@ -36,13 +36,16 @@ function contentFrom(media: MediaFile[]): Content {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  getRemoteMediaSizeMock.mockResolvedValue(1024);
+  inspectRemoteMediaMock.mockImplementation(async (url) => ({
+    size: 1024,
+    contentType: url.endsWith(".mp4") ? "video/mp4" : "image/jpeg",
+  }));
 });
 
 it("replaces unknown and stale caller sizes with the measured value", async () => {
   const unknown = mediaFile("image", "https://cdn.example.com/unknown.png", 0);
   const stale = mediaFile("image", "https://cdn.example.com/stale.png", 100);
-  getRemoteMediaSizeMock.mockResolvedValue(5_506_166);
+  inspectRemoteMediaMock.mockResolvedValue({ size: 5_506_166, contentType: "image/jpeg" });
 
   await hydrateRemoteMediaSizesForAccounts({
     media: [unknown, stale],
@@ -55,7 +58,7 @@ it("replaces unknown and stale caller sizes with the measured value", async () =
 
 it("applies X's separate animated GIF limit after measuring the URL", async () => {
   const media = [mediaFile("image", "https://cdn.example.com/animation.gif?version=1")];
-  getRemoteMediaSizeMock.mockResolvedValue(14 * 1024 * 1024);
+  inspectRemoteMediaMock.mockResolvedValue({ size: 14 * 1024 * 1024, contentType: "image/gif" });
 
   await hydrateRemoteMediaSizesForAccounts({ media, accounts: [{ id: "x-account", platform: "x" }] });
   const validation = validateContentForPlatform("x", contentFrom(media));
@@ -86,7 +89,10 @@ it.each([
   const limit = getValidationRulesForPlatform(platform)[type]?.maxSizeBytes;
   expect(limit).toBeDefined();
   const media = [mediaFile(type)];
-  getRemoteMediaSizeMock.mockResolvedValue(limit! + 1);
+  inspectRemoteMediaMock.mockResolvedValue({
+    size: limit! + 1,
+    contentType: type === "image" ? "image/jpeg" : "video/mp4",
+  });
 
   await hydrateRemoteMediaSizesForAccounts({
     media,
@@ -111,7 +117,7 @@ it("deduplicates a shared URL across accounts", async () => {
     ],
   });
 
-  expect(getRemoteMediaSizeMock).toHaveBeenCalledTimes(1);
+  expect(inspectRemoteMediaMock).toHaveBeenCalledTimes(1);
 });
 
 it("measures account override and thread media", async () => {
@@ -129,13 +135,13 @@ it("measures account override and thread media", async () => {
     },
   });
 
-  expect(getRemoteMediaSizeMock).toHaveBeenCalledTimes(2);
+  expect(inspectRemoteMediaMock).toHaveBeenCalledTimes(2);
   expect(overrideMedia.size).toBe(1024);
   expect(threadMedia.size).toBe(1024);
 });
 
 it("returns structured account errors when a remote size cannot be measured", async () => {
-  getRemoteMediaSizeMock.mockRejectedValue(new Error("origin unavailable"));
+  inspectRemoteMediaMock.mockRejectedValue(new Error("origin unavailable"));
 
   const result = await hydrateRemoteMediaSizesForAccounts({
     media: [mediaFile("image")],
@@ -145,7 +151,7 @@ it("returns structured account errors when a remote size cannot be measured", as
   expect(result).toContainEqual(
     expect.objectContaining({
       platform: "x",
-      code: "media_size_unavailable",
+      code: "media_unavailable",
       field: "text.media[0]",
       meta: { accountId: "x-account" },
     }),
@@ -158,9 +164,10 @@ it.each([
 ] as const)("validates a YouTube %s", async (_label, optionThumbnailUrl) => {
   const video = mediaFile("video");
   video.thumbnailUrl = "https://cdn.example.com/media-thumbnail.png";
-  getRemoteMediaSizeMock.mockImplementation(async (url) =>
-    url.includes("thumbnail") ? 2 * 1024 * 1024 + 1 : 10 * 1024,
-  );
+  inspectRemoteMediaMock.mockImplementation(async (url) => ({
+    size: url.includes("thumbnail") ? 2 * 1024 * 1024 + 1 : 10 * 1024,
+    contentType: url.includes("thumbnail") ? "image/jpeg" : "video/mp4",
+  }));
 
   const result = await hydrateRemoteMediaSizesForAccounts({
     media: [video],
@@ -177,17 +184,63 @@ it.each([
       field: optionThumbnailUrl ? "accountOptions.youtube-account.thumbnailUrl" : "text.media[0].thumbnailUrl",
     }),
   );
-  if (optionThumbnailUrl) expect(getRemoteMediaSizeMock).not.toHaveBeenCalledWith(video.thumbnailUrl);
+  if (optionThumbnailUrl) expect(inspectRemoteMediaMock).not.toHaveBeenCalledWith(video.thumbnailUrl);
 });
 
 it.each([
   ["forem", "image"],
   ["linkedin", "image"],
-] as const)("skips %s %s media because the platform has no size rule", async (platform, type) => {
+] as const)("inspects %s %s media even without a size rule", async (platform, type) => {
   await hydrateRemoteMediaSizesForAccounts({
     media: [mediaFile(type)],
     accounts: [{ id: `${platform}-account`, platform }],
   });
 
-  expect(getRemoteMediaSizeMock).not.toHaveBeenCalled();
+  expect(inspectRemoteMediaMock).toHaveBeenCalledTimes(1);
+});
+
+it("validates actual image format per account even for an extensionless URL", async () => {
+  inspectRemoteMediaMock.mockResolvedValue({ size: 1000, contentType: "image/png" });
+  const failures = await hydrateRemoteMediaSizesForAccounts({
+    media: [mediaFile("image", "https://example.com/download?id=1")],
+    accounts: [
+      { id: "ig", platform: "instagram" },
+      { id: "x", platform: "x" },
+    ],
+  });
+  expect(failures).toEqual([expect.objectContaining({ code: "image_format_unsupported", meta: { accountId: "ig" } })]);
+  expect(inspectRemoteMediaMock).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  "x",
+  "facebook",
+  "instagram",
+  "telegram",
+  "tiktok",
+  "youtube",
+  "bluesky",
+  "threads",
+  "linkedin",
+  "pinterest",
+  "forem",
+])("rejects unavailable images for %s", async (platform) => {
+  inspectRemoteMediaMock.mockRejectedValue(new Error("login page"));
+  const failures = await hydrateRemoteMediaSizesForAccounts({
+    media: [mediaFile("image")],
+    accounts: [{ id: "account", platform }],
+  });
+  expect(failures).toContainEqual(
+    expect.objectContaining({ code: "media_unavailable", meta: { accountId: "account" } }),
+  );
+});
+
+it("reports bad thread images with their account and segment", async () => {
+  inspectRemoteMediaMock.mockRejectedValue(new Error("expired"));
+  const failures = await hydrateRemoteMediaSizesForAccounts({
+    media: [],
+    accounts: [{ id: "x", platform: "x" }],
+    thread: [{ message: "reply", media: [mediaFile("image")] }],
+  });
+  expect(failures).toEqual([expect.objectContaining({ field: "thread[0].media[0]", meta: { accountId: "x" } })]);
 });

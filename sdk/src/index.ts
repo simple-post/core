@@ -2,6 +2,7 @@ import { getPublisher } from "./publishers";
 import { PostError, PostErrorType } from "./types";
 import { getCredentialsFromEnv, mergeOptions } from "./utils/credentials";
 import { MediaResolver } from "./utils/media-resolver";
+import { validatePostMedia } from "./utils/post-media-validation";
 
 import type { PostResult, QuoteResult, RepostResult } from "./types";
 import type { Content, Platform, Post, Quote, Repost } from "./types/post";
@@ -87,11 +88,21 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
   const results = new Map<Platform, PostResult>();
   const envCredentials = getCredentialsFromEnv();
   const mergedOptions = mergeOptions(envCredentials, post.options);
+  const failures = await validatePostMedia(post);
 
   for (const platform of post.platforms) {
     results.set(
       platform,
-      await runForPlatform(() => getPublisher(platform, mergedOptions).post(post.content, mergedOptions)),
+      failures.some((failure) => failure.platform === platform)
+        ? {
+            error: PostErrorType.INVALID_CONTENT,
+            message: failures
+              .filter((failure) => failure.platform === platform)
+              .map((failure) => failure.message)
+              .join(" "),
+            details: failures.filter((failure) => failure.platform === platform),
+          }
+        : await runForPlatform(() => getPublisher(platform, mergedOptions).post(post.content, mergedOptions)),
     );
   }
 
@@ -121,17 +132,27 @@ export async function quote(quoteRequest: Quote): Promise<Map<Platform, QuoteRes
   const results = new Map<Platform, QuoteResult>();
   const envCredentials = getCredentialsFromEnv();
   const mergedOptions = mergeOptions(envCredentials, quoteRequest.options);
+  const failures = await validatePostMedia(quoteRequest);
 
   for (const platform of quoteRequest.platforms) {
     results.set(
       platform,
-      await runForPlatform(() => {
-        const publisher = getPublisher(platform, mergedOptions);
-        const target = quoteRequest.targets?.[platform] ?? quoteRequest.target;
-        return target
-          ? publisher.quote(quoteRequest.content, target, mergedOptions)
-          : publisher.post(quoteRequest.content, mergedOptions);
-      }),
+      failures.some((failure) => failure.platform === platform)
+        ? {
+            error: PostErrorType.INVALID_CONTENT,
+            message: failures
+              .filter((failure) => failure.platform === platform)
+              .map((failure) => failure.message)
+              .join(" "),
+            details: failures.filter((failure) => failure.platform === platform),
+          }
+        : await runForPlatform(() => {
+            const publisher = getPublisher(platform, mergedOptions);
+            const target = quoteRequest.targets?.[platform] ?? quoteRequest.target;
+            return target
+              ? publisher.quote(quoteRequest.content, target, mergedOptions)
+              : publisher.post(quoteRequest.content, mergedOptions);
+          }),
     );
   }
 
@@ -286,3 +307,5 @@ export {
   PinterestOptionsSchema,
   ForemOptionsSchema,
 } from "./types/post";
+
+export { validatePostMedia } from "./utils/post-media-validation";

@@ -250,7 +250,7 @@ export class InstagramPublisher extends Publisher {
       this.logger.error(error instanceof Error ? error : String(error));
       const apiMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
-      throw new PostError(PostErrorType.API_ERROR, `Failed to create media object: ${apiMessage}`, err);
+      throw new PostError(PostErrorType.PUBLISH_REJECTED, `Failed to create media object: ${apiMessage}`, err);
     }
   }
 

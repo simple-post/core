@@ -22,7 +22,7 @@ interface PinterestMediaResponse {
 }
 
 const MEDIA_POLL_INTERVAL = 2000;
-const MEDIA_POLL_MAX_ATTEMPTS = 30;
+const MEDIA_POLL_MAX_ATTEMPTS = 150;
 
 export class PinterestPublisher extends Publisher {
   static readonly mediaRequirement = "either" as const;
@@ -110,16 +110,21 @@ export class PinterestPublisher extends Publisher {
       );
     }
 
+    let lastStatus = "unknown";
     for (let attempt = 0; attempt < MEDIA_POLL_MAX_ATTEMPTS; attempt += 1) {
       const statusResponse = await this.client.get(`/media/${media_id}`);
       const status = String(statusResponse.data?.status ?? "").toLowerCase();
+      lastStatus = status || "unknown";
       if (status === "succeeded") return media_id;
       if (["failed", "error", "rejected"].includes(status))
         throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} failed processing.`);
       await new Promise((resolve) => setTimeout(resolve, MEDIA_POLL_INTERVAL));
     }
 
-    throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} processing timed out.`);
+    throw new PostError(
+      PostErrorType.API_ERROR,
+      `Pinterest video media ${media_id} processing timed out (last status: ${lastStatus}). No Pin was created.`,
+    );
   }
 
   static validate(content: Content): ValidationResult {

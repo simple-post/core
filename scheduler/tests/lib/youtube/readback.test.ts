@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
 import { refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
+import { prisma } from "@/lib/prisma";
 import { getYouTubeLibrary, getYouTubeVideo } from "@/lib/youtube/readback";
 
 jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findFirst: jest.fn() } } }));

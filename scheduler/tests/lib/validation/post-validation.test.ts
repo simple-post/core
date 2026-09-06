@@ -43,6 +43,37 @@ function image(size: number, id = "image"): MediaFile {
 }
 
 describe("post validation", () => {
+  it("requires playlist write permission only when a YouTube playlist is selected", () => {
+    const account = {
+      ...blueskyAccount,
+      platform: "youtube",
+      scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+    };
+    const params = {
+      message: "Video title",
+      media: [
+        {
+          id: "video",
+          url: "https://example.com/video.mp4",
+          type: "video" as const,
+          filename: "video.mp4",
+          size: 1024,
+        },
+      ],
+      accounts: [account],
+    };
+    expect(validatePostForResolvedAccounts(params).summary.isValid).toBe(true);
+    const withPlaylist = { ...params, accountOptions: { [account.id]: { playlistId: "PL-test" } } };
+    expect(validatePostForResolvedAccounts(withPlaylist).summary.errors).toContainEqual(
+      expect.objectContaining({ code: "youtube_playlist_permission_required" }),
+    );
+    expect(
+      validatePostForResolvedAccounts({
+        ...withPlaylist,
+        accounts: [{ ...account, scope: account.scope + " https://www.googleapis.com/auth/youtube.force-ssl" }],
+      }).summary.isValid,
+    ).toBe(true);
+  });
   it("requires a board for each Pinterest target before dispatch", () => {
     const accounts = [
       { ...blueskyAccount, id: "pin-1", platform: "pinterest" },

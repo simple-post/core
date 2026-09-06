@@ -9,15 +9,15 @@ select **+** to install it, then start a new chat.
 
 ## What You Can Build With It
 
-| Interface       | Best for                                                     | Docs                                                 |
-| --------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
-| TypeScript SDK  | Apps and agents that can call TypeScript directly            | [docs/typescript-sdk](docs/typescript-sdk/README.md) |
-| HTTP API server | Non-TypeScript services, microservices, backend workers      | [docs/http-server](docs/http-server/README.md)       |
-| Scheduler app   | Human writing, previewing, posting, and scheduling           | [docs/scheduler-app](docs/scheduler-app/README.md)   |
-| CLI             | Terminal workflows, scripts, CI jobs, local coding agents    | [docs/cli](docs/cli/README.md)                       |
-| MCP server      | ChatGPT, Claude, Cursor, and other MCP-compatible AI clients | [docs/mcp-server](docs/mcp-server/README.md)         |
+| Interface       | Best for                                                     | Docs                                                                           |
+| --------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| TypeScript SDK  | Apps and agents that can call TypeScript directly            | [docs/typescript-sdk](https://docs.simplepost.social/sdk)                      |
+| HTTP API server | Non-TypeScript services, microservices, backend workers      | [docs/http-server](https://docs.simplepost.social/api#self-hosted-rest-server) |
+| Scheduler app   | Human writing, previewing, posting, and scheduling           | [docs/scheduler-app](https://docs.simplepost.social/scheduler)                 |
+| CLI             | Terminal workflows, scripts, CI jobs, local coding agents    | [docs/cli](https://docs.simplepost.social/cli)                                 |
+| MCP server      | ChatGPT, Claude, Cursor, and other MCP-compatible AI clients | [docs/mcp-server](https://docs.simplepost.social/mcp)                          |
 
-All five paths are backed by `@simple-post/sdk`, so they share the same platform model and posting behavior.
+All five paths build on `@simple-post/sdk`, with different payloads, authentication, and workflow capabilities. Hosted users share connected accounts across the web app, MCP, CLI, and API. Direct SDK/local CLI use your own credentials. [Compare interfaces](https://docs.simplepost.social/) and [published versus hosted behavior](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features).
 
 ## Quick SDK Example
 
@@ -25,19 +25,26 @@ All five paths are backed by `@simple-post/sdk`, so they share the same platform
 npm install @simple-post/sdk
 ```
 
-```typescript
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (for example `@mychannel`), then give the bot permission to post in that chat. The chat ID is passed explicitly. [Telegram setup](https://docs.simplepost.social/telegram).
+
+```typescript title="telegram-quickstart.ts"
 import { post } from "@simple-post/sdk";
 
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+const chatId = process.env.TELEGRAM_CHAT_ID;
+if (!botToken || !chatId) throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID");
+
 const results = await post({
-  content: {
-    text: "Hello from SimplePost",
-    media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }],
-  },
-  platforms: ["x", "telegram", "linkedin"],
+  content: { text: "Hello from SimplePost" },
+  platforms: ["telegram"],
+  options: { telegram: { chatId, credentials: { botToken } } },
 });
+
+const result = results.get("telegram");
+console.log(result);
 ```
 
-Set up platform credentials with the platform guides in the public [docs directory](https://github.com/simple-post/core/tree/main/docs), or use the hosted Scheduler app / CLI account connection flows when you do not want to manage raw tokens directly. The repository is open source and can be run today.
+Inspect every entry in the returned `Map` for success or failure. This quickstart is verified against published SDK 1.3.1.
 
 ## Why SimplePost Exists
 
@@ -53,19 +60,19 @@ The main use cases are:
 
 ## Supported Platforms
 
-| Platform  | SDK publisher | Docs                                     |
-| --------- | ------------- | ---------------------------------------- |
-| X         | Yes           | [X](docs/platforms/X.md)                 |
-| Telegram  | Yes           | [Telegram](docs/platforms/Telegram.md)   |
-| Instagram | Yes           | [Instagram](docs/platforms/Instagram.md) |
-| Facebook  | Yes           | [Facebook](docs/platforms/Facebook.md)   |
-| Threads   | Yes           | [Threads](docs/platforms/Threads.md)     |
-| TikTok    | Yes           | [TikTok](docs/platforms/TikTok.md)       |
-| YouTube   | Yes           | [YouTube](docs/platforms/YouTube.md)     |
-| Pinterest | Yes           | [Pinterest](docs/platforms/Pinterest.md) |
-| LinkedIn  | Yes           | [LinkedIn](docs/platforms/LinkedIn.md)   |
-| Bluesky   | Yes           | [Bluesky](docs/platforms/Bluesky.md)     |
-| DEV/Forem | Yes           | [DEV/Forem](docs/platforms/Forem.md)     |
+| Platform  | SDK publisher | Docs                                                  |
+| --------- | ------------- | ----------------------------------------------------- |
+| X         | Yes           | [X](https://docs.simplepost.social/x)                 |
+| Telegram  | Yes           | [Telegram](https://docs.simplepost.social/telegram)   |
+| Instagram | Yes           | [Instagram](https://docs.simplepost.social/instagram) |
+| Facebook  | Yes           | [Facebook](https://docs.simplepost.social/facebook)   |
+| Threads   | Yes           | [Threads](https://docs.simplepost.social/threads)     |
+| TikTok    | Yes           | [TikTok](https://docs.simplepost.social/tiktok)       |
+| YouTube   | Yes           | [YouTube](https://docs.simplepost.social/youtube)     |
+| Pinterest | Yes           | [Pinterest](https://docs.simplepost.social/pinterest) |
+| LinkedIn  | Yes           | [LinkedIn](https://docs.simplepost.social/linkedin)   |
+| Bluesky   | Yes           | [Bluesky](https://docs.simplepost.social/bluesky)     |
+| DEV/Forem | Yes           | [DEV/Forem](https://docs.simplepost.social/forem)     |
 
 ## Repository Layout
 
@@ -76,11 +83,11 @@ The main use cases are:
 | [`scheduler/`](scheduler/) | Web scheduler app, account connections, API routes, and MCP server |
 | [`cli/`](cli/)             | Command line posting tool                                          |
 | [`examples/`](examples/)   | SDK examples by platform                                           |
-| [`docs/`](docs/)           | Product and integration documentation                              |
+| [`docs/`](docs/)           | Repository setup and release documentation                         |
 
 ## Getting Started
 
-Start with [docs/README.md](docs/README.md). It routes you to the interface you need and explains the common posting model shared by the SDK, server, app, CLI, and MCP server.
+For hosted use, follow [Get started](https://docs.simplepost.social/getting-started). For development and self-hosting, start with [the repository documentation index](docs/README.md).
 
 Release and compatibility references:
 

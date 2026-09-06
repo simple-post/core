@@ -1,270 +1,55 @@
 # TypeScript SDK
 
-The simplest way to use SimplePost - integrate directly into your TypeScript project with a unified interface for all social platforms.
+The canonical [SDK guide](https://docs.simplepost.social/sdk) covers installation, credentials, media, strict mode, and token rotation. Read [release scope](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features) before using main-branch capabilities with a published npm package.
 
-Use the SDK when you control the TypeScript runtime and want the least abstraction between your app or agent and the platform publishers. The [HTTP API server](../http-server/README.md), [Scheduler app](../scheduler-app/README.md), [CLI](../cli/README.md), and [MCP server](../mcp-server/README.md) all build on this package.
-
-## Quick Start
-
-**Already have credentials?** Jump straight to posting:
-
-```typescript
-import { post } from "@simple-post/sdk";
-
-// Single platform
-await post({
-  content: { text: "Hello world!" },
-  platforms: ["x"],
-});
-
-// Multiple platforms
-await post({
-  content: { text: "Cross-platform posting!" },
-  platforms: ["x", "facebook"],
-});
-
-// With media as files
-await post({
-  content: {
-    text: "Check out this video!",
-    media: [{ type: "video", path: "./video.mp4" }],
-  },
-  platforms: ["x", "youtube"],
-});
-
-// With media as URLs
-await post({
-  content: {
-    text: "Check out this video!",
-    media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }],
-  },
-  platforms: ["x", "youtube"],
-});
-```
-
-**Need credentials?** Use the public [platform guides](../platforms/), or run the open-source repository with your own platform apps and credentials.
-
-## Installation
-
-The package is published on the public npm registry:
+## Quick start
 
 ```bash
 npm install @simple-post/sdk
-# or
-yarn add @simple-post/sdk
-# or
-pnpm add @simple-post/sdk
 ```
 
-## Usage
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (for example `@mychannel`), then give the bot permission to post in that chat. The chat ID is passed explicitly. [Telegram setup](https://docs.simplepost.social/telegram).
 
-### Credentials Setup
-
-Set up credentials using environment variables. The public [platform guides](../platforms/) explain what each platform requires.
-
-### Basic Posting
-
-The `post()` function takes content and target platforms:
-
-#### Simple post
-
-Posting text is straightforward:
-
-```typescript
+```typescript title="telegram-quickstart.ts"
 import { post } from "@simple-post/sdk";
 
-post({
-  content: {
-    text: "Hey, this is a simple post",
-  },
-  platforms: ["x", "facebook"],
-});
-```
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+const chatId = process.env.TELEGRAM_CHAT_ID;
+if (!botToken || !chatId) throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID");
 
-The function returns a `Map` of results for each platform, including the post ID and error message if posting failed.
-
-```typescript
-Map(2) {
-  'x' => { id: '1947334111111111111', error: 'NO_ERROR' },
-  'facebook' => { id: '1234567890', error: 'NO_ERROR' }
-}
-```
-
-When errors occur, the result contains the error message and detailed information.
-
-```typescript
-Map(1) {
-  'x' => {
-    error: 'API_ERROR',
-    message: 'Failed to post content: Error: Request failed with code 403',
-    details: {
-      detail: 'You are not allowed to create a Tweet with duplicate content.',
-      type: 'about:blank',
-      title: 'Forbidden',
-      status: 403
-    }
-  }
-}
-```
-
-#### Media Posts
-
-Media items accept either a local `path` or a public `url`. The SDK downloads or uploads as needed.
-
-Post images and videos by adding a `media` array:
-
-```typescript
-// Single video
 const results = await post({
-  content: {
-    text: "Check out my awesome video!",
-    media: [{ type: "video", path: "./video.mp4", title: "My Video" }],
-  },
-  platforms: ["x", "youtube", "instagram"],
-});
-
-// Single video with URL
-const results = await post({
-  content: {
-    text: "Check out my awesome video!",
-    media: [{ type: "video", url: "https://cdn.example.com/video.mp4", title: "My Video" }],
-  },
-  platforms: ["x", "youtube", "instagram"],
-});
-
-// Multiple images (carousel)
-const results = await post({
-  content: {
-    text: "Here are some great photos!",
-    media: [
-      { type: "image", path: "./image1.jpg" },
-      { type: "image", path: "./image2.jpg" },
-      { type: "image", path: "./image3.jpg" },
-    ],
-  },
-  platforms: ["x", "instagram"],
-});
-```
-
-#### Replies
-
-Reply to an X post:
-
-```typescript
-await post({
-  content: { text: "Great point!" },
-  platforms: ["x"],
-  options: {
-    x: { replyToId: "1234567890" },
-  },
-});
-```
-
-#### Threads
-
-Create a thread on X:
-
-```typescript
-const threadPosts = [
-  "This is a thread about TypeScript! 🧵 1/3",
-  "TypeScript gives you better developer experience 2/3",
-  "And helps catch bugs early! 3/3",
-];
-
-let previousId: string | undefined;
-
-for (const text of threadPosts) {
-  const results = await post({
-    content: { text },
-    platforms: ["x"],
-    options: {
-      x: previousId ? { replyToId: previousId } : undefined,
-    },
-  });
-
-  previousId = results.get("x")?.id;
-}
-```
-
-#### Channels and DMs
-
-Specify which chat to post to:
-
-```typescript
-await post({
-  content: { text: "Hello Telegram!" },
+  content: { text: "Hello from SimplePost" },
   platforms: ["telegram"],
-  options: {
-    telegram: { chatId: "1234567890" },
-  },
+  options: { telegram: { chatId, credentials: { botToken } } },
 });
+
+const result = results.get("telegram");
+console.log(result);
 ```
 
-## Configuration Options
+Inspect every result in the returned `Map`. Multi-platform publishing can partially fail.
 
-### Strict Mode
+## Develop from source
 
-By default, SimplePost adapts content to platform limits (e.g., X allows 4 images, Instagram allows 10). Enable strict mode to fail instead of adapting:
+From the repository root (Node.js 20+ and Yarn 4.9.2):
 
-```typescript
-await post({
-  content: { text: "Cross-platform post" },
-  platforms: ["x", "instagram"],
-  options: {
-    common: { strictMode: true },
-  },
-});
+```bash
+yarn install --immutable
+yarn workspace @simple-post/sdk build
+yarn workspace @simple-post/sdk check
+yarn workspace @simple-post/sdk test
 ```
 
-### Logging
+These commands use the checkout's source. The public docs separately test the pinned npm release.
 
-Control what gets logged to the console:
+## Platform specifics
 
-```typescript
-await post({
-  content: { text: "Debug this post" },
-  platforms: ["x"],
-  options: {
-    common: { logLevel: "info" }, // "none" | "error" | "warn" | "info"
-  },
-});
-```
-
-**Log levels:**
-
-- `none` - No SDK logs
-- `error` - Only errors (default)
-- `warn` - Errors and warnings
-- `info` - Everything
-
-## Platform Specifics
-
-For detailed platform-specific documentation, check out the platform guides:
-
-- [X](../platforms/X.md)
-- [Telegram](../platforms/Telegram.md)
-- [Instagram](../platforms/Instagram.md)
-- [Facebook](../platforms/Facebook.md)
-- [Threads](../platforms/Threads.md)
-- [TikTok](../platforms/TikTok.md)
-- [YouTube](../platforms/YouTube.md)
-- [Pinterest](../platforms/Pinterest.md)
-- [LinkedIn](../platforms/LinkedIn.md)
-- [Bluesky](../platforms/Bluesky.md)
+See [provider credentials](https://docs.simplepost.social/platforms), [media storage](https://docs.simplepost.social/media-storage), and [token rotation](https://docs.simplepost.social/credential-strategies#token-rotation). The SDK does not persist rotated OAuth credentials; your application must save returned refresh data.
 
 ## Examples
 
-For more examples, check out the [`/examples`](../../examples) directory.
+The [examples workspace](../../examples/) contains platform-specific examples. Set the relevant credentials before running one; posting examples create real social posts.
 
-## What's Next?
+## Releases
 
-- **Need help with credentials?** → [platform guides](../platforms/)
-- **Want an HTTP API?** → [HTTP API server docs](../http-server/README.md)
-- **Need a web UI?** → [Scheduler app docs](../scheduler-app/README.md)
-- **Need terminal posting?** → [CLI docs](../cli/README.md)
-- **Need AI assistant posting?** → [MCP server docs](../mcp-server/README.md)
-- **Found a bug?** → [Open an issue](https://github.com/simple-post/core/issues)
-
-## TikTok photos and music
-
-TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. These options are shared across every interface. See [TikTok requirements and examples](../platforms/TikTok.md).
+See the [SDK compatibility policy](../release/SDK_COMPATIBILITY.md), [migration notes](../release/MIGRATIONS.md), and [changelog](../../CHANGELOG.md).

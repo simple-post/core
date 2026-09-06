@@ -111,17 +111,20 @@ export function AccountSelector({
     {},
   );
 
-  const renderAdvancedAction = (accountId: string, isSelected: boolean) => {
+  const renderAdvancedAction = (account: ConnectedAccount, isSelected: boolean) => {
     if (!showAdvancedButton || !getAdvancedHref || !isSelected) {
       return null;
     }
 
     return (
-      <Link href={getAdvancedHref(accountId)} className="shrink-0" onClick={(event) => event.stopPropagation()}>
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+      <Button asChild variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+        <Link
+          href={getAdvancedHref(account.id)}
+          aria-label={`Settings for ${getPlatformById(account.platform)?.name}: ${getAccountDisplayName(account)}`}
+          onClick={(event) => event.stopPropagation()}>
           <Settings className="h-4 w-4" />
-        </Button>
-      </Link>
+        </Link>
+      </Button>
     );
   };
 
@@ -159,6 +162,8 @@ export function AccountSelector({
                 <button
                   type="button"
                   data-testid={`account-toggle-${account.platform}-${account.id}`}
+                  aria-label={`${platformConfig.name}: ${getAccountDisplayName(account)}`}
+                  aria-pressed={isSelected}
                   onClick={() => handleAccountToggle(account.id)}
                   disabled={isDisabled}
                   className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
@@ -177,14 +182,14 @@ export function AccountSelector({
                   </div>
                 </button>
                 {showAdvancedButton && isSelected && getAdvancedHref ? (
-                  <Link
-                    href={getAdvancedHref(account.id)}
-                    className="absolute top-1 right-1 z-10"
-                    onClick={(event) => event.stopPropagation()}>
-                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5">
+                  <Button asChild variant="ghost" size="icon" className="absolute top-1 right-1 z-10 h-5 w-5">
+                    <Link
+                      href={getAdvancedHref(account.id)}
+                      aria-label={`Settings for ${platformConfig.name}: ${getAccountDisplayName(account)}`}
+                      onClick={(event) => event.stopPropagation()}>
                       <Settings className="h-3 w-3" />
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 ) : null}
               </div>
             );
@@ -259,6 +264,8 @@ export function AccountSelector({
                         <button
                           type="button"
                           data-testid={`account-toggle-${account.platform}-${account.id}`}
+                          aria-label={`${platformConfig.name}: ${getAccountDisplayName(account)}`}
+                          aria-pressed={isSelected}
                           onClick={() => handleAccountToggle(account.id)}
                           disabled={isDisabled}
                           className="absolute inset-0 w-full h-full p-3 text-center disabled:cursor-not-allowed">
@@ -277,14 +284,14 @@ export function AccountSelector({
                           </div>
                         </button>
                         {showAdvancedButton && isSelected && getAdvancedHref ? (
-                          <Link
-                            href={getAdvancedHref(account.id)}
-                            className="absolute top-2 right-2 z-10"
-                            onClick={(event) => event.stopPropagation()}>
-                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7">
+                          <Button asChild variant="ghost" size="icon" className="absolute top-2 right-2 z-10 h-7 w-7">
+                            <Link
+                              href={getAdvancedHref(account.id)}
+                              aria-label={`Settings for ${platformConfig.name}: ${getAccountDisplayName(account)}`}
+                              onClick={(event) => event.stopPropagation()}>
                               <Settings className="h-4 w-4" />
-                            </Button>
-                          </Link>
+                            </Link>
+                          </Button>
                         ) : null}
                       </div>
                     );
@@ -308,6 +315,8 @@ export function AccountSelector({
                         <button
                           type="button"
                           data-testid={`account-toggle-${account.platform}-${account.id}`}
+                          aria-label={`${platformConfig.name}: ${getAccountDisplayName(account)}`}
+                          aria-pressed={isSelected}
                           onClick={() => handleAccountToggle(account.id)}
                           disabled={isDisabled}
                           className="flex-1 text-left disabled:cursor-not-allowed">
@@ -331,7 +340,7 @@ export function AccountSelector({
                             {isSelected && <Check className="h-4 w-4" />}
                           </div>
                         </button>
-                        {renderAdvancedAction(account.id, isSelected)}
+                        {renderAdvancedAction(account, isSelected)}
                       </div>
                     );
                   })}

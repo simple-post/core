@@ -6,13 +6,14 @@ import { deleteFromStorage, generateFileKey, S3MediaUploader } from "@simple-pos
 import { ALLOWED_MEDIA_TYPES, mediaHeaderMatchesContentType, normalizeContentType } from "@simple-post/sdk/media-types";
 import Busboy from "busboy";
 
+import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { requireAuth } from "@/lib/middleware/auth";
 import { hasAllowedOrigin } from "@/lib/middleware/origin";
 import { BadRequestError, ForbiddenError, handleApiError } from "@/lib/utils/errors";
 
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024;
+const MAX_FILE_SIZE = API_UPLOAD_MAX_BYTES;
 const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
 interface StreamedUpload {
@@ -158,7 +159,7 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
 
           const url = await uploadPromise;
           if (fileTooLarge) {
-            throw new BadRequestError(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+            throw new BadRequestError(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB`);
           }
           if (failure) throw failure;
 

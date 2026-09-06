@@ -83,6 +83,7 @@ export function Navbar({ actions }: NavbarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "inline-flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors sm:px-3",
@@ -101,7 +102,7 @@ export function Navbar({ actions }: NavbarProps) {
           {actions}
           {showCreateCta && (
             <Button asChild size="sm" className="gap-2">
-              <Link href="/schedule">
+              <Link href="/schedule" aria-label="Create post">
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Create post</span>
               </Link>

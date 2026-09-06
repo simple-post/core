@@ -52,6 +52,9 @@ jobs:
           name: documentation-references
           path: /tmp/simplepost-docs
 
+      - name: Check legacy documentation redirects
+        run: node --test workers/legacy-docs-redirect/redirect.test.mjs
+
       - name: Run checks
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"

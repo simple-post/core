@@ -3,11 +3,14 @@
 import type React from "react";
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 
+import Link from "next/link";
+
 import { normalizeContentType } from "@simple-post/sdk/media-types";
 import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { logClientError, logClientWarning } from "@/lib/logger/client";
+import { WEB_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { generateThumbnail } from "@/lib/utils/client-thumbnail";
 import type { MediaFile } from "@/types";
 
@@ -208,7 +211,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
     media,
     onMediaChange,
     maxFiles = 35,
-    maxFileSize = 50 * 1024 * 1024, // 50MB
+    maxFileSize = WEB_UPLOAD_MAX_BYTES,
     acceptedTypes = ["image/*", "video/*"],
     compact = false,
   },
@@ -222,7 +225,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
   const validateFile = useCallback(
     (file: File): string | null => {
       if (file.size > maxFileSize) {
-        return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))}MB.`;
+        return `${file.name} is too large. Maximum size is ${Math.round(maxFileSize / (1024 * 1024))} MiB.`;
       }
 
       const resolvedType = resolveContentType(file);
@@ -424,7 +427,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const sizes = ["Bytes", "KiB", "MiB", "GiB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
@@ -445,11 +448,13 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
       onDrop={handleDrop}
+      aria-label="Add media"
       role="button"
       tabIndex={0}
       aria-disabled={cannotAddMore}
       onKeyDown={handleKeyDown}>
       <input
+        aria-label="Upload images or videos"
         type="file"
         multiple
         accept={acceptedTypes.join(",")}
@@ -475,11 +480,13 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
       onDrop={handleDrop}
+      aria-label="Add media"
       role="button"
       tabIndex={0}
       aria-disabled={isUploading || totalFiles >= maxFiles}
       onKeyDown={handleKeyDown}>
       <input
+        aria-label="Upload images or videos"
         type="file"
         id="media-upload"
         multiple
@@ -499,7 +506,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
           {isUploading ? "Uploading..." : dragActive ? "Drop files here" : "Click to upload or drag and drop"}
         </p>
         <p className="text-xs text-muted-foreground">
-          Images and videos up to {Math.round(maxFileSize / (1024 * 1024))}MB each
+          Images and videos up to {Math.round(maxFileSize / (1024 * 1024))} MiB each
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           {totalFiles}/{maxFiles} files {isUploading ? "(uploading)" : "selected"}
@@ -518,10 +525,12 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
       onDrop={handleDrop}
+      aria-label="Add media"
       role="button"
       tabIndex={0}
       onKeyDown={handleKeyDown}>
       <input
+        aria-label="Upload images or videos"
         type="file"
         multiple
         accept={acceptedTypes.join(",")}
@@ -543,6 +552,17 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
     <div className="space-y-4">
       {/* Show upload area when no media and nothing uploading */}
       {media.length === 0 && uploading.length === 0 && (compact ? stripUploadArea : largeUploadArea)}
+
+      <p className="text-xs text-muted-foreground">
+        Up to {Math.round(maxFileSize / (1024 * 1024))} MiB per file. Platform limits also apply.{" "}
+        <Link
+          href="https://docs.simplepost.social/publishing#upload-limits"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2">
+          Upload limits
+        </Link>
+      </p>
 
       {/* Error Messages */}
       {errors.length > 0 && (
@@ -615,7 +635,8 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
                 type="button"
                 variant="destructive"
                 size="sm"
-                className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label={`Remove ${file.filename}`}
+                className="absolute top-2 right-2 h-6 w-6 p-0 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity"
                 onClick={() => removeMedia(file.id)}>
                 <X className="h-3 w-3" />
               </Button>

@@ -1,11 +1,12 @@
 import fs from "node:fs";
 
 import axios from "axios";
+import FormData from "form-data";
 
 import { PINTEREST_MAX_TITLE_LENGTH, PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
-import { getContentType, resolveMediaPath, resolveMediaUrl, TempFileManager } from "../../utils";
+import { resolveMediaPath, resolveMediaUrl, TempFileManager } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
 import { Publisher } from "../base";
 
@@ -17,7 +18,11 @@ import type { AxiosInstance } from "axios";
 interface PinterestMediaResponse {
   media_id: string;
   upload_url?: string;
+  upload_parameters?: Record<string, string>;
 }
+
+const MEDIA_POLL_INTERVAL = 2000;
+const MEDIA_POLL_MAX_ATTEMPTS = 30;
 
 export class PinterestPublisher extends Publisher {
   static readonly mediaRequirement = "either" as const;
@@ -85,11 +90,13 @@ export class PinterestPublisher extends Publisher {
     }
 
     try {
-      await axios.put(upload_url, fs.createReadStream(resolvedPath), {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(registerResponse.data.upload_parameters ?? {}))
+        formData.append(key, value);
+      formData.append("file", fs.createReadStream(resolvedPath));
+      await axios.post(upload_url, formData, {
         timeout: 600_000,
-        headers: {
-          "Content-Type": getContentType(resolvedPath),
-        },
+        headers: formData.getHeaders(),
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
       });
@@ -103,7 +110,16 @@ export class PinterestPublisher extends Publisher {
       );
     }
 
-    return media_id;
+    for (let attempt = 0; attempt < MEDIA_POLL_MAX_ATTEMPTS; attempt += 1) {
+      const statusResponse = await this.client.get(`/media/${media_id}`);
+      const status = String(statusResponse.data?.status ?? "").toLowerCase();
+      if (["succeeded", "success", "finished", "ready"].includes(status)) return media_id;
+      if (["failed", "error", "rejected"].includes(status))
+        throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} failed processing.`);
+      await new Promise((resolve) => setTimeout(resolve, MEDIA_POLL_INTERVAL));
+    }
+
+    throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} processing timed out.`);
   }
 
   static validate(content: Content): ValidationResult {
@@ -146,6 +162,11 @@ export class PinterestPublisher extends Publisher {
     this.validateOptions(options);
 
     const media = content.media?.[0];
+    if (media?.type === "video" && !media.thumbnailUrl)
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "Pinterest video posts require media.thumbnailUrl for the video cover image.",
+      );
     const tempFileManager = new TempFileManager();
 
     try {
@@ -158,6 +179,7 @@ export class PinterestPublisher extends Publisher {
         const mediaId = await this.createVideoMedia(resolvedPath);
         mediaSource = {
           source_type: "video_id",
+          ...(media.thumbnailUrl ? { cover_image_url: media.thumbnailUrl } : {}),
           media_id: mediaId,
         };
       } else if (media) {

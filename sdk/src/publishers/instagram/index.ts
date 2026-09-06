@@ -219,7 +219,9 @@ export class InstagramPublisher extends Publisher {
 
   private async createMediaObject(media: Media, isCarousel: boolean, caption?: string): Promise<string> {
     // Get the Instagram media type
-    const mediaType = media.type === "video" ? "REELS" : undefined;
+    // Standalone videos are Reels, while a video inside a carousel is a
+    // carousel video child. Meta rejects a REELS child in a mixed carousel.
+    const mediaType = media.type === "video" ? (isCarousel ? "VIDEO" : "REELS") : undefined;
 
     // Resolve media to a public URL (uses URL directly or uploads to S3)
     const { url: mediaUrl, uploadedKey } = await resolveMediaUrl(media, (filePath, key) =>

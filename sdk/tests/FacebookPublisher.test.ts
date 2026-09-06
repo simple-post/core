@@ -174,6 +174,8 @@ describe("FacebookPublisher", () => {
 
       const result = await publisher.postContent(content, options);
 
+      const formData = mockedFormData.mock.results[0]?.value as { append: jest.Mock };
+      expect(formData.append).toHaveBeenCalledWith("description", "Check out this video!");
       expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/videos", expect.any(Object), {
         headers: {
           "Content-Type": "multipart/form-data",

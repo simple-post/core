@@ -14,7 +14,10 @@ import type { AxiosInstance } from "axios";
 
 const THREADS_API_VERSION = "v1.0";
 const PROCESSING_POLL_INTERVAL = 2000;
-const PROCESSING_MAX_ATTEMPTS = 12;
+// Video containers can take over a minute to finish processing. Keep polling
+// long enough for the provider to complete instead of turning a slow success
+// into an ambiguous publish outcome.
+const PROCESSING_MAX_ATTEMPTS = 60;
 const PROACTIVE_REFRESH_DAYS = 7;
 
 interface ThreadsAxiosErrorLike {

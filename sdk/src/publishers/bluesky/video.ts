@@ -101,7 +101,10 @@ export async function uploadBlueskyVideo(
           `Bluesky video processing failed: ${job.message || job.failureCode || job.error || job.state}`,
         );
       }
-      if (!job.jobId || job.state === "JOB_STATE_COMPLETED") {
+      // A duplicate upload can report COMPLETED without including its blob.
+      // Fetch the existing job to obtain it, using the same bounded polling as
+      // a new upload. Completion alone is not proof that the blob is unusable.
+      if (!job.jobId) {
         throw new PostError(PostErrorType.API_ERROR, "Bluesky video processing returned no video blob or usable job.");
       }
       const remaining = deadline - Date.now();

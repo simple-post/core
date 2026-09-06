@@ -664,7 +664,19 @@ export class BlueskyPublisher extends Publisher {
       if (video) {
         const { path: resolvedPath, cleanup } = await resolveMediaPath(video);
         tempFileManager.add(cleanup);
-        const blob = await uploadBlueskyVideo(resolvedPath, this.did, () => this.getVideoServiceToken());
+        const blob = await uploadBlueskyVideo(resolvedPath, this.did, () => this.getVideoServiceToken()).catch(
+          (error: unknown) => {
+            // This service only prepares a blob. createRecord has not been
+            // called, so even an upload timeout cannot have published a post.
+            if (error instanceof PostError && error.errorType === PostErrorType.API_ERROR) {
+              throw new PostError(PostErrorType.PUBLISH_REJECTED, error.message, {
+                stage: "video-processing",
+                cause: error.details,
+              });
+            }
+            throw error;
+          },
+        );
         mediaEmbed = {
           $type: "app.bsky.embed.video",
           video: blob,

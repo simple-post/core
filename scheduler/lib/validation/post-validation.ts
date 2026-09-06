@@ -74,24 +74,18 @@ function getTikTokPrivacyLevel(options: Record<string, unknown>): string | undef
 }
 
 function validateAccountOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): ValidationIssue[] {
-  if (mapPlatformName(account.platform) === "youtube" && accountOptions?.[account.id]?.playlistId && account.scope) {
-    const scopes = new Set(account.scope.split(/\s+/));
-    if (
-      !["youtube", "youtube.force-ssl", "youtubepartner"].some((scope) =>
-        scopes.has(`https://www.googleapis.com/auth/${scope}`),
-      )
-    ) {
-      return [
-        {
-          platform: "youtube",
-          severity: "error",
-          code: "youtube_playlist_permission_required",
-          message: "Reconnect this YouTube account to grant playlist access before adding a video to a playlist.",
-          field: "accountOptions.playlistId",
-          meta: { accountId: account.id },
-        },
-      ];
-    }
+  if (mapPlatformName(account.platform) === "youtube" && accountOptions?.[account.id]?.playlistId) {
+    return [
+      {
+        platform: "youtube",
+        severity: "error",
+        code: "youtube_playlist_unavailable",
+        message:
+          "YouTube playlist assignment is temporarily unavailable. Remove the playlist option and add the video to a playlist in YouTube Studio after publishing.",
+        field: "accountOptions.playlistId",
+        meta: { accountId: account.id },
+      },
+    ];
   }
   if (mapPlatformName(account.platform) === "pinterest") {
     const boardId = accountOptions?.[account.id]?.boardId;

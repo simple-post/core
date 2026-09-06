@@ -581,11 +581,6 @@ async function collectInteractivePlatformOptions(
         defaultValue: currentOptions?.youtube?.categoryId,
       })
     ).trim();
-    const playlistId = (
-      await prompt.text("Playlist ID (optional)", {
-        defaultValue: currentOptions?.youtube?.playlistId,
-      })
-    ).trim();
     const publishAt = (
       await prompt.text("Publish at timestamp (optional)", {
         defaultValue: currentOptions?.youtube?.publishAt,
@@ -612,7 +607,8 @@ async function collectInteractivePlatformOptions(
           }
         : {}),
       ...(categoryId ? { categoryId } : {}),
-      ...(playlistId ? { playlistId } : {}),
+      // Retain legacy input so publishing rejects it instead of silently ignoring it.
+      ...(currentOptions?.youtube?.playlistId ? { playlistId: currentOptions.youtube.playlistId } : {}),
       ...(publishAt ? { publishAt } : {}),
       ...(privacyStatus === "skip"
         ? {}

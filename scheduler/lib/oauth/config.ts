@@ -70,7 +70,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     scope:
-      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile",
     responseType: "code",
     userInfoUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
     requiresPkce: false,

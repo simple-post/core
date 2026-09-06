@@ -266,8 +266,9 @@
           "type": "option"
         },
         "youtube-playlist-id": {
-          "description": "YouTube playlist ID",
+          "description": "Temporarily unavailable; add videos to playlists in YouTube Studio after publishing",
           "helpGroup": "YouTube",
+          "hidden": true,
           "name": "youtube-playlist-id",
           "hasDynamicHelp": false,
           "multiple": false,

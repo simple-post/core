@@ -43,7 +43,7 @@ function image(size: number, id = "image"): MediaFile {
 }
 
 describe("post validation", () => {
-  it("requires playlist write permission only when a YouTube playlist is selected", () => {
+  it("rejects playlist assignment regardless of granted scopes while allowing ordinary uploads", () => {
     const account = {
       ...blueskyAccount,
       platform: "youtube",
@@ -65,14 +65,16 @@ describe("post validation", () => {
     expect(validatePostForResolvedAccounts(params).summary.isValid).toBe(true);
     const withPlaylist = { ...params, accountOptions: { [account.id]: { playlistId: "PL-test" } } };
     expect(validatePostForResolvedAccounts(withPlaylist).summary.errors).toContainEqual(
-      expect.objectContaining({ code: "youtube_playlist_permission_required" }),
+      expect.objectContaining({ code: "youtube_playlist_unavailable" }),
     );
-    expect(
-      validatePostForResolvedAccounts({
+    for (const scope of [null, "", account.scope + " https://www.googleapis.com/auth/youtube.force-ssl"]) {
+      const result = validatePostForResolvedAccounts({
         ...withPlaylist,
-        accounts: [{ ...account, scope: account.scope + " https://www.googleapis.com/auth/youtube.force-ssl" }],
-      }).summary.isValid,
-    ).toBe(true);
+        accounts: [{ ...account, scope }],
+      });
+      expect(result.summary.isValid).toBe(false);
+      expect(result.summary.errors).toContainEqual(expect.objectContaining({ code: "youtube_playlist_unavailable" }));
+    }
   });
   it("requires a board for each Pinterest target before dispatch", () => {
     const accounts = [

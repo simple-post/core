@@ -663,18 +663,22 @@ export function AccountOptionsComponent({
                   </Select>
                 </div>
 
-                <div>
-                  <Label htmlFor={`${account.id}-playlistId`} className="text-sm text-muted-foreground">
-                    Playlist ID (optional)
-                  </Label>
-                  <Input
-                    id={`${account.id}-playlistId`}
-                    placeholder="PL1234567890"
-                    value={asString(accountOptions.playlistId)}
-                    onChange={(e) => updateOption(account.id, "playlistId", e.target.value)}
-                    className="mt-1 border-border"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Add video to a specific playlist</p>
+                <div className="text-sm text-muted-foreground">
+                  <p>
+                    Playlist assignment is temporarily unavailable. Add your video to a playlist in YouTube Studio after
+                    publishing.
+                  </p>
+                  {Boolean(accountOptions.playlistId) && (
+                    <div className="mt-2 space-y-2">
+                      <p role="alert">Remove the saved playlist option before publishing this post.</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => updateOption(account.id, "playlistId", undefined)}>
+                        Remove playlist
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div>

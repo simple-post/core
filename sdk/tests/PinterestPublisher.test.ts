@@ -48,6 +48,38 @@ describe("PinterestPublisher", () => {
   });
 
   describe("postContent", () => {
+    it("waits for slow processing without registering or uploading the video again", async () => {
+      jest.useFakeTimers();
+      const videoPath = path.join(process.cwd(), `.pinterest-slow-${Date.now()}.mp4`);
+      fs.writeFileSync(videoPath, "video fixture");
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: {
+            media_id: "media_123",
+            upload_url: "https://uploads.pinterest.test/media",
+            upload_parameters: { policy: "test" },
+          },
+        })
+        .mockResolvedValueOnce({ data: { id: "pin_123" } });
+      for (let i = 0; i < 40; i += 1) mockAxiosInstance.get.mockResolvedValueOnce({ data: { status: "processing" } });
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { status: "succeeded" } });
+      mockedAxios.post.mockResolvedValueOnce({ status: 204 } as any);
+      try {
+        const result = publisher.postContent(
+          { media: [{ type: "video", path: videoPath }] },
+          {
+            pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+          },
+        );
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "pin_123" });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+        fs.rmSync(videoPath, { force: true });
+      }
+    });
     it("should create an image pin successfully", async () => {
       mockAxiosInstance.post.mockResolvedValueOnce({
         data: { id: "pin_123" },

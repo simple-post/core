@@ -98,3 +98,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up the repo and submit cha
 ## License
 
 Everything in this repository is licensed under the [MIT License](LICENSE).
+
+## Product documentation
+
+Hosted onboarding and user guides live at [docs.simplepost.social](https://docs.simplepost.social/getting-started). Run `yarn docs:export` with a sibling docs checkout to export references from this revision. Follow the [documentation release checklist](https://docs.simplepost.social/release-policy#documentation-release-checklist) when changing public behavior.

@@ -5,6 +5,7 @@ import { useState, type ComponentType } from "react";
 import { Check, Copy, Cpu, ExternalLink, Plug, Terminal } from "lucide-react";
 
 import { ClaudeIcon, OpenAIIcon } from "@/components/brand-icons";
+import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -79,8 +80,13 @@ const options: AssistantOption[] = [
     id: "cli",
     label: "CLI",
     Icon: Terminal,
-    description: "Use this when an agent or script connects through the SimplePost CLI instead of MCP.",
-    commands: [{ code: `simplepost connect --url ${APP_URL}`, label: "Command", shell: true }],
+    description:
+      "Install the CLI, configure secret storage, then connect your accounts. Hosted CLI access requires Advanced, Pro, or an active trial.",
+    commands: [
+      { code: "npm install -g @simple-post/cli", label: "Install", shell: true },
+      { code: "simplepost setup --backend keychain", label: "Configure secret storage", shell: true },
+      { code: `simplepost connect --url ${APP_URL}`, label: "Connect", shell: true },
+    ],
   },
 ];
 
@@ -193,6 +199,15 @@ export function AssistantSelector() {
           </div>
           <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
 
+          <HelpLink
+            path={
+              activeId === "cli"
+                ? "/cli#scheduler-connected-accounts"
+                : `/mcp#${activeId === "claude-desktop" ? "claude" : activeId === "mcp" ? "other-clients" : activeId}`
+            }
+            className="mb-4">
+            Full setup guide and troubleshooting
+          </HelpLink>
           {activeOption.action ? (
             <Button asChild>
               <a href={activeOption.action.href} target="_blank" rel="noopener noreferrer">

@@ -6,6 +6,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { Repeat2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { createSlotRows, PostingSlotsSection, type PostingSlotRow } from "@/components/posting-slots-settings";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <HelpLink path="/scheduling#automatic-reposts">Automatic repost help</HelpLink>
         <RepostDefaultsSection
           enabled={enabled}
           setEnabled={setEnabled}
@@ -143,6 +145,7 @@ export default function SettingsPage() {
           disabled={disabled}
         />
 
+        <HelpLink path="/scheduling#calendar-and-posting-slots">Posting slot help</HelpLink>
         <PostingSlotsSection slots={slots} onChange={setSlots} disabled={disabled} />
 
         <div className="flex justify-center">

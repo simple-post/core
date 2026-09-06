@@ -43,6 +43,15 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Export documentation references
+        run: yarn docs:export --out /tmp/simplepost-docs
+
+      - name: Upload documentation references
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-references
+          path: /tmp/simplepost-docs
+
       - name: Run checks
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"

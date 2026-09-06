@@ -9,6 +9,7 @@ import { ArrowLeftRight, CreditCard, ExternalLink, FileText, Loader2, RefreshCw 
 import { toast } from "sonner";
 
 import { PlanSelection } from "@/components/billing/plan-selection";
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -273,6 +274,7 @@ export default function BillingPage() {
                 <span className="section-kicker-label">Subscription</span>
               </div>
               <span className="h-3 w-px bg-border" />
+              <HelpLink path="/billing">Plans, allowances, and expiry</HelpLink>
               <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
                 Plan and <span className="text-primary">billing</span>
               </h1>

@@ -11,6 +11,8 @@ import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
+import { HelpLink } from "@/components/help-link";
+import { PublishingHelp } from "@/components/publishing-help";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -628,6 +630,7 @@ export function CreatePostForm() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
+        <PublishingHelp platforms={selectedAccounts.map((account) => account.platform)} />
         <div className="flex justify-end">
           <Button
             type="button"
@@ -775,6 +778,7 @@ export function CreatePostForm() {
 
         {postingMode === "schedule" && (
           <div className="space-y-2">
+            <HelpLink path="/scheduling#timezones">Scheduling and timezone help</HelpLink>
             <SchedulePicker
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}

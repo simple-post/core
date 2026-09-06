@@ -8,6 +8,7 @@ import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PostConnectAiPrompt } from "@/components/onboarding/post-connect-ai-prompt";
 import { PlatformIcon } from "@/components/platform-icons";
@@ -19,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { platformHelpPath } from "@/lib/docs";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
 
@@ -185,6 +187,9 @@ export default function AccountsPage() {
           </div>
         </div>
 
+        <HelpLink path="/accounts" className="mb-4">
+          Connection and account requirements
+        </HelpLink>
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -248,6 +253,9 @@ export default function AccountsPage() {
                           <span className="text-[#555555]">·</span>
                           <span>Connected {new Date(account.createdAt).toLocaleDateString()}</span>
                         </div>
+                        <HelpLink path={platformHelpPath(account.platform)} className="mt-2">
+                          Connection help
+                        </HelpLink>
                         {account.email && (
                           <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>
                         )}
@@ -297,6 +305,7 @@ export default function AccountsPage() {
               Pick a platform to connect. You can connect multiple accounts from the same platform.
             </DialogDescription>
           </DialogHeader>
+          <HelpLink path="/accounts#platform-requirements">Check platform requirements</HelpLink>
           <div className="grid gap-2 sm:grid-cols-2 mt-4">
             {SOCIAL_PLATFORMS.map((platform) => (
               <button
@@ -327,6 +336,7 @@ export default function AccountsPage() {
             </div>
             <DialogTitle className="text-xl tracking-tight">Connect DEV/Forem</DialogTitle>
             <DialogDescription>Use an API key from your Forem account settings.</DialogDescription>
+            <HelpLink path="/forem">Forem setup guide</HelpLink>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             {foremError && (

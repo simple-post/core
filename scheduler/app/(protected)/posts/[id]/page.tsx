@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { Trash2, Calendar, CalendarClock, Clock, Copy, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
@@ -250,6 +251,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                   <div className="space-y-2 flex-1 min-w-0">
                     <p className="text-sm font-medium text-destructive">Post failed</p>
+                    <HelpLink path="/troubleshooting#failed-or-partially-published-posts">
+                      Fix and retry this post safely
+                    </HelpLink>
                     {post.errorMessage && <p className="text-sm text-muted-foreground">{post.errorMessage}</p>}
                     {failedPlatforms.length > 0 && (
                       <ul className="space-y-1.5 text-sm">

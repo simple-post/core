@@ -8,12 +8,14 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getPlatformById, isSocialPlatformEnabled } from "@/lib/config";
+import { platformHelpPath } from "@/lib/docs";
 
 type PendingAccount = {
   id: string;
@@ -141,6 +143,7 @@ export default function ConnectAccountPickerPage() {
             <AlertTitle>Unable to continue</AlertTitle>
             <AlertDescription>{error || "Pending connection not found."}</AlertDescription>
           </Alert>
+          <HelpLink path={platformHelpPath(platformId)}>Connection help</HelpLink>
           <Link href="/accounts">
             <Button variant="outline">Back to Accounts</Button>
           </Link>
@@ -164,6 +167,7 @@ export default function ConnectAccountPickerPage() {
 
         <div className="space-y-3">
           <BackLink href="/accounts" label="Back to accounts" />
+          <HelpLink path={platformHelpPath(platformId)}>Account requirements and connection help</HelpLink>
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 
+import { HelpLink } from "@/components/help-link";
 import { useScheduleCalendarState, type CalendarView } from "@/components/schedule-calendar-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,6 +213,9 @@ export function ScheduleCalendar() {
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_55px_rgba(0,0,0,0.16)]">
       <div className="p-3 sm:p-4">
+        <HelpLink path="/scheduling" className="mb-3">
+          Calendar, timezones, and posting slots
+        </HelpLink>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-1">
             <Button

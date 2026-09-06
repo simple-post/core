@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Ban, Check, Copy, ExternalLink, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
+import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { TerminalBlock } from "@/components/terminal-block";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -185,11 +186,14 @@ export default function ApiKeysPage() {
             API keys authenticate the same `/api/v1` routes used by the Scheduler app, CLI, and MCP integrations.
           </p>
           <Button asChild variant="outline" size="sm" className="mb-5">
-            <a href="https://docs.simplepost.dev/api-reference" target="_blank" rel="noreferrer">
+            <a href="https://docs.simplepost.social/api-reference" target="_blank" rel="noreferrer">
               View API documentation
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </Button>
+          <HelpLink path="/api#hosted-api-quickstart" className="mb-4">
+            Hosted API setup, plan requirements, and authentication
+          </HelpLink>
           <TerminalBlock title="curl">{`curl -H "Authorization: Bearer $SIMPLEPOST_API_KEY" \\
   "${APP_URL}/api/v1/accounts"`}</TerminalBlock>
         </section>

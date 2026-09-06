@@ -1,0 +1,82 @@
+# Live E2E status
+
+Updated 2026-09-06 21:40 UTC. X testing was authorized and completed; Forem/DEV is now excluded at the user’s request. Application fixes belong to `core`; the live harness and local evidence belong to `core2`.
+
+## Verified coverage
+
+The current catalog has **501 supported scenario/interface combinations** across scheduler UI, MCP, and CLI-app, including X and excluding the 27 Forem/DEV cases and 3 paused YouTube playlist cases. **348 have verified evidence** for the configured test accounts. These are deduplicated results from saved runs across the observed deployments, not a claim that every case was rerun against the final commit. Unsupported combinations are excluded from the denominator; missing accounts, owner sessions, permissions, and provider limits remain incomplete. CLI-local is available in the harness but was not run because separate local provider credentials/aliases are not configured.
+
+| Platform  |  UI | MCP | CLI-app | Verified / supported |
+| --------- | --: | --: | ------: | -------------------: |
+| telegram  |  27 |  34 |      29 |              90 / 90 |
+| instagram |   9 |  11 |       9 |              29 / 29 |
+| facebook  |   9 |  11 |       9 |              29 / 29 |
+| threads   |  12 |  15 |      12 |              39 / 39 |
+| pinterest |   8 |  11 |       9 |              28 / 28 |
+| linkedin  |  11 |  13 |      11 |              35 / 35 |
+| bluesky   |  10 |  14 |      11 |              35 / 35 |
+| youtube   |   3 |  10 |       1 |              14 / 39 |
+| tiktok    |   1 |   7 |       7 |             15 / 143 |
+| x         |  11 |  13 |      10 |              34 / 34 |
+
+Telegram, Instagram, Facebook, Threads, Pinterest, LinkedIn, Bluesky, and X have verified evidence for every supported case in these three interfaces. All 27 existing LinkedIn published-post receipts were reobserved with the corrected exact-author check; the additional UI PUBLIC case also passed. The saved owner session now verifies all three CONNECTIONS cases too.
+
+## Application fixes and release
+
+| Main commit | Production merge | Change                                                                                                                                                                                                  |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `6a3d329`   | `944d114`        | Facebook video captions; Instagram mixed carousel readiness; Pinterest multipart uploads/covers/board validation; Threads processing wait; TikTok empty description; YouTube owner readback; CLI errors |
+| `79c76a6`   | `fdbd5ca`        | Complete ordered Threads image/video/mixed carousels up to 20 attachments                                                                                                                               |
+| `4bcee4c`   | `59574e4`        | Pinterest processing wait up to five minutes; YouTube playlist OAuth scope and pre-publish validation                                                                                                   |
+| `461b286`   | `dc548b7`        | YouTube owner source-file details and processing status                                                                                                                                                 |
+| `ed4ef88`   | `e70c33c`        | Bluesky video eligibility/email/quota check before uploading                                                                                                                                            |
+| `8deeac5`   | `261aa17`        | Conclusive YouTube upload-limit rejection stays a failed checkpoint instead of an unknown publishing outcome                                                                                            |
+| `c992808`   | `7dcd335`        | Pass common/overridden media to advanced account options, restoring TikTok photo controls                                                                                                               |
+| `c144e5f`   | `12d78e3`        | Disable YouTube playlist assignment and restore the original approved OAuth scopes                                                                                                                      |
+| `487ee66`   | `3a16a1a`        | Poll completed Bluesky duplicate-video jobs for their blobs; classify video preparation failures before post creation as conclusive                                                                     |
+
+All changes above were committed and pushed to `main` and `release/prod`. Production behavior confirmed the YouTube readback routes, Threads mixed-media validation, and owner processing readback. The earlier YouTube scope expansion was subsequently removed and production verified the original approved scopes. On the final rollout, the advanced-page chunk changed to `page-223e49319367776e.js`; a normal Playwright upload showed the photo music, description, and cover controls. The saved TikTok UI cancellation regression then passed against production. The Coolify dashboard still requires login in the available Chrome session, so no exact deployed Git hash is claimed from its dashboard.
+
+App checks passed: SDK 24 suites/422 tests, scheduler 72 suites/449 tests, CLI 12 suites/48 tests before the later focused patches; then Pinterest 6, post validation 14, CLI scope consumers 9, YouTube readback 7, Bluesky 53, YouTube publisher 24, and disposable-database publishing reliability 16. Relevant SDK builds, TypeScript, ESLint, formatting, and scheduler checks passed. The final one-line advanced-media fix passed the scheduler check and the live cancellation regression. The subsequent Bluesky fix passed 59 focused tests, the full SDK suite (516 tests), TypeScript, ESLint, formatting, and the SDK build. The offline E2E harness was rerun after that fix (420/420), then after the final budget and TikTok observer changes (428/428).
+
+## Harness verification and recovery
+
+The final full offline harness passed **428/428 tests**, TypeScript, and formatting. It targets the canonical application SDK inferred from the configured `/core/cli/bin/run.js`, rather than copying application code into `core2` or weakening contracts against its older SDK.
+
+The harness now checks exact platform authors and receipts, carousel order and contents, video playback, and independently observable settings. Private YouTube uploads use owner-only source-file and processing evidence plus a visit to the exact private-video page; artifacts label this `private-view/ownerAPI` and `publicVisualProof: false`. LinkedIn PUBLIC uses a fresh unauthenticated browser and exact owner profile. CONNECTIONS never falls back to that public proof.
+
+GET retries are limited to transient 502/503/504 responses. Composer retries happen only before submission. Mutations and uncertain submissions are not automatically replayed. Explicit default selections are exercised through real form changes. Verification-only mode reobserves saved published receipts. Recovery scans complete, bounded published history rather than only the latest 100 posts, rejects ambiguous matches and incomplete/changing pagination, and verifies saved options before accepting a receipt; account- and payload-aware aggregate history cannot borrow a pass from another account or retired scenario. Failed scheduled receipts now retain their observed failed status instead of being mislabeled as pending schedules.
+
+Key completed runs:
+
+- X UI/MCP/CLI-app: `live-20260906131834879-97685a15`, **34/34 supported cases verified**, 8 explicitly unsupported combinations. Receipts contain exactly **34 unique external post IDs**, including thread segments, with no replacement posts during verification fixes. Both cancellation cases were discarded before publication and both empty-input cases were rejected. Use `--headed` for X: headless navigation returned 403. Guest DOM selectors now identify the exact permalink, captionless media, author, and image order; replies and thread children verify their immediate parent. The reply target reuses this run's verified smoke post. No application fix or deployment was needed; all changes are in the test harness. The UI thread was additionally rechecked without posting after the direct-parent assertion was added.
+- Telegram UI/MCP: `live-20260905225015733-c3e21e46` (61 supported cases); CLI-app: `live-20260906-telegram-cliapp-01` (29).
+- Instagram: `live-20260906-instagram-ui` and `live-20260906-instagram-cli-app`; existing carousel and draft-edit receipts were reverified, not reposted. Mixed carousel MCP: `live-20260906093114220-a3cf4d7a`.
+- Facebook: `live-20260906-facebook-ui` and `live-20260906-facebook-cli-app`; captioned video MCP was reverified in `live-20260906093230702-510ce13f`.
+- Threads MCP carousels: `live-20260906100811302-fe869632`. Direct replies passed in `live-20260906115456183-7d4d0852` and `live-20260906115528894-682194fc`. The reply probe checks the immediate predecessor in the actual conversation, excluding recommendations and rejecting an ancestor mistaken for the direct parent. The older interrupted `threads.text` attempt in `live-20260906015653114-3fbdee96` was recovered from paginated scheduler history and platform-verified with its existing receipt `cmtp5vy7d00c3mx3d0c2o36h6`; no replacement post was submitted.
+- Pinterest videos: `live-20260906101558831-23eceeb9`; UI/CLI-app completion: `live-20260906112425863-69189471` (17 supported cases).
+- YouTube private upload: `live-20260906111647588-6d6b28ec`, existing video `lC-XguAoSLo`, reverified through the normal runner.
+- TikTok UI cancel: `live-20260906-tiktok-ui-cancel-25`, receipt `cmtpreulf000bqa3d2x91lkcu`, cleanup `discarded`, no platform result and no TikTok publication.
+
+## Remaining account and provider blockers
+
+- **TikTok: 128 cases remain.** Refreshed creator capabilities confirm `canPost=true`, public/mutual-follow/self-only audiences, and enabled comment/duet/stitch capabilities. The saved owner session still returns an authentication error. All 15 nonpublishing cases were rechecked under the public-account configuration: seven CLI rejections (`live-20260906212116784-ae49c4c0`), six MCP rejections (`live-20260906212249346-5436680f`), and both cancellations (`live-20260906212304076-baa37971`). Both scheduled records were discarded, with no external posts. The harness now excludes MCP validation-only calls from posting budgets, while CLI cases that invoke publishing retain their conservative reservation. A single public-video probe (`live-20260906213331509-34c52f7a`, receipt `cmtqbwmsh000nmg3d690un1ei`, handle `v_pub_file~v2-1.7682537943286171670`) was accepted, but public observation encountered a slider CAPTCHA and no visible matching post. Its receipt is retained as inconclusive, not verified; do not republish it. PUBLIC video checks now use an empty browser session to prove public visibility when TikTok permits viewing, and challenge detection stops retries. Private, music, interaction, and inbox checks retain their separate observation requirements. Remaining settings still need genuine platform observation; inbox cases may require owner/mobile observation if the relevant UI is unavailable on the web.
+- **YouTube: 25 runnable cases remain; 3 playlist cases are explicitly paused.** A fresh probe at 2026-09-06 21:16 UTC (`live-20260906211632167-516cda70`, CLI-app smoke) still hit the channel upload allowance; the CLI confirmed that no video was created. Further uploads were stopped. All nonpublishing YouTube scenarios already have current verified evidence. The user wants to avoid additional Google verification. Main `c144e5f` / production merge `12d78e3` restores the original upload/read/profile OAuth scopes and disables playlist assignment before upload, including for older callers and accounts with broad scopes. Playlist cases stay cataloged with an unsupported reason. No new Google scope consent was granted. Production verified at 2026-09-06 21:04 UTC: the connection redirect requests only the original three scopes, and the validation endpoint returns `youtube_playlist_unavailable`. No upload or Google consent was performed during verification.
+- **Bluesky: complete (35/35).** The completed-job fix was verified on production by all four remaining MCP/CLI-app video cases. Runs `live-20260906212151275-0e3a5308` and `live-20260906212228786-941bd8c1` contain four verified receipts. Before retrying, the three latest failed receipts were reconciled as not published through the normal API: the exact saved error occurs before `createRecord`, and the complete public account feed contained only the two known successful UI video posts in that period. Recovery evidence is retained in `.local/bluesky-recovery-20260906.json`; no existing external posts were duplicated.
+- **LinkedIn: complete.** All three CONNECTIONS cases passed with the authenticated owner session and the platform audience label `Sichtbarkeit: Nur Kontakte`. Runs: `live-20260906205821903-7a1c727b` and `live-20260906210102027-c5a4d423`.
+- **Forem/DEV: excluded.** The user explicitly removed these 27 cases from the current completion scope.
+
+The user has been sent owner-session commands from the `core2` repository root:
+
+```sh
+yarn e2e:auth https://www.tiktok.com/@edmundclompton .local/auth/tiktok.json
+yarn e2e:auth https://www.linkedin.com/feed/ .local/auth/linkedin.json
+```
+
+Run them one at a time, sign in normally, and resume Playwright Inspector to save each session. The saved sessions are discovered automatically.
+
+## Evidence and resumption
+
+Private journals, screenshots, reports, fixtures hosted by the app, and authentication state remain ignored by Git under `e2e/.local/` and `e2e/config.local.json`. Run evidence lives in `e2e/.local/runs/<run-id>/`; the aggregate is `e2e/.local/runs/aggregate.json`. Open the combined searchable matrix with `yarn e2e:report --all`. It includes every current case, attempt history, requested settings, receipt/run links, and a CSV download. Open the latest individual report with `yarn e2e:report`, or select one with `--run-id`.
+
+Reuse the run ID to verify an existing receipt. Do not start a replacement upload for an uncertain outcome. Known YouTube quota failures and earlier provider failures retain their evidence; they are not counted as passes. Failed schedule records have been read back and are no longer pending dispatch. External test posts remain available for review; only run-owned cancellation targets were deleted.

@@ -1,0 +1,22 @@
+{
+  "image.jpg": {
+    "bytes": 7205,
+    "sha256": "dcf0feeeb5b318b1b2ebdaaa215bc57f9e57eaca0715bd0fffde1bf70bc21d89"
+  },
+  "image-2.jpg": {
+    "bytes": 7205,
+    "sha256": "8336b5a8dde89d5b49ad2fe86f687c4dc6a55289dcdef80cf0bb92a28a230f82"
+  },
+  "image.webp": {
+    "bytes": 2186,
+    "sha256": "25353e1e038ab439a566007e6d50bdea4bdfe2bb4e3a7b1792cbf88285a46fa7"
+  },
+  "video.mp4": {
+    "bytes": 612001,
+    "sha256": "033234d03dd5b76c46f3705275297e4cba7d799ba6fc320e2303896a1a947ca4"
+  },
+  "silent-video.mp4": {
+    "bytes": 577024,
+    "sha256": "3f4c9301c781036849816432de431cc8ad1a16ec07c6980c94a911ec252e17f9"
+  }
+}

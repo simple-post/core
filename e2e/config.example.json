@@ -1,0 +1,170 @@
+{
+  "baseUrl": "https://YOUR_SCHEDULER_DOMAIN",
+  "userId": "TEST_SIMPLEPOST_USER_ID",
+  "deploymentRevision": "DEPLOYED_GIT_SHA",
+  "mediaBaseUrl": "https://YOUR_VERIFIED_MEDIA_DOMAIN/e2e/",
+  "apiTokenEnv": "E2E_API_TOKEN",
+  "mcpTokenEnv": "E2E_MCP_TOKEN",
+  "mcpTokenFile": ".local/auth/mcp-token.json",
+  "schedulerStorageState": ".local/auth/scheduler.json",
+  "cliConfigDir": ".local/cli",
+  "cliEntry": "../cli/bin/run.js",
+  "cliCommand": "../../core/cli/bin/run.js",
+  "fixtureDir": "fixtures/generated",
+  "runDir": ".local/runs",
+  "maxPosts": "auto",
+  "perPlatformBudget": {
+    "tiktok": 8
+  },
+  "scheduleDelayMinutes": 1,
+  "accounts": {
+    "x": {
+      "id": "X_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "X_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://x.com/TEST_HANDLE",
+        "storageState": ".local/auth/x.json",
+        "fields": {}
+      }
+    },
+    "telegram": {
+      "id": "TELEGRAM_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "TELEGRAM_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://t.me/TEST_CHANNEL",
+        "storageState": ".local/auth/telegram.json",
+        "fields": {}
+      }
+    },
+    "instagram": {
+      "id": "INSTAGRAM_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "INSTAGRAM_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://www.instagram.com/TEST_HANDLE/",
+        "storageState": ".local/auth/instagram.json",
+        "fields": {}
+      }
+    },
+    "facebook": {
+      "id": "FACEBOOK_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "FACEBOOK_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://www.facebook.com/TEST_PAGE_ID",
+        "storageState": ".local/auth/facebook.json",
+        "fields": {}
+      }
+    },
+    "threads": {
+      "id": "THREADS_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "THREADS_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://www.threads.com/@TEST_HANDLE",
+        "storageState": ".local/auth/threads.json",
+        "fields": {}
+      }
+    },
+    "tiktok": {
+      "id": "TIKTOK_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "TIKTOK_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": ["privacy:PUBLIC_TO_EVERYONE", "privacy:SELF_ONLY"],
+      "observer": {
+        "profileUrl": "https://www.tiktok.com/@TEST_HANDLE",
+        "storageState": ".local/auth/tiktok.json",
+        "fields": {}
+      }
+    },
+    "youtube": {
+      "id": "YOUTUBE_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "YOUTUBE_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://www.youtube.com/@TEST_HANDLE",
+        "storageState": ".local/auth/youtube.json",
+        "fields": {},
+        "youtubeReadback": true,
+        "youtubeAccessTokenEnv": "E2E_YOUTUBE_ACCESS_TOKEN"
+      }
+    },
+    "pinterest": {
+      "id": "PINTEREST_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "PINTEREST_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {
+        "boardId": "TEST_BOARD_ID",
+        "boardName": "Test board"
+      },
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://www.pinterest.com/TEST_HANDLE/",
+        "storageState": ".local/auth/pinterest.json",
+        "fields": {}
+      }
+    },
+    "linkedin": {
+      "id": "LINKEDIN_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "LINKEDIN_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://www.linkedin.com/in/TEST_HANDLE/",
+        "storageState": ".local/auth/linkedin.json",
+        "fields": {}
+      }
+    },
+    "bluesky": {
+      "id": "BLUESKY_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "BLUESKY_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://bsky.app/profile/TEST_HANDLE.bsky.social",
+        "storageState": ".local/auth/bluesky.json",
+        "fields": {}
+      }
+    },
+    "forem": {
+      "id": "FOREM_CONNECTED_ACCOUNT_ID",
+      "platformAccountId": "FOREM_PLATFORM_ACCOUNT_ID",
+      "username": "TEST_HANDLE",
+      "cliAlias": "test",
+      "resources": {},
+      "capabilities": [],
+      "observer": {
+        "profileUrl": "https://dev.to/TEST_HANDLE",
+        "storageState": ".local/auth/forem.json",
+        "fields": {}
+      }
+    }
+  }
+}

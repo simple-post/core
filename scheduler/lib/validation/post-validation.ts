@@ -74,6 +74,24 @@ function getTikTokPrivacyLevel(options: Record<string, unknown>): string | undef
 }
 
 function validateAccountOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): ValidationIssue[] {
+  if (mapPlatformName(account.platform) === "pinterest") {
+    const boardId = accountOptions?.[account.id]?.boardId;
+    return typeof boardId === "string" && boardId.trim()
+      ? []
+      : [
+          {
+            platform: "pinterest",
+            severity: "error",
+            code: "pinterest_board_required",
+            message:
+              'Select a Pinterest board before posting or scheduling this account. Set accountOptions["' +
+              account.id +
+              '"].boardId.',
+            field: "accountOptions.boardId",
+            meta: { accountId: account.id },
+          },
+        ];
+  }
   if (mapPlatformName(account.platform) !== "tiktok") {
     return [];
   }

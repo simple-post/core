@@ -52,6 +52,28 @@ describe("ThreadsPublisher", () => {
   });
 
   describe("postContent", () => {
+    it("waits longer than the old 24-second limit without creating duplicate containers", async () => {
+      jest.useFakeTimers();
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { id: "user_123" } });
+      for (let i = 0; i < 20; i += 1) mockAxiosInstance.get.mockResolvedValueOnce({ data: { status: "IN_PROGRESS" } });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status: "FINISHED" } })
+        .mockResolvedValueOnce({ data: { permalink: "https://www.threads.net/@test/post/video" } });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container" } })
+        .mockResolvedValueOnce({ data: { id: "video" } });
+      try {
+        const result = publisher.postContent({
+          text: "Slow video",
+          media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }],
+        });
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "video", error: PostErrorType.NO_ERROR });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
     it("should post an image successfully", async () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "creation_123" } })

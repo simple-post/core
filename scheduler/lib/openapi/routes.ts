@@ -17,6 +17,8 @@ import accountAvatarRoutes from "@/app/api/v1/accounts/[id]/avatar/openapi";
 import accountBoardsRoutes from "@/app/api/v1/accounts/[id]/boards/openapi";
 import accountRoutes from "@/app/api/v1/accounts/[id]/openapi";
 import accountTikTokCreatorInfoRoutes from "@/app/api/v1/accounts/[id]/tiktok/creator-info/openapi";
+import youtubeLibraryRoutes from "@/app/api/v1/accounts/[id]/youtube/library/openapi";
+import youtubeVideoRoutes from "@/app/api/v1/accounts/[id]/youtube/videos/[videoId]/openapi";
 import accountsRoutes from "@/app/api/v1/accounts/openapi";
 import apiKeyRoute from "@/app/api/v1/api-keys/[id]/openapi";
 import apiKeyRotateRoutes from "@/app/api/v1/api-keys/[id]/rotate/openapi";
@@ -58,6 +60,8 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   accountAvatarRoutes,
   accountBoardsRoutes,
   accountTikTokCreatorInfoRoutes,
+  youtubeLibraryRoutes,
+  youtubeVideoRoutes,
   apiKeyRoutes,
   apiKeyRoute,
   apiKeyRotateRoutes,

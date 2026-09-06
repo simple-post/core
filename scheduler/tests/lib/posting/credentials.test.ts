@@ -1,4 +1,4 @@
-import { buildCredentials } from "@/lib/posting/credentials";
+import { buildCredentials, buildPostOptions } from "@/lib/posting/credentials";
 import type { ConnectedAccount } from "@/types";
 
 const now = new Date("2026-07-14T20:00:00.000Z");
@@ -26,6 +26,20 @@ function account(overrides: Partial<ConnectedAccount>): ConnectedAccount {
 }
 
 describe("posting credentials", () => {
+  it("never borrows another Pinterest account's global default board", () => {
+    const previous = process.env.PINTEREST_BOARD_ID;
+    process.env.PINTEREST_BOARD_ID = "another-users-board";
+    try {
+      const target = account({ platform: "pinterest" });
+      expect(buildPostOptions(target).pinterest?.boardId).toBe("");
+      expect(buildPostOptions(target, { [target.id]: { boardId: "selected-board" } }).pinterest?.boardId).toBe(
+        "selected-board",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.PINTEREST_BOARD_ID;
+      else process.env.PINTEREST_BOARD_ID = previous;
+    }
+  });
   it("never exposes the X refresh token to the posting SDK", () => {
     const credentials = buildCredentials(account({ platform: "x" }));
 

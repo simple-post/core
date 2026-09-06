@@ -312,6 +312,42 @@ describe("InstagramPublisher", () => {
       });
     });
 
+    it("uses a VIDEO child container for a mixed image and video carousel", async () => {
+      const content: Content = {
+        text: "Mixed carousel post",
+        media: [
+          { type: "image", path: "/path/to/image.jpg" },
+          { type: "video", path: "/path/to/video.mp4" },
+        ],
+      };
+
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock)
+        .mockResolvedValueOnce("https://s3.example.com/image.jpg")
+        .mockResolvedValueOnce("https://s3.example.com/video.mp4");
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "image_item_id" } })
+        .mockResolvedValueOnce({ data: { id: "video_item_id" } })
+        .mockResolvedValueOnce({ data: { id: "mixed_carousel_id" } })
+        .mockResolvedValueOnce({ data: { id: "mixed_post_id" } });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/MIXED_SHORTCODE/" } });
+
+      await publisher.postContent(content, options);
+
+      expect(mockAxiosInstance.post).toHaveBeenNthCalledWith(
+        2,
+        "/test_business_account_id/media",
+        expect.objectContaining({
+          media_type: "VIDEO",
+          video_url: "https://s3.example.com/video.mp4",
+          is_carousel_item: true,
+        }),
+      );
+    });
+
     it("should throw error for content without media", async () => {
       const content: Content = {
         text: "Text only post",

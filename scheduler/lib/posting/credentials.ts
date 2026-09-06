@@ -123,7 +123,7 @@ const postOptionOverrides: Record<
   pinterest: (account, credentials, accountSpecificOptions) => ({
     pinterest: {
       ...(accountSpecificOptions as Record<string, unknown>),
-      boardId: (accountSpecificOptions as { boardId?: string }).boardId || process.env.PINTEREST_BOARD_ID || "",
+      boardId: (accountSpecificOptions as { boardId?: string }).boardId || "",
       credentials: credentials as PlatformCredentials<"pinterest">,
     },
   }),

@@ -863,10 +863,24 @@ export function AccountOptionsComponent({
                       <Textarea
                         id={`${account.id}-tiktok-description`}
                         value={asString(accountOptions.description)}
-                        onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
+                        onChange={(e) => updateOption(account.id, "description", e.target.value)}
                         maxLength={4000}
-                        placeholder="Use the post text"
+                        placeholder={accountOptions.description === undefined ? "Use the post text" : "No description"}
                       />
+                      <div className="mt-1 flex gap-3 text-xs">
+                        <button
+                          type="button"
+                          className="text-muted-foreground underline"
+                          onClick={() => updateOption(account.id, "description", undefined)}>
+                          Use post text
+                        </button>
+                        <button
+                          type="button"
+                          className="text-muted-foreground underline"
+                          onClick={() => updateOption(account.id, "description", "")}>
+                          No description
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor={`${account.id}-tiktok-cover`}>Cover photo</Label>

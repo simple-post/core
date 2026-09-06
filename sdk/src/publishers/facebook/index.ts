@@ -93,6 +93,7 @@ export class FacebookPublisher extends Publisher {
     video: Video,
     resolvedPath: string,
     options?: PostOptionsWithCredentials,
+    contentText?: string,
   ): Promise<PostResult> {
     try {
       const formData = new FormData();
@@ -106,7 +107,8 @@ export class FacebookPublisher extends Publisher {
       });
 
       if (video.title) formData.append("title", video.title);
-      if (video.description) formData.append("description", video.description);
+      const description = video.description ?? contentText;
+      if (description) formData.append("description", description);
 
       // Add scheduling if specified
       if (options?.facebook?.publishAt) {
@@ -161,7 +163,7 @@ export class FacebookPublisher extends Publisher {
         const { path: resolvedPath, cleanup } = await resolveMediaPath(video);
         tempFileManager.add(cleanup);
 
-        return await this.postVideo(video, resolvedPath, options);
+        return await this.postVideo(video, resolvedPath, options, content.text);
       }
 
       const postData: Record<string, unknown> = {

@@ -225,7 +225,7 @@ describe("XPublisher", () => {
       await expect(publisher.postContent(content, options)).rejects.toMatchObject({
         errorType: PostErrorType.INVALID_CONTENT,
         message:
-          "@livehandle does not have X Premium, so it cannot publish this 455-character post. Shorten it to 280 characters or split it into a thread.",
+          "@livehandle does not have X Premium, so it cannot publish this post. X counts it as 455 characters. Shorten it to 280 weighted characters or split it into a thread.",
         details: {
           platform: "x",
           accountHandle: "@livehandle",
@@ -269,6 +269,43 @@ describe("XPublisher", () => {
       expect(mockV2Client.tweet).toHaveBeenCalled();
     });
 
+    it("blocks Japanese text over the weighted limit before publishing to a non-Premium account", async () => {
+      mockedAxios.get.mockResolvedValue({
+        data: { data: { id: "x-user-1", subscription_type: "None" } },
+      });
+      await expect(publisher.postContent({ text: "日".repeat(141) }, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        details: { code: "long_post_requires_premium", actual: 282, limit: 280 },
+      });
+      expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      expect(mockV2Client.uploadMedia).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [400, PostErrorType.PUBLISH_REJECTED],
+      [401, PostErrorType.CREDENTIALS_ERROR],
+      [403, PostErrorType.PUBLISH_REJECTED],
+      [422, PostErrorType.PUBLISH_REJECTED],
+      [429, PostErrorType.RATE_LIMIT_ERROR],
+      [500, PostErrorType.API_ERROR],
+      [503, PostErrorType.API_ERROR],
+    ])(
+      "classifies X HTTP %s without turning conclusive rejection into an unknown outcome",
+      async (status, errorType) => {
+        mockV2Client.tweet.mockRejectedValue({ code: status, data: { status, detail: "Rejected" } });
+        await expect(publisher.postContent({ text: "Hello" }, options)).rejects.toMatchObject({ errorType });
+      },
+    );
+
+    it("uses weighted length when explaining a long-post 403", async () => {
+      mockedAxios.get.mockRejectedValue(new Error("Unavailable"));
+      mockV2Client.tweet.mockRejectedValue({ code: 403, data: { status: 403, detail: "Forbidden" } });
+      await expect(publisher.postContent({ text: "日".repeat(141) }, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        details: { code: "long_post_not_permitted", actual: 282 },
+      });
+    });
+
     it("should explain when X rejects a long post without long-post access", async () => {
       const content: Content = { text: "a".repeat(455) };
       mockedAxios.get.mockResolvedValue({
@@ -284,7 +321,7 @@ describe("XPublisher", () => {
       await expect(publisher.postContent(content, options)).rejects.toMatchObject({
         errorType: PostErrorType.INVALID_CONTENT,
         message:
-          "X rejected this 455-character post for @livehandle. X reports the account's subscription as Premium, but did not grant long-post access for this request. Shorten it to 280 characters or split it into a thread.",
+          "X rejected this post for @livehandle (455 weighted characters). X reports the account's subscription as Premium, but did not grant long-post access for this request. Shorten it to 280 weighted characters or split it into a thread.",
         details: expect.objectContaining({
           accountHandle: "@livehandle",
           subscriptionType: "Premium",
@@ -560,7 +597,7 @@ describe("XPublisher", () => {
           limit: 280,
           actual: 281,
           message:
-            "This 281-character X post requires X Premium long-post access. Shorten it to 280 characters or split it into a thread if the account is not eligible.",
+            "X counts this post as 281 characters, which requires X Premium long-post access. Shorten it to 280 weighted characters or split it into a thread if the account is not eligible.",
         }),
       );
     });

@@ -345,12 +345,12 @@ export function CreatePostForm() {
   const charCounter = useMemo(
     () =>
       getMainFieldCharCounterState({
-        messageLength: message.length,
+        message,
         maxTextLength,
         validationResults: validation?.results ?? [],
         requireXCommonContent: true,
       }),
-    [maxTextLength, message.length, validation?.results],
+    [maxTextLength, message, validation?.results],
   );
 
   const hasComposedContent = useMemo(
@@ -685,7 +685,7 @@ export function CreatePostForm() {
             {maxTextLength ? (
               <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
                 <span className={charCounter.countClassName}>
-                  {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
+                  {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
                 </span>
                 {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
               </div>

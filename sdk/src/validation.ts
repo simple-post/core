@@ -54,5 +54,5 @@ export { PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./publishe
 export { TELEGRAM_VALIDATION_RULES, validateTelegramContent } from "./publishers/telegram/validation";
 export { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/threads/validation";
 export { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";
-export { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation";
+export { X_VALIDATION_RULES, validateXContent, getXTextLength } from "./publishers/x/validation";
 export { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";

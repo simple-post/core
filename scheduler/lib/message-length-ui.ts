@@ -1,3 +1,5 @@
+import { getXTextLength } from "@simple-post/sdk/validation";
+
 import type { PlatformValidationRules } from "@simple-post/sdk";
 
 type ValidationResultRow = {
@@ -20,20 +22,30 @@ function rowSupportsXLongPostUi(row: ValidationResultRow, requireCommonContent: 
  * show a classic /280-style budget until the user passes it, then show the real hard max.
  */
 export function getMainFieldCharCounterState(params: {
-  messageLength: number;
+  message: string;
   maxTextLength?: number;
   validationResults: ValidationResultRow[];
   /** Create form: only X accounts using the shared message. Edit form: any selected X account. */
   requireXCommonContent: boolean;
 }): {
+  numerator: number;
   denominator: number;
   showLongPostOnXHint: boolean;
   countClassName: string;
 } {
-  const { messageLength, maxTextLength, validationResults, requireXCommonContent } = params;
+  const { message, maxTextLength, validationResults, requireXCommonContent } = params;
+  const hasX = validationResults.some(
+    (row) => row.platform === "x" && (!requireXCommonContent || row.usesCommonContent !== false),
+  );
+  const messageLength = hasX ? getXTextLength(message) : message.length;
 
   if (maxTextLength == null || maxTextLength <= 0) {
-    return { denominator: 0, showLongPostOnXHint: false, countClassName: "text-xs text-muted-foreground" };
+    return {
+      numerator: messageLength,
+      denominator: 0,
+      showLongPostOnXHint: false,
+      countClassName: "text-xs text-muted-foreground",
+    };
   }
 
   const xRow = validationResults.find((r) => rowSupportsXLongPostUi(r, requireXCommonContent));
@@ -41,6 +53,7 @@ export function getMainFieldCharCounterState(params: {
   if (!xRow || standard == null) {
     const over = messageLength > maxTextLength;
     return {
+      numerator: messageLength,
       denominator: maxTextLength,
       showLongPostOnXHint: false,
       countClassName: over ? "text-xs text-destructive" : "text-xs text-muted-foreground",
@@ -59,5 +72,5 @@ export function getMainFieldCharCounterState(params: {
     countClassName = "text-xs text-amber-700 dark:text-amber-500/90";
   }
 
-  return { denominator, showLongPostOnXHint, countClassName };
+  return { numerator: messageLength, denominator, showLongPostOnXHint, countClassName };
 }

@@ -12,6 +12,7 @@ import {
   X_STANDARD_POST_MAX_LENGTH,
   X_VALIDATION_RULES,
   validateXContent,
+  getXTextLength,
 } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -166,7 +167,7 @@ export class XPublisher extends Publisher {
 
       throw new PostError(
         PostErrorType.INVALID_CONTENT,
-        `${this.cachedUsername ? `@${this.cachedUsername}` : "This X account"} does not have X Premium, so it cannot publish this ${textLength}-character post. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} characters or split it into a thread.`,
+        `${this.cachedUsername ? `@${this.cachedUsername}` : "This X account"} does not have X Premium, so it cannot publish this post. X counts it as ${textLength} characters. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} weighted characters or split it into a thread.`,
         this.accountDetails({
           code: "long_post_requires_premium",
           limit: X_STANDARD_POST_MAX_LENGTH,
@@ -337,7 +338,7 @@ export class XPublisher extends Publisher {
     // Ensure we have a valid token before posting
     await this.ensureValidToken();
 
-    const textLength = content.text?.length ?? 0;
+    const textLength = getXTextLength(content.text ?? "");
     if (textLength > X_STANDARD_POST_MAX_LENGTH) {
       await this.checkLongPostEligibility(textLength);
     }
@@ -414,7 +415,7 @@ export class XPublisher extends Publisher {
           : " The account may not have X Premium long-post access.";
         throw new PostError(
           PostErrorType.INVALID_CONTENT,
-          `X rejected this ${textLength}-character post${accountLabel}.${reportedSubscription} Shorten it to ${X_STANDARD_POST_MAX_LENGTH} characters or split it into a thread.`,
+          `X rejected this post${accountLabel} (${textLength} weighted characters).${reportedSubscription} Shorten it to ${X_STANDARD_POST_MAX_LENGTH} weighted characters or split it into a thread.`,
           {
             ...this.accountDetails(),
             code: "long_post_not_permitted",
@@ -422,6 +423,19 @@ export class XPublisher extends Publisher {
             actual: textLength,
             provider: err.data,
           },
+        );
+      }
+
+      // A response rejecting this single tweet request is conclusive. Network
+      // failures and 5xx responses still have an uncertain publication outcome.
+      if (status === 400 || status === 401 || status === 403 || status === 422 || status === 429) {
+        let errorType = PostErrorType.PUBLISH_REJECTED;
+        if (status === 401) errorType = PostErrorType.CREDENTIALS_ERROR;
+        if (status === 429) errorType = PostErrorType.RATE_LIMIT_ERROR;
+        throw new PostError(
+          errorType,
+          `X rejected the post (${status}): ${err.data?.detail ?? "Check the content and account permissions before retrying."}`,
+          this.accountDetails({ provider: err.data }),
         );
       }
 

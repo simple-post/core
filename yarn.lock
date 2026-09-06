@@ -4955,7 +4955,7 @@ __metadata:
     googleapis: "npm:^150.0.1"
     jest: "npm:^30.0.0"
     prettier: "npm:^3.4.2"
-    sharp: "npm:^0.34.5"
+    sharp: "npm:^0.34.4"
     ts-jest: "npm:^29.4.0"
     tsup: "npm:^8.5.0"
     twitter-api-v2: "npm:^1.23.2"

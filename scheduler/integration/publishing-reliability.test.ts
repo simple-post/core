@@ -121,7 +121,15 @@ it("blocks changed content and transport ambiguity without consuming another ope
   expect(publish).toHaveBeenCalledTimes(1);
 });
 
-it.each(["INVALID_CONTENT", "CREDENTIALS_ERROR", "RATE_LIMIT_ERROR"])(
+it("keeps an API failure after possible acceptance blocked from retry", async () => {
+  const publish = jest.fn().mockResolvedValue({ ...success, success: false, error: "API_ERROR" });
+  expect((await runDurablePublish(identity, publish)).error).toBe("PUBLISH_OUTCOME_UNKNOWN");
+  expect((await prisma.publishCheckpoint.findFirst())?.state).toBe("unknown");
+  expect((await runDurablePublish(identity, publish)).error).toBe("PUBLISH_OUTCOME_UNKNOWN");
+  expect(publish).toHaveBeenCalledTimes(1);
+});
+
+it.each(["INVALID_CONTENT", "CREDENTIALS_ERROR", "RATE_LIMIT_ERROR", "PUBLISH_REJECTED"])(
   "resumes after a conclusive %s rejection without repeating the root",
   async (error) => {
     const publish = jest.fn().mockResolvedValue(success);

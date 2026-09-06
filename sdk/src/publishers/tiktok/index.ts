@@ -112,6 +112,9 @@ export class TikTokPublisher extends Publisher {
   }
 
   private static calculateChunks(fileSize: number): { chunkSize: number; totalChunks: number } {
+    if (!Number.isSafeInteger(fileSize) || fileSize <= 0 || fileSize > TIKTOK_MAX_VIDEO_SIZE) {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok videos must contain data and cannot exceed 4 GB.");
+    }
     // For files smaller than the chunking threshold, upload as a single chunk
     if (fileSize <= MIN_FILE_SIZE_FOR_CHUNKING) {
       return { chunkSize: fileSize, totalChunks: 1 };
@@ -119,8 +122,20 @@ export class TikTokPublisher extends Publisher {
 
     // For larger files, use fixed chunk size
     const chunkSize = CHUNK_SIZE;
-    const totalChunks = Math.ceil(fileSize / chunkSize);
+    // TikTok requires floor division: the final chunk absorbs trailing bytes.
+    const totalChunks = Math.floor(fileSize / chunkSize);
     return { chunkSize, totalChunks };
+  }
+
+  private static videoInitErrorType(error: unknown): PostErrorType {
+    const response = (error as { response?: { status?: number; data?: { error?: { code?: string } } } })?.response;
+    const status = response?.status;
+    const code = response?.data?.error?.code;
+    // FILE_UPLOAD has not transferred any bytes at this point. Only an explicit
+    // provider rejection is conclusive; keep timeouts and server errors uncertain.
+    return status !== undefined && status >= 400 && status < 500 && status !== 408 && code && code !== "ok"
+      ? PostErrorType.PUBLISH_REJECTED
+      : PostErrorType.API_ERROR;
   }
 
   private static creatorInfoErrorMessage(code?: string, message?: string): string {
@@ -294,14 +309,14 @@ export class TikTokPublisher extends Publisher {
       // Provide helpful context for common errors
       if (errorCode === "unaudited_client_can_only_post_to_private_accounts") {
         throw new PostError(
-          PostErrorType.API_ERROR,
+          TikTokPublisher.videoInitErrorType(error),
           `TikTok API Error: Unaudited apps can only post to private accounts. Please set your TikTok account to private in the TikTok app settings (Settings → Privacy → Private Account), or get your app audited at https://developers.tiktok.com/doc/content-sharing-guidelines/`,
           err,
         );
       }
 
       throw new PostError(
-        PostErrorType.API_ERROR,
+        TikTokPublisher.videoInitErrorType(error),
         `Failed to initialize video upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
         err,
       );
@@ -331,7 +346,7 @@ export class TikTokPublisher extends Publisher {
       const errorMessage = err.response?.data?.error?.message || err.message || "Unknown error";
 
       throw new PostError(
-        PostErrorType.API_ERROR,
+        TikTokPublisher.videoInitErrorType(error),
         `Failed to initialize draft video upload: ${errorMessage} (code: ${errorCode || "unknown"})`,
         err,
       );
@@ -476,7 +491,7 @@ export class TikTokPublisher extends Publisher {
 
   private async uploadFileChunks(uploadUrl: string, filePath: string): Promise<void> {
     const fileSize = TikTokPublisher.getFileSize(filePath);
-    const { chunkSize } = TikTokPublisher.calculateChunks(fileSize);
+    const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
     const fileStream = fs.createReadStream(filePath);
     const chunks: Buffer[] = [];
 
@@ -488,9 +503,9 @@ export class TikTokPublisher extends Publisher {
     const buffer = Buffer.concat(chunks);
     let uploadedBytes = 0;
 
-    while (uploadedBytes < fileSize) {
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
       const start = uploadedBytes;
-      const end = Math.min(uploadedBytes + chunkSize - 1, fileSize - 1);
+      const end = chunkIndex === totalChunks - 1 ? fileSize - 1 : uploadedBytes + chunkSize - 1;
       const chunkData = buffer.subarray(start, end + 1);
 
       try {

@@ -278,12 +278,12 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const charCounter = useMemo(
     () =>
       getMainFieldCharCounterState({
-        messageLength: message.length,
+        message,
         maxTextLength,
         validationResults: validation?.results ?? [],
         requireXCommonContent: false,
       }),
-    [maxTextLength, message.length, validation?.results],
+    [maxTextLength, message, validation?.results],
   );
 
   const formattedIssue = (issue: ValidationIssue) => {
@@ -529,7 +529,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               {maxTextLength ? (
                 <>
                   <span className={charCounter.countClassName}>
-                    {message.length.toLocaleString()}/{charCounter.denominator.toLocaleString()}
+                    {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
                   </span>
                   {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
                 </>

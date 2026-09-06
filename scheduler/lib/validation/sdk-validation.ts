@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import { validateTikTokPhotoDimensions } from "@/lib/validation/tiktok-media";
+import { validateXLongPostAccess } from "@/lib/validation/x-long-post";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type { ValidationResultByPlatform } from "./post-validation";
@@ -75,6 +76,8 @@ export async function validatePostForAccounts(params: {
     accountOverrides: params.accountOverrides,
     thread: params.thread,
   });
+
+  await validateXLongPostAccess(validation);
 
   // Avoid downloading photos that already fail format, size, or content checks.
   const dimensionFailures = await validateTikTokPhotoDimensions({

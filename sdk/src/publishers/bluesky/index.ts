@@ -523,6 +523,39 @@ export class BlueskyPublisher extends Publisher {
     if (!pdsUrl) {
       throw new PostError(PostErrorType.API_ERROR, "Bluesky did not return a PDS endpoint for video upload.");
     }
+    // OAuth getSession may omit emailConfirmed. Ask the video service itself
+    // before uploading bytes; an unverified email must not look like an
+    // uncertain publish or require reconnecting an otherwise valid session.
+    const { token: limitsToken } = await this.authenticatedGet<{ token: string }>(
+      "/xrpc/com.atproto.server.getServiceAuth",
+      {
+        aud: "did:web:video.bsky.app",
+        lxm: "app.bsky.video.getUploadLimits",
+        exp: Math.floor(Date.now() / 1000) + 120,
+      },
+    );
+    if (!limitsToken)
+      throw new PostError(PostErrorType.API_ERROR, "Bluesky did not authorize video eligibility checks.");
+    try {
+      const limits = await axios.get<{ canUpload: boolean }>(
+        "https://video.bsky.app/xrpc/app.bsky.video.getUploadLimits",
+        { headers: { Authorization: `Bearer ${limitsToken}` }, timeout: 30_000, maxRedirects: 0 },
+      );
+      if (limits.data.canUpload === false)
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "Bluesky video uploading is unavailable for this account. Check your video upload limits in Bluesky before retrying.",
+        );
+      if (limits.data.canUpload !== true)
+        throw new PostError(PostErrorType.API_ERROR, "Bluesky returned invalid video upload eligibility information.");
+    } catch (error) {
+      if ((error as AxiosErrorLike).response?.data?.error === "unconfirmed_email")
+        throw new PostError(
+          PostErrorType.CREDENTIALS_ERROR,
+          "Verify your Bluesky account email in Bluesky Settings before uploading videos. Your existing connection does not need to be replaced.",
+        );
+      throw error;
+    }
     const { token } = await this.authenticatedGet<{ token: string }>("/xrpc/com.atproto.server.getServiceAuth", {
       aud: `did:web:${new URL(pdsUrl).host}`,
       lxm: "com.atproto.repo.uploadBlob",

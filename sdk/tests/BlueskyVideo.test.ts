@@ -109,7 +109,7 @@ it.each([
   await expect(uploadBlueskyVideo("video.mp4", "did:plc:user", token)).rejects.toThrow("Video exceeds duration limit");
 });
 
-it.each([{}, null, { jobStatus: null }, { ...pending, state: "JOB_STATE_COMPLETED" }])(
+it.each([{}, null, { jobStatus: null }, { state: "JOB_STATE_COMPLETED" }])(
   "fails on unusable job responses (%j)",
   async (data) => {
     http.post.mockResolvedValue({ data });
@@ -119,6 +119,30 @@ it.each([{}, null, { jobStatus: null }, { ...pending, state: "JOB_STATE_COMPLETE
     expect(http.get).not.toHaveBeenCalled();
   },
 );
+
+it.each(["raw", "wrapped", "conflict"])("fetches the blob for an already completed upload (%s)", async (shape) => {
+  const completed = { ...pending, state: "JOB_STATE_COMPLETED", error: "already_exists" };
+  if (shape === "conflict") http.post.mockRejectedValue({ response: { status: 409, data: completed } });
+  else http.post.mockResolvedValue({ data: shape === "raw" ? completed : { jobStatus: completed } });
+  http.get.mockResolvedValue({ data: { jobStatus: { ...completed, blob } } });
+  await expect(uploadBlueskyVideo("video.mp4", "did:plc:user", token)).resolves.toEqual(blob);
+  expect(http.post).toHaveBeenCalledTimes(1);
+  expect(http.get).toHaveBeenCalledTimes(1);
+});
+
+it("bounds completed jobs that never expose a blob without uploading again", async () => {
+  let now = 0;
+  jest.spyOn(Date, "now").mockImplementation(() => now);
+  wait.mockImplementation(async () => {
+    now += 150_000;
+  });
+  const completed = { ...pending, state: "JOB_STATE_COMPLETED" };
+  http.post.mockResolvedValue({ data: completed });
+  http.get.mockResolvedValue({ data: { jobStatus: completed } });
+  await expect(uploadBlueskyVideo("video.mp4", "did:plc:user", token)).rejects.toThrow("timed out");
+  expect(http.post).toHaveBeenCalledTimes(1);
+  expect(http.get).toHaveBeenCalledTimes(1);
+});
 
 it("bounds the processing wait", async () => {
   let now = 0;

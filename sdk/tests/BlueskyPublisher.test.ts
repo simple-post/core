@@ -406,6 +406,25 @@ describe("BlueskyPublisher", () => {
       });
     });
 
+    it("keeps video preparation failure conclusive without attempting to publish", async () => {
+      mockedAxios.post.mockReset().mockResolvedValue({ data: {} });
+      await expect(publisher.postContent(video)).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        details: { stage: "video-processing" },
+      });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it("keeps a createRecord transport failure uncertain after successful video processing", async () => {
+      mockAxiosInstance.post.mockRejectedValue(new Error("Connection lost"));
+      await expect(publisher.postContent(video)).rejects.toMatchObject({ errorType: PostErrorType.API_ERROR });
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/xrpc/com.atproto.repo.createRecord",
+        expect.any(Object),
+        expect.any(Object),
+      );
+    });
+
     it("reports unverified email before uploading bytes or creating a post", async () => {
       mockedAxios.get.mockRejectedValueOnce({ response: { status: 401, data: { error: "unconfirmed_email" } } });
       await expect(publisher.postContent(video)).rejects.toMatchObject({

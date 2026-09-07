@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { getBillingStatus } from "@/lib/billing/subscriptions";
+import { normalizePlatformId } from "@/lib/config";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -19,6 +21,17 @@ export const mcpAccountIdentitySchema = z.object({
 });
 
 export const mcpAccountSchema = mcpAccountIdentitySchema.extend({
+  trialAllowance: z
+    .object({
+      limit: z.number(),
+      used: z.number(),
+      remaining: z.number(),
+      expiresAt: z.string(),
+    })
+    .optional()
+    .describe(
+      "Trial posts remaining for this platform, shared across its accounts. Scheduling consumes allowance; drafts do not. Choose a plan when remaining is zero.",
+    ),
   credentialStatus: z
     .object({
       state: z.string(),
@@ -42,16 +55,29 @@ export const listAccountsOutputSchema = z.object({
 });
 
 export async function listAccounts(userId: string): Promise<z.infer<typeof listAccountsOutputSchema>> {
-  const accounts = await prisma.connectedAccount.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-  });
+  const [accounts, billing] = await Promise.all([
+    prisma.connectedAccount.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    }),
+    getBillingStatus(userId),
+  ]);
 
   const mappedAccounts = accounts.map((storedAccount) => {
     const account = decryptConnectedAccountSecrets(storedAccount);
     const credentialStatus = getConnectedAccountCredentialStatus(account);
+    const trialUsed = billing.trial?.platformUsage[normalizePlatformId(account.platform)] ?? 0;
     return {
       accountId: account.id,
+      ...(billing.accessType === "trial" &&
+        billing.trial && {
+          trialAllowance: {
+            limit: billing.trial.postsPerPlatform,
+            used: trialUsed,
+            remaining: Math.max(0, billing.trial.postsPerPlatform - trialUsed),
+            expiresAt: billing.trial.expiresAt,
+          },
+        }),
       credentialStatus: {
         action: credentialStatus.action,
         expiresAt: credentialStatus.expiresAt,

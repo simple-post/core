@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/auth-client";
+import { loginCallbackUrl } from "@/lib/auth/callback-url";
 import { logClientError } from "@/lib/logger/client";
 
 interface LoginFormProps {
@@ -90,7 +91,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL,
+        callbackURL: loginCallbackUrl(callbackURL, process.env.NEXT_PUBLIC_APP_URL || window.location.origin),
       });
     } catch (error_) {
       logClientError(error_, "Google sign-in error");
@@ -122,7 +123,9 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
 
     try {
       if (await tryTestUserLogin(normalizedEmail, password)) {
-        window.location.assign(callbackURL);
+        window.location.assign(
+          loginCallbackUrl(callbackURL, process.env.NEXT_PUBLIC_APP_URL || window.location.origin),
+        );
         return;
       }
 
@@ -152,7 +155,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     try {
       await authClient.signIn.magicLink({
         email: normalizedEmail,
-        callbackURL,
+        callbackURL: loginCallbackUrl(callbackURL, process.env.NEXT_PUBLIC_APP_URL || window.location.origin),
       });
       setSuccess("Email link sent! Check your email to sign in.");
       setEmail("");

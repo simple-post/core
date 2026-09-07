@@ -1,6 +1,7 @@
 import { context as otelContext, isSpanContextValid, trace } from "@opentelemetry/api";
 import pino, { type Logger } from "pino";
 
+import { flatErrorFields } from "@/lib/logger/error-fields";
 import { SENSITIVE_KEYS } from "@/lib/logger/sensitive-keys";
 import { isTelegramNotificationEnabled, sendTelegramLogNotification } from "@/lib/logger/telegram";
 
@@ -94,6 +95,14 @@ const baseLogger = pino({
   },
   hooks: {
     logMethod(inputArgs, method, level) {
+      // Nested Pino errors are dropped by some OTLP backends. Preserve a safe
+      // primitive copy before instrumentation exports the record.
+      const [first] = inputArgs;
+      if (first instanceof Error) {
+        inputArgs[0] = { err: first, ...flatErrorFields(first) };
+      } else if (isPlainObject(first)) {
+        inputArgs[0] = { ...first, ...flatErrorFields(first.err ?? first.error) };
+      }
       // Fan error/fatal logs out to Telegram, but only do the (non-trivial)
       // context extraction + redaction work when Telegram is actually enabled
       // for this level — otherwise it runs on every error log for nothing.

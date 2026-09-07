@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { apiLogger, serializeError } from "@/lib/logger";
+import { diagnosticText, flatErrorFields } from "@/lib/logger/error-fields";
 import { isSensitiveKey } from "@/lib/logger/sensitive-keys";
 
 /**
@@ -199,6 +200,29 @@ export function apiErrorLogPayload(error: ApiError): Record<string, unknown> {
     statusCode: error.statusCode,
     code: error.code,
     ...error.logContext,
+    ...flatErrorFields(error),
+    ...(error instanceof ValidationError && validationLogFields(error.details)),
+  };
+}
+
+function validationLogFields(details: unknown): Record<string, string | number> {
+  if (!details || typeof details !== "object") return {};
+  const summary = (details as { summary?: { errors?: unknown[] } }).summary;
+  const issues = summary?.errors;
+  if (!Array.isArray(issues)) return {};
+  return {
+    validationIssueCount: issues.length,
+    validationIssues: JSON.stringify(
+      issues.slice(0, 20).map((issue) => {
+        if (!issue || typeof issue !== "object") return {};
+        const entry = issue as Record<string, unknown>;
+        return Object.fromEntries(
+          ["platform", "code", "field", "message"]
+            .filter((key) => typeof entry[key] === "string")
+            .map((key) => [key, diagnosticText(entry[key] as string)]),
+        );
+      }),
+    ),
   };
 }
 
@@ -215,7 +239,10 @@ export function handleApiError(error: unknown): NextResponse {
       apiLogger.warn(payload, "API request rejected");
     }
   } else if (error instanceof ZodError) {
-    apiLogger.warn({ err: serializeError(error), statusCode: 400, code: "VALIDATION_ERROR" }, "API request rejected");
+    apiLogger.warn(
+      { errorMessage: diagnosticText(formatZodErrorMessage(error)), statusCode: 400, code: "VALIDATION_ERROR" },
+      "API request rejected",
+    );
   } else {
     apiLogger.error({ err: serializeError(error) }, "Unexpected API error");
   }

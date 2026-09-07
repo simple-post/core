@@ -55,7 +55,10 @@ it("rejects a real PNG for Instagram in the shared HTTP/app create-update valida
   });
   expect(result.summary.isValid).toBe(false);
   expect(result.results[0].errors).toContainEqual(
-    expect.objectContaining({ code: "image_format_unsupported", message: expect.stringContaining("JPEG") }),
+    expect.objectContaining({
+      code: "image_format_unsupported",
+      message: expect.stringContaining("Instagram does not support PNG"),
+    }),
   );
 });
 it("accepts actual JPEG bytes through the shared HTTP/app validation boundary", async () => {
@@ -70,4 +73,20 @@ it("accepts actual JPEG bytes through the shared HTTP/app validation boundary", 
     media: [{ ...media, filename: "image.jpg" }],
   });
   expect(result.summary.isValid).toBe(true);
+});
+
+it("explains PNG rejection through MCP validation without modifying the image", async () => {
+  const png = await sharp({
+    create: { width: 32, height: 32, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0 } },
+  })
+    .png()
+    .toBuffer();
+  const original = Buffer.from(png);
+  serve(png, "image/png");
+  const result = await validatePost("user", { message: "hello", accountIds: ["instagram"], media: [media] });
+  expect(result.isValid).toBe(false);
+  expect(result.accounts[0].errors).toContainEqual(
+    expect.objectContaining({ message: expect.stringContaining("before posting or scheduling") }),
+  );
+  expect(png).toEqual(original);
 });

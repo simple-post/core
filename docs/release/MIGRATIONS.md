@@ -4,6 +4,27 @@ This document lists deployment and client changes that require an explicit
 action when upgrading SimplePost. Read it together with the
 [changelog](../../CHANGELOG.md).
 
+## 1.3.2
+
+Upgrade both `@simple-post/sdk` and `@simple-post/cli` to 1.3.2 to receive the
+publishing fixes. CLI 1.3.2 requires SDK `^1.3.2`.
+
+Media validation now checks real image bytes before publishing. Replace
+inaccessible links with directly uploaded files, and supply JPEG images for
+Instagram; images are not converted automatically. TikTok photo URLs must still
+meet TikTok's public, verified-domain requirements.
+
+YouTube `playlistId` is rejected before upload because playlist assignment is
+not supported by the approved integration. Omit this option. A custom-thumbnail
+failure can accompany a successful video result: read the returned message and
+update the thumbnail in YouTube Studio instead of uploading the video again.
+
+`PREPARATION_ERROR` means that media preparation failed before a publishing
+request was submitted. Other API/transport failures can still represent an
+unknown outcome; do not automatically retry an uncertain publish. Existing
+Scheduler checkpoints require explicit reconciliation and are not reset by
+installing the new SDK or CLI.
+
 ## Publishing reliability update — 2026-09-05
 
 Apply `20260905000000_publishing_reliability` and

@@ -187,6 +187,8 @@ export function validatePostForResolvedAccounts(params: {
   accountOptions?: AccountOptionsMap;
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
+  /** Disable filename hints after the server has inspected actual media bytes. */
+  mediaFormatHints?: boolean;
 }): ValidationResultByPlatform {
   const platforms = [...new Set(params.accounts.map((account) => mapPlatformName(account.platform)))] as Platform[];
   const overrides = params.accountOverrides || {};
@@ -213,6 +215,25 @@ export function validatePostForResolvedAccounts(params: {
 
     const errors: ValidationResult["errors"] = [];
     const warnings: ValidationResult["warnings"] = [];
+
+    // Show format guidance as soon as the attachment/account is selected.
+    // A filename is only a hint: the server checks real bytes before publishing
+    // or scheduling, so a mislabeled JPEG is not blocked by client metadata.
+    if (platform === "instagram" && params.mediaFormatHints !== false) {
+      for (const [index, file] of (override?.media ?? params.media ?? []).entries()) {
+        if (file.type === "image" && /\.png$/i.test(file.filename)) {
+          warnings.push({
+            platform,
+            severity: "warning",
+            code: "instagram_png_format_hint",
+            message:
+              "Instagram does not support PNG images. Choose a JPEG before posting or scheduling. SimplePost does not convert images automatically.",
+            field: `text.media[${index}]`,
+            meta: { accountId: account.id },
+          });
+        }
+      }
+    }
 
     errors.push(...validateAccountOptions(account, params.accountOptions));
 

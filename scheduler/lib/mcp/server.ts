@@ -45,6 +45,8 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Recommended workflow
 
+- Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. Billing or trial-allowance denials require a plan change in the SimplePost web app. Explain the returned reason and do not retry automatically or repeatedly inspect accounts to bypass the denial.
+
 1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, tell the user they need to connect an account in the SimplePost web app before posting — there is no MCP tool to add accounts.
 
 2. If the post needs an image or video, attach it via the \`media\` field on \`validate_post\`, \`preview_post\`, and \`create_post\`. See the "Media" section below for how to obtain a URL.
@@ -160,13 +162,24 @@ function widgetToolMeta(invoking: string, invoked: string, resourceUri: string) 
 }
 
 function errorResult(error: unknown) {
-  if (error instanceof ApiError && error.logContext) {
-    log.warn(apiErrorLogPayload(error), "MCP tool billing gate denied");
+  const billingDenied = error instanceof ApiError && Boolean(error.logContext);
+  if (error instanceof ApiError && billingDenied) {
+    log.info(apiErrorLogPayload(error), "MCP tool billing gate denied");
   }
 
   return {
-    content: [{ type: "text" as const, text: error instanceof Error ? error.message : String(error) }],
+    content: [
+      {
+        type: "text" as const,
+        text:
+          (error instanceof Error ? error.message : String(error)) +
+          (billingDenied ? " Do not retry until the user changes their plan or allowance in SimplePost." : ""),
+      },
+    ],
     isError: true,
+    ...(billingDenied && {
+      _meta: { "simplepost/retryable": false },
+    }),
   };
 }
 

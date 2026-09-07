@@ -499,3 +499,28 @@ describe("refreshExpiringConnectedAccounts", () => {
     expect(result.failures[0].message).toContain("LinkedIn token refresh failed (400)");
   });
 });
+
+it("blocks future background attempts for an expired LinkedIn token without refresh credentials", async () => {
+  const stored = account({ expiresAt: new Date(now.getTime() - 1000), refreshToken: null });
+  prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(stored));
+  const result = await refreshConnectedAccountIfNeeded(stored, { reason: "background", now });
+  expect(result.status.action).toBe("reconnect");
+  expect(result.account.credentialRefreshBlockedAt).toEqual(now);
+  expect(fetchMock).not.toHaveBeenCalled();
+  prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(result.account));
+  prismaMock.connectedAccount.updateMany.mockClear();
+  await refreshConnectedAccountIfNeeded(result.account, {
+    reason: "background",
+    now: new Date(now.getTime() + 3_600_000),
+  });
+  expect(prismaMock.connectedAccount.updateMany).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("does not permanently block a still-valid LinkedIn access token without a refresh token", async () => {
+  const stored = account({ refreshToken: null });
+  prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(stored));
+  const result = await refreshConnectedAccountIfNeeded(stored, { reason: "background", now });
+  expect(result.error).toBeUndefined();
+  expect(result.account.credentialRefreshBlockedAt).toBeNull();
+});

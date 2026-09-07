@@ -1,0 +1,74 @@
+import { NextRequest } from "next/server";
+
+import { POST } from "@/app/mcp/route";
+import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { createLogger } from "@/lib/logger";
+import { authenticateMcpToken } from "@/lib/mcp/oauth";
+import { PaymentRequiredError } from "@/lib/utils/errors";
+
+jest.mock("@/lib/billing/subscriptions", () => ({ assertActiveSubscription: jest.fn() }));
+jest.mock("@/lib/mcp/oauth", () => ({ isMcpToken: () => true, authenticateMcpToken: jest.fn() }));
+jest.mock("@/lib/mcp/server", () => ({ registerTools: jest.fn(), SERVER_INSTRUCTIONS: "test" }));
+jest.mock("@/lib/mcp/config", () => ({
+  DEFAULT_MCP_SCOPE: "posts:read",
+  getAppBaseUrl: () => "https://app.simplepost.social",
+  getMcpResourceUrl: () => "https://app.simplepost.social/mcp",
+}));
+jest.mock("@/lib/mcp/review-logging", () => ({ shouldLogReviewMcpExchange: () => false }));
+jest.mock("@/lib/logger", () => ({
+  createLogger: jest.fn(() => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() })),
+  serializeError: (e: Error) => ({ name: e.name, message: e.message }),
+}));
+const log = jest.mocked(createLogger).mock.results[0].value;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest
+    .mocked(authenticateMcpToken)
+    .mockResolvedValue({ user: { id: "user", email: "test@example.com" }, session: { scope: "posts:read" } } as never);
+  jest.mocked(assertActiveSubscription).mockResolvedValue(undefined as never);
+});
+function request(body: string, authenticated = true) {
+  return new NextRequest("https://app.simplepost.social/mcp", {
+    method: "POST",
+    body,
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      ...(authenticated ? { authorization: "Bearer test-secret" } : {}),
+    },
+  });
+}
+it("returns an actionable terminal billing rejection without warning noise", async () => {
+  jest.mocked(assertActiveSubscription).mockRejectedValueOnce(new PaymentRequiredError("Your trial has ended."));
+  const response = await POST(request("{}"));
+  expect(response.status).toBe(402);
+  expect(await response.json()).toMatchObject({
+    error: "subscription_required",
+    retryable: false,
+    message: "Your trial has ended.",
+  });
+  expect(log.info).toHaveBeenCalledWith(
+    expect.objectContaining({ code: "PAYMENT_REQUIRED" }),
+    "MCP billing gate denied",
+  );
+  expect(log.warn).not.toHaveBeenCalled();
+});
+it("keeps the authentication challenge while logging a safe reason", async () => {
+  const response = await POST(request("{}", false));
+  expect(response.status).toBe(401);
+  expect(response.headers.get("www-authenticate")).toContain("resource_metadata");
+  expect(log.info).toHaveBeenCalledWith(
+    expect.objectContaining({ reason: "missing_bearer" }),
+    "MCP authentication required",
+  );
+});
+it("records a transport reason without logging the request body or credentials", async () => {
+  const response = await POST(request("not-json-private-body"));
+  expect(response.status).toBe(400);
+  expect(log.warn).toHaveBeenCalledWith(
+    expect.objectContaining({ statusCode: 400, rpcErrorCode: -32_700, reason: "invalid_json" }),
+    "MCP transport request rejected",
+  );
+  expect(JSON.stringify(log.warn.mock.calls)).not.toMatch(/test-secret|private-body/);
+});

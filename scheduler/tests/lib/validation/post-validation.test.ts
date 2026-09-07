@@ -264,3 +264,23 @@ it("validates TikTok photos and options consistently for UI, HTTP and MCP", () =
   );
   expect(validate({ privacyLevel: "SELF_ONLY", title: "x".repeat(91) }).summary.isValid).toBe(false);
 });
+
+it("shows Instagram PNG guidance immediately and respects account-specific JPEG media", () => {
+  const instagram = { ...blueskyAccount, id: "instagram", platform: "instagram" };
+  const png = { ...image(1024), filename: "transparent.PNG" };
+  const params = { message: "Photo", media: [png], accounts: [instagram] };
+  const result = validatePostForResolvedAccounts(params);
+  expect(result.summary.warnings).toContainEqual(
+    expect.objectContaining({
+      code: "instagram_png_format_hint",
+      message: expect.stringContaining("Instagram does not support PNG"),
+    }),
+  );
+  expect(
+    validatePostForResolvedAccounts({ ...params, accountOverrides: { instagram: { media: [image(1024)] } } }).summary
+      .warnings,
+  ).not.toContainEqual(expect.objectContaining({ code: "instagram_png_format_hint" }));
+  expect(validatePostForResolvedAccounts({ ...params, mediaFormatHints: false }).summary.warnings).not.toContainEqual(
+    expect.objectContaining({ code: "instagram_png_format_hint" }),
+  );
+});

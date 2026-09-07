@@ -107,3 +107,16 @@ it("inspects local CLI files by bytes rather than extension", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("supports provider-required direct URLs without losing DNS protection", async () => {
+  serve(jpeg, "image/jpeg");
+  await inspectRemoteMedia("https://example.com/image", { maxRedirects: 0 });
+  expect(get).toHaveBeenCalledWith(
+    "https://example.com/image",
+    expect.objectContaining({
+      maxRedirects: 0,
+      lookup: expect.any(Function),
+      responseType: "stream",
+    }),
+  );
+});

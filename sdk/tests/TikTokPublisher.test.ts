@@ -4,11 +4,13 @@ import axios from "axios";
 
 import { TikTokPublisher } from "../src/publishers/tiktok";
 import { PostError, PostErrorType } from "../src/types";
+import { inspectRemoteMedia } from "../src/utils/media-inspection";
 
 import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
 // Mock dependencies
 jest.mock("axios");
+jest.mock("../src/utils/media-inspection", () => ({ inspectRemoteMedia: jest.fn() }));
 jest.mock("fs");
 jest.mock("../src/utils/s3", () => ({
   S3MediaUploader: jest.fn().mockImplementation(() => ({
@@ -37,7 +39,7 @@ describe("TikTokPublisher", () => {
       get: jest.fn(),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
-    mockedAxios.head.mockResolvedValue({ headers: { "content-type": "image/jpeg", "content-length": "1024" } });
+    jest.mocked(inspectRemoteMedia).mockReset().mockResolvedValue({ contentType: "image/jpeg", size: 1024 });
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
@@ -259,6 +261,40 @@ describe("TikTokPublisher", () => {
         "/v2/post/publish/status/fetch/",
         expect.objectContaining({ publish_id: "publish_123" }),
       );
+    });
+
+    it("publishes a GET-readable photo without requiring HEAD", async () => {
+      mockedAxios.head.mockRejectedValueOnce({ response: { status: 405 } });
+      mockCreatorInfoOnce();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { data: { publish_id: "photo-id" } } })
+        .mockResolvedValueOnce({
+          data: { data: { status: "PUBLISH_COMPLETE", publicly_available_post_id: ["public-id"] } },
+        });
+      const result = await publisher.postContent(
+        { text: "Photo", media: [{ type: "image", url: "https://images.example/photo" }] },
+        directOptions,
+      );
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockedAxios.head).not.toHaveBeenCalled();
+      expect(inspectRemoteMedia).toHaveBeenCalledWith("https://images.example/photo", { maxRedirects: 0 });
+    });
+
+    it("keeps failed photo inspection retryable without submitting a post", async () => {
+      mockCreatorInfoOnce();
+      jest.mocked(inspectRemoteMedia).mockRejectedValueOnce(new Error("Media unavailable"));
+      await expect(publisher.postContent(photoContent, directOptions)).rejects.toMatchObject({
+        errorType: PostErrorType.PREPARATION_ERROR,
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1); // creator info only
+    });
+
+    it("keeps a timeout during photo submission ambiguous", async () => {
+      mockCreatorInfoOnce();
+      mockAxiosInstance.post.mockRejectedValueOnce({ code: "ETIMEDOUT", message: "Timed out" });
+      await expect(publisher.postContent(photoContent, directOptions)).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+      });
     });
 
     it("should successfully post a photo", async () => {

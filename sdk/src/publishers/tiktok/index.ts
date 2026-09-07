@@ -14,6 +14,7 @@ import {
 
 import { PostError, PostErrorType } from "../../types";
 import { getContentType, S3MediaUploader, resolveMediaPath, TempFileManager } from "../../utils";
+import { inspectRemoteMedia } from "../../utils/media-inspection";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
@@ -383,16 +384,12 @@ export class TikTokPublisher extends Publisher {
             PostErrorType.INVALID_CONTENT,
             "TikTok photos require public HTTPS URLs on a TikTok-verified domain or URL prefix. Configure S3_STORAGE_BASE_URL for local photos.",
           );
-        // No bearer token is sent to media origins. TikTok does not follow redirects.
-        const response = await axios.head(url, { timeout: 30_000, maxRedirects: 0 });
-        const contentType = String(response.headers["content-type"] ?? "")
-          .split(";")[0]
-          .trim()
-          .toLowerCase();
-        if (!["image/jpeg", "image/webp"].includes(contentType))
+        // Reuse the bounded, DNS-pinned GET inspector: some valid media hosts
+        // reject HEAD. TikTok requires a direct URL, so redirects stay disabled.
+        const inspection = await inspectRemoteMedia(url, { maxRedirects: 0 });
+        if (!["image/jpeg", "image/webp"].includes(inspection.contentType))
           throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok photo URLs must serve JPEG or WebP images.");
-        const size = Number(response.headers["content-length"]);
-        if (Number.isFinite(size) && size > TIKTOK_MAX_PHOTO_SIZE)
+        if (inspection.size > TIKTOK_MAX_PHOTO_SIZE)
           throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok photos cannot exceed 20 MB.");
         photoUrls.push(url);
       }
@@ -427,7 +424,7 @@ export class TikTokPublisher extends Publisher {
       if (response.data.error?.code && response.data.error.code !== "ok") {
         submitted = false;
         throw new PostError(
-          PostErrorType.API_ERROR,
+          PostErrorType.PUBLISH_REJECTED,
           `TikTok photo upload failed: ${response.data.error.message || response.data.error.code} (${response.data.error.code}). Photo URLs must belong to a domain or URL prefix verified in the TikTok developer app.`,
         );
       }
@@ -468,9 +465,8 @@ export class TikTokPublisher extends Publisher {
         response?: { status?: number; data?: { error?: { code?: string; message?: string } } };
         message?: string;
       };
-      if (err.response?.status && err.response.status >= 400 && err.response.status < 500) submitted = false;
       throw new PostError(
-        PostErrorType.API_ERROR,
+        submitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR,
         `TikTok photo upload failed: ${err.response?.data?.error?.message || err.message || "Unknown error"}. Use public JPEG/WebP HTTPS URLs without redirects on a TikTok-verified domain or URL prefix.`,
         error,
       );

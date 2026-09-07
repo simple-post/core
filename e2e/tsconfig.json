@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "@simple-post/sdk": ["../sdk/src/index.ts"],
+      "@simple-post/sdk/validation": ["../sdk/src/validation.ts"]
+    }
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", ".local", "test-results", "playwright-report"]
+}

@@ -438,7 +438,7 @@ describe("YouTubePublisher", () => {
       expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
     });
 
-    it("should warn if thumbnail upload fails", async () => {
+    it("returns a thumbnail warning with the published video ID without retrying the upload", async () => {
       const content: Content = {
         text: "Thumbnail upload will fail",
         media: [
@@ -458,8 +458,15 @@ describe("YouTubePublisher", () => {
 
       const result = await publisher.postContent(content, options);
 
-      // Should still succeed even if thumbnail upload fails
-      expect(result).toEqual({ id: "video_id_warn", error: PostErrorType.NO_ERROR });
+      expect(result).toEqual({
+        id: "video_id_warn",
+        error: PostErrorType.NO_ERROR,
+        message: expect.stringContaining("Video published, but YouTube could not apply the custom thumbnail"),
+        details: { code: "youtube_thumbnail_upload_failed", videoId: "video_id_warn" },
+      });
+      expect(result.message).toContain("Do not repost this video");
+      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledTimes(1);
+      expect(mockYouTubeClient.thumbnails.set).toHaveBeenCalledTimes(1);
     });
 
     it("rejects disabled playlist assignment before any upload or media processing", async () => {

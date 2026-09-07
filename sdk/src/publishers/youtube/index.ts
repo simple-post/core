@@ -238,6 +238,7 @@ export class YouTubePublisher extends Publisher {
       }
 
       // Upload the thumbnail if provided
+      let thumbnailWarning: string | undefined;
       if (resolvedThumbnailPath) {
         try {
           this.logger.info(`[YouTubePublisher] Uploading thumbnail for video ${videoId}`);
@@ -254,7 +255,10 @@ export class YouTubePublisher extends Publisher {
           this.logger.warn(
             `[YouTubePublisher] Failed to upload thumbnail for video ${videoId}: ${error instanceof Error ? error.message : String(error)}`,
           );
-          // Don't throw - thumbnail upload failure shouldn't fail the whole post
+          // The video already exists. Surface the partial failure without making
+          // callers retry videos.insert and create a duplicate upload.
+          thumbnailWarning =
+            "Video published, but YouTube could not apply the custom thumbnail. Do not repost this video; check custom-thumbnail eligibility in YouTube Studio and update the existing video there.";
         }
       } else {
         this.logger.info(`[YouTubePublisher] No thumbnail provided for video ${videoId}`);
@@ -266,6 +270,12 @@ export class YouTubePublisher extends Publisher {
       return {
         id: videoId,
         error: PostErrorType.NO_ERROR,
+        ...(thumbnailWarning
+          ? {
+              message: thumbnailWarning,
+              details: { code: "youtube_thumbnail_upload_failed", videoId },
+            }
+          : {}),
       };
     } finally {
       await tempFileManager.cleanup();

@@ -92,7 +92,9 @@ describe("TikTokPublisher", () => {
       [1, 1, 1],
       [mib, mib, 1],
       [10 * mib, 10 * mib, 1],
-      [10 * mib + 1, 10 * mib, 1],
+      [10 * mib + 1, 10 * mib + 1, 1],
+      [11_096_087, 11_096_087, 1],
+      [20 * mib - 1, 20 * mib - 1, 1],
       [20 * mib, 10 * mib, 2],
       [25 * mib, 10 * mib, 2],
       [64 * mib + 1, 10 * mib, 6],
@@ -151,6 +153,71 @@ describe("TikTokPublisher", () => {
           "Content-Range": `bytes ${10 * mib}-${file.length - 1}/${file.length}`,
         });
         expect(Buffer.concat(calls.map((call) => call[1] as Buffer)).equals(file)).toBe(true);
+      },
+    );
+
+    it.each(["public", "draft"] as const)(
+      "declares the full video size for a single chunk in %s mode",
+      async (mode) => {
+        const file = Buffer.alloc(11_096_087, 7);
+        mockedFs.statSync.mockReturnValue({ size: file.length } as any);
+        jest.spyOn(fs, "createReadStream").mockReturnValue({
+          [Symbol.asyncIterator]: async function* () {
+            yield file;
+          },
+        } as any);
+        if (mode === "public") mockCreatorInfoOnce();
+        mockAxiosInstance.post.mockImplementation(
+          async (
+            url: string,
+            body: { source_info: { total_chunk_count: number; chunk_size: number; video_size: number } },
+          ) => {
+            if (url.endsWith("/init/")) {
+              if (
+                body.source_info.total_chunk_count === 1 &&
+                body.source_info.chunk_size !== body.source_info.video_size
+              ) {
+                throw {
+                  response: {
+                    status: 400,
+                    data: { error: { code: "invalid_params", message: "The chunk size is invalid" } },
+                  },
+                };
+              }
+              return { data: { data: { publish_id: "single_chunk", upload_url: "https://upload.tiktok.com/video" } } };
+            }
+            return { data: { data: { status: "PUBLISH_COMPLETE", publicaly_available_post_id: ["single_chunk"] } } };
+          },
+        );
+        mockedAxios.put.mockResolvedValue({ status: 201 });
+        const result = await publisher.postContent(
+          { media: [{ type: "video", path: "./test-video.mp4" }] },
+          { tiktok: { ...directOptions.tiktok, credentials: { accessToken: "test_access_token" }, publishMode: mode } },
+        );
+        expect(result.error).toBe(PostErrorType.NO_ERROR);
+        expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+          mode === "public" ? "/v2/post/publish/video/init/" : "/v2/post/publish/inbox/video/init/",
+          expect.objectContaining({
+            source_info: {
+              source: "FILE_UPLOAD",
+              video_size: file.length,
+              chunk_size: file.length,
+              total_chunk_count: 1,
+            },
+          }),
+        );
+        expect(mockedAxios.put).toHaveBeenCalledTimes(1);
+        expect(mockedAxios.put).toHaveBeenCalledWith(
+          "https://upload.tiktok.com/video",
+          file,
+          expect.objectContaining({
+            headers: {
+              "Content-Type": "video/mp4",
+              "Content-Length": String(file.length),
+              "Content-Range": `bytes 0-${file.length - 1}/${file.length}`,
+            },
+          }),
+        );
       },
     );
 

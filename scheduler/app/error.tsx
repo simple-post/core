@@ -7,7 +7,13 @@ import { logClientError } from "@/lib/logger/client";
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    logClientError(error, "Unhandled React error boundary error", { digest: error.digest });
+    logClientError(error, "Unhandled React error boundary error", {
+      digest: error.digest,
+      documentLanguage: document.documentElement.lang,
+      translated:
+        document.documentElement.classList.contains("translated-ltr") ||
+        document.documentElement.classList.contains("translated-rtl"),
+    });
   }, [error]);
 
   return (
@@ -24,6 +30,9 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         </h2>
         <p className="text-sm text-muted-foreground">An unexpected error occurred.</p>
         <Button onClick={reset}>Try again</Button>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Reload page
+        </Button>
       </div>
     </div>
   );

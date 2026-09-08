@@ -1,6 +1,7 @@
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
@@ -8,6 +9,7 @@ import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { registerOTel } from "@vercel/otel";
 
 import { observabilityEnabled, signalEnabled } from "@/lib/observability/config";
+import { SanitizingSpanExporter } from "@/lib/observability/sanitizing-exporter";
 
 const DEFAULT_SERVICE_NAME = "simplepost-scheduler";
 
@@ -90,7 +92,9 @@ export function registerObservability(): boolean {
     ],
     // With traces disabled an empty processor list alone still records spans
     // via the default always-on sampler; always_off keeps them non-recording.
-    ...(tracesEnabled ? {} : { spanProcessors: [], traceSampler: "always_off" }),
+    ...(tracesEnabled
+      ? { traceExporter: new SanitizingSpanExporter(new OTLPTraceExporter()) }
+      : { spanProcessors: [], traceSampler: "always_off" }),
     metricReaders,
     logRecordProcessors,
   });

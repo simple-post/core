@@ -2854,6 +2854,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opentelemetry/exporter-trace-otlp-http@npm:^0.220.0":
+  version: 0.220.0
+  resolution: "@opentelemetry/exporter-trace-otlp-http@npm:0.220.0"
+  dependencies:
+    "@opentelemetry/core": "npm:2.9.0"
+    "@opentelemetry/otlp-exporter-base": "npm:0.220.0"
+    "@opentelemetry/otlp-transformer": "npm:0.220.0"
+    "@opentelemetry/resources": "npm:2.9.0"
+    "@opentelemetry/sdk-trace": "npm:2.9.0"
+  peerDependencies:
+    "@opentelemetry/api": ^1.3.0
+  checksum: 10c0/fc9622a76db9322dbae0090d957ae884630c4d91847912ea269f8ba112d186fdca3a875a359715d2b0354fb0910f0fccb1f389d336c6b739dd174159580a4597
+  languageName: node
+  linkType: hard
+
 "@opentelemetry/instrumentation-pino@npm:^0.66.0":
   version: 0.66.0
   resolution: "@opentelemetry/instrumentation-pino@npm:0.66.0"
@@ -5032,6 +5047,7 @@ __metadata:
     "@opentelemetry/core": "npm:2.9.0"
     "@opentelemetry/exporter-logs-otlp-http": "npm:^0.220.0"
     "@opentelemetry/exporter-metrics-otlp-http": "npm:^0.220.0"
+    "@opentelemetry/exporter-trace-otlp-http": "npm:^0.220.0"
     "@opentelemetry/instrumentation": "npm:^0.220.0"
     "@opentelemetry/instrumentation-pino": "npm:^0.66.0"
     "@opentelemetry/resources": "npm:^2.9.0"

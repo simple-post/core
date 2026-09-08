@@ -99,6 +99,17 @@ Recommended first alerts:
 
 ## Error classification
 
+Trace export sanitizes span names, attributes, events, links and resources before
+OTLP/HTTP delivery. URL queries/fragments, Telegram bot-token paths, credential
+fields and SQL statements are redacted; timing, status and trace correlation are
+preserved. Existing telemetry is not retroactively sanitized by a deployment.
+
+Browser uploads log a correlated fallback success or failure. Browser network
+errors are labeled as network failures rather than assuming CORS is the cause.
+Expected API 4xx responses retain actionable validation reasons and are logged as
+warnings in the browser. Accounts-page error recovery includes an explicit page
+reload; reports capture browser translation state to investigate DOM mutations.
+
 Publishing failures and credential upkeep are separate signals. A dispatch span
 is marked failed when a post or repost fails. Credential refresh counts remain
 available as `simplepost.credential_refresh.failed`, `.refreshed`, and `.skipped`

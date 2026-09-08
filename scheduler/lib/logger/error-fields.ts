@@ -1,6 +1,7 @@
 /** Bounded diagnostics for flat OTLP attributes; never copy request/config objects. */
 export function diagnosticText(value: string): string {
   return value
+    .replaceAll(/(https?:\/\/)[^/\s@]+@/gi, "$1[REDACTED]@")
     .replaceAll(/Bearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
     .replaceAll(/(https?:\/\/[^\s?"'<>]+)\?[^\s"'<>]*/gi, "$1?[REDACTED]")
     .replaceAll(
@@ -8,6 +9,7 @@ export function diagnosticText(value: string): string {
       "$1[REDACTED]",
     )
     .replaceAll(/(api\.telegram\.org\/bot)[^/\s]+/gi, "$1[REDACTED]")
+    .replaceAll(/(https?:\/\/[^\s#"'<>]+)#[^\s"'<>]*/gi, "$1#[REDACTED]")
     .slice(0, 4000);
 }
 

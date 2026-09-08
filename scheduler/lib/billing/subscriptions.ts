@@ -292,7 +292,7 @@ function buildTrialStatus(
     startsAt: trial.startsAt.toISOString(),
     expiresAt: trial.expiresAt.toISOString(),
     daysRemaining: getTrialDaysRemaining(trial, now),
-    postsPerPlatform,
+    postsPerPlatform: postsPerPlatform + (trial.bonusPostsPerPlatform ?? 0),
     maxThreadSegments,
     platformUsage,
   };
@@ -475,7 +475,13 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
     : complimentaryActive
       ? complimentaryPlan
       : trialActive
-        ? TRIAL_PLAN
+        ? {
+            ...TRIAL_PLAN,
+            limits: {
+              ...TRIAL_PLAN.limits,
+              postsPerPlatform: (TRIAL_PLAN.limits.postsPerPlatform ?? 0) + (freeTrial?.bonusPostsPerPlatform ?? 0),
+            },
+          }
         : null;
   const complimentaryPeriod = complimentaryActive
     ? getComplimentaryUsagePeriod(complimentaryAccess as ComplimentaryAccess, now)

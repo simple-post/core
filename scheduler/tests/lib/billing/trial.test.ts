@@ -28,6 +28,7 @@ function trialRow(overrides: Partial<{ startsAt: Date; expiresAt: Date }> = {}) 
   return {
     id: "trial-1",
     userId: "user-1",
+    bonusPostsPerPlatform: 0,
     startsAt: new Date("2026-07-20T12:00:00.000Z"),
     expiresAt: new Date("2026-07-27T12:00:00.000Z"),
     createdAt: new Date("2026-07-20T12:00:00.000Z"),

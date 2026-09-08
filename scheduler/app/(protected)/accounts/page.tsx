@@ -389,7 +389,7 @@ export default function AccountsPage() {
               Cancel
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
-              {connectForemMutation.isPending ? "Connecting..." : "Connect"}
+              <span>{connectForemMutation.isPending ? "Connecting..." : "Connect"}</span>
             </Button>
           </div>
         </DialogContent>
@@ -441,7 +441,7 @@ export default function AccountsPage() {
               onClick={handleDisconnectConfirm}
               disabled={disconnectAccountMutation.isPending}
               className="flex-1">
-              {disconnectAccountMutation.isPending ? "Disconnecting..." : "Disconnect"}
+              <span>{disconnectAccountMutation.isPending ? "Disconnecting..." : "Disconnect"}</span>
             </Button>
           </div>
         </DialogContent>
@@ -548,7 +548,7 @@ export default function AccountsPage() {
               Cancel
             </Button>
             <Button onClick={handleTelegramConnect} disabled={connectTelegramMutation.isPending} className="flex-1">
-              {connectTelegramMutation.isPending ? "Connecting..." : "Connect"}
+              <span>{connectTelegramMutation.isPending ? "Connecting..." : "Connect"}</span>
             </Button>
           </div>
         </DialogContent>

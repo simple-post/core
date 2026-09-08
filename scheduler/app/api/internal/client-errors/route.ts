@@ -13,7 +13,7 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 30;
 
 const clientErrorSchema = z.object({
-  level: z.enum(["error", "warn"]).default("error"),
+  level: z.enum(["error", "warn", "info"]).default("error"),
   message: z.string().max(500).default("Client error"),
   error: z.record(z.string(), z.unknown()).optional(),
   context: z.record(z.string(), z.unknown()).optional(),
@@ -131,7 +131,9 @@ export async function POST(req: NextRequest) {
       context: payload.context,
     };
 
-    if (payload.level === "warn") {
+    if (payload.level === "info") {
+      log.info(logPayload, payload.message);
+    } else if (payload.level === "warn") {
       log.warn(logPayload, payload.message);
     } else {
       log.error(logPayload, payload.message);

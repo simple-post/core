@@ -1,5 +1,19 @@
 import { apiResponseError } from "@/lib/utils/api-response-error";
 
+it("prioritizes blocking summary errors over provider warnings", () => {
+  expect(
+    apiResponseError(
+      {
+        details: {
+          results: [{ warnings: [{ message: "Consider a shorter caption." }] }],
+          summary: { errors: [{ message: "Instagram requires JPEG." }] },
+        },
+      },
+      "Failed",
+    ),
+  ).toBe("Instagram requires JPEG.");
+});
+
 it("surfaces structured provider validation issues instead of generic text", () => {
   expect(
     apiResponseError({ error: "Validation failed", details: [{ message: "Instagram requires JPEG." }] }, "Failed"),

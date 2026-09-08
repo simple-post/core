@@ -84,10 +84,10 @@ it("parses Telegram HTML before measuring length and catches invalid markup", ()
   expect(
     validateContentForPlatform(
       "telegram",
-      { text: "**markdown**" },
+      { text: "*markdown*" },
       { telegram: { chatId: "1", parseMode: "MarkdownV2" } },
-    ).warnings,
-  ).toContainEqual(expect.objectContaining({ code: "telegram_entities_unverified" }));
+    ).isValid,
+  ).toBe(true);
 });
 it("applies dimension and animation boundaries to actual metadata", () => {
   const media = { contentType: "image/jpeg", size: 1024, width: 864, height: 1080, frames: 1 };

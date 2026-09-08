@@ -1,3 +1,5 @@
+import { telegramMarkdown } from "./telegram-markdown";
+
 /** Telegram's HTML subset is deliberately smaller than browser HTML. */
 const tags = new Set([
   "b",
@@ -21,14 +23,7 @@ const tags = new Set([
 const entities: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"' };
 export function telegramText(text: string, mode?: string): { text: string; error?: string; warning?: string } {
   if (!mode) return { text };
-  if (mode !== "HTML") {
-    // Do not pretend a partial Markdown parser proves validity. This mode needs provider parsing.
-    return {
-      text,
-      warning:
-        "Telegram Markdown formatting could not be fully verified. Use HTML or plain-text captions for local entity validation; Telegram may reject unsupported or unbalanced Markdown.",
-    };
-  }
+  if (mode !== "HTML") return telegramMarkdown(text, mode === "Markdown");
   const stack: string[] = [];
   let output = "";
   const invalid = () => ({

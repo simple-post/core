@@ -141,7 +141,7 @@ export function selection(config?: LiveConfig, env: NodeJS.ProcessEnv = process.
   const profile = env.E2E_PROFILE ?? "smoke";
   const file = env.E2E_CONFIG ?? "config.local.json";
   config ??= existsSync(file) ? loadConfig(file) : undefined;
-  if (!["smoke", "full", "regression", "lifecycle", "negative"].includes(profile))
+  if (!["smoke", "full", "regression", "lifecycle", "negative", "validation"].includes(profile))
     throw new Error(`Unknown E2E_PROFILE: ${profile}`);
   return {
     platforms: parse(

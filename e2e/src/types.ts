@@ -15,7 +15,18 @@ export type Platform = (typeof platforms)[number];
 export const interfaces = ["mcp", "cli-app", "cli-local", "ui"] as const;
 export type Interface = (typeof interfaces)[number];
 export type Options = Record<string, string | boolean | number | string[] | null>;
-export type MediaKey = "image" | "image2" | "webp" | "video" | "silentVideo";
+export type MediaKey =
+  | "image"
+  | "image2"
+  | "webp"
+  | "video"
+  | "silentVideo"
+  | "narrowImage"
+  | "largeImage"
+  | "squareVideo"
+  | "shortVideo"
+  | "slowVideo"
+  | "disguisedVideo";
 export interface Scenario {
   id: string;
   platform: Platform;
@@ -26,6 +37,7 @@ export interface Scenario {
   interfaces: Interface[];
   mode?: "schedule" | "draft" | "draft-edit" | "cancel";
   expectedError?: string;
+  expectedIssue?: { code: string; field?: string; actual?: number; limit?: number };
   expectedFields?: Options;
   thread?: string[];
   requirements?: string[];

@@ -5,12 +5,21 @@ import type { LiveConfig } from "./config.js";
 import type { MediaKey, MediaFile } from "./types.js";
 import type { SchedulerApi } from "./http.js";
 export const filenames: Record<MediaKey, string> = {
+  narrowImage: "narrow-image.jpg",
+  largeImage: "large-image.jpg",
+  squareVideo: "square-video.mp4",
+  shortVideo: "short-video.mp4",
+  slowVideo: "slow-video.mp4",
+  disguisedVideo: "disguised-video.mp4",
   image: "image.jpg",
   image2: "image-2.jpg",
   webp: "image.webp",
   video: "video.mp4",
   silentVideo: "silent-video.mp4",
 };
+export function isVideoFixture(key: MediaKey): boolean {
+  return filenames[key].endsWith(".mp4");
+}
 export async function mediaFiles(config: LiveConfig, keys: readonly MediaKey[]): Promise<MediaFile[]> {
   return Promise.all(
     keys.map(async (key) => {
@@ -21,16 +30,16 @@ export async function mediaFiles(config: LiveConfig, keys: readonly MediaKey[]):
         filename,
         path: file,
         url: config.fixtureUrls[filename] ?? new URL(filename, config.mediaBaseUrl.replace(/\/?$/, "/")).href,
-        type: key === "video" || key === "silentVideo" ? "video" : "image",
+        type: isVideoFixture(key) ? "video" : "image",
         size: bytes.length,
-        ...(key === "video" || key === "silentVideo"
+        ...(isVideoFixture(key)
           ? {
               thumbnailUrl:
                 config.fixtureUrls["image.jpg"] ?? new URL("image.jpg", config.mediaBaseUrl.replace(/\/?$/, "/")).href,
             }
           : {}),
         sha256: createHash("sha256").update(bytes).digest("hex"),
-        ...(filename.endsWith(".mp4") ? { durationSec: 4 } : {}),
+        ...(filename.endsWith(".mp4") ? { durationSec: key === "shortVideo" || key === "disguisedVideo" ? 1 : 4 } : {}),
       };
     }),
   );

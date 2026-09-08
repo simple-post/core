@@ -43,6 +43,41 @@ This runs the SDK and scheduler regressions added on `main`, including Telegram 
 
 The command uses the same application-root selection and creates a temporary PostgreSQL cluster on a free loopback port, applies the real migrations, runs the checks, then stops and removes the cluster. PostgreSQL tools (`initdb`, `pg_ctl`, `createdb`) must be on PATH; no database URL or test-account configuration is needed. It does not use your configured application database. Platform publishing and storage deletion are mocked in these fault tests. The 24-hour storage collector is exercised with due dates moved only in this disposable database, not by waiting or changing production clocks. These checks complement `yarn e2e:test`; neither command publishes real posts.
 
+## Validation regressions
+
+`yarn e2e:test` includes 30 failure scenarios across all 11 platforms. Each runs
+through the built SDK publishing entry point and a real CLI subprocess with an
+isolated fake account store. A socket guard records and blocks outbound connection
+attempts; success requires `INVALID_CONTENT`, the expected violation, no post ID,
+and zero network attempts. Media fixtures include an unsupported portrait ratio,
+a large image, short/slow videos, and WebM bytes disguised with an MP4 filename.
+The inputs deliberately lie about media size, MIME and duration. Success fixtures
+are also decoded/probed, including the square video used in Instagram carousels.
+FFmpeg/ffprobe is required for offline tests; CI installs it and runs this suite.
+
+`yarn e2e:reliability` additionally exercises the actual scheduler HTTP handlers and
+MCP validation handler against a temporary PostgreSQL database. It checks immediate
+and scheduled submission, per-account text overrides, thread children, rejected
+draft edits, and account denial. Invalid content must create no post or durable
+publish attempt; rejected edits must preserve the original draft. Provider I/O and
+authentication are substituted in those database tests; content validation is real.
+
+To check a configured deployment without publishing test posts:
+
+```sh
+yarn e2e:plan --profile validation --interface mcp
+yarn e2e:live --profile validation --interface mcp
+```
+
+This profile calls `validate_post` only. It requires the expected structured error
+code, severity, account, and any specified field/actual/limit values. A provider
+error, wrong-account error, warning or unrelated rejection cannot pass. Normal
+fixture hosting may upload original test files to SimplePost storage. It does not
+send them to social platforms. Live execution still requires the usual configured
+test account and MCP authorization. Dynamic quotas/permissions remain covered by
+isolated readiness regressions; the live profile does not exhaust real quotas or
+change account permissions to manufacture errors.
+
 ## Sign in and discover the test configuration
 
 Use your test user on the real deployment. You only need connected accounts for the platforms you want to test. From the repository root:

@@ -74,6 +74,12 @@ try {
     "PublishingApi",
     "Credentials",
     "StorageDeletion",
+    "ValidationBoundary",
+    "FinalValidation",
+    "PostMediaValidation",
+    "RemoteMediaValidation",
+    "AccountReadiness",
+    "TelegramMarkdown",
   ]);
   await run("yarn", [
     "workspace",

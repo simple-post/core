@@ -4,8 +4,9 @@ import type { PostOptions } from "@simple-post/sdk";
 import { catalog, materialize } from "../src/catalog.js";
 import { account, config } from "./helpers.js";
 import { mediaFiles } from "../src/media.js";
-const { validateContentForPlatform } = applicationSdk();
-for (const scenario of catalog.filter((c) => c.interfaces.length > 0 && !c.expectedError)) {
+const mediaCache = new Map();
+const { validateContentForPlatform, validatePostMedia } = applicationSdk();
+for (const scenario of catalog.filter((c) => c.interfaces.length > 0 && !c.expectedError && !c.unsupportedReason)) {
   test(`SDK accepts live fixture contract: ${scenario.id}`, async () => {
     const cfg = config(),
       s = materialize(scenario, account(), "mcp", "contract", cfg.mediaBaseUrl);
@@ -16,6 +17,23 @@ for (const scenario of catalog.filter((c) => c.interfaces.length > 0 && !c.expec
       { [s.platform]: s.options } as PostOptions,
     );
     expect(result.errors, `The live suite must not submit unsupported content for ${s.id}`).toEqual([]);
+    const options = { [s.platform]: { ...s.options } } as PostOptions;
+    if (options.youtube?.thumbnailUrl) {
+      delete options.youtube.thumbnailUrl;
+      options.youtube.thumbnailPath = (await mediaFiles(cfg, ["image"]))[0].path;
+    }
+    const measured = await validatePostMedia(
+      {
+        platforms: [s.platform],
+        content: { text: s.message, media: files.map((m) => ({ type: m.type, path: m.path })) },
+        options,
+      },
+      mediaCache,
+    );
+    expect(
+      measured.filter((issue) => issue.severity === "error"),
+      `Actual fixture bytes for ${s.id}`,
+    ).toEqual([]);
     expect(
       result.warnings.filter((w) => /first.*(posted|sent)|ignore|images only/.test(w.message)),
       `No silent attachment truncation in ${s.id}`,
@@ -32,8 +50,9 @@ const boundaries = [
 ] as const;
 for (const [platform, limit, over] of boundaries)
   test(`${platform} text limit ${limit}/${over} rejects before a live API call`, () => {
-    expect(validateContentForPlatform(platform, { text: "a".repeat(limit) }).isValid).toBe(true);
-    expect(validateContentForPlatform(platform, { text: "a".repeat(over) }).isValid).toBe(false);
+    const options = platform === "forem" ? { forem: { title: "Short" } } : undefined;
+    expect(validateContentForPlatform(platform, { text: "a".repeat(limit) }, options).isValid).toBe(true);
+    expect(validateContentForPlatform(platform, { text: "a".repeat(over) }, options).isValid).toBe(false);
   });
 
 for (const id of ["telegram.album-11-invalid", "telegram.album-caption-1025-invalid"])

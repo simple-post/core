@@ -122,3 +122,61 @@ for (const id of [
       delete process.env.E2E_MCP_TOKEN;
     }
   });
+
+for (const mode of ["valid-error", "wrong-code", "wrong-field", "wrong-account", "warning-only", "provider-error"])
+  test(`MCP validation evidence: ${mode} cannot hide a publishing failure`, async () => {
+    const calls: string[] = [];
+    const a = account();
+    const scenario = catalog.find((s) => s.id === "instagram.validation-portrait-ratio")!;
+    const s = materialize(scenario, a, "mcp", "validation", "https://media.example.com");
+    const host = await serve(async (req, res, body) => {
+      const server = new McpServer({ name: "validation-evidence", version: "1.0.0" });
+      for (const name of [
+        "list_accounts",
+        "create_post",
+        "validate_post",
+        "inspect_posts",
+        "upload_media",
+        "update_scheduled_post",
+        "discard_scheduled_post",
+      ])
+        server.registerTool(name, { inputSchema: z.object({}).passthrough() }, async () => {
+          calls.push(name);
+          const issue = {
+            ...s.expectedIssue,
+            severity: mode === "warning-only" ? "warning" : "error",
+            message: "aspect_ratio unsupported",
+            ...(mode === "wrong-code" ? { code: "PUBLISH_REJECTED" } : {}),
+            ...(mode === "wrong-field" ? { field: "media[1]" } : {}),
+          };
+          const result = {
+            isValid: false,
+            accounts: [{ accountId: mode === "wrong-account" ? "other" : a.id, isValid: false, errors: [issue] }],
+          };
+          return mode === "provider-error"
+            ? { isError: true, content: [{ type: "text" as const, text: "Platform rejected aspect_ratio" }] }
+            : { content: [{ type: "text" as const, text: JSON.stringify(result) }], structuredContent: result };
+        });
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+      await server.connect(transport);
+      res.on("close", () => {
+        void server.close();
+      });
+      await transport.handleRequest(req, res, body);
+    });
+    process.env.E2E_MCP_TOKEN = "fake-mcp-token";
+    const client = new McpClient(config({ baseUrl: host.url }));
+    try {
+      await client.connect();
+      const result = mcpCreate(client, s, a, [], "validation", async () => {
+        throw new Error("Must not create a post");
+      });
+      if (mode === "valid-error") await expect(result).resolves.toEqual({ status: "validation-rejected", results: [] });
+      else await expect(result).rejects.toThrow();
+      expect(calls).toEqual(["validate_post"]);
+    } finally {
+      await client.close();
+      await host.close();
+      delete process.env.E2E_MCP_TOKEN;
+    }
+  });

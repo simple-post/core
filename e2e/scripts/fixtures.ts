@@ -1,3 +1,5 @@
+import { validationFixtures } from "./validation-fixtures.js";
+import { filenames } from "../src/media.js";
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -37,10 +39,11 @@ for (const sound of [true, false]) {
   else args.push("-an");
   ffmpeg([...args, path.join(dir, sound ? "video.mp4" : "silent-video.mp4")]);
 }
+await validationFixtures(dir);
 const manifest: Record<string, unknown> = {};
-for (const file of ["image.jpg", "image-2.jpg", "image.webp", "video.mp4", "silent-video.mp4"]) {
+for (const file of Object.values(filenames)) {
   const bytes = await readFile(path.join(dir, file));
   manifest[file] = { bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 await writeFile(path.join(dir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-console.log("Generated original color images and four-second test videos (with tone / without audio).");
+console.log("Generated original images, test videos, and validation regression fixtures.");

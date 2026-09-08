@@ -2,7 +2,7 @@ import { expect, type Page, type Route, type Response } from "@playwright/test";
 import type { Account, LiveConfig } from "../config.js";
 import type { Materialized, MediaFile, Options, Receipt } from "../types.js";
 import { parsePostingResponse, receiptFrom } from "../http.js";
-import { mediaFiles } from "../media.js";
+import { mediaFiles, isVideoFixture } from "../media.js";
 import { createHash } from "node:crypto";
 export class UiSubmissionBlockedError extends Error {}
 
@@ -141,7 +141,7 @@ export function assertUiPayload(raw: Record<string, unknown>, s: Materialized, a
   expect(
     (raw.media as { type: string }[] | undefined)?.map((m) => m.type) ?? [],
     "UI attachment types and mixed-media order",
-  ).toEqual(s.media.map((key) => (key === "video" || key === "silentVideo" ? "video" : "image")));
+  ).toEqual(s.media.map((key) => (isVideoFixture(key) ? "video" : "image")));
   const actual = (raw.accountOptions as Record<string, Options> | undefined)?.[account.id] ?? {};
   for (const [key, value] of Object.entries(s.options)) {
     if (s.options.publishMode === "draft" && ["privacyLevel", "autoAddMusic"].includes(key)) continue;

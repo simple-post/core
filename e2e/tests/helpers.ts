@@ -8,10 +8,10 @@ export function account(overrides: Partial<Account> = {}): Account {
     username: "testuser",
     capabilities: [],
     resources: {
-      boardId: "board-1",
+      boardId: "123456789",
       boardName: "Test Board",
       playlistId: "playlist-1",
-      replyToId: "reply-1",
+      replyToId: "12345",
       organizationId: 123,
       thumbnailUrl: "https://media.example.com/image.jpg",
     },

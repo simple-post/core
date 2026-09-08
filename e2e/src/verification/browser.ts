@@ -1,3 +1,4 @@
+import { isVideoFixture } from "../media.js";
 import { expect, type Browser, type Page, type Locator } from "@playwright/test";
 import { verifyYouTubeMetadata, type YouTubeVerification } from "./youtube.js";
 import { writeFile } from "node:fs/promises";
@@ -311,11 +312,7 @@ export async function verifyPage(page: Page, s: Materialized, account: Account):
   // Logged-out Facebook video permalinks currently render the player without
   // the post's article wrapper. The canonical URL is already checked against
   // the returned ID, so verify the exact page's player as the fallback surface.
-  if (
-    s.platform === "facebook" &&
-    s.media.some((key) => key === "video" || key === "silentVideo") &&
-    !(await roots.count())
-  ) {
+  if (s.platform === "facebook" && s.media.some((key) => isVideoFixture(key)) && !(await roots.count())) {
     await verifyContent(page, page.locator("body"), s, account);
     return;
   }
@@ -397,7 +394,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
   const textLocator =
     s.platform === "threads"
       ? root.locator("span").filter({ hasText: s.token })
-      : s.platform === "facebook" && s.media.some((key) => key === "video" || key === "silentVideo")
+      : s.platform === "facebook" && s.media.some((key) => isVideoFixture(key))
         ? root.locator('[dir="auto"]').filter({ hasText: s.token }).last()
         : root.locator(cfg.text);
   await assertText(textLocator, platformText, "Platform caption must match the requested content");
@@ -409,7 +406,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
   if (s.expectedTitle && !cfg.title) throw new Error("NEEDS VERIFICATION: configure a platform title selector.");
   if (s.expectedTitle && cfg.title)
     await assertText(root.locator(cfg.title), s.expectedTitle, "Platform title must match");
-  const videoCount = s.media.filter((x) => x === "video" || x === "silentVideo").length;
+  const videoCount = s.media.filter((x) => isVideoFixture(x)).length;
   const imageCount = s.media.length - videoCount;
   const instagramCarousel = s.platform === "instagram" && imageCount > 1 && !videoCount;
   const webAlbum = s.platform === "telegram" && s.media.length > 1 && account.observer.telegramWeb;
@@ -423,7 +420,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
     await expect(items, "Every Telegram album attachment must be present").toHaveCount(s.media.length);
     for (const [index, key] of s.media.entries()) {
       const item = items.nth(index);
-      if (key === "video" || key === "silentVideo")
+      if (isVideoFixture(key))
         expect(await item.evaluate((n) => n instanceof HTMLVideoElement), `Album item ${index + 1} must be video`).toBe(
           true,
         );
@@ -438,7 +435,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
     else await expect(images).toHaveCount(imageCount);
     await expect(images.first()).toBeVisible();
     // Solid-color original fixtures make order assertions independent of captions and CDN URLs.
-    const keys = s.media.filter((key) => key !== "video" && key !== "silentVideo");
+    const keys = s.media.filter((key) => !isVideoFixture(key));
     for (let index = 0; index < keys.length; index++) {
       const img = account.observer.nextImage ? images.first() : images.nth(index);
       if (account.observer.fields.mediaCount && !account.observer.nextImage && (await images.count()) !== keys.length)

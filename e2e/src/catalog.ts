@@ -1,3 +1,4 @@
+import { validationCases } from "./validation-cases.js";
 import { createHash } from "node:crypto";
 import {
   interfaces,
@@ -12,7 +13,7 @@ import {
 import { selection, type Account } from "./config.js";
 const all = [...interfaces];
 const hosted: Interface[] = ["mcp", "ui"];
-const cases: Scenario[] = [];
+const cases: Scenario[] = [...validationCases];
 function add(platform: Platform, id: string, media: MediaKey[], options: Options = {}, extra: Partial<Scenario> = {}) {
   cases.push({ id: `${platform}.${id}`, platform, media, options, tags: ["full"], interfaces: all, ...extra });
 }
@@ -340,7 +341,7 @@ for (const mode of ["schedule", "draft-edit", "cancel"] as const)
       tags: ["full", "lifecycle", "regression"],
     },
   );
-add("instagram", "mixed-carousel", ["image", "video"]);
+add("instagram", "mixed-carousel", ["image", "squareVideo"]);
 add(
   "telegram",
   "album-mixed-flags",
@@ -552,7 +553,7 @@ export function materialize(
         : s.platform === "tiktok"
           ? undefined
           : s.platform === "youtube"
-            ? String(options.title || message.trim() || "Untitled Video").slice(0, 100)
+            ? String(options.title || message.trim() || "Untitled Video")
             : typeof options.title === "string"
               ? options.title
               : undefined,

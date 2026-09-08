@@ -1,4 +1,28 @@
 {
+  "narrow-image.jpg": {
+    "bytes": 3737,
+    "sha256": "0c5e95a7323b5692cdd06a442bd72ee12c4b0a9cce62eb1c1ec3d26481b3356a"
+  },
+  "large-image.jpg": {
+    "bytes": 213463,
+    "sha256": "55e47c2f71e5b2bedf66b9d0d567055f0e35f4216749f98d318d4654c7b511fb"
+  },
+  "square-video.mp4": {
+    "bytes": 5302,
+    "sha256": "f082bfa235b66a1d0d44d01b71cb95a905a30242fcd07b242b80a13b1bb560fb"
+  },
+  "short-video.mp4": {
+    "bytes": 2625,
+    "sha256": "87d537348f31cabecc180db4eede109d466cc767459d4328fbc2a878d6143f80"
+  },
+  "slow-video.mp4": {
+    "bytes": 3628,
+    "sha256": "38df729fc9eb99b504449886c947474e53b49e443fb17fe75ca03e01c914638e"
+  },
+  "disguised-video.mp4": {
+    "bytes": 1301,
+    "sha256": "25e33ce9cd1842ca3c4403fb4cd3a6df806d02a1f7726c858541250df7654958"
+  },
   "image.jpg": {
     "bytes": 7205,
     "sha256": "dcf0feeeb5b318b1b2ebdaaa215bc57f9e57eaca0715bd0fffde1bf70bc21d89"

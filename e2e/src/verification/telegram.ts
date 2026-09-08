@@ -1,3 +1,4 @@
+import { isVideoFixture } from "../media.js";
 import type { Account } from "../config.js";
 import { expect, type Page, type Locator } from "@playwright/test";
 import { verifyFixtureImage } from "./image.js";
@@ -129,7 +130,7 @@ export async function verifyTelegramWebAlbum(
     .toBe(s.media.length);
   for (const [index, key] of s.media.entries()) {
     const item = items.nth(index);
-    const isVideo = key === "video" || key === "silentVideo";
+    const isVideo = isVideoFixture(key);
     const videoMarker = item.locator(".video-play, video");
     expect((await videoMarker.count()) > 0, `Album item ${index + 1} must be ${isVideo ? "video" : "image"}`).toBe(
       isVideo,

@@ -98,13 +98,30 @@ export async function mcpCreate(
   };
   if (s.expectedError) {
     try {
-      const result = await client.call<{ isValid?: boolean; summary?: { isValid?: boolean } }>("validate_post", input);
+      const result = await client.call<{
+        isValid?: boolean;
+        summary?: { isValid?: boolean };
+        accounts?: Array<{ accountId: string; isValid: boolean; errors: Array<Record<string, unknown>> }>;
+      }>("validate_post", input);
       if (result.isValid !== false && result.summary?.isValid !== false)
         throw new Error("Invalid scenario unexpectedly passed MCP validation");
+      if (s.expectedIssue) {
+        const target = result.accounts?.find((item) => item.accountId === account.id);
+        if (
+          target?.isValid !== false ||
+          !target.errors.some(
+            (issue) =>
+              issue.severity === "error" &&
+              Object.entries(s.expectedIssue!).every(([key, value]) => issue[key] === value),
+          )
+        )
+          throw new Error("MCP did not return the expected structured validation error for the target account");
+      }
       if (!new RegExp(s.expectedError, "i").test(JSON.stringify(result)))
         throw new Error("MCP rejected invalid content for an unexpected reason");
     } catch (error) {
       if (
+        s.expectedIssue ||
         !(error instanceof Error) ||
         !error.message.startsWith("MCP validate_post tool error:") ||
         !new RegExp(s.expectedError, "i").test(error.message)

@@ -68,6 +68,17 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: yarn test:coverage
 
+      - name: Build SDK and CLI for end-to-end checks
+        run: |
+          yarn workspace @simple-post/sdk build
+          yarn workspace @simple-post/cli build
+
+      - name: Install end-to-end browser
+        run: yarn workspace @simple-post/e2e exec playwright install --with-deps chromium
+
+      - name: Run offline end-to-end checks
+        run: yarn e2e:test
+
       - name: Run CLI tests
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"

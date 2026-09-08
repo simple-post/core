@@ -85,7 +85,10 @@ test("the real journal can reserve and resume every selected Telegram case with 
         await journal.save(entry);
       }
     const entries = await journal.entries();
-    expect(entries).toHaveLength(61);
+    const expectedEntries = chosen.flatMap((s) =>
+      selected.interfaces.filter((iface) => s.interfaces.includes(iface)),
+    ).length;
+    expect(entries).toHaveLength(expectedEntries);
     expect(budgetPlan(chosen, selected.interfaces, entries)).toEqual({
       spent: 115,
       remaining: 0,
@@ -101,7 +104,7 @@ test("the real journal can reserve and resume every selected Telegram case with 
       );
       expect((await journal.reserve(original, entry.interface, cfg.accounts.telegram!)).phase).toBe("verified");
     }
-    expect(await journal.entries()).toHaveLength(61);
+    expect(await journal.entries()).toHaveLength(expectedEntries);
   } finally {
     for (const key of ["E2E_PLATFORMS", "E2E_INTERFACES", "E2E_PROFILE", "E2E_SCENARIO"]) {
       if (before[key] === undefined) delete process.env[key];
@@ -152,4 +155,15 @@ test("an explicit budget too small for the selection fails preflight before acce
     }
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("validation profile covers every platform without a live publish budget", () => {
+  const cases = catalog.filter((scenario) => scenario.tags.includes("validation"));
+  expect(new Set(cases.map((scenario) => scenario.platform)).size).toBe(11);
+  for (const scenario of cases) {
+    expect(scenario.interfaces).toEqual(["mcp"]);
+    expect(scenario.expectedIssue?.code).toBeTruthy();
+    expect(scenario.expectedError).toBeTruthy();
+  }
+  expect(budgetPlan(cases, ["mcp"], []).total).toBe(0);
 });

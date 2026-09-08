@@ -39,8 +39,8 @@ export function runnerArgs(mode: RunnerMode, args: string[], inherited: NodeJS.P
   if (values.all && values.profile && values.profile !== "full")
     throw new Error("--all cannot be combined with a different --profile");
   if (values.profile !== undefined) {
-    if (!["smoke", "full", "regression", "lifecycle", "negative"].includes(values.profile))
-      throw new Error("Invalid --profile; choose smoke, full, regression, lifecycle, or negative");
+    if (!["smoke", "full", "regression", "lifecycle", "negative", "validation"].includes(values.profile))
+      throw new Error("Invalid --profile; choose smoke, full, regression, lifecycle, negative, or validation");
     env.E2E_PROFILE = values.profile;
   }
   if (values.all) env.E2E_PROFILE = "full";
@@ -78,7 +78,7 @@ export function runnerHelp(mode: RunnerMode) {
   --platform NAME     Select a platform (repeat or comma-separate names)
   --interface NAME    Select mcp, cli-app, cli-local, or ui (repeatable)
   --all               Select the full scenario catalog (default: smoke)
-  --profile NAME      smoke, full, regression, lifecycle, or negative
+  --profile NAME      smoke, full, regression, lifecycle, negative, or validation
   --scenario TEXT     Filter scenario IDs by substring; prefix with = for an exact ID
   --config FILE       Use a different test-account configuration
   --help, -h          Show this help

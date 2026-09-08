@@ -120,3 +120,10 @@ test("real live CLI lists only Telegram full cases and plan accepts the same sel
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("validation profile can be selected explicitly for MCP-only deployment checks", () => {
+  expect(runnerArgs("plan", ["--profile", "validation", "--interface", "mcp"], {}).env).toMatchObject({
+    E2E_PROFILE: "validation",
+    E2E_INTERFACES: "mcp",
+  });
+});

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
+import { getChargedTrialAccounts } from "@/lib/billing/trial";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
@@ -166,12 +167,13 @@ async function updatePost(
     // A draft consumed no allowance when it was created, so leaving draft state
     // is where it gets charged. An already scheduled post has paid for the
     // accounts it currently targets, so only newly added ones cost anything.
-    const replacingSocialAccounts = ["scheduled", "failed"].includes(currentPost.status)
+    const previousAccounts = ["scheduled", "failed"].includes(currentPost.status)
       ? await prisma.connectedAccount.findMany({
           where: { userId: session.user.id, id: { in: currentPost.accountIds } },
-          select: { platform: true },
+          select: { id: true, platform: true },
         })
       : [];
+    const replacingSocialAccounts = getChargedTrialAccounts({ ...currentPost, accounts: previousAccounts });
 
     const repostSettings = validated.repost
       ? normalizeRepostSettings(validated.repost)

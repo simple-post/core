@@ -24,6 +24,10 @@ export const validatePostSchema = z.object({
 });
 
 const validationIssueSchema = z.object({
+  code: z.string(),
+  severity: z.enum(["error", "warning"]),
+  actual: z.number().optional(),
+  limit: z.number().optional(),
   message: z.string(),
   field: z.string().optional(),
 });
@@ -80,8 +84,22 @@ export async function validatePost(
         displayName: account?.displayName ?? null,
         profilePicture: account?.profilePicture ?? null,
         isValid: r.isValid,
-        errors: r.errors.map((e) => ({ message: e.message, field: e.field })),
-        warnings: r.warnings.map((w) => ({ message: w.message, field: w.field })),
+        errors: r.errors.map((e) => ({
+          message: e.message,
+          field: e.field,
+          code: e.code,
+          severity: e.severity,
+          actual: e.actual,
+          limit: e.limit,
+        })),
+        warnings: r.warnings.map((w) => ({
+          message: w.message,
+          field: w.field,
+          code: w.code,
+          severity: w.severity,
+          actual: w.actual,
+          limit: w.limit,
+        })),
       };
     }),
     summary: {

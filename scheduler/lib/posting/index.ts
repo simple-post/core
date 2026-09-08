@@ -479,11 +479,13 @@ function mapMediaFilesToSdk(mediaFiles: MediaFile[]): Media[] {
           type: "image",
           url: file.url,
           size: file.size,
+          contentType: file.contentType,
         }
       : {
           type: "video",
           url: file.url,
           size: file.size,
+          contentType: file.contentType,
           thumbnailUrl: file.thumbnailUrl,
           durationSec: file.durationSec,
         };

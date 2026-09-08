@@ -3,6 +3,7 @@
 #   docker build -t simple-post-server -f server/Dockerfile .
 FROM node:20-alpine
 
+RUN apk add --no-cache ffmpeg
 RUN yarn global add pm2
 
 WORKDIR /app

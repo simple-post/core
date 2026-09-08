@@ -104,20 +104,26 @@ describe("LinkedInPublisher", () => {
       expect(result).toEqual({ id: "urn:li:share:quote", error: PostErrorType.NO_ERROR });
     });
 
-    it("should omit new media from a LinkedIn quote", async () => {
+    it("should reject new media instead of silently omitting it from a LinkedIn quote", async () => {
       mockedAxios.post.mockResolvedValueOnce({
         data: { id: "urn:li:share:quote-without-media" },
         headers: {},
       });
 
-      await publisher.quote(
+      const result = await publisher.quote(
         { text: "My take", media: [{ type: "image", path: "./image.jpg" }] },
         { postId: "urn:li:share:source" },
       );
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(result.error).toBe(PostErrorType.INVALID_CONTENT);
+      expect(mockedAxios.post).not.toHaveBeenCalled();
       expect(mockAxiosInstance.post).not.toHaveBeenCalled();
       expect(mockedAxios.put).not.toHaveBeenCalled();
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(LinkedInPublisher.prototype, "validateReadiness").mockResolvedValue([]));

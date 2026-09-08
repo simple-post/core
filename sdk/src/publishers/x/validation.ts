@@ -24,6 +24,7 @@ export function getXTextLength(text: string): number {
 }
 
 function isGif(media: Media): boolean {
+  if (media.contentType) return media.contentType === "image/gif";
   const source = media.path ?? media.url;
   if (!source) return false;
   try {

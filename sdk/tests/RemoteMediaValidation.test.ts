@@ -45,7 +45,7 @@ beforeEach(() => {
 it("replaces unknown and stale caller sizes with the measured value", async () => {
   const unknown = mediaFile("image", "https://cdn.example.com/unknown.png", 0);
   const stale = mediaFile("image", "https://cdn.example.com/stale.png", 100);
-  inspectRemoteMediaMock.mockResolvedValue({ size: 5_506_166, contentType: "image/jpeg" });
+  inspectRemoteMediaMock.mockResolvedValue({ size: 5_506_166, contentType: "image/jpeg", width: 100, height: 100 });
 
   await hydrateRemoteMediaSizesForAccounts({
     media: [unknown, stale],
@@ -200,7 +200,7 @@ it.each([
 });
 
 it("validates actual image format per account even for an extensionless URL", async () => {
-  inspectRemoteMediaMock.mockResolvedValue({ size: 1000, contentType: "image/png" });
+  inspectRemoteMediaMock.mockResolvedValue({ size: 1000, contentType: "image/png", width: 100, height: 100 });
   const failures = await hydrateRemoteMediaSizesForAccounts({
     media: [mediaFile("image", "https://example.com/download?id=1")],
     accounts: [

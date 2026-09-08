@@ -4,22 +4,18 @@ import path from "node:path";
 
 import axios from "axios";
 
-import {
-  TIKTOK_MAX_PHOTO_SIZE,
-  TIKTOK_MAX_VIDEO_SIZE,
-  TIKTOK_VALIDATION_RULES,
-  validateTikTokContent,
-  getTikTokPostText,
-} from "./validation";
+import { TIKTOK_MAX_PHOTO_SIZE, TIKTOK_MAX_VIDEO_SIZE, TIKTOK_VALIDATION_RULES, getTikTokPostText } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { getContentType, S3MediaUploader, resolveMediaPath, TempFileManager } from "../../utils";
+import { readinessFailure } from "../../utils/account-readiness";
 import { inspectRemoteMedia } from "../../utils/media-inspection";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials, TikTokOptions, TikTokPrivacyLevel } from "../../types/post";
-import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
+import type { PostOptions, Content, Media, PostOptionsWithCredentials, TikTokPrivacyLevel } from "../../types/post";
+import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
@@ -81,7 +77,7 @@ export class TikTokPublisher extends Publisher {
   private creatorUsername?: string;
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("TikTok", options);
+    super("TikTok", options, "tiktok");
 
     // Validate the credentials
     if (!options?.tiktok?.credentials) {
@@ -643,8 +639,18 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content, options?: TikTokOptions): ValidationResult {
-    return validateTikTokContent(content, options);
+  async validateReadiness(content: Content, options?: PostOptions): Promise<ValidationIssue[]> {
+    try {
+      if (options?.tiktok?.publishMode !== "draft" && content.media?.[0])
+        await this.validateDirectPostRequirements(content.media[0], options as PostOptionsWithCredentials);
+      return [];
+    } catch (error) {
+      return [readinessFailure("tiktok", error)];
+    }
+  }
+
+  static validate(content: Content, options?: PostOptions["tiktok"]): ValidationResult {
+    return validateContentForPlatform("tiktok", content, { tiktok: options });
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {

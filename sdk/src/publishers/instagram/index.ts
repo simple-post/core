@@ -1,14 +1,15 @@
 import axios, { type AxiosError, type AxiosInstance } from "axios";
 
-import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES, validateInstagramContent } from "./validation";
+import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PostOptions, Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 const INSTAGRAM_API_VERSION = "v25.0";
@@ -44,7 +45,7 @@ export class InstagramPublisher extends Publisher {
   };
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("Instagram", options);
+    super("Instagram", options, "instagram");
 
     // Validate the credentials
     if (!options?.instagram?.credentials) {
@@ -292,15 +293,15 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateInstagramContent(content);
+  static validate(content: Content, options?: PostOptions["instagram"]): ValidationResult {
+    return validateContentForPlatform("instagram", content, { instagram: options });
   }
 
   async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
     await this.ensureValidToken();
 
     // Validate the content
-    const validation = InstagramPublisher.validate(content);
+    const validation = InstagramPublisher.validate(content, _options?.instagram);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Instagram content validation failed", validation);
     }

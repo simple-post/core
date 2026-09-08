@@ -164,20 +164,22 @@ describe("YouTubePublisher", () => {
       expect(result).toEqual({ id: "video_id_123", error: PostErrorType.NO_ERROR });
     });
 
-    it("shortens a caption-derived title while preserving the full description", async () => {
-      const text = "Underwater ambience. ".repeat(23).slice(0, 444);
+    it("rejects an oversized derived title before uploading and accepts an explicit shorter title", async () => {
+      const text = "Underwater ambience. ".repeat(23);
+      const content: Content = { text, media: [{ type: "video", path: "/path/to/video.mp4" }] };
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+      });
+      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
       mockYouTubeClient.videos.insert.mockResolvedValue({ data: { id: "video_id_123" } });
-
-      const result = await publisher.postContent(
-        { text, media: [{ type: "video", path: "/path/to/video.mp4" }] },
-        options,
-      );
-
-      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      await publisher.postContent(content, {
+        ...options,
+        youtube: { ...options.youtube!, title: "Underwater ambience" },
+      });
       expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
-            snippet: expect.objectContaining({ title: text.slice(0, 100), description: text.trim() }),
+            snippet: expect.objectContaining({ title: "Underwater ambience", description: text.trim() }),
           }),
         }),
       );
@@ -619,7 +621,7 @@ describe("YouTubePublisher", () => {
       publisher = new YouTubePublisher(options);
     });
 
-    it("should warn when title will be truncated", () => {
+    it("should reject titles instead of truncating them", () => {
       const content: Content = {
         text: "a".repeat(150),
         media: [{ type: "video", path: "/path/video.mp4" }],
@@ -627,9 +629,8 @@ describe("YouTubePublisher", () => {
 
       const result = YouTubePublisher.validate(content);
 
-      expect(result.errors).toHaveLength(0);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].code).toBe("title_truncated");
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe("title_too_long");
     });
 
     it("should error when description is too long", () => {
@@ -698,3 +699,8 @@ describe("YouTubePublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(YouTubePublisher.prototype, "validateReadiness").mockResolvedValue([]));

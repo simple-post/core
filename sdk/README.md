@@ -87,3 +87,7 @@ TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and 
 ## Bluesky video
 
 Bluesky supports one MP4 video per post (300 MB, 10 minutes), including replies and quotes, with OAuth or app-password credentials. The SDK uploads and waits for processing before creating the post. Hosted interfaces impose additional [upload limits](https://docs.simplepost.social/publishing#upload-limits), including 50 MiB per file in the web app. See [Bluesky requirements and examples](https://docs.simplepost.social/bluesky).
+
+## Validation runtime
+
+Video publishing requires FFmpeg (`ffprobe` on PATH, or `FFPROBE_PATH`). The provided Docker images include it. See [publishing validation](VALIDATION.md) for shared checks, actionable errors, and provider-side limitations.

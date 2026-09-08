@@ -11,16 +11,23 @@ import {
   X_MAX_VIDEO_SIZE_BYTES,
   X_STANDARD_POST_MAX_LENGTH,
   X_VALIDATION_RULES,
-  validateXContent,
   getXTextLength,
 } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, TempFileManager } from "../../utils";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, PostOptionsWithCredentials, QuoteTarget, RepostTarget, XCredentials } from "../../types/post";
+import type {
+  PostOptions,
+  Content,
+  PostOptionsWithCredentials,
+  QuoteTarget,
+  RepostTarget,
+  XCredentials,
+} from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 
 interface RefreshTokenResponse {
@@ -64,7 +71,7 @@ export class XPublisher extends Publisher {
   private authenticatedUserLookupAttempted = false;
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("X", options);
+    super("X", options, "x");
 
     if (!options?.x?.credentials) {
       throw new PostError(PostErrorType.CREDENTIALS_ERROR, "X credentials are required in options.x.credentials");
@@ -315,8 +322,8 @@ export class XPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateXContent(content);
+  static validate(content: Content, options?: PostOptions["x"]): ValidationResult {
+    return validateContentForPlatform("x", content, { x: options });
   }
 
   async postContent(
@@ -327,7 +334,7 @@ export class XPublisher extends Publisher {
     const replyToId = options?.x?.replyToId;
 
     // Validate the content
-    const validation = XPublisher.validate(content);
+    const validation = XPublisher.validate(content, options?.x);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "X content validation failed", validation);
     }

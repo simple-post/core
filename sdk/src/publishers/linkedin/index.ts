@@ -2,19 +2,22 @@ import fs from "node:fs";
 
 import axios from "axios";
 
-import {
-  LINKEDIN_MAX_IMAGES,
-  LINKEDIN_MAX_VIDEOS,
-  LINKEDIN_VALIDATION_RULES,
-  validateLinkedInContent,
-} from "./validation";
+import { LINKEDIN_MAX_IMAGES, LINKEDIN_MAX_VIDEOS, LINKEDIN_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
+import type {
+  PostOptions,
+  Content,
+  Media,
+  PostOptionsWithCredentials,
+  QuoteTarget,
+  RepostTarget,
+} from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -37,7 +40,7 @@ export class LinkedInPublisher extends Publisher {
   private memberId: string;
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("LinkedIn", options);
+    super("LinkedIn", options, "linkedin");
 
     if (!options?.linkedin?.credentials) {
       throw new PostError(
@@ -134,12 +137,12 @@ export class LinkedInPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateLinkedInContent(content);
+  static validate(content: Content, options?: PostOptions["linkedin"]): ValidationResult {
+    return validateContentForPlatform("linkedin", content, { linkedin: options });
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
-    const validation = LinkedInPublisher.validate(content);
+    const validation = LinkedInPublisher.validate(content, options?.linkedin);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "LinkedIn content validation failed", validation);
     }
@@ -279,7 +282,11 @@ export class LinkedInPublisher extends Publisher {
 
   async quoteContent(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<PostResult> {
     if (content.media?.length) {
-      this.logger.warn("LinkedIn quote posts cannot include new media; posting the commentary-only reshare.");
+      throw new PostError(
+        PostErrorType.INVALID_CONTENT,
+        "LinkedIn quotes cannot include new attachments. Remove them or publish an ordinary post.",
+        { code: "quote_media_unsupported" },
+      );
     }
 
     return this.publishReshare(target.postId, content.text ?? "", options, "quote");

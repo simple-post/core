@@ -497,7 +497,7 @@ describe("TelegramPublisher", () => {
       const result = TelegramPublisher.validate(content);
 
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].code).toBe("caption_too_long");
+      expect(result.errors[0].code).toBe("telegram_text_too_long");
     });
 
     it("should accept URL photos above 5 MiB now that they use multipart upload", () => {
@@ -584,3 +584,8 @@ describe("TelegramPublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(TelegramPublisher.prototype, "validateReadiness").mockResolvedValue([]));

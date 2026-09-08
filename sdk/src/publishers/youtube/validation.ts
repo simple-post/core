@@ -31,7 +31,7 @@ export function getYouTubeVideoMetadata(
   return { title, description };
 }
 
-export function validateYouTubeContent(content: Content): ValidationResult {
+export function validateYouTubeContent(content: Content, options?: YouTubeOptions): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
   const media = content.media ?? [];
@@ -85,39 +85,30 @@ export function validateYouTubeContent(content: Content): ValidationResult {
   const video = media.find((item) => item.type === "video") as Video | undefined;
 
   if (video) {
-    const metadata = getYouTubeVideoMetadata(content, video);
-    if (video.title && video.title.length > YOUTUBE_MAX_TITLE_LENGTH) {
-      errors.push({
-        platform: "youtube",
-        severity: "error",
-        code: "title_too_long",
-        message: `YouTube titles cannot exceed ${YOUTUBE_MAX_TITLE_LENGTH} characters.`,
-        field: "title",
-        limit: YOUTUBE_MAX_TITLE_LENGTH,
-        actual: video.title.length,
-      });
-    } else if (!video.title && metadata.title.length > YOUTUBE_MAX_TITLE_LENGTH) {
-      warnings.push({
-        platform: "youtube",
-        severity: "warning",
-        code: "title_truncated",
-        message: `YouTube titles cannot exceed ${YOUTUBE_MAX_TITLE_LENGTH} characters. The title will be truncated.`,
-        field: "title",
-        limit: YOUTUBE_MAX_TITLE_LENGTH,
-        actual: metadata.title.length,
-      });
-    }
-
-    if (metadata.description && metadata.description.length > YOUTUBE_MAX_DESCRIPTION_LENGTH) {
-      errors.push({
-        platform: "youtube",
-        severity: "error",
-        code: "description_too_long",
-        message: `YouTube descriptions cannot exceed ${YOUTUBE_MAX_DESCRIPTION_LENGTH} characters.`,
-        field: "description",
-        limit: YOUTUBE_MAX_DESCRIPTION_LENGTH,
-        actual: metadata.description.length,
-      });
+    const metadata = getYouTubeVideoMetadata(content, video, options);
+    for (const [field, value, limit] of [
+      ["title", metadata.title, YOUTUBE_MAX_TITLE_LENGTH],
+      ["description", metadata.description ?? "", YOUTUBE_MAX_DESCRIPTION_LENGTH],
+    ] as const) {
+      const actual = field === "description" ? new TextEncoder().encode(value).length : [...value].length;
+      if (actual > limit)
+        errors.push({
+          platform: "youtube",
+          severity: "error",
+          code: `${field}_too_long`,
+          message: `YouTube ${field} is ${actual} ${field === "description" ? "UTF-8 bytes" : "characters"}; the limit is ${limit}. Shorten the final ${field}.`,
+          field,
+          limit,
+          actual,
+        });
+      if (/[<>]/.test(value))
+        errors.push({
+          platform: "youtube",
+          severity: "error",
+          code: `${field}_invalid_characters`,
+          message: `YouTube ${field} cannot contain < or >. Remove these characters.`,
+          field,
+        });
     }
   }
 

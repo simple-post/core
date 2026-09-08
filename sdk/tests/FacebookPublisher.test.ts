@@ -253,7 +253,7 @@ describe("FacebookPublisher", () => {
     });
 
     it("should schedule a text post correctly", async () => {
-      const scheduledTime = "2024-12-25T12:00:00Z";
+      const scheduledTime = new Date(Date.now() + 86_400_000).toISOString();
       const content: Content = {
         text: "This is a scheduled post",
       };
@@ -279,7 +279,7 @@ describe("FacebookPublisher", () => {
         expect.objectContaining({
           access_token: "test_access_token",
           message: "This is a scheduled post",
-          scheduled_publish_time: "1735128000",
+          scheduled_publish_time: String(Math.floor(new Date(scheduledTime).getTime() / 1000)),
           published: false,
         }),
       );
@@ -287,7 +287,7 @@ describe("FacebookPublisher", () => {
     });
 
     it("should schedule a video post correctly", async () => {
-      const scheduledTime = "2024-12-25T12:00:00Z";
+      const scheduledTime = new Date(Date.now() + 86_400_000).toISOString();
       const content: Content = {
         media: [
           {
@@ -341,7 +341,7 @@ describe("FacebookPublisher", () => {
       publisher = new FacebookPublisher(options);
     });
 
-    it("should warn when too many images are provided", () => {
+    it("should reject when too many images are provided", () => {
       const content: Content = {
         text: "Too many images",
         media: Array.from({ length: 12 }, (_, index) => ({
@@ -352,9 +352,9 @@ describe("FacebookPublisher", () => {
 
       const result = FacebookPublisher.validate(content);
 
-      expect(result.errors).toHaveLength(0);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].code).toBe("too_many_images");
+      expect(result.warnings).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe("too_many_images");
     });
 
     it("should error when video is mixed with images", () => {
@@ -410,3 +410,8 @@ describe("FacebookPublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(FacebookPublisher.prototype, "validateReadiness").mockResolvedValue([]));

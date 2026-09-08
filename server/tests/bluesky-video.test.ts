@@ -1,5 +1,6 @@
 import {
   hydrateRemoteMediaSizesForAccounts,
+  validatePostReadiness,
   post,
   PostErrorType,
   prepareMedia,
@@ -14,6 +15,7 @@ jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
   hydrateRemoteMediaSizesForAccounts: jest.fn(),
   post: jest.fn(),
+  validatePostReadiness: jest.fn(),
   prepareMedia: jest.fn(),
 }));
 jest.mock("../src/config/accounts.js", () => ({ getAccountsByIds: jest.fn() }));
@@ -38,6 +40,7 @@ const cleanup = jest.fn();
 
 beforeEach(() => {
   jest.resetAllMocks();
+  jest.mocked(validatePostReadiness).mockResolvedValue([]);
   jest.mocked(getAccountsByIds).mockReturnValue([account]);
   jest.mocked(hydrateRemoteMediaSizesForAccounts).mockResolvedValue([]);
   jest.mocked(prepareMedia).mockImplementation(async (input) => ({ post: input, cleanup }));

@@ -5,13 +5,14 @@ import axios from "axios";
 import sharp from "sharp";
 
 import { remoteRequestConfig, validateUrlForSSRF } from "./media";
+import { inspectVideo, type VideoInspection } from "./video-inspection";
 
 import { ALLOWED_MEDIA_TYPES, mediaHeaderMatchesContentType, normalizeContentType } from "../media-types";
 
 import type { Readable } from "node:stream";
 
-// Bound both network traffic and decoder work. Videos are only sniffed; images
-// are decoded so a valid-looking signature on a truncated file cannot pass.
+// Bound network traffic and decoder work. Images are decoded; video prefixes
+// identify candidates, then a full local-file probe measures the real streams.
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const VIDEO_PREFIX_BYTES = 4096;
 
@@ -20,6 +21,8 @@ export interface MediaInspection {
   contentType: string;
   width?: number;
   height?: number;
+  frames?: number;
+  video?: VideoInspection;
 }
 
 export class MediaInspectionError extends Error {
@@ -91,7 +94,14 @@ async function inspectStream(stream: Readable, size?: number, reportedType?: str
       const decoder = sharp(bytes, { failOn: "warning", limitInputPixels: 40_000_000 });
       const metadata = await decoder.metadata();
       await decoder.stats();
-      return { size: length, contentType, width: metadata.width, height: metadata.height };
+      const rotated = metadata.orientation !== undefined && metadata.orientation >= 5;
+      return {
+        size: length,
+        contentType,
+        width: rotated ? metadata.height : metadata.width,
+        height: rotated ? metadata.width : metadata.height,
+        frames: metadata.pages ?? 1,
+      };
     } catch {
       throw new MediaInspectionError(
         "image_invalid",
@@ -116,16 +126,26 @@ export async function inspectRemoteMedia(url: string, options?: { maxRedirects?:
     });
     const rawSize = response.headers["content-length"];
     const size = rawSize === undefined ? undefined : Number(rawSize);
-    return await inspectStream(
+    const inspection = await inspectStream(
       response.data,
       Number.isSafeInteger(size) && size! >= 0 ? size : undefined,
       normalizeContentType(String(response.headers["content-type"] ?? ""), ""),
     );
+    if (inspection.contentType.startsWith("video/")) {
+      inspection.video = await inspectVideo({ url });
+      if (inspection.video.size > 0) inspection.size = inspection.video.size;
+      if (inspection.video.container?.includes("matroska")) inspection.contentType = "video/webm";
+      else if (inspection.video.container?.includes("mov") && inspection.contentType !== "video/quicktime")
+        inspection.contentType = "video/mp4";
+      inspection.width = inspection.video.width;
+      inspection.height = inspection.video.height;
+    }
+    return inspection;
   } catch (error) {
     if (error instanceof MediaInspectionError) throw error;
     throw new MediaInspectionError(
       "media_unavailable",
-      "SimplePost couldn't download this media. Upload the file directly or use a public URL that works without signing in.",
+      "SimplePost couldn't fully inspect this media. Use a public URL, a valid image or video, and a remote video under the 500 MB inspection/download limit.",
     );
   }
 }
@@ -134,12 +154,22 @@ export async function inspectLocalMedia(filePath: string): Promise<MediaInspecti
   try {
     const info = await stat(filePath);
     if (!info.isFile()) throw invalidMedia();
-    return await inspectStream(createReadStream(filePath), info.size);
+    const inspection = await inspectStream(createReadStream(filePath), info.size);
+    if (inspection.contentType.startsWith("video/")) {
+      inspection.video = await inspectVideo({ path: filePath });
+      if (inspection.video.size > 0) inspection.size = inspection.video.size;
+      if (inspection.video.container?.includes("matroska")) inspection.contentType = "video/webm";
+      else if (inspection.video.container?.includes("mov") && inspection.contentType !== "video/quicktime")
+        inspection.contentType = "video/mp4";
+      inspection.width = inspection.video.width;
+      inspection.height = inspection.video.height;
+    }
+    return inspection;
   } catch (error) {
     if (error instanceof MediaInspectionError) throw error;
     throw new MediaInspectionError(
       "media_unavailable",
-      "SimplePost couldn't read this media file. Check its path and permissions.",
+      "SimplePost couldn't fully inspect this media file. Check its path, permissions and encoding; install a supported ffprobe binary.",
     );
   }
 }

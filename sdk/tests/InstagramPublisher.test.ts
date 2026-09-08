@@ -454,7 +454,7 @@ describe("InstagramPublisher", () => {
       publisher = new InstagramPublisher(options);
     });
 
-    it("should warn when too many media items are provided", () => {
+    it("should reject when too many media items are provided", () => {
       const content: Content = {
         text: "Too many items",
         media: Array.from({ length: 12 }, (_, index) => ({
@@ -465,9 +465,9 @@ describe("InstagramPublisher", () => {
 
       const result = InstagramPublisher.validate(content);
 
-      expect(result.errors).toHaveLength(0);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].code).toBe("too_many_media");
+      expect(result.warnings).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe("too_many_media");
     });
 
     it("should error when caption is too long", () => {
@@ -537,3 +537,8 @@ describe("InstagramPublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(InstagramPublisher.prototype, "validateReadiness").mockResolvedValue([]));

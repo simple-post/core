@@ -3,10 +3,8 @@ import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
-import { validateInstagramPhotoDimensions } from "@/lib/validation/instagram-media";
+import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
-import { validateTikTokPhotoDimensions } from "@/lib/validation/tiktok-media";
-import { validateXLongPostAccess } from "@/lib/validation/x-long-post";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type { ValidationResultByPlatform } from "./post-validation";
@@ -19,10 +17,14 @@ function addMediaInspectionFailures(
   for (const failure of failures) {
     const result = validation.results.find((candidate) => candidate.accountId === failure.meta?.accountId);
     if (result) {
-      result.errors.push(failure);
-      result.isValid = false;
+      if (failure.severity === "warning") result.warnings.push(failure);
+      else {
+        result.errors.push(failure);
+        result.isValid = false;
+      }
     }
-    validation.summary.errors.push(failure);
+    if (failure.severity === "warning") validation.summary.warnings.push(failure);
+    else validation.summary.errors.push(failure);
   }
 
   validation.summary.isValid = validation.summary.errors.length === 0;
@@ -52,7 +54,7 @@ export async function validatePostForAccounts(params: {
       ...account,
       accessToken: "",
       refreshToken: null,
-      tokenMetadata,
+      tokenMetadata: { previewOnly: isPreviewOnlyTokenMetadata(tokenMetadata) },
       previewOnly: isPreviewOnlyTokenMetadata(tokenMetadata),
     };
   });
@@ -79,21 +81,7 @@ export async function validatePostForAccounts(params: {
     thread: params.thread,
   });
 
-  await validateXLongPostAccess(validation);
-
-  // Avoid downloading photos that already fail format, size, or content checks.
-  const dimensionParams = {
-    media: params.media,
-    accounts: resolvedAccounts.filter(
-      (account) =>
-        validation.results.some((result) => result.accountId === account.id && result.isValid) &&
-        !inspectionFailures.some((failure) => failure.meta?.accountId === account.id),
-    ),
-    accountOverrides: params.accountOverrides,
-  };
-  const [dimensionFailures, instagramFailures] = await Promise.all([
-    validateTikTokPhotoDimensions(dimensionParams),
-    validateInstagramPhotoDimensions(dimensionParams),
-  ]);
-  return addMediaInspectionFailures(validation, [...inspectionFailures, ...dimensionFailures, ...instagramFailures]);
+  addMediaInspectionFailures(validation, inspectionFailures);
+  await validateAccountReadiness(validation, params);
+  return validation;
 }

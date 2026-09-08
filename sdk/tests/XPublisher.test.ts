@@ -551,7 +551,7 @@ describe("XPublisher", () => {
   });
 
   describe("validate", () => {
-    it("should warn when too many images are provided", () => {
+    it("should reject when too many images are provided", () => {
       const content: Content = {
         text: "Too many images",
         media: [
@@ -565,9 +565,9 @@ describe("XPublisher", () => {
 
       const result = XPublisher.validate(content);
 
-      expect(result.errors).toHaveLength(0);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].code).toBe("too_many_images");
+      expect(result.warnings).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe("too_many_images");
     });
 
     it("should error when mixing images and videos", () => {
@@ -677,3 +677,8 @@ describe("XPublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(XPublisher.prototype, "validateReadiness").mockResolvedValue([]));

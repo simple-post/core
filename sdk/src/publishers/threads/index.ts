@@ -1,14 +1,22 @@
 import axios from "axios";
 
-import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./validation";
+import { THREADS_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
+import type {
+  PostOptions,
+  Content,
+  Media,
+  PostOptionsWithCredentials,
+  QuoteTarget,
+  RepostTarget,
+} from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -50,7 +58,7 @@ export class ThreadsPublisher extends Publisher {
   private refreshedCredentials?: { accessToken: string; expiresAt: number };
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("Threads", options);
+    super("Threads", options, "threads");
 
     if (!options?.threads?.credentials) {
       throw new PostError(
@@ -192,8 +200,8 @@ export class ThreadsPublisher extends Publisher {
     throw new PostError(PostErrorType.API_ERROR, "Threads media processing timed out.");
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateThreadsContent(content);
+  static validate(content: Content, options?: PostOptions["threads"]): ValidationResult {
+    return validateContentForPlatform("threads", content, { threads: options });
   }
 
   private getS3Uploader(): S3MediaUploader {
@@ -245,7 +253,7 @@ export class ThreadsPublisher extends Publisher {
     quoteTarget?: QuoteTarget,
   ): Promise<PostResult> {
     const replyToId = options?.threads?.replyToId;
-    const validation = ThreadsPublisher.validate(content);
+    const validation = ThreadsPublisher.validate(content, options?.threads);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Threads content validation failed", validation);
     }

@@ -1,8 +1,10 @@
 import {
+  validateContentForPlatform,
   BlueskyPublisher,
   FacebookPublisher,
   ForemPublisher,
   hydrateRemoteMediaSizesForAccounts,
+  validatePostReadiness,
   InstagramPublisher,
   isThreadCapable,
   LinkedInPublisher,
@@ -13,6 +15,8 @@ import {
   XPublisher,
   YouTubePublisher,
 } from "@simple-post/sdk";
+
+import { buildPostOptions } from "./credentials.js";
 
 import { getAccountsByIds, type ConfiguredAccount } from "../config/accounts.js";
 
@@ -26,7 +30,6 @@ import type {
   PlatformValidationRules,
   ThreadSegment,
   ValidationResult,
-  TikTokOptions,
 } from "@simple-post/sdk";
 
 const publishers: Record<
@@ -49,11 +52,12 @@ const publishers: Record<
 function buildContent(message: string, mediaFiles: MediaFile[]): Content {
   const media: Media[] = mediaFiles.map((file) =>
     file.type === "image"
-      ? { type: "image", url: file.url, size: file.size }
+      ? { type: "image", url: file.url, size: file.size, contentType: file.contentType }
       : {
           type: "video",
           url: file.url,
           size: file.size,
+          contentType: file.contentType,
           thumbnailUrl: file.thumbnailUrl,
           durationSec: file.durationSec,
         }
@@ -67,10 +71,6 @@ function buildContent(message: string, mediaFiles: MediaFile[]): Content {
 
 function getValidationRules(platform: Platform): PlatformValidationRules {
   return publishers[platform]?.getValidationRules() ?? {};
-}
-
-function validateContent(platform: Platform, content: Content): ValidationResult {
-  return publishers[platform]?.validate(content) ?? { errors: [], warnings: [], isValid: true };
 }
 
 interface AccountSummary {
@@ -160,10 +160,11 @@ export async function validatePostForAccounts(params: {
     const warnings: ValidationResult["warnings"] = [];
 
     for (const { field, content } of segments) {
-      const validation =
-        account.platform === "tiktok"
-          ? TikTokPublisher.validate(content, params.accountOptions?.[account.id] as TikTokOptions | undefined)
-          : validateContent(account.platform, content);
+      const validation = validateContentForPlatform(
+        account.platform,
+        content,
+        buildPostOptions(account, params.accountOptions)
+      );
       const withMeta = (issue: ValidationResult["errors"][number]) => ({
         ...issue,
         field: issue.field === "text" ? field : `${field}.${issue.field}`,
@@ -198,9 +199,37 @@ export async function validatePostForAccounts(params: {
   for (const failure of inspectionFailures) {
     const result = results.find((candidate) => candidate.accountId === failure.meta?.accountId);
     if (result) {
-      result.errors.push(failure);
-      result.isValid = false;
+      if (failure.severity === "warning") result.warnings.push(failure);
+      else {
+        result.errors.push(failure);
+        result.isValid = false;
+      }
     }
+  }
+
+  for (const result of results) {
+    if (!result.isValid) continue;
+    const account = accounts.find((candidate) => candidate.id === result.accountId)!;
+    const override = overrides[account.id];
+    const segments = [
+      buildContent(override?.message ?? params.message, override?.media ?? params.media),
+      ...(isThreadCapable(account.platform)
+        ? (override?.thread ?? sharedThread).map((segment) => buildContent(segment.message ?? "", segment.media ?? []))
+        : []),
+    ];
+    for (const content of segments) {
+      const issues = await validatePostReadiness(
+        account.platform,
+        content,
+        buildPostOptions(account, params.accountOptions)
+      );
+      for (const issue of issues)
+        (issue.severity === "error" ? result.errors : result.warnings).push({
+          ...issue,
+          meta: { accountId: account.id },
+        });
+    }
+    result.isValid = result.errors.length === 0;
   }
 
   // Cross-account check: if any thread segments exist but no selected account

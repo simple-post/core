@@ -1,11 +1,13 @@
 import { getPublisher } from "./publishers";
 import { PostError, PostErrorType } from "./types";
+import { readinessFailure } from "./utils/account-readiness";
 import { getCredentialsFromEnv, mergeOptions } from "./utils/credentials";
 import { MediaResolver } from "./utils/media-resolver";
-import { validatePostMedia } from "./utils/post-media-validation";
+import { validatePostMedia, type MediaInspectionCache } from "./utils/post-media-validation";
 
 import type { PostResult, QuoteResult, RepostResult } from "./types";
-import type { Content, Platform, Post, Quote, Repost } from "./types/post";
+import type { PostOptions, Content, Platform, Post, Quote, Repost } from "./types/post";
+import type { ValidationIssue } from "./types/validation";
 
 export interface PreparedPost {
   post: Post;
@@ -88,21 +90,22 @@ export async function post(post: Post): Promise<Map<Platform, PostResult>> {
   const results = new Map<Platform, PostResult>();
   const envCredentials = getCredentialsFromEnv();
   const mergedOptions = mergeOptions(envCredentials, post.options);
-  const failures = await validatePostMedia(post);
+  const cache: MediaInspectionCache = new Map();
+  const failures = await validatePostMedia({ ...post, options: mergedOptions }, cache);
 
   for (const platform of post.platforms) {
     results.set(
       platform,
-      failures.some((failure) => failure.platform === platform)
+      failures.some((failure) => failure.platform === platform && failure.severity === "error")
         ? {
             error: PostErrorType.INVALID_CONTENT,
             message: failures
-              .filter((failure) => failure.platform === platform)
+              .filter((failure) => failure.platform === platform && failure.severity === "error")
               .map((failure) => failure.message)
               .join(" "),
-            details: failures.filter((failure) => failure.platform === platform),
+            details: failures.filter((failure) => failure.platform === platform && failure.severity === "error"),
           }
-        : await runForPlatform(() => getPublisher(platform, mergedOptions).post(post.content, mergedOptions)),
+        : await runForPlatform(() => getPublisher(platform, mergedOptions).post(post.content, mergedOptions, cache)),
     );
   }
 
@@ -132,26 +135,27 @@ export async function quote(quoteRequest: Quote): Promise<Map<Platform, QuoteRes
   const results = new Map<Platform, QuoteResult>();
   const envCredentials = getCredentialsFromEnv();
   const mergedOptions = mergeOptions(envCredentials, quoteRequest.options);
-  const failures = await validatePostMedia(quoteRequest);
+  const cache: MediaInspectionCache = new Map();
+  const failures = await validatePostMedia({ ...quoteRequest, options: mergedOptions }, cache);
 
   for (const platform of quoteRequest.platforms) {
     results.set(
       platform,
-      failures.some((failure) => failure.platform === platform)
+      failures.some((failure) => failure.platform === platform && failure.severity === "error")
         ? {
             error: PostErrorType.INVALID_CONTENT,
             message: failures
-              .filter((failure) => failure.platform === platform)
+              .filter((failure) => failure.platform === platform && failure.severity === "error")
               .map((failure) => failure.message)
               .join(" "),
-            details: failures.filter((failure) => failure.platform === platform),
+            details: failures.filter((failure) => failure.platform === platform && failure.severity === "error"),
           }
         : await runForPlatform(() => {
             const publisher = getPublisher(platform, mergedOptions);
             const target = quoteRequest.targets?.[platform] ?? quoteRequest.target;
             return target
-              ? publisher.quote(quoteRequest.content, target, mergedOptions)
-              : publisher.post(quoteRequest.content, mergedOptions);
+              ? publisher.quote(quoteRequest.content, target, mergedOptions, cache)
+              : publisher.post(quoteRequest.content, mergedOptions, cache);
           }),
     );
   }
@@ -309,3 +313,17 @@ export {
 } from "./types/post";
 
 export { validatePostMedia } from "./utils/post-media-validation";
+
+/** Check current account capabilities without uploading media or creating a post. */
+export async function validatePostReadiness(
+  platform: Platform,
+  content: Content,
+  options?: PostOptions,
+): Promise<ValidationIssue[]> {
+  try {
+    const merged = mergeOptions(getCredentialsFromEnv(), options);
+    return await getPublisher(platform, merged).validateReadiness(content, merged);
+  } catch (error) {
+    return [readinessFailure(platform, error)];
+  }
+}

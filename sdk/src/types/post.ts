@@ -18,6 +18,7 @@ export const PlatformSchema = z.enum([
 
 const BaseImageSchema = z.object({
   type: z.literal("image"),
+  contentType: z.string().optional(),
   path: z.string().optional(),
   url: z.url().optional(),
   size: z.number().int().nonnegative().optional(),
@@ -30,6 +31,7 @@ export const ImageSchema = BaseImageSchema.refine((data) => data.path || data.ur
 
 const BaseVideoSchema = z.object({
   type: z.literal("video"),
+  contentType: z.string().optional(),
   path: z.string().optional(),
   url: z.url().optional(),
   size: z.number().int().nonnegative().optional(),

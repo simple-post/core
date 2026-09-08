@@ -1,10 +1,10 @@
 import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
-import type { Content } from "../../types/post";
+import type { Content, PinterestOptions } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 
 export const PINTEREST_MAX_TITLE_LENGTH = 100;
-export const PINTEREST_MAX_DESCRIPTION_LENGTH = 500;
+export const PINTEREST_MAX_DESCRIPTION_LENGTH = 800;
 export const PINTEREST_MAX_MEDIA_COUNT = 1;
 export const PINTEREST_MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
 export const PINTEREST_MAX_VIDEO_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
@@ -16,10 +16,10 @@ export const PINTEREST_VALIDATION_RULES: PlatformValidationRules = {
   video: { maxSizeBytes: PINTEREST_MAX_VIDEO_SIZE_BYTES },
 };
 
-export function validatePinterestContent(content: Content): ValidationResult {
+export function validatePinterestContent(content: Content, options?: PinterestOptions): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
-  const text = content.text ?? "";
+  const text = options?.description ?? content.text ?? "";
   const media = content.media ?? [];
   const mediaCount = media.length;
 

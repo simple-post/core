@@ -29,7 +29,7 @@ it.each(["post", "quote"])("rejects inaccessible media before %s calls a platfor
   expect(inspectRemoteMedia).toHaveBeenCalledTimes(1);
 });
 it("rejects a local PNG for Instagram but allows the same file on X", async () => {
-  jest.mocked(inspectLocalMedia).mockResolvedValue({ size: 1024, contentType: "image/png" });
+  jest.mocked(inspectLocalMedia).mockResolvedValue({ size: 1024, contentType: "image/png", width: 100, height: 100 });
   const results = await post({
     platforms: ["instagram", "x"],
     content: { text: "hi", media: [{ type: "image", path: "/tmp/renamed.jpg" }] },

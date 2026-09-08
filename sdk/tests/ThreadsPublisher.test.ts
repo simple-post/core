@@ -266,3 +266,8 @@ describe("ThreadsPublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(ThreadsPublisher.prototype, "validateReadiness").mockResolvedValue([]));

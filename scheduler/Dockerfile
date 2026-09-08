@@ -13,6 +13,18 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \
   && rm -rf /var/lib/apt/lists/*
 
+# Use Debian's security-maintained FFmpeg, not an abandoned npm binary bundle.
+# Copy ffprobe and its complete linked runtime into the distroless image.
+FROM base AS media-runtime
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && mkdir -p /ffprobe-root \
+  && cp -L --parents /usr/bin/ffprobe /ffprobe-root \
+  && ldd /usr/bin/ffprobe | awk '{for (i=1; i<=NF; i++) if ($i ~ /^\//) print $i}' | xargs -r cp -L --parents -t /ffprobe-root \
+  && mkdir -p /ffprobe-root/usr/share/doc \
+  && cp -a /usr/share/doc/ffmpeg /ffprobe-root/usr/share/doc/ \
+  && rm -rf /var/lib/apt/lists/*
+
 FROM base AS deps
 ENV NODE_ENV=development
 COPY . .
@@ -36,6 +48,7 @@ RUN yarn workspace @simple-post/sdk build
 RUN yarn workspace @simple-post/scheduler build --webpack
 
 FROM ${DISTROLESS_IMAGE} AS runtime-distroless
+COPY --from=media-runtime /ffprobe-root/ /
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -60,7 +73,7 @@ CMD ["docker-entrypoint.mjs"]
 FROM ubuntu:${UBUNTU_VERSION} AS runtime-ubuntu
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl gnupg tini \
+  && apt-get install -y --no-install-recommends ca-certificates curl gnupg tini ffmpeg \
   && mkdir -p /etc/apt/keyrings \
   && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
     | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \

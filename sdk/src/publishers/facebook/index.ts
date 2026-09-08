@@ -4,14 +4,15 @@ import path from "node:path";
 import axios from "axios";
 import FormData from "form-data";
 
-import { FACEBOOK_MAX_MEDIA_COUNT, FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./validation";
+import { FACEBOOK_MAX_MEDIA_COUNT, FACEBOOK_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Image, PostOptionsWithCredentials, Video } from "../../types/post";
+import type { PostOptions, Content, Image, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -29,7 +30,7 @@ export class FacebookPublisher extends Publisher {
   private pageId: string;
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("Facebook", options);
+    super("Facebook", options, "facebook");
 
     // Validate the credentials
     if (!options?.facebook?.credentials) {
@@ -85,8 +86,8 @@ export class FacebookPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateFacebookContent(content);
+  static validate(content: Content, options?: PostOptions["facebook"]): ValidationResult {
+    return validateContentForPlatform("facebook", content, { facebook: options });
   }
 
   private async postVideo(
@@ -146,7 +147,7 @@ export class FacebookPublisher extends Publisher {
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content
-    const validation = FacebookPublisher.validate(content);
+    const validation = FacebookPublisher.validate(content, options?.facebook);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook content validation failed", validation);
     }

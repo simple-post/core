@@ -1,16 +1,28 @@
 import fs from "node:fs";
 
 import { PostError, PostErrorType } from "../../types";
+import { checkAccountReadiness, readinessFailure } from "../../utils/account-readiness";
 import { Logger } from "../../utils/logger";
+import { validatePostMedia, type MediaInspectionCache } from "../../utils/post-media-validation";
 
 import type { PostResult, QuoteResult, RepostResult } from "../../types";
-import type { Content, PostOptions, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
+import type {
+  Content,
+  Platform,
+  PostOptions,
+  PostOptionsWithCredentials,
+  QuoteTarget,
+  RepostTarget,
+} from "../../types/post";
+import type { ValidationIssue } from "../../types/validation";
 
 export type MediaRequirement = "path" | "url" | "either";
 
 export abstract class Publisher {
   readonly logger: Logger;
   readonly strictMode: boolean;
+  protected readonly platform?: Platform;
+  protected readonly initialOptions?: PostOptions;
 
   /**
    * Static property defining the media requirement for this publisher
@@ -20,7 +32,9 @@ export abstract class Publisher {
    */
   static readonly mediaRequirement: MediaRequirement;
 
-  constructor(name: string, options?: PostOptions) {
+  constructor(name: string, options?: PostOptions, platform?: Platform) {
+    this.platform = platform;
+    this.initialOptions = options;
     this.logger = new Logger(name, options?.common?.logLevel);
     this.strictMode = options?.common?.strictMode ?? false;
   }
@@ -74,11 +88,42 @@ export abstract class Publisher {
     };
   }
 
-  async post(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+  /** Read-only eligibility checks: no media container or post is created. */
+  async validateReadiness(content: Content, options?: PostOptions): Promise<ValidationIssue[]> {
+    if (!this.platform) return [];
+    try {
+      return await checkAccountReadiness(this.platform, content, options ?? this.initialOptions);
+    } catch (error) {
+      return [readinessFailure(this.platform, error)];
+    }
+  }
+
+  private async validateBeforeSend(
+    content: Content,
+    options?: PostOptionsWithCredentials,
+    cache?: MediaInspectionCache,
+  ): Promise<void> {
+    if (!this.platform) return;
+    const issues = await validatePostMedia({ platforms: [this.platform], content, options }, cache);
+    if (!issues.some((issue) => issue.severity === "error"))
+      issues.push(...(await this.validateReadiness(content, options)));
+    const errors = issues.filter((issue) => issue.severity === "error");
+    for (const warning of issues.filter((issue) => issue.severity === "warning")) this.logger.warn(warning.message);
+    if (errors.length > 0)
+      throw new PostError(PostErrorType.INVALID_CONTENT, errors.map((issue) => issue.message).join(" "), errors);
+  }
+
+  async post(
+    content: Content,
+    options?: PostOptionsWithCredentials,
+    cache?: MediaInspectionCache,
+  ): Promise<PostResult> {
     try {
       // Try to post the content
       this.logger.info(`Posting content...`);
 
+      options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
+      await this.validateBeforeSend(content, options, cache);
       const result = await this.postContent(this.withKnownLocalMediaSizes(content), options);
 
       if (result.error === PostErrorType.NO_ERROR) {
@@ -135,10 +180,17 @@ export abstract class Publisher {
     }
   }
 
-  async quote(content: Content, target: QuoteTarget, options?: PostOptionsWithCredentials): Promise<QuoteResult> {
+  async quote(
+    content: Content,
+    target: QuoteTarget,
+    options?: PostOptionsWithCredentials,
+    cache?: MediaInspectionCache,
+  ): Promise<QuoteResult> {
     try {
       this.logger.info(`Quoting content...`);
 
+      options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
+      await this.validateBeforeSend(content, options, cache);
       const result = await this.quoteContent(this.withKnownLocalMediaSizes(content), target, options);
 
       if (result.error === PostErrorType.NO_ERROR) {

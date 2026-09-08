@@ -85,13 +85,12 @@ it("preserves DNS and redirect SSRF protection", async () => {
   await expect(inspectRemoteMedia("http://127.0.0.1/image")).rejects.toThrow();
   expect(get).toHaveBeenCalledTimes(1);
 });
-it("stops reading a large video after inspecting its prefix", async () => {
+it("does not accept a video prefix without a complete successful probe", async () => {
   const prefix = Buffer.alloc(8192);
   prefix.write("ftypisom", 4);
   const stream = serve(prefix, "video/mp4", 200_000_000);
-  await expect(inspectRemoteMedia("https://example.com/video.mp4")).resolves.toMatchObject({
-    contentType: "video/mp4",
-    size: 200_000_000,
+  await expect(inspectRemoteMedia("https://example.com/video.mp4")).rejects.toMatchObject({
+    code: "media_unavailable",
   });
   expect(stream.destroyed).toBe(true);
 });

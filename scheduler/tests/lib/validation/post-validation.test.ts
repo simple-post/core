@@ -85,7 +85,7 @@ describe("post validation", () => {
       message: "Pin",
       media: [image(1024)],
       accounts,
-      accountOptions: { "pin-1": { boardId: "selected-board" }, "pin-2": { boardId: "  " } },
+      accountOptions: { "pin-1": { boardId: "123456" }, "pin-2": { boardId: "  " } },
     });
     expect(result.results[0].isValid).toBe(true);
     expect(result.results[1].errors).toContainEqual(

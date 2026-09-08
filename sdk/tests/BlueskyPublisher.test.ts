@@ -42,6 +42,7 @@ describe("BlueskyPublisher", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    jest.spyOn(BlueskyPublisher.prototype, "validateReadiness").mockResolvedValue([]);
 
     mockAxiosInstance = {
       post: jest.fn(),
@@ -128,7 +129,6 @@ describe("BlueskyPublisher", () => {
       ],
       [[{ type: "video", path: "a.mp4", size: BLUESKY_MAX_VIDEO_SIZE_BYTES + 1 }], "video_too_large"],
       [[{ type: "video", path: "a.mp4", durationSec: 601 }], "video_too_long"],
-      [[{ type: "video", url: "https://cdn.example.com/a.webm?token=abc" }], "video_format_not_supported"],
     ])("rejects unsupported video input %j", (media, code) => {
       expect(BlueskyPublisher.validate({ media: media as Content["media"] }).errors).toContainEqual(
         expect.objectContaining({ code }),
@@ -655,3 +655,8 @@ describe("BlueskyPublisher", () => {
     });
   });
 });
+
+// Transport unit tests use synthetic paths. Real probes and the common send boundary
+// are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
+jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
+beforeEach(() => jest.spyOn(BlueskyPublisher.prototype, "validateReadiness").mockResolvedValue([]));

@@ -5,20 +5,20 @@ import { google } from "googleapis";
 import {
   getYouTubeVideoMetadata,
   validateYouTubeContent,
-  YOUTUBE_MAX_DESCRIPTION_LENGTH,
   YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES,
-  YOUTUBE_MAX_TITLE_LENGTH,
   YOUTUBE_MAX_VIDEO_SIZE_BYTES,
   YOUTUBE_VALIDATION_RULES,
 } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, resolveThumbnailPath, TempFileManager } from "../../utils";
+import { readinessFailure } from "../../utils/account-readiness";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher, type MediaRequirement } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, PostOptionsWithCredentials } from "../../types/post";
-import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
+import type { PostOptions, Content, PostOptionsWithCredentials } from "../../types/post";
+import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { youtube_v3, Auth } from "googleapis";
 
 export class YouTubePublisher extends Publisher {
@@ -31,7 +31,7 @@ export class YouTubePublisher extends Publisher {
   private youtube: youtube_v3.Youtube;
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("YouTube", options);
+    super("YouTube", options, "youtube");
 
     // Validate the credentials
     if (!options?.youtube?.credentials) {
@@ -69,8 +69,51 @@ export class YouTubePublisher extends Publisher {
     this.youtube = google.youtube({ version: "v3", auth: authClient });
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateYouTubeContent(content);
+  async validateReadiness(content: Content, options?: PostOptions): Promise<ValidationIssue[]> {
+    try {
+      const issues: ValidationIssue[] = [];
+      const response = await this.youtube.channels.list({ part: ["status"], mine: true }, { timeout: 10_000 });
+      const channel = response.data.items?.[0];
+      const add = (code: string, message: string, severity: "error" | "warning" = "error") =>
+        issues.push({ platform: "youtube", severity, code, message, field: "account" });
+      if (!channel)
+        add(
+          "youtube_channel_missing",
+          "This connection does not have a YouTube channel. Create a channel and reconnect it.",
+        );
+      const video = content.media?.find((item) => item.type === "video");
+      if (video && (video.durationSec ?? 0) > 900 && channel?.status?.longUploadsStatus === "disallowed")
+        add(
+          "youtube_long_uploads_disabled",
+          "Enable longer uploads by verifying your YouTube channel, or use a video under 15 minutes.",
+        );
+      if (options?.youtube?.categoryId) {
+        const categories = await this.youtube.videoCategories.list(
+          { part: ["snippet"], id: [options.youtube.categoryId] },
+          { timeout: 10_000 },
+        );
+        if (!categories.data.items?.some((item) => item.snippet?.assignable))
+          add("youtube_category_unavailable", "Choose an assignable YouTube video category.");
+      }
+      if (
+        options?.youtube?.thumbnailUrl ||
+        options?.youtube?.thumbnailPath ||
+        video?.thumbnailUrl ||
+        video?.thumbnailPath
+      )
+        add(
+          "youtube_thumbnail_eligibility_unverified",
+          "YouTube does not expose custom-thumbnail eligibility in this check. Enable the feature in YouTube Studio before using a custom thumbnail.",
+          "warning",
+        );
+      return issues;
+    } catch (error) {
+      return [readinessFailure("youtube", error)];
+    }
+  }
+
+  static validate(content: Content, options?: PostOptions["youtube"]): ValidationResult {
+    return validateContentForPlatform("youtube", content, { youtube: options });
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
@@ -89,7 +132,7 @@ export class YouTubePublisher extends Publisher {
 
     // Validate the video
     this.logger.info(`[YouTubePublisher] Validating video and metadata`);
-    const validation = YouTubePublisher.validate(content);
+    const validation = validateYouTubeContent(content, options?.youtube);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "YouTube content validation failed", validation);
     }
@@ -102,14 +145,8 @@ export class YouTubePublisher extends Publisher {
     }
     const youtubeOptions = options?.youtube;
     const metadata = getYouTubeVideoMetadata(content, video, youtubeOptions);
-    const safeTitle =
-      metadata.title.length > YOUTUBE_MAX_TITLE_LENGTH
-        ? metadata.title.slice(0, YOUTUBE_MAX_TITLE_LENGTH)
-        : metadata.title;
-    const safeDescription =
-      metadata.description && metadata.description.length > YOUTUBE_MAX_DESCRIPTION_LENGTH
-        ? metadata.description.slice(0, YOUTUBE_MAX_DESCRIPTION_LENGTH)
-        : metadata.description;
+    const safeTitle = metadata.title;
+    const safeDescription = metadata.description;
     const thumbnailSource =
       youtubeOptions?.thumbnailPath || youtubeOptions?.thumbnailUrl
         ? {

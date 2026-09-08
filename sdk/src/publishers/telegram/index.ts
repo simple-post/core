@@ -8,15 +8,15 @@ import {
   TELEGRAM_VALIDATION_RULES,
   TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES,
   TELEGRAM_MAX_UPLOAD_VIDEO_SIZE_BYTES,
-  validateTelegramContent,
 } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, TempFileManager } from "../../utils";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PostOptions, Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -33,7 +33,7 @@ export class TelegramPublisher extends Publisher {
   private botToken: string;
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("Telegram", options);
+    super("Telegram", options, "telegram");
 
     // Validate the credentials
     if (!options?.telegram?.credentials) {
@@ -189,13 +189,13 @@ export class TelegramPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateTelegramContent(content);
+  static validate(content: Content, options?: PostOptions["telegram"]): ValidationResult {
+    return validateContentForPlatform("telegram", content, { telegram: options });
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
     // Validate the content and the options
-    const validation = TelegramPublisher.validate(content);
+    const validation = TelegramPublisher.validate(content, options?.telegram);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Telegram content validation failed", validation);
     }

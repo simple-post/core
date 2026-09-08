@@ -16,7 +16,7 @@ describe("quote", () => {
         quote: jest.fn().mockResolvedValue({ id: "bsky-quote", error: PostErrorType.NO_ERROR }),
         post: jest.fn(),
       },
-      instagram: {
+      facebook: {
         quote: jest.fn(),
         post: jest.fn().mockResolvedValue({ id: "ig-post", error: PostErrorType.NO_ERROR }),
       },
@@ -25,7 +25,7 @@ describe("quote", () => {
 
     const results = await quote({
       content: { text: "A platform-aware quote" },
-      platforms: ["x", "bluesky", "instagram"],
+      platforms: ["x", "bluesky", "facebook"],
       targets: {
         x: { postId: "x-source" },
         bluesky: { postId: "bsky-source", uri: "at://source", cid: "source-cid" },
@@ -36,13 +36,19 @@ describe("quote", () => {
       { text: "A platform-aware quote" },
       { postId: "x-source" },
       expect.any(Object),
+      expect.any(Map),
     );
     expect(publishers.bluesky.quote).toHaveBeenCalledWith(
       { text: "A platform-aware quote" },
       { postId: "bsky-source", uri: "at://source", cid: "source-cid" },
       expect.any(Object),
+      expect.any(Map),
     );
-    expect(publishers.instagram.post).toHaveBeenCalledWith({ text: "A platform-aware quote" }, expect.any(Object));
-    expect(results.get("instagram")).toMatchObject({ id: "ig-post", error: PostErrorType.NO_ERROR });
+    expect(publishers.facebook.post).toHaveBeenCalledWith(
+      { text: "A platform-aware quote" },
+      expect.any(Object),
+      expect.any(Map),
+    );
+    expect(results.get("facebook")).toMatchObject({ id: "ig-post", error: PostErrorType.NO_ERROR });
   });
 });

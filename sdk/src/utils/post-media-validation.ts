@@ -2,20 +2,31 @@ import { mediaFormatFailure } from "./media-format-validation";
 import { inspectLocalMedia, inspectRemoteMedia, MediaInspectionError } from "./media-inspection";
 
 import { validateContentForPlatform } from "../validation";
+import { validateInspectedMedia } from "../validation/media-rules";
 
 import type { MediaInspection } from "./media-inspection";
 import type { Media, Post } from "../types/post";
 import type { ValidationIssue } from "../types/validation";
 
 /** Async preflight for direct SDK/CLI callers, including local file inputs. */
-export async function validatePostMedia(post: Post): Promise<ValidationIssue[]> {
+export type MediaInspectionCache = Map<string, Promise<MediaInspection>>;
+
+export async function validatePostMedia(
+  post: Post,
+  cache: MediaInspectionCache = new Map(),
+): Promise<ValidationIssue[]> {
   const failures: ValidationIssue[] = [];
-  const cache = new Map<string, Promise<MediaInspection>>();
-  const inspect = (media: Media): Promise<MediaInspection> => {
-    // Public-URL providers still fetch the URL when a prepared path also
-    // exists; do not let that path hide an inaccessible origin.
-    const key = media.url ?? `file:${media.path}`;
-    if (!cache.has(key)) cache.set(key, media.url ? inspectRemoteMedia(media.url) : inspectLocalMedia(media.path!));
+  const inspect = (media: Media, platform: string): Promise<MediaInspection> => {
+    const prefersUrl =
+      ["instagram", "threads", "forem"].includes(platform) || (platform === "pinterest" && media.type === "image");
+    const url = media.url && (prefersUrl || !media.path) ? media.url : undefined;
+    const direct = platform === "tiktok" && media.type === "image";
+    const key = url ? `${direct ? "direct:" : ""}${url}` : `file:${media.path}`;
+    if (!cache.has(key))
+      cache.set(
+        key,
+        url ? inspectRemoteMedia(url, direct ? { maxRedirects: 0 } : undefined) : inspectLocalMedia(media.path!),
+      );
     return cache.get(key)!;
   };
   for (const platform of post.platforms) {
@@ -23,7 +34,7 @@ export async function validatePostMedia(post: Post): Promise<ValidationIssue[]> 
     const thumbnail = post.options?.youtube;
     if (platform === "youtube" && (thumbnail?.thumbnailUrl || thumbnail?.thumbnailPath)) {
       media.push({ type: "image", url: thumbnail.thumbnailUrl, path: thumbnail.thumbnailPath });
-    } else if (platform === "youtube") {
+    } else if (platform === "youtube" || platform === "pinterest") {
       const video = media.find((item) => item.type === "video");
       if (video?.type === "video" && (video.thumbnailUrl || video.thumbnailPath)) {
         media.push({ type: "image", url: video.thumbnailUrl, path: video.thumbnailPath });
@@ -32,11 +43,19 @@ export async function validatePostMedia(post: Post): Promise<ValidationIssue[]> 
     for (const [index, item] of media.entries()) {
       const field = index >= (post.content.media?.length ?? 0) ? "thumbnail" : `media[${index}]`;
       try {
-        const inspection = await inspect(item);
+        const inspection = await inspect(item, platform);
         item.size = inspection.size;
+        item.contentType = inspection.contentType;
+        if (item.type === "video") item.durationSec = inspection.video?.durationSec;
+        failures.push(
+          ...validateInspectedMedia(platform, inspection, {
+            mediaCount: post.content.media?.length ?? 0,
+            thumbnail: field === "thumbnail",
+          }).map((issue) => ({ ...issue, field })),
+        );
         const failure = mediaFormatFailure(inspection, platform, item.type);
         if (failure) failures.push({ ...failure, platform, severity: "error", field });
-        if (field === "thumbnail" && inspection.size > 2 * 1024 * 1024) {
+        if (field === "thumbnail" && platform === "youtube" && inspection.size > 2 * 1024 * 1024) {
           failures.push({
             platform,
             severity: "error",
@@ -58,12 +77,8 @@ export async function validatePostMedia(post: Post): Promise<ValidationIssue[]> 
         });
       }
     }
-    if (post.content.media?.length)
-      failures.push(
-        ...validateContentForPlatform(platform, post.content, post.options).errors.filter((issue) =>
-          issue.field?.startsWith("media"),
-        ),
-      );
+    const validation = validateContentForPlatform(platform, post.content, post.options);
+    failures.push(...validation.errors, ...validation.warnings);
   }
   return failures;
 }

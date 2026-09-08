@@ -22,7 +22,11 @@ jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findMany: jest.
 jest.mock("@/lib/security/connected-account-secrets", () => ({
   decryptConnectedAccountSecrets: (account: unknown) => account,
 }));
-jest.mock("@/lib/posting/credentials", () => ({ buildPostOptions: () => ({}) }));
+jest.mock("@/lib/posting/credentials", () => ({
+  buildPostOptions: (_account: unknown, accountOptions: Record<string, unknown>) => ({
+    youtube: accountOptions?.["youtube-account"],
+  }),
+}));
 jest.mock("@/lib/posting/account-lock", () => ({
   withAccountLock: (_id: string, fn: () => Promise<unknown>) => fn(),
   reloadAccountSecrets: async (account: unknown) => account,
@@ -45,8 +49,8 @@ beforeEach(() => {
   jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([account] as never);
   mockResolve.mockImplementation(async (items) => items);
   mockCleanup.mockResolvedValue(undefined);
-  jest.mocked(sdkPost).mockImplementation(async ({ content }) => {
-    const validation = validateYouTubeContent(content);
+  jest.mocked(sdkPost).mockImplementation(async ({ content, options }) => {
+    const validation = validateYouTubeContent(content, options?.youtube);
     return new Map([
       [
         "youtube",
@@ -61,19 +65,22 @@ beforeEach(() => {
 });
 
 it.each([false, true])(
-  "keeps a 444-character caption valid from preflight through publishing (override: %s)",
+  "requires a short title and preserves a 444-character description through publishing (override: %s)",
   async (useOverride) => {
     const caption = "Underwater ambience. ".repeat(23).slice(0, 444);
     const message = useOverride ? "Shared caption" : caption;
     const accountOverrides = useOverride ? { [account.id]: { message: caption, media } } : undefined;
     const preflight = validatePostForResolvedAccounts({ message, media, accounts: [account], accountOverrides });
 
-    expect(preflight.summary.isValid).toBe(true);
-    expect(preflight.summary.warnings).toContainEqual(
-      expect.objectContaining({ code: "title_truncated", actual: 444 }),
-    );
+    expect(preflight.summary.isValid).toBe(false);
+    expect(preflight.summary.errors).toContainEqual(expect.objectContaining({ code: "title_too_long", actual: 444 }));
+    const accountOptions = { [account.id]: { title: "Underwater ambience" } };
+    expect(
+      validatePostForResolvedAccounts({ message, media, accounts: [account], accountOverrides, accountOptions }).summary
+        .isValid,
+    ).toBe(true);
 
-    const [result] = await postToAccounts("user", message, media, [account.id], undefined, accountOverrides);
+    const [result] = await postToAccounts("user", message, media, [account.id], accountOptions, accountOverrides);
 
     expect(result).toMatchObject({ success: true, postId: "published-video" });
     expect(jest.mocked(sdkPost).mock.calls[0][0].content).toEqual({

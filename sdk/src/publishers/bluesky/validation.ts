@@ -38,7 +38,8 @@ export function validateBlueskyContent(content: Content): ValidationResult {
     });
   }
 
-  if (text.length > BLUESKY_MAX_TEXT_LENGTH) {
+  const textLength = [...new Intl.Segmenter("en", { granularity: "grapheme" }).segment(text)].length;
+  if (textLength > BLUESKY_MAX_TEXT_LENGTH) {
     errors.push({
       platform: "bluesky",
       severity: "error",
@@ -46,9 +47,21 @@ export function validateBlueskyContent(content: Content): ValidationResult {
       message: `Bluesky text cannot exceed ${BLUESKY_MAX_TEXT_LENGTH} characters.`,
       field: "text",
       limit: BLUESKY_MAX_TEXT_LENGTH,
-      actual: text.length,
+      actual: textLength,
     });
   }
+
+  const bytes = new TextEncoder().encode(text).length;
+  if (bytes > 3000)
+    errors.push({
+      platform: "bluesky",
+      severity: "error",
+      code: "text_bytes_exceeded",
+      message: "Bluesky text cannot exceed 3000 UTF-8 bytes. Shorten the text.",
+      field: "text",
+      limit: 3000,
+      actual: bytes,
+    });
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
@@ -108,24 +121,6 @@ export function validateBlueskyContent(content: Content): ValidationResult {
         field: `media[${index}]`,
         limit: BLUESKY_MAX_VIDEO_DURATION_SEC,
         actual: item.durationSec,
-      });
-    }
-    // Extensionless URLs are resolved and checked after download.
-    const source = item.path || item.url || "";
-    let pathname = source;
-    try {
-      pathname = new URL(source).pathname;
-    } catch {
-      /* Local path. */
-    }
-    const extension = /\.([a-z0-9]+)$/i.exec(pathname)?.[1]?.toLowerCase();
-    if (extension && extension !== "mp4" && extension !== "m4v") {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "video_format_not_supported",
-        message: "Bluesky videos must be MP4 files.",
-        field: `media[${index}]`,
       });
     }
   }

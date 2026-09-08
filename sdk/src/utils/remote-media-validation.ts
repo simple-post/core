@@ -4,6 +4,7 @@ import { inspectRemoteMedia, MediaInspectionError } from "./media-inspection";
 import { mapPlatformName } from "../platform-names";
 import { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES } from "../publishers/youtube/validation";
 import { isThreadCapablePlatform } from "../types/api";
+import { validateInspectedMedia } from "../validation/media-rules";
 
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, ThreadSegment } from "../types/api";
 import type { Platform } from "../types/post";
@@ -29,6 +30,7 @@ interface MediaUsage {
   platform: Platform;
   field: string;
   maxSizeBytes?: number;
+  mediaCount?: number;
 }
 
 function collectMediaUsages(params: RemoteMediaValidationParams): MediaUsage[] {
@@ -41,13 +43,20 @@ function collectMediaUsages(params: RemoteMediaValidationParams): MediaUsage[] {
     const rootMedia = override?.media ?? params.media;
 
     for (const [index, media] of rootMedia.entries()) {
-      usages.push({ url: media.url, media, accountId: account.id, platform, field: `text.media[${index}]` });
+      usages.push({
+        url: media.url,
+        media,
+        accountId: account.id,
+        platform,
+        field: `text.media[${index}]`,
+        mediaCount: rootMedia.length,
+      });
     }
 
-    if (platform === "youtube") {
+    if (platform === "youtube" || platform === "pinterest") {
       const videoIndex = rootMedia.findIndex((media) => media.type === "video");
       const video = videoIndex === -1 ? undefined : rootMedia[videoIndex];
-      const optionThumbnail = params.accountOptions?.[account.id]?.thumbnailUrl;
+      const optionThumbnail = platform === "youtube" ? params.accountOptions?.[account.id]?.thumbnailUrl : undefined;
       const thumbnailUrl = typeof optionThumbnail === "string" ? optionThumbnail : video?.thumbnailUrl;
       if (thumbnailUrl) {
         usages.push({
@@ -58,7 +67,7 @@ function collectMediaUsages(params: RemoteMediaValidationParams): MediaUsage[] {
             typeof optionThumbnail === "string"
               ? `accountOptions.${account.id}.thumbnailUrl`
               : `text.media[${videoIndex}].thumbnailUrl`,
-          maxSizeBytes: YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES,
+          maxSizeBytes: platform === "youtube" ? YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES : 20 * 1024 * 1024,
         });
       }
     }
@@ -72,6 +81,7 @@ function collectMediaUsages(params: RemoteMediaValidationParams): MediaUsage[] {
           accountId: account.id,
           platform,
           field: `thread[${segmentIndex}].media[${mediaIndex}]`,
+          mediaCount: (segment.media ?? []).length,
         });
       }
     }
@@ -91,9 +101,10 @@ export async function hydrateRemoteMediaSizesForAccounts(
   const usagesByUrl = new Map<string, MediaUsage[]>();
 
   for (const usage of collectMediaUsages(params)) {
-    const matching = usagesByUrl.get(usage.url) ?? [];
+    const key = usage.platform === "tiktok" && usage.media?.type === "image" ? `direct:${usage.url}` : usage.url;
+    const matching = usagesByUrl.get(key) ?? [];
     matching.push(usage);
-    usagesByUrl.set(usage.url, matching);
+    usagesByUrl.set(key, matching);
   }
 
   const entries = [...usagesByUrl.entries()];
@@ -102,15 +113,29 @@ export async function hydrateRemoteMediaSizesForAccounts(
   await Promise.all(
     Array.from({ length: Math.min(3, entries.length) }, async () => {
       while (next < entries.length) {
-        const [url, matchingUsages] = entries[next++];
+        const [key, matchingUsages] = entries[next++];
+        const url = matchingUsages[0].url;
         failures.push(
           await (async () => {
             try {
-              const inspection = await inspectRemoteMedia(url);
+              const inspection = await inspectRemoteMedia(
+                url,
+                key.startsWith("direct:") ? { maxRedirects: 0 } : undefined,
+              );
               const measuredSize = inspection.size;
               const oversized: ValidationIssue[] = [];
               for (const usage of matchingUsages) {
-                if (usage.media) usage.media.size = measuredSize;
+                if (usage.media) {
+                  usage.media.size = measuredSize;
+                  usage.media.contentType = inspection.contentType;
+                  if (usage.media.type === "video") usage.media.durationSec = inspection.video?.durationSec;
+                }
+                oversized.push(
+                  ...validateInspectedMedia(usage.platform, inspection, {
+                    mediaCount: usage.mediaCount ?? 1,
+                    thumbnail: !usage.media,
+                  }).map((issue) => ({ ...issue, field: usage.field, meta: { accountId: usage.accountId } })),
+                );
                 const formatFailure = mediaFormatFailure(inspection, usage.platform, usage.media?.type ?? "image");
                 if (formatFailure)
                   oversized.push({
@@ -125,7 +150,7 @@ export async function hydrateRemoteMediaSizesForAccounts(
                     platform: usage.platform,
                     severity: "error",
                     code: "thumbnail_too_large",
-                    message: "YouTube custom thumbnails cannot exceed 2 MB.",
+                    message: `${usage.platform} cover image exceeds the ${usage.maxSizeBytes / (1024 * 1024)} MB limit.`,
                     field: usage.field,
                     limit: usage.maxSizeBytes,
                     actual: measuredSize,
@@ -158,7 +183,7 @@ export async function hydrateRemoteMediaSizesForAccounts(
   const uniqueFailures = new Map<string, ValidationIssue>();
   for (const failure of failures.flat()) {
     const accountId = String(failure.meta?.accountId ?? "");
-    uniqueFailures.set(`${accountId}:${failure.platform}:${failure.field}`, failure);
+    uniqueFailures.set(`${accountId}:${failure.platform}:${failure.field}:${failure.code}`, failure);
   }
 
   return [...uniqueFailures.values()];

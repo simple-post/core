@@ -3,21 +3,25 @@ import fs from "node:fs";
 
 import axios from "axios";
 
-import {
-  BLUESKY_MAX_IMAGES,
-  BLUESKY_MAX_IMAGE_SIZE_BYTES,
-  BLUESKY_VALIDATION_RULES,
-  validateBlueskyContent,
-} from "./validation";
+import { BLUESKY_MAX_IMAGES, BLUESKY_MAX_IMAGE_SIZE_BYTES, BLUESKY_VALIDATION_RULES } from "./validation";
 import { uploadBlueskyVideo } from "./video";
 
 import { PostError, PostErrorType } from "../../types";
 import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
+import { readinessFailure } from "../../utils/account-readiness";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult, RepostResult } from "../../types";
-import type { Content, Image, PostOptionsWithCredentials, QuoteTarget, RepostTarget } from "../../types/post";
-import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
+import type {
+  PostOptions,
+  Content,
+  Image,
+  PostOptionsWithCredentials,
+  QuoteTarget,
+  RepostTarget,
+} from "../../types/post";
+import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
 type JsonWebKey = Record<string, unknown>;
@@ -94,7 +98,7 @@ export class BlueskyPublisher extends Publisher {
   };
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("Bluesky", options);
+    super("Bluesky", options, "bluesky");
 
     if (!options?.bluesky?.credentials) {
       throw new PostError(
@@ -626,8 +630,18 @@ export class BlueskyPublisher extends Publisher {
     }
   }
 
-  static validate(content: Content): ValidationResult {
-    return validateBlueskyContent(content);
+  async validateReadiness(content: Content): Promise<ValidationIssue[]> {
+    try {
+      await this.ensureValidToken();
+      if (content.media?.some((item) => item.type === "video")) await this.getVideoServiceToken();
+      return [];
+    } catch (error) {
+      return [readinessFailure("bluesky", error)];
+    }
+  }
+
+  static validate(content: Content, options?: PostOptions["bluesky"]): ValidationResult {
+    return validateContentForPlatform("bluesky", content, { bluesky: options });
   }
 
   async postContent(
@@ -642,7 +656,7 @@ export class BlueskyPublisher extends Publisher {
         "Bluesky quotes require both uri and cid for the target post.",
       );
     }
-    const validation = BlueskyPublisher.validate(content);
+    const validation = BlueskyPublisher.validate(content, options?.bluesky);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Bluesky content validation failed", validation);
     }

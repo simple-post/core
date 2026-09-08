@@ -7,6 +7,7 @@ export const MediaFileSchema = z.object({
   url: z.url(),
   thumbnailUrl: z.url().optional(),
   type: z.enum(["image", "video"]),
+  contentType: z.string().optional(),
   filename: z.string(),
   size: z.number().int().nonnegative(),
   durationSec: z.number().nonnegative().optional(),

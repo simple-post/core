@@ -9,6 +9,7 @@ import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/t
 import { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";
 import { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation";
 import { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";
+import { validateFinalOptions } from "./validation/final-options";
 
 import type { Content, Platform, PostOptions } from "./types/post";
 import type { PlatformValidationRules, ValidationResult } from "./types/validation";
@@ -41,8 +42,49 @@ export function validateContentForPlatform(
   content: Content,
   options?: PostOptions,
 ): ValidationResult {
-  if (platform === "tiktok") return validateTikTokContent(content, options?.tiktok);
-  return PLATFORM_VALIDATORS[platform]?.validate(content) ?? { errors: [], warnings: [], isValid: true };
+  let result: ValidationResult;
+  switch (platform) {
+    case "tiktok": {
+      result = validateTikTokContent(content, options?.tiktok);
+      break;
+    }
+    case "youtube": {
+      result = validateYouTubeContent(content, options?.youtube);
+      break;
+    }
+    case "pinterest": {
+      result = validatePinterestContent(content, options?.pinterest);
+      break;
+    }
+    default: {
+      result = PLATFORM_VALIDATORS[platform].validate(content);
+    }
+  }
+  // Silent attachment loss is never a successful validation.
+  const destructive = new Set([
+    "too_many_images",
+    "too_many_videos",
+    "too_many_media",
+    "images_ignored",
+    "title_truncated",
+  ]);
+  result.errors.push(
+    ...result.warnings
+      .filter((issue) => destructive.has(issue.code))
+      .map((issue) => ({
+        ...issue,
+        severity: "error" as const,
+        message: `${issue.message.split(". Only")[0].split(". The title")[0]}. Remove extra attachments before publishing.`,
+      })),
+  );
+  result.warnings = result.warnings.filter((issue) => !destructive.has(issue.code));
+  const extra = validateFinalOptions(platform, content, options);
+  if (platform === "telegram")
+    result.errors = result.errors.filter((issue) => !["text_too_long", "caption_too_long"].includes(issue.code));
+  result.errors.push(...extra.filter((issue) => issue.severity === "error"));
+  result.warnings.push(...extra.filter((issue) => issue.severity === "warning"));
+  result.isValid = result.errors.length === 0;
+  return result;
 }
 
 export { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";

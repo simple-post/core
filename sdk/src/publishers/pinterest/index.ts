@@ -8,10 +8,11 @@ import { PINTEREST_MAX_TITLE_LENGTH, PINTEREST_VALIDATION_RULES, validatePintere
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, resolveMediaUrl, TempFileManager } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
+import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
 import type { PostResult } from "../../types";
-import type { Content, Media, PostOptionsWithCredentials } from "../../types/post";
+import type { PostOptions, Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
 
@@ -37,7 +38,7 @@ export class PinterestPublisher extends Publisher {
   private s3TempFileKeys: string[] = [];
 
   constructor(options?: PostOptionsWithCredentials) {
-    super("Pinterest", options);
+    super("Pinterest", options, "pinterest");
 
     if (!options?.pinterest?.credentials) {
       throw new PostError(
@@ -127,8 +128,8 @@ export class PinterestPublisher extends Publisher {
     );
   }
 
-  static validate(content: Content): ValidationResult {
-    return validatePinterestContent(content);
+  static validate(content: Content, options?: PostOptions["pinterest"]): ValidationResult {
+    return validateContentForPlatform("pinterest", content, { pinterest: options });
   }
 
   private getS3Uploader(): S3MediaUploader {
@@ -157,7 +158,7 @@ export class PinterestPublisher extends Publisher {
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
-    const validation = PinterestPublisher.validate(content);
+    const validation = validatePinterestContent(content, options?.pinterest);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "Pinterest content validation failed", validation);
     }

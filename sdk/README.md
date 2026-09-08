@@ -72,7 +72,7 @@ The same engine powers the rest of SimplePost — the [Scheduler app](https://ap
 
 ## Documentation
 
-Read the [SDK guide](https://docs.simplepost.social/sdk), [platform limits](https://docs.simplepost.social/platform-matrix), and [published versus hosted behavior](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features). The docs check examples against published SDK 1.3.1; the main branch can contain later changes.
+Read the [SDK guide](https://docs.simplepost.social/sdk), [platform limits](https://docs.simplepost.social/platform-matrix), and [published versus hosted behavior](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features). The docs check examples against published SDK 1.3.3; the main branch can contain later changes.
 
 For upgrade guarantees and release changes, see the [SDK compatibility policy](https://github.com/simple-post/core/blob/main/docs/release/SDK_COMPATIBILITY.md), [migration notes](https://github.com/simple-post/core/blob/main/docs/release/MIGRATIONS.md), and repository [changelog](https://github.com/simple-post/core/blob/main/CHANGELOG.md).
 
@@ -91,3 +91,5 @@ Bluesky supports one MP4 video per post (300 MB, 10 minutes), including replies 
 ## Validation runtime
 
 Video publishing requires FFmpeg (`ffprobe` on PATH, or `FFPROBE_PATH`). The provided Docker images include it. See [publishing validation](VALIDATION.md) for shared checks, actionable errors, and provider-side limitations.
+
+For local video publishing, install FFmpeg (`ffprobe` on PATH), or set an absolute `FFPROBE_PATH`. Video inspection failures block publishing before upload. See the [validation coverage and runtime requirements](https://github.com/simple-post/core/blob/main/sdk/VALIDATION.md).

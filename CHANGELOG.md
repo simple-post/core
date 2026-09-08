@@ -6,6 +6,21 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-09-09
+
+### Fixed
+
+- Shared pre-send validation across all eleven platforms checks actual media dimensions, aspect ratios, duration, frame rate, container and encoding, plus final text and platform options. Caller-supplied size, MIME and duration cannot bypass inspection.
+- Instagram rejects unsupported image and carousel ratios before submission. TikTok single-chunk uploads declare the complete video size.
+- Telegram validates HTML, Markdown and MarkdownV2 formatting and parsed text length. YouTube and Bluesky enforce UTF-8 byte limits; Pinterest and Forem validate final metadata and overrides.
+- Publishing checks exposed account eligibility, permissions and quotas before sending. Known violations block publication; unavailable provider checks remain explicit warnings.
+- Extra attachments and oversized derived titles are rejected rather than silently dropped or truncated. End-to-end regressions cover these validation boundaries and ensure invalid API submissions create no publishing attempts.
+- CLI 1.3.3 requires SDK `^1.3.3` and inherits these fixes for local publishing. Hosted publishing uses the deployed scheduler validation.
+
+### Upgrade notes
+
+- Local video validation requires FFmpeg's `ffprobe` on PATH, or an absolute `FFPROBE_PATH`. Missing or failed inspection rejects the video before sending. Node.js 20+ remains supported; see [migration notes](docs/release/MIGRATIONS.md#133) and [validation coverage](sdk/VALIDATION.md).
+
 ## [1.3.2] - 2026-09-08
 
 ### Fixed

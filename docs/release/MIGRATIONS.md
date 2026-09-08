@@ -4,6 +4,26 @@ This document lists deployment and client changes that require an explicit
 action when upgrading SimplePost. Read it together with the
 [changelog](../../CHANGELOG.md).
 
+## 1.3.3
+
+Upgrade both packages to 1.3.3. CLI 1.3.3 requires SDK `^1.3.3`.
+
+For local video publishing, install FFmpeg so `ffprobe` is on PATH (for example,
+`brew install ffmpeg` on macOS or `apt-get install ffmpeg` on Debian/Ubuntu).
+Alternatively set `FFPROBE_PATH` to its absolute path. Missing or failed probes
+return a validation error before publishing. Hosted CLI users rely on the
+scheduler's installed runtime. Supplied Docker images include it.
+
+Validation measures real media bytes and applies the final platform settings.
+Correct the reported field or upload compatible media before retrying a rejected
+post; metadata hints no longer bypass size, encoding or duration checks. Supply
+an explicit short YouTube title if the caption-derived title exceeds 100
+characters. Unsupported extra attachments are rejected instead of discarded.
+Telegram formatting must be valid for the selected parse mode. Provider-side
+moderation and account changes after validation can still cause failures.
+
+See [coverage and remaining limitations](../../sdk/VALIDATION.md).
+
 ## 1.3.2
 
 Upgrade both `@simple-post/sdk` and `@simple-post/cli` to 1.3.2 to receive the

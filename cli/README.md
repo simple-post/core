@@ -157,3 +157,5 @@ simplepost post --app-account-id TIKTOK_ACCOUNT_ID \
 ```
 
 Additional fields: `--tiktok-description` (photo description override) and `--tiktok-photo-cover-index` (zero-based, default 0). The interactive flow and JSON inputs expose the same behavior. Local-account SDK uploads need S3-compatible storage whose public domain/prefix is verified with TikTok. Public image URLs must also be verified, HTTPS and without redirects.
+
+For local video publishing, install FFmpeg (`ffprobe` on PATH), or set an absolute `FFPROBE_PATH`. Video inspection failures block publishing before upload. See the [validation coverage and runtime requirements](https://github.com/simple-post/core/blob/main/sdk/VALIDATION.md).

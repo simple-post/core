@@ -20,6 +20,22 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 /** Posts in these states have not consumed anything, so they stay free during the trial. */
 const UNCHARGED_POST_STATUSES = ["draft"];
 
+/** Failed targets are free; successful targets of a partially failed post still count. */
+export function getChargedTrialAccounts<T extends { id: string; platform: string }>(post: {
+  status: string;
+  accountResults?: unknown;
+  accounts: T[];
+}): T[] {
+  if (post.status === "draft") return [];
+  if (post.status !== "failed") return post.accounts;
+  const results = post.accountResults;
+  if (!results || typeof results !== "object" || Array.isArray(results)) return [];
+  return post.accounts.filter((account) => {
+    const result = (results as Record<string, unknown>)[account.id];
+    return result != null && typeof result === "object" && "success" in result && result.success === true;
+  });
+}
+
 export function calculateTrialEnd(start: Date, durationDays: number = TRIAL_DURATION_DAYS): Date {
   return new Date(start.getTime() + durationDays * MILLISECONDS_PER_DAY);
 }
@@ -87,8 +103,8 @@ export async function ensureTrialStarted(userId: string, now: Date = new Date())
  *
  * The unit is one publish to one account, so a post targeting two X accounts
  * costs two X slots, matching what actually goes out to the platform.
- * Drafts are excluded: the trial only charges once a post is scheduled or
- * published.
+ * Scheduled/pending posts reserve slots. Failed targets release their slots;
+ * successful targets of partially failed posts retain theirs. Drafts are free.
  */
 export async function getTrialPlatformUsage(
   userId: string,
@@ -101,8 +117,8 @@ export async function getTrialPlatformUsage(
       createdAt: { gte: trial.startsAt },
       status: { notIn: UNCHARGED_POST_STATUSES },
     },
-    select: { accounts: { select: { platform: true } } },
+    select: { status: true, accountResults: true, accounts: { select: { id: true, platform: true } } },
   });
 
-  return countAccountsByPlatform(posts.flatMap((post) => post.accounts));
+  return countAccountsByPlatform(posts.flatMap((post) => getChargedTrialAccounts(post)));
 }

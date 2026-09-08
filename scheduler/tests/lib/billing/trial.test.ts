@@ -4,6 +4,7 @@ import {
   calculateTrialEnd,
   ensureTrialStarted,
   getTrialDaysRemaining,
+  getChargedTrialAccounts,
   getTrialPlatformUsage,
 } from "@/lib/billing/trial";
 import { prisma } from "@/lib/prisma";
@@ -178,8 +179,48 @@ describe("getTrialPlatformUsage", () => {
         createdAt: { gte: trial.startsAt },
         status: { notIn: ["draft"] },
       },
-      select: { accounts: { select: { platform: true } } },
+      select: { status: true, accountResults: true, accounts: { select: { id: true, platform: true } } },
     });
+  });
+});
+
+describe("failed trial targets", () => {
+  const accounts = [
+    { id: "ig", platform: "instagram" },
+    { id: "th", platform: "threads" },
+  ];
+
+  it("releases every slot for a fully failed post, including historical failures without results", () => {
+    expect(getChargedTrialAccounts({ status: "failed", accounts })).toEqual([]);
+    expect(getChargedTrialAccounts({ status: "failed", accounts, accountResults: { ig: { success: false } } })).toEqual(
+      [],
+    );
+  });
+
+  it("retains successful targets of a partially failed post for usage and retry credit", () => {
+    expect(
+      getChargedTrialAccounts({
+        status: "failed",
+        accounts,
+        accountResults: {
+          ig: { success: false },
+          th: { success: true },
+        },
+      }),
+    ).toEqual([accounts[1]]);
+  });
+
+  it.each(["scheduled", "pending", "published"])("counts %s targets", (status) => {
+    expect(getChargedTrialAccounts({ status, accounts })).toEqual(accounts);
+  });
+
+  it("recalculates existing failures without a data migration", async () => {
+    mockPrisma.post.findMany.mockResolvedValue([
+      { status: "failed", accounts, accountResults: { ig: { success: false }, th: { success: true } } },
+      { status: "failed", accounts, accountResults: null },
+      { status: "published", accounts: [accounts[0]], accountResults: null },
+    ]);
+    await expect(getTrialPlatformUsage("user-1", trialRow())).resolves.toEqual({ instagram: 1, threads: 1 });
   });
 });
 

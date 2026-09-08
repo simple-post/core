@@ -256,6 +256,32 @@ describe("free trial post limits", () => {
     });
   });
 
+  it("allows a new post when failures previously filled the allowance", async () => {
+    mockPrisma.post.findMany.mockResolvedValue(
+      Array.from({ length: 10 }, () => ({
+        status: "failed",
+        accountResults: null,
+        accounts: [{ id: "ig", platform: "instagram" }],
+      })),
+    );
+    await expect(
+      assertCanCreatePost("user-1", prisma, {
+        socialAccounts: [{ platform: "instagram" }],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("requires a free slot when retrying a failed target at the cap", async () => {
+    mockPrisma.post.findMany.mockResolvedValue(postsOnPlatform("instagram", 10));
+    await expect(
+      assertCanCreatePost("user-1", prisma, {
+        socialAccounts: [{ platform: "instagram" }],
+        replacingSocialAccounts: [],
+        isExistingPostUpdate: true,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
   it("does not charge an edit for accounts the post already used", async () => {
     mockPrisma.post.findMany.mockResolvedValue(postsOnPlatform("x", 10));
 

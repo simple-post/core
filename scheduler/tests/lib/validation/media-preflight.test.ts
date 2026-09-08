@@ -28,11 +28,11 @@ beforeEach(() => {
   ]);
 });
 function serve(bytes: Buffer, contentType: string) {
-  jest.mocked(axios.get).mockResolvedValue({
+  jest.mocked(axios.get).mockImplementation(async () => ({
     status: 200,
     headers: { "content-type": contentType, "content-length": bytes.length },
     data: Readable.from([bytes]),
-  });
+  }));
 }
 it("returns an actionable error through the MCP validation tool for a Google sign-in page", async () => {
   serve(Buffer.from("<!doctype html><html>Sign in</html>"), "text/html");
@@ -89,4 +89,22 @@ it("explains PNG rejection through MCP validation without modifying the image", 
     expect.objectContaining({ message: expect.stringContaining("before posting or scheduling") }),
   );
   expect(png).toEqual(original);
+});
+
+it("blocks a 540×1080 JPEG through MCP before publishing", async () => {
+  const jpeg = await sharp({ create: { width: 540, height: 1080, channels: 3, background: "red" } })
+    .jpeg()
+    .toBuffer();
+  serve(jpeg, "image/jpeg");
+  const result = await validatePost("user", {
+    message: "hello",
+    accountIds: ["instagram"],
+    media: [{ ...media, filename: "image.jpg" }],
+  });
+  expect(result.isValid).toBe(false);
+  expect(result.accounts[0].errors).toContainEqual(
+    expect.objectContaining({
+      message: expect.stringContaining("540×1080"),
+    }),
+  );
 });

@@ -211,8 +211,20 @@ export function assertPostId(platform: Platform, url: string, id?: string) {
   }
   if (actual !== undefined) expect(actual, "Platform permalink must match the returned post ID").toBe(expected);
 }
+async function assertTikTokNotLoginPage(page: Page) {
+  const url = new URL(page.url());
+  const loginPath =
+    /^\/(?:login|signin)(?:\/|$)/i.test(url.pathname) || /^\/passport\/web\/login(?:\/|$)/i.test(url.pathname);
+  const loginHeading = page.getByRole("heading", { name: /^(?:log in to tiktok|sign in)$/i }).first();
+  if (loginPath || (await loginHeading.isVisible().catch(() => false)))
+    throw new VerificationSetupError(
+      "TikTok verification reached a login page instead of the requested profile or post. The receipt is retained; do not republish.",
+    );
+}
+
 async function discover(page: Page, s: Materialized, account: Account): Promise<string> {
   await page.goto(account.observer.profileUrl, { waitUntil: "domcontentloaded" });
+  if (s.platform === "tiktok") await assertTikTokNotLoginPage(page);
   const surface = observerSurface(s.platform, account);
   const card = page.locator(surface.root).filter({ hasText: s.token });
   await expect(card, "Find the exact run marker in a post on the configured profile").toHaveCount(1);
@@ -578,6 +590,7 @@ export async function verifyOnPlatform(
         if (response && response.status() >= 400) throw new Error(`Platform page returned ${response.status()}`);
         await dismissCookieConsent(page);
         await dismissLoggedOutPrompt(page);
+        if (s.platform === "tiktok") await assertTikTokNotLoginPage(page);
         if (
           s.platform === "telegram" &&
           new URL(page.url()).hostname === "t.me" &&

@@ -1,5 +1,5 @@
 import { apiLogger } from "@/lib/logger";
-import { handleApiError, PaymentRequiredError } from "@/lib/utils/errors";
+import { handleApiError, PaymentRequiredError, ValidationError } from "@/lib/utils/errors";
 
 jest.mock("@/lib/logger", () => ({
   apiLogger: {
@@ -50,4 +50,29 @@ describe("API error logging", () => {
       code: "PAYMENT_REQUIRED",
     });
   });
+});
+
+it("logs validation reasons once at warning severity without account data", async () => {
+  jest.clearAllMocks();
+  const error = new ValidationError({
+    summary: {
+      errors: [
+        {
+          platform: "instagram",
+          code: "image_format_unsupported",
+          field: "media[0]",
+          message: "Instagram does not support PNG",
+        },
+      ],
+    },
+    accounts: [{ accessToken: "secret" }],
+  });
+  const response = handleApiError(error);
+  expect(response.status).toBe(400);
+  expect(mockApiLogger.error).not.toHaveBeenCalled();
+  expect(mockApiLogger.warn).toHaveBeenCalledTimes(1);
+  const payload = mockApiLogger.warn.mock.calls[0][0];
+  expect(payload.validationIssueCount).toBe(1);
+  expect(payload.validationIssues).toContain("Instagram does not support PNG");
+  expect(JSON.stringify(payload)).not.toContain("secret");
 });

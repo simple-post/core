@@ -20,6 +20,7 @@ const NOW = new Date("2026-07-25T12:00:00.000Z");
 const ACTIVE_TRIAL = {
   id: "trial-1",
   userId: "user-1",
+  bonusPostsPerPlatform: 0,
   startsAt: new Date("2026-07-20T12:00:00.000Z"),
   expiresAt: new Date("2026-07-27T12:00:00.000Z"),
   createdAt: new Date("2026-07-20T12:00:00.000Z"),
@@ -159,6 +160,26 @@ describe("free trial post limits", () => {
     await expect(
       assertCanCreatePost("user-1", prisma, { socialAccounts: [{ platform: "x" }] }),
     ).resolves.toBeUndefined();
+  });
+
+  it("applies support bonus consistently to display and enforcement, retaining a finite limit", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "new@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: { ...ACTIVE_TRIAL, bonusPostsPerPlatform: 10 },
+    });
+    mockPrisma.post.findMany.mockResolvedValue(postsOnPlatform("instagram", 19));
+    const status = await getBillingStatus("user-1");
+    expect(status.trial?.postsPerPlatform).toBe(20);
+    expect(status.plan?.limits.postsPerPlatform).toBe(20);
+    await expect(
+      assertCanCreatePost("user-1", prisma, { socialAccounts: [{ platform: "instagram" }] }),
+    ).resolves.toBeUndefined();
+    mockPrisma.post.findMany.mockResolvedValue(postsOnPlatform("instagram", 20));
+    await expect(
+      assertCanCreatePost("user-1", prisma, { socialAccounts: [{ platform: "instagram" }] }),
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it("blocks the 11th post on a platform, naming it", async () => {

@@ -428,8 +428,6 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     log.info({ postId: post.id, durationMs, postingMode }, "Post created successfully");
     return NextResponse.json({ post }, { status: 201 });
   } catch (error) {
-    const durationMs = Date.now() - startTime;
-    log.error({ err: serializeError(error), durationMs }, "Request failed");
     return handleApiError(error);
   }
 }

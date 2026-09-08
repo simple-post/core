@@ -69,6 +69,7 @@ export async function validatePostForAccounts(params: {
   });
 
   const validation = validatePostForResolvedAccounts({
+    mediaFormatHints: false,
     message: params.message,
     media: params.media,
     accounts: resolvedAccounts,

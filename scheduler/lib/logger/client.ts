@@ -1,9 +1,11 @@
 "use client";
 
 import { isBrowserExtensionError } from "@/lib/logger/browser-extension";
+import { diagnosticText } from "@/lib/logger/error-fields";
 import { isSensitiveKey } from "@/lib/logger/sensitive-keys";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 
-type ClientLogLevel = "error" | "warn";
+type ClientLogLevel = "error" | "warn" | "info";
 
 interface ClientErrorPayload {
   level: ClientLogLevel;
@@ -32,7 +34,7 @@ function truncate(value: string, maxLength = MAX_STRING_LENGTH): string {
 
 function sanitizeValue(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value === null || value === undefined) return value;
-  if (typeof value === "string") return truncate(value);
+  if (typeof value === "string") return truncate(diagnosticText(value));
   if (typeof value === "number" || typeof value === "boolean") return value;
   if (typeof value === "function" || typeof value === "symbol") return String(value);
 
@@ -62,8 +64,8 @@ function serializeError(error: unknown): Record<string, unknown> {
   if (error instanceof Error) {
     const serialized: Record<string, unknown> = {
       name: error.name,
-      message: error.message,
-      stack: error.stack,
+      message: diagnosticText(error.message),
+      stack: error.stack && diagnosticText(error.stack),
     };
 
     if ("digest" in error) {
@@ -151,6 +153,16 @@ function getUserAgent(): string | undefined {
   return typeof navigator === "undefined" ? undefined : navigator.userAgent;
 }
 
+export function logClientInfo(message: string, context?: Record<string, unknown>): void {
+  postClientLog({
+    level: "info",
+    message,
+    context: context ? (sanitizeValue(context) as Record<string, unknown>) : undefined,
+    url: getClientUrl(),
+    timestamp: new Date().toISOString(),
+  });
+}
+
 export function logClientError(
   error: unknown,
   message: string = "Client error",
@@ -158,6 +170,11 @@ export function logClientError(
 ): void {
   const serializedError = serializeError(error);
   if (isBrowserExtensionError(serializedError, context)) return;
+
+  if (error instanceof ApiResponseError && error.status >= 400 && error.status < 500) {
+    logClientWarning(message, { ...context, status: error.status, reason: error.message });
+    return;
+  }
 
   console.error(message, error, context || "");
 

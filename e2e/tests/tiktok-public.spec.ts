@@ -81,7 +81,7 @@ for (const fault of ["none", "wrong-author", "wrong-receipt", "login", "missing-
           {
             "wrong-author": "Platform post must belong to the configured test account",
             "wrong-receipt": "Platform permalink must match the returned post ID",
-            login: "Platform redirected to a profile/login page",
+            login: "TikTok verification reached a login page",
             "missing-video": "Every requested video must be present",
             challenge: "TikTok requires an interactive verification challenge",
           }[fault],
@@ -91,3 +91,37 @@ for (const fault of ["none", "wrong-author", "wrong-receipt", "login", "missing-
     }
   });
 }
+
+test("TikTok login page is a setup error before guest marker polling", async ({ browser }) => {
+  test.setTimeout(10_000);
+  const dir = await mkdtemp(path.join(os.tmpdir(), "tiktok-public-login-"));
+  const guest = {
+    newContext: async (options: Parameters<Browser["newContext"]>[0]) => {
+      expect(options?.storageState).toEqual({ cookies: [], origins: [] });
+      const context = await browser.newContext(options);
+      await context.route("https://www.tiktok.com/**", (route) =>
+        route.fulfill({
+          contentType: "text/html; charset=utf-8",
+          body: '<h1>Log in to TikTok</h1><script>history.replaceState({},"","/login")</script>',
+        }),
+      );
+      return context;
+    },
+  } as Browser;
+  const startedAt = Date.now();
+  try {
+    await expect(
+      verifyOnPlatform(
+        guest,
+        config({ verifyTimeoutMs: 180_000 }),
+        scenario,
+        owner,
+        { success: true, postId: "v_pub_file~v2-1.123456789" },
+        dir,
+      ),
+    ).rejects.toThrow("TikTok verification reached a login page");
+    expect(Date.now() - startedAt, "Login detection must not wait for the verification deadline").toBeLessThan(5_000);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -104,11 +104,12 @@ async function inspectStream(stream: Readable, size?: number, reportedType?: str
 }
 
 /** Inspect without cookies/authentication, exactly as a publishing provider must. */
-export async function inspectRemoteMedia(url: string): Promise<MediaInspection> {
+export async function inspectRemoteMedia(url: string, options?: { maxRedirects?: number }): Promise<MediaInspection> {
   validateUrlForSSRF(url);
   try {
     const response = await axios.get<Readable>(url, {
       ...remoteRequestConfig(),
+      ...(options?.maxRedirects !== undefined && { maxRedirects: options.maxRedirects }),
       signal: AbortSignal.timeout(30_000),
       responseType: "stream",
       headers: { "Accept-Encoding": "identity" },

@@ -1,6 +1,8 @@
 import fs from "node:fs";
+import { Readable } from "node:stream";
 
 import axios from "axios";
+import sharp from "sharp";
 
 import { TikTokPublisher } from "../src/publishers/tiktok";
 import { getTikTokPostText, validateTikTokContent } from "../src/publishers/tiktok/validation";
@@ -44,10 +46,19 @@ function mockPublish(draft = false, status = draft ? "SEND_TO_USER_INBOX" : "PUB
     },
   });
 }
+let jpeg: Buffer;
+beforeAll(async () => {
+  jpeg = await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } })
+    .jpeg()
+    .toBuffer();
+});
 beforeEach(() => {
   jest.resetAllMocks();
   (axios.create as jest.Mock).mockReturnValue(api);
-  (axios.head as jest.Mock).mockResolvedValue({ headers: { "content-type": "image/jpeg", "content-length": "1024" } });
+  (axios.get as jest.Mock).mockImplementation(async () => ({
+    headers: { "content-type": "image/jpeg", "content-length": jpeg.length },
+    data: Readable.from([jpeg]),
+  }));
   (fs.statSync as jest.Mock).mockReturnValue({ size: 1024 });
   uploadFile.mockImplementation(async (_path, key) => `https://media.example.com/${key}`);
   (S3MediaUploader as jest.Mock).mockImplementation(() => ({ uploadFile, deleteFile }));
@@ -99,7 +110,11 @@ it.each([1, 4, 7, 35])("publishes %i photos in order with recommended music and 
     url: "https://www.tiktok.com/@creator/photo/123",
   });
   expect(axios.put).not.toHaveBeenCalled();
-  expect(axios.head).toHaveBeenCalledWith(content.media![0].url, { timeout: 30_000, maxRedirects: 0 });
+  expect(axios.get).toHaveBeenCalledWith(
+    content.media![0].url,
+    expect.objectContaining({ maxRedirects: 0, responseType: "stream", lookup: expect.any(Function) }),
+  );
+  expect(axios.head).not.toHaveBeenCalled();
 });
 it.each([undefined, false])("keeps automatic music off when it is %s", async (autoAddMusic) => {
   mockPublish();
@@ -169,15 +184,17 @@ it("rejects API errors returned with HTTP 200", async () => {
   );
 });
 it("rejects a redirected image origin before submitting", async () => {
-  (axios.head as jest.Mock).mockRejectedValue(new Error("302 redirect"));
-  await expect(publisher().postContent(photos(), options({ publishMode: "draft" }))).rejects.toThrow("302 redirect");
+  (axios.get as jest.Mock).mockRejectedValue(new Error("302 redirect"));
+  await expect(publisher().postContent(photos(), options({ publishMode: "draft" }))).rejects.toMatchObject({
+    errorType: PostErrorType.PREPARATION_ERROR,
+  });
   expect(api.post).not.toHaveBeenCalled();
 });
 it.each([
   { "content-type": "image/png", "content-length": "1024" },
   { "content-type": "image/jpeg", "content-length": String(21 * 1024 * 1024) },
 ])("rejects unsupported or oversized photo origins", async (headers) => {
-  (axios.head as jest.Mock).mockResolvedValue({ headers });
+  (axios.get as jest.Mock).mockResolvedValue({ headers, data: Readable.from([jpeg]) });
   await expect(publisher().postContent(photos(), options({ publishMode: "draft" }))).rejects.toThrow();
   expect(api.post).not.toHaveBeenCalled();
 });

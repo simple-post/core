@@ -96,3 +96,35 @@ Recommended first alerts:
 - Any increase in `simplepost.scheduler.stale_recovered`
 - Any increase in failed `simplepost.credentials.refresh`
 - No `simplepost.scheduler.dispatch.runs` datapoints for longer than twice the cron interval
+
+## Error classification
+
+Trace export sanitizes span names, attributes, events, links and resources before
+OTLP/HTTP delivery. URL queries/fragments, Telegram bot-token paths, credential
+fields and SQL statements are redacted; timing, status and trace correlation are
+preserved. Existing telemetry is not retroactively sanitized by a deployment.
+
+Browser uploads log a correlated fallback success or failure. Browser network
+errors are labeled as network failures rather than assuming CORS is the cause.
+Expected API 4xx responses retain actionable validation reasons and are logged as
+warnings in the browser. Accounts-page error recovery includes an explicit page
+reload; reports capture browser translation state to investigate DOM mutations.
+
+Publishing failures and credential upkeep are separate signals. A dispatch span
+is marked failed when a post or repost fails. Credential refresh counts remain
+available as `simplepost.credential_refresh.failed`, `.refreshed`, and `.skipped`
+span attributes and through `simplepost.credentials.refresh`. Alert on that metric
+separately. Expired accounts without refresh tokens are blocked from background
+refresh until reconnection; usable access tokens are retained until expiry.
+
+Expected billing denials are logged at info level and remain countable by the
+`MCP billing gate denied` / `MCP tool billing gate denied` body and HTTP 402 traces.
+Clients receive a terminal, actionable denial. Do not include these in server-error
+alerts. MCP transport rejections include safe reason codes and header-presence
+flags, never bearer tokens, session IDs, or request contents.
+
+Pino exception records include flat `errorType`, `errorMessage`, `errorCode`, and
+`errorStack` attributes where available. API content-validation rejections include
+bounded `validationIssues` and `validationIssueCount`. Scheduled validation
+failures include the post ID. These fields preserve diagnostics when a backend
+drops nested error objects.

@@ -102,13 +102,11 @@ export function batchOutcome(total: number, failures: number): BatchOutcome {
 
 /**
  * Single source of the dispatch-run outcome so the span attribute and the
- * dispatch.runs metric can never disagree. Credential-refresh failures count
- * as a partial failure: the run did not complete all of its work.
+ * dispatch.runs metric can never disagree. Credential upkeep has separate
+ * attributes and metrics; it does not imply that a scheduled post failed.
  */
 export function dispatchOutcome(result: TelemetryDispatchResult): "success" | "partial_failure" {
-  return result.failedPosts > 0 || result.failedReposts > 0 || result.credentialRefresh.failed > 0
-    ? "partial_failure"
-    : "success";
+  return result.failedPosts > 0 || result.failedReposts > 0 ? "partial_failure" : "success";
 }
 
 export async function withSpan<T>(
@@ -200,6 +198,9 @@ export async function withScheduledDispatch<T extends TelemetryDispatchResult>(r
     try {
       const result = await run();
       span.setAttributes({
+        "simplepost.credential_refresh.failed": result.credentialRefresh.failed,
+        "simplepost.credential_refresh.refreshed": result.credentialRefresh.refreshed,
+        "simplepost.credential_refresh.skipped": result.credentialRefresh.skipped,
         "simplepost.processed_posts": result.processedPosts,
         "simplepost.published_posts": result.publishedPosts,
         "simplepost.failed_posts": result.failedPosts,

@@ -324,7 +324,7 @@ export function getConnectedAccountCredentialStatus(
       "reauth_required",
       "error",
       "Reconnect",
-      `${label} rejected the stored credentials. Reconnect this account before posting.`,
+      `${label} credentials cannot be refreshed. Reconnect this account before posting.`,
       "reconnect",
       false,
     );
@@ -1002,7 +1002,13 @@ async function refreshConnectedAccountWhileLocked(
       "Connected account credentials need refresh but cannot be refreshed",
     );
     const persisted = await persistRefreshError(client, account, now, message, {
-      permanent: hasStoredPermanentRefreshFailure(account),
+      // Missing/expired account credentials cannot recover through polling.
+      // Missing application configuration may recover without reconnecting.
+      permanent:
+        hasStoredPermanentRefreshFailure(account) ||
+        (isTokenExpired(account, now) && getRefreshReadiness(account).reason === "no refresh token is stored") ||
+        getRefreshReadiness(account).reason === "no access token is stored" ||
+        (metadataDate(account, "refreshTokenExpiresAt")?.getTime() ?? Infinity) <= now.getTime(),
     });
     const failedAccount = persisted ?? (await loadConnectedAccount(client, account.id)) ?? account;
     const failedStatus = getConnectedAccountCredentialStatus(failedAccount, { now, warningWindowMs: minValidityMs });

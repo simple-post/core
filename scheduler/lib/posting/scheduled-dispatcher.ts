@@ -4,7 +4,7 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { isSocialPlatformEnabled } from "@/lib/config";
-import { createLogger } from "@/lib/logger";
+import { createLogger, serializeError } from "@/lib/logger";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
@@ -14,7 +14,7 @@ import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/t
 import { summarizeRepostOutcome } from "@/lib/repost/results";
 import { buildPublishedRepostState } from "@/lib/repost/settings";
 import { buildRepostTargets } from "@/lib/repost/targets";
-import { apiErrorLogPayload, PaymentRequiredError, sanitizeForJson } from "@/lib/utils/errors";
+import { apiErrorLogPayload, PaymentRequiredError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
@@ -419,7 +419,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       throw new Error("One or more accounts for this scheduled post no longer exist.");
     }
     if (!validation.summary.isValid) {
-      throw new Error(
+      throw new ValidationError(
+        validation,
         `Scheduled post failed validation: ${validation.summary.errors.map((issue) => issue.message).join("; ")}`,
       );
     }
@@ -584,7 +585,11 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     const errorMessage = error instanceof Error ? error.message : "Unknown error while publishing scheduled post";
 
     if (error instanceof PaymentRequiredError) {
-      log.warn(apiErrorLogPayload(error), "Scheduled post billing gate denied");
+      log.warn({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled post billing gate denied");
+    } else if (error instanceof ValidationError) {
+      log.warn({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled post failed validation");
+    } else {
+      log.error({ err: serializeError(error), postId: post.id }, "Scheduled post failed before completion");
     }
 
     await prisma.post.update({
@@ -696,7 +701,9 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
     const errorMessage = error instanceof Error ? error.message : "Unknown error while reposting";
 
     if (error instanceof PaymentRequiredError) {
-      log.warn(apiErrorLogPayload(error), "Scheduled repost billing gate denied");
+      log.warn({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled repost billing gate denied");
+    } else {
+      log.error({ err: serializeError(error), postId: post.id }, "Scheduled repost failed before completion");
     }
 
     await prisma.post.update({

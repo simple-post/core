@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
 import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
+import { BadRequestError } from "@/lib/utils/errors";
 
 const MAX_FILE_SIZE = API_UPLOAD_MAX_BYTES;
 const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
@@ -37,7 +38,7 @@ const fileParamSchema = z
 
 export const uploadMediaSchema = z.object({
   file: fileParamSchema.describe(
-    "Required file parameter for an image or video generated, attached, uploaded, or selected in the chat. Do not pass file bytes as base64 tool arguments.",
+    "Required image or video file from the chat. Supported: JPEG, PNG, GIF, WebP, MP4, QuickTime, WebM. Audio-only files (including WAV and MP3) are not supported. Do not pass base64 file bytes.",
   ),
   filename: z
     .string()
@@ -94,7 +95,7 @@ function mimeLabel(mimeType: string): string {
 const FILE_TOO_LARGE_MESSAGE = `This file is too large — the maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB.`;
 
 function corruptedFileError(mimeType: string): Error {
-  return new Error(
+  return new BadRequestError(
     `This ${mimeLabel(mimeType)} appears to be corrupted or incomplete. Please re-upload it or try a different file.`,
   );
 }
@@ -198,13 +199,13 @@ function hasWebmHeader(buffer: Buffer): boolean {
 
 function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: string): void {
   if (size > MAX_FILE_SIZE) {
-    throw new Error(FILE_TOO_LARGE_MESSAGE);
+    throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
   }
 
   const sniffedImageType = sniffImageMimeType(header);
 
   if (mimeType.startsWith("image/") && sniffedImageType !== mimeType) {
-    throw new Error(
+    throw new BadRequestError(
       `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
     );
   }
@@ -225,12 +226,14 @@ function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: stri
     }
   }
   if ((mimeType === "video/mp4" || mimeType === "video/quicktime") && !hasMp4FileTypeBox(header)) {
-    throw new Error(
+    throw new BadRequestError(
       `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
     );
   }
   if (mimeType === "video/webm" && !hasWebmHeader(header)) {
-    throw new Error("This file doesn't appear to be a valid WebM video. Please re-upload it or try a different file.");
+    throw new BadRequestError(
+      "This file doesn't appear to be a valid WebM video. Please re-upload it or try a different file.",
+    );
   }
 }
 
@@ -240,7 +243,7 @@ function resolveMimeType(sample: MediaSample, declaredMimeType: string | undefin
   const resolvedType = sniffedImageType ?? normalized;
 
   if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
-    throw new Error(
+    throw new BadRequestError(
       `This file type${declaredMimeType ? ` (${declaredMimeType})` : ""} isn't supported. Supported formats: ${[...ALLOWED_MEDIA_TYPES].map((type) => mimeLabel(type)).join(", ")}.`,
     );
   }
@@ -254,10 +257,10 @@ async function readMediaSample(tempPath: string): Promise<MediaSample> {
   try {
     const { size } = await file.stat();
     if (size === 0) {
-      throw new Error("The downloaded file is empty. Please re-attach the file and try again.");
+      throw new BadRequestError("The downloaded file is empty. Please re-attach the file and try again.");
     }
     if (size > MAX_FILE_SIZE) {
-      throw new Error(FILE_TOO_LARGE_MESSAGE);
+      throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
     }
 
     const header = Buffer.alloc(Math.min(size, 32));
@@ -274,7 +277,7 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
   const inputFileSize = input.file.size ?? 0;
 
   if (inputFileSize > 0 && inputFileSize > MAX_FILE_SIZE) {
-    throw new Error(FILE_TOO_LARGE_MESSAGE);
+    throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
   }
 
   // Use the SDK's bounded, DNS-pinned downloader so a crafted file parameter
@@ -361,13 +364,13 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
       mimeType: source.mimeType,
     };
   } catch (error) {
-    log.error(
+    log[error instanceof BadRequestError ? "warn" : "error"](
       {
         sourceType,
         elapsedMs: Date.now() - startedAt,
         err: serializeError(error),
       },
-      "Failed MCP media upload",
+      error instanceof BadRequestError ? "MCP media upload rejected" : "Failed MCP media upload",
     );
     throw error;
   } finally {

@@ -11,6 +11,12 @@ export function ClientErrorLogger() {
         source: event.filename,
         line: event.lineno,
         column: event.colno,
+        online: navigator.onLine,
+        visibility: document.visibilityState,
+        documentLanguage: document.documentElement.lang,
+        translated:
+          document.documentElement.classList.contains("translated-ltr") ||
+          document.documentElement.classList.contains("translated-rtl"),
       });
     };
 

@@ -9,7 +9,7 @@ import { normalizeContentType } from "@simple-post/sdk/media-types";
 import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { logClientError, logClientWarning } from "@/lib/logger/client";
+import { logClientError, logClientInfo, logClientWarning } from "@/lib/logger/client";
 import { WEB_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { generateThumbnail } from "@/lib/utils/client-thumbnail";
 import type { MediaFile } from "@/types";
@@ -139,9 +139,9 @@ async function uploadToR2(uploadUrl: string, file: File | Blob, contentType: str
       throw new Error(`Upload failed (${response.status}): ${text || response.statusText}`);
     }
   } catch (error) {
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      // This is likely a CORS issue - fall back to server-side upload
-      throw new Error("CORS_ERROR");
+    if (error instanceof TypeError) {
+      // Browsers cannot distinguish CORS rejection from a network failure.
+      throw new TypeError("DIRECT_UPLOAD_NETWORK_ERROR");
     }
     throw error;
   }
@@ -303,12 +303,17 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
         const reason = error instanceof Error ? error.message : "Unknown error";
         logClientWarning("Direct upload failed. Falling back to server upload.", {
           filename: file.name,
+          uploadId: id,
           reason,
         });
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 30 } : u)));
-        const result = await uploadViaServer(file, file.name);
+        const result = await uploadViaServer(file, file.name).catch((fallbackError: unknown) => {
+          logClientWarning("Server upload fallback failed", { uploadId: id, mediaType });
+          throw fallbackError;
+        });
         publicUrl = result.url;
         thumbnailUrl = result.thumbnailUrl;
+        logClientInfo("Server upload fallback succeeded", { uploadId: id, mediaType });
         setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, progress: 90 } : u)));
       }
 

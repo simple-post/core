@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-client";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 import type { PostingMode, SocialPost } from "@/types";
 
 const POSTING_PROGRESS_CONTENT_TYPE = "application/x-ndjson";
@@ -71,7 +72,7 @@ async function connectTelegram(params: ConnectTelegramParams): Promise<void> {
 
   if (!response.ok) {
     const data = await response.json();
-    throw new Error(data.error || "Failed to connect Telegram account");
+    throw new ApiResponseError(data, "Failed to connect Telegram account", response.status);
   }
 }
 
@@ -99,7 +100,7 @@ export function useConnectForem() {
       });
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to connect Forem");
+        throw new ApiResponseError(data, "Failed to connect Forem", response.status);
       }
     },
     onSuccess: () => {
@@ -246,8 +247,7 @@ async function submitPost({ body, mode, postId, onPostingResult }: PostMutationP
 
   if (!response.ok) {
     const data = (await response.json().catch(() => null)) as { error?: unknown } | null;
-    const message = typeof data?.error === "string" ? data.error : `Failed to ${mode} post`;
-    throw new Error(message);
+    throw new ApiResponseError(data, `Failed to ${mode} post`, response.status);
   }
 
   if (streamProgress && response.headers.get("content-type")?.includes(POSTING_PROGRESS_CONTENT_TYPE)) {

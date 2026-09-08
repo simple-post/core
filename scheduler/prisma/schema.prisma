@@ -51,6 +51,8 @@ model FreeTrial {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   startsAt  DateTime @default(now())
   expiresAt DateTime
+  // Support compensation; normal trials retain the standard allowance.
+  bonusPostsPerPlatform Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

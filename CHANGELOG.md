@@ -6,6 +6,20 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-08
+
+### Fixed
+
+- SDK media validation inspects actual downloaded bytes, rejects inaccessible or invalid images before publishing, and explains Instagram's JPEG requirement without converting images. Downloads retain bounded sizes, timeouts, and SSRF protection.
+- TikTok video uploads calculate chunk counts correctly. Photo preflight accepts hosts that support GET but reject HEAD; failures before submission are distinguishable from uncertain publishing outcomes.
+- YouTube preserves caption-derived titles and conclusive upload-limit rejections. Custom-thumbnail failures return a warning with the successful video result, preventing retries from uploading duplicate videos. Unsupported playlist assignment is rejected before upload, and CLI authorization uses the approved scopes.
+- Threads publishes complete, ordered carousels of up to twenty images or videos, including mixed media, and allows more time for media processing.
+- Bluesky checks video eligibility before upload and reuses completed video-processing jobs when an upload was already processed.
+- Pinterest video publishing handles upload registration, processing failures, and timeouts more reliably. Facebook video descriptions fall back to the post text.
+- X validates weighted text lengths, including Japanese characters and URLs, and rejects ineligible long posts before publishing.
+- CLI HTTP errors preserve actionable server validation messages, and CLI 1.3.2 requires SDK 1.3.2 or newer within 1.x.
+- Scheduler and MCP fixes in the same source revision preserve OAuth continuations, expose trial allowances, stop futile credential-refresh polling, and improve validation and error diagnostics. Hosted availability depends on deployment.
+
 ## [1.3.1] - 2026-09-06
 
 ### Added

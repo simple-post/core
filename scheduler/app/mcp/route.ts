@@ -20,13 +20,25 @@ const log = createLogger("api:mcp");
  */
 async function authenticateRequest(req: Request): Promise<McpToolAuthContext | null> {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
+  if (!authHeader?.startsWith("Bearer ")) {
+    log.info({ method: req.method, reason: "missing_bearer", statusCode: 401 }, "MCP authentication required");
+    return null;
+  }
 
   const token = authHeader.slice("Bearer ".length);
-  if (!isMcpToken(token)) return null;
+  if (!isMcpToken(token)) {
+    log.info({ method: req.method, reason: "unsupported_token", statusCode: 401 }, "MCP authentication rejected");
+    return null;
+  }
 
   const session = await authenticateMcpToken(token, getMcpResourceUrl());
-  if (!session?.user?.id) return null;
+  if (!session?.user?.id) {
+    log.info(
+      { method: req.method, reason: "invalid_or_expired_token", statusCode: 401 },
+      "MCP authentication rejected",
+    );
+    return null;
+  }
 
   await assertActiveSubscription(session.user.id, { action: "mcp_request" });
 
@@ -53,13 +65,22 @@ function unauthorizedResponse(): Response {
   });
 }
 
-function paymentRequiredResponse(): Response {
-  return new Response(JSON.stringify({ error: "subscription_required" }), {
-    status: 402,
-    headers: {
-      "Content-Type": "application/json",
+function paymentRequiredResponse(error: PaymentRequiredError): Response {
+  return new Response(
+    JSON.stringify({
+      error: "subscription_required",
+      message: error.message,
+      code: error.code,
+      retryable: false,
+      action: "Choose a plan in SimplePost before retrying this request.",
+    }),
+    {
+      status: 402,
+      headers: {
+        "Content-Type": "application/json",
+      },
     },
-  });
+  );
 }
 
 async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContext | Response | null> {
@@ -67,8 +88,10 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
     return await authenticateRequest(req);
   } catch (error) {
     if (error instanceof PaymentRequiredError) {
-      log.warn(apiErrorLogPayload(error), "MCP billing gate denied");
-      return paymentRequiredResponse();
+      // Billing is an expected access decision, not an application failure.
+      // Every rejection remains countable without flooding warning alerts.
+      log.info(apiErrorLogPayload(error), "MCP billing gate denied");
+      return paymentRequiredResponse(error);
     }
     throw error;
   }
@@ -97,7 +120,28 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
 
   await server.connect(transport);
 
-  return transport.handleRequest(req);
+  const response = await transport.handleRequest(req);
+  if (response.status >= 400 && response.status < 500) {
+    const errorBody = await response
+      .clone()
+      .json()
+      .catch(() => null);
+    const rpcCode = errorBody?.error?.code;
+    log.warn(
+      {
+        statusCode: response.status,
+        method: req.method,
+        rpcErrorCode: typeof rpcCode === "number" ? rpcCode : undefined,
+        reason: rpcCode === -32_700 ? "invalid_json" : rpcCode === -32_600 ? "invalid_request" : "transport_rejected",
+        hasSessionId: req.headers.has("mcp-session-id"),
+        acceptsJson: req.headers.get("accept")?.includes("application/json") ?? false,
+        acceptsEventStream: req.headers.get("accept")?.includes("text/event-stream") ?? false,
+        contentTypeJson: req.headers.get("content-type")?.includes("application/json") ?? false,
+      },
+      "MCP transport request rejected",
+    );
+  }
+  return response;
 }
 
 async function recordReviewExchange(

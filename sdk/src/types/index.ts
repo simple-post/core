@@ -4,6 +4,8 @@ export enum PostErrorType {
   /** A conclusive quota rejection with no publication; never use for an uncertain transport outcome. */
   RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR",
   INVALID_CONTENT = "INVALID_CONTENT",
+  /** Media preparation failed before any publishing request was submitted. */
+  PREPARATION_ERROR = "PREPARATION_ERROR",
   /** The provider explicitly rejected the request without publishing a post. */
   PUBLISH_REJECTED = "PUBLISH_REJECTED",
   API_ERROR = "API_ERROR",

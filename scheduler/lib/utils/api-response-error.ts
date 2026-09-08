@@ -22,9 +22,13 @@ export function apiResponseError(data: unknown, fallback: string): string {
     }
     const object = value as Record<string, unknown>;
     if (typeof object.message === "string") messages.push(object.message);
-    else for (const child of Object.values(object)) visit(child, depth + 1);
+    else
+      for (const [key, child] of Object.entries(object)) {
+        if (key !== "warnings") visit(child, depth + 1);
+      }
   };
-  visit(body.details, 0);
+  const summary = (body.details as { summary?: { errors?: unknown } } | undefined)?.summary;
+  visit(summary?.errors ?? body.details, 0);
   return messages.length > 0
     ? [...new Set(messages)].join(" ")
     : typeof body.error === "string"

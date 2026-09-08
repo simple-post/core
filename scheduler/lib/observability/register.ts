@@ -5,6 +5,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { PrismaInstrumentation } from "@prisma/instrumentation";
 import { registerOTel } from "@vercel/otel";
 
@@ -92,8 +93,10 @@ export function registerObservability(): boolean {
     ],
     // With traces disabled an empty processor list alone still records spans
     // via the default always-on sampler; always_off keeps them non-recording.
+    // Replace auto processors explicitly: traceExporter alone is ADDITIVE in
+    // @vercel/otel when an OTLP endpoint is set and exports an unredacted copy.
     ...(tracesEnabled
-      ? { traceExporter: new SanitizingSpanExporter(new OTLPTraceExporter()) }
+      ? { spanProcessors: [new BatchSpanProcessor(new SanitizingSpanExporter(new OTLPTraceExporter()))] }
       : { spanProcessors: [], traceSampler: "always_off" }),
     metricReaders,
     logRecordProcessors,

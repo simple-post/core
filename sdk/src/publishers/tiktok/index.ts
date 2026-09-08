@@ -23,7 +23,6 @@ import type { PlatformValidationRules, ValidationResult } from "../../types/vali
 import type { AxiosInstance } from "axios";
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
-const MIN_FILE_SIZE_FOR_CHUNKING = 10 * 1024 * 1024; // Only chunk files larger than 10MB
 // TikTok's Direct Post API returns a `publish_id` immediately, but the actual
 // public video ID is only known once processing finishes. We poll the status
 // endpoint until PUBLISH_COMPLETE so callers can link to the real video.
@@ -116,8 +115,9 @@ export class TikTokPublisher extends Publisher {
     if (!Number.isSafeInteger(fileSize) || fileSize <= 0 || fileSize > TIKTOK_MAX_VIDEO_SIZE) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok videos must contain data and cannot exceed 4 GB.");
     }
-    // For files smaller than the chunking threshold, upload as a single chunk
-    if (fileSize <= MIN_FILE_SIZE_FOR_CHUNKING) {
+    // A single-chunk upload must declare the entire file size. Only use the
+    // fixed chunk size when floor division produces at least two chunks.
+    if (fileSize < 2 * CHUNK_SIZE) {
       return { chunkSize: fileSize, totalChunks: 1 };
     }
 

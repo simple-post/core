@@ -152,7 +152,9 @@ export function ChangePlanSelection({
                 variant={isCurrentPlan ? "outline" : "default"}
                 className="mt-auto gap-2">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {isCurrentPlan ? "Current plan" : loading ? "Updating..." : `${actionVerb} to ${plan.name}`}
+                <span>
+                  {isCurrentPlan ? "Current plan" : loading ? "Updating..." : `${actionVerb} to ${plan.name}`}
+                </span>
               </Button>
             </article>
           );

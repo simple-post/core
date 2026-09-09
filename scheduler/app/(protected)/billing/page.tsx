@@ -423,7 +423,7 @@ export default function BillingPage() {
                         ) : (
                           <ExternalLink className="h-4 w-4" />
                         )}
-                        {portalLoading === "manage" ? "Opening..." : "Manage subscription"}
+                        <span>{portalLoading === "manage" ? "Opening..." : "Manage subscription"}</span>
                       </Button>
                       <Button
                         type="button"
@@ -436,7 +436,7 @@ export default function BillingPage() {
                         ) : (
                           <FileText className="h-4 w-4" />
                         )}
-                        {portalLoading === "invoices" ? "Opening..." : "Invoices"}
+                        <span>{portalLoading === "invoices" ? "Opening..." : "Invoices"}</span>
                       </Button>
                     </div>
                   )}

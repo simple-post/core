@@ -1,5 +1,7 @@
 # @simple-post/sdk
 
+[Automatic image fitting: crop or blurred padding](../docs/image-fitting.md).
+
 Post to all social platforms with one TypeScript library: X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and DEV/Forem.
 
 ```bash

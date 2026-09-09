@@ -138,6 +138,7 @@ async function updatePost(
     const finalMedia: MediaFile[] = validated.media || [];
 
     const validation = await validatePostForAccounts({
+      imageFit: validated.imageFit,
       userId: session.user.id,
       message: validated.message,
       media: finalMedia,

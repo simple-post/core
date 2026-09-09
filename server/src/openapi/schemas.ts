@@ -220,6 +220,17 @@ export const PlatformValidationResponseSchema = z
 
 export const ValidationResponseSchema = z
   .object({
+    fittedContent: z
+      .object({
+        media: z.array(MediaFileSchema),
+        accountOverrides: AccountOverridesMapSchema.optional(),
+        accountOptions: AccountOptionsMapSchema.optional(),
+        thread: ThreadSchema.optional(),
+      })
+      .optional()
+      .describe(
+        "Present when imageFit is requested. Use these reviewed media URLs and overrides when creating the post."
+      ),
     platforms: z.array(PlatformSchema),
     results: z.array(PlatformValidationResponseSchema),
     summary: z.object({

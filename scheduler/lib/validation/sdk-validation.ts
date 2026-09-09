@@ -1,14 +1,15 @@
+import { fitRemoteImagesForAccounts, type ImageFit, type ThreadSegment, type ValidationIssue } from "@simple-post/sdk";
 import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type { ValidationResultByPlatform } from "./post-validation";
-import type { ThreadSegment, ValidationIssue } from "@simple-post/sdk";
 
 function addMediaInspectionFailures(
   validation: ValidationResultByPlatform,
@@ -32,6 +33,7 @@ function addMediaInspectionFailures(
 }
 
 export async function validatePostForAccounts(params: {
+  imageFit?: ImageFit;
   userId: string;
   message: string;
   media: MediaFile[];
@@ -58,6 +60,14 @@ export async function validatePostForAccounts(params: {
       previewOnly: isPreviewOnlyTokenMetadata(tokenMetadata),
     };
   });
+
+  if (params.imageFit) {
+    if (resolvedAccounts.length !== new Set(params.accountIds).size)
+      throw new Error("One or more accounts were not found");
+    await fitRemoteImagesForAccounts(params, resolvedAccounts, params.imageFit, params.userId, async (url) => {
+      await prisma.$transaction((tx) => queueStorageDeletion(tx, params.userId, url));
+    });
+  }
 
   // Never trust caller-provided byte counts for URL-backed media. This shared
   // boundary is used by the HTTP API, MCP tools, and scheduled posts. Updating

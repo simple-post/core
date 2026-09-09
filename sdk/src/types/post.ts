@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ImageFitSchema } from "../image-fit";
+
 export type LogLevel = "none" | "error" | "warn" | "info";
 
 export const PlatformSchema = z.enum([
@@ -268,6 +270,7 @@ export const PostOptionsSchema = z.object({
 });
 
 export const PostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   content: ContentSchema,
   platforms: z.array(PlatformSchema),
   options: PostOptionsSchema.optional(),

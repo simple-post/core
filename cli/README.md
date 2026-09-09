@@ -1,5 +1,7 @@
 # SimplePost CLI
 
+[Automatic image fitting: crop or blurred padding](../docs/image-fitting.md).
+
 Post to X, Telegram, YouTube, Instagram, Facebook, TikTok, Bluesky, Threads, LinkedIn, Pinterest, and DEV/Forem from your terminal.
 
 ```bash

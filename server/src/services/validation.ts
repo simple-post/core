@@ -1,4 +1,17 @@
 import {
+  fitRemoteImagesForAccounts,
+  type ImageFit,
+  type AccountOverridesMap,
+  type AccountOptionsMap,
+  type Content,
+  type Media,
+  type MediaFile,
+  type Platform,
+  type PlatformValidationRules,
+  type ThreadSegment,
+  type ValidationResult,
+} from "@simple-post/sdk";
+import {
   validateContentForPlatform,
   BlueskyPublisher,
   FacebookPublisher,
@@ -19,18 +32,6 @@ import {
 import { buildPostOptions } from "./credentials.js";
 
 import { getAccountsByIds, type ConfiguredAccount } from "../config/accounts.js";
-
-import type {
-  AccountOverridesMap,
-  AccountOptionsMap,
-  Content,
-  Media,
-  MediaFile,
-  Platform,
-  PlatformValidationRules,
-  ThreadSegment,
-  ValidationResult,
-} from "@simple-post/sdk";
 
 const publishers: Record<
   string,
@@ -116,6 +117,7 @@ function summarize(account: ConfiguredAccount): AccountSummary {
 }
 
 export async function validatePostForAccounts(params: {
+  imageFit?: ImageFit;
   message: string;
   media: MediaFile[];
   accountIds: string[];
@@ -126,6 +128,11 @@ export async function validatePostForAccounts(params: {
   const accounts = getAccountsByIds(params.accountIds);
   const foundIds = new Set(accounts.map((a) => a.id));
   const missingAccountIds = params.accountIds.filter((id) => !foundIds.has(id));
+  if (params.imageFit) {
+    if (accounts.length !== new Set(params.accountIds).size) throw new Error("One or more accounts were not found");
+    await fitRemoteImagesForAccounts(params, accounts, params.imageFit, "server");
+  }
+
   const inspectionFailures = await hydrateRemoteMediaSizesForAccounts({
     media: params.media,
     accounts,

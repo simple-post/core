@@ -9,10 +9,14 @@ import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
   post: jest.fn(),
+  validatePostMedia: jest.fn().mockResolvedValue([]),
+  fitPostImages: jest.fn(),
 }));
 
 const sdk = jest.requireMock("@simple-post/sdk") as {
   post: jest.Mock;
+  validatePostMedia: jest.Mock;
+  fitPostImages: jest.Mock;
 };
 
 describe("runPostWorkflow", () => {
@@ -392,5 +396,74 @@ it.each(["public", "draft"])(
     expect(JSON.stringify(body)).not.toContain("must-not-be-sent");
     if (publishMode === "draft") expect(outputs[0]).toContain("Publish manually");
     delete (globalThis as any).fetch;
+  },
+);
+
+it.each(["crop", "blur", "prompt", "cancel", "noninteractive"])(
+  "handles image fitting with %s before any publish",
+  async (choice) => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = {
+      interactive: choice === "prompt" || choice === "cancel",
+      log: jest.fn(),
+      select: jest.fn().mockResolvedValue(choice === "cancel" ? "cancel" : "blur"),
+    } as any;
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    config.x.accounts = [
+      {
+        alias: "main",
+        userId: "123",
+        secretRef: "x-fit",
+        connectedAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    ];
+    await saveCliConfig(paths, config);
+    const store = createSecretStore(paths, { backend: "file-plain" }, prompt);
+    await store.write("x-fit", {
+      accessToken: "token",
+      refreshToken: "refresh",
+      expiresAt: 4_102_444_800,
+      tokenMetadata: { clientId: "test-client" },
+    });
+    sdk.post.mockClear();
+    sdk.validatePostMedia.mockClear();
+    sdk.fitPostImages.mockClear();
+    sdk.validatePostMedia.mockResolvedValue([
+      { platform: "x", code: "image_too_large", severity: "error", message: "Image too large" },
+    ]);
+    const cleanup = jest.fn().mockImplementation(async () => {});
+    sdk.fitPostImages.mockImplementation(async (post) => ({
+      post: { ...post, content: { ...post.content, media: [{ type: "image", path: "/tmp/fitted.jpg" }] } },
+      cleanup,
+    }));
+    sdk.post.mockResolvedValue(new Map([["x", { error: "NO_ERROR", id: "123" }]]));
+    const run = runPostWorkflow({
+      config: { configDir: paths.configDir } as any,
+      flags: {
+        account: ["x:main"],
+        image: ["https://example.com/source.jpg"],
+        text: "Photo",
+        ...(["crop", "blur"].includes(choice) ? { "fit-images": choice } : {}),
+      },
+      prompt,
+      writeOutput: jest.fn(),
+    });
+    if (choice === "cancel" || choice === "noninteractive") {
+      await expect(run).rejects.toThrow(choice === "cancel" ? /cancelled/ : /--fit-images/);
+      expect(sdk.post).not.toHaveBeenCalled();
+      expect(sdk.fitPostImages).not.toHaveBeenCalled();
+    } else {
+      await run;
+      expect(sdk.fitPostImages).toHaveBeenCalledWith(expect.anything(), choice === "prompt" ? "blur" : choice);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      if (choice !== "prompt") {
+        expect(prompt.select).not.toHaveBeenCalled();
+        expect(sdk.validatePostMedia).not.toHaveBeenCalled();
+      }
+    }
+    sdk.validatePostMedia.mockResolvedValue([]);
   },
 );

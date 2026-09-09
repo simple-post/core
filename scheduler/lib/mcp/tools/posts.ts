@@ -1,5 +1,11 @@
 import { Prisma } from "@prisma/client";
-import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
+import {
+  ImageFitSchema,
+  canFitImageIssue,
+  IMAGE_FIT_HELP,
+  AccountIdsSchema,
+  AccountOptionsMapSchema,
+} from "@simple-post/sdk";
 import { z } from "zod";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
@@ -32,6 +38,7 @@ import {
 import { validatePost, validatePostOutputSchema } from "./validation";
 
 export const createPostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   message: z.string().describe("The post text content"),
   accountIds: AccountIdsSchema.describe(
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
@@ -131,6 +138,7 @@ export const previewPostOutputSchema = z.object({
 });
 
 export const createPostOutputSchema = z.object({
+  imageFitHelp: z.string().optional(),
   kind: z.literal("post"),
   message: z.string(),
   postingMode: z.enum(["now", "schedule", "draft"]),
@@ -175,6 +183,7 @@ export const inspectPostsSchema = z.object({
 });
 
 export const updateScheduledPostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   postId: z
     .string()
     .describe("ID of the draft or future scheduled SimplePost post to edit. Use inspect_posts to find it."),
@@ -544,6 +553,7 @@ export async function previewPost(
     scheduledFor,
   });
   const validation = await validatePost(userId, {
+    imageFit: input.imageFit,
     message: input.message,
     accountIds: input.accountIds,
     accountOptions: input.accountOptions,
@@ -645,6 +655,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.media !== undefined ||
     input.thread !== undefined ||
     input.accountOptions !== undefined ||
+    input.imageFit !== undefined ||
     input.postingMode !== undefined ||
     input.scheduledFor !== undefined ||
     input.quotePostId !== undefined;
@@ -692,12 +703,21 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   });
 
   const validation = await validatePost(userId, {
+    imageFit: input.imageFit,
     message,
     accountIds,
     accountOptions,
     media,
     thread: threadForValidation,
   });
+
+  if (input.imageFit && validation.fittedMedia) {
+    media.splice(0, media.length, ...toMediaFiles(validation.fittedMedia));
+    if (validation.fittedAccountOptions && accountOptions)
+      Object.assign(accountOptions, validation.fittedAccountOptions);
+    if (thread && validation.fittedThread)
+      thread.splice(0, thread.length, ...toThreadSegments(validation.fittedThread));
+  }
 
   if (validation.accounts.length !== accountIds.length) {
     throw missingAccountsError(
@@ -710,7 +730,9 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     const errorMessages = validation.accounts
       .flatMap((account) => account.errors.map((error) => error.message))
       .join("; ");
-    throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
+    throw new Error(
+      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
+    );
   }
 
   // Scheduling a draft is the point where it starts costing trial allowance,
@@ -734,8 +756,8 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;
-  if (input.media !== undefined) updates.media = media;
-  if (input.thread !== undefined) updates.thread = thread ?? [];
+  if (input.media !== undefined || input.imageFit) updates.media = media;
+  if (input.thread !== undefined || input.imageFit) updates.thread = thread ?? [];
   if (targetPostingMode !== currentPostingMode)
     updates.status = targetPostingMode === "schedule" ? "scheduled" : "draft";
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
@@ -783,8 +805,8 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       updated: true,
       messageChanged: input.message !== undefined,
       accountsChanged: input.accountIds !== undefined,
-      mediaChanged: input.media !== undefined,
-      threadChanged: input.thread !== undefined,
+      mediaChanged: input.media !== undefined || input.imageFit !== undefined,
+      threadChanged: input.thread !== undefined || (input.imageFit !== undefined && (thread?.length ?? 0) > 0),
       statusChanged: targetPostingMode !== currentPostingMode,
       scheduledForChanged: input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode,
       quoteChanged: input.quotePostId !== undefined,
@@ -876,7 +898,10 @@ function buildReplayResponse(post: SocialPost, input: z.infer<typeof createPostS
   };
 }
 
-export async function createPost(userId: string, input: z.infer<typeof createPostSchema>) {
+export async function createPost(
+  userId: string,
+  input: z.infer<typeof createPostSchema>,
+): Promise<z.infer<typeof createPostOutputSchema>> {
   input = { ...input, accountIds: [...new Set(input.accountIds)] };
   const repository = new PostsModel(userId);
 
@@ -925,6 +950,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
 
   // Validate content
   const validation = await validatePostForAccounts({
+    imageFit: input.imageFit,
     userId,
     message: input.message,
     media: mediaFiles,
@@ -941,7 +967,9 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   }
 
   if (postingMode !== "draft" && !validation.summary.isValid) {
-    const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
+    const errorMessages =
+      validation.summary.errors.map((e) => e.message).join("; ") +
+      (validation.summary.errors.some((issue) => canFitImageIssue(issue)) ? " " + IMAGE_FIT_HELP : "");
     throw new Error(
       `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
     );
@@ -1149,6 +1177,14 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     postingMode,
     mediaCount: mediaFiles.length,
     post: mapPost(post),
+    imageFitHelp: validation.summary.errors.some((issue) => canFitImageIssue(issue))
+      ? validation.summary.errors
+          .filter((issue) => canFitImageIssue(issue))
+          .map((issue) => `${issue.platform}: ${issue.message}`)
+          .join(" ") +
+        " " +
+        IMAGE_FIT_HELP
+      : undefined,
     postingResults: [],
     summary: {
       accountCount: input.accountIds.length,

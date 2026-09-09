@@ -18,7 +18,7 @@ jobs:
           POSTGRES_DB: simplepost_review
         ports: ["5432:5432"]
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d simplepost_review"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -77,7 +77,7 @@ jobs:
         run: yarn workspace @simple-post/e2e exec playwright install --with-deps chromium
 
       - name: Run offline end-to-end checks
-        run: yarn e2e:test
+        run: xvfb-run --auto-servernum yarn e2e:test
 
       - name: Run CLI tests
         env:

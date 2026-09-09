@@ -107,7 +107,8 @@ export function PlanSelection({
                 disabled={loadingPlan !== null}
                 className="mt-auto gap-2">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {loading ? "Opening Stripe..." : `Choose ${plan.name}`}
+                {/* Translation can replace text nodes; keep a stable element beside the spinner. */}
+                <span>{loading ? "Opening Stripe..." : `Choose ${plan.name}`}</span>
               </Button>
             </article>
           );

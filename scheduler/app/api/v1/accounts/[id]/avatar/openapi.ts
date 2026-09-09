@@ -35,7 +35,7 @@ export default defineRoute({
           },
         },
         "404": jsonResponse("Account or profile picture not found.", ApiErrorSchema),
-        "502": emptyResponse("The upstream avatar could not be fetched as an image."),
+        "204": emptyResponse("No usable profile photo is available; display the platform fallback icon."),
         ...userAuthErrorResponses,
         ...basicErrorResponses,
       },

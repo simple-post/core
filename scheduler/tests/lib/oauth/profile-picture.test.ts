@@ -53,8 +53,8 @@ describe("profile picture refresh", () => {
     });
   });
 
-  it("falls back to the largest decorated LinkedIn image", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 })).mockResolvedValueOnce(
+  it("falls back to the largest decorated LinkedIn image for legacy credentials", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 403 })).mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           profilePicture: {
@@ -110,4 +110,10 @@ describe("profile picture refresh", () => {
       }),
     ).toBe("https://media.licdn.com/largest.jpg");
   });
+});
+
+it("treats a successful LinkedIn profile without a photo as a normal absence", async () => {
+  fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ sub: "member" }), { status: 200 }));
+  await expect(fetchLinkedInProfilePicture("linkedin-access-token")).resolves.toBeNull();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });

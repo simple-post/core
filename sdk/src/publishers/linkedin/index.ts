@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import { escapeLinkedInText, publishLinkedInPage } from "./page";
 import { LINKEDIN_MAX_IMAGES, LINKEDIN_MAX_VIDEOS, LINKEDIN_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -37,7 +38,8 @@ export class LinkedInPublisher extends Publisher {
 
   private client: AxiosInstance;
   private accessToken: string;
-  private memberId: string;
+  private author: string;
+  private isOrganization: boolean;
 
   constructor(options?: PostOptionsWithCredentials) {
     super("LinkedIn", options, "linkedin");
@@ -49,9 +51,16 @@ export class LinkedInPublisher extends Publisher {
       );
     }
 
-    const { accessToken, memberId } = options.linkedin.credentials;
+    const { accessToken, memberId, organizationId } = options.linkedin.credentials;
+    if (Boolean(memberId) === Boolean(organizationId) || (organizationId && !/^\d+$/.test(organizationId))) {
+      throw new PostError(
+        PostErrorType.CREDENTIALS_ERROR,
+        "Provide exactly one LinkedIn memberId or numeric organizationId",
+      );
+    }
     this.accessToken = accessToken;
-    this.memberId = memberId;
+    this.isOrganization = Boolean(organizationId);
+    this.author = organizationId ? `urn:li:organization:${organizationId}` : `urn:li:person:${memberId}`;
 
     this.client = axios.create({
       baseURL: "https://api.linkedin.com/v2",
@@ -73,7 +82,7 @@ export class LinkedInPublisher extends Publisher {
     try {
       const response = await this.client.post("/assets?action=registerUpload", {
         registerUploadRequest: {
-          owner: `urn:li:person:${this.memberId}`,
+          owner: this.author,
           recipes: [recipe],
           serviceRelationships: [
             {
@@ -142,12 +151,17 @@ export class LinkedInPublisher extends Publisher {
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    this.validatePageVisibility(options);
     const validation = LinkedInPublisher.validate(content, options?.linkedin);
     if (!validation.isValid) {
       throw new PostError(PostErrorType.INVALID_CONTENT, "LinkedIn content validation failed", validation);
     }
     for (const warning of validation.warnings) {
       this.logger.warn(warning.message);
+    }
+
+    if (this.isOrganization) {
+      return publishLinkedInPage(this.accessToken, this.author, content);
     }
 
     const tempFileManager = new TempFileManager();
@@ -195,7 +209,7 @@ export class LinkedInPublisher extends Publisher {
       const visibility = options?.linkedin?.visibility ?? "PUBLIC";
 
       const payload: Record<string, unknown> = {
-        author: `urn:li:person:${this.memberId}`,
+        author: this.author,
         lifecycleState: "PUBLISHED",
         specificContent: {
           "com.linkedin.ugc.ShareContent": {
@@ -234,14 +248,15 @@ export class LinkedInPublisher extends Publisher {
     options: PostOptionsWithCredentials | undefined,
     action: "quote" | "repost",
   ): Promise<PostResult> {
+    this.validatePageVisibility(options);
     const visibility = options?.linkedin?.visibility ?? "PUBLIC";
 
     try {
       const response = await axios.post(
         "https://api.linkedin.com/rest/posts",
         {
-          author: `urn:li:person:${this.memberId}`,
-          commentary,
+          author: this.author,
+          commentary: this.isOrganization ? escapeLinkedInText(commentary) : commentary,
           visibility,
           distribution: {
             feedDistribution: "MAIN_FEED",
@@ -277,6 +292,12 @@ export class LinkedInPublisher extends Publisher {
         `Failed to ${action} on LinkedIn: ${err.response?.data?.message || err.message || "Unknown error"}`,
         err.response?.data,
       );
+    }
+  }
+
+  private validatePageVisibility(options?: PostOptionsWithCredentials): void {
+    if (this.isOrganization && options?.linkedin?.visibility === "CONNECTIONS") {
+      throw new PostError(PostErrorType.INVALID_CONTENT, "LinkedIn company Pages require PUBLIC visibility");
     }
   }
 

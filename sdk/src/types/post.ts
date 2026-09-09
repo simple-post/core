@@ -218,7 +218,11 @@ export const LinkedInOptionsSchema = z.object({
   credentials: z
     .object({
       accessToken: z.string(),
-      memberId: z.string(),
+      memberId: z.string().min(1).optional(),
+      organizationId: z.string().regex(/^\d+$/, "LinkedIn organizationId must be a numeric Page ID").optional(),
+    })
+    .refine((value) => Boolean(value.memberId) !== Boolean(value.organizationId), {
+      message: "Provide exactly one LinkedIn memberId or organizationId",
     })
     .optional(),
 });

@@ -5,7 +5,10 @@ import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth";
 import { CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS } from "@/lib/oauth/connected-account-lock";
 import { prisma } from "@/lib/prisma";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError, BadRequestError, NotFoundError, GoneError } from "@/lib/utils/errors";
+
+import type { Prisma } from "@prisma/client";
 
 type PendingAccount = {
   id: string;
@@ -13,19 +16,26 @@ type PendingAccount = {
   username?: string | null;
   profilePicture?: string | null;
   accessToken: string;
+  refreshToken?: string | null;
+  expiresAt?: string | null;
+  email?: string | null;
+  tokenMetadata?: Prisma.JsonValue | null;
+  accountType?: string;
 };
 
 type PendingData = {
   accounts: PendingAccount[];
   scope?: string | null;
+  warning?: string;
 };
 
 function sanitizeAccounts(accounts: PendingAccount[]) {
-  return accounts.map(({ id, name, username, profilePicture }) => ({
+  return accounts.map(({ id, name, username, profilePicture, accountType }) => ({
     id,
     name,
     username,
     profilePicture,
+    accountType,
   }));
 }
 
@@ -63,6 +73,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       id: pending.id,
       platform: pending.platform,
       accounts: sanitizeAccounts(data.accounts),
+      warning: data.warning,
     });
   } catch (error) {
     return handleApiError(error);
@@ -106,7 +117,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const selectedAccounts = data.accounts.filter((account) => selectedAccountIds.includes(account.id));
-    if (selectedAccounts.length === 0) {
+    if (
+      selectedAccounts.length === 0 ||
+      selectedAccountIds.some(
+        (id: unknown) => typeof id !== "string" || !data.accounts.some((account) => account.id === id),
+      )
+    ) {
       throw new BadRequestError("Selected accounts not found");
     }
 
@@ -115,21 +131,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await prisma.$transaction(async (tx) => {
       for (const account of selectedAccounts) {
         const displayName = account.name || account.username || account.id;
-        const username = pending.platform === "instagram" ? account.username || null : null;
+        const username =
+          pending.platform === "instagram" || pending.platform === "linkedin" ? account.username || null : null;
+        const credentials =
+          pending.platform === "linkedin"
+            ? decryptConnectedAccountSecrets({
+                ...account,
+                refreshToken: account.refreshToken ?? null,
+                tokenMetadata: account.tokenMetadata ?? null,
+              })
+            : account;
 
         await upsertConnectedAccount(
           {
             userId: session.user.id,
             platform: pending.platform,
             platformAccountId: account.id,
-            accessToken: account.accessToken,
-            refreshToken: null,
-            expiresAt: null,
+            accessToken: credentials.accessToken,
+            refreshToken: credentials.refreshToken ?? null,
+            expiresAt: account.expiresAt ? new Date(account.expiresAt) : null,
             scope,
             username,
             displayName,
-            email: null,
+            email: account.email ?? null,
             profilePicture: account.profilePicture || null,
+            tokenMetadata:
+              credentials.tokenMetadata == null ? undefined : (credentials.tokenMetadata as Prisma.InputJsonValue),
           },
           tx,
         );

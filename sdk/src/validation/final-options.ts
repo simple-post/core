@@ -20,6 +20,13 @@ export function validateFinalOptions(platform: Platform, content: Content, optio
       );
   };
   const video = content.media?.find((item) => item.type === "video");
+  if (
+    platform === "linkedin" &&
+    options?.linkedin?.credentials?.organizationId &&
+    options.linkedin.visibility === "CONNECTIONS"
+  ) {
+    add("linkedin_page_visibility", "visibility", "LinkedIn company Pages require PUBLIC visibility.");
+  }
   if (platform === "youtube") {
     const settings = options?.youtube;
     const tags = settings?.tags ?? [];

@@ -49,9 +49,9 @@ export async function fetchLinkedInProfilePicture(accessToken: string): Promise<
     });
     if (userInfoResponse.ok) {
       const userInfo = (await userInfoResponse.json()) as { picture?: unknown };
-      if (typeof userInfo.picture === "string" && userInfo.picture.length > 0) {
-        return userInfo.picture;
-      }
+      // A successful modern profile response may have no photo. Do not fall
+      // back to the legacy /me API, which uses different permissions.
+      return typeof userInfo.picture === "string" && userInfo.picture.length > 0 ? userInfo.picture : null;
     }
 
     const decoratedResponse = await fetch(

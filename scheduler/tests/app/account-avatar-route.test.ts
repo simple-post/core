@@ -105,3 +105,17 @@ describe("account avatar route", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+it("returns a cacheable empty avatar when LinkedIn supplies no photo", async () => {
+  const account = storedAccount("linkedin", null);
+  prismaMock.connectedAccount.findUnique.mockResolvedValue(account);
+  fetchFreshProfilePictureMock.mockResolvedValue(null);
+  const response = await GET(new NextRequest(`http://localhost/api/v1/accounts/${account.id}/avatar`), {
+    params: Promise.resolve({ id: account.id }),
+  });
+  expect(response.status).toBe(204);
+  expect(await response.text()).toBe("");
+  expect(response.headers.get("cache-control")).toBe("private, max-age=300");
+  expect(prismaMock.connectedAccount.update).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+});

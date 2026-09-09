@@ -123,9 +123,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!imageResponse) {
       return new NextResponse(null, {
-        status: 502,
+        // A photo is optional. An empty response lets AvatarFallback render
+        // the platform icon without classifying this as an application outage.
+        status: 204,
         headers: {
-          "Cache-Control": "private, no-store",
+          "Cache-Control": "private, max-age=300",
         },
       });
     }

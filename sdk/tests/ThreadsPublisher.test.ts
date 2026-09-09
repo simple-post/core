@@ -146,6 +146,85 @@ describe("ThreadsPublisher", () => {
         jest.useRealTimers();
       }
     });
+    it("retries the same ready container when publishing reports it is not visible yet", async () => {
+      jest.useFakeTimers();
+      mockSuccessfulGetSequence();
+      const rejection = { response: { status: 400, data: { error: { code: 24, error_subcode: 4_279_009 } } } };
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "creation_123" } })
+        .mockRejectedValueOnce(rejection)
+        .mockRejectedValueOnce(rejection)
+        .mockRejectedValueOnce(rejection)
+        .mockResolvedValueOnce({ data: { id: "post_456" } });
+      try {
+        const started = Date.now();
+        const result = publisher.postContent({ text: "Ready before propagation" });
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "post_456", error: PostErrorType.NO_ERROR });
+        expect(Date.now() - started).toBe(35_000);
+        expect(mockAxiosInstance.post.mock.calls.filter(([url]: [string]) => url.endsWith("/threads"))).toHaveLength(1);
+        const publishes = mockAxiosInstance.post.mock.calls.filter(([url]: [string]) =>
+          url.endsWith("/threads_publish"),
+        );
+        expect(publishes).toHaveLength(4);
+        for (const [, payload] of publishes) expect(payload.creation_id).toBe("creation_123");
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("returns a conclusive retryable rejection when container propagation retries are exhausted", async () => {
+      jest.useFakeTimers();
+      mockSuccessfulGetSequence();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "creation_123" } })
+        .mockRejectedValue({ response: { status: 400, data: { error: { code: 24, error_subcode: 4_279_009 } } } });
+      try {
+        const result = expect(publisher.postContent({ text: "Still unavailable" })).rejects.toMatchObject({
+          errorType: PostErrorType.PUBLISH_REJECTED,
+          message: expect.stringContaining("retry the failed Threads target"),
+        });
+        await jest.runAllTimersAsync();
+        await result;
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(5);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it.each([
+      { message: "timeout", code: "ECONNABORTED" },
+      { response: { status: 500, data: { error: { code: 24, error_subcode: 4_279_009 } } } },
+      { response: { status: 400, data: { error: { code: 24, error_subcode: 999 } } } },
+      { response: { status: 400, data: { error: { code: 999, error_subcode: 4_279_009 } } } },
+    ])("does not retry ambiguous or unrelated publish errors: %j", async (error) => {
+      mockSuccessfulGetSequence();
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "creation_123" } }).mockRejectedValueOnce(error);
+      await expect(publisher.postContent({ text: "No duplicate" })).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops if a propagation rejection is followed by an ambiguous failure", async () => {
+      jest.useFakeTimers();
+      mockSuccessfulGetSequence();
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "creation_123" } })
+        .mockRejectedValueOnce({ response: { status: 400, data: { error: { code: 24, error_subcode: 4_279_009 } } } })
+        .mockRejectedValueOnce(new Error("Connection dropped after publish"));
+      try {
+        const result = expect(publisher.postContent({ text: "No duplicate" })).rejects.toMatchObject({
+          errorType: PostErrorType.API_ERROR,
+        });
+        await jest.runAllTimersAsync();
+        await result;
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("should post an image successfully", async () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({ data: { id: "creation_123" } })

@@ -55,7 +55,7 @@ function getProfilePictureSrc({
   const normalized = normalizeProfilePictureForDisplay(profilePicture, platform);
   const platformId = normalizePlatform(platform);
 
-  if (accountId && (platformId === "linkedin" || platformId === "threads" || (platformId === "x" && normalized))) {
+  if (accountId && (platformId === "threads" || ((platformId === "linkedin" || platformId === "x") && normalized))) {
     const version = avatarVersion ? `?v=${encodeURIComponent(String(avatarVersion))}` : "";
     return `/api/v1/accounts/${encodeURIComponent(accountId)}/avatar${version}`;
   }

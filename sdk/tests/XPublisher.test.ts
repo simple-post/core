@@ -297,6 +297,27 @@ describe("XPublisher", () => {
       },
     );
 
+    it("explains X reply restrictions without retrying or dropping the reply target", async () => {
+      mockV2Client.tweet.mockRejectedValue({
+        code: 403,
+        data: {
+          detail: "You can only reply to or quote posts where you are mentioned or are the author.",
+          status: 403,
+        },
+      });
+      await expect(
+        publisher.postContent(
+          { text: "Reply" },
+          { x: { credentials: validCredentialsOptions().x!.credentials, replyToId: "source" } },
+        ),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        message: expect.stringContaining("Retrying the same target will not resolve this restriction"),
+      });
+      expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+      expect(mockV2Client.tweet.mock.calls[0][1].reply).toEqual({ in_reply_to_tweet_id: "source" });
+    });
+
     it("uses weighted length when explaining a long-post 403", async () => {
       mockedAxios.get.mockRejectedValue(new Error("Unavailable"));
       mockV2Client.tweet.mockRejectedValue({ code: 403, data: { status: 403, detail: "Forbidden" } });

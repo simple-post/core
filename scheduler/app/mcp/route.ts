@@ -127,12 +127,23 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
       .json()
       .catch(() => null);
     const rpcCode = errorBody?.error?.code;
+    const rpcMessage = errorBody?.error?.message;
+    // Classify SDK messages without logging arbitrary echoed input or headers.
+    const protocolRejected =
+      typeof rpcMessage === "string" && rpcMessage.startsWith("Bad Request: Unsupported protocol version:");
     log.warn(
       {
         statusCode: response.status,
         method: req.method,
         rpcErrorCode: typeof rpcCode === "number" ? rpcCode : undefined,
-        reason: rpcCode === -32_700 ? "invalid_json" : rpcCode === -32_600 ? "invalid_request" : "transport_rejected",
+        reason: protocolRejected
+          ? "unsupported_protocol_version"
+          : rpcCode === -32_700
+            ? "invalid_json"
+            : rpcCode === -32_600
+              ? "invalid_request"
+              : "transport_rejected",
+        userId: authContext.userId,
         hasSessionId: req.headers.has("mcp-session-id"),
         acceptsJson: req.headers.get("accept")?.includes("application/json") ?? false,
         acceptsEventStream: req.headers.get("accept")?.includes("text/event-stream") ?? false,

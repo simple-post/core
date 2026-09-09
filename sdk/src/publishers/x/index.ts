@@ -433,6 +433,17 @@ export class XPublisher extends Publisher {
         );
       }
 
+      if (
+        status === 403 &&
+        err.data?.detail?.includes("You can only reply to or quote posts where you are mentioned or are the author")
+      ) {
+        throw new PostError(
+          PostErrorType.PUBLISH_REJECTED,
+          "X does not allow this reply or quote through its API: the original post must mention your account or be authored by you. Choose an eligible post, or publish a standalone post without a reply or quote target. Retrying the same target will not resolve this restriction.",
+          this.accountDetails({ code: "reply_or_quote_not_permitted", provider: err.data }),
+        );
+      }
+
       // A response rejecting this single tweet request is conclusive. Network
       // failures and 5xx responses still have an uncertain publication outcome.
       if (status === 400 || status === 401 || status === 403 || status === 422 || status === 429) {

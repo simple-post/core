@@ -27,6 +27,8 @@ const PROCESSING_POLL_INTERVAL = 2000;
 // into an ambiguous publish outcome.
 const PROCESSING_MAX_ATTEMPTS = 60;
 const PROACTIVE_REFRESH_DAYS = 7;
+// Retry only an explicit missing-container rejection, always using the same ID.
+const PUBLISH_PROPAGATION_DELAYS = [5000, 10_000, 20_000];
 
 interface ThreadsAxiosErrorLike {
   response?: {
@@ -34,6 +36,7 @@ interface ThreadsAxiosErrorLike {
     data?: {
       error?: {
         code?: number;
+        error_subcode?: number;
         message?: string;
         type?: string;
       };
@@ -200,6 +203,39 @@ export class ThreadsPublisher extends Publisher {
     throw new PostError(PostErrorType.API_ERROR, "Threads media processing timed out.");
   }
 
+  private async publishContainer(threadsUserId: string, creationId: string) {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.withTokenRefresh(() =>
+          this.client.post(`/${threadsUserId}/threads_publish`, {
+            access_token: this.accessToken,
+            creation_id: creationId,
+          }),
+        );
+      } catch (error) {
+        const err = error as ThreadsAxiosErrorLike;
+        const providerError = err.response?.data?.error;
+        // FINISHED can precede visibility to the publish endpoint. This exact
+        // 400 rejects the request; timeouts, 5xx and other errors are ambiguous
+        // and must never trigger another publish automatically.
+        if (err.response?.status !== 400 || providerError?.code !== 24 || providerError.error_subcode !== 4_279_009) {
+          throw error;
+        }
+        const delay = PUBLISH_PROPAGATION_DELAYS[attempt];
+        if (delay === undefined) {
+          throw new PostError(
+            PostErrorType.PUBLISH_REJECTED,
+            "Threads could not find the prepared post after waiting for it to become available. Please retry the failed Threads target.",
+            { provider: err.response?.data, creationId },
+          );
+        }
+        this.logger.warn(`Threads container ${creationId} is not visible to publishing yet; retrying in ${delay}ms.`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        // Do not create a replacement container or re-run the whole post.
+      }
+    }
+  }
+
   static validate(content: Content, options?: PostOptions["threads"]): ValidationResult {
     return validateContentForPlatform("threads", content, { threads: options });
   }
@@ -347,12 +383,7 @@ export class ThreadsPublisher extends Publisher {
       // because the container had not yet propagated server-side.
       await this.waitForMediaReady(creationId);
 
-      const publishResponse = await this.withTokenRefresh(() =>
-        this.client.post(`/${threadsUserId}/threads_publish`, {
-          access_token: this.accessToken,
-          creation_id: creationId,
-        }),
-      );
+      const publishResponse = await this.publishContainer(threadsUserId, creationId);
 
       const publishId = String(publishResponse.data?.id || publishResponse.data?.post_id || creationId);
 

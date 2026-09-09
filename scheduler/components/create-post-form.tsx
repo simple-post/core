@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { canFitImageIssue } from "@simple-post/sdk/image-fit";
 import { REPOST_CAPABLE_PLATFORMS } from "@simple-post/sdk/platform-names";
 import { format } from "date-fns";
 import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
@@ -42,6 +43,7 @@ import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/l
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
+import { ImageFitReview } from "./image-fit-review";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
@@ -83,6 +85,8 @@ export function CreatePostForm() {
     storageError,
     setMessage,
     setMedia,
+    setAccountOptions,
+    setAccountOverrideMedia,
     setSelectedAccountIds,
     setRepostSettings,
     setQuotePostId,
@@ -105,6 +109,7 @@ export function CreatePostForm() {
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
+  const [showImageFit, setShowImageFit] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [tiktokConsent, setTikTokConsent] = useState(false);
@@ -960,12 +965,38 @@ export function CreatePostForm() {
             </div>
           )}
 
+          {showImageFit && (
+            <ImageFitReview
+              content={{ media, accountOptions, accountOverrides: enabledOverrides, thread }}
+              accountIds={selectedAccountIds}
+              message={message}
+              onClose={() => setShowImageFit(false)}
+              onApply={(fitted) => {
+                setMedia(fitted.media);
+                if (fitted.accountOptions) setAccountOptions(fitted.accountOptions);
+                for (const [id, override] of Object.entries(fitted.accountOverrides ?? {})) {
+                  if (override.media) setAccountOverrideMedia(id, override.media);
+                }
+                for (const [index, segment] of (fitted.thread ?? []).entries())
+                  updateThreadSegmentMedia(index, segment.media ?? []);
+                setShowImageFit(false);
+                setServerValidation(null);
+                setContentTouched(true);
+              }}
+            />
+          )}
+
           {visibleValidationErrors.length > 0 ? (
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm space-y-1">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 <p className="font-medium">Before you can post</p>
               </div>
+              {visibleValidationErrors.some((issue) => canFitImageIssue(issue)) && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
+                  Fit images…
+                </Button>
+              )}
               {visibleValidationErrors.map((issue, index) => (
                 <p key={`${issue.code}-${index}`} className="text-muted-foreground">
                   {formattedIssue(issue)}

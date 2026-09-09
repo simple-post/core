@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ImageFitSchema } from "../image-fit";
+
 import type { Platform } from "./post";
 
 export const MediaFileSchema = z.object({
@@ -160,6 +162,7 @@ export { REPOST_CAPABLE_PLATFORMS, isRepostCapablePlatform } from "../platform-n
 export type { RepostCapablePlatform } from "../platform-names";
 
 export const createPostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   message: z.string().default(""),
   accountIds: AccountIdsSchema,
   postingMode: z.enum(["now", "schedule"]).default("schedule"),
@@ -182,6 +185,7 @@ export const createPostSchema = z.object({
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 
 export const validationRequestSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   message: z.string().default(""),
   media: z.array(MediaFileSchema).default([]),
   accountIds: AccountIdsSchema,

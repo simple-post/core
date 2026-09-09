@@ -2,6 +2,7 @@ import { getPublisher } from "./publishers";
 import { PostError, PostErrorType } from "./types";
 import { readinessFailure } from "./utils/account-readiness";
 import { getCredentialsFromEnv, mergeOptions } from "./utils/credentials";
+import { fitPostImages } from "./utils/image-fitting";
 import { MediaResolver } from "./utils/media-resolver";
 import { validatePostMedia, type MediaInspectionCache } from "./utils/post-media-validation";
 
@@ -68,6 +69,7 @@ export async function prepareMedia(post: Post): Promise<PreparedPost> {
 
     // Build resolved post
     const resolvedPost: Post = {
+      ...post,
       content: resolvedContent,
       platforms: post.platforms,
       options: post.options,
@@ -87,6 +89,31 @@ export async function prepareMedia(post: Post): Promise<PreparedPost> {
 }
 
 export async function post(post: Post): Promise<Map<Platform, PostResult>> {
+  if (post.imageFit) {
+    let fitted: PreparedPost;
+    try {
+      fitted = await fitPostImages(post, post.imageFit);
+    } catch (error) {
+      return new Map(
+        post.platforms.map((platform) => [
+          platform,
+          {
+            error: PostErrorType.PREPARATION_ERROR,
+            message: error instanceof Error ? error.message : "Could not fit images.",
+          },
+        ]),
+      );
+    }
+    try {
+      return await publishFittedPost(fitted.post);
+    } finally {
+      await fitted.cleanup();
+    }
+  }
+  return publishFittedPost(post);
+}
+
+async function publishFittedPost(post: Post): Promise<Map<Platform, PostResult>> {
   const results = new Map<Platform, PostResult>();
   const envCredentials = getCredentialsFromEnv();
   const mergedOptions = mergeOptions(envCredentials, post.options);
@@ -327,3 +354,8 @@ export async function validatePostReadiness(
     return [readinessFailure(platform, error)];
   }
 }
+
+export { ImageFitSchema, canFitImageIssue, IMAGE_FIT_HELP } from "./image-fit";
+export type { ImageFit } from "./image-fit";
+export { fitImage, fitPostImages, fitRemoteImagesForAccounts } from "./utils/image-fitting";
+export type { ImageFitContent } from "./utils/image-fitting";

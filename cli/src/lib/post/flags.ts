@@ -1,6 +1,12 @@
 import { Flags } from "@oclif/core";
 
 export const postFlags = {
+  "fit-images": Flags.string({
+    options: ["crop", "blur"],
+    description:
+      "Fit incompatible images automatically: crop trims edges; blur pads with a blurred background. No fitting prompt.",
+    helpGroup: "Media",
+  }),
   interactive: Flags.boolean({
     char: "i",
     default: false,

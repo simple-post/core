@@ -17,6 +17,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const validated = parseResult.data;
     const validation = await validatePostForAccounts({
+      imageFit: validated.imageFit,
       message: validated.message,
       media: validated.media,
       accountIds: validated.accountIds,
@@ -25,7 +26,19 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       thread: validated.thread,
     });
 
-    res.json(validation);
+    res.json({
+      ...validation,
+      ...(validated.imageFit
+        ? {
+            fittedContent: {
+              media: validated.media,
+              accountOverrides: validated.accountOverrides,
+              accountOptions: validated.accountOptions,
+              thread: validated.thread,
+            },
+          }
+        : {}),
+    });
   } catch (error) {
     handleApiError(error, res);
   }

@@ -257,11 +257,13 @@ OAuth (if you already have OAuth tokens):
 
 #### LinkedIn
 
+Use `organizationId` for a company Page or `memberId` for a personal profile, never both. The access token belongs to the authorizing member. Page posts require public visibility and Community Management API permissions.
+
 ```json
 {
   "id": "linkedin-page",
   "platform": "linkedin",
-  "credentials": { "accessToken": "...", "memberId": "..." },
+  "credentials": { "accessToken": "...", "organizationId": "12345678" },
   "options": { "visibility": "PUBLIC" }
 }
 ```

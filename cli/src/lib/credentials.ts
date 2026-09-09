@@ -185,7 +185,9 @@ function buildStoredAccountPostOptions(
         linkedin: {
           credentials: {
             accessToken: secret.accessToken,
-            memberId: metadata.userId,
+            ...(metadata.userId.startsWith("urn:li:organization:")
+              ? { organizationId: metadata.userId.slice("urn:li:organization:".length) }
+              : { memberId: metadata.userId }),
           },
         },
       };

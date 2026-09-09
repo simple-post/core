@@ -106,7 +106,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
     clientId: process.env.LINKEDIN_CLIENT_ID || "",
     clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
-    scope: "openid profile email w_member_social",
+    scope: "openid profile email w_member_social w_organization_social rw_organization_admin",
     responseType: "code",
     userInfoUrl: "https://api.linkedin.com/v2/userinfo",
     requiresPkce: false,

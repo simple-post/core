@@ -1157,9 +1157,14 @@ export function AccountOptionsComponent({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="PUBLIC">Public</SelectItem>
-                    <SelectItem value="CONNECTIONS">Connections Only</SelectItem>
+                    {!account.platformAccountId.startsWith("urn:li:organization:") && (
+                      <SelectItem value="CONNECTIONS">Connections Only</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+                {account.platformAccountId.startsWith("urn:li:organization:") && (
+                  <p className="text-xs text-muted-foreground mt-1">Company Page posts are public.</p>
+                )}
               </div>
             )}
 

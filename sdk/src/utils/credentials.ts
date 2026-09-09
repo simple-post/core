@@ -43,6 +43,7 @@ export const getCredentialsFromEnv = (): PostOptions => {
     linkedin: {
       accessToken: process.env.LINKEDIN_ACCESS_TOKEN,
       memberId: process.env.LINKEDIN_MEMBER_ID,
+      organizationId: process.env.LINKEDIN_ORGANIZATION_ID,
     },
     pinterest: {
       accessToken: process.env.PINTEREST_ACCESS_TOKEN,
@@ -126,11 +127,12 @@ export const getCredentialsFromEnv = (): PostOptions => {
     };
   }
 
-  if (Object.values(envVars.linkedin).every(Boolean)) {
+  if (envVars.linkedin.accessToken && (envVars.linkedin.memberId || envVars.linkedin.organizationId)) {
     options.linkedin = {
       credentials: {
         accessToken: envVars.linkedin.accessToken!,
-        memberId: envVars.linkedin.memberId!,
+        memberId: envVars.linkedin.memberId,
+        organizationId: envVars.linkedin.organizationId,
       },
     };
   }

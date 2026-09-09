@@ -12,6 +12,7 @@
     "paths": {
       "@simple-post/sdk": ["../sdk/src/index.ts"],
       "@simple-post/sdk/media-types": ["../sdk/src/media-types.ts"],
+      "@simple-post/sdk/image-fit": ["../sdk/src/image-fit.ts"],
       "@simple-post/sdk/platform-names": ["../sdk/src/platform-names.ts"]
     }
   },

@@ -1,4 +1,10 @@
-import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
+import {
+  ImageFitSchema,
+  canFitImageIssue,
+  IMAGE_FIT_HELP,
+  AccountIdsSchema,
+  AccountOptionsMapSchema,
+} from "@simple-post/sdk";
 import { z } from "zod";
 
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -8,6 +14,7 @@ import { mcpAccountIdentitySchema } from "./accounts";
 import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
 
 export const validatePostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   message: z.string().describe("The post text content"),
   accountIds: AccountIdsSchema.describe(
     "IDs of connected accounts to validate against. Use list_accounts to get available IDs.",
@@ -39,6 +46,10 @@ export const validationAccountSchema = mcpAccountIdentitySchema.extend({
 });
 
 export const validatePostOutputSchema = z.object({
+  imageFitHelp: z.string().optional(),
+  fittedMedia: mcpMediaArraySchema.optional(),
+  fittedThread: mcpThreadSchema,
+  fittedAccountOptions: AccountOptionsMapSchema.optional(),
   kind: z.literal("validation"),
   message: z.string().describe("The post text that was validated, echoed back so the UI can show a preview."),
   mediaCount: z.number().describe("Number of media items that were validated alongside the message."),
@@ -60,16 +71,22 @@ export async function validatePost(
   const accountIds = [...new Set(input.accountIds)];
   const mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);
+  const accountOptions = await resolveMcpAccountOptions(userId, accountIds, input.accountOptions, mediaFiles);
   const result = await validatePostForAccounts({
+    imageFit: input.imageFit,
     userId,
     message: input.message,
     media: mediaFiles,
     accountIds,
-    accountOptions: await resolveMcpAccountOptions(userId, accountIds, input.accountOptions, mediaFiles),
+    accountOptions,
     thread: threadSegments.length > 0 ? threadSegments : undefined,
   });
 
   return {
+    imageFitHelp: result.summary.errors.some((issue) => canFitImageIssue(issue)) ? IMAGE_FIT_HELP : undefined,
+    fittedMedia: input.imageFit ? mediaFiles : undefined,
+    fittedAccountOptions: input.imageFit ? accountOptions : undefined,
+    fittedThread: input.imageFit ? threadSegments : undefined,
     kind: "validation" as const,
     message: input.message,
     mediaCount: mediaFiles.length,

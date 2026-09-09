@@ -138,6 +138,18 @@
       "args": {},
       "description": "Post content to one or more platforms via @simple-post/sdk.",
       "flags": {
+        "fit-images": {
+          "description": "Fit incompatible images automatically: crop trims edges; blur pads with a blurred background. No fitting prompt.",
+          "helpGroup": "Media",
+          "name": "fit-images",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "crop",
+            "blur"
+          ],
+          "type": "option"
+        },
         "interactive": {
           "char": "i",
           "description": "Run prompt-based interactive mode",

@@ -302,3 +302,60 @@ it.each(["public", "draft"])(
     expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOptions: options }));
   },
 );
+
+it.each(["crop", "blur"])("persists fitted media when imageFit=%s is explicitly requested", async (imageFit) => {
+  (validatePostForAccounts as jest.Mock).mockImplementationOnce(async (params) => {
+    params.media[0].url = "https://cdn.example.com/fitted.jpg";
+    params.media[0].filename = "fitted-image.jpg";
+    return {
+      accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+      results: [],
+      summary: { isValid: true, errors: [], warnings: [] },
+    };
+  });
+  await createPost(
+    "user-1",
+    createPostSchema.parse({
+      message: "Photo",
+      accountIds: ["tiktok-1"],
+      media: [{ type: "image", url: "https://example.com/source.png" }],
+      postingMode: "draft",
+      imageFit,
+    }),
+  );
+  expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ imageFit }));
+  expect(savePost).toHaveBeenCalledWith(
+    expect.objectContaining({ media: [expect.objectContaining({ url: "https://cdn.example.com/fitted.jpg" })] }),
+    "user-1",
+    {},
+  );
+});
+
+it("offers fitting methods after an image validation error without saving or publishing", async () => {
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    summary: { isValid: false, errors: [{ code: "image_format_unsupported", message: "Unsupported PNG image" }] },
+  });
+  await expect(
+    createPost("user-1", createPostSchema.parse({ message: "Photo", accountIds: ["tiktok-1"], postingMode: "now" })),
+  ).rejects.toThrow(/crop.*blur.*imageFit/);
+  expect(savePost).not.toHaveBeenCalled();
+  expect(postToAccounts).not.toHaveBeenCalled();
+});
+
+it("offers fitting for incompatible images even when saving a draft", async () => {
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    summary: {
+      isValid: false,
+      errors: [{ platform: "tiktok", code: "image_format_unsupported", message: "PNG must be converted" }],
+    },
+  });
+  const result = await createPost(
+    "user-1",
+    createPostSchema.parse({ message: "Photo", accountIds: ["tiktok-1"], postingMode: "draft" }),
+  );
+  expect(result.imageFitHelp).toContain("tiktok: PNG must be converted");
+  expect(result.imageFitHelp).toContain("imageFit");
+  expect(postToAccounts).not.toHaveBeenCalled();
+});

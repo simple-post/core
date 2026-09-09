@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { openAsBlob } from "node:fs";
 import path from "node:path";
 
-import { PostErrorType, post as publishPost } from "@simple-post/sdk";
+import {
+  ImageFitSchema,
+  canFitImageIssue,
+  fitPostImages,
+  validatePostMedia,
+  PostErrorType,
+  post as publishPost,
+} from "@simple-post/sdk";
 import { normalizeContentType } from "@simple-post/sdk/media-types";
 
 import { collectPostInput } from "./input.js";
@@ -214,6 +221,18 @@ async function postViaScheduler(
   appAccountIds: string[],
   accounts: Array<{ appAccountId?: string; platform: Platform }>,
 ): Promise<ExecutionOutcome[]> {
+  const uploadLocal = async (filePath: string) => {
+    const form = new FormData();
+    form.append(
+      "file",
+      await openAsBlob(filePath, { type: normalizeContentType("", filePath) ?? "application/octet-stream" }),
+      path.basename(filePath),
+    );
+    return fetchSchedulerApi<{ url: string; filename: string; size: number }>(ctx, "/api/v1/upload", {
+      method: "POST",
+      body: form,
+    });
+  };
   const body: Record<string, unknown> = {
     message: post.content.text ?? "",
     accountIds: appAccountIds,
@@ -229,13 +248,24 @@ async function postViaScheduler(
     if (settings) {
       // Credentials are owned by the scheduler; never transmit SDK credentials.
       const { credentials: _credentials, ...publicOptions } = settings;
-      accountOptions[accountId] = publicOptions;
+      const forwarded: Record<string, unknown> = { ...publicOptions };
+      if (typeof forwarded.thumbnailPath === "string") {
+        forwarded.thumbnailUrl = (await uploadLocal(forwarded.thumbnailPath)).url;
+        delete forwarded.thumbnailPath;
+      }
+      accountOptions[accountId] = forwarded;
     }
   }
   if (Object.keys(accountOptions).length > 0) body.accountOptions = accountOptions;
   if (post.content.media?.length) {
     const media = [];
     for (const item of post.content.media) {
+      const thumbnailUrl =
+        item.type === "video" && item.thumbnailPath
+          ? (await uploadLocal(item.thumbnailPath)).url
+          : item.type === "video"
+            ? item.thumbnailUrl
+            : undefined;
       if (item.url) {
         media.push({
           id: randomUUID(),
@@ -243,25 +273,15 @@ async function postViaScheduler(
           type: item.type,
           filename: new URL(item.url).pathname.split("/").pop() || item.type,
           size: item.size ?? 0,
-          ...(item.type === "video" ? { thumbnailUrl: item.thumbnailUrl, durationSec: item.durationSec } : {}),
+          ...(item.type === "video" ? { thumbnailUrl, durationSec: item.durationSec } : {}),
         });
       } else if (item.path) {
-        const form = new FormData();
-        form.append(
-          "file",
-          await openAsBlob(item.path, { type: normalizeContentType("", item.path) ?? "application/octet-stream" }),
-          path.basename(item.path),
-        );
-        const uploaded = await fetchSchedulerApi<{ url: string; filename: string; size: number }>(
-          ctx,
-          "/api/v1/upload",
-          { method: "POST", body: form },
-        );
+        const uploaded = await uploadLocal(item.path);
         media.push({
           id: randomUUID(),
           ...uploaded,
           type: item.type,
-          ...(item.type === "video" ? { durationSec: item.durationSec } : {}),
+          ...(item.type === "video" ? { thumbnailUrl, durationSec: item.durationSec } : {}),
         });
       }
     }
@@ -364,58 +384,92 @@ export async function runPostWorkflow(options: {
     throw new Error("No posting targets were selected.");
   }
 
-  const outcomes: ExecutionOutcome[] = [];
-
-  // Handle local account posting
-  if (hasLocalSelections) {
-    const executionPlan = await buildExecutionTargets({
-      cliConfig,
-      paths,
-      post: {
-        ...postInput.post,
-        platforms: postInput.post.platforms.filter(
-          (platform) => (postInput.accountSelections[platform]?.length ?? 0) > 0,
-        ),
-      },
-      prompt: options.prompt,
-      selections: postInput.accountSelections,
-    });
-
-    for (const target of executionPlan.targets) {
-      const results = await publishPost(target.post);
-      const result = results.get(target.platform);
-      if (!result) {
-        throw new Error(`The SDK did not return a result for ${getPlatformLabel(target.platform)}.`);
-      }
-
-      outcomes.push({
-        accountAlias: target.accountAlias,
-        platform: target.platform,
-        result,
-      });
-
-      if (executionPlan.store && target.secretRef) {
-        await persistRefreshedStoredCredentials(executionPlan.store, target.secretRef, result);
-      }
+  let fitMode = options.flags["fit-images"]
+    ? ImageFitSchema.parse(options.flags["fit-images"])
+    : postInput.post.imageFit;
+  const hasImages =
+    postInput.post.content.media?.some((item) => item.type === "image" || item.thumbnailPath || item.thumbnailUrl) ||
+    postInput.post.options?.youtube?.thumbnailPath ||
+    postInput.post.options?.youtube?.thumbnailUrl;
+  if (!fitMode && hasImages) {
+    const issues = (await validatePostMedia(postInput.post)).filter(
+      (issue) => issue.severity === "error" && canFitImageIssue(issue),
+    );
+    if (issues.length > 0) {
+      options.writeOutput(issues.map((issue) => `${issue.platform}: ${issue.message}`).join("\n"));
+      if (!options.prompt.interactive)
+        throw new Error("Images need fitting. Retry with --fit-images crop or --fit-images blur.");
+      const choice = await options.prompt.select(
+        "Fit images before posting?",
+        [
+          { value: "blur", label: "Pad with blurred background (keep the full image)" },
+          { value: "crop", label: "Crop to fit (trim edges)" },
+          { value: "cancel", label: "Cancel and choose different images" },
+        ],
+        "blur",
+      );
+      if (choice === "cancel") throw new Error("Posting cancelled. Original images have not been changed.");
+      fitMode = ImageFitSchema.parse(choice);
     }
   }
+  const fitted = fitMode ? await fitPostImages(postInput.post, fitMode) : undefined;
+  if (fitted) postInput.post = fitted.post;
+  try {
+    const outcomes: ExecutionOutcome[] = [];
 
-  // Handle app account posting via scheduler
-  if (hasAppSelections && schedulerCtx) {
-    const appOutcomes = await postViaScheduler(schedulerCtx, postInput.post, postInput.appAccountIds, appAccounts);
-    outcomes.push(...appOutcomes);
-  }
+    // Handle local account posting
+    if (hasLocalSelections) {
+      const executionPlan = await buildExecutionTargets({
+        cliConfig,
+        paths,
+        post: {
+          ...postInput.post,
+          platforms: postInput.post.platforms.filter(
+            (platform) => (postInput.accountSelections[platform]?.length ?? 0) > 0,
+          ),
+        },
+        prompt: options.prompt,
+        selections: postInput.accountSelections,
+      });
 
-  if (outcomes.length === 0) {
-    throw new Error("No posting targets were selected.");
-  }
+      for (const target of executionPlan.targets) {
+        const results = await publishPost(target.post);
+        const result = results.get(target.platform);
+        if (!result) {
+          throw new Error(`The SDK did not return a result for ${getPlatformLabel(target.platform)}.`);
+        }
 
-  options.writeOutput(formatPostSummary(outcomes));
+        outcomes.push({
+          accountAlias: target.accountAlias,
+          platform: target.platform,
+          result,
+        });
 
-  if (outcomes.some((entry) => entry.result.error !== PostErrorType.NO_ERROR)) {
-    const failedTargets = outcomes
-      .filter((entry) => entry.result.error !== PostErrorType.NO_ERROR)
-      .map(formatTargetLabel);
-    throw new Error(`Posting failed for: ${failedTargets.join(", ")}.`);
+        if (executionPlan.store && target.secretRef) {
+          await persistRefreshedStoredCredentials(executionPlan.store, target.secretRef, result);
+        }
+      }
+    }
+
+    // Handle app account posting via scheduler
+    if (hasAppSelections && schedulerCtx) {
+      const appOutcomes = await postViaScheduler(schedulerCtx, postInput.post, postInput.appAccountIds, appAccounts);
+      outcomes.push(...appOutcomes);
+    }
+
+    if (outcomes.length === 0) {
+      throw new Error("No posting targets were selected.");
+    }
+
+    options.writeOutput(formatPostSummary(outcomes));
+
+    if (outcomes.some((entry) => entry.result.error !== PostErrorType.NO_ERROR)) {
+      const failedTargets = outcomes
+        .filter((entry) => entry.result.error !== PostErrorType.NO_ERROR)
+        .map(formatTargetLabel);
+      throw new Error(`Posting failed for: ${failedTargets.join(", ")}.`);
+    }
+  } finally {
+    await fitted?.cleanup();
   }
 }

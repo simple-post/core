@@ -75,6 +75,8 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Media
 
+When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post or validate_post. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.
+
 Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
 
 There are two ways to get a usable \`url\`:
@@ -253,6 +255,7 @@ function formatValidationIssue(issue: ValidationIssue): string {
 }
 
 function formatValidationDetails(validation: {
+  imageFitHelp?: string;
   accounts: ValidationAccount[];
   summary: { errorCount: number; warningCount: number };
 }): string {
@@ -281,7 +284,7 @@ function formatValidationDetails(validation: {
     })
     .join("\n");
 
-  return `${headline}\n${accounts}`;
+  return `${headline}\n${accounts}${validation.imageFitHelp ? "\n\n" + validation.imageFitHelp : ""}`;
 }
 
 function formatTiming(postingMode: string, scheduledFor: string | null): string {
@@ -576,7 +579,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "validate_post",
     {
       title: "Validate Post",
-      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.`,
+      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally. Optional imageFit uploads fitted image previews and requires posts:write scope.`,
       inputSchema: validatePostSchema.shape,
       outputSchema: validatePostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.validate_post,
@@ -585,6 +588,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     async (input) => {
       try {
         requireScope(context, "posts:validate");
+        if (input.imageFit) requireScope(context, "posts:write");
         const result = await validatePost(context.userId, input);
         return {
           structuredContent: result,
@@ -617,7 +621,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without writing to SimplePost or rendering UI. scheduledFor must be a timezone-aware ISO 8601 datetime.`,
+      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI. Optional imageFit uploads fitted image previews and requires posts:write scope. scheduledFor must be a timezone-aware ISO 8601 datetime.`,
       inputSchema: previewPostSchema.shape,
       outputSchema: previewPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.preview_post,
@@ -626,6 +630,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     async (input) => {
       try {
         requireScope(context, "posts:validate");
+        if (input.imageFit) requireScope(context, "posts:write");
         const result = await previewPost(context.userId, input);
         const summaryText = result.validation.isValid
           ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
@@ -731,7 +736,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}`,
+              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}${result.imageFitHelp ? "\n\n" + result.imageFitHelp : ""}`,
             },
           ],
         };

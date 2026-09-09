@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     const validated = validationRequestSchema.parse(body);
 
     const validation = await validatePostForAccounts({
+      imageFit: validated.imageFit,
       userId: session.user.id,
       message: validated.message,
       media: validated.media,
@@ -22,7 +23,19 @@ export async function POST(req: NextRequest) {
       thread: validated.thread,
     });
 
-    return NextResponse.json(validation);
+    return NextResponse.json({
+      ...validation,
+      ...(validated.imageFit
+        ? {
+            fittedContent: {
+              media: validated.media,
+              accountOverrides: validated.accountOverrides,
+              accountOptions: validated.accountOptions,
+              thread: validated.thread,
+            },
+          }
+        : {}),
+    });
   } catch (error) {
     return handleApiError(error);
   }

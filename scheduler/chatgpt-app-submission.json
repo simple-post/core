@@ -38,30 +38,30 @@
     },
     "validate_post": {
       "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
+        "readOnlyHint": false,
+        "openWorldHint": true,
         "destructiveHint": false,
-        "idempotentHint": true
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Checks draft text and media URLs against platform validation rules without creating records or posting.",
-        "open_world_justification": "Does not write to public internet state or external third-party systems.",
+        "read_only_justification": "Checks or previews content without creating a post; optional imageFit uploads new fitted images to SimplePost storage.",
+        "open_world_justification": "Optional image fitting downloads source media and creates publicly fetchable derivative image URLs in configured object storage.",
         "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
-        "idempotent_justification": "Calling it repeatedly recomputes validation against current account rules and does not change stored data."
+        "idempotent_justification": "With imageFit enabled, repeated calls may create additional derivative image objects and URLs."
       }
     },
     "preview_post": {
       "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
+        "readOnlyHint": false,
+        "openWorldHint": true,
         "destructiveHint": false,
-        "idempotentHint": true
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Resolves targets, media count, scheduled time when applicable, and validation status without creating or publishing a post.",
-        "open_world_justification": "Does not write to SimplePost, public internet state, or external third-party systems.",
+        "read_only_justification": "Checks or previews content without creating a post; optional imageFit uploads new fitted images to SimplePost storage.",
+        "open_world_justification": "Optional image fitting downloads source media and creates publicly fetchable derivative image URLs in configured object storage.",
         "destructive_justification": "Does not delete, overwrite, publish, revoke access, or perform irreversible actions.",
-        "idempotent_justification": "Calling it repeatedly recomputes the same preview and validation result without changing stored data."
+        "idempotent_justification": "With imageFit enabled, repeated calls may create additional derivative image objects and URLs."
       }
     },
     "show_post_preview": {

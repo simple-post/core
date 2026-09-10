@@ -86,3 +86,42 @@ Image validation errors display **Fit images…**. Choose a method, generate a p
 ## Processing limits
 
 Fitting currently accepts decodable JPEG, PNG, GIF and WebP inputs up to 32 MiB and 40 million pixels, matching the existing inspection budget. Corrupt images, private URLs, and larger inputs require a replacement or an external export first. Downloads retain the shared SSRF/DNS/redirect protections. JPEG quality starts at 90, can fall to 60, and dimensions are reduced if that is insufficient. No generative editing is used.
+
+
+## Private hosted rollout
+
+Hosted image fitting is disabled by default. Apply the Prisma migration before
+deploying the scheduler. No users are granted access by the migration.
+The server checks `hasFeature(userId, Feature.IMAGE_FITTING)` before any fitting
+downloads or uploads. UI controls and MCP fitting parameters/instructions are
+only exposed to granted users. Explicit API fitting requests without a grant
+receive HTTP 403. Ordinary image validation remains available.
+
+Grant access using trusted administrative code with the generated Prisma enum:
+
+```ts
+import { Feature } from "@prisma/client";
+
+await prisma.userFeature.upsert({
+  where: { userId_feature: { userId, feature: Feature.IMAGE_FITTING } },
+  create: { userId, feature: Feature.IMAGE_FITTING },
+  update: {},
+});
+```
+
+Revoke access:
+
+```ts
+await prisma.userFeature.deleteMany({
+  where: { userId, feature: Feature.IMAGE_FITTING },
+});
+```
+
+Rows are stored in `user_feature`, uniquely keyed by user ID and feature.
+Deleting a user removes their grants. Checks are not cached on the server, so
+revocation blocks the next fitting request. Existing fitted images are retained.
+`GET /api/v1/features` returns the authenticated user's grants; there is no public
+grant-management endpoint. Grants are separate from subscription access.
+
+Local SDK/CLI fitting and the self-hosted API do not use the hosted user database.
+Keep the SDK/CLI release unpublished during the private hosted rollout.

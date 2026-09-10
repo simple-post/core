@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Feature, Prisma } from "@prisma/client";
 import {
   ImageFitSchema,
   canFitImageIssue,
@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { hasFeature } from "@/lib/features";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
@@ -952,10 +953,13 @@ export async function createPost(
     );
   }
 
+  const canOfferImageFitting =
+    validation.summary.errors.some((issue) => canFitImageIssue(issue)) &&
+    (await hasFeature(userId, Feature.IMAGE_FITTING));
+
   if (postingMode !== "draft" && !validation.summary.isValid) {
     const errorMessages =
-      validation.summary.errors.map((e) => e.message).join("; ") +
-      (validation.summary.errors.some((issue) => canFitImageIssue(issue)) ? " " + IMAGE_FIT_HELP : "");
+      validation.summary.errors.map((e) => e.message).join("; ") + (canOfferImageFitting ? " " + IMAGE_FIT_HELP : "");
     throw new Error(
       `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
     );
@@ -1163,7 +1167,7 @@ export async function createPost(
     postingMode,
     mediaCount: mediaFiles.length,
     post: mapPost(post),
-    imageFitHelp: validation.summary.errors.some((issue) => canFitImageIssue(issue))
+    imageFitHelp: canOfferImageFitting
       ? validation.summary.errors
           .filter((issue) => canFitImageIssue(issue))
           .map((issue) => `${issue.platform}: ${issue.message}`)

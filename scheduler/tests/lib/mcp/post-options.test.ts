@@ -12,6 +12,7 @@ import { postToAccounts } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
+jest.mock("@/lib/features", () => ({ hasFeature: jest.fn().mockResolvedValue(true) }));
 jest.mock("@/lib/db", () => ({ PostsModel: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({ prisma: { $transaction: jest.fn(), connectedAccount: { findMany: jest.fn() } } }));
 jest.mock("@/lib/mcp/tools/accounts", () => ({

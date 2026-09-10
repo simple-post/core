@@ -2,6 +2,7 @@ import { fitRemoteImagesForAccounts, type ImageFit, type ThreadSegment, type Val
 import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
+import { requireImageFitting } from "@/lib/features";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
@@ -42,6 +43,7 @@ export async function validatePostForAccounts(params: {
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
 }): Promise<ValidationResultByPlatform> {
+  if (params.imageFit) await requireImageFitting(params.userId);
   const accounts = await prisma.connectedAccount.findMany({
     where: {
       userId: params.userId,

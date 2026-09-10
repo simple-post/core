@@ -6,6 +6,7 @@ import { createLogger } from "@/lib/logger";
 import { authenticateMcpToken } from "@/lib/mcp/oauth";
 import { PaymentRequiredError } from "@/lib/utils/errors";
 
+jest.mock("@/lib/features", () => ({ hasFeature: jest.fn().mockResolvedValue(false) }));
 jest.mock("@/lib/billing/subscriptions", () => ({ assertActiveSubscription: jest.fn() }));
 jest.mock("@/lib/mcp/oauth", () => ({ isMcpToken: () => true, authenticateMcpToken: jest.fn() }));
 jest.mock("@/lib/mcp/server", () => ({ registerTools: jest.fn(), SERVER_INSTRUCTIONS: "test" }));

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { Feature } from "@prisma/client";
 import { canFitImageIssue } from "@simple-post/sdk/image-fit";
 import { REPOST_CAPABLE_PLATFORMS } from "@simple-post/sdk/platform-names";
 import { format } from "date-fns";
@@ -24,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
@@ -65,6 +67,8 @@ export function CreatePostForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const submitPostMutation = useSubmitPost();
+  const { hasFeature } = useFeatures();
+  const imageFittingEnabled = hasFeature(Feature.IMAGE_FITTING);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const { data: defaultRepostSettings } = useRepostSettings();
 
@@ -965,7 +969,7 @@ export function CreatePostForm() {
             </div>
           )}
 
-          {showImageFit && (
+          {imageFittingEnabled && showImageFit && (
             <ImageFitReview
               content={{ media, accountOptions, accountOverrides: enabledOverrides, thread }}
               accountIds={selectedAccountIds}
@@ -992,7 +996,7 @@ export function CreatePostForm() {
                 <AlertTriangle className="h-3.5 w-3.5" />
                 <p className="font-medium">Before you can post</p>
               </div>
-              {visibleValidationErrors.some((issue) => canFitImageIssue(issue)) && (
+              {imageFittingEnabled && visibleValidationErrors.some((issue) => canFitImageIssue(issue)) && (
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
                   Fit images…
                 </Button>

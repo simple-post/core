@@ -11,6 +11,7 @@ jest.mock("@simple-post/sdk", () => ({
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    userFeature: { findUnique: jest.fn().mockResolvedValue({ userId: "user-1" }) },
     connectedAccount: {
       findMany: jest.fn(),
     },
@@ -222,4 +223,20 @@ it("fits only on opt-in and validates the persisted derivative after checking ac
     }),
   ).rejects.toThrow("accounts were not found");
   expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
+});
+
+it("denies fitting before inspecting or uploading media when no grant exists", async () => {
+  jest.mocked(prisma.userFeature.findUnique).mockResolvedValueOnce(null);
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media: [],
+      accountIds: ["account-1"],
+      imageFit: "crop",
+    }),
+  ).rejects.toMatchObject({ statusCode: 403 });
+  expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
+  expect(hydrateRemoteMediaSizesForAccounts).not.toHaveBeenCalled();
+  expect(prisma.connectedAccount.findMany).not.toHaveBeenCalled();
 });

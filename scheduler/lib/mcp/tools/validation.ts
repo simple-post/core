@@ -1,3 +1,4 @@
+import { Feature } from "@prisma/client";
 import {
   ImageFitSchema,
   canFitImageIssue,
@@ -7,6 +8,7 @@ import {
 } from "@simple-post/sdk";
 import { z } from "zod";
 
+import { hasFeature } from "@/lib/features";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 import { resolveMcpAccountOptions } from "./account-options";
@@ -83,7 +85,11 @@ export async function validatePost(
   });
 
   return {
-    imageFitHelp: result.summary.errors.some((issue) => canFitImageIssue(issue)) ? IMAGE_FIT_HELP : undefined,
+    imageFitHelp:
+      result.summary.errors.some((issue) => canFitImageIssue(issue)) &&
+      (await hasFeature(userId, Feature.IMAGE_FITTING))
+        ? IMAGE_FIT_HELP
+        : undefined,
     fittedMedia: input.imageFit ? mediaFiles : undefined,
     fittedAccountOptions: input.imageFit ? accountOptions : undefined,
     fittedThread: input.imageFit ? threadSegments : undefined,

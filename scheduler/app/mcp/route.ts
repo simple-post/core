@@ -3,13 +3,20 @@ import { after, type NextRequest } from "next/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
+import { Feature } from "@prisma/client";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { hasFeature } from "@/lib/features";
 import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { logReviewMcpExchange, shouldLogReviewMcpExchange } from "@/lib/mcp/review-logging";
-import { registerTools, SERVER_INSTRUCTIONS, type McpToolAuthContext } from "@/lib/mcp/server";
+import {
+  registerTools,
+  SERVER_INSTRUCTIONS,
+  IMAGE_FITTING_INSTRUCTIONS,
+  type McpToolAuthContext,
+} from "@/lib/mcp/server";
 import { apiErrorLogPayload, PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
@@ -104,13 +111,14 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
  * Creates a fresh server + transport per request (stateless mode).
  */
 async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
+  authContext = { ...authContext, imageFittingEnabled: await hasFeature(authContext.userId, Feature.IMAGE_FITTING) };
   const server = new McpServer(
     {
       name: "SimplePost",
       version: "1.0.0",
     },
     {
-      instructions: SERVER_INSTRUCTIONS,
+      instructions: SERVER_INSTRUCTIONS + (authContext.imageFittingEnabled ? "\n\n" + IMAGE_FITTING_INSTRUCTIONS : ""),
     },
   );
   registerTools(server, authContext);

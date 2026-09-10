@@ -17,6 +17,7 @@ jest.mock("fs");
 jest.mock("../src/utils/s3", () => ({ S3MediaUploader: jest.fn() }));
 const api = { post: jest.fn() };
 const uploadFile = jest.fn();
+const uploadStream = jest.fn();
 const deleteFile = jest.fn();
 const credentials = { accessToken: "test-token" };
 const options = (extra: TikTokOptions = {}): PostOptionsWithCredentials => ({
@@ -61,7 +62,8 @@ beforeEach(() => {
   }));
   (fs.statSync as jest.Mock).mockReturnValue({ size: 1024 });
   uploadFile.mockImplementation(async (_path, key) => `https://media.example.com/${key}`);
-  (S3MediaUploader as jest.Mock).mockImplementation(() => ({ uploadFile, deleteFile }));
+  uploadStream.mockImplementation(async () => `https://media.example.com/staged-${uploadStream.mock.calls.length}.jpg`);
+  (S3MediaUploader as jest.Mock).mockImplementation(() => ({ uploadFile, uploadStream, deleteFile }));
 });
 it("preserves Arabic text, emoji and hashtags in the photo title and description", async () => {
   mockPublish();
@@ -101,7 +103,7 @@ it.each([1, 4, 7, 35])("publishes %i photos in order with recommended music and 
     source_info: {
       source: "PULL_FROM_URL",
       photo_cover_index: count - 1,
-      photo_images: content.media!.map((item) => item.url),
+      photo_images: content.media!.map((_, i) => `https://media.example.com/staged-${i + 1}.jpg`),
     },
   });
   expect(result).toMatchObject({
@@ -135,7 +137,7 @@ it("uploads photos to the inbox without publishing or querying direct-post setti
       source_info: {
         source: "PULL_FROM_URL",
         photo_cover_index: 0,
-        photo_images: photos().media!.map((item) => item.url),
+        photo_images: photos().media!.map((_, i) => `https://media.example.com/staged-${i + 1}.jpg`),
       },
     },
   ]);
@@ -236,4 +238,30 @@ it("leaves TikTok photos intact during shared preparation so the publisher owns 
   await resolver.cleanup();
   expect(uploadFile).not.toHaveBeenCalled();
   expect(deleteFile).not.toHaveBeenCalled();
+});
+
+it("stages external photo bytes before submitting and retains them on timeout", async () => {
+  api.post.mockRejectedValue(new Error("timeout"));
+  const content = { media: [{ type: "image" as const, url: "https://images.pexels.com/photo.jpeg" }] };
+  await expect(publisher().postContent(content, options({ publishMode: "draft" }))).rejects.toThrow("timeout");
+  expect(uploadStream).toHaveBeenCalledTimes(1);
+  const chunks: Buffer[] = [];
+  for await (const chunk of uploadStream.mock.calls[0][0]) chunks.push(chunk);
+  expect(Buffer.concat(chunks)).toEqual(jpeg);
+  expect(api.post.mock.calls[0][1].source_info.photo_images).toEqual(["https://media.example.com/staged-1.jpg"]);
+  expect(deleteFile).not.toHaveBeenCalled();
+});
+it("classifies HTTP 403 URL ownership rejection as safely failed and cleans staged photos", async () => {
+  api.post.mockRejectedValue({ response: { status: 403, data: { error: { code: "url_ownership_unverified" } } } });
+  await expect(publisher().postContent(photos(1), options({ publishMode: "draft" }))).rejects.toMatchObject({
+    errorType: PostErrorType.PUBLISH_REJECTED,
+  });
+  expect(deleteFile).toHaveBeenCalledTimes(1);
+});
+it("does not submit if storage staging fails", async () => {
+  uploadStream.mockRejectedValue(new Error("storage unavailable"));
+  await expect(publisher().postContent(photos(1), options({ publishMode: "draft" }))).rejects.toMatchObject({
+    errorType: PostErrorType.PREPARATION_ERROR,
+  });
+  expect(api.post).not.toHaveBeenCalled();
 });

@@ -151,6 +151,7 @@ export class LinkedInPublisher extends Publisher {
     }
 
     const tempFileManager = new TempFileManager();
+    let publishSubmitted = false;
 
     try {
       const media = content.media ?? [];
@@ -209,6 +210,7 @@ export class LinkedInPublisher extends Publisher {
         },
       };
 
+      publishSubmitted = true;
       const response = await this.client.post("/ugcPosts", payload);
 
       return {
@@ -219,7 +221,7 @@ export class LinkedInPublisher extends Publisher {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
-        PostErrorType.API_ERROR,
+        publishSubmitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR,
         `Failed to post to LinkedIn: ${err.response?.data?.message || err.message || "Unknown error"}`,
         err.response?.data,
       );

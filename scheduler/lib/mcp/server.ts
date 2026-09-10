@@ -137,6 +137,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 - It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
+  clientId?: string;
   userEmail?: string | null;
   userId: string;
   scope?: string | null;

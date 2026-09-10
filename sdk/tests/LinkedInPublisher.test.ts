@@ -52,6 +52,20 @@ describe("LinkedInPublisher", () => {
   });
 
   describe("postContent", () => {
+    it("allows retry after a media registration failure before publishing", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce(new Error("502 registration failed"));
+      await expect(
+        publisher.postContent({ text: "Hello", media: [{ type: "image", path: "./image.jpg" }] }),
+      ).rejects.toMatchObject({ errorType: PostErrorType.PREPARATION_ERROR });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalledWith("/ugcPosts", expect.anything());
+    });
+    it("keeps a 502 from the actual publish request ambiguous", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce(new Error("502 publish failed"));
+      await expect(publisher.postContent({ text: "Hello" })).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
     it("should post an image successfully", async () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({

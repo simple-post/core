@@ -2,6 +2,7 @@ import { after, type NextRequest } from "next/server";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { createLogger, serializeError } from "@/lib/logger";
@@ -46,6 +47,7 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
     userId: session.user.id,
     userEmail: session.user.email,
     scope: session.session.scope,
+    clientId: session.session.clientId,
   };
 }
 
@@ -120,7 +122,19 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
 
   await server.connect(transport);
 
+  const protocolHeader = req.headers.get("mcp-protocol-version");
+  const diagnostics = {
+    userId: authContext.userId,
+    clientId: authContext.clientId,
+    // Only protocol-shaped values are safe to retain; never echo arbitrary headers.
+    requestedProtocolVersion:
+      protocolHeader === null ? "absent" : /^\d{4}-\d{2}-\d{2}$/.test(protocolHeader) ? protocolHeader : "malformed",
+    supportedProtocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
+  };
   const response = await transport.handleRequest(req);
+  if (response.status < 400) {
+    log.info({ ...diagnostics, statusCode: response.status, method: req.method }, "MCP transport request completed");
+  }
   if (response.status >= 400 && response.status < 500) {
     const errorBody = await response
       .clone()
@@ -133,6 +147,7 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
       typeof rpcMessage === "string" && rpcMessage.startsWith("Bad Request: Unsupported protocol version:");
     log.warn(
       {
+        ...diagnostics,
         statusCode: response.status,
         method: req.method,
         rpcErrorCode: typeof rpcCode === "number" ? rpcCode : undefined,

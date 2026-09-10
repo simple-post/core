@@ -199,6 +199,7 @@ export async function authenticateMcpToken(token: string, resource = getMcpResou
     session: {
       id: mcpToken.id,
       token: "mcp",
+      clientId: mcpToken.clientId,
       scope: mcpToken.scope ?? DEFAULT_MCP_SCOPE,
       scopes: parseMcpScopes(mcpToken.scope),
       resource: mcpToken.resource ?? getMcpResourceUrl(),

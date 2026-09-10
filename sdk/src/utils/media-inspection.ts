@@ -17,6 +17,7 @@ const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const VIDEO_PREFIX_BYTES = 4096;
 
 export interface MediaInspection {
+  bytes?: Buffer;
   size: number;
   contentType: string;
   width?: number;
@@ -49,7 +50,12 @@ function detectContentType(bytes: Buffer): string | undefined {
   return [...ALLOWED_MEDIA_TYPES].find((type) => mediaHeaderMatchesContentType(bytes, type));
 }
 
-async function inspectStream(stream: Readable, size?: number, reportedType?: string): Promise<MediaInspection> {
+async function inspectStream(
+  stream: Readable,
+  size?: number,
+  reportedType?: string,
+  includeBytes = false,
+): Promise<MediaInspection> {
   const chunks: Buffer[] = [];
   let length = 0;
   let contentType: string | undefined;
@@ -96,6 +102,7 @@ async function inspectStream(stream: Readable, size?: number, reportedType?: str
       await decoder.stats();
       const rotated = metadata.orientation !== undefined && metadata.orientation >= 5;
       return {
+        ...(includeBytes ? { bytes } : {}),
         size: length,
         contentType,
         width: rotated ? metadata.height : metadata.width,
@@ -114,7 +121,10 @@ async function inspectStream(stream: Readable, size?: number, reportedType?: str
 }
 
 /** Inspect without cookies/authentication, exactly as a publishing provider must. */
-export async function inspectRemoteMedia(url: string, options?: { maxRedirects?: number }): Promise<MediaInspection> {
+export async function inspectRemoteMedia(
+  url: string,
+  options?: { maxRedirects?: number; includeBytes?: boolean },
+): Promise<MediaInspection> {
   validateUrlForSSRF(url);
   try {
     const response = await axios.get<Readable>(url, {
@@ -130,6 +140,7 @@ export async function inspectRemoteMedia(url: string, options?: { maxRedirects?:
       response.data,
       Number.isSafeInteger(size) && size! >= 0 ? size : undefined,
       normalizeContentType(String(response.headers["content-type"] ?? ""), ""),
+      options?.includeBytes,
     );
     if (inspection.contentType.startsWith("video/")) {
       inspection.video = await inspectVideo({ url });

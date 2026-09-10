@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 import axios from "axios";
 
@@ -350,7 +351,7 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  /** Photos are URL-only; local files are staged until TikTok finishes downloading them. */
+  /** Stage all photos on our configured storage until TikTok finishes downloading them. */
   private async postPhotos(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const isDraft = options?.tiktok?.publishMode === "draft";
     const privacyLevel = isDraft ? undefined : await this.validateDirectPostRequirements(content.media![0], options);
@@ -359,6 +360,7 @@ export class TikTokPublisher extends Publisher {
     let uploader: S3MediaUploader | undefined;
     let submitted = false;
     let terminalStatus: string | undefined;
+    let initAccepted = false;
     try {
       for (const media of content.media!) {
         let url = media.url;
@@ -382,11 +384,22 @@ export class TikTokPublisher extends Publisher {
           );
         // Reuse the bounded, DNS-pinned GET inspector: some valid media hosts
         // reject HEAD. TikTok requires a direct URL, so redirects stay disabled.
-        const inspection = await inspectRemoteMedia(url, { maxRedirects: 0 });
+        const inspection = await inspectRemoteMedia(url, { maxRedirects: 0, includeBytes: !media.path });
         if (!["image/jpeg", "image/webp"].includes(inspection.contentType))
           throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok photo URLs must serve JPEG or WebP images.");
         if (inspection.size > TIKTOK_MAX_PHOTO_SIZE)
           throw new PostError(PostErrorType.INVALID_CONTENT, "TikTok photos cannot exceed 20 MB.");
+        // Always stage remote sources: arbitrary public hosts are not verified
+        // for our TikTok app. Upload the exact bytes that passed inspection.
+        if (!media.path) {
+          if (!inspection.bytes) throw new PostError(PostErrorType.INVALID_CONTENT, "Photo bytes are unavailable.");
+          uploader ??= new S3MediaUploader();
+          const key = `tiktok_${randomUUID()}${inspection.contentType === "image/webp" ? ".webp" : ".jpg"}`;
+          stagedKeys.push(key);
+          url = await uploader.uploadStream(Readable.from([inspection.bytes]), key, inspection.contentType);
+        }
+        if (!url.startsWith("https://"))
+          throw new PostError(PostErrorType.PREPARATION_ERROR, "TikTok storage must expose public HTTPS URLs.");
         photoUrls.push(url);
       }
       const text = getTikTokPostText(content, options?.tiktok);
@@ -424,6 +437,7 @@ export class TikTokPublisher extends Publisher {
           `TikTok photo upload failed: ${response.data.error.message || response.data.error.code} (${response.data.error.code}). Photo URLs must belong to a domain or URL prefix verified in the TikTok developer app.`,
         );
       }
+      initAccepted = true;
       const publishId = response.data.data?.publish_id;
       if (!publishId) throw new PostError(PostErrorType.API_ERROR, "TikTok did not return a photo publish_id.");
       const postId = await this.pollPublishStatus(publishId, (status) => {
@@ -461,8 +475,13 @@ export class TikTokPublisher extends Publisher {
         response?: { status?: number; data?: { error?: { code?: string; message?: string } } };
         message?: string;
       };
+      const explicitlyRejected =
+        !initAccepted && err.response?.status === 403 && err.response.data?.error?.code === "url_ownership_unverified";
+      if (explicitlyRejected) submitted = false;
+      let errorType = submitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR;
+      if (explicitlyRejected) errorType = PostErrorType.PUBLISH_REJECTED;
       throw new PostError(
-        submitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR,
+        errorType,
         `TikTok photo upload failed: ${err.response?.data?.error?.message || err.message || "Unknown error"}. Use public JPEG/WebP HTTPS URLs without redirects on a TikTok-verified domain or URL prefix.`,
         error,
       );

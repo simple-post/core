@@ -23,9 +23,10 @@ const log = jest.mocked(createLogger).mock.results[0].value;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest
-    .mocked(authenticateMcpToken)
-    .mockResolvedValue({ user: { id: "user", email: "test@example.com" }, session: { scope: "posts:read" } } as never);
+  jest.mocked(authenticateMcpToken).mockResolvedValue({
+    user: { id: "user", email: "test@example.com" },
+    session: { scope: "posts:read", clientId: "claude-client" },
+  } as never);
   jest.mocked(assertActiveSubscription).mockResolvedValue(undefined as never);
 });
 function request(body: string, authenticated = true) {
@@ -83,4 +84,30 @@ it("identifies unsupported protocol versions without recording arbitrary header 
     "MCP transport request rejected",
   );
   expect(JSON.stringify(log.warn.mock.calls)).not.toContain("private-unsupported-value");
+});
+
+it("logs unsupported date versions and client identity without credentials", async () => {
+  const req = request(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+  req.headers.set("mcp-protocol-version", "2099-01-01");
+  const response = await POST(req);
+  expect(response.status).toBe(400);
+  expect(log.warn).toHaveBeenCalledWith(
+    expect.objectContaining({
+      requestedProtocolVersion: "2099-01-01",
+      clientId: "claude-client",
+      supportedProtocolVersions: expect.arrayContaining(["2025-11-25"]),
+    }),
+    "MCP transport request rejected",
+  );
+  expect(JSON.stringify(log.warn.mock.calls)).not.toContain("test-secret");
+});
+it("records successful transport recovery for the same client", async () => {
+  const req = request(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
+  req.headers.set("mcp-protocol-version", "2025-11-25");
+  const response = await POST(req);
+  expect(response.status).toBe(200);
+  expect(log.info).toHaveBeenCalledWith(
+    expect.objectContaining({ statusCode: 200, clientId: "claude-client", requestedProtocolVersion: "2025-11-25" }),
+    "MCP transport request completed",
+  );
 });

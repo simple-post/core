@@ -15,8 +15,8 @@ The scheduler/MCP top-level `postingMode: "draft"` saves a **SimplePost draft wi
 
 - 1–35 JPEG or WebP photos, in attachment order. Do not mix photos and videos.
 - Maximum 20 MB per image and 1080p, per TikTok's media transfer requirements. TikTok performs final media processing/format validation.
-- Photo URLs must be public HTTPS URLs without redirects, on a domain or URL prefix **verified for your TikTok developer app**. Arbitrary external image URLs cannot be used directly unless verified; upload them to your verified storage first.
-- Local SDK/CLI photos use the existing S3-compatible uploader. Configure `S3_STORAGE_ACCESS_KEY_ID`, `S3_STORAGE_SECRET_ACCESS_KEY`, `S3_STORAGE_REGION`, `S3_STORAGE_BUCKET`, `S3_STORAGE_BASE_URL`, and optionally `S3_STORAGE_ENDPOINT`. Verify the public base URL's domain/prefix with TikTok.
+- Source photo URLs must be public HTTPS URLs without redirects. The SDK validates and copies remote photos to its configured storage before submitting them to TikTok; external source URLs are never sent directly.
+- All SDK/CLI photos (local and remote) require the S3-compatible uploader. Configure `S3_STORAGE_ACCESS_KEY_ID`, `S3_STORAGE_SECRET_ACCESS_KEY`, `S3_STORAGE_REGION`, `S3_STORAGE_BUCKET`, `S3_STORAGE_BASE_URL`, and optionally `S3_STORAGE_ENDPOINT`. Verify the public base URL's domain/prefix with TikTok.
 - The app-connected CLI and UI upload local files through SimplePost's media storage.
 - URLs must stay available until TikTok finishes downloading them (up to one hour). The SDK removes its staged files after a terminal TikTok status; on a timeout/ambiguous response it retains them. Configure storage lifecycle cleanup for retained `tiktok_` files, allowing at least one hour for downloads.
 - Photo `title`: up to 90 UTF-16 code units. Photo `description`: up to 4000; defaults to `content.text` (SDK) or `message` (MCP/HTTP/UI).

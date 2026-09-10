@@ -25,6 +25,7 @@ it("returns the verified email for a correctly scoped access token", async () =>
     session: {
       id: "token_123",
       token: "mcp",
+      clientId: "test-client",
       scope: "openid email accounts:read",
       scopes: ["accounts:read"],
       resource: "https://app.simplepost.social/mcp",
@@ -60,6 +61,7 @@ it("rejects a token that was issued without the OIDC scopes", async () => {
     session: {
       id: "token_123",
       token: "mcp",
+      clientId: "test-client",
       scope: "accounts:read",
       scopes: ["accounts:read"],
       resource: "https://app.simplepost.social/mcp",

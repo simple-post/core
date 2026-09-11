@@ -5,6 +5,7 @@ import axios from "axios";
 import { TikTokPublisher } from "../src/publishers/tiktok";
 import { PostError, PostErrorType } from "../src/types";
 import { inspectRemoteMedia } from "../src/utils/media-inspection";
+import { S3MediaUploader } from "../src/utils/s3";
 
 import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
@@ -15,6 +16,7 @@ jest.mock("fs");
 jest.mock("../src/utils/s3", () => ({
   S3MediaUploader: jest.fn().mockImplementation(() => ({
     uploadFile: jest.fn().mockResolvedValue("https://media.example.com/photo.jpg"),
+    uploadStream: jest.fn().mockResolvedValue("https://media.example.com/staged-photo.jpg"),
     deleteFile: jest.fn(),
   })),
 }));
@@ -331,6 +333,8 @@ describe("TikTokPublisher", () => {
     });
 
     it("publishes a GET-readable photo without requiring HEAD", async () => {
+      const bytes = Buffer.from("inspected photo bytes");
+      jest.mocked(inspectRemoteMedia).mockResolvedValueOnce({ contentType: "image/jpeg", size: bytes.length, bytes });
       mockedAxios.head.mockRejectedValueOnce({ response: { status: 405 } });
       mockCreatorInfoOnce();
       mockAxiosInstance.post
@@ -344,7 +348,25 @@ describe("TikTokPublisher", () => {
       );
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(mockedAxios.head).not.toHaveBeenCalled();
-      expect(inspectRemoteMedia).toHaveBeenCalledWith("https://images.example/photo", { maxRedirects: 0 });
+      expect(inspectRemoteMedia).toHaveBeenCalledWith("https://images.example/photo", {
+        maxRedirects: 0,
+        includeBytes: true,
+      });
+      const uploader = jest.mocked(S3MediaUploader).mock.results[0].value;
+      expect(uploader.uploadStream).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringMatching(/\.jpg$/),
+        "image/jpeg",
+      );
+      const uploadedChunks: Buffer[] = [];
+      for await (const chunk of uploader.uploadStream.mock.calls[0][0]) uploadedChunks.push(chunk);
+      expect(Buffer.concat(uploadedChunks)).toEqual(bytes);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/v2/post/publish/content/init/",
+        expect.objectContaining({
+          source_info: expect.objectContaining({ photo_images: ["https://media.example.com/staged-photo.jpg"] }),
+        }),
+      );
     });
 
     it("keeps failed photo inspection retryable without submitting a post", async () => {

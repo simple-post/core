@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { Check, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
@@ -52,14 +51,16 @@ export function TrialExpiredDialog({
   displayCurrency?: BillingDisplayCurrency;
 }) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const choosePlan = async (planKey: PlanKey) => {
     setLoadingPlan(planKey);
+    setCheckoutError(null);
     try {
       await startPlanCheckout(planKey);
     } catch (error) {
       console.error("Failed to start checkout:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to start checkout");
+      setCheckoutError(error instanceof Error ? error.message : "Could not open checkout. Please try again.");
       setLoadingPlan(null);
     }
   };
@@ -76,13 +77,20 @@ export function TrialExpiredDialog({
           <DialogHeader>
             <DialogTitle className="text-xl tracking-[-0.025em]">Your free trial has ended</DialogTitle>
             <DialogDescription>
-              Your stored posts and account connections remain saved. Posts that become due without active access fail;
-              subscribing does not automatically send them. After subscribing, review Failed posts and use Edit and
-              Retry.
+              Subscribe to keep creating and scheduling posts. Your saved posts and connected accounts are still here.
             </DialogDescription>
           </DialogHeader>
 
+          <p className="text-sm text-muted-foreground">
+            Posts that became due after your trial ended need your attention. After subscribing, review Failed posts and
+            use Edit and Retry. Subscribing does not automatically send them.
+          </p>
           <HelpLink path="/billing#when-access-ends">Trial expiry and recovery help</HelpLink>
+          {checkoutError ? (
+            <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
+              {checkoutError}
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
             {BILLING_PLANS.map((plan) => (
               <article
@@ -126,7 +134,7 @@ export function TrialExpiredDialog({
                   disabled={loadingPlan !== null}
                   className="mt-auto gap-2">
                   {loadingPlan === plan.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  {loadingPlan === plan.key ? "Opening Stripe..." : `Choose ${plan.name}`}
+                  <span>{loadingPlan === plan.key ? "Opening Stripe..." : `Subscribe to ${plan.name}`}</span>
                 </Button>
               </article>
             ))}

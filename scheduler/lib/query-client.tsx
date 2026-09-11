@@ -5,9 +5,10 @@ import { type ReactNode } from "react";
 import { QueryCache, QueryClient, QueryClientProvider as TanstackQueryClientProvider } from "@tanstack/react-query";
 
 import { logClientError } from "@/lib/logger/client";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 
 function makeQueryClient() {
-  return new QueryClient({
+  const queryClient = new QueryClient({
     // Catch-all for query failures, which are not handled (or logged) at the
     // call site. Mutation errors are intentionally NOT logged here: every
     // mutation is awaited in a component try/catch that logs with curated,
@@ -16,6 +17,16 @@ function makeQueryClient() {
     // — structural identifiers, never request values.
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (error instanceof ApiResponseError && error.status === 402) {
+          // Access can expire while the dashboard is open. Ask the server for
+          // fresh billing status so the gate can show the subscription CTA.
+          // Do not infer inactive access from a quota denial or bypass billing.
+          // The API already records the denial; it is not a client crash.
+          if (query.queryKey[0] !== queryKeys.billing[0]) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.billing });
+          }
+          return;
+        }
         logClientError(error, "React Query request failed", {
           queryHash: query.queryHash,
           queryKey: query.queryKey,
@@ -28,9 +39,12 @@ function makeQueryClient() {
         // above 0 to avoid refetching immediately on the client
         staleTime: 60 * 1000, // 1 minute
         refetchOnWindowFocus: false,
+        retry: (failureCount, error) =>
+          !(error instanceof ApiResponseError && error.status === 402) && failureCount < 3,
       },
     },
   });
+  return queryClient;
 }
 
 let browserQueryClient: QueryClient | undefined = undefined;

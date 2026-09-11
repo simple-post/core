@@ -32,5 +32,9 @@ export function useBillingStatus() {
     queryKey: queryKeys.billing,
     queryFn: fetchBillingStatus,
     staleTime: 30 * 1000,
+    // A staleTime alone never refreshes an already mounted dashboard. Keep
+    // access current across trial expiry and returning from Stripe/another tab.
+    refetchInterval: (query) => (query.state.data?.selfHosted ? false : 60_000),
+    refetchOnWindowFocus: "always",
   });
 }

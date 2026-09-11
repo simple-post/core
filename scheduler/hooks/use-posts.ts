@@ -3,6 +3,7 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-client";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 import type { SocialPost } from "@/types";
 
 export interface PaginationInfo {
@@ -55,7 +56,7 @@ async function fetchPaginatedPosts(type: PostsListType, page: number, limit: num
   const url = `/api/v1/posts?type=${type}&page=${page}&limit=${limit}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error("Failed to fetch posts");
+    throw new ApiResponseError(await response.json().catch(() => null), "Failed to fetch posts", response.status);
   }
   const data: PostsResponse = await response.json();
   return {
@@ -75,7 +76,11 @@ async function fetchCalendarPosts(from: Date, to: Date): Promise<SocialPost[]> {
   const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
   const response = await fetch(`/api/v1/posts/calendar?${params.toString()}`);
   if (!response.ok) {
-    throw new Error("Failed to fetch calendar posts");
+    throw new ApiResponseError(
+      await response.json().catch(() => null),
+      "Failed to fetch calendar posts",
+      response.status,
+    );
   }
   const data: PostsResponse = await response.json();
   return (data.posts || []).map((post) => parsePost(post));
@@ -87,7 +92,7 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
     return null;
   }
   if (!response.ok) {
-    throw new Error("Failed to fetch post");
+    throw new ApiResponseError(await response.json().catch(() => null), "Failed to fetch post", response.status);
   }
   const data: { post: RawSocialPost } = await response.json();
   return data.post ? parsePost(data.post) : null;
@@ -96,7 +101,7 @@ async function fetchPost(id: string): Promise<SocialPost | null> {
 async function fetchPostCounts(): Promise<PostCountsResult> {
   const response = await fetch("/api/v1/posts?type=counts");
   if (!response.ok) {
-    throw new Error("Failed to fetch post counts");
+    throw new ApiResponseError(await response.json().catch(() => null), "Failed to fetch post counts", response.status);
   }
   return (await response.json()) as PostCountsResult;
 }
@@ -113,7 +118,10 @@ export function usePostCounts() {
   return useQuery({
     queryKey: queryKeys.postCounts,
     queryFn: fetchPostCounts,
-    refetchInterval: 30_000,
+    // A billing denial is terminal until access changes. SubscriptionGate
+    // rechecks billing and replaces this dashboard with the subscribe screen.
+    refetchInterval: (query) =>
+      query.state.error instanceof ApiResponseError && query.state.error.status === 402 ? false : 30_000,
   });
 }
 

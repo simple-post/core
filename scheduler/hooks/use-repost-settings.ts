@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-client";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 
 export interface RepostSettings {
   enabled: boolean;
@@ -16,7 +17,11 @@ interface RepostSettingsResponse {
 async function fetchRepostSettings(): Promise<RepostSettings> {
   const response = await fetch("/api/v1/repost-settings");
   if (!response.ok) {
-    throw new Error("Failed to fetch repost settings");
+    throw new ApiResponseError(
+      await response.json().catch(() => null),
+      "Failed to fetch repost settings",
+      response.status,
+    );
   }
   const data = (await response.json()) as RepostSettingsResponse;
   return data.settings;

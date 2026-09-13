@@ -8,7 +8,7 @@ const schedulerRequire = createRequire(path.join(schedulerRoot, "package.json"))
 const { build } = schedulerRequire("esbuild") as typeof import("esbuild");
 let bundle: string;
 
-// Real query cache, billing gate, post-count hook, dialog and checkout client.
+// Real query cache, billing gate, workspace hooks, dialog and checkout client.
 // Only navigation/session chrome is replaced; all HTTP is intercepted offline.
 test.beforeAll(async () => {
   const result = await build({
@@ -22,13 +22,31 @@ test.beforeAll(async () => {
         import {QueryClientProvider} from './lib/query-client';
         import {SubscriptionGate} from './components/billing/subscription-gate';
         import {usePostCounts} from './hooks/use-posts';
+        import {useAccounts} from './hooks/use-accounts';
+        import {usePostingSlots} from './hooks/use-posting-slots';
+        import {useRepostSettings} from './hooks/use-repost-settings';
         function Dashboard() {
           const {data, error} = usePostCounts();
           return <main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Counts loaded' : 'Loading counts')}</p></main>;
         }
+        function Accounts() {
+          const {data, error} = useAccounts();
+          return <main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Accounts loaded' : 'Loading accounts')}</p></main>;
+        }
+        function PostingSlots() {
+          const {data, error} = usePostingSlots();
+          return <main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Slots loaded' : 'Loading slots')}</p></main>;
+        }
+        function RepostSettings() {
+          const {data, error} = useRepostSettings();
+          return <main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Settings loaded' : 'Loading settings')}</p></main>;
+        }
+        const workspace = {
+          '/': <Dashboard/>, '/accounts': <Accounts/>, '/schedule': <PostingSlots/>, '/repost-settings': <RepostSettings/>,
+        }[location.pathname] ?? <h1>Billing and settings</h1>;
         createRoot(document.getElementById('root')).render(
           <QueryClientProvider><SubscriptionGate>
-            {location.pathname === '/' ? <Dashboard/> : <h1>Billing and settings</h1>}
+            {workspace}
           </SubscriptionGate></QueryClientProvider>
         );
       `,
@@ -99,34 +117,43 @@ async function expectExpired(page: Page) {
   await expect(page.getByRole("heading", { name: "Workspace", exact: true })).toHaveCount(0);
 }
 
-test("an open dashboard's first billing denial replaces stale access with a subscribe CTA without retries", async ({
-  page,
-}) => {
-  const errors = await mount(page);
-  let billingRequests = 0;
-  let postRequests = 0;
-  let clientErrors = 0;
-  await page.route("**/api/billing/subscription", (route) =>
-    route.fulfill({ json: ++billingRequests === 1 ? active : expired }),
-  );
-  await page.route("**/api/v1/posts?type=counts", (route) => {
-    postRequests++;
-    return route.fulfill({ status: 402, json: denial });
+const workspaceQueries = [
+  { pathname: "/", endpoint: "/api/v1/posts?type=counts" },
+  { pathname: "/accounts", endpoint: "/api/v1/accounts" },
+  { pathname: "/schedule", endpoint: "/api/v1/posting-slots" },
+  { pathname: "/repost-settings", endpoint: "/api/v1/repost-settings" },
+];
+
+for (const { pathname, endpoint } of workspaceQueries) {
+  test(`${pathname}: the first billing denial replaces stale access with a subscribe CTA without retries`, async ({
+    page,
+  }) => {
+    const errors = await mount(page, pathname);
+    let billingRequests = 0;
+    let postRequests = 0;
+    let clientErrors = 0;
+    await page.route("**/api/billing/subscription", (route) =>
+      route.fulfill({ json: ++billingRequests === 1 ? active : expired }),
+    );
+    await page.route(`**${endpoint}`, (route) => {
+      postRequests++;
+      return route.fulfill({ status: 402, json: denial });
+    });
+    await page.route("**/api/internal/client-errors", (route) => {
+      clientErrors++;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.addScriptTag({ content: bundle });
+    await expectExpired(page);
+    await page.clock.runFor(125_000);
+    expect(postRequests).toBe(1);
+    expect(billingRequests).toBeGreaterThanOrEqual(2);
+    expect(clientErrors).toBe(0);
+    await page.keyboard.press("Escape");
+    await expectExpired(page);
+    expect(errors).toEqual([]);
   });
-  await page.route("**/api/internal/client-errors", (route) => {
-    clientErrors++;
-    return route.fulfill({ json: { ok: true } });
-  });
-  await page.addScriptTag({ content: bundle });
-  await expectExpired(page);
-  await page.clock.runFor(125_000);
-  expect(postRequests).toBe(1);
-  expect(billingRequests).toBeGreaterThanOrEqual(2);
-  expect(clientErrors).toBe(0);
-  await page.keyboard.press("Escape");
-  await expectExpired(page);
-  expect(errors).toEqual([]);
-});
+}
 
 test("billing polling notices expiry even without a rejected workspace request", async ({ page }) => {
   await mount(page, "/settings");
@@ -186,45 +213,71 @@ test("confirmed paid access after returning from checkout restores the workspace
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-test("a quota rejection preserves active billing access and the API explanation", async ({ page }) => {
-  await mount(page);
-  let postRequests = 0;
-  await page.route("**/api/billing/subscription", (route) => route.fulfill({ json: active }));
-  await page.route("**/api/v1/posts?type=counts", (route) => {
-    postRequests++;
-    return route.fulfill({ status: 402, json: { error: "Your plan allowance has been used." } });
+for (const { pathname, endpoint } of workspaceQueries) {
+  test(`${pathname}: a quota rejection preserves active billing access and the API explanation`, async ({ page }) => {
+    await mount(page, pathname);
+    let postRequests = 0;
+    await page.route("**/api/billing/subscription", (route) => route.fulfill({ json: active }));
+    await page.route(`**${endpoint}`, (route) => {
+      postRequests++;
+      return route.fulfill({ status: 402, json: { error: "Your plan allowance has been used." } });
+    });
+    await page.addScriptTag({ content: bundle });
+    await expect(page.getByText("Your plan allowance has been used.")).toBeVisible();
+    await page.clock.runFor(90_000);
+    await expect(page.getByRole("heading", { name: "Workspace" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(postRequests).toBe(1);
   });
-  await page.addScriptTag({ content: bundle });
-  await expect(page.getByText("Your plan allowance has been used.")).toBeVisible();
-  await page.clock.runFor(90_000);
-  await expect(page.getByRole("heading", { name: "Workspace" })).toBeVisible();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(postRequests).toBe(1);
-});
 
-test("unexpected server failures still retry and are reported", async ({ page }) => {
-  await mount(page);
-  let postRequests = 0;
-  const levels: string[] = [];
-  await page.route("**/api/billing/subscription", (route) => route.fulfill({ json: active }));
-  await page.route("**/api/v1/posts?type=counts", (route) => {
-    postRequests++;
-    return route.fulfill({ status: 503, json: { error: "Temporarily unavailable" } });
+  test(`${pathname}: unexpected server failures still retry and are reported`, async ({ page }) => {
+    await mount(page, pathname);
+    let postRequests = 0;
+    const levels: string[] = [];
+    await page.route("**/api/billing/subscription", (route) => route.fulfill({ json: active }));
+    await page.route(`**${endpoint}`, (route) => {
+      postRequests++;
+      return route.fulfill({ status: 503, json: { error: "Temporarily unavailable" } });
+    });
+    await page.route("**/api/internal/client-errors", (route) => {
+      levels.push(route.request().postDataJSON().level);
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.addScriptTag({ content: bundle });
+    await expect.poll(() => postRequests).toBe(1);
+    for (const elapsed of [1_100, 2_100, 4_100]) {
+      const before = postRequests;
+      await page.clock.runFor(elapsed);
+      await expect.poll(() => postRequests).toBe(before + 1);
+    }
+    await expect(page.getByText("Temporarily unavailable")).toBeVisible();
+    await expect.poll(() => levels).toEqual(["error"]);
+    expect(postRequests).toBe(4);
+  });
+}
+
+test("accounts billing denial with a non-JSON response still refreshes billing without retries", async ({ page }) => {
+  const errors = await mount(page, "/accounts");
+  let billingRequests = 0;
+  let accountRequests = 0;
+  let clientErrors = 0;
+  await page.route("**/api/billing/subscription", (route) =>
+    route.fulfill({ json: ++billingRequests === 1 ? active : expired }),
+  );
+  await page.route("**/api/v1/accounts", (route) => {
+    accountRequests++;
+    return route.fulfill({ status: 402, contentType: "text/html", body: "Payment required" });
   });
   await page.route("**/api/internal/client-errors", (route) => {
-    levels.push(route.request().postDataJSON().level);
-    return route.fulfill({ json: { ok: true } });
+    clientErrors++;
+    return route.fulfill({ status: 204 });
   });
   await page.addScriptTag({ content: bundle });
-  await expect.poll(() => postRequests).toBe(1);
-  for (const elapsed of [1_100, 2_100, 4_100]) {
-    const before = postRequests;
-    await page.clock.runFor(elapsed);
-    await expect.poll(() => postRequests).toBe(before + 1);
-  }
-  await expect(page.getByText("Temporarily unavailable")).toBeVisible();
-  await expect.poll(() => levels).toEqual(["error"]);
-  expect(postRequests).toBe(4);
+  await expectExpired(page);
+  await page.clock.runFor(125_000);
+  expect(accountRequests).toBe(1);
+  expect(clientErrors).toBe(0);
+  expect(errors).toEqual([]);
 });
 
 for (const pathname of ["/billing", "/billing/plans"]) {

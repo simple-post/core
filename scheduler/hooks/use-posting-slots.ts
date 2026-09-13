@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { PostingSlotConfig } from "@/lib/posting-slots/occurrences";
 import { queryKeys } from "@/lib/query-client";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 
 interface PostingSlotsResponse {
   slots: PostingSlotConfig[];
@@ -12,7 +13,11 @@ interface PostingSlotsResponse {
 async function fetchPostingSlots(): Promise<PostingSlotConfig[]> {
   const response = await fetch("/api/v1/posting-slots");
   if (!response.ok) {
-    throw new Error("Failed to fetch posting slots");
+    throw new ApiResponseError(
+      await response.json().catch(() => null),
+      "Failed to fetch posting slots",
+      response.status,
+    );
   }
   const data = (await response.json()) as PostingSlotsResponse;
   return data.slots;

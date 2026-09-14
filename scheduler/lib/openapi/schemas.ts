@@ -36,6 +36,78 @@ export const SuccessSchema = z
   })
   .meta({ id: "Success" });
 
+export const SocialActivityItemSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(["comment", "mention"]),
+    platform: z.string(),
+    accountId: z.string(),
+    accountName: z.string(),
+    accountUsername: z.string().optional(),
+    postId: z.string().optional(),
+    nativeUrl: z.string().optional(),
+    nativePostId: z.string(),
+    body: z.string(),
+    createdAt: z.iso.datetime().optional(),
+    author: z
+      .object({
+        id: z.string().optional(),
+        name: z.string().optional(),
+        username: z.string().optional(),
+        avatarUrl: z.string().optional(),
+      })
+      .optional(),
+    canReply: z.boolean(),
+    reply: z
+      .object({
+        status: z.string(),
+        body: z.string(),
+        nativeReplyUrl: z.string().optional(),
+        errorMessage: z.string().optional(),
+      })
+      .optional(),
+  })
+  .meta({ id: "SocialActivityItem" });
+
+export const SocialPostMetricSchema = z
+  .object({
+    id: z.string(),
+    platform: z.string(),
+    accountId: z.string(),
+    accountName: z.string(),
+    nativePostId: z.string(),
+    nativeUrl: z.string().optional(),
+    values: z.record(z.string(), z.number()).optional(),
+    coverage: z.string().optional(),
+    fetchedAt: z.iso.datetime().optional(),
+    lastAttemptAt: z.iso.datetime(),
+    error: z.string().optional(),
+  })
+  .meta({ id: "SocialPostMetric" });
+
+export const SocialInboxEnvelopeSchema = z
+  .object({ items: z.array(SocialActivityItemSchema), nextCursor: z.string().max(500).optional() })
+  .meta({ id: "SocialInboxEnvelope" });
+
+export const SocialPostActivityEnvelopeSchema = z
+  .object({
+    metrics: z.array(SocialPostMetricSchema),
+    comments: z.array(SocialActivityItemSchema),
+    capabilities: z.record(z.string(), z.array(z.string())),
+    hasMoreComments: z.boolean().optional(),
+    errors: z.array(z.object({ accountId: z.string(), message: z.string() })).optional(),
+    coverage: z.array(z.object({ accountId: z.string(), platform: z.string(), message: z.string() })).optional(),
+  })
+  .meta({ id: "SocialPostActivityEnvelope" });
+
+export const SocialReplyRequestSchema = z
+  .object({ body: z.string().min(1).max(5000), idempotencyKey: z.string().min(12).max(160) })
+  .meta({ id: "SocialReplyRequest" });
+
+export const SocialReplyEnvelopeSchema = z
+  .object({ replyId: z.string(), status: z.string(), nativeReplyUrl: z.string().optional() })
+  .meta({ id: "SocialReplyEnvelope" });
+
 export const MediaFileResponseSchema = MediaFileSchema.meta({ id: "MediaFile" });
 
 export const CreatePostRequestSchema = createPostSchema.meta({ id: "CreatePostRequest" });

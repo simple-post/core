@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 
 import axios from "axios";
@@ -7,7 +6,7 @@ import { BLUESKY_MAX_IMAGES, BLUESKY_MAX_IMAGE_SIZE_BYTES, BLUESKY_VALIDATION_RU
 import { uploadBlueskyVideo } from "./video";
 
 import { PostError, PostErrorType } from "../../types";
-import { derToRaw, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
+import { createDpopProof, getContentType, resolveMediaPath, TempFileManager } from "../../utils";
 import { readinessFailure } from "../../utils/account-readiness";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
@@ -23,8 +22,6 @@ import type {
 } from "../../types/post";
 import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { AxiosInstance } from "axios";
-
-type JsonWebKey = Record<string, unknown>;
 
 interface UploadBlobResponse {
   blob: {
@@ -163,51 +160,18 @@ export class BlueskyPublisher extends Publisher {
     });
   }
 
-  private base64UrlEncode(input: string | Buffer): string {
-    return Buffer.from(input).toString("base64url");
-  }
-
   private buildDpopProof(method: string, path: string, nonce?: string): string | null {
     if (!this.dpopPrivateJwk || !this.dpopPublicJwk) {
       return null;
     }
-
-    const privateKey = crypto.createPrivateKey({ format: "jwk", key: this.dpopPrivateJwk as JsonWebKey });
-    const url = new URL(path, this.baseUrl).toString();
-
-    const header = {
-      typ: "dpop+jwt",
-      alg: "ES256",
-      jwk: this.dpopPublicJwk,
-    };
-    const iat = Math.floor(Date.now() / 1000);
-    const payload: Record<string, unknown> = {
-      htu: url,
-      htm: method.toUpperCase(),
-      jti: crypto.randomUUID(),
-      iat,
-      exp: iat + 120, // DPoP proof validity window (RFC 9449)
-    };
-
-    // Add access token hash for resource server requests
-    const ath = crypto.createHash("sha256").update(this.accessToken).digest("base64url");
-    payload.ath = ath;
-
-    if (nonce) {
-      payload.nonce = nonce;
-    }
-
-    const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
-    const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
-    const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-    // Sign with ECDSA SHA-256 (ES256)
-    const derSignature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
-
-    // Convert DER signature to raw R||S format required by JWS
-    const rawSignature = derToRaw(derSignature);
-
-    return `${signingInput}.${this.base64UrlEncode(rawSignature)}`;
+    return createDpopProof({
+      method,
+      url: new URL(path, this.baseUrl).toString(),
+      privateJwk: this.dpopPrivateJwk,
+      publicJwk: this.dpopPublicJwk,
+      accessToken: this.accessToken,
+      nonce,
+    });
   }
 
   private buildAuthHeaders(method: string, path: string, nonce?: string): Record<string, string> {
@@ -253,25 +217,13 @@ export class BlueskyPublisher extends Publisher {
 
   private buildTokenEndpointDpopProof(tokenUrl: string, nonce?: string): string | null {
     if (!this.dpopPrivateJwk || !this.dpopPublicJwk) return null;
-
-    const privateKey = crypto.createPrivateKey({ format: "jwk", key: this.dpopPrivateJwk as JsonWebKey });
-    const iat = Math.floor(Date.now() / 1000);
-    const payload: Record<string, unknown> = {
-      htu: tokenUrl,
-      htm: "POST",
-      jti: crypto.randomUUID(),
-      iat,
-      exp: iat + 120,
-    };
-    if (nonce) payload.nonce = nonce;
-
-    const header = { typ: "dpop+jwt", alg: "ES256", jwk: this.dpopPublicJwk };
-    const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
-    const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
-    const signingInput = `${encodedHeader}.${encodedPayload}`;
-    const derSignature = crypto.sign("sha256", Buffer.from(signingInput), privateKey);
-    const rawSignature = derToRaw(derSignature);
-    return `${signingInput}.${this.base64UrlEncode(rawSignature)}`;
+    return createDpopProof({
+      method: "POST",
+      url: tokenUrl,
+      privateJwk: this.dpopPrivateJwk,
+      publicJwk: this.dpopPublicJwk,
+      nonce,
+    });
   }
 
   private async refreshAccessToken(): Promise<void> {

@@ -27,9 +27,14 @@ import postingSlotsRoutes from "@/app/api/v1/posting-slots/openapi";
 import postRoutes from "@/app/api/v1/posts/[id]/openapi";
 import reconcilePostRoutes from "@/app/api/v1/posts/[id]/reconcile/openapi";
 import repostPostRoutes from "@/app/api/v1/posts/[id]/repost/openapi";
+import postSocialRoutes from "@/app/api/v1/posts/[id]/social/openapi";
+import postSocialRefreshRoutes from "@/app/api/v1/posts/[id]/social/refresh/openapi";
 import postsCalendarRoutes from "@/app/api/v1/posts/calendar/openapi";
 import postsRoutes from "@/app/api/v1/posts/openapi";
 import repostSettingsRoutes from "@/app/api/v1/repost-settings/openapi";
+import socialInboxRoutes from "@/app/api/v1/social/inbox/openapi";
+import socialInboxRefreshRoutes from "@/app/api/v1/social/inbox/refresh/openapi";
+import socialReplyRoutes from "@/app/api/v1/social/items/[id]/reply/openapi";
 import uploadRoutes from "@/app/api/v1/upload/openapi";
 import uploadPresignRoutes from "@/app/api/v1/upload/presign/openapi";
 import validationRoutes from "@/app/api/v1/validation/openapi";
@@ -67,6 +72,8 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   apiKeyRotateRoutes,
   postsRoutes,
   postRoutes,
+  postSocialRoutes,
+  postSocialRefreshRoutes,
   postsCalendarRoutes,
   repostPostRoutes,
   reconcilePostRoutes,
@@ -75,6 +82,9 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   uploadRoutes,
   uploadPresignRoutes,
   validationRoutes,
+  socialInboxRoutes,
+  socialInboxRefreshRoutes,
+  socialReplyRoutes,
   webhooksRoutes,
   webhookRoute,
   mcpRoutes,

@@ -49,3 +49,5 @@ export interface PostResult {
 
 export type RepostResult = PostResult;
 export type QuoteResult = PostResult;
+
+export type * from "./social";

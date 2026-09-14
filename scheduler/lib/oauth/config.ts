@@ -2,6 +2,16 @@ import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
 
 const BLUESKY_OAUTH_ISSUER = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
 
+// Activity products often require a separate app review. Keeping those scopes
+// opt-in means a deployment can enable analytics/comments after approval
+// without making an otherwise working publishing connection fail consent.
+function withActivityScopes(platform: string, base: string, activity: string, delimiter: "," | " "): string {
+  const selected = new Set((process.env.SOCIAL_ACTIVITY_OAUTH_PLATFORMS || "").split(",").map((value) => value.trim()));
+  return process.env.SOCIAL_ACTIVITY_OAUTH_SCOPES === "true" || selected.has(platform)
+    ? `${base}${delimiter}${activity}`
+    : base;
+}
+
 export interface PlatformOAuthConfig {
   authUrl: string;
   tokenUrl: string;
@@ -127,6 +137,26 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
   },
 };
 
+const ACTIVITY_SCOPE_EXTRAS: Record<string, { scope: string; delimiter: "," | " " }> = {
+  facebook: {
+    scope: "pages_read_engagement,pages_manage_engagement,pages_read_user_content,read_insights",
+    delimiter: ",",
+  },
+  instagram: { scope: "instagram_business_manage_comments,instagram_business_manage_insights", delimiter: "," },
+  tiktok: { scope: "video.list", delimiter: "," },
+  youtube: { scope: "https://www.googleapis.com/auth/youtube.force-ssl", delimiter: " " },
+  threads: { scope: "threads_read_replies,threads_manage_mentions,threads_manage_insights", delimiter: "," },
+  linkedin: { scope: "r_member_postAnalytics", delimiter: " " },
+};
+
 export function getPlatformOAuthConfig(platform: string): PlatformOAuthConfig | undefined {
-  return OAUTH_CONFIGS[platform];
+  const config = OAUTH_CONFIGS[platform];
+  const activity = ACTIVITY_SCOPE_EXTRAS[platform];
+  const scope =
+    platform === "linkedin" && process.env.SOCIAL_ACTIVITY_LINKEDIN_COMMENTS === "true"
+      ? `${activity?.scope ?? ""} r_member_social_feed w_member_social_feed`.trim()
+      : activity?.scope;
+  return config && activity && scope
+    ? { ...config, scope: withActivityScopes(platform, config.scope, scope, activity.delimiter) }
+    : config;
 }

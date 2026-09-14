@@ -176,6 +176,9 @@ export function getAccountDisplayName(account: {
   }
 
   // For other platforms, try to get the most user-friendly name
+  if (account.platform === "linkedin" && account.platformAccountId.startsWith("urn:li:organization:")) {
+    return `${account.displayName || account.username || account.platformAccountId} (Page)`;
+  }
   return (
     account.displayName ||
     (account.username ? `@${account.username}` : null) ||

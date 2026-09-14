@@ -1,4 +1,5 @@
 import { authLogger } from "@/lib/logger";
+import { fetchLinkedInOrganization } from "@/lib/oauth/linkedin-pages";
 
 interface LinkedInProfilePictureElement {
   data?: {
@@ -100,8 +101,20 @@ export async function fetchThreadsProfilePicture(accessToken: string): Promise<s
   }
 }
 
-export function fetchFreshProfilePicture(platform: string, accessToken: string): Promise<string | null> {
+export async function fetchFreshProfilePicture(
+  platform: string,
+  accessToken: string,
+  platformAccountId?: string,
+): Promise<string | null> {
+  if (platform === "linkedin" && platformAccountId?.startsWith("urn:li:organization:")) {
+    try {
+      const organization = await fetchLinkedInOrganization(platformAccountId, accessToken);
+      return organization.profilePicture;
+    } catch {
+      return null;
+    }
+  }
   if (platform === "linkedin") return fetchLinkedInProfilePicture(accessToken);
   if (platform === "threads") return fetchThreadsProfilePicture(accessToken);
-  return Promise.resolve(null);
+  return null;
 }

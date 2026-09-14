@@ -146,7 +146,11 @@ async function fetchUserProfile(platform: string, accessToken: string): Promise<
   return data;
 }
 
-async function extractProfileData(platform: string, profile: PlatformProfile, tokenData: CallbackContext["tokenData"]) {
+export async function extractProfileData(
+  platform: string,
+  profile: PlatformProfile,
+  tokenData: CallbackContext["tokenData"],
+) {
   let platformAccountId: string;
   let username: string | null = null;
   let displayName: string | null = null;

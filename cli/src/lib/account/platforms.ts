@@ -174,7 +174,7 @@ const ACCOUNT_PLATFORM_CONFIGS = {
       developerPortalUrl: "https://www.linkedin.com/developers/apps",
       pkce: false,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      scopes: ["openid", "profile", "email", "w_member_social"],
+      scopes: ["openid", "profile", "email", "w_member_social", "w_organization_social", "rw_organization_admin"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
     },

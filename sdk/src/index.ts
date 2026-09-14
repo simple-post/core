@@ -313,6 +313,11 @@ export {
 } from "./types/post";
 
 export { validatePostMedia } from "./utils/post-media-validation";
+export {
+  fetchLinkedInPages,
+  fetchLinkedInOrganization,
+  fetchLinkedInMemberProfile,
+} from "./publishers/linkedin/accounts";
 
 /** Check current account capabilities without uploading media or creating a post. */
 export async function validatePostReadiness(

@@ -6,12 +6,14 @@ import { handleBlueskyCallback } from "./bluesky";
 import { handleFacebookCallback } from "./facebook";
 import { handleGenericCallback } from "./generic";
 import { handleInstagramCallback } from "./instagram";
+import { handleLinkedInCallback } from "./linkedin";
 import { handleThreadsCallback } from "./threads";
 
 const platformHandlers: Record<string, (ctx: CallbackContext) => Promise<NextResponse>> = {
   bluesky: handleBlueskyCallback,
   instagram: handleInstagramCallback,
   facebook: handleFacebookCallback,
+  linkedin: handleLinkedInCallback,
   threads: handleThreadsCallback,
 };
 

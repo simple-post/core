@@ -73,7 +73,9 @@ const credentialBuilders: Record<string, (account: ConnectedAccount) => Credenti
   }),
   linkedin: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,
-    memberId: account.platformAccountId,
+    ...(account.platformAccountId.startsWith("urn:li:organization:")
+      ? { organizationId: account.platformAccountId.slice("urn:li:organization:".length) }
+      : { memberId: account.platformAccountId }),
   }),
   pinterest: (account: ConnectedAccount) => ({
     accessToken: account.accessToken,

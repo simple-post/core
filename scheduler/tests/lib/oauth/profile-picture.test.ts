@@ -2,6 +2,7 @@ import {
   extractLinkedInDecoratedProfilePicture,
   fetchLinkedInProfilePicture,
   fetchThreadsProfilePicture,
+  fetchFreshProfilePicture,
 } from "@/lib/oauth/profile-picture";
 
 jest.mock("@/lib/logger", () => ({
@@ -116,4 +117,29 @@ it("treats a successful LinkedIn profile without a photo as a normal absence", a
   fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ sub: "member" }), { status: 200 }));
   await expect(fetchLinkedInProfilePicture("linkedin-access-token")).resolves.toBeNull();
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("refreshes a Page logo from its organization without loading the admin's profile", async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        logoV2: {
+          "original~": { elements: [{ identifiers: [{ identifier: "https://media.licdn.com/company.jpg" }] }] },
+        },
+      }),
+      { status: 200 },
+    ),
+  );
+  await expect(fetchFreshProfilePicture("linkedin", "token", "urn:li:organization:123")).resolves.toBe(
+    "https://media.licdn.com/company.jpg",
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][0]).toContain("rest/organizations/123");
+});
+
+it("does not substitute the admin photo when a Page logo cannot be loaded", async () => {
+  fetchMock.mockResolvedValueOnce(new Response("forbidden", { status: 403 }));
+  await expect(fetchFreshProfilePicture("linkedin", "token", "urn:li:organization:123")).resolves.toBeNull();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][0]).toContain("rest/organizations/123");
 });

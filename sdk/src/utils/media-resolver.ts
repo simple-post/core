@@ -5,7 +5,7 @@ import { v7 as uuidv7 } from "uuid";
 
 import { downloadToTempFile } from "./media";
 import { getPlatformRequirements } from "./platform-requirements";
-import { S3MediaUploader } from "./s3";
+import { getKeyFromUrl, S3MediaUploader } from "./s3";
 
 import type { Media, Platform, Video } from "../types/post";
 
@@ -117,44 +117,42 @@ export class MediaResolver {
    * Returns resolved media with both path and url set when needed
    */
   async resolve(media: Media[], platforms: Platform[]): Promise<ResolvedMedia[]> {
-    // TikTok manages photo staging itself so generic cleanup cannot remove
-    // its URLs while TikTok is still downloading. Video preparation is unchanged.
-    const photoPlatforms = platforms.filter((platform) => platform !== "tiktok");
-
     const resolved: ResolvedMedia[] = [];
 
     for (const item of media) {
-      const { needsPath, needsUrl, needsEither } = getPlatformRequirements(
-        item.type === "image" ? photoPlatforms : platforms,
-      );
+      const { needsPath, needsUrl, needsEither } = getPlatformRequirements(platforms);
       const resolvedItem: ResolvedMedia = { ...item };
 
-      // Determine what we need based on platform requirements
-      const needsFile = needsPath || (needsEither && !item.url);
-      const needsPublicUrl = needsUrl || (needsEither && !item.path);
+      // Every remote source is materialized once. Apart from avoiding repeated
+      // downloads across platforms, this closes the validation/publish race
+      // where an expiring or mutable URL can serve different bytes later.
+      const needsFile = needsPath || needsEither || Boolean(item.url);
+      const needsPublicUrl = needsUrl;
 
-      // If media already has both, use as-is
+      // A local path is authoritative when both forms are supplied. URL-only
+      // publishers still get a managed copy unless the URL is already ours.
       if (item.path && item.url) {
         resolvedItem.path = item.path;
-        resolvedItem.url = item.url;
+        resolvedItem.url = needsPublicUrl && !getKeyFromUrl(item.url) ? await this.uploadPath(item.path) : item.url;
       } else {
-        // Download URL to file if needed
+        // Download every URL to the exact local bytes publishers will use.
         if (needsFile && item.url && !item.path) {
           // Preserve the URL/content-type extension. This matters for
           // multipart consumers such as Telegram, where form-data derives
           // the upload MIME type from the local filename.
           resolvedItem.path = await this.downloadUrl(item.url);
-          resolvedItem.url = item.url; // Keep original URL
+          resolvedItem.url = item.url;
         } else if (item.path) {
           resolvedItem.path = item.path;
         } else if (item.url) {
           resolvedItem.url = item.url;
         }
 
-        // Upload file to URL if needed
-        if (needsPublicUrl && item.path && !item.url) {
-          resolvedItem.url = await this.uploadPath(item.path);
-          resolvedItem.path = item.path; // Keep original path
+        // URL-based publishers receive a SimplePost-controlled copy of the
+        // exact downloaded bytes rather than the caller's mutable URL.
+        const hasManagedUrl = Boolean(item.url && getKeyFromUrl(item.url));
+        if (needsPublicUrl && resolvedItem.path && !hasManagedUrl) {
+          resolvedItem.url = await this.uploadPath(resolvedItem.path);
         } else if (item.url) {
           resolvedItem.url = item.url;
         }
@@ -163,13 +161,17 @@ export class MediaResolver {
       // Handle video thumbnails
       if (item.type === "video") {
         const video = item as Video;
-        if (video.thumbnailUrl && !video.thumbnailPath && needsFile) {
-          // Download thumbnail if we need file and have URL
+        if (video.thumbnailUrl && !video.thumbnailPath) {
           resolvedItem.thumbnailPath = await this.downloadUrl(video.thumbnailUrl, ".jpg");
-          resolvedItem.thumbnailUrl = video.thumbnailUrl;
-        } else if (video.thumbnailPath && !video.thumbnailUrl && needsPublicUrl) {
-          // Upload thumbnail if we need URL and have path
-          resolvedItem.thumbnailUrl = await this.uploadPath(video.thumbnailPath);
+          resolvedItem.thumbnailUrl =
+            needsPublicUrl && !getKeyFromUrl(video.thumbnailUrl)
+              ? await this.uploadPath(resolvedItem.thumbnailPath)
+              : video.thumbnailUrl;
+        } else if (video.thumbnailPath && needsPublicUrl) {
+          resolvedItem.thumbnailUrl =
+            video.thumbnailUrl && getKeyFromUrl(video.thumbnailUrl)
+              ? video.thumbnailUrl
+              : await this.uploadPath(video.thumbnailPath);
           resolvedItem.thumbnailPath = video.thumbnailPath;
         } else {
           // Keep existing thumbnail

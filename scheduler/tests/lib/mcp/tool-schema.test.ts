@@ -2,7 +2,7 @@ import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-comp
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 
 import { listAccountsOutputSchema, listAccountsSchema } from "@/lib/mcp/tools/accounts";
-import { uploadMediaSchema } from "@/lib/mcp/tools/media";
+import { UPLOAD_MEDIA_DESCRIPTION, uploadMediaSchema } from "@/lib/mcp/tools/media";
 import { toMediaFiles } from "@/lib/mcp/tools/media-schema";
 import { showPostPreviewOutputSchema, showPostPreviewSchema } from "@/lib/mcp/tools/post-preview-ui";
 import {
@@ -22,6 +22,7 @@ import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/ser
 type JsonSchemaObject = {
   additionalProperties?: JsonSchemaObject | boolean;
   default?: unknown;
+  description?: string;
   anyOf?: JsonSchemaObject[];
   enum?: string[];
   items?: JsonSchemaObject;
@@ -134,6 +135,18 @@ function assertTextOnlyThreadSegments(schema: JsonSchemaObject): void {
 }
 
 describe("MCP tool JSON schemas", () => {
+  it("routes URLs normally and only accepts registered current-chat file parameters", () => {
+    const schema = toInputJsonSchema(uploadMediaSchema);
+    expect(schema.required ?? []).not.toContain("file");
+    expect(schema.required ?? []).not.toContain("url");
+    expect(schema.properties?.file.description).toContain("current chat client");
+    expect(schema.properties?.file.description).toContain("never construct");
+    expect(UPLOAD_MEDIA_DESCRIPTION).toContain("exactly one of url or file");
+    expect(UPLOAD_MEDIA_DESCRIPTION).toContain("Never construct, copy, or reuse a file reference");
+    expect(UPLOAD_MEDIA_DESCRIPTION).toContain("retry once with url and omit file");
+    expect(UPLOAD_MEDIA_DESCRIPTION).toContain("do not retry the same reference");
+  });
+
   it("preserves Bluesky video metadata through every posting tool schema", () => {
     for (const schema of [createPostSchema, previewPostSchema, validatePostSchema, updateScheduledPostSchema]) {
       const input = schema.parse({

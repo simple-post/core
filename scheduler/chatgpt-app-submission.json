@@ -30,7 +30,7 @@
         "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Downloads a user-provided ChatGPT file parameter to the authenticated user's SimplePost storage and returns a new media URL.",
+        "read_only_justification": "Downloads a user-provided URL or registered ChatGPT file parameter to the authenticated user's SimplePost storage and returns a new media URL.",
         "open_world_justification": "Creates a publicly fetchable media URL in SimplePost storage that can be used outside ChatGPT and by social platforms when posting.",
         "destructive_justification": "Does not delete, overwrite, revoke access, publish a social post, or perform an irreversible external platform action.",
         "idempotent_justification": "Calling it again with the same file creates another stored object and another media URL."

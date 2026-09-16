@@ -48,3 +48,51 @@ it("rejects WAV as a client error, explains allowed formats, and removes the dow
   expect(S3MediaUploader).not.toHaveBeenCalled();
   await expect(access(filename)).rejects.toThrow();
 });
+
+it("imports an external URL and uploads the exact validated bytes", async () => {
+  const jpeg = Buffer.from([255, 216, 255, 224, 0, 16, 255, 217]);
+  await writeFile(filename, jpeg);
+  const uploadedChunks: Buffer[] = [];
+  const uploadStream = jest.fn(async (stream: NodeJS.ReadableStream) => {
+    for await (const chunk of stream) uploadedChunks.push(Buffer.from(chunk));
+    return "https://storage.example/uploads/user/photo.jpg";
+  });
+  jest.mocked(S3MediaUploader).mockImplementation(() => ({ uploadStream }) as never);
+
+  const result = await uploadMedia("user", {
+    url: "https://files.example/photo",
+    filename: "photo.jpg",
+  });
+
+  expect(downloadToTempFile).toHaveBeenCalledWith("https://files.example/photo");
+  expect(Buffer.concat(uploadedChunks)).toEqual(jpeg);
+  expect(result).toMatchObject({
+    type: "image",
+    url: "https://storage.example/uploads/user/photo.jpg",
+    filename: "photo.jpg",
+    size: jpeg.length,
+    mimeType: "image/jpeg",
+  });
+  await expect(access(filename)).rejects.toThrow();
+});
+
+it("tells the model how to recover when an attached file can no longer be downloaded", async () => {
+  jest.mocked(downloadToTempFile).mockRejectedValueOnce(new Error("temporary URL expired"));
+
+  await expect(
+    uploadMedia("user", {
+      file: {
+        file_id: "file",
+        download_url: "https://files.example/expired",
+        mime_type: "image/jpeg",
+        file_name: "photo.jpg",
+      },
+    }),
+  ).rejects.toThrow("retry upload_media once with url and omit file");
+  expect(log.warn).toHaveBeenCalledWith(
+    expect.objectContaining({
+      err: expect.objectContaining({ message: expect.stringContaining("reattach the file") }),
+    }),
+    "MCP media upload rejected",
+  );
+});

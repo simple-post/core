@@ -8,11 +8,15 @@ import {
   updateScheduledPostSchema,
 } from "@/lib/mcp/tools/posts";
 import { validatePost, validatePostSchema } from "@/lib/mcp/tools/validation";
+import { ingestPostMedia } from "@/lib/media-ingestion";
 import { postToAccounts } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 jest.mock("@/lib/db", () => ({ PostsModel: jest.fn() }));
+jest.mock("@/lib/media-ingestion", () => ({
+  ingestPostMedia: jest.fn(async (_userId, input) => input),
+}));
 jest.mock("@/lib/prisma", () => ({ prisma: { $transaction: jest.fn(), connectedAccount: { findMany: jest.fn() } } }));
 jest.mock("@/lib/mcp/tools/accounts", () => ({
   ...jest.requireActual("@/lib/mcp/tools/accounts"),
@@ -75,6 +79,7 @@ it.each(["now", "schedule", "draft"] as const)(
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (ingestPostMedia as jest.Mock).mockImplementation(async (_userId, input) => input);
   (PostsModel as jest.Mock).mockImplementation(() => ({
     createPost: savePost,
     updatePost,
@@ -98,6 +103,37 @@ beforeEach(() => {
     results: [],
     summary: { isValid: true, errors: [], warnings: [] },
   });
+});
+
+it("persists and dispatches the ingested media URLs in thread segments", async () => {
+  const originalThread = [{ message: "Reply", media: [{ type: "image" as const, url: "https://example.com/a.jpg" }] }];
+  const ingestedThread = [
+    { message: "Reply", media: [{ type: "image" as const, url: "https://cdn.simplepost.social/user-1/a.jpg" }] },
+  ];
+  (ingestPostMedia as jest.Mock).mockResolvedValueOnce({
+    media: [],
+    thread: ingestedThread,
+    accountOptions: { "tiktok-1": { privacyLevel: "PUBLIC_TO_EVERYONE" } },
+  });
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    results: [],
+    summary: { isValid: true, errors: [], warnings: [] },
+  });
+
+  await createPost(
+    "user-1",
+    createPostSchema.parse({
+      message: "Root",
+      accountIds: ["tiktok-1"],
+      thread: originalThread,
+      postingMode: "now",
+    }),
+  );
+
+  expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ thread: ingestedThread }));
+  expect(savePost).toHaveBeenCalledWith(expect.objectContaining({ thread: ingestedThread }), "user-1", {});
+  expect((postToAccounts as jest.Mock).mock.calls[0][6]).toEqual(ingestedThread);
 });
 
 it.each(["now", "schedule", "draft"] as const)(

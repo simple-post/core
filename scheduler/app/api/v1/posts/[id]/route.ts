@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { getChargedTrialAccounts } from "@/lib/billing/trial";
 import { PostsModel } from "@/lib/db";
+import { ingestPostMedia } from "@/lib/media-ingestion";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -104,7 +105,7 @@ async function updatePost(
 
     // Parse and validate body
     const body = await req.json();
-    const validated = updatePostSchema.parse(body);
+    let validated = updatePostSchema.parse(body);
     const isRetry = currentPost.status === "failed";
     if (isRetry) {
       if (validated.accountIds.some((accountId) => !currentPost.accountIds.includes(accountId)))
@@ -120,6 +121,7 @@ async function updatePost(
           "This post has no durable publishing record. Check its platform results, then explicitly duplicate only the content that still needs publishing.",
         );
     }
+    validated = await ingestPostMedia(session.user.id, validated);
     const currentPostingMode: PostingMode = currentPost.status === "draft" ? "draft" : "schedule";
     const postingMode = validated.postingMode ?? (validated.scheduledFor ? "schedule" : currentPostingMode);
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor, currentPost.scheduledFor);

@@ -1,7 +1,7 @@
 import { getOwnedStorageKeyFromUrl } from "@simple-post/sdk";
 
+import { McpToolError } from "@/lib/mcp/tool-errors";
 import { uploadMedia } from "@/lib/mcp/tools/media";
-import { BadRequestError } from "@/lib/utils/errors";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
 
 type UploadedMedia = Awaited<ReturnType<typeof uploadMedia>>;
@@ -41,16 +41,26 @@ async function ingestMediaFile(userId: string, media: MediaFile, cache: UploadCa
     mimeType: media.contentType,
   });
   if (imported && imported.type !== media.type) {
-    throw new BadRequestError(
-      `${media.filename || "Media"} was declared as ${media.type}, but its bytes are ${imported.type}.`,
-    );
+    throw new McpToolError({
+      code: "MEDIA_TYPE_MISMATCH",
+      stage: "media_validation",
+      recovery: "replace_media",
+      maxAutomaticRetries: 0,
+      message: `${media.filename || "Media"} was declared as ${media.type}, but its bytes are ${imported.type}.`,
+    });
   }
 
   let thumbnailUrl = media.thumbnailUrl;
   if (thumbnailUrl) {
     const thumbnail = await ingestUrl(userId, thumbnailUrl, cache);
     if (thumbnail && thumbnail.type !== "image") {
-      throw new BadRequestError("A video thumbnail must be an image.");
+      throw new McpToolError({
+        code: "MEDIA_THUMBNAIL_NOT_IMAGE",
+        stage: "media_validation",
+        recovery: "replace_media",
+        maxAutomaticRetries: 0,
+        message: "A video thumbnail must be an image.",
+      });
     }
     thumbnailUrl = thumbnail?.url ?? thumbnailUrl;
   }
@@ -123,7 +133,13 @@ export async function ingestPostMedia<
             if (!options || typeof options.thumbnailUrl !== "string") return [accountId, options];
             const thumbnail = await ingestUrl(userId, options.thumbnailUrl, cache);
             if (thumbnail && thumbnail.type !== "image") {
-              throw new BadRequestError("A video thumbnail must be an image.");
+              throw new McpToolError({
+                code: "MEDIA_THUMBNAIL_NOT_IMAGE",
+                stage: "media_validation",
+                recovery: "replace_media",
+                maxAutomaticRetries: 0,
+                message: "A video thumbnail must be an image.",
+              });
             }
             return [accountId, { ...options, thumbnailUrl: thumbnail?.url ?? options.thumbnailUrl }];
           }),

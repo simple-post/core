@@ -5,8 +5,8 @@ import path from "node:path";
 import { downloadToTempFile, S3MediaUploader } from "@simple-post/sdk";
 
 import { mediaLogger } from "@/lib/logger";
+import { McpToolError } from "@/lib/mcp/tool-errors";
 import { uploadMedia } from "@/lib/mcp/tools/media";
-import { BadRequestError } from "@/lib/utils/errors";
 
 jest.mock("@simple-post/sdk", () => ({
   downloadToTempFile: jest.fn(),
@@ -39,7 +39,14 @@ it("rejects WAV as a client error, explains allowed formats, and removes the dow
       file_name: "audio.wav",
     },
   };
-  await expect(uploadMedia("user", input)).rejects.toBeInstanceOf(BadRequestError);
+  const error = await uploadMedia("user", input).catch((error_) => error_);
+  expect(error).toBeInstanceOf(McpToolError);
+  expect(error).toMatchObject({
+    code: "MEDIA_UNSUPPORTED_TYPE",
+    stage: "media_validation",
+    recovery: "replace_media",
+    maxAutomaticRetries: 0,
+  });
   expect(log.warn).toHaveBeenCalledWith(
     expect.objectContaining({ err: expect.objectContaining({ message: expect.stringContaining("audio/wav") }) }),
     "MCP media upload rejected",
@@ -79,20 +86,88 @@ it("imports an external URL and uploads the exact validated bytes", async () => 
 it("tells the model how to recover when an attached file can no longer be downloaded", async () => {
   jest.mocked(downloadToTempFile).mockRejectedValueOnce(new Error("temporary URL expired"));
 
-  await expect(
-    uploadMedia("user", {
-      file: {
-        file_id: "file",
-        download_url: "https://files.example/expired",
-        mime_type: "image/jpeg",
-        file_name: "photo.jpg",
-      },
-    }),
-  ).rejects.toThrow("retry upload_media once with url and omit file");
+  const error = await uploadMedia("user", {
+    file: {
+      file_id: "file",
+      download_url: "https://files.example/expired",
+      mime_type: "image/jpeg",
+      file_name: "photo.jpg",
+    },
+  }).catch((error_) => error_);
+
+  expect(error).toMatchObject({
+    code: "MEDIA_FILE_REFERENCE_UNAVAILABLE",
+    stage: "source_download",
+    recovery: "retry_with_url_or_reattach",
+    maxAutomaticRetries: 1,
+    message: expect.stringContaining("retry upload_media once with url and omit file"),
+  });
   expect(log.warn).toHaveBeenCalledWith(
     expect.objectContaining({
       err: expect.objectContaining({ message: expect.stringContaining("reattach the file") }),
     }),
     "MCP media upload rejected",
   );
+});
+
+it("does not retry a media URL that requires authentication", async () => {
+  jest.mocked(downloadToTempFile).mockRejectedValueOnce({ response: { status: 403 } });
+
+  const error = await uploadMedia("user", { url: "https://files.example/private" }).catch((error_) => error_);
+
+  expect(error).toMatchObject({
+    code: "MEDIA_SOURCE_AUTH_REQUIRED",
+    stage: "source_download",
+    recovery: "replace_media",
+    maxAutomaticRetries: 0,
+  });
+});
+
+it("allows one retry after a transient media source failure", async () => {
+  jest.mocked(downloadToTempFile).mockRejectedValueOnce({ code: "ETIMEDOUT" });
+
+  const error = await uploadMedia("user", { url: "https://files.example/slow" }).catch((error_) => error_);
+
+  expect(error).toMatchObject({
+    code: "MEDIA_SOURCE_UNAVAILABLE",
+    stage: "source_download",
+    recovery: "retry_same",
+    maxAutomaticRetries: 1,
+    statusCode: 503,
+  });
+});
+
+it("identifies an HTML response as a page rather than media", async () => {
+  await writeFile(filename, Buffer.from("<!doctype html><html><body>Sign in</body></html>"));
+
+  const error = await uploadMedia("user", { url: "https://files.example/share-page" }).catch((error_) => error_);
+
+  expect(error).toMatchObject({
+    code: "MEDIA_SOURCE_NOT_MEDIA",
+    stage: "media_validation",
+    recovery: "replace_media",
+    maxAutomaticRetries: 0,
+  });
+  await expect(access(filename)).rejects.toThrow();
+});
+
+it("allows one retry after storage rejects validated media", async () => {
+  const jpeg = Buffer.from([255, 216, 255, 224, 0, 16, 255, 217]);
+  await writeFile(filename, jpeg);
+  const uploadStream = jest.fn().mockRejectedValue(new Error("storage unavailable"));
+  jest.mocked(S3MediaUploader).mockImplementation(() => ({ uploadStream }) as never);
+
+  const error = await uploadMedia("user", {
+    url: "https://files.example/photo.jpg",
+    filename: "photo.jpg",
+  }).catch((error_) => error_);
+
+  expect(error).toMatchObject({
+    code: "MEDIA_STORAGE_FAILED",
+    stage: "storage_upload",
+    recovery: "retry_same",
+    maxAutomaticRetries: 1,
+    statusCode: 503,
+  });
+  await expect(access(filename)).rejects.toThrow();
 });

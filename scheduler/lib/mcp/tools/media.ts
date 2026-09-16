@@ -6,8 +6,9 @@ import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/medi
 import { z } from "zod";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
+import { McpToolError } from "@/lib/mcp/tool-errors";
 import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
-import { BadRequestError } from "@/lib/utils/errors";
+import { ApiError } from "@/lib/utils/errors";
 
 const MAX_FILE_SIZE = API_UPLOAD_MAX_BYTES;
 const STORAGE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
@@ -104,9 +105,30 @@ function mimeLabel(mimeType: string): string {
 
 const FILE_TOO_LARGE_MESSAGE = `This file is too large — the maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB.`;
 
-function corruptedFileError(mimeType: string): Error {
-  return new BadRequestError(
+function mediaError(
+  code: string,
+  message: string,
+  stage: ConstructorParameters<typeof McpToolError>[0]["stage"],
+  recovery: ConstructorParameters<typeof McpToolError>[0]["recovery"],
+  maxAutomaticRetries = 0,
+  statusCode = 400,
+  cause?: unknown,
+): McpToolError {
+  const error = new McpToolError({ code, message, stage, recovery, maxAutomaticRetries, statusCode });
+  if (cause !== undefined) error.cause = cause;
+  return error;
+}
+
+function tooLargeError(): McpToolError {
+  return mediaError("MEDIA_TOO_LARGE", FILE_TOO_LARGE_MESSAGE, "media_validation", "replace_media");
+}
+
+function corruptedFileError(mimeType: string): McpToolError {
+  return mediaError(
+    "MEDIA_CORRUPT",
     `This ${mimeLabel(mimeType)} appears to be corrupted or incomplete. Please re-upload it or try a different file.`,
+    "media_validation",
+    "replace_media",
   );
 }
 
@@ -209,14 +231,17 @@ function hasWebmHeader(buffer: Buffer): boolean {
 
 function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: string): void {
   if (size > MAX_FILE_SIZE) {
-    throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
+    throw tooLargeError();
   }
 
   const sniffedImageType = sniffImageMimeType(header);
 
   if (mimeType.startsWith("image/") && sniffedImageType !== mimeType) {
-    throw new BadRequestError(
+    throw mediaError(
+      "MEDIA_TYPE_MISMATCH",
       `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
+      "media_validation",
+      "replace_media",
     );
   }
 
@@ -236,13 +261,19 @@ function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: stri
     }
   }
   if ((mimeType === "video/mp4" || mimeType === "video/quicktime") && !hasMp4FileTypeBox(header)) {
-    throw new BadRequestError(
+    throw mediaError(
+      "MEDIA_TYPE_MISMATCH",
       `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
+      "media_validation",
+      "replace_media",
     );
   }
   if (mimeType === "video/webm" && !hasWebmHeader(header)) {
-    throw new BadRequestError(
+    throw mediaError(
+      "MEDIA_TYPE_MISMATCH",
       "This file doesn't appear to be a valid WebM video. Please re-upload it or try a different file.",
+      "media_validation",
+      "replace_media",
     );
   }
 }
@@ -253,8 +284,15 @@ function resolveMimeType(sample: MediaSample, declaredMimeType: string | undefin
   const resolvedType = sniffedImageType ?? normalized;
 
   if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
-    throw new BadRequestError(
-      `This file type${declaredMimeType ? ` (${declaredMimeType})` : ""} isn't supported. Supported formats: ${[...ALLOWED_MEDIA_TYPES].map((type) => mimeLabel(type)).join(", ")}.`,
+    const textPrefix = sample.header.subarray(0, 256).toString("utf8").trimStart().toLowerCase();
+    const appearsToBeHtml = textPrefix.startsWith("<!doctype html") || textPrefix.startsWith("<html");
+    throw mediaError(
+      appearsToBeHtml ? "MEDIA_SOURCE_NOT_MEDIA" : "MEDIA_UNSUPPORTED_TYPE",
+      appearsToBeHtml
+        ? "The media URL returned an HTML page instead of an image or video. Provide a direct, publicly downloadable media URL."
+        : `This file type${declaredMimeType ? ` (${declaredMimeType})` : ""} isn't supported. Supported formats: ${[...ALLOWED_MEDIA_TYPES].map((type) => mimeLabel(type)).join(", ")}.`,
+      "media_validation",
+      "replace_media",
     );
   }
 
@@ -267,10 +305,15 @@ async function readMediaSample(tempPath: string): Promise<MediaSample> {
   try {
     const { size } = await file.stat();
     if (size === 0) {
-      throw new BadRequestError("The downloaded file is empty. Please re-attach the file and try again.");
+      throw mediaError(
+        "MEDIA_EMPTY",
+        "The downloaded file is empty. Please re-attach the file and try again.",
+        "media_validation",
+        "reattach",
+      );
     }
     if (size > MAX_FILE_SIZE) {
-      throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
+      throw tooLargeError();
     }
 
     const header = Buffer.alloc(Math.min(size, 32));
@@ -285,13 +328,13 @@ async function readMediaSample(tempPath: string): Promise<MediaSample> {
 
 async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUploadSource> {
   if (Boolean(input.file) === Boolean(input.url)) {
-    throw new BadRequestError("Provide exactly one media source: file or url.");
+    throw mediaError("MEDIA_SOURCE_REQUIRED", "Provide exactly one media source: file or url.", "tool_input", "stop");
   }
 
   const inputFileSize = input.file?.size ?? 0;
 
   if (inputFileSize > 0 && inputFileSize > MAX_FILE_SIZE) {
-    throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
+    throw tooLargeError();
   }
 
   // Use the SDK's bounded, DNS-pinned downloader so a crafted file parameter
@@ -302,12 +345,60 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
   try {
     tempPath = await downloadToTempFile(sourceUrl);
   } catch (error) {
+    const candidate = error as { code?: unknown; message?: unknown; response?: { status?: unknown } };
+    const status = typeof candidate.response?.status === "number" ? candidate.response.status : undefined;
+    const errorCode = typeof candidate.code === "string" ? candidate.code : "";
+    const errorMessage = typeof candidate.message === "string" ? candidate.message : "";
+    if (status === 413 || /exceeds the maximum download size/i.test(errorMessage)) throw tooLargeError();
     if (input.file) {
-      throw new BadRequestError(
+      throw mediaError(
+        "MEDIA_FILE_REFERENCE_UNAVAILABLE",
         "The attached file could not be downloaded. If the same media has a public URL, retry upload_media once with url and omit file. Otherwise ask the user to reattach the file in their current message; do not retry the same file reference.",
+        "source_download",
+        "retry_with_url_or_reattach",
+        1,
+        400,
+        error,
       );
     }
-    throw error;
+    if (status === 401 || status === 403) {
+      throw mediaError(
+        "MEDIA_SOURCE_AUTH_REQUIRED",
+        "The media URL requires authentication. Provide a direct, publicly downloadable media URL.",
+        "source_download",
+        "replace_media",
+        0,
+        400,
+        error,
+      );
+    }
+    if (status === 404 || status === 410) {
+      throw mediaError(
+        "MEDIA_SOURCE_EXPIRED",
+        "The media URL is missing or expired. Provide a fresh public URL or reattach the file.",
+        "source_download",
+        "replace_media",
+        0,
+        400,
+        error,
+      );
+    }
+    const transient =
+      status === 408 ||
+      status === 429 ||
+      (status !== undefined && status >= 500) ||
+      ["ECONNABORTED", "ECONNRESET", "ENOTFOUND", "ETIMEDOUT"].includes(errorCode);
+    throw mediaError(
+      "MEDIA_SOURCE_UNAVAILABLE",
+      transient
+        ? "The media URL could not be downloaded because of a temporary network or origin failure. Retry once."
+        : "The media URL could not be downloaded. Provide a direct, publicly downloadable media URL.",
+      "source_download",
+      transient ? "retry_same" : "replace_media",
+      transient ? 1 : 0,
+      transient ? 503 : 400,
+      error,
+    );
   }
   try {
     const sample = await readMediaSample(tempPath);
@@ -362,9 +453,21 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
     const uploader = new S3MediaUploader();
     let url: string;
     try {
-      url = await uploader.uploadStream(uploadStream, key, source.mimeType, {
-        timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
-      });
+      try {
+        url = await uploader.uploadStream(uploadStream, key, source.mimeType, {
+          timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
+        });
+      } catch (error) {
+        throw mediaError(
+          "MEDIA_STORAGE_FAILED",
+          "SimplePost could not store the validated media because of a temporary storage failure. Retry once.",
+          "storage_upload",
+          "retry_same",
+          1,
+          503,
+          error,
+        );
+      }
     } finally {
       uploadStream.destroy();
     }
@@ -389,13 +492,14 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
       mimeType: source.mimeType,
     };
   } catch (error) {
-    log[error instanceof BadRequestError ? "warn" : "error"](
+    const isClientError = error instanceof ApiError && error.statusCode < 500;
+    log[isClientError ? "warn" : "error"](
       {
         sourceType,
         elapsedMs: Date.now() - startedAt,
         err: serializeError(error),
       },
-      error instanceof BadRequestError ? "MCP media upload rejected" : "Failed MCP media upload",
+      isClientError ? "MCP media upload rejected" : "Failed MCP media upload",
     );
     throw error;
   } finally {

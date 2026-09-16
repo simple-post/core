@@ -1,12 +1,15 @@
+import { randomUUID } from "node:crypto";
+
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { createLogger } from "@/lib/logger";
+import { createLogger, serializeError } from "@/lib/logger";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
+import { MCP_ERROR_INSTRUCTIONS, toMcpErrorDiagnostic } from "./tool-errors";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { UPLOAD_MEDIA_DESCRIPTION, uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import { showPostPreview, showPostPreviewOutputSchema, showPostPreviewSchema } from "./tools/post-preview-ui";
@@ -126,6 +129,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 
 # Error handling
 
+- ${MCP_ERROR_INSTRUCTIONS}
 - A successful \`create_post\` with \`postingMode: "now"\` may still report per-platform failures inside \`postingResults\`. Always inspect \`summary.overallSuccess\` and the individual results — do not assume success just because the tool didn't throw. For threads, a root post can succeed while a later segment fails; check \`threadResults\` on that account.
 - If \`validate_post\` or \`preview_post\` was explicitly requested and returns \`isValid: false\`, surface the per-account error messages to the user and offer a fix (shorter text, add media, drop a platform) instead of calling \`create_post\` anyway.
 
@@ -168,19 +172,24 @@ function errorResult(error: unknown) {
     log.info(apiErrorLogPayload(error), "MCP tool billing gate denied");
   }
 
+  const diagnostic = { ...toMcpErrorDiagnostic(error), supportId: randomUUID() };
+  log[error instanceof ApiError && error.statusCode < 500 ? "warn" : "error"](
+    { supportId: diagnostic.supportId, diagnostic, err: serializeError(error) },
+    "MCP tool returned an error",
+  );
+
   return {
     content: [
       {
         type: "text" as const,
-        text:
-          (error instanceof Error ? error.message : String(error)) +
-          (billingDenied ? " Do not retry until the user changes their plan or allowance in SimplePost." : ""),
+        text: `${diagnostic.message}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
       },
     ],
     isError: true,
-    ...(billingDenied && {
-      _meta: { "simplepost/retryable": false },
-    }),
+    _meta: {
+      "simplepost/error": diagnostic,
+      "simplepost/retryable": diagnostic.maxAutomaticRetries > 0,
+    },
   };
 }
 

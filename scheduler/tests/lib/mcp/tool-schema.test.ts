@@ -1,6 +1,7 @@
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 
+import { MCP_ERROR_INSTRUCTIONS } from "@/lib/mcp/tool-errors";
 import { listAccountsOutputSchema, listAccountsSchema } from "@/lib/mcp/tools/accounts";
 import { UPLOAD_MEDIA_DESCRIPTION, uploadMediaSchema } from "@/lib/mcp/tools/media";
 import { toMediaFiles } from "@/lib/mcp/tools/media-schema";
@@ -135,6 +136,13 @@ function assertTextOnlyThreadSegments(schema: JsonSchemaObject): void {
 }
 
 describe("MCP tool JSON schemas", () => {
+  it("tells the model how to follow structured retry guidance", () => {
+    expect(MCP_ERROR_INSTRUCTIONS).toContain("SIMPLEPOST_ERROR");
+    expect(MCP_ERROR_INSTRUCTIONS).toContain("retry_same");
+    expect(MCP_ERROR_INSTRUCTIONS).toContain("maxAutomaticRetries");
+    expect(MCP_ERROR_INSTRUCTIONS).toContain("supportId");
+  });
+
   it("routes URLs normally and only accepts registered current-chat file parameters", () => {
     const schema = toInputJsonSchema(uploadMediaSchema);
     expect(schema.required ?? []).not.toContain("file");

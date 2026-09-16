@@ -1,5 +1,6 @@
 import { getOwnedStorageKeyFromUrl } from "@simple-post/sdk";
 
+import { McpToolError } from "@/lib/mcp/tool-errors";
 import { uploadMedia } from "@/lib/mcp/tools/media";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 
@@ -44,4 +45,27 @@ it("keeps media that already belongs to the user without downloading it", async 
 
   await expect(ingestPostMedia("user", { media: [media] })).resolves.toMatchObject({ media: [media] });
   expect(uploadMedia).not.toHaveBeenCalled();
+});
+
+it("returns structured recovery details when declared and detected media types differ", async () => {
+  jest.mocked(uploadMedia).mockResolvedValueOnce({
+    kind: "media_upload",
+    type: "video",
+    url: managed,
+    filename: "clip.mp4",
+    size: 123,
+    mimeType: "video/mp4",
+  });
+
+  const error = await ingestPostMedia("user", {
+    media: [{ id: "m1", type: "image", url: external, filename: "clip.mp4", size: 123 }],
+  }).catch((error_) => error_);
+
+  expect(error).toBeInstanceOf(McpToolError);
+  expect(error).toMatchObject({
+    code: "MEDIA_TYPE_MISMATCH",
+    stage: "media_validation",
+    recovery: "replace_media",
+    maxAutomaticRetries: 0,
+  });
 });

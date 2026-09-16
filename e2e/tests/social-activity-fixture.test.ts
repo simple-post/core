@@ -59,7 +59,7 @@ test.beforeAll(async () => {
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { SocialInbox, PostSocialPanel } from './components/social-activity';
-          const component = location.pathname === '/post' ? <PostSocialPanel postId="post-1" visible /> : <SocialInbox />;
+          const component = location.pathname === '/post' ? <PostSocialPanel postId="post-1" /> : <SocialInbox />;
           createRoot(document.getElementById('root')).render(component);
         `,
       },
@@ -99,7 +99,8 @@ async function mount(page: Page, pathname = "/social") {
     if (route.request().resourceType() === "document") {
       return route.fulfill({
         contentType: "text/html",
-        body: `<html><head><style>${css}</style></head><body><div id="root"></div></body></html>`,
+        // The app shell renders dark-only (`<html class="dark">`), so the fixture must match it.
+        body: `<html class="dark"><head><style>${css}</style></head><body><div id="root"></div></body></html>`,
       });
     }
     return route.abort();
@@ -163,21 +164,31 @@ test("social inbox renders real styled cards, filters, pagination, and reply out
   await page.addScriptTag({ content: bundle });
 
   await expect(page.getByRole("heading", { name: "Comments and mentions" })).toBeVisible();
-  await expect(page.getByPlaceholder("Reply as SimplePost", { exact: true })).toBeVisible();
+  await expect(page.getByText("Could you share the source?")).toBeVisible();
+
+  await page.getByRole("button", { name: "Refresh" }).first().click();
+  const sync = page.getByRole("region", { name: "Last sync" });
+  await expect(sync).toContainText("1 post checked");
+  await expect(sync).toContainText("Recent X mentions only.");
+  await expect(sync.getByRole("button", { name: "Load older activity" })).toBeVisible();
+
   await page.waitForTimeout(700);
   await page.screenshot({ path: testInfo.outputPath("social-inbox-desktop.png"), fullPage: true });
 
-  await page.getByLabel("Filter by account").selectOption(account.id);
+  await page.getByRole("combobox", { name: "Filter by account" }).click();
+  await page.getByRole("option", { name: `${account.displayName} · X` }).click();
   await expect(page.getByText("Could you share the source?")).toBeVisible();
   await page.getByRole("button", { name: "Load more" }).click();
   await expect(page.getByText("Another account mention")).toBeVisible();
 
   const firstComposer = page.locator("article").filter({ hasText: "Could you share the source?" });
+  await firstComposer.getByRole("button", { name: "Reply" }).click();
   await firstComposer.getByRole("textbox").fill("Here it is");
   await firstComposer.getByRole("button", { name: "Send reply" }).click();
   await expect(firstComposer.getByText("Reply sent")).toBeVisible();
 
   const secondComposer = page.locator("article").filter({ hasText: "@simplepost this was useful" });
+  await secondComposer.getByRole("button", { name: "Reply" }).click();
   await secondComposer.getByRole("textbox").fill("Thank you");
   await secondComposer.getByRole("button", { name: "Send reply" }).click();
   await expect(secondComposer.getByRole("textbox")).toHaveValue("Thank you");
@@ -221,7 +232,7 @@ test("post activity uses cached metric cards and reports continuation/error cove
   await expect(page.getByText("impressions")).toBeVisible();
   await page.waitForTimeout(700);
   await expect(page.getByText("Latest refresh: Insights permission was not granted")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Load more comments" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load older comments" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("post-social-metrics.png"), fullPage: true });
   expect(browserErrors).toEqual([]);
 });

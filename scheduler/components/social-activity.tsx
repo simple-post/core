@@ -4,12 +4,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
 
-import { ExternalLink, LoaderCircle, MessageCircleReply, RefreshCw, Send } from "lucide-react";
+import {
+  BarChart3,
+  Check,
+  ExternalLink,
+  Inbox,
+  LoaderCircle,
+  MessageCircleReply,
+  RefreshCw,
+  Send,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { getPlatformById } from "@/lib/config";
+import { cn } from "@/lib/utils";
 
 export interface ActivityItem {
   id: string;
@@ -91,12 +108,19 @@ const PLATFORMS = [
   "forem",
 ];
 
+const ALL = "all";
+/** Equal-width flex items would collapse below their label width, so keep each item content-sized. */
+const KIND_TOGGLE_CLASS = "flex-none px-3 data-[state=on]:bg-secondary data-[state=on]:text-foreground";
+const REPLY_MAX_LENGTH = 5000;
+
 function readableMetric(metric: string): string {
   return metric.replaceAll("_", " ").replaceAll(/([a-z])([A-Z])/g, "$1 $2");
 }
 
 function platformName(platform: string): string {
-  return getPlatformById(platform)?.name ?? platform[0]?.toUpperCase() + platform.slice(1);
+  const configured = getPlatformById(platform.toLowerCase())?.name;
+  if (configured) return configured;
+  return platform.charAt(0).toUpperCase() + platform.slice(1);
 }
 
 function formatNumber(value: number): string {
@@ -106,16 +130,80 @@ function formatNumber(value: number): string {
   }).format(value);
 }
 
-function timeLabel(value?: string): string {
-  if (!value) return "Time unavailable";
+function parseDate(value?: string): Date | undefined {
+  if (!value) return undefined;
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "Time unavailable";
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
+  return Number.isFinite(date.getTime()) ? date : undefined;
+}
+
+function absoluteTime(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+const RELATIVE_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ["second", 60],
+  ["minute", 60],
+  ["hour", 24],
+  ["day", 7],
+  ["week", 4.35],
+  ["month", 12],
+  ["year", Number.POSITIVE_INFINITY],
+];
+
+function relativeTime(date: Date): string {
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  let amount = (date.getTime() - Date.now()) / 1000;
+  for (const [unit, step] of RELATIVE_UNITS) {
+    if (Math.abs(amount) < step) return formatter.format(Math.round(amount), unit);
+    amount /= step;
+  }
+  return absoluteTime(date);
+}
+
+/** Relative label with the exact timestamp kept in the tooltip and in machine-readable form. */
+function Timestamp({ value, className }: { value?: string; className?: string }) {
+  const date = parseDate(value);
+  if (!date) return null;
+  return (
+    <time dateTime={date.toISOString()} title={absoluteTime(date)} className={className}>
+      {relativeTime(date)}
+    </time>
+  );
+}
+
+function Notice({
+  tone = "warning",
+  children,
+  className,
+}: {
+  tone?: "warning" | "danger";
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      role={tone === "danger" ? "alert" : "status"}
+      className={cn(
+        "flex items-start gap-2 rounded-xl border p-3 text-xs leading-5",
+        tone === "danger"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        className,
+      )}>
+      <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <div className="min-w-0 space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function externalUrl(value?: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function replyKey(): string {
@@ -124,33 +212,45 @@ function replyKey(): string {
     : `${Date.now()}${Math.random()}`.replaceAll(".", "");
 }
 
-function ReplyComposer({ item }: { item: ActivityItem }) {
+function initials(name: string): string {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+  return letters || "?";
+}
+
+function handleLabel(username?: string): string | undefined {
+  if (!username) return undefined;
+  const trimmed = username.trim().replace(/^@/, "");
+  return trimmed ? `@${trimmed}` : undefined;
+}
+
+function ReplyComposer({
+  item,
+  onSent,
+  onCancel,
+}: {
+  item: ActivityItem;
+  onSent: (body: string) => void;
+  onCancel: () => void;
+}) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string>();
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
   const [intentKey, setIntentKey] = useState(replyKey);
   const [attemptBody, setAttemptBody] = useState<string>();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  if (!item.canReply || item.reply?.status === "sent" || sent) {
-    return item.reply?.status === "sent" || sent ? (
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-primary">Reply sent</p>
-    ) : null;
-  }
-
-  if (item.reply?.status === "pending" || item.reply?.status === "uncertain") {
-    return (
-      <p className="mt-4 text-xs text-amber-300">
-        {item.reply.status === "uncertain"
-          ? "Reply status is uncertain. Check the native platform before sending another reply."
-          : "Reply is being sent. Check the native platform before trying again."}
-      </p>
-    );
-  }
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   async function submit() {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || sending) return;
     setSending(true);
     setError(undefined);
     setAttemptBody(body);
@@ -167,7 +267,7 @@ function ReplyComposer({ item }: { item: ActivityItem }) {
       setDraft("");
       setAttemptBody(undefined);
       setIntentKey(replyKey());
-      setSent(true);
+      onSent(body);
     } catch (error_) {
       // Keep the composer contents so the person can edit or retry a rejected reply.
       setError(error_ instanceof Error ? error_.message : "Reply could not be sent.");
@@ -176,13 +276,15 @@ function ReplyComposer({ item }: { item: ActivityItem }) {
     }
   }
 
+  const remaining = REPLY_MAX_LENGTH - draft.length;
   return (
-    <div className="mt-4 border-t border-border pt-3">
+    <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
       <label className="sr-only" htmlFor={`reply-${item.id}`}>
-        Reply to this {item.kind}
+        Reply to this {item.kind} as {item.accountName}
       </label>
       <Textarea
         id={`reply-${item.id}`}
+        ref={textareaRef}
         value={draft}
         onChange={(event) => {
           const nextDraft = event.target.value;
@@ -193,16 +295,36 @@ function ReplyComposer({ item }: { item: ActivityItem }) {
           }
           setDraft(nextDraft);
         }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            void submit();
+          }
+        }}
         placeholder={`Reply as ${item.accountName}`}
         className="min-h-20 resize-y bg-input text-sm"
-        maxLength={5000}
+        maxLength={REPLY_MAX_LENGTH}
         disabled={sending}
       />
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="min-w-0 text-xs text-destructive" role="alert">
+      {error ? (
+        <p className="mt-2 text-xs text-destructive" role="alert">
           {error}
         </p>
-        <Button size="sm" onClick={submit} disabled={!draft.trim() || sending} className="shrink-0">
+      ) : null}
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        {remaining <= 500 ? (
+          <p
+            className={cn(
+              "mr-auto text-xs tabular-nums",
+              remaining < 0 ? "text-destructive" : "text-muted-foreground",
+            )}>
+            {formatNumber(remaining)} left
+          </p>
+        ) : null}
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={sending}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => void submit()} disabled={!draft.trim() || sending}>
           {sending ? <LoaderCircle className="animate-spin" /> : <Send />}
           Send reply
         </Button>
@@ -211,43 +333,105 @@ function ReplyComposer({ item }: { item: ActivityItem }) {
   );
 }
 
-function externalUrl(value?: string): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
-  } catch {
-    return undefined;
+function ReplyState({ item, sentBody }: { item: ActivityItem; sentBody?: string }) {
+  const status = sentBody ? "sent" : item.reply?.status;
+  if (status === "sent") {
+    const body = sentBody ?? item.reply?.body;
+    const replyUrl = externalUrl(item.reply?.nativeReplyUrl);
+    return (
+      <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
+          <Check className="size-3.5" aria-hidden /> Reply sent
+        </p>
+        {body ? (
+          <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{body}</p>
+        ) : null}
+        {replyUrl ? (
+          <a
+            href={replyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary">
+            <ExternalLink className="size-3" aria-hidden /> View reply
+          </a>
+        ) : null}
+      </div>
+    );
   }
+  if (status === "pending" || status === "uncertain") {
+    return (
+      <Notice className="mt-3">
+        <p>
+          {status === "uncertain"
+            ? `This reply may or may not have been posted. Check ${platformName(item.platform)} before sending another one.`
+            : `This reply is still sending. Check ${platformName(item.platform)} before trying again.`}
+        </p>
+      </Notice>
+    );
+  }
+  return null;
 }
 
 export function SocialActivityCard({ item }: { item: ActivityItem }) {
+  const [replying, setReplying] = useState(false);
+  const [sentBody, setSentBody] = useState<string>();
   const nativeUrl = externalUrl(item.nativeUrl);
+  const authorName = item.author?.name || item.author?.username || "Unknown author";
+  const authorHandle = handleLabel(item.author?.username);
+  const replyState = sentBody ? "sent" : item.reply?.status;
+  // A failed reply can be retried; only a sent or in-flight one blocks the composer.
+  const replyBlocked = replyState === "sent" || replyState === "pending" || replyState === "uncertain";
+  const canReply = item.canReply && !replyBlocked;
+  const previousFailure = replyState === "failed" ? item.reply?.errorMessage : undefined;
+
   return (
-    <article className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+    <article className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-border/80 sm:p-5">
       <div className="flex items-start gap-3">
-        <PlatformIconBadge platform={item.platform} className="mt-0.5 size-7" />
+        <div className="relative shrink-0">
+          <Avatar className="size-9">
+            {item.author?.avatarUrl ? <AvatarImage src={item.author.avatarUrl} alt="" /> : null}
+            <AvatarFallback className="text-xs font-medium text-muted-foreground">
+              {initials(authorName)}
+            </AvatarFallback>
+          </Avatar>
+          <PlatformIconBadge
+            platform={item.platform}
+            className="absolute -bottom-0.5 -right-0.5 size-4"
+            iconClassName="text-[7px]"
+          />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-sm font-medium">{item.author?.name || item.author?.username || "Social account"}</p>
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{item.kind}</span>
-            <span className="text-xs text-muted-foreground">{timeLabel(item.createdAt)}</span>
+            <p className="truncate text-sm font-medium">{authorName}</p>
+            {authorHandle && authorHandle !== authorName ? (
+              <span className="truncate text-xs text-muted-foreground">{authorHandle}</span>
+            ) : null}
+            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal capitalize">
+              {item.kind}
+            </Badge>
+            <Timestamp value={item.createdAt} className="ml-auto shrink-0 text-xs text-muted-foreground" />
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {item.accountName}
-            {item.accountUsername ? ` · ${item.accountUsername}` : ""}
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {platformName(item.platform)} · {item.accountName}
+            {item.accountUsername ? ` (${handleLabel(item.accountUsername)})` : ""}
           </p>
           <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
-            {item.body || "No text"}
+            {item.body || <span className="text-muted-foreground">No text content</span>}
           </p>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {canReply && !replying ? (
+              <Button size="sm" variant="outline" onClick={() => setReplying(true)}>
+                <MessageCircleReply />
+                Reply
+              </Button>
+            ) : null}
             {nativeUrl ? (
               <a
                 href={nativeUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary">
-                <ExternalLink className="size-3" /> Visit native
+                <ExternalLink className="size-3" aria-hidden /> View on {platformName(item.platform)}
               </a>
             ) : null}
             {item.postId ? (
@@ -258,41 +442,79 @@ export function SocialActivityCard({ item }: { item: ActivityItem }) {
               </Link>
             ) : null}
           </div>
-          <ReplyComposer item={item} />
+          {previousFailure ? (
+            <Notice className="mt-3">
+              <p>Previous reply failed: {previousFailure}</p>
+            </Notice>
+          ) : null}
+          {replying ? (
+            <ReplyComposer
+              item={item}
+              onSent={(body) => {
+                setSentBody(body);
+                setReplying(false);
+              }}
+              onCancel={() => setReplying(false)}
+            />
+          ) : (
+            <ReplyState item={item} sentBody={sentBody} />
+          )}
         </div>
       </div>
     </article>
   );
 }
 
+function CardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <Skeleton className="size-9 rounded-full" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-4/5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Metrics({ metrics }: { metrics: MetricItem[] }) {
   if (metrics.length === 0)
     return (
-      <p className="text-sm text-muted-foreground">Refresh this post to load metrics for platforms that expose them.</p>
+      <p className="text-sm text-muted-foreground">
+        No metrics cached yet. Refresh to pull the latest numbers from platforms that report them.
+      </p>
     );
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {metrics.map((metric) => {
         const nativeUrl = externalUrl(metric.nativeUrl);
+        const hasValues = Boolean(metric.values && Object.keys(metric.values).length > 0);
         return (
           <section key={metric.id} className="rounded-xl border border-border bg-secondary/35 p-4">
             <div className="flex items-center gap-2">
               <PlatformIconBadge platform={metric.platform} />
-              <p className="text-sm font-medium">{metric.accountName}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{metric.accountName}</p>
+                <p className="truncate text-xs text-muted-foreground">{platformName(metric.platform)}</p>
+              </div>
               {nativeUrl ? (
                 <a
                   href={nativeUrl}
                   target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Visit ${metric.platform} post`}
-                  className="ml-auto text-muted-foreground hover:text-primary">
-                  <ExternalLink className="size-3.5" />
+                  rel="noopener noreferrer"
+                  aria-label={`View this post on ${platformName(metric.platform)}`}
+                  className="text-muted-foreground transition-colors hover:text-primary">
+                  <ExternalLink className="size-3.5" aria-hidden />
                 </a>
               ) : null}
             </div>
-            {metric.values && Object.keys(metric.values).length > 0 ? (
+            {hasValues ? (
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
-                {Object.entries(metric.values).map(([name, value]) => (
+                {Object.entries(metric.values ?? {}).map(([name, value]) => (
                   <div key={name}>
                     <dt className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                       {readableMetric(name)}
@@ -303,17 +525,18 @@ function Metrics({ metrics }: { metrics: MetricItem[] }) {
               </dl>
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">
-                {metric.error || "No metrics available for this platform post."}
+                {metric.error || "This platform does not report metrics for this post."}
               </p>
             )}
-            <p className="mt-4 text-xs text-muted-foreground">
-              {metric.fetchedAt
-                ? `Updated ${timeLabel(metric.fetchedAt)}`
-                : `Last checked ${timeLabel(metric.lastAttemptAt)}`}
-              {metric.coverage ? ` · ${metric.coverage}` : ""}
+            <p className="mt-4 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+              {metric.fetchedAt ? "Updated" : "Last checked"}
+              <Timestamp value={metric.fetchedAt ?? metric.lastAttemptAt} />
+              {metric.coverage ? <span>· {metric.coverage}</span> : null}
             </p>
-            {metric.error && metric.values ? (
-              <p className="mt-2 text-xs text-amber-300">Latest refresh: {metric.error}</p>
+            {metric.error && hasValues ? (
+              <Notice className="mt-3">
+                <p>Latest refresh: {metric.error}</p>
+              </Notice>
             ) : null}
           </section>
         );
@@ -322,21 +545,36 @@ function Metrics({ metrics }: { metrics: MetricItem[] }) {
   );
 }
 
-export function PostSocialPanel({ postId, visible }: { postId: string; visible: boolean }) {
+function SubsectionHeading({ icon: Icon, title, count }: { icon: typeof BarChart3; title: string; count?: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="size-4 text-primary" aria-hidden />
+      <h3 className="text-sm font-medium">{title}</h3>
+      {typeof count === "number" && count > 0 ? (
+        <Badge variant="secondary" className="px-1.5 py-0 text-[10px] tabular-nums">
+          {count}
+        </Badge>
+      ) : null}
+    </div>
+  );
+}
+
+export function PostSocialPanel({ postId }: { postId: string }) {
   const [data, setData] = useState<PostActivityResponse>();
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState<"latest" | "older" | undefined>();
   const [error, setError] = useState<string>();
   const load = useCallback(
-    async (refresh = false, reset = false) => {
-      if (!visible) return;
-      if (refresh) setRefreshing(true);
+    async (mode?: "latest" | "older") => {
+      if (mode) setRefreshing(mode);
       else setLoading(true);
       setError(undefined);
       try {
-        const response = await fetch(`/api/v1/posts/${encodeURIComponent(postId)}/social${refresh ? "/refresh" : ""}`, {
-          method: refresh ? "POST" : "GET",
-          ...(refresh ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset }) } : {}),
+        const response = await fetch(`/api/v1/posts/${encodeURIComponent(postId)}/social${mode ? "/refresh" : ""}`, {
+          method: mode ? "POST" : "GET",
+          ...(mode
+            ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset: mode === "latest" }) }
+            : {}),
         });
         const payload = (await response.json()) as PostActivityResponse & { error?: string };
         if (!response.ok) throw new Error(payload.error || "Social activity could not be loaded.");
@@ -345,81 +583,147 @@ export function PostSocialPanel({ postId, visible }: { postId: string; visible: 
         setError(error_ instanceof Error ? error_.message : "Social activity could not be loaded.");
       } finally {
         setLoading(false);
-        setRefreshing(false);
+        setRefreshing(undefined);
       }
     },
-    [postId, visible],
+    [postId],
   );
   useEffect(() => {
     void load();
   }, [load]);
-  if (!visible) return null;
+  const busy = Boolean(refreshing);
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="section-kicker !mb-1">
+    <section className="rounded-2xl border border-border bg-card p-6" aria-label="Social activity">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="section-kicker !mb-1">
             <span className="section-kicker-dot" />
             <span className="section-kicker-label">Social activity</span>
-          </div>
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Metrics stay separate by platform. Comments come from SimplePost-published posts.
+            Engagement and comments from the accounts this post was published to.
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => void load(true, !data?.hasMoreComments)}
-          disabled={refreshing}>
-          {refreshing ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}{" "}
-          {data?.hasMoreComments ? "Load more comments" : "Refresh"}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {data?.hasMoreComments ? (
+            <Button size="sm" variant="ghost" onClick={() => void load("older")} disabled={busy}>
+              {refreshing === "older" ? <LoaderCircle className="animate-spin" /> : null}
+              Load older comments
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" onClick={() => void load("latest")} disabled={busy}>
+            {refreshing === "latest" ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+            Refresh
+          </Button>
+        </div>
       </div>
       {error ? (
-        <p className="mt-4 text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <Notice tone="danger" className="mt-4">
+          <p>{error}</p>
+        </Notice>
       ) : null}
       {data?.errors?.length ? (
-        <div className="mt-4 space-y-1 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-xs text-amber-200">
+        <Notice className="mt-4">
           {data.errors.map((entry) => (
             <p key={`${entry.accountId}-${entry.message}`}>{entry.message}</p>
           ))}
-        </div>
+        </Notice>
       ) : null}
       {data?.coverage?.length ? (
         <div className="mt-3 space-y-1 text-xs text-muted-foreground">
           {data.coverage.map((entry) => (
             <p key={`${entry.accountId}-${entry.message}`}>
-              {entry.platform}: {entry.message}
+              {platformName(entry.platform)}: {entry.message}
             </p>
           ))}
         </div>
       ) : null}
       {loading ? (
-        <p className="mt-5 text-sm text-muted-foreground">Loading cached activity…</p>
+        <div className="mt-5 space-y-3" aria-busy>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Skeleton className="h-36 rounded-xl" />
+            <Skeleton className="h-36 rounded-xl" />
+          </div>
+        </div>
       ) : (
         <>
           <div className="mt-5">
-            <Metrics metrics={data?.metrics ?? []} />
+            <SubsectionHeading icon={BarChart3} title="Metrics" />
+            <div className="mt-4">
+              <Metrics metrics={data?.metrics ?? []} />
+            </div>
           </div>
           <div className="mt-7 border-t border-border pt-5">
-            <div className="flex items-center gap-2">
-              <MessageCircleReply className="size-4 text-primary" />
-              <h2 className="text-sm font-medium">Comments</h2>
-            </div>
-            <div className="mt-4 space-y-3">
+            <SubsectionHeading icon={MessageCircleReply} title="Comments" count={data?.comments?.length} />
+            <div className={cn("mt-4 space-y-3 transition-opacity", busy && "opacity-60")}>
               {data?.comments?.length ? (
                 data.comments.map((item) => <SocialActivityCard key={item.id} item={item} />)
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No cached comments yet. Refresh to check connected platforms.
+                  No comments cached yet. Refresh to check the connected platforms.
                 </p>
               )}
             </div>
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+function SyncSummary({
+  statuses,
+  hasMore,
+  refreshing,
+  onLoadOlder,
+  onDismiss,
+}: {
+  statuses: RefreshAccountStatus[];
+  hasMore: boolean;
+  refreshing: boolean;
+  onLoadOlder: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <section className="mt-4 rounded-xl border border-border bg-secondary/35 p-4" aria-label="Last sync">
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Last sync</h2>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss sync summary"
+          className="-m-1 rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+          <X className="size-3.5" aria-hidden />
+        </button>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {statuses.map((status) => (
+          <li key={status.accountId} className="flex items-start gap-2 text-xs">
+            <PlatformIconBadge platform={status.platform} className="mt-0.5 size-4" iconClassName="text-[7px]" />
+            <div className="min-w-0 flex-1">
+              <p className="text-foreground">
+                <span className="font-medium">{platformName(status.platform)}</span>{" "}
+                <span className="text-muted-foreground">
+                  · {status.processed} post{status.processed === 1 ? "" : "s"} checked
+                  {status.mentionsProcessed ? " · mentions checked" : ""}
+                </span>
+              </p>
+              {status.coverage ? <p className="mt-0.5 text-muted-foreground">{status.coverage}</p> : null}
+              {status.error ? <p className="mt-0.5 text-amber-700 dark:text-amber-300">{status.error}</p> : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex items-center justify-end border-t border-border pt-3">
+        {hasMore ? (
+          <Button size="sm" variant="outline" onClick={onLoadOlder} disabled={refreshing}>
+            {refreshing ? <LoaderCircle className="animate-spin" /> : null}
+            Load older activity
+          </Button>
+        ) : (
+          <p className="text-xs text-muted-foreground">Everything available has been synced.</p>
+        )}
+      </div>
     </section>
   );
 }
@@ -434,9 +738,11 @@ export function SocialInbox() {
   const [statuses, setStatuses] = useState<RefreshAccountStatus[]>([]);
   const [hasMoreSync, setHasMoreSync] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string>();
   const requestVersion = useRef(0);
+  const hasFilters = Boolean(kind || platform || accountId);
   const query = useMemo(
     () =>
       new URLSearchParams({
@@ -450,7 +756,8 @@ export function SocialInbox() {
   const load = useCallback(
     async (append = false, pageCursor?: string) => {
       const version = ++requestVersion.current;
-      setLoading(true);
+      if (append) setLoadingMore(true);
+      else setLoading(true);
       setError(undefined);
       try {
         const params = new URLSearchParams(query);
@@ -465,7 +772,10 @@ export function SocialInbox() {
         if (version === requestVersion.current)
           setError(error_ instanceof Error ? error_.message : "Inbox could not be loaded.");
       } finally {
-        if (version === requestVersion.current) setLoading(false);
+        if (version === requestVersion.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [query],
@@ -490,6 +800,14 @@ export function SocialInbox() {
     };
   }, []);
 
+  // Offer only platforms the person actually has connected, falling back to the full list.
+  const platformOptions = useMemo(() => {
+    const connected = new Set(accounts.map((account) => account.platform.toLowerCase()));
+    if (platform) connected.add(platform);
+    const available = PLATFORMS.filter((name) => connected.has(name));
+    return available.length > 0 ? available : PLATFORMS;
+  }, [accounts, platform]);
+
   async function refresh(reset: boolean) {
     setRefreshing(true);
     setError(undefined);
@@ -511,121 +829,148 @@ export function SocialInbox() {
     }
   }
 
+  function clearFilters() {
+    setKind("");
+    setPlatform("");
+    setAccountId("");
+  }
+
   return (
-    <main className="mx-auto max-w-4xl px-[clamp(18px,4vw,48px)] py-8 sm:py-6">
-      <div className="animate-reveal flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="section-kicker">
-            <span className="section-kicker-dot" />
-            <span className="section-kicker-label">Social inbox</span>
+    <main className="mx-auto max-w-4xl px-[clamp(18px,4vw,48px)] py-6">
+      <div className="animate-reveal flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <div className="section-kicker !mb-0">
+              <span className="section-kicker-dot" />
+              <span className="section-kicker-label">Inbox</span>
+            </div>
+            <span className="h-3 w-px bg-border" />
+            <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
+              Comments and <span className="text-primary">mentions</span>
+            </h1>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Comments and mentions</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Across posts published with SimplePost and account-level mentions where the platform permits it.
+            Replies to posts you published with SimplePost, plus account mentions where the platform allows it.
           </p>
         </div>
-        <Button size="sm" onClick={() => void refresh(true)} disabled={refreshing}>
-          {refreshing ? <LoaderCircle className="animate-spin" /> : <RefreshCw />} Refresh inbox
+        <Button size="sm" onClick={() => void refresh(true)} disabled={refreshing} className="shrink-0">
+          {refreshing ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+          Refresh
         </Button>
       </div>
+
       <div className="mt-6 flex flex-wrap items-center gap-2 border-y border-border py-3">
-        <button
-          className={`rounded-lg px-3 py-1.5 text-sm ${kind === "" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
-          onClick={() => setKind("")}>
-          All
-        </button>
-        <button
-          className={`rounded-lg px-3 py-1.5 text-sm ${kind === "comment" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
-          onClick={() => setKind("comment")}>
-          Comments
-        </button>
-        <button
-          className={`rounded-lg px-3 py-1.5 text-sm ${kind === "mention" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
-          onClick={() => setKind("mention")}>
-          Mentions
-        </button>
-        <select
-          aria-label="Filter by platform"
-          value={platform}
-          onChange={(event) => setPlatform(event.target.value)}
-          className="h-8 rounded-lg border border-border bg-input px-2 text-sm outline-none focus:ring-2 focus:ring-ring">
-          <option value="">All platforms</option>
-          {PLATFORMS.map((name) => (
-            <option key={name} value={name}>
-              {platformName(name)}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Filter by account"
-          value={accountId}
-          onChange={(event) => setAccountId(event.target.value)}
-          className="h-8 max-w-52 rounded-lg border border-border bg-input px-2 text-sm outline-none focus:ring-2 focus:ring-ring">
-          <option value="">All accounts</option>
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.displayName || account.username || account.platform} · {account.platform}
-            </option>
-          ))}
-        </select>
+        <ToggleGroup
+          type="single"
+          value={kind || ALL}
+          onValueChange={(value) => {
+            if (value) setKind(value === ALL ? "" : (value as "comment" | "mention"));
+          }}
+          variant="outline"
+          size="sm"
+          aria-label="Filter by type">
+          <ToggleGroupItem value={ALL} className={KIND_TOGGLE_CLASS}>
+            All
+          </ToggleGroupItem>
+          <ToggleGroupItem value="comment" className={KIND_TOGGLE_CLASS}>
+            Comments
+          </ToggleGroupItem>
+          <ToggleGroupItem value="mention" className={KIND_TOGGLE_CLASS}>
+            Mentions
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <Select value={platform || ALL} onValueChange={(value) => setPlatform(value === ALL ? "" : value)}>
+          <SelectTrigger size="sm" className="w-36" aria-label="Filter by platform">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All platforms</SelectItem>
+            {platformOptions.map((name) => (
+              <SelectItem key={name} value={name}>
+                {platformName(name)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={accountId || ALL} onValueChange={(value) => setAccountId(value === ALL ? "" : value)}>
+          <SelectTrigger size="sm" className="w-44" aria-label="Filter by account">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All accounts</SelectItem>
+            {accounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                {account.displayName || account.username || platformName(account.platform)} ·{" "}
+                {platformName(account.platform)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {hasFilters ? (
+          <Button size="sm" variant="ghost" onClick={clearFilters} className="text-muted-foreground">
+            Clear filters
+          </Button>
+        ) : null}
       </div>
+
       {error ? (
-        <p className="mt-4 text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <Notice tone="danger" className="mt-4">
+          <p>{error}</p>
+        </Notice>
       ) : null}
+
       {statuses.length > 0 ? (
-        <div className="mt-4 rounded-xl border border-border bg-secondary/35 p-3 text-xs text-muted-foreground">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p>
-              {statuses
-                .map(
-                  (status) =>
-                    `${status.platform}: ${status.processed} comment target${status.processed === 1 ? "" : "s"}`,
-                )
-                .join(" · ")}
-            </p>
-            {hasMoreSync ? (
-              <Button size="sm" variant="outline" onClick={() => void refresh(false)} disabled={refreshing}>
-                Load older activity
-              </Button>
-            ) : (
-              <p>Current sync complete</p>
-            )}
-          </div>
-          {statuses
-            .filter((status) => status.error)
-            .map((status) => (
-              <p key={`${status.accountId}-${status.error}`} className="mt-2 text-amber-300">
-                {status.platform}: {status.error}
-              </p>
-            ))}
-          {statuses
-            .filter((status) => status.coverage)
-            .map((status) => (
-              <p key={`${status.accountId}-coverage`} className="mt-1">
-                {status.platform}: {status.coverage}
-              </p>
-            ))}
-        </div>
+        <SyncSummary
+          statuses={statuses}
+          hasMore={hasMoreSync}
+          refreshing={refreshing}
+          onLoadOlder={() => void refresh(false)}
+          onDismiss={() => setStatuses([])}
+        />
       ) : null}
-      <div className="mt-5 space-y-3">
+
+      <div
+        className={cn("mt-5 space-y-3 transition-opacity", loading && items.length > 0 && "opacity-60")}
+        aria-busy={loading}>
         {loading && items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Loading inbox…</p>
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
         ) : items.length > 0 ? (
           items.map((item) => <SocialActivityCard key={item.id} item={item} />)
-        ) : (
-          <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-            <p className="text-sm font-medium">Nothing in the inbox yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Refresh checks newer activity. Load older activity continues through previous SimplePost posts.
+        ) : hasFilters ? (
+          <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+            <p className="text-sm font-medium">No activity matches these filters</p>
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
+              Try a different type, platform, or account.
             </p>
+            <Button size="sm" variant="outline" onClick={clearFilters} className="mt-5">
+              Clear filters
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+            <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-lg border border-border bg-secondary">
+              <Inbox className="size-5 text-muted-foreground" aria-hidden />
+            </div>
+            <p className="text-sm font-medium">Nothing in your inbox yet</p>
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
+              Refresh to check your connected accounts for new comments and mentions.
+            </p>
+            <Button size="sm" onClick={() => void refresh(true)} disabled={refreshing} className="mt-5">
+              {refreshing ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+              Refresh
+            </Button>
           </div>
         )}
       </div>
-      {cursor ? (
+
+      {cursor && items.length > 0 ? (
         <div className="mt-5 text-center">
-          <Button variant="outline" onClick={() => void load(true, cursor)} disabled={loading}>
+          <Button variant="outline" onClick={() => void load(true, cursor)} disabled={loading || loadingMore}>
+            {loadingMore ? <LoaderCircle className="animate-spin" /> : null}
             Load more
           </Button>
         </div>

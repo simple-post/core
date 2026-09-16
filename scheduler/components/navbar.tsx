@@ -5,7 +5,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { LayoutGrid, MessageCircleReply, Plus, Users } from "lucide-react";
+import { Inbox, LayoutGrid, Plus, Users } from "lucide-react";
 
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
@@ -39,8 +39,8 @@ const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: "/social",
-    label: "Social inbox",
-    icon: MessageCircleReply,
+    label: "Inbox",
+    icon: Inbox,
     isActive: (pathname) => pathname.startsWith("/social"),
   },
 ];

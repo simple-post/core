@@ -294,7 +294,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
             <PublishedPostLinks post={post} accounts={postAccounts} />
 
-            <PostSocialPanel postId={post.id} visible={hasPublishedPlatformPost} />
+            {hasPublishedPlatformPost ? <PostSocialPanel postId={post.id} /> : null}
 
             {/* Accounts */}
             <div className="rounded-2xl border border-border bg-card p-6">

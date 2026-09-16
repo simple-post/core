@@ -75,3 +75,24 @@ it("imports an external URL and uploads the exact validated bytes", async () => 
   });
   await expect(access(filename)).rejects.toThrow();
 });
+
+it("tells the model how to recover when an attached file can no longer be downloaded", async () => {
+  jest.mocked(downloadToTempFile).mockRejectedValueOnce(new Error("temporary URL expired"));
+
+  await expect(
+    uploadMedia("user", {
+      file: {
+        file_id: "file",
+        download_url: "https://files.example/expired",
+        mime_type: "image/jpeg",
+        file_name: "photo.jpg",
+      },
+    }),
+  ).rejects.toThrow("retry upload_media once with url and omit file");
+  expect(log.warn).toHaveBeenCalledWith(
+    expect.objectContaining({
+      err: expect.objectContaining({ message: expect.stringContaining("reattach the file") }),
+    }),
+    "MCP media upload rejected",
+  );
+});

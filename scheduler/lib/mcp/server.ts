@@ -87,7 +87,7 @@ Notes:
 - Videos benefit from a \`thumbnailUrl\` but it is optional.
 - Allowed upload types: image/jpeg, image/png, image/gif, image/webp, video/mp4, video/quicktime, video/webm. Maximum 500MB per file.
 - \`upload_media\` validates that image/video bytes match the declared type before returning a SimplePost URL.
-- If a file reference is unavailable or rejected as \`UNREGISTERED_FILE_REFERENCE\`, do not retry or invent another reference. Ask the user to reattach the file in the current message, provide a public URL, or upload it via the SimplePost web app.
+- If a file reference is unavailable or rejected as \`UNREGISTERED_FILE_REFERENCE\` and the same media already has a public URL, retry \`upload_media\` once with \`url\` and omit \`file\`, then continue the posting workflow with the returned URL. Otherwise, do not retry or invent another reference; ask the user to reattach the file in the current message, provide a public URL, or upload it via the SimplePost web app.
 
 # Multi-segment threads (reply chains)
 

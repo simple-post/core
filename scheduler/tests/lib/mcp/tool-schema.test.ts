@@ -143,6 +143,8 @@ describe("MCP tool JSON schemas", () => {
     expect(schema.properties?.file.description).toContain("never construct");
     expect(UPLOAD_MEDIA_DESCRIPTION).toContain("exactly one of url or file");
     expect(UPLOAD_MEDIA_DESCRIPTION).toContain("Never construct, copy, or reuse a file reference");
+    expect(UPLOAD_MEDIA_DESCRIPTION).toContain("retry once with url and omit file");
+    expect(UPLOAD_MEDIA_DESCRIPTION).toContain("do not retry the same reference");
   });
 
   it("preserves Bluesky video metadata through every posting tool schema", () => {

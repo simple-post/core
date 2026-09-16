@@ -25,7 +25,7 @@ const MIME_EXTENSION: Record<string, string> = {
 const log = mediaLogger.child({ tool: "mcp.upload_media" });
 
 export const UPLOAD_MEDIA_DESCRIPTION =
-  "Import an image or video into SimplePost storage from either an external URL or a registered file parameter supplied by the current chat client. Pass exactly one of url or file. Never construct, copy, or reuse a file reference. Returns a public media URL and metadata for posting tools.";
+  "Import an image or video into SimplePost storage from either an external URL or a registered file parameter supplied by the current chat client. Pass exactly one of url or file. Never construct, copy, or reuse a file reference. If a file call fails with UNREGISTERED_FILE_REFERENCE and the same media has a public URL, retry once with url and omit file; otherwise ask the user to reattach it and do not retry the same reference. Returns a public media URL and metadata for posting tools.";
 
 const fileParamSchema = z
   .object({
@@ -298,7 +298,17 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
   // cannot reach loopback, private networks, cloud metadata, or an unsafe
   // redirect target.
   const sourceUrl = input.file?.download_url ?? input.url!;
-  const tempPath = await downloadToTempFile(sourceUrl);
+  let tempPath: string;
+  try {
+    tempPath = await downloadToTempFile(sourceUrl);
+  } catch (error) {
+    if (input.file) {
+      throw new BadRequestError(
+        "The attached file could not be downloaded. If the same media has a public URL, retry upload_media once with url and omit file. Otherwise ask the user to reattach the file in their current message; do not retry the same file reference.",
+      );
+    }
+    throw error;
+  }
   try {
     const sample = await readMediaSample(tempPath);
 

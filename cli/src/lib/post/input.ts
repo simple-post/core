@@ -33,6 +33,7 @@ interface InteractiveTargetOption {
 }
 
 export type PostFlagValues = {
+  "fit-images"?: string;
   interactive?: boolean;
   account?: string[];
   "app-account-id"?: string[];

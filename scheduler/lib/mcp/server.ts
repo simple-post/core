@@ -37,6 +37,9 @@ import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } 
 
 const log = createLogger("mcp:tools");
 
+export const IMAGE_FITTING_INSTRUCTIONS =
+  "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post or validate_post. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
+
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule posts to multiple social media platforms (X, Telegram, Facebook, Instagram, YouTube, Meta Threads, ...) from a single tool call. Only call tools for SimplePost posting workflows. Do not call tools for generic writing help, connecting accounts, or editing/deleting social posts that were already published externally; explain those are unsupported and direct the user to the SimplePost web app or social platform.
 
 # No-tool routing rules
@@ -139,10 +142,18 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 - It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
+  imageFittingEnabled?: boolean;
   clientId?: string;
   userEmail?: string | null;
   userId: string;
   scope?: string | null;
+}
+
+function fittingSchema<T extends { imageFit: unknown }>(shape: T, enabled?: boolean): T {
+  if (enabled) return shape;
+  const result = { ...shape };
+  Reflect.deleteProperty(result, "imageFit");
+  return result;
 }
 
 const OAUTH_SECURITY_SCHEMES = [{ type: "oauth2", scopes: [...MCP_SCOPES] }];
@@ -263,6 +274,7 @@ function formatValidationIssue(issue: ValidationIssue): string {
 }
 
 function formatValidationDetails(validation: {
+  imageFitHelp?: string;
   accounts: ValidationAccount[];
   summary: { errorCount: number; warningCount: number };
 }): string {
@@ -291,7 +303,7 @@ function formatValidationDetails(validation: {
     })
     .join("\n");
 
-  return `${headline}\n${accounts}`;
+  return `${headline}\n${accounts}${validation.imageFitHelp ? "\n\n" + validation.imageFitHelp : ""}`;
 }
 
 function formatTiming(postingMode: string, scheduledFor: string | null): string {
@@ -586,15 +598,20 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "validate_post",
     {
       title: "Validate Post",
-      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.`,
-      inputSchema: validatePostSchema.shape,
+      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""}`,
+      inputSchema: fittingSchema(validatePostSchema.shape, context.imageFittingEnabled),
       outputSchema: validatePostOutputSchema.shape,
-      annotations: MCP_TOOL_ANNOTATIONS.validate_post,
+      annotations: {
+        ...MCP_TOOL_ANNOTATIONS.validate_post,
+        readOnlyHint: !context.imageFittingEnabled,
+        idempotentHint: !context.imageFittingEnabled,
+      },
       _meta: toolMeta("Checking your post", "Check complete"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:validate");
+        if (input.imageFit) requireScope(context, "posts:write");
         const result = await validatePost(context.userId, input);
         return {
           structuredContent: result,
@@ -627,15 +644,20 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without writing to SimplePost or rendering UI. scheduledFor must be a timezone-aware ISO 8601 datetime.`,
-      inputSchema: previewPostSchema.shape,
+      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""} scheduledFor must be a timezone-aware ISO 8601 datetime.`,
+      inputSchema: fittingSchema(previewPostSchema.shape, context.imageFittingEnabled),
       outputSchema: previewPostOutputSchema.shape,
-      annotations: MCP_TOOL_ANNOTATIONS.preview_post,
+      annotations: {
+        ...MCP_TOOL_ANNOTATIONS.preview_post,
+        readOnlyHint: !context.imageFittingEnabled,
+        idempotentHint: !context.imageFittingEnabled,
+      },
       _meta: toolMeta("Preparing a preview", "Preview ready"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:validate");
+        if (input.imageFit) requireScope(context, "posts:write");
         const result = await previewPost(context.userId, input);
         const summaryText = result.validation.isValid
           ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
@@ -705,7 +727,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Create Post",
       description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
-      inputSchema: createPostSchema.shape,
+      inputSchema: fittingSchema(createPostSchema.shape, context.imageFittingEnabled),
       outputSchema: createPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
       _meta: toolMeta("Working on your post", "Finished working on your post"),
@@ -741,7 +763,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}`,
+              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}${result.imageFitHelp ? "\n\n" + result.imageFitHelp : ""}`,
             },
           ],
         };
@@ -864,7 +886,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Update Scheduled Post",
       description: `Use this to change a draft or future scheduled SimplePost post by postId. Omitted fields stay unchanged; postingMode can move a post between draft and scheduled. Scheduled results are validated before saving. It cannot edit posted, failed, pending, or due posts.`,
-      inputSchema: updateScheduledPostSchema.shape,
+      inputSchema: fittingSchema(updateScheduledPostSchema.shape, context.imageFittingEnabled),
       outputSchema: updateScheduledPostOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,
       _meta: toolMeta("Updating your post", "Post updated"),

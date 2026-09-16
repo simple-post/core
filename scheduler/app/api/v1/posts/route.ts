@@ -183,6 +183,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     });
 
     const validation = await validatePostForAccounts({
+      imageFit: validated.imageFit,
       userId,
       message: validated.message,
       media: mediaFiles,

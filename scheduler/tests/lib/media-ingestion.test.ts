@@ -69,3 +69,37 @@ it("returns structured recovery details when declared and detected media types d
     maxAutomaticRetries: 0,
   });
 });
+
+it("registers each imported object once, even when a URL is reused", async () => {
+  const onUploaded = jest.fn().mockResolvedValue(undefined);
+  const media = { id: "m1", type: "image" as const, url: external, filename: "photo.jpg", size: 0 };
+
+  await ingestPostMedia(
+    "user",
+    {
+      media: [media],
+      thread: [{ message: "reply", media: [{ ...media, id: "m2" }] }],
+      accountOverrides: { account: { media: [{ ...media, id: "m3" }] } },
+      accountOptions: { account: { thumbnailUrl: "https://files.example/thumb.jpg" } },
+    },
+    { onUploaded },
+  );
+
+  // Two distinct sources, each imported and registered exactly once.
+  expect(uploadMedia).toHaveBeenCalledTimes(2);
+  expect(onUploaded).toHaveBeenCalledTimes(2);
+  expect(onUploaded).toHaveBeenCalledWith(managed);
+});
+
+it("does not register media the user already owns", async () => {
+  jest.mocked(getOwnedStorageKeyFromUrl).mockReturnValue("uploads/user/photo.jpg");
+  const onUploaded = jest.fn().mockResolvedValue(undefined);
+
+  await ingestPostMedia(
+    "user",
+    { media: [{ id: "m1", type: "image" as const, url: managed, filename: "photo.jpg", size: 123 }] },
+    { onUploaded },
+  );
+
+  expect(onUploaded).not.toHaveBeenCalled();
+});

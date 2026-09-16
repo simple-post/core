@@ -86,3 +86,7 @@ Content can change at a remote URL and account state can change after validation
 The publishing boundary re-inspects/rechecks, but no preflight can guarantee
 provider acceptance, prevent moderation, or reserve future quota. Existing failed
 post accounting and durable-publish protections remain in force.
+
+## Optional image fitting
+
+Validation remains blocking by default. Callers may opt in to `imageFit: "crop" | "blur"` to prepare compatible images and validate again. See [image fitting](../docs/image-fitting.md) for API, MCP, CLI, SDK and UI behavior and processing limits.

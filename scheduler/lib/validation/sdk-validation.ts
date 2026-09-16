@@ -1,14 +1,23 @@
+import {
+  fitRemoteImagesForAccounts,
+  ImageFitError,
+  type ImageFit,
+  type ThreadSegment,
+  type ValidationIssue,
+} from "@simple-post/sdk";
 import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
+import { requireImageFitting } from "@/lib/features";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
+import { BadRequestError } from "@/lib/utils/errors";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
 
 import type { ValidationResultByPlatform } from "./post-validation";
-import type { ThreadSegment, ValidationIssue } from "@simple-post/sdk";
 
 function addMediaInspectionFailures(
   validation: ValidationResultByPlatform,
@@ -32,6 +41,7 @@ function addMediaInspectionFailures(
 }
 
 export async function validatePostForAccounts(params: {
+  imageFit?: ImageFit;
   userId: string;
   message: string;
   media: MediaFile[];
@@ -40,6 +50,7 @@ export async function validatePostForAccounts(params: {
   accountOverrides?: AccountOverridesMap;
   thread?: ThreadSegment[];
 }): Promise<ValidationResultByPlatform> {
+  if (params.imageFit) await requireImageFitting(params.userId);
   const accounts = await prisma.connectedAccount.findMany({
     where: {
       userId: params.userId,
@@ -58,6 +69,21 @@ export async function validatePostForAccounts(params: {
       previewOnly: isPreviewOnlyTokenMetadata(tokenMetadata),
     };
   });
+
+  if (params.imageFit) {
+    if (resolvedAccounts.length !== new Set(params.accountIds).size)
+      throw new BadRequestError("One or more accounts were not found");
+    try {
+      await fitRemoteImagesForAccounts(params, resolvedAccounts, params.imageFit, params.userId, async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, params.userId, url));
+      });
+    } catch (error) {
+      // The SDK writes these for the person who asked to fit. Keep the guidance
+      // instead of letting it fall through as an unexpected 500.
+      if (error instanceof ImageFitError) throw new BadRequestError(error.message);
+      throw error;
+    }
+  }
 
   // Never trust caller-provided byte counts for URL-backed media. This shared
   // boundary is used by the HTTP API, MCP tools, and scheduled posts. Updating

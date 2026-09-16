@@ -1,4 +1,4 @@
-import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
+import { fitRemoteImagesForAccounts, hydrateRemoteMediaSizesForAccounts, ImageFitError } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -6,10 +6,12 @@ import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
   hydrateRemoteMediaSizesForAccounts: jest.fn(),
+  fitRemoteImagesForAccounts: jest.fn(),
 }));
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
+    userFeature: { findUnique: jest.fn().mockResolvedValue({ userId: "user-1" }) },
     connectedAccount: {
       findMany: jest.fn(),
     },
@@ -172,4 +174,98 @@ it("merges SDK media inspection failures into account and summary validation", a
   expect(result.results[0]).toMatchObject({ isValid: false });
   expect(result.results[0].errors).toContainEqual(expect.objectContaining({ code: "media_size_unavailable" }));
   expect(result.summary.errors).toContainEqual(expect.objectContaining({ code: "media_size_unavailable" }));
+});
+
+it("fits only on opt-in and validates the persisted derivative after checking account ownership", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([connectedAccount]);
+  const original = {
+    id: "one",
+    type: "image" as const,
+    url: "https://cdn.example.com/original.png",
+    filename: "original.png",
+    size: 0,
+  };
+  const media = [original];
+  jest.mocked(fitRemoteImagesForAccounts).mockImplementationOnce(async (content) => {
+    content.media.splice(0, 1, { ...original, url: "https://cdn.example.com/fitted.jpg", filename: "fitted.jpg" });
+  });
+  hydrateRemoteMediaSizesMock.mockImplementationOnce(async (params) => {
+    params.media[0].size = 1200;
+    return [];
+  });
+  await validatePostForAccounts({
+    userId: "user-1",
+    message: "Photo",
+    media,
+    accountIds: ["account-1"],
+    imageFit: "blur",
+  });
+  expect(fitRemoteImagesForAccounts).toHaveBeenCalledWith(
+    expect.objectContaining({ media }),
+    expect.any(Array),
+    "blur",
+    "user-1",
+    expect.any(Function),
+  );
+  expect(media[0]).toMatchObject({ url: "https://cdn.example.com/fitted.jpg", size: 1200 });
+  expect(original.url).toContain("original.png");
+  jest.mocked(fitRemoteImagesForAccounts).mockClear();
+  await validatePostForAccounts({ userId: "user-1", message: "Photo", media, accountIds: ["account-1"] });
+  expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
+  prismaMock.connectedAccount.findMany.mockResolvedValue([]);
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media,
+      accountIds: ["someone-elses-account"],
+      imageFit: "crop",
+    }),
+  ).rejects.toThrow("accounts were not found");
+  expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
+});
+
+it("denies fitting before inspecting or uploading media when no grant exists", async () => {
+  jest.mocked(prisma.userFeature.findUnique).mockResolvedValueOnce(null);
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media: [],
+      accountIds: ["account-1"],
+      imageFit: "crop",
+    }),
+  ).rejects.toMatchObject({ statusCode: 403 });
+  expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
+  expect(hydrateRemoteMediaSizesForAccounts).not.toHaveBeenCalled();
+  expect(prisma.connectedAccount.findMany).not.toHaveBeenCalled();
+});
+
+it("surfaces unfittable images as an actionable 400 instead of an unexpected 500", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([connectedAccount]);
+  jest
+    .mocked(fitRemoteImagesForAccounts)
+    .mockRejectedValueOnce(new ImageFitError("Image fitting accepts files up to 32 MB."));
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media: [],
+      accountIds: ["account-1"],
+      imageFit: "crop",
+    }),
+  ).rejects.toMatchObject({ statusCode: 400, message: "Image fitting accepts files up to 32 MB." });
+});
+
+it("rejects fitting against an account the user does not own with 400, not 500", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([]);
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media: [],
+      accountIds: ["someone-elses-account"],
+      imageFit: "crop",
+    }),
+  ).rejects.toMatchObject({ statusCode: 400 });
 });

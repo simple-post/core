@@ -1,9 +1,16 @@
-import { Prisma } from "@prisma/client";
-import { AccountIdsSchema, AccountOptionsMapSchema } from "@simple-post/sdk";
+import { Feature, Prisma } from "@prisma/client";
+import {
+  ImageFitSchema,
+  canFitImageIssue,
+  IMAGE_FIT_HELP,
+  AccountIdsSchema,
+  AccountOptionsMapSchema,
+} from "@simple-post/sdk";
 import { z } from "zod";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { hasFeature } from "@/lib/features";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -29,9 +36,10 @@ import {
   toMediaFiles,
   toThreadSegments,
 } from "./media-schema";
-import { validatePost, validatePostOutputSchema } from "./validation";
+import { validatePost, validatePostOutputSchema, validateResolvedPost } from "./validation";
 
 export const createPostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   message: z.string().describe("The post text content"),
   accountIds: AccountIdsSchema.describe(
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
@@ -131,6 +139,7 @@ export const previewPostOutputSchema = z.object({
 });
 
 export const createPostOutputSchema = z.object({
+  imageFitHelp: z.string().optional(),
   kind: z.literal("post"),
   message: z.string(),
   postingMode: z.enum(["now", "schedule", "draft"]),
@@ -175,6 +184,7 @@ export const inspectPostsSchema = z.object({
 });
 
 export const updateScheduledPostSchema = z.object({
+  imageFit: ImageFitSchema.optional(),
   postId: z
     .string()
     .describe("ID of the draft or future scheduled SimplePost post to edit. Use inspect_posts to find it."),
@@ -520,12 +530,19 @@ async function assertCredentialsReadyForPublish(params: {
   }
 }
 
-function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
+/**
+ * Media the update leaves unreferenced, so it can be released from storage.
+ *
+ * `original` must be captured before ingestion or image fitting run: both
+ * rewrite media URLs, and depending on whether they happen to copy rather than
+ * mutate would make a replaced original undetectable.
+ */
+function getRemovedMedia(original: MediaFile[], newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
   const keptUrls = new Set([
     ...newMedia.map((media) => media.url),
     ...(newThread ?? []).flatMap((segment) => (segment.media ?? []).map((media) => media.url)),
   ]);
-  return collectMediaForCleanup(oldPost).filter((media) => !keptUrls.has(media.url));
+  return original.filter((media) => !keptUrls.has(media.url));
 }
 
 export async function previewPost(
@@ -544,6 +561,7 @@ export async function previewPost(
     scheduledFor,
   });
   const validation = await validatePost(userId, {
+    imageFit: input.imageFit,
     message: input.message,
     accountIds: input.accountIds,
     accountOptions: input.accountOptions,
@@ -645,6 +663,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.media !== undefined ||
     input.thread !== undefined ||
     input.accountOptions !== undefined ||
+    input.imageFit !== undefined ||
     input.postingMode !== undefined ||
     input.scheduledFor !== undefined ||
     input.quotePostId !== undefined;
@@ -664,6 +683,10 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
+  // Snapshot before anything can rewrite a URL, so replaced originals stay
+  // identifiable for cleanup. Copied, because a rewrite in place would
+  // otherwise change the very values being compared against.
+  const originalMedia = collectMediaForCleanup(currentPost).map((item) => ({ ...item }));
   let media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   let accountOptions = await resolveMcpAccountOptions(
     userId,
@@ -691,7 +714,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     currentPostId: input.postId,
   });
 
-  const validation = await validatePost(userId, {
+  // Validate the resolved SDK values rather than the MCP wire shapes: fitting
+  // rewrites `media`, `thread` and `accountOptions` in place, and the wire
+  // schemas cannot carry thread segment media or `contentType`.
+  const validation = await validateResolvedPost(userId, {
+    imageFit: input.imageFit,
     message,
     accountIds,
     accountOptions,
@@ -710,7 +737,9 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     const errorMessages = validation.accounts
       .flatMap((account) => account.errors.map((error) => error.message))
       .join("; ");
-    throw new Error(`Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`);
+    throw new Error(
+      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
+    );
   }
 
   // Scheduling a draft is the point where it starts costing trial allowance,
@@ -734,8 +763,8 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;
-  if (input.media !== undefined) updates.media = media;
-  if (input.thread !== undefined) updates.thread = thread ?? [];
+  if (input.media !== undefined || input.imageFit) updates.media = media;
+  if (input.thread !== undefined || input.imageFit) updates.thread = thread ?? [];
   if (targetPostingMode !== currentPostingMode)
     updates.status = targetPostingMode === "schedule" ? "scheduled" : "draft";
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
@@ -767,8 +796,9 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     );
   });
 
-  if (input.media !== undefined || input.thread !== undefined) {
-    const removedMedia = getRemovedMedia(currentPost, media, threadForValidation);
+  // Fitting replaces originals with derivatives, so it orphans objects too.
+  if (input.media !== undefined || input.thread !== undefined || input.imageFit) {
+    const removedMedia = getRemovedMedia(originalMedia, media, thread ?? undefined);
     if (removedMedia.length > 0) {
       await deleteMediaFiles(userId, removedMedia);
     }
@@ -783,8 +813,8 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       updated: true,
       messageChanged: input.message !== undefined,
       accountsChanged: input.accountIds !== undefined,
-      mediaChanged: input.media !== undefined,
-      threadChanged: input.thread !== undefined,
+      mediaChanged: input.media !== undefined || input.imageFit !== undefined,
+      threadChanged: input.thread !== undefined || (input.imageFit !== undefined && (thread?.length ?? 0) > 0),
       statusChanged: targetPostingMode !== currentPostingMode,
       scheduledForChanged: input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode,
       quoteChanged: input.quotePostId !== undefined,
@@ -876,7 +906,10 @@ function buildReplayResponse(post: SocialPost, input: z.infer<typeof createPostS
   };
 }
 
-export async function createPost(userId: string, input: z.infer<typeof createPostSchema>) {
+export async function createPost(
+  userId: string,
+  input: z.infer<typeof createPostSchema>,
+): Promise<z.infer<typeof createPostOutputSchema>> {
   input = { ...input, accountIds: [...new Set(input.accountIds)] };
   const repository = new PostsModel(userId);
 
@@ -925,6 +958,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
 
   // Validate content
   const validation = await validatePostForAccounts({
+    imageFit: input.imageFit,
     userId,
     message: input.message,
     media: mediaFiles,
@@ -940,8 +974,13 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     );
   }
 
+  const canOfferImageFitting =
+    validation.summary.errors.some((issue) => canFitImageIssue(issue)) &&
+    (await hasFeature(userId, Feature.IMAGE_FITTING));
+
   if (postingMode !== "draft" && !validation.summary.isValid) {
-    const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
+    const errorMessages =
+      validation.summary.errors.map((e) => e.message).join("; ") + (canOfferImageFitting ? " " + IMAGE_FIT_HELP : "");
     throw new Error(
       `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
     );
@@ -1149,6 +1188,14 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     postingMode,
     mediaCount: mediaFiles.length,
     post: mapPost(post),
+    imageFitHelp: canOfferImageFitting
+      ? validation.summary.errors
+          .filter((issue) => canFitImageIssue(issue))
+          .map((issue) => `${issue.platform}: ${issue.message}`)
+          .join(" ") +
+        " " +
+        IMAGE_FIT_HELP
+      : undefined,
     postingResults: [],
     summary: {
       accountCount: input.accountIds.length,

@@ -10,7 +10,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Feature {
+  IMAGE_FITTING
+}
+
+model UserFeature {
+  userId    String
+  feature   Feature
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, feature])
+  @@map("user_feature")
+}
+
 model User {
+  features                     UserFeature[]
   id                           String                      @id
   name                         String
   email                        String

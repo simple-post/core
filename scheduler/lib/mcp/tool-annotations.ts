@@ -28,17 +28,17 @@ export const MCP_TOOL_ANNOTATIONS = {
   },
   validate_post: {
     title: "Validate a SimplePost draft",
-    readOnlyHint: true,
+    readOnlyHint: false,
     destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
   },
   preview_post: {
     title: "Preview a SimplePost draft",
-    readOnlyHint: true,
+    readOnlyHint: false,
     destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
   },
   show_post_preview: {
     title: "Show a SimplePost preview",

@@ -9,10 +9,17 @@ import { getExpectedCliPaths, makeTempHome } from "../helpers.js";
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
   post: jest.fn(),
+  validatePostMedia: jest.fn().mockResolvedValue([]),
+  fitPostImages: jest.fn(),
+  // Staging downloads real bytes; these tests assert what is handed to the SDK.
+  prepareMedia: jest.fn(async (post) => ({ post, cleanup: async () => {} })),
 }));
 
 const sdk = jest.requireMock("@simple-post/sdk") as {
   post: jest.Mock;
+  validatePostMedia: jest.Mock;
+  fitPostImages: jest.Mock;
+  prepareMedia: jest.Mock;
 };
 
 describe("runPostWorkflow", () => {
@@ -392,5 +399,89 @@ it.each(["public", "draft"])(
     expect(JSON.stringify(body)).not.toContain("must-not-be-sent");
     if (publishMode === "draft") expect(outputs[0]).toContain("Publish manually");
     delete (globalThis as any).fetch;
+  },
+);
+
+it.each(["crop", "blur", "prompt", "cancel", "noninteractive"])(
+  "handles image fitting with %s before any publish",
+  async (choice) => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = {
+      interactive: choice === "prompt" || choice === "cancel",
+      log: jest.fn(),
+      select: jest.fn().mockResolvedValue(choice === "cancel" ? "cancel" : "blur"),
+    } as any;
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    config.x.accounts = [
+      {
+        alias: "main",
+        userId: "123",
+        secretRef: "x-fit",
+        connectedAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    ];
+    await saveCliConfig(paths, config);
+    const store = createSecretStore(paths, { backend: "file-plain" }, prompt);
+    await store.write("x-fit", {
+      accessToken: "token",
+      refreshToken: "refresh",
+      expiresAt: 4_102_444_800,
+      tokenMetadata: { clientId: "test-client" },
+    });
+    sdk.post.mockClear();
+    sdk.validatePostMedia.mockClear();
+    sdk.fitPostImages.mockClear();
+    sdk.validatePostMedia.mockResolvedValue([
+      { platform: "x", code: "image_too_large", severity: "error", message: "Image too large" },
+    ]);
+    const cleanup = jest.fn().mockImplementation(async () => {});
+    sdk.fitPostImages.mockImplementation(async (post) => ({
+      post: { ...post, content: { ...post.content, media: [{ type: "image", path: "/tmp/fitted.jpg" }] } },
+      cleanup,
+    }));
+    sdk.post.mockResolvedValue(new Map([["x", { error: "NO_ERROR", id: "123" }]]));
+    const writeOutput = jest.fn();
+    const run = runPostWorkflow({
+      config: { configDir: paths.configDir } as any,
+      flags: {
+        account: ["x:main"],
+        image: ["https://example.com/source.jpg"],
+        text: "Photo",
+        ...(["crop", "blur"].includes(choice) ? { "fit-images": choice } : {}),
+      },
+      prompt,
+      writeOutput,
+    });
+    if (choice === "cancel") {
+      await expect(run).rejects.toThrow(/cancelled/);
+      expect(sdk.post).not.toHaveBeenCalled();
+      expect(sdk.fitPostImages).not.toHaveBeenCalled();
+    } else if (choice === "noninteractive") {
+      // Without a fitting choice we still publish: platforms that are fine with
+      // the image succeed, and the rest report their own per-platform failure.
+      await run;
+      expect(sdk.fitPostImages).not.toHaveBeenCalled();
+      expect(sdk.post).toHaveBeenCalled();
+      expect(writeOutput.mock.calls.flat().join("\n")).toMatch(/--fit-images/);
+    } else {
+      await run;
+      expect(sdk.fitPostImages).toHaveBeenCalledWith(expect.anything(), choice === "prompt" ? "blur" : choice);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      if (choice !== "prompt") {
+        expect(prompt.select).not.toHaveBeenCalled();
+        // Naming the method up front skips the fitting preflight, so the only
+        // validation left is the pre-publish check on the fitted post.
+        expect(sdk.validatePostMedia).toHaveBeenCalledTimes(1);
+        expect(sdk.validatePostMedia).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.objectContaining({ media: [{ type: "image", path: "/tmp/fitted.jpg" }] }),
+          }),
+        );
+      }
+    }
+    sdk.validatePostMedia.mockResolvedValue([]);
   },
 );

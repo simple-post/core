@@ -1,5 +1,7 @@
 # @simple-post/server
 
+[Automatic image fitting: crop or blurred padding](../docs/image-fitting.md).
+
 Self-hosted HTTP API for posting to social media. Supports an immediate-posting subset of the Scheduler API with `x-api-key` authentication, file-based accounts, and no saved drafts, scheduling, or post history. See the [API comparison](https://docs.simplepost.social/api).
 
 Full documentation, including the `accounts.json` schema and per-platform credential examples, lives at [`docs/http-server/README.md`](../docs/http-server/README.md).

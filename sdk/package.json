@@ -50,6 +50,11 @@
       "types": "./dist/platform-names.d.ts",
       "import": "./dist/platform-names.js",
       "require": "./dist/platform-names.cjs"
+    },
+    "./image-fit": {
+      "types": "./dist/image-fit.d.ts",
+      "import": "./dist/image-fit.js",
+      "require": "./dist/image-fit.cjs"
     }
   },
   "main": "./dist/index.cjs",

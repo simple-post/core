@@ -3,10 +3,12 @@ import { Readable } from "node:stream";
 import axios from "axios";
 import sharp from "sharp";
 
+import { hasFeature } from "@/lib/features";
 import { validatePost } from "@/lib/mcp/tools/validation";
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
+jest.mock("@/lib/features", () => ({ hasFeature: jest.fn().mockResolvedValue(false) }));
 jest.mock("axios");
 jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findMany: jest.fn() } } }));
 jest.mock("@/lib/security/connected-account-secrets", () => ({ decryptTokenMetadata: () => ({}) }));
@@ -107,4 +109,16 @@ it("blocks a 540×1080 JPEG through MCP before publishing", async () => {
       message: expect.stringContaining("540×1080"),
     }),
   );
+});
+
+it.each([false, true])("only offers fitting to granted users (grant=%s)", async (enabled) => {
+  jest.mocked(hasFeature).mockResolvedValueOnce(enabled);
+  const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } })
+    .png()
+    .toBuffer();
+  serve(png, "image/png");
+  const result = await validatePost("user", { message: "hello", accountIds: ["instagram"], media: [media] });
+  expect(result.isValid).toBe(false);
+  if (enabled) expect(result.imageFitHelp).toContain("crop");
+  else expect(result.imageFitHelp).toBeUndefined();
 });

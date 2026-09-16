@@ -31,7 +31,7 @@ The hosted scheduler and self-hosted server accept optional `imageFit: "crop" | 
 
 For review before publishing, submit the content to `/api/v1/validation` with `imageFit`. The response includes the normal validation result and `fittedContent` containing `media`, `accountOverrides`, `accountOptions`, and `thread`. Render those image URLs, then copy the reviewed fields into the create/update request **without** `imageFit`. Validation may still return unrelated errors; resolve them before publishing. Validation with fitting uploads derivatives but never publishes a post.
 
-Transformations require configured S3-compatible storage for hosted URLs. Scheduler derivatives are registered with the existing 24-hour storage collection process: media referenced by saved posts is retained; abandoned previews are eligible for collection. Save reviewed images before they expire. The self-hosted server uses its configured bucket and requires an operator-managed retention policy for unused previews.
+Transformations require configured S3-compatible storage for hosted URLs. Fitting always runs on media already imported into SimplePost storage: every surface that fits — create, update and validation — imports external URLs first, so the same size, type and SSRF checks apply before any transformation, and the returned result can be persisted as-is. Both the imported sources and the derivatives are registered with the existing 24-hour storage collection process: media referenced by saved posts is retained; abandoned previews are eligible for collection. Save reviewed images before they expire. The self-hosted server uses its configured bucket and requires an operator-managed retention policy for unused previews.
 
 ## MCP
 
@@ -39,7 +39,7 @@ Transformations require configured S3-compatible storage for hosted URLs. Schedu
 
 When validation finds a fixable image issue, SimplePost provides instructions to offer the two methods. After the user chooses, retry with the chosen method. If the user already asked to fit images, no extra fitting confirmation is needed; use their chosen method, defaulting to `blur` if they did not specify one. Other posting authorization still applies.
 
-`validate_post` returns `fittedMedia`, `fittedThread`, and `fittedAccountOptions` when fitting is requested. Reuse them for a visual preview or subsequent create request. To compare methods, submit the original source URLs again, not an already-cropped derivative.
+`validate_post` returns `fittedMedia` and `fittedAccountOptions` when fitting is requested. Reuse them for a visual preview or subsequent create request. To compare methods, submit the original source URLs again, not an already-cropped derivative.
 
 ## CLI
 

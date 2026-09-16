@@ -530,12 +530,19 @@ async function assertCredentialsReadyForPublish(params: {
   }
 }
 
-function getRemovedMedia(oldPost: SocialPost, newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
+/**
+ * Media the update leaves unreferenced, so it can be released from storage.
+ *
+ * `original` must be captured before ingestion or image fitting run: both
+ * rewrite media URLs, and depending on whether they happen to copy rather than
+ * mutate would make a replaced original undetectable.
+ */
+function getRemovedMedia(original: MediaFile[], newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
   const keptUrls = new Set([
     ...newMedia.map((media) => media.url),
     ...(newThread ?? []).flatMap((segment) => (segment.media ?? []).map((media) => media.url)),
   ]);
-  return collectMediaForCleanup(oldPost).filter((media) => !keptUrls.has(media.url));
+  return original.filter((media) => !keptUrls.has(media.url));
 }
 
 export async function previewPost(
@@ -676,6 +683,10 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
+  // Snapshot before anything can rewrite a URL, so replaced originals stay
+  // identifiable for cleanup. Copied, because a rewrite in place would
+  // otherwise change the very values being compared against.
+  const originalMedia = collectMediaForCleanup(currentPost).map((item) => ({ ...item }));
   let media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
   let accountOptions = await resolveMcpAccountOptions(
     userId,
@@ -787,7 +798,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   // Fitting replaces originals with derivatives, so it orphans objects too.
   if (input.media !== undefined || input.thread !== undefined || input.imageFit) {
-    const removedMedia = getRemovedMedia(currentPost, media, thread ?? undefined);
+    const removedMedia = getRemovedMedia(originalMedia, media, thread ?? undefined);
     if (removedMedia.length > 0) {
       await deleteMediaFiles(userId, removedMedia);
     }

@@ -11,12 +11,15 @@ jest.mock("@simple-post/sdk", () => ({
   post: jest.fn(),
   validatePostMedia: jest.fn().mockResolvedValue([]),
   fitPostImages: jest.fn(),
+  // Staging downloads real bytes; these tests assert what is handed to the SDK.
+  prepareMedia: jest.fn(async (post) => ({ post, cleanup: async () => {} })),
 }));
 
 const sdk = jest.requireMock("@simple-post/sdk") as {
   post: jest.Mock;
   validatePostMedia: jest.Mock;
   fitPostImages: jest.Mock;
+  prepareMedia: jest.Mock;
 };
 
 describe("runPostWorkflow", () => {

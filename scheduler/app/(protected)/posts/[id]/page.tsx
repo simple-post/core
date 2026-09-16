@@ -13,6 +13,7 @@ import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
+import { PostSocialPanel } from "@/components/social-activity";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,6 +137,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const isFailed = post.status === "failed";
   const isPublished = post.status === "published";
   const canQuote = isScheduled || isPublished;
+  const hasPublishedPlatformPost =
+    Object.values(post.accountResults ?? {}).some((result) => result.success && result.postId) ||
+    Object.values(post.threadResults ?? {}).some((segments) =>
+      segments.some((segment) => segment.success && segment.postId),
+    );
   const failedPlatforms: FailedPlatform[] = Array.isArray(post.errorDetails?.failedPlatforms)
     ? (post.errorDetails.failedPlatforms as FailedPlatform[])
     : [];
@@ -287,6 +293,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             />
 
             <PublishedPostLinks post={post} accounts={postAccounts} />
+
+            {hasPublishedPlatformPost ? <PostSocialPanel postId={post.id} /> : null}
 
             {/* Accounts */}
             <div className="rounded-2xl border border-border bg-card p-6">

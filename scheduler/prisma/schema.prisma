@@ -35,6 +35,9 @@ model User {
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
   postingSlots                 PostingSlot[]
+  socialActivityItems          SocialActivityItem[]
+  socialActivityMetrics        SocialPostMetric[]
+  socialActivityReplies        SocialActivityReply[]
 
   @@unique([email])
   @@map("user")
@@ -254,6 +257,10 @@ model ConnectedAccount {
 
   // Relations
   posts Post[]
+  socialActivityItems SocialActivityItem[]
+  socialActivityMetrics SocialPostMetric[]
+  socialActivitySync SocialActivitySync?
+  socialActivityReplies SocialActivityReply[]
 
   @@unique([userId, platform, platformAccountId])
   @@index([userId])
@@ -331,6 +338,8 @@ model Post {
   // Relations
   accounts ConnectedAccount[]
   media    MediaFile[]
+  socialActivityItems SocialActivityItem[]
+  socialActivityMetrics SocialPostMetric[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
@@ -427,6 +436,106 @@ model MediaFile {
 
   @@index([postId])
   @@map("media_file")
+}
+
+// Cached, authenticated social activity. Native IDs are obtained only from
+// SimplePost's own publish records or provider responses, never from a browser
+// request. This makes reply targets independently owner-verifiable.
+model SocialActivityItem {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId        String
+  account          ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  postId           String?
+  post             Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platform         String
+  kind             String   // "comment" | "mention"
+  nativeId         String
+  nativePostId     String
+  nativeUrl        String?
+  body             String
+  author           Json?
+  providerData     Json?
+  createdAtNative  DateTime?
+  canReply         Boolean  @default(false)
+  firstSeenAt      DateTime @default(now())
+  lastSeenAt       DateTime @default(now())
+  replies          SocialActivityReply[]
+
+  @@unique([accountId, kind, nativeId])
+  @@index([userId, kind, createdAtNative])
+  @@index([postId, createdAtNative])
+  @@map("social_activity_item")
+}
+
+model SocialPostMetric {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId    String
+  account      ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platform     String
+  nativePostId String
+  nativeUrl    String?
+  values       Json?
+  coverage     String?
+  fetchedAt    DateTime?
+  lastAttemptAt DateTime @default(now())
+  errorCode    String?
+  errorMessage String?
+
+  @@unique([accountId, nativePostId])
+  @@index([userId, postId, fetchedAt])
+  @@map("social_post_metric")
+}
+
+// One cursor per connected account keeps comments and mentions resumable. A
+// manual refresh advances a bounded number of owned post targets at a time.
+model SocialActivitySync {
+  id                   String   @id @default(cuid())
+  accountId            String   @unique
+  account              ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  // A stable list of owned target identifiers prevents newer posts from
+  // shifting older targets out of a resumable traversal.
+  targetSnapshot        Json?
+  targetIndex           Int      @default(0)
+  // Per-native-target opaque cursors. Provider paging URLs are never stored.
+  commentCursors        Json?
+  mentionCursor        String?
+  lastCommentsSyncAt   DateTime?
+  lastMentionsSyncAt   DateTime?
+  lastError            String?
+  updatedAt            DateTime @updatedAt
+
+  @@map("social_activity_sync")
+}
+
+// Reply intent is inserted before provider I/O. A client retry with the same
+// key can never create a second outbound reply after a successful response.
+model SocialActivityReply {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  activityItemId String
+  activityItem   SocialActivityItem @relation(fields: [activityItemId], references: [id], onDelete: Cascade)
+  idempotencyKey String
+  body           String
+  status         String   @default("pending") // pending | sent | failed | uncertain
+  nativeReplyId  String?
+  nativeReplyUrl String?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, idempotencyKey])
+  @@index([activityItemId, createdAt])
+  @@map("social_activity_reply")
 }
 
 // MCP OAuth clients (registered via Dynamic Client Registration)

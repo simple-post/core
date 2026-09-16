@@ -5,7 +5,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { LayoutGrid, Plus, Users } from "lucide-react";
+import { Inbox, LayoutGrid, Plus, Users } from "lucide-react";
 
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,12 @@ const PRIMARY_NAV: NavItem[] = [
     label: "Accounts",
     icon: Users,
     isActive: (pathname) => pathname.startsWith("/accounts"),
+  },
+  {
+    href: "/social",
+    label: "Inbox",
+    icon: Inbox,
+    isActive: (pathname) => pathname.startsWith("/social"),
   },
 ];
 

@@ -123,5 +123,19 @@ revocation blocks the next fitting request. Existing fitted images are retained.
 `GET /api/v1/features` returns the authenticated user's grants; there is no public
 grant-management endpoint. Grants are separate from subscription access.
 
+## Enabling for everyone
+
+Set `GLOBAL_FEATURES` to a comma-separated list of `Feature` enum names to switch
+a feature on for all users without granting it per user:
+
+```
+GLOBAL_FEATURES=IMAGE_FITTING
+```
+
+This applies to new signups as well as existing users, needs no migration, and is
+reverted by unsetting the variable — per-user grants continue to work either way.
+Unrecognized names are ignored. `GET /api/v1/features` reports globally enabled
+features alongside the user's own grants, so the UI controls appear.
+
 Local SDK/CLI fitting and the self-hosted API do not use the hosted user database.
 Keep the SDK/CLI release unpublished during the private hosted rollout.

@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const body = await req.json();
+    const mediaPreflight = req.nextUrl.searchParams.get("mediaPreflight") === "1";
 
     let validated = validationRequestSchema.parse(body);
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const validation = await validatePostForAccounts({
+      checkAccountReadiness: !mediaPreflight,
       imageFit: validated.imageFit,
       userId: session.user.id,
       message: validated.message,

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
+import { Feature } from "@prisma/client";
+import { canFitImageIssue } from "@simple-post/sdk/image-fit";
 import { format } from "date-fns";
 import { AlertCircle, Info, Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AccountOptionsComponent } from "@/features/platform-options/account-options";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
@@ -32,6 +35,7 @@ import {
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
+import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
@@ -46,6 +50,7 @@ import type {
 
 import { AccountSelector } from "./account-selector";
 import { CreatePostForm } from "./create-post-form";
+import { ImageFitReview } from "./image-fit-review";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
@@ -122,12 +127,13 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
   const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
   const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
-  const [accountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
+  const [accountOverrides, setAccountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
   const [quotePostId, setQuotePostId] = useState<string | null>(existingPost.quotePostId ?? null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
+  const [showImageFit, setShowImageFit] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
@@ -137,6 +143,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
 
   const submitPostMutation = useSubmitPost();
+  const { hasFeature } = useFeatures();
+  const imageFittingEnabled = hasFeature(Feature.IMAGE_FITTING);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
@@ -151,6 +159,16 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         Object.entries(accountOverrides).filter(([accountId]) => selectedAccountIdSet.has(accountId)),
       ) as AccountOverridesMap,
     [accountOverrides, selectedAccountIdSet],
+  );
+  const shouldPreflightImages = useMemo(
+    () =>
+      hasImageContent({
+        media,
+        accountOptions,
+        accountOverrides: enabledOverrides,
+        thread,
+      }),
+    [accountOptions, enabledOverrides, media, thread],
   );
   const selectedTikTokAccounts = useMemo(
     () => selectedAccounts.filter((account) => account.platform.toLowerCase() === "tiktok"),
@@ -196,7 +214,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const validation = serverValidation ?? localValidation;
 
   const runBackendValidation = useCallback(
-    async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
+    async (signal?: AbortSignal, mediaPreflight = false): Promise<ValidationResponse | null> => {
       if (selectedAccountIds.length === 0) {
         setServerValidation(null);
         setValidationError(null);
@@ -205,7 +223,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
       setValidationLoading(true);
       try {
-        const response = await fetch("/api/v1/validation", {
+        const response = await fetch(`/api/v1/validation${mediaPreflight ? "?mediaPreflight=1" : ""}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -241,6 +259,26 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     },
     [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread],
   );
+
+  useEffect(() => {
+    if (
+      postingMode === "draft" ||
+      !shouldPreflightImages ||
+      selectedAccountIds.length === 0 ||
+      selectedAccounts.length !== selectedAccountIds.length
+    ) {
+      setValidationLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setValidationLoading(true);
+    const timeout = window.setTimeout(() => void runBackendValidation(controller.signal, true), 500);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [postingMode, runBackendValidation, selectedAccountIds.length, selectedAccounts.length, shouldPreflightImages]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
@@ -292,6 +330,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
     return `${platform}: ${issue.message}`;
   };
+  const canOfferImageFitting =
+    imageFittingEnabled &&
+    [...(validation?.summary.errors ?? []), ...(validation?.summary.warnings ?? [])].some((issue) =>
+      canFitImageIssue(issue),
+    );
 
   const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const imageFiles = getClipboardImageFiles(event.clipboardData);
@@ -603,6 +646,23 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
           {/* Validation Feedback */}
           {/* Validation loading is shown in the submit button to avoid layout shift */}
+          {imageFittingEnabled && showImageFit && (
+            <ImageFitReview
+              content={{ media, accountOptions, accountOverrides: enabledOverrides, thread }}
+              accountIds={selectedAccountIds}
+              message={message}
+              onClose={() => setShowImageFit(false)}
+              onApply={(fitted) => {
+                setMedia(fitted.media);
+                if (fitted.accountOptions) setAccountOptions(fitted.accountOptions);
+                if (fitted.accountOverrides)
+                  setAccountOverrides((current) => ({ ...current, ...fitted.accountOverrides }));
+                if (fitted.thread) setThread(fitted.thread);
+                setShowImageFit(false);
+                setServerValidation(null);
+              }}
+            />
+          )}
           {validationError && (
             <Alert variant="destructive">
               <AlertCircle />
@@ -617,6 +677,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               <AlertCircle />
               <AlertTitle>Errors</AlertTitle>
               <AlertDescription>
+                {canOfferImageFitting && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
+                    Fit images…
+                  </Button>
+                )}
                 {validation.summary.errors.map((issue, index) => (
                   <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
                 ))}
@@ -628,6 +693,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               <Info />
               <AlertTitle>Warnings</AlertTitle>
               <AlertDescription>
+                {canOfferImageFitting && validation.summary.errors.length === 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
+                    Fit images…
+                  </Button>
+                )}
                 {validation.summary.warnings.map((issue, index) => (
                   <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
                 ))}

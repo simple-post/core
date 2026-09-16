@@ -63,6 +63,28 @@ it("rejects a real PNG for Instagram in the shared HTTP/app create-update valida
     }),
   );
 });
+
+it("reports both format and aspect-ratio errors for a tall Instagram PNG", async () => {
+  const png = await sharp({ create: { width: 488, height: 1000, channels: 3, background: "red" } })
+    .png()
+    .toBuffer();
+  serve(png, "image/png");
+  const result = await validatePostForAccounts({
+    userId: "user",
+    message: "hello",
+    accountIds: ["instagram"],
+    media: [media],
+  });
+
+  expect(result.summary.isValid).toBe(false);
+  expect(result.results[0].errors).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ code: "image_format_unsupported" }),
+      expect.objectContaining({ code: "media_aspect_ratio_unsupported", actual: 0.488 }),
+    ]),
+  );
+});
+
 it("accepts actual JPEG bytes through the shared HTTP/app validation boundary", async () => {
   const jpeg = await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } })
     .jpeg()

@@ -39,6 +39,7 @@ import {
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
 import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
+import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
@@ -138,6 +139,16 @@ export function CreatePostForm() {
       return acc;
     }, {} as AccountOverridesMap);
   }, [accountOverrides, selectedAccountIds]);
+  const shouldPreflightImages = useMemo(
+    () =>
+      hasImageContent({
+        media,
+        accountOptions,
+        accountOverrides: enabledOverrides,
+        thread,
+      }),
+    [accountOptions, enabledOverrides, media, thread],
+  );
 
   const selectedAccounts = useMemo(
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
@@ -267,7 +278,7 @@ export function CreatePostForm() {
   const validation = serverValidation ?? localValidation;
 
   const runBackendValidation = useCallback(
-    async (signal?: AbortSignal): Promise<ValidationResponse | null> => {
+    async (signal?: AbortSignal, mediaPreflight = false): Promise<ValidationResponse | null> => {
       if (selectedAccountIds.length === 0) {
         setServerValidation(null);
         setValidationError(null);
@@ -276,7 +287,7 @@ export function CreatePostForm() {
 
       setValidationLoading(true);
       try {
-        const response = await fetch("/api/v1/validation", {
+        const response = await fetch(`/api/v1/validation${mediaPreflight ? "?mediaPreflight=1" : ""}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -312,6 +323,29 @@ export function CreatePostForm() {
     },
     [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread],
   );
+
+  // Local validation cannot decode remote image bytes, so it cannot know the
+  // real format or dimensions. Debounce the authoritative server preflight as
+  // the post changes, before the user can schedule an invalid image.
+  useEffect(() => {
+    if (
+      postingMode === "draft" ||
+      !shouldPreflightImages ||
+      selectedAccountIds.length === 0 ||
+      selectedAccounts.length !== selectedAccountIds.length
+    ) {
+      setValidationLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setValidationLoading(true);
+    const timeout = window.setTimeout(() => void runBackendValidation(controller.signal, true), 500);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [postingMode, runBackendValidation, selectedAccountIds.length, selectedAccounts.length, shouldPreflightImages]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
@@ -378,6 +412,9 @@ export function CreatePostForm() {
     postingMode !== "draft" && (submitAttempted || contentTouched || hasComposedContent);
   const visibleValidationErrors = shouldShowValidationFeedback ? (validation?.summary.errors ?? []) : [];
   const visibleValidationWarnings = shouldShowValidationFeedback ? (validation?.summary.warnings ?? []) : [];
+  const canOfferImageFitting =
+    imageFittingEnabled &&
+    [...visibleValidationErrors, ...visibleValidationWarnings].some((issue) => canFitImageIssue(issue));
 
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
@@ -996,7 +1033,7 @@ export function CreatePostForm() {
                 <AlertTriangle className="h-3.5 w-3.5" />
                 <p className="font-medium">Before you can post</p>
               </div>
-              {imageFittingEnabled && visibleValidationErrors.some((issue) => canFitImageIssue(issue)) && (
+              {canOfferImageFitting && (
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
                   Fit images…
                 </Button>
@@ -1015,6 +1052,11 @@ export function CreatePostForm() {
                 <Info className="h-3.5 w-3.5" />
                 <p className="font-medium">Tips</p>
               </div>
+              {canOfferImageFitting && visibleValidationErrors.length === 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
+                  Fit images…
+                </Button>
+              )}
               {visibleValidationWarnings.map((issue, index) => (
                 <p key={`${issue.code}-${index}`} className="text-muted-foreground">
                   {formattedIssue(issue)}

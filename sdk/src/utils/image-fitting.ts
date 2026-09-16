@@ -215,6 +215,12 @@ export async function fitPostImages(post: Post, mode: ImageFit): Promise<{ post:
   }
 }
 
+/** A fitted derivative, or the untouched source when no transformation was needed. */
+interface FittedImage {
+  url: string;
+  size?: number;
+}
+
 export interface ImageFitContent {
   media: MediaFile[];
   accountOverrides?: AccountOverridesMap;
@@ -234,39 +240,51 @@ export async function fitRemoteImagesForAccounts(
   const prepared = structuredClone(content);
   let uploader: S3MediaUploader | undefined;
   const uploaded: string[] = [];
-  const cache = new Map<string, string>();
-  const fit = async (url: string, platforms: Platform[], mediaCount: number, thumbnail = false) => {
+  const cache = new Map<string, FittedImage>();
+  /** Returns a `size` only when the image was actually replaced. */
+  const fit = async (
+    url: string,
+    platforms: Platform[],
+    mediaCount: number,
+    thumbnail = false,
+  ): Promise<FittedImage> => {
     const key = JSON.stringify([url, [...platforms].sort(), mediaCount, thumbnail]);
-    if (cache.has(key)) return cache.get(key)!;
+    const cached = cache.get(key);
+    if (cached) return cached;
     const result = await fitImage({ url }, platforms, mode, { mediaCount, thumbnail });
-    if (!result) return url;
+    if (!result) return { url };
     uploader ??= new S3MediaUploader();
     const storageKey = generateFileKey(userId, "fitted-image.jpg");
     const fittedUrl = await uploader.uploadStream(Readable.from(result.bytes), storageKey, "image/jpeg");
     uploaded.push(storageKey);
     await onUploaded?.(fittedUrl);
-    cache.set(key, fittedUrl);
-    return fittedUrl;
+    // The byte count is known here, so the derivative never carries a
+    // placeholder size that a later inspection has to correct.
+    const fitted: FittedImage = { url: fittedUrl, size: result.bytes.length };
+    cache.set(key, fitted);
+    return fitted;
   };
   const fitMedia = async (media: MediaFile[] | undefined, targets: typeof accounts) => {
     const platforms = [...new Set(targets.map((account) => mapPlatformName(account.platform)))];
     if (platforms.length === 0) return;
     for (const item of media ?? []) {
       if (item.type === "image") {
-        const url = await fit(item.url, platforms, media!.length);
-        if (url !== item.url)
+        const fitted = await fit(item.url, platforms, media!.length);
+        if (fitted.size !== undefined)
           Object.assign(item, {
-            url,
+            url: fitted.url,
             id: randomUUID(),
             filename: "fitted-image.jpg",
             contentType: "image/jpeg",
-            size: 0,
+            size: fitted.size,
             thumbnailUrl: undefined,
           });
       } else if (item.thumbnailUrl) {
         const thumbnailPlatforms = platforms.filter((platform) => platform === "youtube" || platform === "pinterest");
-        if (thumbnailPlatforms.length > 0)
-          item.thumbnailUrl = await fit(item.thumbnailUrl, thumbnailPlatforms, 1, true);
+        if (thumbnailPlatforms.length > 0) {
+          const fittedThumbnail = await fit(item.thumbnailUrl, thumbnailPlatforms, 1, true);
+          item.thumbnailUrl = fittedThumbnail.url;
+        }
       }
     }
   };
@@ -290,8 +308,10 @@ export async function fitRemoteImagesForAccounts(
       if (isThreadCapablePlatform(mapPlatformName(account.platform)))
         for (const segment of override?.thread ?? []) await fitMedia(segment.media, [account]);
       const options = prepared.accountOptions?.[account.id];
-      if (account.platform === "youtube" && typeof options?.thumbnailUrl === "string")
-        options.thumbnailUrl = await fit(options.thumbnailUrl, ["youtube"], 1, true);
+      if (account.platform === "youtube" && typeof options?.thumbnailUrl === "string") {
+        const fittedThumbnail = await fit(options.thumbnailUrl, ["youtube"], 1, true);
+        options.thumbnailUrl = fittedThumbnail.url;
+      }
     }
     content.media.splice(0, content.media.length, ...prepared.media);
     if (content.thread && prepared.thread) content.thread.splice(0, content.thread.length, ...prepared.thread);

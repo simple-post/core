@@ -108,3 +108,29 @@ it("fits follow-up images for thread-capable accounts and skips unused media", a
   await fitRemoteImagesForAccounts(content, [{ id: "ig", platform: "instagram" }], "crop", "user-1");
   expect(downloadToTempFile).not.toHaveBeenCalled();
 });
+
+it("records the derivative's real byte count instead of a placeholder", async () => {
+  const uploaded: Buffer[] = [];
+  upload.mockImplementation(async (stream, key) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    uploaded.push(Buffer.concat(chunks));
+    return `https://cdn.example.com/${key}`;
+  });
+  const content: ImageFitContent = { media: [media("original")] };
+
+  await fitRemoteImagesForAccounts(content, [{ id: "ig", platform: "instagram" }], "blur", "user-1");
+
+  expect(uploaded).toHaveLength(1);
+  expect(content.media[0].size).toBe(uploaded[0].length);
+  expect(content.media[0].size).toBeGreaterThan(0);
+});
+
+it("leaves an image that needs no fitting completely untouched", async () => {
+  const content: ImageFitContent = { media: [media("original")] };
+  // Telegram accepts this 1:2 image, so nothing should be uploaded or rewritten.
+  await fitRemoteImagesForAccounts(content, [{ id: "tg", platform: "telegram" }], "blur", "user-1");
+
+  expect(upload).not.toHaveBeenCalled();
+  expect(content.media[0]).toMatchObject({ id: "original", url: "https://source.example.com/original.png", size: 0 });
+});

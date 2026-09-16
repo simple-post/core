@@ -329,7 +329,7 @@ export function CreatePostForm() {
   // the post changes, before the user can schedule an invalid image.
   useEffect(() => {
     if (
-      postingMode === "draft" ||
+      (postingMode === "draft" && !imageFittingEnabled) ||
       !shouldPreflightImages ||
       selectedAccountIds.length === 0 ||
       selectedAccounts.length !== selectedAccountIds.length
@@ -345,7 +345,14 @@ export function CreatePostForm() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [postingMode, runBackendValidation, selectedAccountIds.length, selectedAccounts.length, shouldPreflightImages]);
+  }, [
+    imageFittingEnabled,
+    postingMode,
+    runBackendValidation,
+    selectedAccountIds.length,
+    selectedAccounts.length,
+    shouldPreflightImages,
+  ]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
@@ -409,12 +416,21 @@ export function CreatePostForm() {
     [enabledOverrides, media.length, message, thread],
   );
   const shouldShowValidationFeedback =
-    postingMode !== "draft" && (submitAttempted || contentTouched || hasComposedContent);
-  const visibleValidationErrors = shouldShowValidationFeedback ? (validation?.summary.errors ?? []) : [];
-  const visibleValidationWarnings = shouldShowValidationFeedback ? (validation?.summary.warnings ?? []) : [];
+    (postingMode !== "draft" || (imageFittingEnabled && shouldPreflightImages)) &&
+    (submitAttempted || contentTouched || hasComposedContent);
+  const visibleValidationErrors = shouldShowValidationFeedback
+    ? (validation?.summary.errors ?? []).filter((issue) => postingMode !== "draft" || canFitImageIssue(issue))
+    : [];
+  const visibleValidationWarnings = shouldShowValidationFeedback
+    ? (validation?.summary.warnings ?? []).filter((issue) => postingMode !== "draft" || canFitImageIssue(issue))
+    : [];
   const canOfferImageFitting =
     imageFittingEnabled &&
     [...visibleValidationErrors, ...visibleValidationWarnings].some((issue) => canFitImageIssue(issue));
+  const draftImageFittingRequired =
+    postingMode === "draft" &&
+    imageFittingEnabled &&
+    (validation?.summary.errors ?? []).some((issue) => canFitImageIssue(issue));
 
   const formattedIssue = (issue: ValidationIssue) => {
     const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
@@ -538,9 +554,14 @@ export function CreatePostForm() {
     }
 
     try {
-      if (postingMode !== "draft") {
-        const latestValidation = await runBackendValidation();
-        if (!latestValidation?.summary.isValid) {
+      if (postingMode !== "draft" || (imageFittingEnabled && shouldPreflightImages)) {
+        const latestValidation = await runBackendValidation(undefined, postingMode === "draft");
+        const blockedByValidation =
+          !latestValidation ||
+          (postingMode === "draft"
+            ? latestValidation.summary.errors.some((issue) => canFitImageIssue(issue))
+            : !latestValidation.summary.isValid);
+        if (blockedByValidation) {
           if (postingMode === "now") {
             setShowPostLinksModal(false);
             setPostingResults([]);
@@ -667,7 +688,8 @@ export function CreatePostForm() {
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
     selectedAccounts.length === selectedAccountIds.length &&
-    (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
+    (postingMode === "draft" ? !draftImageFittingRequired : (validation?.summary.isValid ?? false)) &&
+    (postingMode !== "draft" || !imageFittingEnabled || !shouldPreflightImages || !validationLoading) &&
     (postingMode === "draft" || !validationLoading) &&
     (!tiktokConsentRequired || tiktokConsent) &&
     !trialAllowance.blocked &&

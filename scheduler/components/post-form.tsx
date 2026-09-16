@@ -262,7 +262,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
   useEffect(() => {
     if (
-      postingMode === "draft" ||
+      (postingMode === "draft" && !imageFittingEnabled) ||
       !shouldPreflightImages ||
       selectedAccountIds.length === 0 ||
       selectedAccounts.length !== selectedAccountIds.length
@@ -278,7 +278,14 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [postingMode, runBackendValidation, selectedAccountIds.length, selectedAccounts.length, shouldPreflightImages]);
+  }, [
+    imageFittingEnabled,
+    postingMode,
+    runBackendValidation,
+    selectedAccountIds.length,
+    selectedAccounts.length,
+    shouldPreflightImages,
+  ]);
 
   const maxTextLength = useMemo(() => {
     if (!validation) return undefined;
@@ -335,6 +342,10 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     [...(validation?.summary.errors ?? []), ...(validation?.summary.warnings ?? [])].some((issue) =>
       canFitImageIssue(issue),
     );
+  const draftImageFittingRequired =
+    postingMode === "draft" &&
+    imageFittingEnabled &&
+    (validation?.summary.errors ?? []).some((issue) => canFitImageIssue(issue));
 
   const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const imageFiles = getClipboardImageFiles(event.clipboardData);
@@ -384,9 +395,14 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     }
 
     try {
-      if (postingMode !== "draft") {
-        const latestValidation = await runBackendValidation();
-        if (!latestValidation?.summary.isValid) {
+      if (postingMode !== "draft" || (imageFittingEnabled && shouldPreflightImages)) {
+        const latestValidation = await runBackendValidation(undefined, postingMode === "draft");
+        const blockedByValidation =
+          !latestValidation ||
+          (postingMode === "draft"
+            ? latestValidation.summary.errors.some((issue) => canFitImageIssue(issue))
+            : !latestValidation.summary.isValid);
+        if (blockedByValidation) {
           if (postingMode === "now") {
             setShowPostLinksModal(false);
             setPostingResults([]);
@@ -516,7 +532,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
     selectedAccounts.length === selectedAccountIds.length &&
-    (postingMode === "draft" || (validation?.summary.isValid ?? false)) &&
+    (postingMode === "draft" ? !draftImageFittingRequired : (validation?.summary.isValid ?? false)) &&
+    (postingMode !== "draft" || !imageFittingEnabled || !shouldPreflightImages || !validationLoading) &&
     (postingMode === "draft" || !validationLoading) &&
     (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&

@@ -21,6 +21,7 @@ import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
@@ -696,10 +697,20 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   );
   let thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
-  const ingested = await ingestPostMedia(userId, { media, thread, accountOptions });
+  let accountOverrides = currentPost.accountOverrides;
+  const ingested = await ingestPostMedia(
+    userId,
+    { media, thread, accountOptions, accountOverrides },
+    {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+      },
+    },
+  );
   media = ingested.media ?? [];
   thread = ingested.thread;
   accountOptions = ingested.accountOptions;
+  accountOverrides = ingested.accountOverrides;
   const threadForValidation = thread && thread.length > 0 ? thread : undefined;
   const currentPostingMode = currentPost.status === "draft" ? "draft" : "schedule";
   const targetPostingMode = input.postingMode ?? (input.scheduledFor === undefined ? currentPostingMode : "schedule");
@@ -718,10 +729,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   // rewrites `media`, `thread` and `accountOptions` in place, and the wire
   // schemas cannot carry thread segment media or `contentType`.
   const validation = await validateResolvedPost(userId, {
+    checkAccountReadiness: targetPostingMode !== "draft",
     imageFit: input.imageFit,
     message,
     accountIds,
     accountOptions,
+    accountOverrides,
     media,
     thread: threadForValidation,
   });
@@ -771,8 +784,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;
-  if (input.media !== undefined || input.imageFit) updates.media = media;
-  if (input.thread !== undefined || input.imageFit) updates.thread = thread ?? [];
+  if (accountOverrides !== undefined) updates.accountOverrides = accountOverrides;
+  // Persist the exact owned URLs and measured metadata that were validated,
+  // even when this edit only changes timing. This also upgrades legacy drafts
+  // that still reference external media before they can be scheduled.
+  updates.media = media;
+  updates.thread = thread ?? [];
   if (targetPostingMode !== currentPostingMode)
     updates.status = targetPostingMode === "schedule" ? "scheduled" : "draft";
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
@@ -955,17 +972,26 @@ export async function createPost(
     scheduledFor,
   });
 
-  const ingested = await ingestPostMedia(userId, {
-    media: mediaFiles,
-    thread: threadForPersistence,
-    accountOptions: input.accountOptions,
-  });
+  const ingested = await ingestPostMedia(
+    userId,
+    {
+      media: mediaFiles,
+      thread: threadForPersistence,
+      accountOptions: input.accountOptions,
+    },
+    {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+      },
+    },
+  );
   mediaFiles = ingested.media ?? [];
   threadForPersistence = ingested.thread;
   input = { ...input, accountOptions: ingested.accountOptions };
 
   // Validate content
   const validation = await validatePostForAccounts({
+    checkAccountReadiness: postingMode !== "draft",
     imageFit: input.imageFit,
     userId,
     message: input.message,

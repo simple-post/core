@@ -20,6 +20,21 @@ it("surfaces structured provider validation issues instead of generic text", () 
   ).toBe("Instagram requires JPEG.");
 });
 
+it("includes automatic image-fitting guidance with a fixable validation error", () => {
+  expect(
+    apiResponseError(
+      {
+        error: "Validation failed",
+        details: {
+          imageFitHelp: "Choose crop or blur, then retry with imageFit.",
+          summary: { errors: [{ message: "Instagram requires JPEG." }] },
+        },
+      },
+      "Failed",
+    ),
+  ).toBe("Instagram requires JPEG. Choose crop or blur, then retry with imageFit.");
+});
+
 it("deduplicates platform messages and safely falls back for malformed responses", () => {
   expect(
     apiResponseError(

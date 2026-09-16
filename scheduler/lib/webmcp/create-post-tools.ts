@@ -1,3 +1,4 @@
+import { ImageFitSchema } from "@simple-post/sdk/image-fit";
 import { z } from "zod";
 
 import type { ConnectedAccount, SocialPost } from "@/types";
@@ -17,6 +18,9 @@ const mediaSchema = z.object({
 });
 const threadSchema = z.array(z.object({ message: z.string(), media: z.array(mediaSchema).optional() })).max(24);
 const contentSchema = z.object({
+  imageFit: ImageFitSchema.optional().describe(
+    "Use only after validate_post offers automatic image fitting. Ask the user to choose crop or blur, then pass that method to validate_post and create_post. If the user already requested fitting without choosing, use blur.",
+  ),
   message: z.string(),
   accountIds: z
     .array(z.string().min(1))
@@ -183,7 +187,7 @@ export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
       name: "validate_post",
       title: "Validate a post without saving",
       description:
-        "Check text, media, thread and per-account variants against platform rules before creating. Returns validation errors and warnings. Does not save, schedule, publish, or change the form. Use the same content with create_post after resolving errors.",
+        "Check text, media, thread and per-account variants against platform rules before creating. Returns validation errors and warnings. Does not save, schedule, publish, or change the form. Use the same content with create_post after resolving errors. If imageFitHelp is returned, offer crop or blur and validate again with imageFit before creating.",
       inputSchema: z.toJSONSchema(contentSchema, { io: "input" }),
       annotations: { readOnlyHint: true, idempotentHint: true, untrustedContentHint: true },
       execute: async (raw) => request("/api/v1/validation", normalizeContent(contentSchema.parse(raw))),
@@ -192,7 +196,7 @@ export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
       name: "create_post",
       title: "Create, schedule, or publish a SimplePost post",
       description:
-        "Create directly through WebMCP, not the form. First list_accounts and validate_post. Requires explicit postingMode, user authorization and an idempotencyKey. Draft saves only; schedule and now can publish publicly and consume posting allowance. Supports per-account variants, media and threads. Returns the saved post and individual publishing results: report partial failures honestly. On timeout or network error, retry only with the SAME idempotencyKey and content, never by clicking Submit. Does not clear or submit any existing manual form draft. TikTok non-draft posting requires the user's manual consent flow and is not supported by this tool.",
+        "Create directly through WebMCP, not the form. First list_accounts and validate_post. Requires explicit postingMode, user authorization and an idempotencyKey. Draft saves only; schedule and now can publish publicly and consume posting allowance. Supports per-account variants, media, threads and imageFit when validate_post offered fitting. Returns the saved post and individual publishing results: report partial failures honestly. On timeout or network error, retry only with the SAME idempotencyKey and content, never by clicking Submit. Does not clear or submit any existing manual form draft. TikTok non-draft posting requires the user to review platform settings and give consent in the form and is not supported by this tool.",
       inputSchema: z.toJSONSchema(createSchema, { io: "input" }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
       execute: async (raw) => {

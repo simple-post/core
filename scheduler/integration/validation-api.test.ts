@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 
-import { post as sdkPost, validatePostReadiness } from "@simple-post/sdk";
+import { Feature } from "@prisma/client";
+import { hydrateRemoteMediaSizesForAccounts, post as sdkPost, validatePostReadiness } from "@simple-post/sdk";
 
 import { PATCH as update } from "@/app/api/v1/posts/[id]/route";
 import { POST as create } from "@/app/api/v1/posts/route";
+import { POST as validate } from "@/app/api/v1/validation/route";
 import { PostsModel } from "@/lib/db";
 import { validatePost } from "@/lib/mcp/tools/validation";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -13,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 // authentication, secret loading and provider I/O are substituted.
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
+  hydrateRemoteMediaSizesForAccounts: jest.fn(),
   post: jest.fn(),
   validatePostReadiness: jest.fn(),
 }));
@@ -49,7 +52,7 @@ beforeEach(async () => {
     },
   });
   await prisma.connectedAccount.createMany({
-    data: ["telegram", "bluesky", "forem"].map((platform) => ({
+    data: ["telegram", "bluesky", "forem", "instagram"].map((platform) => ({
       id: platform,
       userId,
       platform,
@@ -58,6 +61,7 @@ beforeEach(async () => {
     })),
   });
   jest.mocked(requireAuth).mockResolvedValue({ user: { id: userId } } as never);
+  jest.mocked(hydrateRemoteMediaSizesForAccounts).mockResolvedValue([]);
   jest.mocked(validatePostReadiness).mockResolvedValue([]);
 });
 afterAll(async () => {
@@ -153,6 +157,76 @@ it("an invalid edit cannot schedule a saved draft or overwrite its original cont
   expect(await prisma.post.findUniqueOrThrow({ where: { id: draft.id } })).toEqual(before);
   await noPublish();
 });
+it.each(["create", "update"] as const)(
+  "a fixable image error cannot %s a draft when image fitting is enabled",
+  async (operation) => {
+    await prisma.userFeature.create({ data: { userId, feature: Feature.IMAGE_FITTING } });
+    jest.mocked(hydrateRemoteMediaSizesForAccounts).mockResolvedValue([
+      {
+        platform: "instagram",
+        code: "media_aspect_ratio_unsupported",
+        severity: "error",
+        message: "Instagram image aspect ratio 0.488 is outside the supported range.",
+        field: "text.media[0]",
+        meta: { accountId: "instagram" },
+      },
+    ]);
+
+    const existing =
+      operation === "update"
+        ? await new PostsModel(userId).createPost(
+            { message: "Original", media: [], accountIds: ["instagram"], status: "draft", scheduledFor: null },
+            userId,
+          )
+        : null;
+    const response =
+      operation === "create"
+        ? await create(request({ message: "Photo", accountIds: ["instagram"], postingMode: "draft" }))
+        : await update(
+            request(
+              { message: "Updated", accountIds: ["instagram"], postingMode: "draft", media: [] },
+              "PATCH",
+              existing!.id,
+            ),
+            { params: Promise.resolve({ id: existing!.id }) },
+          );
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.code).toBe("VALIDATION_ERROR");
+    expect(body.details.imageFitHelp).toMatch(/crop.*blur.*imageFit/);
+    expect(body.details.summary.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "media_aspect_ratio_unsupported" })]),
+    );
+    if (existing) {
+      const persisted = await prisma.post.findUniqueOrThrow({ where: { id: existing.id } });
+      expect(persisted.message).toBe("Original");
+    } else {
+      expect(await prisma.post.count()).toBe(0);
+    }
+    await noPublish();
+  },
+);
+it("offers feature-gated image fitting through the shared HTTP validation endpoint", async () => {
+  await prisma.userFeature.create({ data: { userId, feature: Feature.IMAGE_FITTING } });
+  jest.mocked(hydrateRemoteMediaSizesForAccounts).mockResolvedValue([
+    {
+      platform: "instagram",
+      code: "image_format_unsupported",
+      severity: "error",
+      message: "Instagram does not support PNG images.",
+      field: "text.media[0]",
+      meta: { accountId: "instagram" },
+    },
+  ]);
+
+  const response = await validate(request({ message: "Photo", accountIds: ["instagram"], media: [] }));
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.summary.isValid).toBe(false);
+  expect(body.imageFitHelp).toMatch(/crop.*blur.*imageFit/);
+  expect(await prisma.post.count()).toBe(0);
+});
 it("a live account denial blocks otherwise valid content before posting or persistence", async () => {
   jest.mocked(validatePostReadiness).mockResolvedValue([
     {
@@ -170,5 +244,23 @@ it("a live account denial blocks otherwise valid content before posting or persi
   );
   expect(validatePostReadiness).toHaveBeenCalledTimes(1);
   expect(await prisma.post.count()).toBe(0);
+  await noPublish();
+});
+it("saving a draft does not depend on live provider readiness", async () => {
+  jest.mocked(validatePostReadiness).mockResolvedValue([
+    {
+      platform: "telegram",
+      code: "account_ineligible",
+      severity: "error",
+      message: "Bot cannot post in this channel",
+    },
+  ]);
+
+  const response = await create(
+    request({ message: "Work in progress", accountIds: ["telegram"], postingMode: "draft" }),
+  );
+  expect(response.status).toBe(201);
+  expect(validatePostReadiness).not.toHaveBeenCalled();
+  expect(await prisma.post.count({ where: { status: "draft" } })).toBe(1);
   await noPublish();
 });

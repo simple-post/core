@@ -362,7 +362,9 @@ it.each(["crop", "blur"])("persists fitted media when imageFit=%s is explicitly 
       imageFit,
     }),
   );
-  expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ imageFit }));
+  expect(validatePostForAccounts).toHaveBeenCalledWith(
+    expect.objectContaining({ checkAccountReadiness: false, imageFit }),
+  );
   expect(savePost).toHaveBeenCalledWith(
     expect.objectContaining({ media: [expect.objectContaining({ url: "https://cdn.example.com/fitted.jpg" })] }),
     "user-1",
@@ -457,6 +459,72 @@ it("requires fitting incompatible images before updating a draft", async () => {
   await expect(
     updateScheduledPost("user-1", updateScheduledPostSchema.parse({ postId: "post-1", message: "Updated photo" })),
   ).rejects.toThrow(/draft contains images that must be fitted first.*PNG must be converted.*crop.*blur.*imageFit/);
+  expect(updatePost).not.toHaveBeenCalled();
+});
+
+it("validates persisted account overrides before scheduling a draft through MCP", async () => {
+  const accountOverrides = {
+    "tiktok-1": {
+      message: "Account-specific caption",
+      media: [{ type: "image" as const, url: "https://example.com/override.png", filename: "override.png" }],
+    },
+  };
+  const post = {
+    id: "post-1",
+    message: "Shared caption",
+    status: "draft",
+    accountIds: ["tiktok-1"],
+    accountOptions: undefined,
+    accountOverrides,
+    media: [],
+    createdAt: new Date(),
+    updatedAt: new Date("2026-09-05T00:00:00Z"),
+    scheduledFor: null,
+  };
+  loadPost.mockResolvedValue(post);
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    platforms: ["tiktok"],
+    results: [
+      {
+        accountId: "tiktok-1",
+        platform: "tiktok",
+        isValid: false,
+        errors: [
+          {
+            severity: "error",
+            code: "media_aspect_ratio_unsupported",
+            message: "The override image aspect ratio is unsupported",
+          },
+        ],
+        warnings: [],
+      },
+    ],
+    summary: {
+      isValid: false,
+      errors: [
+        {
+          platform: "tiktok",
+          severity: "error",
+          code: "media_aspect_ratio_unsupported",
+          message: "The override image aspect ratio is unsupported",
+        },
+      ],
+      warnings: [],
+    },
+  });
+
+  await expect(
+    updateScheduledPost(
+      "user-1",
+      updateScheduledPostSchema.parse({
+        postId: "post-1",
+        postingMode: "schedule",
+        scheduledFor: "2099-01-01T10:00:00Z",
+      }),
+    ),
+  ).rejects.toThrow("override image aspect ratio is unsupported");
+  expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOverrides }));
   expect(updatePost).not.toHaveBeenCalled();
 });
 

@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
-import type { MediaFile, ThreadSegment } from "@/types";
+import type { AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
 
 import { resolveMcpAccountOptions } from "./account-options";
 import { mcpAccountIdentitySchema } from "./accounts";
@@ -78,21 +78,25 @@ export const validatePostOutputSchema = z.object({
 export async function validateResolvedPost(
   userId: string,
   input: {
+    checkAccountReadiness?: boolean;
     imageFit?: z.infer<typeof ImageFitSchema>;
     message: string;
     accountIds: string[];
     accountOptions?: z.infer<typeof AccountOptionsMapSchema>;
+    accountOverrides?: AccountOverridesMap;
     media: MediaFile[];
     thread?: ThreadSegment[];
   },
 ): Promise<z.infer<typeof validatePostOutputSchema>> {
   const result = await validatePostForAccounts({
+    checkAccountReadiness: input.checkAccountReadiness,
     imageFit: input.imageFit,
     userId,
     message: input.message,
     media: input.media,
     accountIds: input.accountIds,
     accountOptions: input.accountOptions,
+    accountOverrides: input.accountOverrides,
     thread: input.thread,
   });
 

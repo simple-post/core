@@ -27,8 +27,10 @@ export function apiResponseError(data: unknown, fallback: string): string {
         if (key !== "warnings") visit(child, depth + 1);
       }
   };
-  const summary = (body.details as { summary?: { errors?: unknown } } | undefined)?.summary;
+  const details = body.details as { imageFitHelp?: unknown; summary?: { errors?: unknown } } | undefined;
+  const summary = details?.summary;
   visit(summary?.errors ?? body.details, 0);
+  if (typeof details?.imageFitHelp === "string") messages.push(details.imageFitHelp);
   return messages.length > 0
     ? [...new Set(messages)].join(" ")
     : typeof body.error === "string"

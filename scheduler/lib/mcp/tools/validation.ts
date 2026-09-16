@@ -98,7 +98,7 @@ export async function validateResolvedPost(
 
   return {
     imageFitHelp:
-      result.summary.errors.some((issue) => canFitImageIssue(issue)) &&
+      [...result.summary.errors, ...(result.summary.warnings ?? [])].some((issue) => canFitImageIssue(issue)) &&
       (await hasFeature(userId, Feature.IMAGE_FITTING))
         ? IMAGE_FIT_HELP
         : undefined,

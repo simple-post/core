@@ -733,12 +733,20 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     );
   }
 
-  if (targetPostingMode === "schedule" && !validation.isValid) {
-    const errorMessages = validation.accounts
-      .flatMap((account) => account.errors.map((error) => error.message))
+  const validationErrors = validation.accounts.flatMap((account) => account.errors);
+  const draftImageErrors = validationErrors.filter((error) => canFitImageIssue(error));
+  const draftNeedsImageFitting =
+    targetPostingMode === "draft" && draftImageErrors.length > 0 && validation.imageFitHelp !== undefined;
+
+  if ((targetPostingMode === "schedule" && !validation.isValid) || draftNeedsImageFitting) {
+    const errorMessages = (draftNeedsImageFitting ? draftImageErrors : validationErrors)
+      .map((error) => error.message)
       .join("; ");
+    const invalidResult = draftNeedsImageFitting
+      ? "the draft contains images that must be fitted first"
+      : "the scheduled post would be invalid";
     throw new Error(
-      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
+      `Couldn't save these changes because ${invalidResult}: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
     );
   }
 
@@ -974,15 +982,20 @@ export async function createPost(
     );
   }
 
-  const canOfferImageFitting =
-    validation.summary.errors.some((issue) => canFitImageIssue(issue)) &&
-    (await hasFeature(userId, Feature.IMAGE_FITTING));
+  const fittableImageErrors = validation.summary.errors.filter((issue) => canFitImageIssue(issue));
+  const fittableImageIssues = [...fittableImageErrors, ...(validation.summary.warnings ?? [])].filter((issue) =>
+    canFitImageIssue(issue),
+  );
+  const canOfferImageFitting = fittableImageIssues.length > 0 && (await hasFeature(userId, Feature.IMAGE_FITTING));
+  const draftNeedsImageFitting = postingMode === "draft" && fittableImageErrors.length > 0 && canOfferImageFitting;
 
-  if (postingMode !== "draft" && !validation.summary.isValid) {
-    const errorMessages =
-      validation.summary.errors.map((e) => e.message).join("; ") + (canOfferImageFitting ? " " + IMAGE_FIT_HELP : "");
+  if ((postingMode !== "draft" && !validation.summary.isValid) || draftNeedsImageFitting) {
+    const validationErrors = draftNeedsImageFitting ? fittableImageErrors : validation.summary.errors;
+    const errorMessages = validationErrors.map((e) => e.message).join("; ");
+    const action =
+      postingMode === "draft" ? "saved as a draft" : postingMode === "schedule" ? "scheduled" : "published";
     throw new Error(
-      `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
+      `The post can't be ${action} because it failed validation: ${errorMessages}${canOfferImageFitting ? " " + IMAGE_FIT_HELP : ""}`,
     );
   }
 
@@ -1189,12 +1202,7 @@ export async function createPost(
     mediaCount: mediaFiles.length,
     post: mapPost(post),
     imageFitHelp: canOfferImageFitting
-      ? validation.summary.errors
-          .filter((issue) => canFitImageIssue(issue))
-          .map((issue) => `${issue.platform}: ${issue.message}`)
-          .join(" ") +
-        " " +
-        IMAGE_FIT_HELP
+      ? fittableImageIssues.map((issue) => `${issue.platform}: ${issue.message}`).join(" ") + " " + IMAGE_FIT_HELP
       : undefined,
     postingResults: [],
     summary: {

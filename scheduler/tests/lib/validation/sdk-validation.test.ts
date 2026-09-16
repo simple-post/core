@@ -1,4 +1,4 @@
-import { fitRemoteImagesForAccounts, hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
+import { fitRemoteImagesForAccounts, hydrateRemoteMediaSizesForAccounts, ImageFitError } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -239,4 +239,33 @@ it("denies fitting before inspecting or uploading media when no grant exists", a
   expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
   expect(hydrateRemoteMediaSizesForAccounts).not.toHaveBeenCalled();
   expect(prisma.connectedAccount.findMany).not.toHaveBeenCalled();
+});
+
+it("surfaces unfittable images as an actionable 400 instead of an unexpected 500", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([connectedAccount]);
+  jest
+    .mocked(fitRemoteImagesForAccounts)
+    .mockRejectedValueOnce(new ImageFitError("Image fitting accepts files up to 32 MB."));
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media: [],
+      accountIds: ["account-1"],
+      imageFit: "crop",
+    }),
+  ).rejects.toMatchObject({ statusCode: 400, message: "Image fitting accepts files up to 32 MB." });
+});
+
+it("rejects fitting against an account the user does not own with 400, not 500", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([]);
+  await expect(
+    validatePostForAccounts({
+      userId: "user-1",
+      message: "Photo",
+      media: [],
+      accountIds: ["someone-elses-account"],
+      imageFit: "crop",
+    }),
+  ).rejects.toMatchObject({ statusCode: 400 });
 });

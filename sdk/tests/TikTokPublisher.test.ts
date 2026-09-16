@@ -41,7 +41,12 @@ describe("TikTokPublisher", () => {
       get: jest.fn(),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
-    jest.mocked(inspectRemoteMedia).mockReset().mockResolvedValue({ contentType: "image/jpeg", size: 1024 });
+    // Remote photos are re-staged on our own storage, so the publisher asks the
+    // inspector for the bytes it verified.
+    jest
+      .mocked(inspectRemoteMedia)
+      .mockReset()
+      .mockResolvedValue({ contentType: "image/jpeg", size: 1024, bytes: Buffer.from("jpeg-bytes") });
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
@@ -352,6 +357,8 @@ describe("TikTokPublisher", () => {
         maxRedirects: 0,
         includeBytes: true,
       });
+      // Arbitrary hosts are not verified for our TikTok app, so the exact bytes
+      // that passed inspection are submitted from our storage instead.
       const uploader = jest.mocked(S3MediaUploader).mock.results[0].value;
       expect(uploader.uploadStream).toHaveBeenCalledWith(
         expect.anything(),

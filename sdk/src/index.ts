@@ -357,5 +357,5 @@ export async function validatePostReadiness(
 
 export { ImageFitSchema, canFitImageIssue, IMAGE_FIT_HELP } from "./image-fit";
 export type { ImageFit } from "./image-fit";
-export { fitImage, fitPostImages, fitRemoteImagesForAccounts } from "./utils/image-fitting";
+export { fitImage, fitPostImages, fitRemoteImagesForAccounts, ImageFitError } from "./utils/image-fitting";
 export type { ImageFitContent } from "./utils/image-fitting";

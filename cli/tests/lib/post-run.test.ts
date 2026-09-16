@@ -440,6 +440,7 @@ it.each(["crop", "blur", "prompt", "cancel", "noninteractive"])(
       cleanup,
     }));
     sdk.post.mockResolvedValue(new Map([["x", { error: "NO_ERROR", id: "123" }]]));
+    const writeOutput = jest.fn();
     const run = runPostWorkflow({
       config: { configDir: paths.configDir } as any,
       flags: {
@@ -449,12 +450,19 @@ it.each(["crop", "blur", "prompt", "cancel", "noninteractive"])(
         ...(["crop", "blur"].includes(choice) ? { "fit-images": choice } : {}),
       },
       prompt,
-      writeOutput: jest.fn(),
+      writeOutput,
     });
-    if (choice === "cancel" || choice === "noninteractive") {
-      await expect(run).rejects.toThrow(choice === "cancel" ? /cancelled/ : /--fit-images/);
+    if (choice === "cancel") {
+      await expect(run).rejects.toThrow(/cancelled/);
       expect(sdk.post).not.toHaveBeenCalled();
       expect(sdk.fitPostImages).not.toHaveBeenCalled();
+    } else if (choice === "noninteractive") {
+      // Without a fitting choice we still publish: platforms that are fine with
+      // the image succeed, and the rest report their own per-platform failure.
+      await run;
+      expect(sdk.fitPostImages).not.toHaveBeenCalled();
+      expect(sdk.post).toHaveBeenCalled();
+      expect(writeOutput.mock.calls.flat().join("\n")).toMatch(/--fit-images/);
     } else {
       await run;
       expect(sdk.fitPostImages).toHaveBeenCalledWith(expect.anything(), choice === "prompt" ? "blur" : choice);

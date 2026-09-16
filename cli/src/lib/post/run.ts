@@ -398,19 +398,25 @@ export async function runPostWorkflow(options: {
     );
     if (issues.length > 0) {
       options.writeOutput(issues.map((issue) => `${issue.platform}: ${issue.message}`).join("\n"));
-      if (!options.prompt.interactive)
-        throw new Error("Images need fitting. Retry with --fit-images crop or --fit-images blur.");
-      const choice = await options.prompt.select(
-        "Fit images before posting?",
-        [
-          { value: "blur", label: "Pad with blurred background (keep the full image)" },
-          { value: "crop", label: "Crop to fit (trim edges)" },
-          { value: "cancel", label: "Cancel and choose different images" },
-        ],
-        "blur",
-      );
-      if (choice === "cancel") throw new Error("Posting cancelled. Original images have not been changed.");
-      fitMode = ImageFitSchema.parse(choice);
+      if (options.prompt.interactive) {
+        const choice = await options.prompt.select(
+          "Fit images before posting?",
+          [
+            { value: "blur", label: "Pad with blurred background (keep the full image)" },
+            { value: "crop", label: "Crop to fit (trim edges)" },
+            { value: "cancel", label: "Cancel and choose different images" },
+          ],
+          "blur",
+        );
+        if (choice === "cancel") throw new Error("Posting cancelled. Original images have not been changed.");
+        fitMode = ImageFitSchema.parse(choice);
+      } else {
+        // Don't abort the whole post: platforms without an image problem still
+        // publish, and the affected ones report their own per-platform failure.
+        options.writeOutput(
+          "These platforms will fail unless the images are fitted. Retry with --fit-images crop or --fit-images blur to fit them.",
+        );
+      }
     }
   }
   const fitted = fitMode ? await fitPostImages(postInput.post, fitMode) : undefined;

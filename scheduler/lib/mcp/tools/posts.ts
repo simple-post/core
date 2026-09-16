@@ -36,7 +36,7 @@ import {
   toMediaFiles,
   toThreadSegments,
 } from "./media-schema";
-import { validatePost, validatePostOutputSchema } from "./validation";
+import { validatePost, validatePostOutputSchema, validateResolvedPost } from "./validation";
 
 export const createPostSchema = z.object({
   imageFit: ImageFitSchema.optional(),
@@ -703,7 +703,10 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     currentPostId: input.postId,
   });
 
-  const validation = await validatePost(userId, {
+  // Validate the resolved SDK values rather than the MCP wire shapes: fitting
+  // rewrites `media`, `thread` and `accountOptions` in place, and the wire
+  // schemas cannot carry thread segment media or `contentType`.
+  const validation = await validateResolvedPost(userId, {
     imageFit: input.imageFit,
     message,
     accountIds,
@@ -711,14 +714,6 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     media,
     thread: threadForValidation,
   });
-
-  if (input.imageFit && validation.fittedMedia) {
-    media.splice(0, media.length, ...toMediaFiles(validation.fittedMedia));
-    if (validation.fittedAccountOptions && accountOptions)
-      Object.assign(accountOptions, validation.fittedAccountOptions);
-    if (thread && validation.fittedThread)
-      thread.splice(0, thread.length, ...toThreadSegments(validation.fittedThread));
-  }
 
   if (validation.accounts.length !== accountIds.length) {
     throw missingAccountsError(
@@ -790,8 +785,9 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     );
   });
 
-  if (input.media !== undefined || input.thread !== undefined) {
-    const removedMedia = getRemovedMedia(currentPost, media, threadForValidation);
+  // Fitting replaces originals with derivatives, so it orphans objects too.
+  if (input.media !== undefined || input.thread !== undefined || input.imageFit) {
+    const removedMedia = getRemovedMedia(currentPost, media, thread ?? undefined);
     if (removedMedia.length > 0) {
       await deleteMediaFiles(userId, removedMedia);
     }

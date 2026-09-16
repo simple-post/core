@@ -11,6 +11,7 @@ import { validatePost, validatePostSchema } from "@/lib/mcp/tools/validation";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { postToAccounts } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
+import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 jest.mock("@/lib/features", () => ({ hasFeature: jest.fn().mockResolvedValue(true) }));
@@ -38,6 +39,7 @@ jest.mock("@/lib/repost/settings", () => ({
 }));
 jest.mock("@/lib/validation/sdk-validation", () => ({ validatePostForAccounts: jest.fn() }));
 jest.mock("@/lib/webhooks", () => ({ dispatchPostWebhooks: jest.fn() }));
+jest.mock("@/lib/utils/media-cleanup", () => ({ deleteMediaFiles: jest.fn() }));
 jest.mock("@/lib/posting", () => ({
   postToAccounts: jest.fn().mockResolvedValue([{ accountId: "tiktok-1", platform: "tiktok", success: true }]),
   getPostingSummary: jest.fn().mockReturnValue({ overallSuccess: true, successCount: 1, failureCount: 0 }),
@@ -395,4 +397,99 @@ it("offers fitting for incompatible images even when saving a draft", async () =
   expect(result.imageFitHelp).toContain("tiktok: PNG must be converted");
   expect(result.imageFitHelp).toContain("imageFit");
   expect(postToAccounts).not.toHaveBeenCalled();
+});
+
+it("keeps thread media, contentType and media ids when fitting an existing post", async () => {
+  const post = {
+    id: "post-1",
+    message: "Photo",
+    status: "scheduled",
+    accountIds: ["tiktok-1"],
+    accountOptions: undefined,
+    media: [{ id: "root-media", type: "image", url: "https://example.com/root.png", filename: "root.png", size: 1 }],
+    thread: [
+      {
+        message: "Second",
+        media: [
+          {
+            id: "thread-media",
+            type: "image",
+            url: "https://example.com/segment.png",
+            filename: "segment.png",
+            size: 1,
+          },
+        ],
+      },
+    ],
+    createdAt: new Date(),
+    updatedAt: new Date("2026-09-05T00:00:00Z"),
+    scheduledFor: new Date("2099-01-01T10:00:00Z"),
+  };
+  loadPost.mockResolvedValue(post);
+  updatePost.mockImplementation(async (_id, updates) => ({ ...post, ...updates }));
+  (validatePostForAccounts as jest.Mock).mockImplementationOnce(async (params) => {
+    Object.assign(params.media[0], { url: "https://cdn.example.com/root-fitted.jpg", contentType: "image/jpeg" });
+    Object.assign(params.thread[0].media[0], {
+      url: "https://cdn.example.com/segment-fitted.jpg",
+      contentType: "image/jpeg",
+    });
+    return {
+      accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+      platforms: ["tiktok"],
+      results: [{ accountId: "tiktok-1", platform: "tiktok", isValid: true, errors: [], warnings: [] }],
+      summary: { isValid: true, errors: [], warnings: [] },
+    };
+  });
+
+  await updateScheduledPost("user-1", updateScheduledPostSchema.parse({ postId: "post-1", imageFit: "crop" }));
+
+  const [, updates] = updatePost.mock.calls[0];
+  // The segment keeps its media instead of being flattened to text only.
+  expect(updates.thread).toEqual([
+    expect.objectContaining({
+      message: "Second",
+      media: [
+        expect.objectContaining({ url: "https://cdn.example.com/segment-fitted.jpg", contentType: "image/jpeg" }),
+      ],
+    }),
+  ]);
+  // Fitted values survive without a lossy round-trip through the wire schema.
+  expect(updates.media).toEqual([
+    expect.objectContaining({
+      id: "root-media",
+      url: "https://cdn.example.com/root-fitted.jpg",
+      contentType: "image/jpeg",
+    }),
+  ]);
+});
+
+it("queues the originals replaced by fitting for cleanup", async () => {
+  const post = {
+    id: "post-1",
+    message: "Photo",
+    status: "scheduled",
+    accountIds: ["tiktok-1"],
+    accountOptions: undefined,
+    media: [{ id: "root-media", type: "image", url: "https://example.com/root.png", filename: "root.png", size: 1 }],
+    createdAt: new Date(),
+    updatedAt: new Date("2026-09-05T00:00:00Z"),
+    scheduledFor: new Date("2099-01-01T10:00:00Z"),
+  };
+  loadPost.mockResolvedValue(post);
+  updatePost.mockImplementation(async (_id, updates) => ({ ...post, ...updates }));
+  (validatePostForAccounts as jest.Mock).mockImplementationOnce(async (params) => {
+    params.media[0].url = "https://cdn.example.com/root-fitted.jpg";
+    return {
+      accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+      platforms: ["tiktok"],
+      results: [{ accountId: "tiktok-1", platform: "tiktok", isValid: true, errors: [], warnings: [] }],
+      summary: { isValid: true, errors: [], warnings: [] },
+    };
+  });
+
+  await updateScheduledPost("user-1", updateScheduledPostSchema.parse({ postId: "post-1", imageFit: "crop" }));
+
+  expect(deleteMediaFiles).toHaveBeenCalledWith("user-1", [
+    expect.objectContaining({ url: "https://example.com/root.png" }),
+  ]);
 });

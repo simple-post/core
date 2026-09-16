@@ -24,6 +24,19 @@ import type { Platform, Post } from "../types/post";
 
 const MAX_INPUT_BYTES = 32 * 1024 * 1024;
 
+/**
+ * A fitting request that cannot be satisfied for the given input — too large,
+ * not an image, or unfittable within the target platforms' limits. The message
+ * is written for the person who asked to fit, so callers should surface it
+ * rather than replacing it with a generic failure.
+ */
+export class ImageFitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImageFitError";
+  }
+}
+
 /** Produces a new still JPEG only when needed. Source files are never overwritten. */
 export async function fitImage(
   source: { path?: string; url?: string },
@@ -36,12 +49,12 @@ export async function fitImage(
   const downloaded =
     !source.path && source.url ? await downloadToTempFile(source.url, undefined, MAX_INPUT_BYTES) : undefined;
   const inputPath = source.path ?? downloaded;
-  if (!inputPath) throw new Error("An image path or public URL is required.");
+  if (!inputPath) throw new ImageFitError("An image path or public URL is required.");
   try {
     const sourceStat = await stat(inputPath);
-    if (sourceStat.size > MAX_INPUT_BYTES) throw new Error("Image fitting accepts files up to 32 MB.");
+    if (sourceStat.size > MAX_INPUT_BYTES) throw new ImageFitError("Image fitting accepts files up to 32 MB.");
     const inspection = await inspectLocalMedia(inputPath);
-    if (!inspection.contentType.startsWith("image/")) throw new Error("Image fitting requires an image.");
+    if (!inspection.contentType.startsWith("image/")) throw new ImageFitError("Image fitting requires an image.");
     const mediaCount = context.mediaCount ?? 1;
     const maxBytes = Math.min(
       MAX_INPUT_BYTES,
@@ -139,7 +152,7 @@ export async function fitImage(
       }
       scale *= 0.8;
     }
-    throw new Error("Could not fit this image within the selected platforms' limits. Choose a smaller image.");
+    throw new ImageFitError("Could not fit this image within the selected platforms' limits. Choose a smaller image.");
   } finally {
     if (downloaded) await unlink(downloaded).catch(() => {});
   }

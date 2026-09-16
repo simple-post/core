@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
+import type { MediaFile, ThreadSegment } from "@/types";
 
 import { resolveMcpAccountOptions } from "./account-options";
 import { mcpAccountIdentitySchema } from "./accounts";
@@ -50,7 +51,6 @@ export const validationAccountSchema = mcpAccountIdentitySchema.extend({
 export const validatePostOutputSchema = z.object({
   imageFitHelp: z.string().optional(),
   fittedMedia: mcpMediaArraySchema.optional(),
-  fittedThread: mcpThreadSchema,
   fittedAccountOptions: AccountOptionsMapSchema.optional(),
   kind: z.literal("validation"),
   message: z.string().describe("The post text that was validated, echoed back so the UI can show a preview."),
@@ -66,22 +66,34 @@ export const validatePostOutputSchema = z.object({
   }),
 });
 
-export async function validatePost(
+/**
+ * Validates content that the caller has already materialized as SDK types.
+ *
+ * Image fitting rewrites `input.media`, `input.thread` and `input.accountOptions`
+ * in place, so callers that persist the post keep the fitted values — including
+ * the parts the MCP wire schemas cannot express, such as thread segment media
+ * and `contentType`. Never round-trip the returned `fittedMedia` back through
+ * `toMediaFiles`; read the arrays passed in here instead.
+ */
+export async function validateResolvedPost(
   userId: string,
-  input: z.infer<typeof validatePostSchema>,
+  input: {
+    imageFit?: z.infer<typeof ImageFitSchema>;
+    message: string;
+    accountIds: string[];
+    accountOptions?: z.infer<typeof AccountOptionsMapSchema>;
+    media: MediaFile[];
+    thread?: ThreadSegment[];
+  },
 ): Promise<z.infer<typeof validatePostOutputSchema>> {
-  const accountIds = [...new Set(input.accountIds)];
-  const mediaFiles = toMediaFiles(input.media);
-  const threadSegments = toThreadSegments(input.thread);
-  const accountOptions = await resolveMcpAccountOptions(userId, accountIds, input.accountOptions, mediaFiles);
   const result = await validatePostForAccounts({
     imageFit: input.imageFit,
     userId,
     message: input.message,
-    media: mediaFiles,
-    accountIds,
-    accountOptions,
-    thread: threadSegments.length > 0 ? threadSegments : undefined,
+    media: input.media,
+    accountIds: input.accountIds,
+    accountOptions: input.accountOptions,
+    thread: input.thread,
   });
 
   return {
@@ -90,12 +102,11 @@ export async function validatePost(
       (await hasFeature(userId, Feature.IMAGE_FITTING))
         ? IMAGE_FIT_HELP
         : undefined,
-    fittedMedia: input.imageFit ? mediaFiles : undefined,
-    fittedAccountOptions: input.imageFit ? accountOptions : undefined,
-    fittedThread: input.imageFit ? threadSegments : undefined,
+    fittedMedia: input.imageFit ? input.media : undefined,
+    fittedAccountOptions: input.imageFit ? input.accountOptions : undefined,
     kind: "validation" as const,
     message: input.message,
-    mediaCount: mediaFiles.length,
+    mediaCount: input.media.length,
     isValid: result.summary.isValid,
     platforms: result.platforms,
     accounts: result.results.map((r) => {
@@ -127,9 +138,29 @@ export async function validatePost(
     }),
     summary: {
       accountCount: result.results.length,
-      mediaCount: mediaFiles.length,
+      mediaCount: input.media.length,
       errorCount: result.summary.errors.length,
       warningCount: result.summary.warnings.length,
     },
   };
+}
+
+/** MCP `validate_post` entry point: materializes wire input, then validates it. */
+export async function validatePost(
+  userId: string,
+  input: z.infer<typeof validatePostSchema>,
+): Promise<z.infer<typeof validatePostOutputSchema>> {
+  const accountIds = [...new Set(input.accountIds)];
+  const mediaFiles = toMediaFiles(input.media);
+  const threadSegments = toThreadSegments(input.thread);
+  const accountOptions = await resolveMcpAccountOptions(userId, accountIds, input.accountOptions, mediaFiles);
+
+  return await validateResolvedPost(userId, {
+    imageFit: input.imageFit,
+    message: input.message,
+    accountIds,
+    accountOptions,
+    media: mediaFiles,
+    thread: threadSegments.length > 0 ? threadSegments : undefined,
+  });
 }

@@ -904,7 +904,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
   const postingMode = input.postingMode ?? "now";
   let mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);
-  const threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
+  let threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
   const threadSegmentCount = threadSegments.length;
   const repostSettings = await resolvePostRepostSettings(userId, undefined);
   const quoteSource = await validateQuoteSource({
@@ -920,6 +920,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     accountOptions: input.accountOptions,
   });
   mediaFiles = ingested.media ?? [];
+  threadForPersistence = ingested.thread;
   input = { ...input, accountOptions: ingested.accountOptions };
 
   // Validate content

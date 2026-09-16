@@ -24,6 +24,9 @@ const MIME_EXTENSION: Record<string, string> = {
 
 const log = mediaLogger.child({ tool: "mcp.upload_media" });
 
+export const UPLOAD_MEDIA_DESCRIPTION =
+  "Import an image or video into SimplePost storage from either an external URL or a registered file parameter supplied by the current chat client. Pass exactly one of url or file. Never construct, copy, or reuse a file reference. Returns a public media URL and metadata for posting tools.";
+
 const fileParamSchema = z
   .object({
     download_url: z.string().url().describe("Temporary file download URL provided by the chat client."),
@@ -40,7 +43,7 @@ export const uploadMediaSchema = z.object({
   file: fileParamSchema
     .optional()
     .describe(
-      "Image or video file from the chat. Provide either file or url. Supported: JPEG, PNG, GIF, WebP, MP4, QuickTime, WebM. Do not pass base64 bytes.",
+      "Registered image or video file parameter supplied directly by the current chat client. Pass it unchanged; never construct it from a file id, filename, path, or earlier message. Provide either file or url. Supported: JPEG, PNG, GIF, WebP, MP4, QuickTime, WebM. Do not pass base64 bytes.",
     ),
   url: z
     .string()

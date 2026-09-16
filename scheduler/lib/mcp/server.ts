@@ -8,7 +8,7 @@ import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
-import { uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
+import { UPLOAD_MEDIA_DESCRIPTION, uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import { showPostPreview, showPostPreviewOutputSchema, showPostPreviewSchema } from "./tools/post-preview-ui";
 import {
   createPost,
@@ -77,18 +77,17 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. SimplePost imports external URLs into its own storage before saving or publishing so every platform receives the exact bytes that were validated. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
 
-There are two ways to get a usable \`url\`:
+There are two supported ways to provide media:
 
-- **The user provides a URL** (most common — they paste a link, or it comes from an earlier tool result). Use it directly.
-- **The chat client has a generated or attached file with no public URL**. Call \`upload_media\` with the \`file\` file parameter so SimplePost can download and validate the bytes server-side. Do not transcribe large images into base64 tool arguments; \`upload_media\` does not accept base64 media data.
-- **The user supplied an external media URL and wants it imported before drafting**. Call \`upload_media\` with \`url\`. This is optional for \`create_post\`, which imports external media automatically, but useful when the managed URL is needed first.
+- **Public URL (preferred)**. Pass it to the posting tool; SimplePost imports it automatically before saving or publishing. Call \`upload_media\` with \`url\` only when a managed URL is needed first.
+- **Registered chat file parameter**. Use \`upload_media\` with \`file\` only when the chat client supplies that structured file parameter directly for the current attached or generated file. Pass it unchanged. Never construct a file object from a filename, file id, displayed path, or earlier message, and never pass base64 bytes.
 
 Notes:
 - Some platforms require media: Instagram needs at least one image or video; YouTube needs a video. \`validate_post\` and \`preview_post\` will surface these requirements as errors.
 - Videos benefit from a \`thumbnailUrl\` but it is optional.
 - Allowed upload types: image/jpeg, image/png, image/gif, image/webp, video/mp4, video/quicktime, video/webm. Maximum 500MB per file.
 - \`upload_media\` validates that image/video bytes match the declared type before returning a SimplePost URL.
-- If the client is showing an image but exposes neither a public URL nor a file parameter to tools, ask the user for a public URL or to upload via the SimplePost web app.
+- If a file reference is unavailable or rejected as \`UNREGISTERED_FILE_REFERENCE\`, do not retry or invent another reference. Ask the user to reattach the file in the current message, provide a public URL, or upload it via the SimplePost web app.
 
 # Multi-segment threads (reply chains)
 
@@ -541,7 +540,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "upload_media",
     {
       title: "Upload Media",
-      description: `Use this to upload an image or video file from the chat to SimplePost storage. It returns a public media URL and metadata for posting tools. The file parameter is required; publicly fetchable URLs can be passed directly to posting tools instead.`,
+      description: UPLOAD_MEDIA_DESCRIPTION,
       inputSchema: uploadMediaSchema.shape,
       outputSchema: uploadMediaOutputSchema.shape,
       annotations: MCP_TOOL_ANNOTATIONS.upload_media,

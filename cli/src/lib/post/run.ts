@@ -440,12 +440,17 @@ export async function runPostWorkflow(options: {
       });
 
       for (const target of executionPlan.targets) {
-        const prepared = await prepareMedia(target.post);
+        // Staging uploads local files so platforms that need public URLs can
+        // fetch them, but the SDK only validates once publishing starts. Check
+        // first, so a post that cannot publish reports why instead of failing
+        // in storage, and touches no storage on the way.
+        const invalid = (await validatePostMedia(target.post)).some((issue) => issue.severity === "error");
+        const prepared = invalid ? undefined : await prepareMedia(target.post);
         let results: Map<Platform, PostResult>;
         try {
-          results = await publishPost(prepared.post);
+          results = await publishPost(prepared?.post ?? target.post);
         } finally {
-          await prepared.cleanup();
+          await prepared?.cleanup();
         }
         const result = results.get(target.platform);
         if (!result) {

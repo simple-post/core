@@ -472,7 +472,14 @@ it.each(["crop", "blur", "prompt", "cancel", "noninteractive"])(
       expect(cleanup).toHaveBeenCalledTimes(1);
       if (choice !== "prompt") {
         expect(prompt.select).not.toHaveBeenCalled();
-        expect(sdk.validatePostMedia).not.toHaveBeenCalled();
+        // Naming the method up front skips the fitting preflight, so the only
+        // validation left is the pre-publish check on the fitted post.
+        expect(sdk.validatePostMedia).toHaveBeenCalledTimes(1);
+        expect(sdk.validatePostMedia).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.objectContaining({ media: [{ type: "image", path: "/tmp/fitted.jpg" }] }),
+          }),
+        );
       }
     }
     sdk.validatePostMedia.mockResolvedValue([]);

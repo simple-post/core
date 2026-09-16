@@ -81,7 +81,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Media
 
-Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
+Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. SimplePost imports external URLs into its own storage before saving or publishing so every platform receives the exact bytes that were validated. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
 
 There are two supported ways to provide media:
 
@@ -598,7 +598,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "validate_post",
     {
       title: "Validate Post",
-      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally. ${context.imageFittingEnabled ? "Optional imageFit uploads fitted image previews and requires posts:write scope." : ""}`,
+      description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""}`,
       inputSchema: fittingSchema(validatePostSchema.shape, context.imageFittingEnabled),
       outputSchema: validatePostOutputSchema.shape,
       annotations: {
@@ -644,7 +644,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "preview_post",
     {
       title: "Preview Post",
-      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI. ${context.imageFittingEnabled ? "Optional imageFit uploads fitted image previews and requires posts:write scope." : ""} scheduledFor must be a timezone-aware ISO 8601 datetime.`,
+      description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""} scheduledFor must be a timezone-aware ISO 8601 datetime.`,
       inputSchema: fittingSchema(previewPostSchema.shape, context.imageFittingEnabled),
       outputSchema: previewPostOutputSchema.shape,
       annotations: {

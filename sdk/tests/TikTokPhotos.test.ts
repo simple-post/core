@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { TikTokPublisher } from "../src/publishers/tiktok";
 import { getTikTokPostText, validateTikTokContent } from "../src/publishers/tiktok/validation";
 import { PostErrorType } from "../src/types";
+import { downloadToTempFile } from "../src/utils/media";
 import { MediaResolver } from "../src/utils/media-resolver";
 import { S3MediaUploader } from "../src/utils/s3";
 
@@ -14,7 +15,11 @@ import type { Content, TikTokOptions, PostOptionsWithCredentials } from "../src/
 
 jest.mock("axios");
 jest.mock("fs");
-jest.mock("../src/utils/s3", () => ({ S3MediaUploader: jest.fn() }));
+jest.mock("../src/utils/media", () => ({
+  ...jest.requireActual("../src/utils/media"),
+  downloadToTempFile: jest.fn(),
+}));
+jest.mock("../src/utils/s3", () => ({ getKeyFromUrl: jest.fn(), S3MediaUploader: jest.fn() }));
 const api = { post: jest.fn() };
 const uploadFile = jest.fn();
 const uploadStream = jest.fn();
@@ -61,6 +66,7 @@ beforeEach(() => {
     data: Readable.from([jpeg]),
   }));
   (fs.statSync as jest.Mock).mockReturnValue({ size: 1024 });
+  jest.mocked(downloadToTempFile).mockImplementation(async (url) => `/tmp/${new URL(url).pathname.split("/").pop()}`);
   uploadFile.mockImplementation(async (_path, key) => `https://media.example.com/${key}`);
   uploadStream.mockImplementation(async () => `https://media.example.com/staged-${uploadStream.mock.calls.length}.jpg`);
   (S3MediaUploader as jest.Mock).mockImplementation(() => ({ uploadFile, uploadStream, deleteFile }));
@@ -231,10 +237,13 @@ it("validates count, mixed media, text, cover and music options", () => {
   expect(validateTikTokContent({ ...valid, text: "x".repeat(4001) }, { description: "Override" }).isValid).toBe(true);
 });
 
-it("leaves TikTok photos intact during shared preparation so the publisher owns staging", async () => {
+it("materializes TikTok photos once so the publisher stages the exact downloaded bytes", async () => {
   const media = [...photos().media!, { type: "image" as const, path: "/tmp/photo.jpg" }];
   const resolver = new MediaResolver();
-  expect(await resolver.resolve(media, ["tiktok"])).toEqual(media);
+  expect(await resolver.resolve(media, ["tiktok"])).toEqual([
+    ...photos().media!.map((item, index) => ({ ...item, path: `/tmp/${index}.jpg` })),
+    { type: "image", path: "/tmp/photo.jpg" },
+  ]);
   await resolver.cleanup();
   expect(uploadFile).not.toHaveBeenCalled();
   expect(deleteFile).not.toHaveBeenCalled();

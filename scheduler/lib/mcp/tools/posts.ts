@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
@@ -41,7 +42,7 @@ export const createPostSchema = z.object({
   media: mcpMediaArraySchema
     .optional()
     .describe(
-      "Optional images/videos to attach. Each item must have a public URL, either one the user provided or one returned by upload_media. Some platforms, such as Instagram, require media; YouTube requires a video.",
+      "Optional images/videos to attach. Each item must have a public URL. External URLs are imported into SimplePost storage before saving or publishing. Some platforms, such as Instagram, require media; YouTube requires a video.",
     ),
   thread: mcpThreadSchema,
   postingMode: z
@@ -663,15 +664,19 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
-  const media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
-  const accountOptions = await resolveMcpAccountOptions(
+  let media = input.media === undefined ? currentPost.media : input.media === null ? [] : toMediaFiles(input.media);
+  let accountOptions = await resolveMcpAccountOptions(
     userId,
     accountIds,
     input.accountOptions ?? currentPost.accountOptions,
     media,
   );
-  const thread =
+  let thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
+  const ingested = await ingestPostMedia(userId, { media, thread, accountOptions });
+  media = ingested.media ?? [];
+  thread = ingested.thread;
+  accountOptions = ingested.accountOptions;
   const threadForValidation = thread && thread.length > 0 ? thread : undefined;
   const currentPostingMode = currentPost.status === "draft" ? "draft" : "schedule";
   const targetPostingMode = input.postingMode ?? (input.scheduledFor === undefined ? currentPostingMode : "schedule");
@@ -897,7 +902,7 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
 
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
-  const mediaFiles = toMediaFiles(input.media);
+  let mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);
   const threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
   const threadSegmentCount = threadSegments.length;
@@ -908,6 +913,14 @@ export async function createPost(userId: string, input: z.infer<typeof createPos
     postingMode,
     scheduledFor,
   });
+
+  const ingested = await ingestPostMedia(userId, {
+    media: mediaFiles,
+    thread: threadForPersistence,
+    accountOptions: input.accountOptions,
+  });
+  mediaFiles = ingested.media ?? [];
+  input = { ...input, accountOptions: ingested.accountOptions };
 
   // Validate content
   const validation = await validatePostForAccounts({

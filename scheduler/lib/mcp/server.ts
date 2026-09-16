@@ -75,12 +75,13 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Media
 
-Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
+Posts can include images and videos via the \`media\` array on \`validate_post\`, \`preview_post\`, and \`create_post\`. Each item is \`{ type: "image" | "video", url, filename?, size?, thumbnailUrl? }\`. The \`url\` must be publicly fetchable. SimplePost imports external URLs into its own storage before saving or publishing so every platform receives the exact bytes that were validated. When \`upload_media\` returned the item, preserve its \`filename\` and \`size\` exactly so platform-specific file-size validation runs before publishing or scheduling.
 
 There are two ways to get a usable \`url\`:
 
 - **The user provides a URL** (most common — they paste a link, or it comes from an earlier tool result). Use it directly.
 - **The chat client has a generated or attached file with no public URL**. Call \`upload_media\` with the \`file\` file parameter so SimplePost can download and validate the bytes server-side. Do not transcribe large images into base64 tool arguments; \`upload_media\` does not accept base64 media data.
+- **The user supplied an external media URL and wants it imported before drafting**. Call \`upload_media\` with \`url\`. This is optional for \`create_post\`, which imports external media automatically, but useful when the managed URL is needed first.
 
 Notes:
 - Some platforms require media: Instagram needs at least one image or video; YouTube needs a video. \`validate_post\` and \`preview_post\` will surface these requirements as errors.

@@ -15,7 +15,9 @@ function createMcpMediaItemSchema() {
     url: z
       .string()
       .url()
-      .describe("Public URL of the media. Either a URL the user provided, or a URL returned by the upload_media tool."),
+      .describe(
+        "Public URL of the media. External URLs are imported into SimplePost storage before the post is saved or published.",
+      ),
     thumbnailUrl: z.string().url().optional().describe("Optional public thumbnail URL. Recommended for videos."),
     filename: z.string().min(1).optional().describe("Original filename when known, such as the upload_media result."),
     durationSec: z

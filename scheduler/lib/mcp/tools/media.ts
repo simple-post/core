@@ -37,9 +37,16 @@ const fileParamSchema = z
   .passthrough();
 
 export const uploadMediaSchema = z.object({
-  file: fileParamSchema.describe(
-    "Required image or video file from the chat. Supported: JPEG, PNG, GIF, WebP, MP4, QuickTime, WebM. Audio-only files (including WAV and MP3) are not supported. Do not pass base64 file bytes.",
-  ),
+  file: fileParamSchema
+    .optional()
+    .describe(
+      "Image or video file from the chat. Provide either file or url. Supported: JPEG, PNG, GIF, WebP, MP4, QuickTime, WebM. Do not pass base64 bytes.",
+    ),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe("External media URL to import into SimplePost storage. Provide either url or file."),
   filename: z
     .string()
     .min(1)
@@ -274,7 +281,11 @@ async function readMediaSample(tempPath: string): Promise<MediaSample> {
 }
 
 async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUploadSource> {
-  const inputFileSize = input.file.size ?? 0;
+  if (Boolean(input.file) === Boolean(input.url)) {
+    throw new BadRequestError("Provide exactly one media source: file or url.");
+  }
+
+  const inputFileSize = input.file?.size ?? 0;
 
   if (inputFileSize > 0 && inputFileSize > MAX_FILE_SIZE) {
     throw new BadRequestError(FILE_TOO_LARGE_MESSAGE);
@@ -283,17 +294,18 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
   // Use the SDK's bounded, DNS-pinned downloader so a crafted file parameter
   // cannot reach loopback, private networks, cloud metadata, or an unsafe
   // redirect target.
-  const tempPath = await downloadToTempFile(input.file.download_url);
+  const sourceUrl = input.file?.download_url ?? input.url!;
+  const tempPath = await downloadToTempFile(sourceUrl);
   try {
     const sample = await readMediaSample(tempPath);
 
-    const declaredType = input.mimeType ?? input.file.mime_type ?? input.file.mimeType;
+    const declaredType = input.mimeType ?? input.file?.mime_type ?? input.file?.mimeType;
     const filename =
       input.filename ??
-      input.file.file_name ??
-      input.file.name ??
-      filenameFromUrl(input.file.download_url) ??
-      `${input.file.file_id}.${extensionForMimeType(declaredType ?? "application/octet-stream")}`;
+      input.file?.file_name ??
+      input.file?.name ??
+      filenameFromUrl(sourceUrl) ??
+      `${input.file?.file_id ?? "media"}.${extensionForMimeType(declaredType ?? "application/octet-stream")}`;
     const mimeType = resolveMimeType(sample, declaredType, filename);
 
     return {
@@ -310,7 +322,7 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
 
 export async function uploadMedia(userId: string, input: UploadMediaInput) {
   const startedAt = Date.now();
-  const sourceType = "file_param";
+  const sourceType = input.url ? "external_url" : "file_param";
   let source: ResolvedUploadSource | undefined;
 
   try {

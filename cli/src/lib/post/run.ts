@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { openAsBlob } from "node:fs";
 import path from "node:path";
 
-import { PostErrorType, post as publishPost } from "@simple-post/sdk";
+import { PostErrorType, post as publishPost, prepareMedia } from "@simple-post/sdk";
 import { normalizeContentType } from "@simple-post/sdk/media-types";
 
 import { collectPostInput } from "./input.js";
@@ -382,7 +382,13 @@ export async function runPostWorkflow(options: {
     });
 
     for (const target of executionPlan.targets) {
-      const results = await publishPost(target.post);
+      const prepared = await prepareMedia(target.post);
+      let results: Map<Platform, PostResult>;
+      try {
+        results = await publishPost(prepared.post);
+      } finally {
+        await prepared.cleanup();
+      }
       const result = results.get(target.platform);
       if (!result) {
         throw new Error(`The SDK did not return a result for ${getPlatformLabel(target.platform)}.`);

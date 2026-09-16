@@ -13,6 +13,9 @@ import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 jest.mock("@/lib/db", () => ({ PostsModel: jest.fn() }));
+jest.mock("@/lib/media-ingestion", () => ({
+  ingestPostMedia: jest.fn(async (_userId, input) => input),
+}));
 jest.mock("@/lib/prisma", () => ({ prisma: { $transaction: jest.fn(), connectedAccount: { findMany: jest.fn() } } }));
 jest.mock("@/lib/mcp/tools/accounts", () => ({
   ...jest.requireActual("@/lib/mcp/tools/accounts"),

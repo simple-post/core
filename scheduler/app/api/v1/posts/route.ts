@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
+import { ingestPostMedia } from "@/lib/media-ingestion";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -143,7 +144,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     log.debug({ postingMode: body.postingMode, messageLength: body.message?.length || 0 }, "Request body parsed");
 
     const parsed = createPostSchema.parse(body);
-    const validated = { ...parsed, accountIds: [...new Set(parsed.accountIds)] };
+    let validated = { ...parsed, accountIds: [...new Set(parsed.accountIds)] };
     log.debug({ accountCount: validated.accountIds.length }, "Validation successful");
 
     // Idempotent creation: a retried request with the same key returns the
@@ -159,6 +160,8 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
       }
     }
+
+    validated = await ingestPostMedia(userId, validated);
 
     const postingMode = validated.postingMode;
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);

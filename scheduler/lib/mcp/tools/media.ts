@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs";
 import { open, unlink } from "node:fs/promises";
+import { finished } from "node:stream/promises";
 
 import { downloadToTempFile, generateFileKey, S3MediaUploader } from "@simple-post/sdk";
 import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
@@ -470,6 +471,7 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
       }
     } finally {
       uploadStream.destroy();
+      await finished(uploadStream).catch(() => {});
     }
     log.info(
       {

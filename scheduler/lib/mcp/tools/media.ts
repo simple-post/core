@@ -3,7 +3,12 @@ import { open, unlink } from "node:fs/promises";
 import { finished } from "node:stream/promises";
 
 import { downloadToTempFile, generateFileKey, S3MediaUploader } from "@simple-post/sdk";
-import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
+import {
+  ALLOWED_MEDIA_TYPES,
+  detectMediaType,
+  MAX_INSPECTABLE_IMAGE_BYTES,
+  normalizeContentType,
+} from "@simple-post/sdk/media-types";
 import { z } from "zod";
 
 import { mediaLogger, serializeError } from "@/lib/logger";
@@ -27,7 +32,7 @@ const MIME_EXTENSION: Record<string, string> = {
 const log = mediaLogger.child({ tool: "mcp.upload_media" });
 
 export const UPLOAD_MEDIA_DESCRIPTION =
-  "Import an image or video into SimplePost storage from either an external URL or a registered file parameter supplied by the current chat client. Pass exactly one of url or file. Never construct, copy, or reuse a file reference. If a file call fails with UNREGISTERED_FILE_REFERENCE and the same media has a public URL, retry once with url and omit file; otherwise ask the user to reattach it and do not retry the same reference. Returns a public media URL and metadata for posting tools.";
+  "Import an image or video into SimplePost storage from either an external URL or a registered file parameter supplied by the current chat client. Pass exactly one of url or file. Never construct, copy, or reuse a file reference. A file call can fail either with MEDIA_FILE_REFERENCE_UNAVAILABLE from SimplePost or with UNREGISTERED_FILE_REFERENCE raised by the chat client itself; both mean the same thing. On either one, if the same media has a public URL, retry once with url and omit file; otherwise ask the user to reattach it and do not retry the same reference. Returns a public media URL and metadata for posting tools.";
 
 const fileParamSchema = z
   .object({
@@ -105,6 +110,7 @@ function mimeLabel(mimeType: string): string {
 }
 
 const FILE_TOO_LARGE_MESSAGE = `This file is too large — the maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB.`;
+const IMAGE_TOO_LARGE_MESSAGE = `This image is larger than ${MAX_INSPECTABLE_IMAGE_BYTES / (1024 * 1024)} MiB, which is the most SimplePost can inspect and fit. Resize or re-export it before uploading. Videos may still be up to ${MAX_FILE_SIZE / (1024 * 1024)} MiB.`;
 
 function mediaError(
   code: string,
@@ -122,6 +128,10 @@ function mediaError(
 
 function tooLargeError(): McpToolError {
   return mediaError("MEDIA_TOO_LARGE", FILE_TOO_LARGE_MESSAGE, "media_validation", "replace_media");
+}
+
+function imageTooLargeError(): McpToolError {
+  return mediaError("MEDIA_IMAGE_TOO_LARGE", IMAGE_TOO_LARGE_MESSAGE, "media_validation", "replace_media");
 }
 
 function corruptedFileError(mimeType: string): McpToolError {
@@ -162,43 +172,6 @@ function ensureFilenameExtension(filename: string, mimeType: string): string {
   return `${stem || "media"}.${desired}`;
 }
 
-function sniffImageMimeType(buffer: Buffer): string | undefined {
-  if (buffer.length >= 3 && buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255) {
-    return "image/jpeg";
-  }
-
-  if (
-    buffer.length >= 8 &&
-    buffer[0] === 137 &&
-    buffer[1] === 80 &&
-    buffer[2] === 78 &&
-    buffer[3] === 71 &&
-    buffer[4] === 13 &&
-    buffer[5] === 10 &&
-    buffer[6] === 26 &&
-    buffer[7] === 10
-  ) {
-    return "image/png";
-  }
-
-  if (
-    buffer.length >= 6 &&
-    (buffer.subarray(0, 6).toString("ascii") === "GIF87a" || buffer.subarray(0, 6).toString("ascii") === "GIF89a")
-  ) {
-    return "image/gif";
-  }
-
-  if (
-    buffer.length >= 12 &&
-    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
-    buffer.subarray(8, 12).toString("ascii") === "WEBP"
-  ) {
-    return "image/webp";
-  }
-
-  return undefined;
-}
-
 function hasJpegEndMarker(buffer: Buffer): boolean {
   for (let i = buffer.length - 2; i >= Math.max(0, buffer.length - 4096); i -= 1) {
     if (buffer[i] === 255 && buffer[i + 1] === 217) return true;
@@ -222,22 +195,20 @@ function hasPngEndChunk(buffer: Buffer): boolean {
   return false;
 }
 
-function hasMp4FileTypeBox(buffer: Buffer): boolean {
-  return buffer.length >= 12 && buffer.subarray(4, 8).toString("ascii") === "ftyp";
-}
-
-function hasWebmHeader(buffer: Buffer): boolean {
-  return buffer.length >= 4 && buffer[0] === 26 && buffer[1] === 69 && buffer[2] === 223 && buffer[3] === 163;
-}
-
 function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: string): void {
   if (size > MAX_FILE_SIZE) {
     throw tooLargeError();
   }
 
-  const sniffedImageType = sniffImageMimeType(header);
+  // An image above the inspection ceiling would upload here and then fail every
+  // later validation with no way for the user to recover, so refuse it now.
+  if (mimeType.startsWith("image/") && size > MAX_INSPECTABLE_IMAGE_BYTES) {
+    throw imageTooLargeError();
+  }
 
-  if (mimeType.startsWith("image/") && sniffedImageType !== mimeType) {
+  // The stored type has to be the one the bytes declare. Validation re-detects
+  // from bytes; if the two ever disagree the object is permanently unpublishable.
+  if (detectMediaType(header) !== mimeType) {
     throw mediaError(
       "MEDIA_TYPE_MISMATCH",
       `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
@@ -261,28 +232,15 @@ function assertCompleteMedia({ header, size, tail }: MediaSample, mimeType: stri
       throw corruptedFileError(mimeType);
     }
   }
-  if ((mimeType === "video/mp4" || mimeType === "video/quicktime") && !hasMp4FileTypeBox(header)) {
-    throw mediaError(
-      "MEDIA_TYPE_MISMATCH",
-      `This file doesn't appear to be a valid ${mimeLabel(mimeType)}. Please re-upload it or try a different file.`,
-      "media_validation",
-      "replace_media",
-    );
-  }
-  if (mimeType === "video/webm" && !hasWebmHeader(header)) {
-    throw mediaError(
-      "MEDIA_TYPE_MISMATCH",
-      "This file doesn't appear to be a valid WebM video. Please re-upload it or try a different file.",
-      "media_validation",
-      "replace_media",
-    );
-  }
 }
 
 function resolveMimeType(sample: MediaSample, declaredMimeType: string | undefined, filename: string): string {
   const normalized = normalizeContentType(declaredMimeType ?? "", filename);
-  const sniffedImageType = sniffImageMimeType(sample.header);
-  const resolvedType = sniffedImageType ?? normalized;
+  // The bytes decide, for video as much as for images: a filename extension or
+  // a client-declared type is only a hint, and plenty of real media arrives at
+  // URLs with no extension at all. The declared type is the fallback for the
+  // rare container these signatures cannot name.
+  const resolvedType = detectMediaType(sample.header) ?? normalized;
 
   if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
     const textPrefix = sample.header.subarray(0, 256).toString("utf8").trimStart().toLowerCase();

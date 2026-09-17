@@ -16,7 +16,9 @@ it.each([undefined, false, true])("advertises image fitting only with a grant (%
     expect(Object.hasOwn(config.inputSchema!.shape, "imageFit")).toBe(!!enabled);
     if (!enabled) expect(config.description).not.toContain("imageFit");
     if (name === "validate_post" || name === "preview_post") {
-      expect(config.annotations?.readOnlyHint).toBe(!enabled);
+      // Both import media on every call, whatever the caller's grants are.
+      expect(config.annotations?.readOnlyHint).toBe(false);
+      expect(config.annotations?.idempotentHint).toBe(false);
     }
   }
   expect(SERVER_INSTRUCTIONS).not.toContain("imageFit");

@@ -7,13 +7,12 @@ import sharp from "sharp";
 import { remoteRequestConfig, validateUrlForSSRF } from "./media";
 import { inspectVideo, type VideoInspection } from "./video-inspection";
 
-import { ALLOWED_MEDIA_TYPES, mediaHeaderMatchesContentType, normalizeContentType } from "../media-types";
+import { ALLOWED_MEDIA_TYPES, detectMediaType, MAX_INSPECTABLE_IMAGE_BYTES, normalizeContentType } from "../media-types";
 
 import type { Readable } from "node:stream";
 
 // Bound network traffic and decoder work. Images are decoded; video prefixes
 // identify candidates, then a full local-file probe measures the real streams.
-const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const VIDEO_PREFIX_BYTES = 4096;
 
 export interface MediaInspection {
@@ -42,14 +41,6 @@ const invalidMedia = () =>
     "This URL or file does not contain a supported image or video. Upload the file directly; links to sign-in, preview, or download-confirmation pages cannot be published.",
   );
 
-function detectContentType(bytes: Buffer): string | undefined {
-  // QuickTime and MP4 share ftyp; the major brand disambiguates them.
-  if (bytes.subarray(4, 8).toString() === "ftyp" && bytes.subarray(8, 12).toString() === "qt  ") {
-    return "video/quicktime";
-  }
-  return [...ALLOWED_MEDIA_TYPES].find((type) => mediaHeaderMatchesContentType(bytes, type));
-}
-
 async function inspectStream(
   stream: Readable,
   size?: number,
@@ -68,7 +59,7 @@ async function inspectStream(
       length += chunk.length;
       chunks.push(chunk);
       if (!contentType && length >= 12) {
-        contentType = detectContentType(Buffer.concat(chunks, length));
+        contentType = detectMediaType(Buffer.concat(chunks, length));
         if (!contentType) throw invalidMedia();
         if (reportedType && reportedType !== "application/octet-stream" && reportedType !== contentType) {
           throw new MediaInspectionError(
@@ -80,7 +71,7 @@ async function inspectStream(
       if (contentType?.startsWith("video/") && length >= VIDEO_PREFIX_BYTES && size !== undefined) {
         return { size, contentType };
       }
-      if (length > MAX_IMAGE_BYTES) {
+      if (length > MAX_INSPECTABLE_IMAGE_BYTES) {
         throw new MediaInspectionError(
           "media_inspection_limit",
           "This media cannot be validated within the download limit. Use an image under 32 MB or a video URL that reports its file size.",

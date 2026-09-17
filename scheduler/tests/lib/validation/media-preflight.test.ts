@@ -5,12 +5,15 @@ import sharp from "sharp";
 
 import { hasFeature } from "@/lib/features";
 import { validatePost } from "@/lib/mcp/tools/validation";
+import { ingestPostMedia } from "@/lib/media-ingestion";
 import { prisma } from "@/lib/prisma";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 jest.mock("@/lib/features", () => ({ hasFeature: jest.fn().mockResolvedValue(false) }));
 jest.mock("axios");
 jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findMany: jest.fn() } } }));
+// These cover what validation reports; importing has its own tests.
+jest.mock("@/lib/media-ingestion", () => ({ ingestPostMedia: jest.fn(async (_userId, input) => input) }));
 jest.mock("@/lib/security/connected-account-secrets", () => ({ decryptTokenMetadata: () => ({}) }));
 jest.mock("@/lib/config", () => ({
   getPlatformById: (id: string) => ({ id, name: id }),
@@ -143,4 +146,20 @@ it.each([false, true])("only offers fitting to granted users (grant=%s)", async 
   expect(result.isValid).toBe(false);
   if (enabled) expect(result.imageFitHelp).toContain("crop");
   else expect(result.imageFitHelp).toBeUndefined();
+});
+
+it("still reports per-account errors when media cannot be imported", async () => {
+  jest.mocked(ingestPostMedia).mockRejectedValueOnce(new Error("storage unavailable"));
+  const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } })
+    .png()
+    .toBuffer();
+  serve(png, "image/png");
+
+  const result = await validatePost("user", { message: "hello", accountIds: ["instagram"], media: [media] });
+
+  // A failed import must not replace the whole report with one thrown error.
+  expect(result.isValid).toBe(false);
+  expect(result.accounts[0].errors).toContainEqual(
+    expect.objectContaining({ message: expect.stringContaining("Instagram") }),
+  );
 });

@@ -12,6 +12,7 @@ import { inspectLocalMedia } from "./media-inspection";
 import { generateFileKey, S3MediaUploader } from "./s3";
 
 import { ImageFitSchema } from "../image-fit";
+import { MAX_INSPECTABLE_IMAGE_BYTES } from "../media-types";
 import { mapPlatformName } from "../platform-names";
 import { isThreadCapablePlatform } from "../types/api";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "../validation";
@@ -22,7 +23,7 @@ import type { MediaInspection } from "./media-inspection";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, ThreadSegment } from "../types/api";
 import type { Platform, Post } from "../types/post";
 
-const MAX_INPUT_BYTES = 32 * 1024 * 1024;
+const MAX_INPUT_BYTES = MAX_INSPECTABLE_IMAGE_BYTES;
 
 /**
  * A fitting request that cannot be satisfied for the given input — too large,

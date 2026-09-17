@@ -192,3 +192,52 @@ it("absorbs a late read error on the stream it discards after a storage failure"
   expect(discarded!.listenerCount("error")).toBeGreaterThan(0);
   expect(() => discarded!.emit("error", new Error("ENOENT: no such file or directory"))).not.toThrow();
 });
+
+function mockStorage() {
+  const uploadStream = jest.fn().mockResolvedValue("https://storage.example/uploads/user/key");
+  jest.mocked(S3MediaUploader).mockImplementation(() => ({ uploadStream }) as never);
+}
+
+const mp4 = (brand: string) =>
+  Buffer.concat([
+    Buffer.from([0, 0, 0, 24]),
+    Buffer.from("ftyp"),
+    Buffer.from(brand),
+    Buffer.from("isomiso2mp41"),
+  ]);
+
+it.each([
+  ["a URL with no extension", "https://cdn.example/media/abc123", "abc123", "abc123.mp4"],
+  ["a mislabelled .mov", "https://cdn.example/clip.mov", "clip.mov", "clip.mp4"],
+])("identifies MP4 bytes behind %s", async (_label, url, name, expected) => {
+  await writeFile(filename, mp4("isom"));
+  mockStorage();
+
+  // Validation re-detects from bytes later, so the stored type has to match them
+  // or the object can never be published.
+  await expect(uploadMedia("user", { url, filename: name })).resolves.toMatchObject({
+    type: "video",
+    mimeType: "video/mp4",
+    filename: expected,
+  });
+});
+
+it("keeps a genuine QuickTime container as QuickTime", async () => {
+  await writeFile(filename, mp4("qt  "));
+  mockStorage();
+
+  await expect(
+    uploadMedia("user", { url: "https://cdn.example/clip.mov", filename: "clip.mov" }),
+  ).resolves.toMatchObject({ mimeType: "video/quicktime", filename: "clip.mov" });
+});
+
+it("refuses an image too large to inspect instead of storing a dead end", async () => {
+  await writeFile(filename, Buffer.concat([Buffer.from([255, 216, 255, 224]), Buffer.alloc(33 * 1024 * 1024)]));
+
+  const error = await uploadMedia("user", { url: "https://cdn.example/big.jpg", filename: "big.jpg" }).catch(
+    (error_) => error_,
+  );
+  expect(error).toMatchObject({ code: "MEDIA_IMAGE_TOO_LARGE", recovery: "replace_media" });
+  expect(error.message).toContain("32 MiB");
+  expect(S3MediaUploader).not.toHaveBeenCalled();
+});

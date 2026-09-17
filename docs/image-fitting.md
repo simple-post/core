@@ -31,7 +31,7 @@ The hosted scheduler and self-hosted server accept optional `imageFit: "crop" | 
 
 For review before publishing, submit the content to `/api/v1/validation` with `imageFit`. The response includes the normal validation result and `fittedContent` containing `media`, `accountOverrides`, `accountOptions`, and `thread`. Render those image URLs, then copy the reviewed fields into the create/update request **without** `imageFit`. Validation may still return unrelated errors; resolve them before publishing. Validation with fitting uploads derivatives but never publishes a post.
 
-Transformations require configured S3-compatible storage for hosted URLs. Fitting always runs on media already imported into SimplePost storage: every surface that fits — create, update and validation — imports external URLs first, so the same size, type and SSRF checks apply before any transformation, and the returned result can be persisted as-is. Both the imported sources and the derivatives are registered with the existing 24-hour storage collection process: media referenced by saved posts is retained; abandoned previews are eligible for collection. Save reviewed images before they expire. The self-hosted server uses its configured bucket and requires an operator-managed retention policy for unused previews.
+Transformations require configured S3-compatible storage for hosted URLs. Fitting always runs on media already imported into SimplePost storage: every surface that fits — create, update and validation — imports external URLs first, so the same size, type and SSRF checks apply before any transformation, and the returned result can be persisted as-is. The MCP `validate_post` and `preview_post` tools import whether or not fitting was requested, so a preflight inspects the same bytes `create_post` would publish; if the import itself fails they fall back to checking the supplied URLs rather than returning a single error in place of the report. Both the imported sources and the derivatives are registered with the existing 24-hour storage collection process: media referenced by saved posts is retained; abandoned previews are eligible for collection. Save reviewed images before they expire. The self-hosted server uses its configured bucket and requires an operator-managed retention policy for unused previews.
 
 ## MCP
 
@@ -39,7 +39,11 @@ Transformations require configured S3-compatible storage for hosted URLs. Fittin
 
 When validation finds a fixable image issue, SimplePost provides instructions to offer the two methods. After the user chooses, retry with the chosen method. If the user already asked to fit images, no extra fitting confirmation is needed; use their chosen method, defaulting to `blur` if they did not specify one. Other posting authorization still applies.
 
-`validate_post` returns `fittedMedia` and `fittedAccountOptions` when fitting is requested. Reuse them for a visual preview or subsequent create request. To compare methods, submit the original source URLs again, not an already-cropped derivative.
+A `create_post` or `update_scheduled_post` call blocked by a fixable image issue fails with the machine-readable recovery `retry_with_image_fit` and code `POST_IMAGE_FIT_AVAILABLE`, so a client that follows the diagnostic rather than the prose still offers fitting instead of stopping.
+
+Drafts are never blocked. `postingMode: "draft"` saves the post whatever validation reports, and both write tools return the full `validation` so the client can tell the user which errors must be fixed before the draft can be scheduled or published.
+
+`validate_post` returns `fittedMedia` and `fittedAccountOptions` on every call — the media as SimplePost stored it, fitted when fitting was requested. Reuse them for a visual preview or a subsequent create request so the same source is not imported twice. To compare methods, submit the original source URLs again, not an already-cropped derivative.
 
 ## CLI
 
@@ -85,7 +89,7 @@ Image validation errors display **Fit images…**. Choose a method, generate a p
 
 ## Processing limits
 
-Fitting currently accepts decodable JPEG, PNG, GIF and WebP inputs up to 32 MiB and 40 million pixels, matching the existing inspection budget. Corrupt images, private URLs, and larger inputs require a replacement or an external export first. Downloads retain the shared SSRF/DNS/redirect protections. JPEG quality starts at 90, can fall to 60, and dimensions are reduced if that is insufficient. No generative editing is used.
+Fitting currently accepts decodable JPEG, PNG, GIF and WebP inputs up to 32 MiB and 40 million pixels, matching the existing inspection budget. Images above that ceiling are refused when they are imported — by `upload_media` and by the import every posting and preflight tool runs — rather than stored and then failed at validation. Corrupt images, private URLs, and larger inputs require a replacement or an external export first. Downloads retain the shared SSRF/DNS/redirect protections. JPEG quality starts at 90, can fall to 60, and dimensions are reduced if that is insufficient. No generative editing is used.
 
 
 ## Private hosted rollout

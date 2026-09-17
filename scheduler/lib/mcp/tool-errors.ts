@@ -8,7 +8,13 @@ export type McpErrorStage =
   | "billing"
   | "tool_execution";
 
-export type McpErrorRecovery = "retry_same" | "retry_with_url_or_reattach" | "reattach" | "replace_media" | "stop";
+export type McpErrorRecovery =
+  | "retry_same"
+  | "retry_with_image_fit"
+  | "retry_with_url_or_reattach"
+  | "reattach"
+  | "replace_media"
+  | "stop";
 
 export interface McpErrorDiagnostic {
   code: string;
@@ -19,7 +25,7 @@ export interface McpErrorDiagnostic {
 }
 
 export const MCP_ERROR_INSTRUCTIONS =
-  "Tool failures include a machine-readable SIMPLEPOST_ERROR object with code, stage, recovery, maxAutomaticRetries, and supportId. Follow recovery exactly: retry the same call only for retry_same, and never more than maxAutomaticRetries; for retry_with_url_or_reattach, use an already available public URL once or ask the user to reattach; for reattach, replace_media, or stop, do not automatically repeat the failed call. Include supportId when reporting an unresolved failure.";
+  "Tool failures include a machine-readable SIMPLEPOST_ERROR object with code, stage, recovery, maxAutomaticRetries, and supportId. Follow recovery exactly: retry the same call only for retry_same, and never more than maxAutomaticRetries; for retry_with_image_fit, the failure message names an automatic fix for the attached images — follow it and repeat the same call once with the option it names; for retry_with_url_or_reattach, use an already available public URL once or ask the user to reattach; for reattach, replace_media, or stop, do not automatically repeat the failed call. Include supportId when reporting an unresolved failure.";
 
 export class McpToolError extends ApiError {
   readonly stage: McpErrorStage;

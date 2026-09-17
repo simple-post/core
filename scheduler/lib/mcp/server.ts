@@ -4,7 +4,9 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/server";
 
 import { createLogger, serializeError } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
@@ -40,7 +42,7 @@ import type { z } from "zod";
 const log = createLogger("mcp:tools");
 
 export const IMAGE_FITTING_INSTRUCTIONS =
-  "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post, update_scheduled_post, or validate_post. This also applies when saving a draft: fixable image errors must be fitted before the draft is saved. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
+  "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post, update_scheduled_post, or validate_post. A call that fails with recovery retry_with_image_fit means exactly this: repeat it once with imageFit set. Drafts are saved either way — when a saved draft reports fixable image errors, say so and offer to fit rather than re-saving it. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
 
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule posts to multiple social media platforms (X, Telegram, Facebook, Instagram, YouTube, Meta Threads, ...) from a single tool call. Only call tools for SimplePost posting workflows. Do not call tools for generic writing help, connecting accounts, or editing/deleting social posts that were already published externally; explain those are unsupported and direct the user to the SimplePost web app or social platform.
 
@@ -65,6 +67,10 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 5. Use \`postingMode: "now"\` for immediate publishing (the call blocks until each platform responds and returns \`postingResults\` per account). Use \`postingMode: "schedule"\` together with \`scheduledFor\` to schedule for later — the call returns immediately with \`status: "scheduled"\` and the scheduler will publish at that time. Use \`postingMode: "draft"\` to save the post in SimplePost without publishing or scheduling it.
 
+   A draft is always saved, even when it would not pass platform validation — that is what drafts are for. \`create_post\` and \`update_scheduled_post\` return the full \`validation\` for what was saved. When \`validation.isValid\` is false, confirm the draft was saved **and** tell the user, in the same reply, which per-account errors must be fixed before it can be scheduled or published. Report them once and offer to fix them; do not re-save the draft to try again, and do not claim a draft is ready to go out. Draft validation skips connected-account credential checks, so \`isValid: true\` means the content passes platform rules, not that the account is confirmed ready.
+
+   Always send an \`idempotencyKey\` on \`create_post\` — a new unique string per intended post, reused unchanged on any retry. \`postingMode: "now"\` blocks until every platform responds and can take minutes with large media, so a timeout or network error is the expected case: retry the same call with the SAME key and content, which returns the original post instead of publishing a second time. Never retry without a key.
+
    \`create_post\` applies the user's SimplePost auto-repost default automatically. Inspect \`post.repostEnabled\`, \`post.repostDueAt\`, and \`post.repostStatus\` in tool results when reporting whether a repost is scheduled.
 
 6. When the user asks to quote an earlier post in natural language (for example, "quote my last post about the gym"), call \`inspect_posts\` to find the matching published or scheduled SimplePost record, then pass its exact \`id\` as \`quotePostId\` to \`preview_post\` or \`create_post\`. Never infer or invent a post ID. Native quotes are used on X, Bluesky, Threads, and LinkedIn; other selected platforms publish the new content as an ordinary post. If the source is scheduled, schedule the quote after it so SimplePost can resolve the platform IDs at dispatch time.
@@ -88,6 +94,7 @@ Posts can include images and videos via the \`media\` array on \`validate_post\`
 There are two supported ways to provide media:
 
 - **Public URL (preferred)**. Pass it to the posting tool; SimplePost imports it automatically before saving or publishing. Call \`upload_media\` with \`url\` only when a managed URL is needed first.
+  \`validate_post\` and \`preview_post\` import media too, so they check the exact bytes \`create_post\` would publish. Both return \`fittedMedia\`: pass those items to \`create_post\` instead of the original URLs so the same source is not imported twice.
 - **Registered chat file parameter**. Use \`upload_media\` with \`file\` only when the chat client supplies that structured file parameter directly for the current attached or generated file. Pass it unchanged. Never construct a file object from a filename, file id, displayed path, or earlier message, and never pass base64 bytes.
 
 Notes:
@@ -95,7 +102,7 @@ Notes:
 - Videos benefit from a \`thumbnailUrl\` but it is optional.
 - Allowed upload types: image/jpeg, image/png, image/gif, image/webp, video/mp4, video/quicktime, video/webm. Maximum 500MB per file.
 - \`upload_media\` validates that image/video bytes match the declared type before returning a SimplePost URL.
-- If a file reference is unavailable or rejected as \`UNREGISTERED_FILE_REFERENCE\` and the same media already has a public URL, retry \`upload_media\` once with \`url\` and omit \`file\`, then continue the posting workflow with the returned URL. Otherwise, do not retry or invent another reference; ask the user to reattach the file in the current message, provide a public URL, or upload it via the SimplePost web app.
+- A file reference can fail in two ways and both mean the same thing: SimplePost returns \`MEDIA_FILE_REFERENCE_UNAVAILABLE\`, or the chat client itself rejects the reference with \`UNREGISTERED_FILE_REFERENCE\` before the call reaches SimplePost. Treat either one the same way: if the same media already has a public URL, retry \`upload_media\` once with \`url\` and omit \`file\`, then continue the posting workflow with the returned URL. Otherwise, do not retry or invent another reference; ask the user to reattach the file in the current message, provide a public URL, or upload it via the SimplePost web app.
 
 # Multi-segment threads (reply chains)
 
@@ -135,6 +142,7 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 # Error handling
 
 - ${MCP_ERROR_INSTRUCTIONS}
+- \`create_post\` and \`update_scheduled_post\` return \`validation\` alongside the saved post. Warnings never block: surface them (for example, that a non-thread-capable account receives only the root segment) rather than dropping them from your answer.
 - A successful \`create_post\` with \`postingMode: "now"\` may still report per-platform failures inside \`postingResults\`. Always inspect \`summary.overallSuccess\` and the individual results — do not assume success just because the tool didn't throw. For threads, a root post can succeed while a later segment fails; check \`threadResults\` on that account.
 - If \`validate_post\` or \`preview_post\` was explicitly requested and returns \`isValid: false\`, surface the per-account error messages to the user and offer a fix (shorter text, add media, drop a platform) instead of calling \`create_post\` anyway.
 
@@ -578,6 +586,10 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       try {
         requireScope(context, "posts:write");
         const result = await uploadMedia(context.userId, input);
+        // Registered for the same 24-hour collection as an imported source, so
+        // an upload that never reaches a post does not linger in storage. A
+        // post that references it is spared by the collector.
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, context.userId, result.url));
         return {
           structuredContent: result,
           content: [
@@ -605,11 +617,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""}`,
       inputSchema: fittingSchema(validatePostSchema, context.imageFittingEnabled),
       outputSchema: validatePostOutputSchema,
-      annotations: {
-        ...MCP_TOOL_ANNOTATIONS.validate_post,
-        readOnlyHint: !context.imageFittingEnabled,
-        idempotentHint: !context.imageFittingEnabled,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.validate_post,
       _meta: toolMeta("Checking your post", "Check complete"),
     },
     async (input) => {
@@ -651,11 +659,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""} scheduledFor must be a timezone-aware ISO 8601 datetime.`,
       inputSchema: fittingSchema(previewPostSchema, context.imageFittingEnabled),
       outputSchema: previewPostOutputSchema,
-      annotations: {
-        ...MCP_TOOL_ANNOTATIONS.preview_post,
-        readOnlyHint: !context.imageFittingEnabled,
-        idempotentHint: !context.imageFittingEnabled,
-      },
+      annotations: MCP_TOOL_ANNOTATIONS.preview_post,
       _meta: toolMeta("Preparing a preview", "Preview ready"),
     },
     async (input) => {
@@ -744,9 +748,16 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           result.summary.threadSegmentCount > 0
             ? ` with ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
             : "";
+        // A draft is always saved, so the blockers have to be said out loud
+        // here — over MCP this text is the only thing the user ever sees.
+        const blockerCount = result.validation && !result.validation.isValid ? result.validation.summary.errorCount : 0;
         const summaryText =
           result.post.status === "draft"
-            ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread)}`
+            ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}${
+                blockerCount > 0
+                  ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
+                  : ""
+              }.\n\n${formatPostContent(input.message, input.thread)}`
             : result.post.status === "scheduled"
               ? `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
                   result.summary.scheduledCount,
@@ -767,7 +778,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}${result.imageFitHelp ? "\n\n" + result.imageFitHelp : ""}`,
+              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}${
+                result.validation &&
+                (result.validation.summary.errorCount > 0 || result.validation.summary.warningCount > 0)
+                  ? // imageFitHelp is appended below in its richer per-issue form.
+                    "\n\n" + formatValidationDetails({ ...result.validation, imageFitHelp: undefined })
+                  : ""
+              }${result.imageFitHelp ? "\n\n" + result.imageFitHelp : ""}`,
             },
           ],
         };
@@ -906,7 +923,14 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               type: "text",
               text:
                 result.post.status === "draft"
-                  ? `Updated the draft.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(
+                  ? `Updated the draft${
+                      result.validation.isValid
+                        ? ""
+                        : ` — it can't be published as it stands (${plural(
+                            result.validation.summary.errorCount,
+                            "problem",
+                          )} to fix first)`
+                    }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(
                       result.validation,
                     )}`
                   : `Updated the post — it's now scheduled for ${formatDateTime(

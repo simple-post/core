@@ -9,6 +9,11 @@ import {
 import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
+import { mediaLogger, serializeError } from "@/lib/logger";
+import { ingestPostMedia } from "@/lib/media-ingestion";
+import { prisma } from "@/lib/prisma";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
+import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import type { AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
 
@@ -50,7 +55,11 @@ export const validationAccountSchema = mcpAccountIdentitySchema.extend({
 
 export const validatePostOutputSchema = z.object({
   imageFitHelp: z.string().optional(),
-  fittedMedia: mcpMediaArraySchema.optional(),
+  fittedMedia: mcpMediaArraySchema
+    .optional()
+    .describe(
+      "The media as SimplePost stored it: imported into SimplePost storage, and fitted when imageFit was set. Reuse these items in create_post so the published bytes are the ones that were checked and nothing is imported twice.",
+    ),
   fittedAccountOptions: AccountOptionsMapSchema.optional(),
   kind: z.literal("validation"),
   message: z.string().describe("The post text that was validated, echoed back so the UI can show a preview."),
@@ -100,14 +109,34 @@ export async function validateResolvedPost(
     thread: input.thread,
   });
 
+  return await toMcpValidationResult(userId, input, result);
+}
+
+/**
+ * Shapes a finished validation run as the MCP `validation` payload.
+ *
+ * `create_post` calls `validatePostForAccounts` itself because it also needs the
+ * resolved `ConnectedAccount` rows for billing and quote targets, which this
+ * shape drops. Sharing the mapping keeps the two write tools from drifting.
+ */
+export async function toMcpValidationResult(
+  userId: string,
+  input: {
+    imageFit?: z.infer<typeof ImageFitSchema>;
+    message: string;
+    accountOptions?: z.infer<typeof AccountOptionsMapSchema>;
+    media: MediaFile[];
+  },
+  result: ValidationResultByPlatform,
+): Promise<z.infer<typeof validatePostOutputSchema>> {
   return {
     imageFitHelp:
       [...result.summary.errors, ...(result.summary.warnings ?? [])].some((issue) => canFitImageIssue(issue)) &&
       (await hasFeature(userId, Feature.IMAGE_FITTING))
         ? IMAGE_FIT_HELP
         : undefined,
-    fittedMedia: input.imageFit ? input.media : undefined,
-    fittedAccountOptions: input.imageFit ? input.accountOptions : undefined,
+    fittedMedia: input.media,
+    fittedAccountOptions: input.accountOptions,
     kind: "validation" as const,
     message: input.message,
     mediaCount: input.media.length,
@@ -159,12 +188,38 @@ export async function validatePost(
   const threadSegments = toThreadSegments(input.thread);
   const accountOptions = await resolveMcpAccountOptions(userId, accountIds, input.accountOptions, mediaFiles);
 
+  // Import before checking, exactly as create_post does. A preflight that
+  // inspects the caller's URL answers a different question from the tool that
+  // publishes: the import is where the size ceiling, completeness checks and
+  // redirect-free storage URLs come from. The imported items go back to the
+  // caller as `fittedMedia`, so a follow-up create reuses them instead of
+  // importing the same source a second time.
+  //
+  // Importing can itself fail — an unreachable URL, a page instead of an image,
+  // a storage outage. A preflight reports rather than aborts, so fall back to
+  // the caller's own media: byte inspection checks the same URL and raises the
+  // per-account error, which keeps the rest of the post's feedback intact
+  // instead of replacing it with a single thrown failure.
+  const ingested = await ingestPostMedia(
+    userId,
+    { media: mediaFiles, thread: threadSegments, accountOptions },
+    {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+      },
+    },
+  ).catch((error: unknown) => {
+    mediaLogger.warn({ err: serializeError(error) }, "MCP validation could not import media; checking the source URLs");
+    return undefined;
+  });
+  const ingestedThread = ingested?.thread ?? threadSegments;
+
   return await validateResolvedPost(userId, {
     imageFit: input.imageFit,
     message: input.message,
     accountIds,
-    accountOptions,
-    media: mediaFiles,
-    thread: threadSegments.length > 0 ? threadSegments : undefined,
+    accountOptions: ingested?.accountOptions ?? accountOptions,
+    media: ingested?.media ?? mediaFiles,
+    thread: ingestedThread.length > 0 ? ingestedThread : undefined,
   });
 }

@@ -15,6 +15,13 @@ export const ALLOWED_MEDIA_TYPES = new Set([
   "video/webm",
 ]);
 
+/**
+ * Ceiling for image bytes SimplePost will decode, inspect or fit. Accepting an
+ * image above it only defers the failure to validation, where it cannot be
+ * fixed, so every upload surface rejects it up front.
+ */
+export const MAX_INSPECTABLE_IMAGE_BYTES = 32 * 1024 * 1024;
+
 export const EXTENSION_TO_TYPE: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -49,6 +56,21 @@ export function normalizeContentType(contentType: string, filename: string): str
 
 function ascii(bytes: Uint8Array, start: number, end: number): string {
   return String.fromCodePoint(...bytes.subarray(start, end));
+}
+
+/**
+ * Identifies a supported media type from its leading bytes, or undefined when
+ * they match nothing supported. QuickTime and MP4 share the `ftyp` box, so the
+ * major brand is what tells them apart.
+ *
+ * Every surface that accepts media must agree on the answer: an object stored
+ * under one type and later re-detected as another can never be published.
+ */
+export function detectMediaType(bytes: Uint8Array): string | undefined {
+  if (bytes.length >= 12 && ascii(bytes, 4, 8) === "ftyp" && ascii(bytes, 8, 12) === "qt  ") {
+    return "video/quicktime";
+  }
+  return [...ALLOWED_MEDIA_TYPES].find((type) => mediaHeaderMatchesContentType(bytes, type));
 }
 
 /**

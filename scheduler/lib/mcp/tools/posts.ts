@@ -11,6 +11,7 @@ import { z } from "zod";
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
+import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -37,7 +38,7 @@ import {
   toMediaFiles,
   toThreadSegments,
 } from "./media-schema";
-import { validatePost, validatePostOutputSchema, validateResolvedPost } from "./validation";
+import { toMcpValidationResult, validatePost, validatePostOutputSchema, validateResolvedPost } from "./validation";
 
 export const createPostSchema = z.object({
   imageFit: ImageFitSchema.optional(),
@@ -141,6 +142,11 @@ export const previewPostOutputSchema = z.object({
 
 export const createPostOutputSchema = z.object({
   imageFitHelp: z.string().optional(),
+  validation: validatePostOutputSchema
+    .optional()
+    .describe(
+      "Platform validation for the content that was saved. A draft is saved even when this reports errors, so check isValid before telling the user the post is ready to go out. Absent only when idempotencyKey replayed an earlier post.",
+    ),
   kind: z.literal("post"),
   message: z.string(),
   postingMode: z.enum(["now", "schedule", "draft"]),
@@ -210,7 +216,7 @@ export const updateScheduledPostSchema = z.object({
     .nullable()
     .optional()
     .describe(
-      'Replacement follow-up text-only thread segments. Each segment is {"message":"..."}. Omit to keep current thread; pass null or [] to clear all follow-up segments.',
+      'Replacement follow-up text-only thread segments. Each segment is {"message":"..."}. Any media already attached to a segment is kept at the same position, so editing text never drops images. Omit to keep current thread; pass null or [] to clear all follow-up segments.',
     ),
   scheduledFor: z
     .string()
@@ -507,6 +513,35 @@ function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Dat
   return scheduledFor;
 }
 
+/**
+ * A validation failure the caller can act on. When fitting would fix it the
+ * diagnostic has to say so: a client that follows `recovery` rather than the
+ * prose would otherwise read the default `stop` and never offer to fit.
+ */
+function imageFitRetryError(message: string, canOfferImageFitting: boolean): Error {
+  if (!canOfferImageFitting) return new Error(message);
+  return new McpToolError({
+    code: "POST_IMAGE_FIT_AVAILABLE",
+    message: `${message} ${IMAGE_FIT_HELP}`,
+    stage: "media_validation",
+    recovery: "retry_with_image_fit",
+    maxAutomaticRetries: 1,
+    statusCode: 400,
+  });
+}
+
+/**
+ * MCP thread segments are text-only, so a replacement would otherwise delete
+ * images a thread already carries. Media stays with its position: a segment the
+ * caller still sends keeps whatever was attached at that index.
+ */
+function mergeThreadMedia(replacement: ThreadSegment[], current: ThreadSegment[] | undefined): ThreadSegment[] {
+  return replacement.map((segment, index) => {
+    const media = current?.[index]?.media;
+    return media && media.length > 0 ? { ...segment, media } : segment;
+  });
+}
+
 function collectMediaForCleanup(post: Pick<SocialPost, "media" | "thread">): MediaFile[] {
   return [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
 }
@@ -696,7 +731,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     media,
   );
   let thread =
-    input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
+    input.thread === undefined
+      ? currentPost.thread
+      : input.thread === null
+        ? []
+        : mergeThreadMedia(toThreadSegments(input.thread), currentPost.thread);
   let accountOverrides = currentPost.accountOverrides;
   const ingested = await ingestPostMedia(
     userId,
@@ -746,20 +785,16 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     );
   }
 
-  const validationErrors = validation.accounts.flatMap((account) => account.errors);
-  const draftImageErrors = validationErrors.filter((error) => canFitImageIssue(error));
-  const draftNeedsImageFitting =
-    targetPostingMode === "draft" && draftImageErrors.length > 0 && validation.imageFitHelp !== undefined;
-
-  if ((targetPostingMode === "schedule" && !validation.isValid) || draftNeedsImageFitting) {
-    const errorMessages = (draftNeedsImageFitting ? draftImageErrors : validationErrors)
+  // Drafts save unconditionally here too; the returned `validation` is what
+  // tells the user the draft is not publishable yet.
+  if (targetPostingMode === "schedule" && !validation.isValid) {
+    const errorMessages = validation.accounts
+      .flatMap((account) => account.errors)
       .map((error) => error.message)
       .join("; ");
-    const invalidResult = draftNeedsImageFitting
-      ? "the draft contains images that must be fitted first"
-      : "the scheduled post would be invalid";
-    throw new Error(
-      `Couldn't save these changes because ${invalidResult}: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
+    throw imageFitRetryError(
+      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`,
+      validation.imageFitHelp !== undefined,
     );
   }
 
@@ -1008,22 +1043,34 @@ export async function createPost(
     );
   }
 
-  const fittableImageErrors = validation.summary.errors.filter((issue) => canFitImageIssue(issue));
-  const fittableImageIssues = [...fittableImageErrors, ...(validation.summary.warnings ?? [])].filter((issue) =>
+  const fittableImageIssues = [...validation.summary.errors, ...(validation.summary.warnings ?? [])].filter((issue) =>
     canFitImageIssue(issue),
   );
   const canOfferImageFitting = fittableImageIssues.length > 0 && (await hasFeature(userId, Feature.IMAGE_FITTING));
-  const draftNeedsImageFitting = postingMode === "draft" && fittableImageErrors.length > 0 && canOfferImageFitting;
 
-  if ((postingMode !== "draft" && !validation.summary.isValid) || draftNeedsImageFitting) {
-    const validationErrors = draftNeedsImageFitting ? fittableImageErrors : validation.summary.errors;
-    const errorMessages = validationErrors.map((e) => e.message).join("; ");
-    const action =
-      postingMode === "draft" ? "saved as a draft" : postingMode === "schedule" ? "scheduled" : "published";
-    throw new Error(
-      `The post can't be ${action} because it failed validation: ${errorMessages}${canOfferImageFitting ? " " + IMAGE_FIT_HELP : ""}`,
+  // A draft is a save point for work in progress, so platform content rules
+  // never block one: the caller gets the whole validation back instead and
+  // reports what must be fixed before the post can go out. Structural failures
+  // — unknown account, media that could not be imported, quota — still throw.
+  if (postingMode !== "draft" && !validation.summary.isValid) {
+    const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
+    const action = postingMode === "schedule" ? "scheduled" : "published";
+    throw imageFitRetryError(
+      `The post can't be ${action} because it failed validation: ${errorMessages}`,
+      canOfferImageFitting,
     );
   }
+
+  const mcpValidation = await toMcpValidationResult(
+    userId,
+    {
+      imageFit: input.imageFit,
+      message: input.message,
+      accountOptions: input.accountOptions,
+      media: mediaFiles,
+    },
+    validation,
+  );
 
   await assertCredentialsReadyForPublish({
     accountIds: input.accountIds,
@@ -1197,6 +1244,7 @@ export async function createPost(
         postingMode,
         mediaCount: mediaFiles.length,
         post: mapPost(updatedPost ?? post),
+        validation: mcpValidation,
         postingResults: sanitizedResults,
         summary: {
           accountCount: input.accountIds.length,
@@ -1227,6 +1275,7 @@ export async function createPost(
     postingMode,
     mediaCount: mediaFiles.length,
     post: mapPost(post),
+    validation: mcpValidation,
     imageFitHelp: canOfferImageFitting
       ? fittableImageIssues.map((issue) => `${issue.platform}: ${issue.message}`).join(" ") + " " + IMAGE_FIT_HELP
       : undefined,

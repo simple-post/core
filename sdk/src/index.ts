@@ -283,7 +283,13 @@ export type {
 // @simple-post/sdk/platform-names and @simple-post/sdk/media-types).
 export { mapPlatformName, generatePostUrl, QUOTE_CAPABLE_PLATFORMS, isQuoteCapablePlatform } from "./platform-names";
 export type { PostUrlContext, QuoteCapablePlatform } from "./platform-names";
-export { ALLOWED_MEDIA_TYPES, EXTENSION_TO_TYPE, normalizeContentType } from "./media-types";
+export {
+  ALLOWED_MEDIA_TYPES,
+  detectMediaType,
+  EXTENSION_TO_TYPE,
+  MAX_INSPECTABLE_IMAGE_BYTES,
+  normalizeContentType,
+} from "./media-types";
 export { MediaResolver } from "./utils/media-resolver";
 export { downloadToTempFile, getRemoteMediaSize } from "./utils/media";
 export { hydrateRemoteMediaSizesForAccounts } from "./utils/remote-media-validation";

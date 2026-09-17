@@ -450,8 +450,17 @@ export async function uploadMedia(userId: string, input: UploadMediaInput) {
 
     const key = generateFileKey(userId, source.filename);
     const uploadStartedAt = Date.now();
-    const uploadStream = createReadStream(source.tempPath);
+    // Construct the uploader first: if storage is unconfigured it throws here,
+    // and an already-open read stream would leak because the try/finally that
+    // destroys it has not started yet.
     const uploader = new S3MediaUploader();
+    const uploadStream = createReadStream(source.tempPath);
+    // Once the upload fails nothing consumes this stream, and the outer finally
+    // unlinks the file — possibly while its fs.open is still in flight. With no
+    // listener that late ENOENT becomes an unhandled error event and takes the
+    // process down. A genuine read error still reaches the uploader, which owns
+    // reporting it.
+    uploadStream.on("error", () => {});
     let url: string;
     try {
       try {

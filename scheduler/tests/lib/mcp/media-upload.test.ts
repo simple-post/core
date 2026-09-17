@@ -171,3 +171,24 @@ it("allows one retry after storage rejects validated media", async () => {
   });
   await expect(access(filename)).rejects.toThrow();
 });
+
+it("absorbs a late read error on the stream it discards after a storage failure", async () => {
+  const jpeg = Buffer.from([255, 216, 255, 224, 0, 16, 255, 217]);
+  await writeFile(filename, jpeg);
+  let discarded: { emit: (event: string, error: Error) => boolean; listenerCount: (event: string) => number };
+  const uploadStream = jest.fn(async (stream) => {
+    discarded = stream;
+    throw new Error("storage unavailable");
+  });
+  jest.mocked(S3MediaUploader).mockImplementation(() => ({ uploadStream }) as never);
+
+  await expect(
+    uploadMedia("user", { url: "https://files.example/photo.jpg", filename: "photo.jpg" }),
+  ).rejects.toMatchObject({ code: "MEDIA_STORAGE_FAILED" });
+
+  // The temp file is unlinked by now, so an fs.open still in flight fails on a
+  // stream nobody reads. With no listener Node reports that as an uncaught
+  // exception and kills the worker mid-run.
+  expect(discarded!.listenerCount("error")).toBeGreaterThan(0);
+  expect(() => discarded!.emit("error", new Error("ENOENT: no such file or directory"))).not.toThrow();
+});

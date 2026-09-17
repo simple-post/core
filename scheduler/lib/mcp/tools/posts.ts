@@ -21,6 +21,7 @@ import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
@@ -696,10 +697,20 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   );
   let thread =
     input.thread === undefined ? currentPost.thread : input.thread === null ? [] : toThreadSegments(input.thread);
-  const ingested = await ingestPostMedia(userId, { media, thread, accountOptions });
+  let accountOverrides = currentPost.accountOverrides;
+  const ingested = await ingestPostMedia(
+    userId,
+    { media, thread, accountOptions, accountOverrides },
+    {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+      },
+    },
+  );
   media = ingested.media ?? [];
   thread = ingested.thread;
   accountOptions = ingested.accountOptions;
+  accountOverrides = ingested.accountOverrides;
   const threadForValidation = thread && thread.length > 0 ? thread : undefined;
   const currentPostingMode = currentPost.status === "draft" ? "draft" : "schedule";
   const targetPostingMode = input.postingMode ?? (input.scheduledFor === undefined ? currentPostingMode : "schedule");
@@ -718,10 +729,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   // rewrites `media`, `thread` and `accountOptions` in place, and the wire
   // schemas cannot carry thread segment media or `contentType`.
   const validation = await validateResolvedPost(userId, {
+    checkAccountReadiness: targetPostingMode !== "draft",
     imageFit: input.imageFit,
     message,
     accountIds,
     accountOptions,
+    accountOverrides,
     media,
     thread: threadForValidation,
   });
@@ -733,12 +746,20 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     );
   }
 
-  if (targetPostingMode === "schedule" && !validation.isValid) {
-    const errorMessages = validation.accounts
-      .flatMap((account) => account.errors.map((error) => error.message))
+  const validationErrors = validation.accounts.flatMap((account) => account.errors);
+  const draftImageErrors = validationErrors.filter((error) => canFitImageIssue(error));
+  const draftNeedsImageFitting =
+    targetPostingMode === "draft" && draftImageErrors.length > 0 && validation.imageFitHelp !== undefined;
+
+  if ((targetPostingMode === "schedule" && !validation.isValid) || draftNeedsImageFitting) {
+    const errorMessages = (draftNeedsImageFitting ? draftImageErrors : validationErrors)
+      .map((error) => error.message)
       .join("; ");
+    const invalidResult = draftNeedsImageFitting
+      ? "the draft contains images that must be fitted first"
+      : "the scheduled post would be invalid";
     throw new Error(
-      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
+      `Couldn't save these changes because ${invalidResult}: ${errorMessages}${validation.imageFitHelp ? " " + validation.imageFitHelp : ""}`,
     );
   }
 
@@ -763,8 +784,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;
-  if (input.media !== undefined || input.imageFit) updates.media = media;
-  if (input.thread !== undefined || input.imageFit) updates.thread = thread ?? [];
+  if (accountOverrides !== undefined) updates.accountOverrides = accountOverrides;
+  // Persist the exact owned URLs and measured metadata that were validated,
+  // even when this edit only changes timing. This also upgrades legacy drafts
+  // that still reference external media before they can be scheduled.
+  updates.media = media;
+  updates.thread = thread ?? [];
   if (targetPostingMode !== currentPostingMode)
     updates.status = targetPostingMode === "schedule" ? "scheduled" : "draft";
   if (input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode) updates.scheduledFor = scheduledFor;
@@ -947,17 +972,26 @@ export async function createPost(
     scheduledFor,
   });
 
-  const ingested = await ingestPostMedia(userId, {
-    media: mediaFiles,
-    thread: threadForPersistence,
-    accountOptions: input.accountOptions,
-  });
+  const ingested = await ingestPostMedia(
+    userId,
+    {
+      media: mediaFiles,
+      thread: threadForPersistence,
+      accountOptions: input.accountOptions,
+    },
+    {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+      },
+    },
+  );
   mediaFiles = ingested.media ?? [];
   threadForPersistence = ingested.thread;
   input = { ...input, accountOptions: ingested.accountOptions };
 
   // Validate content
   const validation = await validatePostForAccounts({
+    checkAccountReadiness: postingMode !== "draft",
     imageFit: input.imageFit,
     userId,
     message: input.message,
@@ -974,15 +1008,20 @@ export async function createPost(
     );
   }
 
-  const canOfferImageFitting =
-    validation.summary.errors.some((issue) => canFitImageIssue(issue)) &&
-    (await hasFeature(userId, Feature.IMAGE_FITTING));
+  const fittableImageErrors = validation.summary.errors.filter((issue) => canFitImageIssue(issue));
+  const fittableImageIssues = [...fittableImageErrors, ...(validation.summary.warnings ?? [])].filter((issue) =>
+    canFitImageIssue(issue),
+  );
+  const canOfferImageFitting = fittableImageIssues.length > 0 && (await hasFeature(userId, Feature.IMAGE_FITTING));
+  const draftNeedsImageFitting = postingMode === "draft" && fittableImageErrors.length > 0 && canOfferImageFitting;
 
-  if (postingMode !== "draft" && !validation.summary.isValid) {
-    const errorMessages =
-      validation.summary.errors.map((e) => e.message).join("; ") + (canOfferImageFitting ? " " + IMAGE_FIT_HELP : "");
+  if ((postingMode !== "draft" && !validation.summary.isValid) || draftNeedsImageFitting) {
+    const validationErrors = draftNeedsImageFitting ? fittableImageErrors : validation.summary.errors;
+    const errorMessages = validationErrors.map((e) => e.message).join("; ");
+    const action =
+      postingMode === "draft" ? "saved as a draft" : postingMode === "schedule" ? "scheduled" : "published";
     throw new Error(
-      `The post can't be ${postingMode === "schedule" ? "scheduled" : "published"} because it failed validation: ${errorMessages}`,
+      `The post can't be ${action} because it failed validation: ${errorMessages}${canOfferImageFitting ? " " + IMAGE_FIT_HELP : ""}`,
     );
   }
 
@@ -1189,12 +1228,7 @@ export async function createPost(
     mediaCount: mediaFiles.length,
     post: mapPost(post),
     imageFitHelp: canOfferImageFitting
-      ? validation.summary.errors
-          .filter((issue) => canFitImageIssue(issue))
-          .map((issue) => `${issue.platform}: ${issue.message}`)
-          .join(" ") +
-        " " +
-        IMAGE_FIT_HELP
+      ? fittableImageIssues.map((issue) => `${issue.platform}: ${issue.message}`).join(" ") + " " + IMAGE_FIT_HELP
       : undefined,
     postingResults: [],
     summary: {

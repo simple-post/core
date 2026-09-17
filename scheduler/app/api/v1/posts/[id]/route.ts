@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { IMAGE_FIT_HELP } from "@simple-post/sdk";
+
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { getChargedTrialAccounts } from "@/lib/billing/trial";
 import { PostsModel } from "@/lib/db";
@@ -25,6 +27,8 @@ import {
   deleteStorageUrls,
   getRemovedAccountOptionThumbnailUrls,
 } from "@/lib/utils/media-cleanup";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
+import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { updatePostSchema } from "@/lib/validations/posts";
 import {
@@ -121,7 +125,11 @@ async function updatePost(
           "This post has no durable publishing record. Check its platform results, then explicitly duplicate only the content that still needs publishing.",
         );
     }
-    validated = await ingestPostMedia(session.user.id, validated);
+    validated = await ingestPostMedia(session.user.id, validated, {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, session.user.id, url));
+      },
+    });
     const currentPostingMode: PostingMode = currentPost.status === "draft" ? "draft" : "schedule";
     const postingMode = validated.postingMode ?? (validated.scheduledFor ? "schedule" : currentPostingMode);
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor, currentPost.scheduledFor);
@@ -138,6 +146,7 @@ async function updatePost(
     const finalMedia: MediaFile[] = validated.media || [];
 
     const validation = await validatePostForAccounts({
+      checkAccountReadiness: postingMode !== "draft",
       imageFit: validated.imageFit,
       userId: session.user.id,
       message: validated.message,
@@ -152,8 +161,18 @@ async function updatePost(
       throw new BadRequestError("One or more accounts were not found");
     }
 
-    if (postingMode !== "draft" && !validation.summary.isValid) {
-      throw new ValidationError(validation);
+    const draftImageErrors = await requiredDraftImageFittingErrors({
+      errors: validation.summary.errors,
+      postingMode,
+      userId: session.user.id,
+    });
+    if ((postingMode !== "draft" && !validation.summary.isValid) || draftImageErrors.length > 0) {
+      throw new ValidationError(
+        draftImageErrors.length > 0 ? { ...validation, imageFitHelp: IMAGE_FIT_HELP } : validation,
+        draftImageErrors.length > 0
+          ? `The draft contains images that must be fitted before it can be saved. ${IMAGE_FIT_HELP}`
+          : undefined,
+      );
     }
 
     if (postingMode !== "draft" && scheduledFor) {

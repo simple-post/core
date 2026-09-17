@@ -37,7 +37,7 @@ export function mediaFormatFailure(
       code: "image_format_unsupported",
       message:
         platform === "instagram"
-          ? `Instagram does not support ${inspection.contentType.replace("image/", "").toUpperCase()} images for publishing through SimplePost. Upload a JPEG image before posting or scheduling. Images are not converted automatically.`
+          ? `Instagram does not support ${inspection.contentType.replace("image/", "").toUpperCase()} images for publishing through SimplePost. Convert this image to JPEG before posting or scheduling.`
           : `${platform} cannot publish this ${inspection.contentType.replace("image/", "").toUpperCase()} image. Upload an image in a supported format: ${formats}.`,
     };
   }

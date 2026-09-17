@@ -8,6 +8,7 @@ export const ImageFitSchema = z
 export type ImageFit = z.infer<typeof ImageFitSchema>;
 
 const FITTABLE_IMAGE_CODES = new Set([
+  "instagram_png_format_hint",
   "image_too_large",
   "image_format_unsupported",
   "photo_format_unsupported",

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
+import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 
 import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
@@ -21,6 +22,8 @@ import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
 import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
+import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
+import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { createPostSchema } from "@/lib/validations/posts";
 import { getScheduledForValueError, parseScheduledForValue } from "@/lib/validations/scheduled-time";
@@ -161,7 +164,11 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       }
     }
 
-    validated = await ingestPostMedia(userId, validated);
+    validated = await ingestPostMedia(userId, validated, {
+      onUploaded: async (url) => {
+        await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
+      },
+    });
 
     const postingMode = validated.postingMode;
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);
@@ -183,6 +190,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     });
 
     const validation = await validatePostForAccounts({
+      checkAccountReadiness: postingMode !== "draft",
       imageFit: validated.imageFit,
       userId,
       message: validated.message,
@@ -197,8 +205,18 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       throw new BadRequestError("One or more accounts were not found");
     }
 
-    if (postingMode !== "draft" && !validation.summary.isValid) {
-      throw new ValidationError(validation);
+    const draftImageErrors = await requiredDraftImageFittingErrors({
+      errors: validation.summary.errors,
+      postingMode,
+      userId,
+    });
+    if ((postingMode !== "draft" && !validation.summary.isValid) || draftImageErrors.length > 0) {
+      throw new ValidationError(
+        draftImageErrors.length > 0 ? { ...validation, imageFitHelp: IMAGE_FIT_HELP } : validation,
+        draftImageErrors.length > 0
+          ? `The draft contains images that must be fitted before it can be saved. ${IMAGE_FIT_HELP}`
+          : undefined,
+      );
     }
 
     if (postingMode !== "draft" && scheduledFor) {

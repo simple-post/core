@@ -41,6 +41,7 @@ function addMediaInspectionFailures(
 }
 
 export async function validatePostForAccounts(params: {
+  checkAccountReadiness?: boolean;
   imageFit?: ImageFit;
   userId: string;
   message: string;
@@ -108,6 +109,6 @@ export async function validatePostForAccounts(params: {
   });
 
   addMediaInspectionFailures(validation, inspectionFailures);
-  await validateAccountReadiness(validation, params);
+  if (params.checkAccountReadiness !== false) await validateAccountReadiness(validation, params);
   return validation;
 }

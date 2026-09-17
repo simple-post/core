@@ -38,6 +38,7 @@ describe("Create Post WebMCP tools", () => {
     expect(tool("create_post").inputSchema.required).toEqual(
       expect.arrayContaining(["postingMode", "userConfirmed", "idempotencyKey"]),
     );
+    expect(tool("create_post").inputSchema.properties).toHaveProperty("imageFit");
     expect(tool("create_post").annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: true,
@@ -119,6 +120,7 @@ describe("Create Post WebMCP tools", () => {
       thread: [{ message: "Follow up" }],
       accountOverrides: { "account-x": { message: "X version", media: [] } },
       accountOptions: { "account-x": { replyToId: "123" } },
+      imageFit: "blur",
     });
     expect(result).toEqual(saved);
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
@@ -127,6 +129,7 @@ describe("Create Post WebMCP tools", () => {
       postingMode: "draft",
       accountOverrides: { "account-x": { message: "X version", media: [] } },
       accountOptions: { "account-x": { replyToId: "123" } },
+      imageFit: "blur",
       thread: [{ message: "Follow up" }],
       media: [{ id: expect.any(String), filename: "image.png", size: 123 }],
     });

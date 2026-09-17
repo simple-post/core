@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { Feature } from "@prisma/client";
+import { canFitImageIssue, IMAGE_FIT_HELP } from "@simple-post/sdk";
+
+import { hasFeature } from "@/lib/features";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const body = await req.json();
+    const mediaPreflight = req.nextUrl.searchParams.get("mediaPreflight") === "1";
 
     let validated = validationRequestSchema.parse(body);
 
@@ -30,6 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const validation = await validatePostForAccounts({
+      checkAccountReadiness: !mediaPreflight,
       imageFit: validated.imageFit,
       userId: session.user.id,
       message: validated.message,
@@ -39,9 +45,17 @@ export async function POST(req: NextRequest) {
       accountOverrides: validated.accountOverrides || {},
       thread: validated.thread,
     });
+    const fittingIssues = [...validation.summary.errors, ...validation.summary.warnings].filter((issue) =>
+      canFitImageIssue(issue),
+    );
+    const imageFitHelp =
+      fittingIssues.length > 0 && (await hasFeature(session.user.id, Feature.IMAGE_FITTING))
+        ? IMAGE_FIT_HELP
+        : undefined;
 
     return NextResponse.json({
       ...validation,
+      ...(imageFitHelp ? { imageFitHelp } : {}),
       ...(validated.imageFit
         ? {
             fittedContent: {

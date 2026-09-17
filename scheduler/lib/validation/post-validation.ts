@@ -228,8 +228,7 @@ export function validatePostForResolvedAccounts(params: {
             platform,
             severity: "warning",
             code: "instagram_png_format_hint",
-            message:
-              "Instagram does not support PNG images. Choose a JPEG before posting or scheduling. SimplePost does not convert images automatically.",
+            message: "Instagram does not support PNG images. Convert this image to JPEG before posting or scheduling.",
             field: `text.media[${index}]`,
             meta: { accountId: account.id },
           });

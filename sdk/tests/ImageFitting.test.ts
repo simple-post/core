@@ -126,5 +126,6 @@ it("rejects corrupt files and unknown modes without altering the source", async 
 it("does not offer fitting for attachment counts or mixed-media errors", () => {
   expect(canFitImageIssue({ code: "too_many_images" })).toBe(false);
   expect(canFitImageIssue({ code: "mixed_media_not_supported" })).toBe(false);
+  expect(canFitImageIssue({ code: "instagram_png_format_hint" })).toBe(true);
   expect(canFitImageIssue({ code: "image_format_unsupported" })).toBe(true);
 });

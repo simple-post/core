@@ -362,7 +362,9 @@ it.each(["crop", "blur"])("persists fitted media when imageFit=%s is explicitly 
       imageFit,
     }),
   );
-  expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ imageFit }));
+  expect(validatePostForAccounts).toHaveBeenCalledWith(
+    expect.objectContaining({ checkAccountReadiness: false, imageFit }),
+  );
   expect(savePost).toHaveBeenCalledWith(
     expect.objectContaining({ media: [expect.objectContaining({ url: "https://cdn.example.com/fitted.jpg" })] }),
     "user-1",
@@ -382,7 +384,7 @@ it("offers fitting methods after an image validation error without saving or pub
   expect(postToAccounts).not.toHaveBeenCalled();
 });
 
-it("offers fitting for incompatible images even when saving a draft", async () => {
+it("requires fitting incompatible images before saving a draft", async () => {
   (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
     accounts: [{ id: "tiktok-1", platform: "tiktok" }],
     summary: {
@@ -390,13 +392,140 @@ it("offers fitting for incompatible images even when saving a draft", async () =
       errors: [{ platform: "tiktok", code: "image_format_unsupported", message: "PNG must be converted" }],
     },
   });
-  const result = await createPost(
-    "user-1",
-    createPostSchema.parse({ message: "Photo", accountIds: ["tiktok-1"], postingMode: "draft" }),
-  );
-  expect(result.imageFitHelp).toContain("tiktok: PNG must be converted");
-  expect(result.imageFitHelp).toContain("imageFit");
+  await expect(
+    createPost("user-1", createPostSchema.parse({ message: "Photo", accountIds: ["tiktok-1"], postingMode: "draft" })),
+  ).rejects.toThrow(/saved as a draft.*PNG must be converted.*crop.*blur.*imageFit/);
+  expect(savePost).not.toHaveBeenCalled();
   expect(postToAccounts).not.toHaveBeenCalled();
+});
+
+it("still permits incomplete drafts with non-fittable validation errors", async () => {
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    summary: {
+      isValid: false,
+      errors: [{ platform: "tiktok", code: "text_too_long", message: "Caption is too long" }],
+      warnings: [],
+    },
+  });
+
+  await createPost(
+    "user-1",
+    createPostSchema.parse({ message: "Draft copy", accountIds: ["tiktok-1"], postingMode: "draft" }),
+  );
+
+  expect(savePost).toHaveBeenCalled();
+  expect(postToAccounts).not.toHaveBeenCalled();
+});
+
+it("requires fitting incompatible images before updating a draft", async () => {
+  const post = {
+    id: "post-1",
+    message: "Photo",
+    status: "draft",
+    accountIds: ["tiktok-1"],
+    accountOptions: undefined,
+    media: [{ type: "image", url: "https://example.com/source.png", filename: "source.png" }],
+    createdAt: new Date(),
+    updatedAt: new Date("2026-09-05T00:00:00Z"),
+    scheduledFor: null,
+  };
+  loadPost.mockResolvedValue(post);
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    platforms: ["tiktok"],
+    results: [
+      {
+        accountId: "tiktok-1",
+        platform: "tiktok",
+        isValid: false,
+        errors: [
+          {
+            severity: "error",
+            code: "image_format_unsupported",
+            message: "PNG must be converted",
+          },
+        ],
+        warnings: [],
+      },
+    ],
+    summary: {
+      isValid: false,
+      errors: [{ platform: "tiktok", code: "image_format_unsupported", message: "PNG must be converted" }],
+      warnings: [],
+    },
+  });
+
+  await expect(
+    updateScheduledPost("user-1", updateScheduledPostSchema.parse({ postId: "post-1", message: "Updated photo" })),
+  ).rejects.toThrow(/draft contains images that must be fitted first.*PNG must be converted.*crop.*blur.*imageFit/);
+  expect(updatePost).not.toHaveBeenCalled();
+});
+
+it("validates persisted account overrides before scheduling a draft through MCP", async () => {
+  const accountOverrides = {
+    "tiktok-1": {
+      message: "Account-specific caption",
+      media: [{ type: "image" as const, url: "https://example.com/override.png", filename: "override.png" }],
+    },
+  };
+  const post = {
+    id: "post-1",
+    message: "Shared caption",
+    status: "draft",
+    accountIds: ["tiktok-1"],
+    accountOptions: undefined,
+    accountOverrides,
+    media: [],
+    createdAt: new Date(),
+    updatedAt: new Date("2026-09-05T00:00:00Z"),
+    scheduledFor: null,
+  };
+  loadPost.mockResolvedValue(post);
+  (validatePostForAccounts as jest.Mock).mockResolvedValueOnce({
+    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+    platforms: ["tiktok"],
+    results: [
+      {
+        accountId: "tiktok-1",
+        platform: "tiktok",
+        isValid: false,
+        errors: [
+          {
+            severity: "error",
+            code: "media_aspect_ratio_unsupported",
+            message: "The override image aspect ratio is unsupported",
+          },
+        ],
+        warnings: [],
+      },
+    ],
+    summary: {
+      isValid: false,
+      errors: [
+        {
+          platform: "tiktok",
+          severity: "error",
+          code: "media_aspect_ratio_unsupported",
+          message: "The override image aspect ratio is unsupported",
+        },
+      ],
+      warnings: [],
+    },
+  });
+
+  await expect(
+    updateScheduledPost(
+      "user-1",
+      updateScheduledPostSchema.parse({
+        postId: "post-1",
+        postingMode: "schedule",
+        scheduledFor: "2099-01-01T10:00:00Z",
+      }),
+    ),
+  ).rejects.toThrow("override image aspect ratio is unsupported");
+  expect(validatePostForAccounts).toHaveBeenCalledWith(expect.objectContaining({ accountOverrides }));
+  expect(updatePost).not.toHaveBeenCalled();
 });
 
 it("keeps thread media, contentType and media ids when fitting an existing post", async () => {

@@ -1,6 +1,7 @@
 import { fitRemoteImagesForAccounts, hydrateRemoteMediaSizesForAccounts, ImageFitError } from "@simple-post/sdk";
 
 import { prisma } from "@/lib/prisma";
+import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 
 jest.mock("@simple-post/sdk", () => ({
@@ -21,6 +22,10 @@ jest.mock("@/lib/prisma", () => ({
 jest.mock("@/lib/config", () => ({
   getPlatformById: (platform: string) => ({ id: platform, name: "X (Twitter)" }),
   isSocialPlatformEnabled: () => true,
+}));
+
+jest.mock("@/lib/validation/account-readiness", () => ({
+  validateAccountReadiness: jest.fn(),
 }));
 
 const prismaMock = prisma as unknown as {
@@ -79,6 +84,29 @@ it("marks preview-only accounts as unpublishable and strips credentials from val
     refreshToken: null,
     previewOnly: true,
   });
+});
+
+it("can skip provider readiness checks for debounced media preflight", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([
+    { ...connectedAccount, tokenMetadata: { previewOnly: false } },
+  ]);
+
+  await validatePostForAccounts({
+    checkAccountReadiness: false,
+    userId: "user-1",
+    message: "Hello",
+    media: [],
+    accountIds: ["account-1"],
+  });
+  expect(validateAccountReadiness).not.toHaveBeenCalled();
+
+  await validatePostForAccounts({
+    userId: "user-1",
+    message: "Hello",
+    media: [],
+    accountIds: ["account-1"],
+  });
+  expect(validateAccountReadiness).toHaveBeenCalledTimes(1);
 });
 
 it("passes shared, override, thread, and account-option media to the SDK boundary", async () => {

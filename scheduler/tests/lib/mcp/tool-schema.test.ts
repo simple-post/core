@@ -1,5 +1,4 @@
-import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
+import { z } from "zod";
 
 import { MCP_ERROR_INSTRUCTIONS } from "@/lib/mcp/tool-errors";
 import { listAccountsOutputSchema, listAccountsSchema } from "@/lib/mcp/tools/accounts";
@@ -17,8 +16,6 @@ import {
 import { showScheduleOutputSchema, showScheduleSchema } from "@/lib/mcp/tools/schedule";
 import { getTikTokCreatorInfoSchema } from "@/lib/mcp/tools/tiktok";
 import { validatePostOutputSchema, validatePostSchema } from "@/lib/mcp/tools/validation";
-
-import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 type JsonSchemaObject = {
   additionalProperties?: JsonSchemaObject | boolean;
@@ -64,14 +61,8 @@ const ROOT_MEDIA_INPUT_SCHEMAS = {
   update_scheduled_post: updateScheduledPostSchema,
 };
 
-function toInputJsonSchema(schema: { shape: unknown }): JsonSchemaObject {
-  const objectSchema = normalizeObjectSchema(schema.shape as AnySchema | ZodRawShapeCompat | undefined);
-  if (!objectSchema) return { type: "object", properties: {} };
-
-  return toJsonSchemaCompat(objectSchema, {
-    strictUnions: true,
-    pipeStrategy: "input",
-  }) as JsonSchemaObject;
+function toInputJsonSchema(schema: z.ZodType): JsonSchemaObject {
+  return z.toJSONSchema(schema, { io: "input", unrepresentable: "any" }) as JsonSchemaObject;
 }
 
 function findArraySchema(schema: JsonSchemaObject): JsonSchemaObject {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { type McpServer } from "@modelcontextprotocol/server";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
@@ -34,6 +34,8 @@ import { getSchedule, showScheduleOutputSchema, showScheduleSchema } from "./too
 import { getTikTokCreatorInfo, getTikTokCreatorInfoSchema, getTikTokCreatorInfoOutputSchema } from "./tools/tiktok";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
 import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } from "./ui/resources";
+
+import type { z } from "zod";
 
 const log = createLogger("mcp:tools");
 
@@ -149,11 +151,13 @@ export interface McpToolAuthContext {
   scope?: string | null;
 }
 
-function fittingSchema<T extends { imageFit: unknown }>(shape: T, enabled?: boolean): T {
-  if (enabled) return shape;
-  const result = { ...shape };
-  Reflect.deleteProperty(result, "imageFit");
-  return result;
+function fittingSchema<T extends z.ZodRawShape & { imageFit: z.ZodType }>(
+  schema: z.ZodObject<T>,
+  enabled?: boolean,
+): z.ZodObject<T> {
+  // The callback always accepts the complete inferred input. At runtime the
+  // feature-specific schema simply stops advertising/accepting imageFit.
+  return (enabled ? schema : schema.omit({ imageFit: true } as never)) as z.ZodObject<T>;
 }
 
 const OAUTH_SECURITY_SCHEMES = [{ type: "oauth2", scopes: [...MCP_SCOPES] }];
@@ -500,8 +504,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "List Connected Accounts",
       description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
-      inputSchema: listAccountsSchema.shape,
-      outputSchema: listAccountsOutputSchema.shape,
+      inputSchema: listAccountsSchema,
+      outputSchema: listAccountsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
       _meta: toolMeta("Checking your connected accounts", "Found your accounts"),
     },
@@ -537,8 +541,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       title: "Get TikTok Posting Settings",
       description:
         "Get a connected TikTok creator's current identity, allowed privacy levels, interaction settings and posting limits when inspecting settings or troubleshooting publishing. MCP posts default to public; pass accountOptions[accountId].privacyLevel to create_post to override that audience. Does not publish content.",
-      inputSchema: getTikTokCreatorInfoSchema.shape,
-      outputSchema: getTikTokCreatorInfoOutputSchema.shape,
+      inputSchema: getTikTokCreatorInfoSchema,
+      outputSchema: getTikTokCreatorInfoOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.get_tiktok_creator_info,
       _meta: toolMeta("Checking TikTok posting settings", "TikTok settings loaded"),
     },
@@ -562,8 +566,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Upload Media",
       description: UPLOAD_MEDIA_DESCRIPTION,
-      inputSchema: uploadMediaSchema.shape,
-      outputSchema: uploadMediaOutputSchema.shape,
+      inputSchema: uploadMediaSchema,
+      outputSchema: uploadMediaOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.upload_media,
       _meta: {
         ...toolMeta("Uploading your media", "Media uploaded"),
@@ -599,8 +603,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Validate Post",
       description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""}`,
-      inputSchema: fittingSchema(validatePostSchema.shape, context.imageFittingEnabled),
-      outputSchema: validatePostOutputSchema.shape,
+      inputSchema: fittingSchema(validatePostSchema, context.imageFittingEnabled),
+      outputSchema: validatePostOutputSchema,
       annotations: {
         ...MCP_TOOL_ANNOTATIONS.validate_post,
         readOnlyHint: !context.imageFittingEnabled,
@@ -645,8 +649,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Preview Post",
       description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""} scheduledFor must be a timezone-aware ISO 8601 datetime.`,
-      inputSchema: fittingSchema(previewPostSchema.shape, context.imageFittingEnabled),
-      outputSchema: previewPostOutputSchema.shape,
+      inputSchema: fittingSchema(previewPostSchema, context.imageFittingEnabled),
+      outputSchema: previewPostOutputSchema,
       annotations: {
         ...MCP_TOOL_ANNOTATIONS.preview_post,
         readOnlyHint: !context.imageFittingEnabled,
@@ -693,8 +697,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Show Post Preview",
       description: `Use this when the user asks to see a post. It renders a realistic MCP Apps preview with a platform switcher for either a saved postId or supplied unsaved content. It is read-only and also returns a text fallback; use preview_post for a data-only preflight.`,
-      inputSchema: showPostPreviewSchema.shape,
-      outputSchema: showPostPreviewOutputSchema.shape,
+      inputSchema: showPostPreviewSchema,
+      outputSchema: showPostPreviewOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.show_post_preview,
       _meta: widgetToolMeta("Building platform previews", "Platform previews ready", POST_PREVIEW_WIDGET_URI),
     },
@@ -727,8 +731,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Create Post",
       description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
-      inputSchema: fittingSchema(createPostSchema.shape, context.imageFittingEnabled),
-      outputSchema: createPostOutputSchema.shape,
+      inputSchema: fittingSchema(createPostSchema, context.imageFittingEnabled),
+      outputSchema: createPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
       _meta: toolMeta("Working on your post", "Finished working on your post"),
     },
@@ -779,8 +783,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Inspect Posts",
       description: `Use this to search or inspect SimplePost records that are drafts, scheduled, posted, or failed. It supports text/status filters and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI.`,
-      inputSchema: inspectPostsSchema.shape,
-      outputSchema: inspectPostsOutputSchema.shape,
+      inputSchema: inspectPostsSchema,
+      outputSchema: inspectPostsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
       _meta: toolMeta("Looking up your posts", "Found your posts"),
     },
@@ -826,8 +830,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Get Schedule",
       description: `Use this when the user wants a text or structured-data view of a day, week, or month of SimplePost posting slots and activity. It includes open slots and scheduled, pending, published, failed, and past posts without rendering UI.`,
-      inputSchema: showScheduleSchema.shape,
-      outputSchema: showScheduleOutputSchema.shape,
+      inputSchema: showScheduleSchema,
+      outputSchema: showScheduleOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.get_schedule,
       _meta: toolMeta("Reading your schedule", "Schedule ready"),
     },
@@ -856,8 +860,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Show Schedule",
       description: `Use this when the user asks to show or open a day, week, or month SimplePost schedule. It renders an interactive MCP Apps calendar with open slots and scheduled, pending, published, failed, and past activity, and also returns a text fallback. Use get_schedule for the same period as data without UI.`,
-      inputSchema: showScheduleSchema.shape,
-      outputSchema: showScheduleOutputSchema.shape,
+      inputSchema: showScheduleSchema,
+      outputSchema: showScheduleOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.show_schedule,
       _meta: widgetToolMeta("Opening your schedule", "Schedule ready", SCHEDULE_WIDGET_URI),
     },
@@ -886,8 +890,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Update Scheduled Post",
       description: `Use this to change a draft or future scheduled SimplePost post by postId. Omitted fields stay unchanged; postingMode can move a post between draft and scheduled. Scheduled results are validated before saving. It cannot edit posted, failed, pending, or due posts.`,
-      inputSchema: fittingSchema(updateScheduledPostSchema.shape, context.imageFittingEnabled),
-      outputSchema: updateScheduledPostOutputSchema.shape,
+      inputSchema: fittingSchema(updateScheduledPostSchema, context.imageFittingEnabled),
+      outputSchema: updateScheduledPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,
       _meta: toolMeta("Updating your post", "Post updated"),
     },
@@ -923,8 +927,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     {
       title: "Discard Scheduled Post",
       description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post by postId. It permanently deletes the SimplePost record and stored media. It cannot remove or undo posts already published to external platforms.`,
-      inputSchema: discardScheduledPostSchema.shape,
-      outputSchema: discardScheduledPostOutputSchema.shape,
+      inputSchema: discardScheduledPostSchema,
+      outputSchema: discardScheduledPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.discard_scheduled_post,
       _meta: toolMeta("Deleting your post", "Post deleted"),
     },

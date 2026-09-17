@@ -1,8 +1,13 @@
 import { after, type NextRequest } from "next/server";
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
+import {
+  createMcpHandler,
+  isLegacyRequest,
+  McpServer,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  WebStandardStreamableHTTPServerTransport,
+  type AuthInfo,
+} from "@modelcontextprotocol/server";
 import { Feature } from "@prisma/client";
 
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
@@ -21,6 +26,10 @@ import { apiErrorLogPayload, PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
 const log = createLogger("api:mcp");
+const MODERN_PROTOCOL_VERSION = "2026-07-28";
+const ADVERTISED_PROTOCOL_VERSIONS = [MODERN_PROTOCOL_VERSION, ...SUPPORTED_PROTOCOL_VERSIONS].filter(
+  (version, index, versions) => versions.indexOf(version) === index,
+);
 
 /**
  * Extract and authenticate the MCP bearer token from the request.
@@ -106,11 +115,7 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
   }
 }
 
-/**
- * Handle an MCP request using the SDK's WebStandardStreamableHTTPServerTransport.
- * Creates a fresh server + transport per request (stateless mode).
- */
-async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
+async function createMcpServer(authContext: McpToolAuthContext): Promise<McpServer> {
   authContext = { ...authContext, imageFittingEnabled: await hasFeature(authContext.userId, Feature.IMAGE_FITTING) };
   const server = new McpServer(
     {
@@ -122,14 +127,52 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
     },
   );
   registerTools(server, authContext);
+  return server;
+}
 
+const SIMPLEPOST_AUTH_CONTEXT_KEY = "simplepostAuthContext";
+
+const mcpHandler = createMcpHandler(
+  async ({ authInfo }) => {
+    const authContext = authInfo?.extra?.[SIMPLEPOST_AUTH_CONTEXT_KEY] as McpToolAuthContext | undefined;
+    if (!authContext) {
+      throw new Error("Authenticated SimplePost context is missing");
+    }
+    return createMcpServer(authContext);
+  },
+  {
+    legacy: "reject",
+    onerror: (error) => log.error({ err: serializeError(error) }, "MCP handler error"),
+  },
+);
+
+function toSdkAuthInfo(authContext: McpToolAuthContext): AuthInfo {
+  return {
+    // Authentication is completed before the SDK handler. Do not retain or
+    // duplicate the bearer credential in the per-request SDK context.
+    token: "validated",
+    clientId: authContext.clientId ?? "unknown",
+    scopes: authContext.scope?.split(/\s+/).filter(Boolean) ?? [],
+    resource: new URL(getMcpResourceUrl()),
+    extra: { [SIMPLEPOST_AUTH_CONTEXT_KEY]: authContext },
+  };
+}
+
+async function handleLegacyMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
+  const server = await createMcpServer(authContext);
   const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless
+    sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-
   await server.connect(transport);
+  return transport.handleRequest(req, { authInfo: toSdkAuthInfo(authContext) });
+}
 
+/**
+ * Handle an MCP request using the v2 dual-era handler. It serves the modern
+ * 2026-07-28 protocol and retains stateless compatibility with 2025 clients.
+ */
+async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
   const protocolHeader = req.headers.get("mcp-protocol-version");
   const diagnostics = {
     userId: authContext.userId,
@@ -137,9 +180,11 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
     // Only protocol-shaped values are safe to retain; never echo arbitrary headers.
     requestedProtocolVersion:
       protocolHeader === null ? "absent" : /^\d{4}-\d{2}-\d{2}$/.test(protocolHeader) ? protocolHeader : "malformed",
-    supportedProtocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
+    supportedProtocolVersions: ADVERTISED_PROTOCOL_VERSIONS,
   };
-  const response = await transport.handleRequest(req);
+  const response = (await isLegacyRequest(req))
+    ? await handleLegacyMcpRequest(req, authContext)
+    : await mcpHandler.fetch(req, { authInfo: toSdkAuthInfo(authContext) });
   if (response.status < 400) {
     log.info({ ...diagnostics, statusCode: response.status, method: req.method }, "MCP transport request completed");
   }
@@ -163,7 +208,7 @@ async function handleMcpRequest(req: Request, authContext: McpToolAuthContext): 
           ? "unsupported_protocol_version"
           : rpcCode === -32_700
             ? "invalid_json"
-            : rpcCode === -32_600
+            : rpcCode === -32_600 || rpcCode === -32_602
               ? "invalid_request"
               : "transport_rejected",
         userId: authContext.userId,

@@ -4,7 +4,7 @@ import { getAppBaseUrl } from "@/lib/mcp/config";
 import { WIDGET_RUNTIME_PATH, WIDGET_RUNTIME_TIMEOUT_MS } from "@/lib/mcp/ui/runtime";
 import type { WidgetName } from "@/lib/mcp/ui/widget-assets";
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
 export const LEGACY_SCHEDULE_WIDGET_URIS = ["ui://simplepost/schedule-v1.html"] as const;

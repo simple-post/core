@@ -75,13 +75,13 @@ it("records a transport reason without logging the request body or credentials",
   expect(JSON.stringify(log.warn.mock.calls)).not.toMatch(/test-secret|private-body/);
 });
 
-it("identifies unsupported protocol versions without recording arbitrary header values", async () => {
+it("rejects malformed protocol versions without recording arbitrary header values", async () => {
   const req = request(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
   req.headers.set("mcp-protocol-version", "private-unsupported-value");
   const response = await POST(req);
   expect(response.status).toBe(400);
   expect(log.warn).toHaveBeenCalledWith(
-    expect.objectContaining({ reason: "unsupported_protocol_version", userId: "user", rpcErrorCode: -32_000 }),
+    expect.objectContaining({ reason: "invalid_request", userId: "user", rpcErrorCode: -32_602 }),
     "MCP transport request rejected",
   );
   expect(JSON.stringify(log.warn.mock.calls)).not.toContain("private-unsupported-value");
@@ -96,11 +96,43 @@ it("logs unsupported date versions and client identity without credentials", asy
     expect.objectContaining({
       requestedProtocolVersion: "2099-01-01",
       clientId: "claude-client",
-      supportedProtocolVersions: expect.arrayContaining(["2025-11-25"]),
+      supportedProtocolVersions: expect.arrayContaining(["2026-07-28", "2025-11-25"]),
     }),
     "MCP transport request rejected",
   );
   expect(JSON.stringify(log.warn.mock.calls)).not.toContain("test-secret");
+});
+
+it("serves the modern 2026-07-28 discovery exchange", async () => {
+  const req = request(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "server/discover",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientInfo": { name: "test-client", version: "1.0.0" },
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    }),
+  );
+  req.headers.set("mcp-protocol-version", "2026-07-28");
+  req.headers.set("mcp-method", "server/discover");
+
+  const response = await POST(req);
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    jsonrpc: "2.0",
+    id: 1,
+    result: { supportedVersions: expect.arrayContaining(["2026-07-28"]) },
+  });
+  expect(log.info).toHaveBeenCalledWith(
+    expect.objectContaining({ statusCode: 200, requestedProtocolVersion: "2026-07-28" }),
+    "MCP transport request completed",
+  );
 });
 it("records successful transport recovery for the same client", async () => {
   const req = request(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));

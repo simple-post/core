@@ -583,13 +583,22 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error while publishing scheduled post";
+    const failureContext = {
+      postId: post.id,
+      userId: post.userId,
+      userEmail: post.user?.email,
+      userName: post.user?.name,
+      accountIds: post.accounts.map((account) => account.id),
+      platforms: [...new Set(post.accounts.map((account) => account.platform))],
+      scheduledFor: post.scheduledFor.toISOString(),
+    };
 
     if (error instanceof PaymentRequiredError) {
-      log.warn({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled post billing gate denied");
+      log.error({ ...apiErrorLogPayload(error), ...failureContext }, "Scheduled post billing gate denied");
     } else if (error instanceof ValidationError) {
-      log.warn({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled post failed validation");
+      log.error({ ...apiErrorLogPayload(error), ...failureContext }, "Scheduled post failed validation");
     } else {
-      log.error({ err: serializeError(error), postId: post.id }, "Scheduled post failed before completion");
+      log.error({ err: serializeError(error), ...failureContext }, "Scheduled post failed before completion");
     }
 
     await prisma.post.update({

@@ -518,15 +518,19 @@ function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Dat
  * diagnostic has to say so: a client that follows `recovery` rather than the
  * prose would otherwise read the default `stop` and never offer to fit.
  */
-function imageFitRetryError(message: string, canOfferImageFitting: boolean): Error {
-  if (!canOfferImageFitting) return new Error(message);
+function validationFailureError(
+  message: string,
+  canOfferImageFitting: boolean,
+  logContext: { accountIds: string[]; platforms: string[] },
+): McpToolError {
   return new McpToolError({
-    code: "POST_IMAGE_FIT_AVAILABLE",
-    message: `${message} ${IMAGE_FIT_HELP}`,
-    stage: "media_validation",
-    recovery: "retry_with_image_fit",
-    maxAutomaticRetries: 1,
+    code: canOfferImageFitting ? "POST_IMAGE_FIT_AVAILABLE" : "POST_VALIDATION_FAILED",
+    message: canOfferImageFitting ? `${message} ${IMAGE_FIT_HELP}` : message,
+    stage: canOfferImageFitting ? "media_validation" : "tool_execution",
+    recovery: canOfferImageFitting ? "retry_with_image_fit" : "stop",
+    maxAutomaticRetries: canOfferImageFitting ? 1 : 0,
     statusCode: 400,
+    logContext,
   });
 }
 
@@ -792,9 +796,10 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       .flatMap((account) => account.errors)
       .map((error) => error.message)
       .join("; ");
-    throw imageFitRetryError(
+    throw validationFailureError(
       `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`,
       validation.imageFitHelp !== undefined,
+      { accountIds, platforms: validation.platforms },
     );
   }
 
@@ -1055,9 +1060,10 @@ export async function createPost(
   if (postingMode !== "draft" && !validation.summary.isValid) {
     const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
     const action = postingMode === "schedule" ? "scheduled" : "published";
-    throw imageFitRetryError(
+    throw validationFailureError(
       `The post can't be ${action} because it failed validation: ${errorMessages}`,
       canOfferImageFitting,
+      { accountIds: input.accountIds, platforms: validation.platforms },
     );
   }
 

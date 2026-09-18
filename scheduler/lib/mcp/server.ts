@@ -11,7 +11,12 @@ import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
-import { MCP_ERROR_INSTRUCTIONS, toMcpErrorDiagnostic } from "./tool-errors";
+import {
+  isMcpBillingDenial,
+  MCP_ERROR_INSTRUCTIONS,
+  mcpToolLogLevel,
+  toMcpErrorDiagnostic,
+} from "./tool-errors";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { UPLOAD_MEDIA_DESCRIPTION, uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import { showPostPreview, showPostPreviewOutputSchema, showPostPreviewSchema } from "./tools/post-preview-ui";
@@ -189,15 +194,22 @@ function widgetToolMeta(invoking: string, invoked: string, resourceUri: string) 
   };
 }
 
-function errorResult(error: unknown) {
-  const billingDenied = error instanceof ApiError && Boolean(error.logContext);
+function errorResult(error: unknown, context: McpToolAuthContext) {
+  const billingDenied = isMcpBillingDenial(error);
   if (error instanceof ApiError && billingDenied) {
-    log.info(apiErrorLogPayload(error), "MCP tool billing gate denied");
+    log.info({ ...apiErrorLogPayload(error), userId: context.userId }, "MCP tool billing gate denied");
   }
 
   const diagnostic = { ...toMcpErrorDiagnostic(error), supportId: randomUUID() };
-  log[error instanceof ApiError && error.statusCode < 500 ? "warn" : "error"](
-    { supportId: diagnostic.supportId, diagnostic, err: serializeError(error) },
+  const apiFields = error instanceof ApiError ? apiErrorLogPayload(error) : { err: serializeError(error) };
+  log[mcpToolLogLevel(error)](
+    {
+      ...apiFields,
+      userId: context.userId,
+      clientId: context.clientId,
+      supportId: diagnostic.supportId,
+      diagnostic,
+    },
     "MCP tool returned an error",
   );
 
@@ -537,7 +549,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -563,7 +575,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [{ type: "text", text: JSON.stringify(result) }],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -604,7 +616,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -646,7 +658,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -690,7 +702,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -724,7 +736,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -789,7 +801,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -836,7 +848,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -866,7 +878,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -896,7 +908,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -940,7 +952,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );
@@ -974,7 +986,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           ],
         };
       } catch (error) {
-        return errorResult(error);
+        return errorResult(error, context);
       }
     },
   );

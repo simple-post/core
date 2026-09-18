@@ -791,6 +791,12 @@ it("leaves a non-fittable failure as a plain stop", async () => {
     createPostSchema.parse({ message: "Photo", accountIds: ["tiktok-1"], postingMode: "now" }),
   ).catch((error_) => error_);
 
-  expect(error).not.toMatchObject({ recovery: "retry_with_image_fit" });
+  expect(error).toMatchObject({
+    code: "POST_VALIDATION_FAILED",
+    statusCode: 400,
+    recovery: "stop",
+    maxAutomaticRetries: 0,
+    logContext: { accountIds: ["tiktok-1"], platforms: ["tiktok"] },
+  });
   expect(error.message).toContain("Caption is too long");
 });

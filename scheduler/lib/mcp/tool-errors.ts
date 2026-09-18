@@ -32,13 +32,31 @@ export class McpToolError extends ApiError {
   readonly recovery: McpErrorRecovery;
   readonly maxAutomaticRetries: number;
 
-  constructor(options: McpErrorDiagnostic & { statusCode?: number }) {
-    super(options.message, options.statusCode ?? 400, options.code);
+  constructor(options: McpErrorDiagnostic & { statusCode?: number; logContext?: Record<string, unknown> }) {
+    super(options.message, options.statusCode ?? 400, options.code, options.logContext);
     this.name = "McpToolError";
     this.stage = options.stage;
     this.recovery = options.recovery;
     this.maxAutomaticRetries = options.maxAutomaticRetries;
   }
+}
+
+/**
+ * User-correctable 4xx tool outcomes are operationally useful, but they are not
+ * application failures. Keeping this decision in one place prevents a caller
+ * from accidentally paging on validation, billing, permission, or input
+ * feedback while preserving error alerts for unexpected/5xx failures.
+ */
+export function mcpToolLogLevel(error: unknown): "warn" | "error" {
+  return error instanceof ApiError && error.statusCode < 500 ? "warn" : "error";
+}
+
+export function isMcpBillingDenial(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    (error.code === "PAYMENT_REQUIRED" ||
+      (error.code === "FORBIDDEN" && typeof error.logContext?.billingActive === "boolean"))
+  );
 }
 
 export function toMcpErrorDiagnostic(error: unknown): McpErrorDiagnostic {
@@ -52,7 +70,7 @@ export function toMcpErrorDiagnostic(error: unknown): McpErrorDiagnostic {
     };
   }
 
-  const billingDenied = error instanceof ApiError && Boolean(error.logContext);
+  const billingDenied = isMcpBillingDenial(error);
   const message = error instanceof Error ? error.message : String(error);
   return {
     code: error instanceof ApiError && error.code ? error.code : "MCP_TOOL_FAILED",

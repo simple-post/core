@@ -1,0 +1,10 @@
+{
+  "name": "simplepost",
+  "version": "1.0.0",
+  "description": "Publish, schedule, draft, preview, inspect, and manage social posts through SimplePost.",
+  "mcpServers": {
+    "simplepost": {
+      "httpUrl": "https://app.simplepost.social/mcp"
+    }
+  }
+}

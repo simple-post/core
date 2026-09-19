@@ -4,6 +4,7 @@ import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
   canUpgradeLegacyMcpClientScope,
+  getAppBaseUrl,
   isMcpScopeSubset,
   resolveMcpResource,
   validateMcpScope,
@@ -106,10 +107,12 @@ export async function POST(req: NextRequest) {
       scope: scopeResult.scope,
     });
 
-    // Build redirect URL with code and state
+    // RFC 9207 issuer identification prevents authorization-server mix-up
+    // attacks and is required by clients such as Gemini CLI.
     const redirect = new URL(redirect_uri);
     redirect.searchParams.set("code", code);
     redirect.searchParams.set("state", state);
+    redirect.searchParams.set("iss", getAppBaseUrl());
 
     return NextResponse.json({ redirectUrl: redirect.toString() });
   } catch (error) {

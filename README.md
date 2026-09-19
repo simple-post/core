@@ -30,6 +30,14 @@ Kiro can install the same package as a Power. See [Kiro activation testing and s
 
 Grok Build can install this repository directly and use the same canonical skill. See [Grok Build verification and marketplace guidance](docs/GROK.md).
 
+The repository root is also installable as a Gemini CLI extension:
+
+```bash
+gemini extensions install https://github.com/simple-post/core
+```
+
+See [the Gemini CLI extension guide](docs/GEMINI_CLI_EXTENSION.md) for OAuth verification and gallery publication.
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

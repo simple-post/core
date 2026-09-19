@@ -7,6 +7,23 @@ SimplePost is open source and ownership first: get the code, run it yourself, mo
 Using ChatGPT? [Open the SimplePost plugin](https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795),
 select **+** to install it, then start a new chat.
 
+## Agent Skill
+
+Install the portable SimplePost skill in Codex, Claude Code, Cursor, and other Agent Skills-compatible clients:
+
+```bash
+npx skills add simple-post/core --skill simplepost
+```
+
+The skill teaches an agent how to publish, schedule, draft, preview, inspect, and manage posts through SimplePost without inventing account IDs, duplicating uncertain writes, or hiding partial platform failures. It also routes application integrations to the CLI, HTTP API, Scheduler app, or TypeScript SDK. The canonical source lives in [`skills/simplepost`](skills/simplepost).
+
+The same skill is bundled in the repository's Codex plugin:
+
+```bash
+codex plugin marketplace add simple-post/core
+codex plugin add simplepost@simplepost-core
+```
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

@@ -1,62 +1,55 @@
 ---
 name: simplepost
-description: Use when an AI agent needs to validate, publish, schedule, inspect, or manage social posts through SimplePost using MCP, CLI, HTTP API, Scheduler app, or TypeScript SDK.
+description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost, or integrate SimplePost through MCP, CLI, HTTP, or TypeScript. Use for SimplePost actions and integrations; do not use for generic social copywriting.
 license: MIT
 ---
 
 # SimplePost
 
-SimplePost provides one posting model across the TypeScript SDK, HTTP API server, Scheduler app, CLI, and MCP server. Use this skill to choose the right interface and avoid common agent mistakes around accounts, media, credentials, validation, scheduling, and partial failures.
+Use SimplePost to turn an explicit posting request into a reliable result across connected social accounts. Preserve the user's content and intent, choose the interface that fits the environment, and report the exact post and per-account outcome.
 
-## Choose The Interface
+## Choose the interface
 
-- Use **MCP** when the AI client can call tools and the user has accounts connected in SimplePost. Read [references/mcp.md](references/mcp.md).
-- Use **CLI** when the agent can run shell commands on a machine where SimplePost CLI accounts are configured. Read [references/cli.md](references/cli.md).
-- Use **HTTP API** when calling SimplePost from another backend, service, or language. Read [references/http-server.md](references/http-server.md).
-- Use **TypeScript SDK** when editing a TypeScript app or agent that can call `@simple-post/sdk` directly. Read [references/sdk.md](references/sdk.md).
-- Use **Scheduler app** when the user needs account connection, OAuth, browser upload, human preview, scheduling UI, or hosted MCP. Read [references/scheduler.md](references/scheduler.md).
+- Use **MCP** for an AI assistant acting on accounts connected at `app.simplepost.social`. This is the preferred route for publishing, drafts, scheduling, previews, and queue management. Read [references/mcp.md](references/mcp.md).
+- Use the **CLI** for immediate posting from a terminal, local coding agent, script, or CI job. Read [references/cli.md](references/cli.md).
+- Use the **HTTP API** when another service or a non-TypeScript application needs to publish. Read [references/http-server.md](references/http-server.md).
+- Use the **TypeScript SDK** when adding in-process publishing to a TypeScript application. Read [references/sdk.md](references/sdk.md).
+- Use the **Scheduler app** for account connection, browser composition, human previews, hosted scheduling, or self-hosted deployment. Read [references/scheduler.md](references/scheduler.md).
 
-If multiple options are available, prefer MCP for AI-user posting, SDK for in-process TypeScript integrations, HTTP for service-to-service integrations, and CLI for local terminal automation.
+Do not mix payload shapes between interfaces. MCP, the hosted API, and connected CLI accounts target `accountIds`; direct SDK and local CLI publishing use platform options and locally managed credentials.
 
-## Non-Negotiables
+## Posting workflow
 
-- Never invent account IDs, account aliases, board IDs, chat IDs, or scheduler URLs. List accounts when the interface supports it, otherwise ask or point the user to setup.
-- Do not expose, print, or ask the model to remember raw social credentials. Use the Scheduler account store, CLI secret store, environment variables, or server accounts file.
-- Media sent through MCP or HTTP must be a public URL or an uploaded SimplePost media URL. Local file paths are only appropriate for SDK and local CLI account posting.
-- Do not run validation-oriented preflight by default. `create_post` and HTTP post creation validate before publishing. Validate only when the user asks for validation-only feedback; use the MCP visual preview when the user asks to see a post or after an MCP draft or scheduled-post write.
-- For scheduling, resolve relative times to an absolute future ISO 8601 datetime with timezone offset or `Z`. Ask for timezone if it is unknown.
-- A successful API or tool call can still contain per-platform failures. Always inspect `summary.overallSuccess`, per-account results, and `threadResults` for threads.
-- When reporting a preview, scheduled post, draft, edit, discard, or publish result, include the exact root post text and any thread segments in the visible answer.
+1. Determine the requested action: publish now, schedule, save a draft, preview, inspect, edit, discard, or integrate SimplePost. Preserve supplied copy exactly unless the user asks for writing or adaptation.
+2. Resolve real targets before acting. With MCP, call `list_accounts`; with CLI, run `simplepost account`. Never invent account IDs, aliases, board IDs, chat IDs, or post IDs.
+3. Resolve missing essentials such as the target account, required media, or scheduled time. A request to publish exact content to named accounts is sufficient authorization to publish; do not insert an extra confirmation step. Preview when the user asks or when essential details remain ambiguous.
+4. Prepare media in the interface-supported form. MCP and HTTP require public or SimplePost-managed URLs. The CLI and SDK can accept local files. Preserve media metadata returned by SimplePost.
+5. For scheduled posts, convert relative language to a future ISO 8601 datetime with an offset or `Z`. Ask for the user's timezone only when it cannot be inferred safely.
+6. Execute once. For MCP `create_post`, always supply a new idempotency key for a new intended post and reuse that same key for any retry. Never retry a write with a new key after a timeout or uncertain result.
+7. Inspect the complete result. A successful call can contain per-account or per-thread failures. Report the exact root post, thread segments, timing, targets, warnings, and platform results.
 
-## Shared Posting Model
+## Boundaries
 
-SDK and CLI JSON payloads use:
+- Account connection, disconnection, and reauthorization happen in the SimplePost web app. Do not search accounts or posts when the requested account action is unsupported.
+- SimplePost can edit or discard drafts and future scheduled posts. It cannot edit, delete, or undo a post already published to a social platform; direct the user to that platform.
+- SimplePost records posting state, but it does not currently expose social-network engagement analytics through its MCP tools. Do not claim reach, click, impression, or engagement analysis from post records.
+- Keep credentials out of prompts, source files, logs, and visible responses. Use OAuth, environment variables, the CLI secret store, or server-side account storage.
+- Check returned trial or billing eligibility before writing. If SimplePost denies a post for allowance or plan reasons, explain the returned reason and do not retry to bypass it.
 
-```json
-{
-  "content": {
-    "text": "Launch day",
-    "media": [{ "type": "image", "url": "https://cdn.example.com/image.jpg" }]
-  },
-  "platforms": ["x", "instagram", "linkedin"],
-  "options": {
-    "common": { "logLevel": "info" },
-    "x": { "replyToId": "1234567890" }
-  }
-}
-```
+## Content model
 
-HTTP and MCP use Scheduler-style account targets:
+- The root message is the first post. Use `thread` for ordered follow-up segments on X, Bluesky, Threads, and Telegram. Other targets receive only the root and should surface a warning.
+- Use `accountOverrides` or account-scoped options when the user wants platform-specific copy or settings. Do not mechanically rewrite content for every platform unless requested.
+- To quote an earlier post through MCP, find the exact SimplePost record with `inspect_posts` and pass its ID as `quotePostId`. Never infer a post ID from text.
+- Drafts may be saved even when validation fails. Clearly distinguish “saved as a draft” from “valid and ready to publish,” and report the returned per-account errors.
 
-```json
-{
-  "message": "Launch day",
-  "accountIds": ["account_123"],
-  "postingMode": "now",
-  "media": [{ "type": "image", "url": "https://cdn.example.com/image.jpg" }]
-}
-```
+## Result standard
 
-## Threads
+For every preview, draft, schedule, edit, discard, or publish result, make the outcome auditable in the visible response:
 
-Use the root `message` or `content.text` for the first post and `thread` for follow-up segments where supported. Native thread/reply-chain platforms are `x`, `bluesky`, `threads`, and `telegram`. Other platforms receive the root post only and may surface validation warnings.
+- show the exact root text and ordered thread segments;
+- identify the selected account names or platforms;
+- include the absolute scheduled time and timezone when relevant;
+- surface validation warnings and partial failures once;
+- include returned post URLs or IDs when useful;
+- mention whether SimplePost scheduled an automatic repost when the result says it did.

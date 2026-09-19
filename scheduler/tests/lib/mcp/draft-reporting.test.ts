@@ -84,15 +84,13 @@ function result(overrides: {
 const input = { message: "Launch day", accountIds: ["ig-1"], postingMode: "draft" };
 
 it("tells the user a saved draft cannot be published, and why", async () => {
-  jest
-    .mocked(createPost)
-    .mockResolvedValue(
-      result({
-        status: "draft",
-        postingMode: "draft",
-        errors: [{ code: "media_required", severity: "error", message: "Instagram requires an image or video." }],
-      }),
-    );
+  jest.mocked(createPost).mockResolvedValue(
+    result({
+      status: "draft",
+      postingMode: "draft",
+      errors: [{ code: "media_required", severity: "error", message: "Instagram requires an image or video." }],
+    }),
+  );
 
   const { content } = await createPostHandler()(input);
 

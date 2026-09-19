@@ -11,12 +11,7 @@ import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
-import {
-  isMcpBillingDenial,
-  MCP_ERROR_INSTRUCTIONS,
-  mcpToolLogLevel,
-  toMcpErrorDiagnostic,
-} from "./tool-errors";
+import { isMcpBillingDenial, MCP_ERROR_INSTRUCTIONS, mcpToolLogLevel, toMcpErrorDiagnostic } from "./tool-errors";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
 import { UPLOAD_MEDIA_DESCRIPTION, uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import { showPostPreview, showPostPreviewOutputSchema, showPostPreviewSchema } from "./tools/post-preview-ui";
@@ -942,9 +937,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                             result.validation.summary.errorCount,
                             "problem",
                           )} to fix first)`
-                    }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(
-                      result.validation,
-                    )}`
+                    }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
                   : `Updated the post — it's now scheduled for ${formatDateTime(
                       result.post.scheduledFor ?? "",
                     )}.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`,

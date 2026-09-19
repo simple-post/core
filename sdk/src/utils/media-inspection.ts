@@ -7,7 +7,12 @@ import sharp from "sharp";
 import { remoteRequestConfig, validateUrlForSSRF } from "./media";
 import { inspectVideo, type VideoInspection } from "./video-inspection";
 
-import { ALLOWED_MEDIA_TYPES, detectMediaType, MAX_INSPECTABLE_IMAGE_BYTES, normalizeContentType } from "../media-types";
+import {
+  ALLOWED_MEDIA_TYPES,
+  detectMediaType,
+  MAX_INSPECTABLE_IMAGE_BYTES,
+  normalizeContentType,
+} from "../media-types";
 
 import type { Readable } from "node:stream";
 

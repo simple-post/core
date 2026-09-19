@@ -199,12 +199,7 @@ function mockStorage() {
 }
 
 const mp4 = (brand: string) =>
-  Buffer.concat([
-    Buffer.from([0, 0, 0, 24]),
-    Buffer.from("ftyp"),
-    Buffer.from(brand),
-    Buffer.from("isomiso2mp41"),
-  ]);
+  Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftyp"), Buffer.from(brand), Buffer.from("isomiso2mp41")]);
 
 it.each([
   ["a URL with no extension", "https://cdn.example/media/abc123", "abc123", "abc123.mp4"],

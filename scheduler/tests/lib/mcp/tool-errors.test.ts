@@ -1,9 +1,4 @@
-import {
-  isMcpBillingDenial,
-  McpToolError,
-  mcpToolLogLevel,
-  toMcpErrorDiagnostic,
-} from "@/lib/mcp/tool-errors";
+import { isMcpBillingDenial, McpToolError, mcpToolLogLevel, toMcpErrorDiagnostic } from "@/lib/mcp/tool-errors";
 import { BadRequestError, PaymentRequiredError } from "@/lib/utils/errors";
 
 describe("toMcpErrorDiagnostic", () => {

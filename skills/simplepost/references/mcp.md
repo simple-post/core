@@ -4,16 +4,18 @@ Use MCP when an AI assistant should publish, schedule, draft, validate, inspect,
 
 ## Setup
 
-The Scheduler app exposes MCP at:
+Hosted SimplePost exposes MCP at:
 
 ```text
-https://YOUR-SCHEDULER-DOMAIN/mcp
+https://app.simplepost.social/mcp
 ```
+
+Self-hosted Scheduler deployments use `https://YOUR-SCHEDULER-DOMAIN/mcp`.
 
 Claude Code:
 
 ```bash
-claude mcp add --transport http simplepost https://YOUR-SCHEDULER-DOMAIN/mcp
+claude mcp add --transport http simplepost https://app.simplepost.social/mcp
 ```
 
 Cursor-style MCP config:
@@ -23,7 +25,7 @@ Cursor-style MCP config:
   "mcpServers": {
     "simplepost": {
       "type": "http",
-      "url": "https://YOUR-SCHEDULER-DOMAIN/mcp"
+      "url": "https://app.simplepost.social/mcp"
     }
   }
 }
@@ -33,10 +35,10 @@ Clients with OAuth support should open the Scheduler authorization flow. If the 
 
 ## Tool Workflow
 
-1. Call `list_accounts` first. Use returned `accountId` values; never invent them.
+1. Call `list_accounts` first. Use returned `accountId` values; never invent them. Check `trialAllowance` before a write; allowance is shared by accounts on the same platform, while drafts do not consume it.
 2. If media is needed and the user provided a public URL, pass it directly in `media`.
 3. If the client exposes an attached/generated file as a tool file parameter, call `upload_media` and use the returned URL.
-4. If the post details are explicit, call `create_post` directly with `postingMode: "now"`, `"schedule"`, or `"draft"`.
+4. If the post details are explicit, call `create_post` directly with `postingMode: "now"`, `"schedule"`, or `"draft"`. Always send a new unique `idempotencyKey` for a new intended post.
 5. Use `preview_post` for a text and structured-data preflight. Use `show_post_preview` when the user asks to see the rendered post; it provides MCP Apps UI plus a text fallback.
 6. Use `validate_post` only when the user asks to validate, check, test, or troubleshoot a draft without creating anything.
 7. Use `inspect_posts` to list or inspect drafts, scheduled posts, posted posts, or failed posts.
@@ -44,6 +46,9 @@ Clients with OAuth support should open the Scheduler authorization flow. If the 
 9. Use `discard_scheduled_post` only for drafts or future scheduled posts. It cannot undo already published social posts.
 10. After creating or updating a draft or scheduled post, call `show_post_preview` with the returned post ID.
 11. Use `get_schedule` for a text or structured-data schedule and `show_schedule` for MCP Apps calendar UI. Use `inspect_posts` for post searches or exact post lookup.
+12. When quoting an earlier post, find the exact record with `inspect_posts` and pass its `id` as `quotePostId`. If the source is scheduled, schedule the quote after it.
+
+Do not call tools for actions SimplePost cannot perform. Social-account connection, disconnection, and reauthorization happen in the web app. Already-published social posts must be edited or deleted on the destination platform.
 
 ## Naming contract
 
@@ -79,6 +84,10 @@ MCP media items are:
 
 Videos may include `thumbnailUrl`. Some platforms require media: Instagram needs at least one image or video, and YouTube needs a video.
 
+SimplePost imports a public media URL into managed storage before saving or publishing. If `validate_post` or `preview_post` returns `fittedMedia`, pass those returned items to `create_post` so the checked bytes are reused instead of importing the source twice. Preserve `filename`, `size`, `durationSec`, and `thumbnailUrl` returned by `upload_media`.
+
+Use `upload_media.file` only for a structured file parameter registered by the current chat client. Never construct one from a filename, displayed path, file ID, base64 data, or an earlier message. If the reference is unavailable and the media has a public URL, retry once with `upload_media.url`; otherwise ask the user to reattach the file or provide a public URL.
+
 ## Result Handling
 
 For immediate publishing, inspect:
@@ -88,7 +97,18 @@ For immediate publishing, inspect:
 - `postingResults[].message` and `error`
 - `postingResults[].threadResults` for threads
 
+For every created or updated post, also inspect:
+
+- `validation.isValid`, errors, and warnings
+- `post.repostEnabled`, `post.repostDueAt`, and `post.repostStatus`
+
 Always show the exact content that was previewed, created, scheduled, drafted, edited, or discarded.
+
+Drafts are saved even when `validation.isValid` is false. Report that the draft was saved and separately list what must be fixed before publishing. Do not present a saved invalid draft as ready to publish.
+
+An immediate publish can take minutes. If a call times out or its result is uncertain, retry only with the same idempotency key and unchanged content. Never retry with a new key, because that can create a duplicate post.
+
+SimplePost MCP does not expose social-network engagement analytics. `inspect_posts` reports SimplePost content and delivery state, not reach, impressions, clicks, or engagement.
 
 ## TikTok privacy
 

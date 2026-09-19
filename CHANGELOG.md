@@ -6,6 +6,10 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+### Added
+
+- A flagship portable SimplePost Agent Skill for publishing, scheduling, drafts, previews, queue management, and application integrations, with Codex plugin metadata and a Skills CLI installation path.
+
 ## [1.3.3] - 2026-09-09
 
 ### Fixed

@@ -15,6 +15,7 @@ node cli/bin/run.js post --help
 Published binary:
 
 ```bash
+npm install -g @simple-post/cli
 simplepost post --help
 ```
 
@@ -44,14 +45,21 @@ node cli/bin/run.js account add telegram --alias announcements --bot-token "$TEL
 node cli/bin/run.js account
 ```
 
-Scheduler-connected accounts:
+SimplePost-connected accounts:
 
 ```bash
-node cli/bin/run.js connect --url https://YOUR-SCHEDULER-DOMAIN
-node cli/bin/run.js account
+simplepost connect
+simplepost account
 ```
 
-Fully non-interactive posting should use local CLI accounts selected with repeated `--account` flags.
+For a self-hosted Scheduler:
+
+```bash
+simplepost connect --url https://YOUR-SCHEDULER-DOMAIN
+simplepost account
+```
+
+Non-interactive posting can use local accounts selected with repeated `--account` flags, SimplePost-connected accounts selected with repeated `--app-account-id` flags, or both.
 
 ## Posting
 
@@ -67,6 +75,7 @@ Non-interactive:
 node cli/bin/run.js post \
   --account x:main \
   --account telegram:announcements \
+  --app-account-id "<connected-account-id>" \
   --text "Hello from SimplePost CLI" \
   --image ./image.png \
   --telegram-chat-id "@channel"
@@ -89,9 +98,9 @@ node cli/bin/run.js post \
 
 ## Important Notes
 
-- The current CLI targets stored accounts with `--account <platform>:<alias>`. Do not use a `--platforms` flag.
-- Local CLI account posting can use local media paths or public URLs.
-- Scheduler-connected posting needs media that is already publicly reachable by URL.
+- Local accounts use `--account <platform>:<alias>`. Do not use a `--platforms` flag.
+- SimplePost-connected accounts use `--app-account-id <id>`; use the Target column from `simplepost account`.
+- Both local and SimplePost-connected accounts can use local media paths or public URLs. The CLI uploads local files for connected accounts.
+- CLI posting is immediate. It does not create SimplePost drafts or calendar schedules; use MCP, the web app, or the hosted API for those workflows.
 - The CLI exits non-zero if any selected target fails.
 - Refreshed OAuth tokens are persisted back into local secret storage for local accounts.
-

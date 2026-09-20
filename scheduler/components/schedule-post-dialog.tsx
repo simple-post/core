@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+import { TrialExpiryScheduleWarningNotice } from "@/components/billing/trial-post-allowance";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { logClientError } from "@/lib/logger/client";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
@@ -26,6 +27,10 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
   const [scheduledTime, setScheduledTime] = useState("");
   const submitPostMutation = useSubmitPost();
   const isRescheduling = post.status === "scheduled";
+  const scheduledForPreview = useMemo(
+    () => (scheduledDate && scheduledTime ? parseLocalScheduledDateTime(scheduledDate, scheduledTime) : null),
+    [scheduledDate, scheduledTime],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +53,7 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
     }
 
     try {
-      await submitPostMutation.mutateAsync({
+      const result = await submitPostMutation.mutateAsync({
         mode: "edit",
         postId: post.id,
         body: {
@@ -68,7 +73,11 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
         },
       });
 
-      toast.success(isRescheduling ? "Post rescheduled." : "Draft scheduled.");
+      if (result.warnings?.length) {
+        for (const warning of result.warnings) toast.warning(warning.message);
+      } else {
+        toast.success(isRescheduling ? "Post rescheduled." : "Draft scheduled.");
+      }
       onOpenChange(false);
       onScheduled?.();
     } catch (error) {
@@ -102,6 +111,7 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
           onScheduledTimeChange={setScheduledTime}
           excludePostId={post.id}
         />
+        <TrialExpiryScheduleWarningNotice scheduledFor={scheduledForPreview} />
 
         <DialogFooter>
           <Button

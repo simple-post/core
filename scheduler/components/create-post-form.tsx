@@ -12,7 +12,11 @@ import { format } from "date-fns";
 import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
+import {
+  TrialExpiryScheduleWarningNotice,
+  TrialLimitNotice,
+  useTrialPostAllowance,
+} from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
 import { PublishingHelp } from "@/components/publishing-help";
 import { Button } from "@/components/ui/button";
@@ -655,6 +659,7 @@ export function CreatePostForm() {
         resetDraftToDefaults();
         router.push("/?tab=drafts");
       } else {
+        for (const warning of data.warnings ?? []) toast.warning(warning.message);
         resetDraftToDefaults();
         router.push("/?tab=scheduled");
       }
@@ -683,6 +688,13 @@ export function CreatePostForm() {
     threadSegments: thread.length + 1,
     isDraft: postingMode === "draft",
   });
+  const scheduledForPreview = useMemo(
+    () =>
+      postingMode === "schedule" && scheduledDate && scheduledTime
+        ? parseLocalScheduledDateTime(scheduledDate, scheduledTime)
+        : null,
+    [postingMode, scheduledDate, scheduledTime],
+  );
 
   const isFormValid =
     selectedAccountIds.length > 0 &&
@@ -853,6 +865,7 @@ export function CreatePostForm() {
               onScheduledDateChange={setScheduledDate}
               onScheduledTimeChange={setScheduledTime}
             />
+            <TrialExpiryScheduleWarningNotice scheduledFor={scheduledForPreview} />
             {scheduleError ? (
               <p role="alert" className="text-sm text-destructive">
                 {scheduleError}

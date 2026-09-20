@@ -79,11 +79,13 @@ export interface TelemetryDispatchResult {
   processedPosts: number;
   publishedPosts: number;
   failedPosts: number;
+  blockedPosts: number;
   skippedPosts: number;
   staleRecoveredPosts: number;
   processedReposts: number;
   completedReposts: number;
   failedReposts: number;
+  blockedReposts: number;
   skippedReposts: number;
   staleRecoveredReposts: number;
   credentialRefresh: {
@@ -204,9 +206,11 @@ export async function withScheduledDispatch<T extends TelemetryDispatchResult>(r
         "simplepost.processed_posts": result.processedPosts,
         "simplepost.published_posts": result.publishedPosts,
         "simplepost.failed_posts": result.failedPosts,
+        "simplepost.blocked_posts": result.blockedPosts,
         "simplepost.skipped_posts": result.skippedPosts,
         "simplepost.processed_reposts": result.processedReposts,
         "simplepost.failed_reposts": result.failedReposts,
+        "simplepost.blocked_reposts": result.blockedReposts,
         "simplepost.stale_recovered": result.staleRecoveredPosts + result.staleRecoveredReposts,
         "simplepost.outcome": dispatchOutcome(result),
       });
@@ -269,6 +273,7 @@ export function recordScheduledDispatch(durationMs: number, result: TelemetryDis
 
   addCount(dispatchedPosts, result.publishedPosts, { "simplepost.operation": "post", "simplepost.outcome": "success" });
   addCount(dispatchedPosts, result.failedPosts, { "simplepost.operation": "post", "simplepost.outcome": "failure" });
+  addCount(dispatchedPosts, result.blockedPosts, { "simplepost.operation": "post", "simplepost.outcome": "blocked" });
   addCount(dispatchedPosts, result.skippedPosts, { "simplepost.operation": "post", "simplepost.outcome": "skipped" });
   addCount(dispatchedPosts, result.completedReposts, {
     "simplepost.operation": "repost",
@@ -277,6 +282,10 @@ export function recordScheduledDispatch(durationMs: number, result: TelemetryDis
   addCount(dispatchedPosts, result.failedReposts, {
     "simplepost.operation": "repost",
     "simplepost.outcome": "failure",
+  });
+  addCount(dispatchedPosts, result.blockedReposts, {
+    "simplepost.operation": "repost",
+    "simplepost.outcome": "blocked",
   });
   addCount(dispatchedPosts, result.skippedReposts, {
     "simplepost.operation": "repost",

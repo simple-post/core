@@ -114,9 +114,18 @@ export const PostSchema = z
   })
   .meta({ id: "Post" });
 
+export const ScheduleWarningSchema = z
+  .object({
+    code: z.literal("TRIAL_EXPIRES_BEFORE_PUBLISH"),
+    message: z.string(),
+    trialExpiresAt: z.iso.datetime(),
+  })
+  .meta({ id: "ScheduleWarning" });
+
 export const PostEnvelopeSchema = z
   .object({
     post: PostSchema,
+    warnings: z.array(ScheduleWarningSchema).optional(),
   })
   .meta({ id: "PostEnvelope" });
 
@@ -167,6 +176,7 @@ export const CreatePostResponseSchema = z
     post: PostSchema,
     postingResults: z.array(PostingResultSchema).optional(),
     summary: PostingSummarySchema.optional(),
+    warnings: z.array(ScheduleWarningSchema).optional(),
   })
   .meta({ id: "CreatePostResponse" });
 
@@ -667,6 +677,7 @@ export const DispatchScheduledPostsResponseSchema = z
     processedPosts: z.number().int().nonnegative(),
     publishedPosts: z.number().int().nonnegative(),
     failedPosts: z.number().int().nonnegative(),
+    blockedPosts: z.number().int().nonnegative(),
     skippedPosts: z.number().int().nonnegative(),
     staleRecoveredPosts: z.number().int().nonnegative(),
     credentialRefresh: z.object({
@@ -678,6 +689,7 @@ export const DispatchScheduledPostsResponseSchema = z
     processedReposts: z.number().int().nonnegative(),
     completedReposts: z.number().int().nonnegative(),
     failedReposts: z.number().int().nonnegative(),
+    blockedReposts: z.number().int().nonnegative(),
     skippedReposts: z.number().int().nonnegative(),
     staleRecoveredReposts: z.number().int().nonnegative(),
     platformSummary: z.array(
@@ -696,7 +708,7 @@ export const DispatchScheduledPostsResponseSchema = z
       z.object({
         postId: z.string(),
         success: z.boolean(),
-        status: z.enum(["published", "failed", "scheduled"]),
+        status: z.enum(["published", "failed", "scheduled", "blocked"]),
         errorMessage: z.string().optional(),
       }),
     ),
@@ -704,7 +716,7 @@ export const DispatchScheduledPostsResponseSchema = z
       z.object({
         postId: z.string(),
         success: z.boolean(),
-        status: z.enum(["published", "failed", "scheduled"]),
+        status: z.enum(["published", "failed", "scheduled", "blocked"]),
         errorMessage: z.string().optional(),
       }),
     ),

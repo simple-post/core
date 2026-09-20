@@ -3,7 +3,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 
-import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
+import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
+import {
+  assertCanCreatePost,
+  getBillingStatus,
+  lockUserForQuota,
+  toBillingSocialAccounts,
+} from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { ingestPostMedia } from "@/lib/media-ingestion";
@@ -33,6 +39,12 @@ import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types"
 const log = createLogger("api:posts");
 
 type PostingMode = "now" | "schedule" | "draft";
+
+async function getScheduleWarnings(userId: string, scheduledFor: Date | null) {
+  if (!scheduledFor) return [];
+  const warning = getTrialExpiryScheduleWarning(await getBillingStatus(userId), scheduledFor);
+  return warning ? [warning] : [];
+}
 
 async function getPostCounts(userId: string) {
   const [drafts, scheduled, past, failed, failedLatest] = await Promise.all([
@@ -160,7 +172,14 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       if (existing) {
         const existingPost = await repository.getPostById(existing.id);
         log.info({ postId: existing.id }, "Idempotency key replay - returning existing post");
-        return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
+        return NextResponse.json(
+          {
+            post: existingPost,
+            replayed: true,
+            warnings: await getScheduleWarnings(userId, existingPost?.scheduledFor ?? null),
+          },
+          { status: 200 },
+        );
       }
     }
 
@@ -172,6 +191,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
     const postingMode = validated.postingMode;
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor);
+    const scheduleWarnings = await getScheduleWarnings(userId, postingMode === "schedule" ? scheduledFor : null);
     if (postingMode === "now") {
       log.debug("Posting immediately (now)");
     } else if (postingMode === "schedule") {
@@ -284,7 +304,14 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         const replayedPostId = creation.replayedPostId!;
         const existingPost = await repository.getPostById(replayedPostId);
         log.info({ postId: replayedPostId }, "Idempotency key replay after quota lock");
-        return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
+        return NextResponse.json(
+          {
+            post: existingPost,
+            replayed: true,
+            warnings: scheduleWarnings,
+          },
+          { status: 200 },
+        );
       }
 
       post = creation.post;
@@ -302,7 +329,14 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         });
         const existingPost = existing ? await repository.getPostById(existing.id) : null;
         log.info({ postId: existing?.id }, "Idempotency key replay (concurrent) - returning existing post");
-        return NextResponse.json({ post: existingPost, replayed: true }, { status: 200 });
+        return NextResponse.json(
+          {
+            post: existingPost,
+            replayed: true,
+            warnings: scheduleWarnings,
+          },
+          { status: 200 },
+        );
       }
       throw createError;
     }
@@ -448,7 +482,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
     const durationMs = Date.now() - startTime;
     log.info({ postId: post.id, durationMs, postingMode }, "Post created successfully");
-    return NextResponse.json({ post }, { status: 201 });
+    return NextResponse.json({ post, warnings: scheduleWarnings }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

@@ -1,3 +1,4 @@
+import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import {
   createPost,
@@ -26,6 +27,7 @@ jest.mock("@/lib/mcp/tools/accounts", () => ({
 }));
 jest.mock("@/lib/billing/subscriptions", () => ({
   assertCanCreatePost: jest.fn(),
+  getBillingStatus: jest.fn().mockResolvedValue({ accessType: "stripe", trial: null }),
   lockUserForQuota: jest.fn(),
   toBillingSocialAccounts: jest.fn(),
 }));
@@ -79,6 +81,36 @@ it.each(["now", "schedule", "draft"] as const)(
       expect((postToAccounts as jest.Mock).mock.calls[0][4]).toEqual(result.post.accountOptions);
   },
 );
+
+it("returns a warning while scheduling beyond active trial expiry", async () => {
+  jest.mocked(getBillingStatus).mockResolvedValueOnce({
+    accessType: "trial",
+    trial: { status: "active", expiresAt: "2026-09-25T12:00:00.000Z" },
+  } as never);
+  jest.mocked(validatePostForAccounts).mockResolvedValueOnce({
+    accounts: [{ id: "youtube-1", platform: "youtube" }],
+    results: [],
+    summary: { isValid: true, errors: [], warnings: [] },
+  } as never);
+
+  const result = await createPost(
+    "user-1",
+    createPostSchema.parse({
+      message: "Future post",
+      accountIds: ["youtube-1"],
+      postingMode: "schedule",
+      scheduledFor: "2099-01-01T10:00:00Z",
+    }),
+  );
+
+  expect(result.post.status).toBe("scheduled");
+  expect(result.warnings).toEqual([
+    expect.objectContaining({
+      code: "TRIAL_EXPIRES_BEFORE_PUBLISH",
+      message: expect.stringContaining("will not publish"),
+    }),
+  ]);
+});
 
 beforeEach(() => {
   jest.clearAllMocks();

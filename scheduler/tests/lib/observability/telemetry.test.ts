@@ -14,11 +14,13 @@ const dispatchResult: TelemetryDispatchResult = {
   processedPosts: 2,
   publishedPosts: 1,
   failedPosts: 1,
+  blockedPosts: 0,
   skippedPosts: 3,
   staleRecoveredPosts: 1,
   processedReposts: 1,
   completedReposts: 1,
   failedReposts: 0,
+  blockedReposts: 0,
   skippedReposts: 0,
   staleRecoveredReposts: 0,
   credentialRefresh: { refreshed: 1, failed: 1, skipped: 1 },
@@ -53,6 +55,16 @@ describe("observability telemetry", () => {
         ...dispatchResult,
         failedPosts: 0,
         credentialRefresh: { refreshed: 1, failed: 2, skipped: 0 },
+      }),
+    ).toBe("success");
+  });
+
+  it("does not classify expected billing blocks as dispatch failures", () => {
+    expect(
+      dispatchOutcome({
+        ...dispatchResult,
+        failedPosts: 0,
+        blockedPosts: 1,
       }),
     ).toBe("success");
   });

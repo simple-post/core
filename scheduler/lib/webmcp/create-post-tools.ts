@@ -1,6 +1,7 @@
 import { ImageFitSchema } from "@simple-post/sdk/image-fit";
 import { z } from "zod";
 
+import type { ScheduleWarning } from "@/lib/billing/schedule-warning";
 import type { ConnectedAccount, SocialPost } from "@/types";
 
 // Browser-only adapter: use the same authenticated HTTP endpoints as the form,
@@ -95,6 +96,7 @@ export interface CreatedPostResult {
   post: SocialPost;
   postingResults?: Array<{ accountId: string; success: boolean; error?: string; postUrl?: string }>;
   replayed?: boolean;
+  warnings?: ScheduleWarning[];
 }
 
 type ToolDependencies = {

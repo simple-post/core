@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import type { ScheduleWarning } from "@/lib/billing/schedule-warning";
 import { queryKeys } from "@/lib/query-client";
 import { ApiResponseError } from "@/lib/utils/api-response-error";
 import type { PostingMode, SocialPost } from "@/types";
@@ -172,6 +173,7 @@ export interface PostingResult {
 interface PostMutationResult {
   post: SocialPost;
   postingResults?: PostingResult[];
+  warnings?: ScheduleWarning[];
 }
 
 type PostingProgressEvent =

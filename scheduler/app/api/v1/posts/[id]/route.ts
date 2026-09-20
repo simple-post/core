@@ -2,7 +2,13 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 
-import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
+import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
+import {
+  assertCanCreatePost,
+  getBillingStatus,
+  lockUserForQuota,
+  toBillingSocialAccounts,
+} from "@/lib/billing/subscriptions";
 import { getChargedTrialAccounts } from "@/lib/billing/trial";
 import { PostsModel } from "@/lib/db";
 import { ingestPostMedia } from "@/lib/media-ingestion";
@@ -70,6 +76,12 @@ function resolveScheduledFor(
   return parseScheduledForValue(scheduledForValue)!;
 }
 
+async function getScheduleWarnings(userId: string, scheduledFor: Date | null) {
+  if (!scheduledFor) return [];
+  const warning = getTrialExpiryScheduleWarning(await getBillingStatus(userId), scheduledFor);
+  return warning ? [warning] : [];
+}
+
 // GET /api/v1/posts/[id] - Get a single post by ID
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -133,6 +145,10 @@ async function updatePost(
     const currentPostingMode: PostingMode = currentPost.status === "draft" ? "draft" : "schedule";
     const postingMode = validated.postingMode ?? (validated.scheduledFor ? "schedule" : currentPostingMode);
     const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor, currentPost.scheduledFor);
+    const scheduleWarnings = await getScheduleWarnings(
+      session.user.id,
+      postingMode === "schedule" ? scheduledFor : null,
+    );
     const quotePostId = validated.quotePostId === undefined ? currentPost.quotePostId : validated.quotePostId;
     const quoteSource = await validateQuoteSource({
       userId: session.user.id,
@@ -276,7 +292,10 @@ async function updatePost(
     }
 
     if (postingMode !== "now") {
-      return NextResponse.json({ post });
+      return NextResponse.json({
+        post,
+        warnings: scheduleWarnings,
+      });
     }
 
     try {

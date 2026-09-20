@@ -110,8 +110,11 @@ Expected API 4xx responses retain actionable validation reasons and are logged a
 warnings in the browser. Accounts-page error recovery includes an explicit page
 reload; reports capture browser translation state to investigate DOM mutations.
 
-Publishing failures and credential upkeep are separate signals. A dispatch span
-is marked failed when a post or repost fails. Credential refresh counts remain
+Publishing failures, billing blocks, and credential upkeep are separate signals.
+A dispatch span is marked failed only when a post or repost encounters a real
+publishing failure. Expected billing stops are counted with the `blocked` outcome
+and `simplepost.blocked_posts` / `simplepost.blocked_reposts` span attributes,
+without marking the dispatch span as an error. Credential refresh counts remain
 available as `simplepost.credential_refresh.failed`, `.refreshed`, and `.skipped`
 span attributes and through `simplepost.credentials.refresh`. Alert on that metric
 separately. Expired accounts without refresh tokens are blocked from background

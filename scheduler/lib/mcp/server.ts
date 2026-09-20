@@ -779,13 +779,14 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                     result.summary.accountCount,
                     "account",
                   )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread)}`;
+        const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
 
         return {
           structuredContent: result,
           content: [
             {
               type: "text",
-              text: `${summaryText}\n\n${formatCreatedPostDetails(result)}${
+              text: `${summaryText}${warningText ? `\n\n${warningText}` : ""}\n\n${formatCreatedPostDetails(result)}${
                 result.validation &&
                 (result.validation.summary.errorCount > 0 || result.validation.summary.warningCount > 0)
                   ? // imageFitHelp is appended below in its richer per-issue form.
@@ -923,6 +924,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       try {
         requireScope(context, "posts:write");
         const result = await updateScheduledPost(context.userId, input);
+        const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
         return {
           structuredContent: result,
           content: [
@@ -940,7 +942,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                     }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
                   : `Updated the post — it's now scheduled for ${formatDateTime(
                       result.post.scheduledFor ?? "",
-                    )}.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`,
+                    )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`,
             },
           ],
         };

@@ -69,7 +69,7 @@ interface DispatchPlatformSummary {
 interface DispatchPostResult {
   postId: string;
   success: boolean;
-  status: "published" | "failed" | "scheduled";
+  status: "published" | "failed" | "scheduled" | "blocked";
   errorMessage?: string;
 }
 
@@ -149,11 +149,13 @@ export interface DispatchDuePostsResult {
   processedPosts: number;
   publishedPosts: number;
   failedPosts: number;
+  blockedPosts: number;
   skippedPosts: number;
   staleRecoveredPosts: number;
   processedReposts: number;
   completedReposts: number;
   failedReposts: number;
+  blockedReposts: number;
   skippedReposts: number;
   staleRecoveredReposts: number;
   credentialRefresh: {
@@ -594,8 +596,41 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     };
 
     if (error instanceof PaymentRequiredError) {
-      log.error({ ...apiErrorLogPayload(error), ...failureContext }, "Scheduled post billing gate denied");
-    } else if (error instanceof ValidationError) {
+      log.info({ ...apiErrorLogPayload(error), ...failureContext }, "Scheduled post blocked by billing gate");
+
+      await prisma.post.update({
+        where: { id: post.id },
+        data: {
+          // Keep the post in the existing recoverable Failed view, but classify
+          // the dispatch outcome separately: an expected billing stop is not a
+          // publishing or scheduler error.
+          status: "failed",
+          errorMessage,
+          errorDetails: sanitizeForJson({
+            code: "BILLING_ACCESS_REQUIRED",
+            reason: "billing_access_required",
+          }) as Prisma.InputJsonValue,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
+        },
+      });
+
+      await dispatchPostWebhooks(post.userId, "post.failed", {
+        id: post.id,
+        status: "failed",
+        message: post.message,
+        errorMessage,
+      });
+
+      return {
+        postId: post.id,
+        success: false,
+        status: "blocked",
+        errorMessage,
+      };
+    }
+
+    if (error instanceof ValidationError) {
       log.error({ ...apiErrorLogPayload(error), ...failureContext }, "Scheduled post failed validation");
     } else {
       log.error({ err: serializeError(error), ...failureContext }, "Scheduled post failed before completion");
@@ -710,10 +745,24 @@ async function dispatchAutoRepost(post: DueRepostPost): Promise<DispatchPostResu
     const errorMessage = error instanceof Error ? error.message : "Unknown error while reposting";
 
     if (error instanceof PaymentRequiredError) {
-      log.warn({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled repost billing gate denied");
-    } else {
-      log.error({ err: serializeError(error), postId: post.id }, "Scheduled repost failed before completion");
+      log.info({ ...apiErrorLogPayload(error), postId: post.id }, "Scheduled repost blocked by billing gate");
+
+      await prisma.post.update({
+        where: { id: post.id },
+        data: {
+          repostStatus: "failed",
+          repostErrorMessage: errorMessage,
+          repostErrorDetails: sanitizeForJson({
+            code: "BILLING_ACCESS_REQUIRED",
+            reason: "billing_access_required",
+          }) as Prisma.InputJsonValue,
+        },
+      });
+
+      return { postId: post.id, success: false, status: "blocked", errorMessage };
     }
+
+    log.error({ err: serializeError(error), postId: post.id }, "Scheduled repost failed before completion");
 
     await prisma.post.update({
       where: { id: post.id },
@@ -882,6 +931,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
       processedPosts: 0,
       publishedPosts: 0,
       failedPosts: 0,
+      blockedPosts: 0,
       skippedPosts: 0,
       staleRecoveredPosts,
       credentialRefresh: {
@@ -893,6 +943,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
       processedReposts: 0,
       completedReposts: 0,
       failedReposts: 0,
+      blockedReposts: 0,
       skippedReposts: 0,
       staleRecoveredReposts,
       platformSummary: [],
@@ -1054,8 +1105,10 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
 
   const publishedPosts = postResults.filter((result) => result.status === "published").length;
   const failedPosts = postResults.filter((result) => result.status === "failed").length;
+  const blockedPosts = postResults.filter((result) => result.status === "blocked").length;
   const completedReposts = repostResults.filter((result) => result.success).length;
   const failedReposts = repostResults.filter((result) => result.status === "failed").length;
+  const blockedReposts = repostResults.filter((result) => result.status === "blocked").length;
 
   const actualAttempts = await prisma.publishAttempt.groupBy({
     by: ["platform"],
@@ -1104,8 +1157,10 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
       staleRecoveredReposts,
       publishedPosts,
       failedPosts,
+      blockedPosts,
       completedReposts,
       failedReposts,
+      blockedReposts,
       platformSummary,
     },
     "Scheduled posts dispatch completed",
@@ -1117,6 +1172,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
     processedPosts: claimedPosts.length,
     publishedPosts,
     failedPosts,
+    blockedPosts,
     skippedPosts: duePosts.length - claimedPosts.length,
     staleRecoveredPosts,
     credentialRefresh: {
@@ -1128,6 +1184,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
     processedReposts: claimedReposts.length,
     completedReposts,
     failedReposts,
+    blockedReposts,
     skippedReposts: dueReposts.length - claimedReposts.length,
     staleRecoveredReposts,
     platformSummary,

@@ -8,6 +8,7 @@ import { AlertTriangle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useBillingStatus } from "@/hooks/use-billing";
+import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
 import type { BillingTrialStatus } from "@/lib/billing/subscriptions";
 import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -198,6 +199,30 @@ export function TrialLimitNotice({ allowance }: { allowance: TrialPostAllowance 
       platforms={platforms.map((entry) => entry.label)}
       allUsedUp={platforms.some((entry) => entry.remaining === 0)}
     />
+  );
+}
+
+/** Warns about a valid schedule that falls outside the user's active trial. */
+export function TrialExpiryScheduleWarningNotice({ scheduledFor }: { scheduledFor: Date | null }) {
+  const { data: billing } = useBillingStatus();
+  const warning = getTrialExpiryScheduleWarning(billing, scheduledFor);
+
+  if (!warning) return null;
+
+  return (
+    <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+      <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+        <AlertTriangle className="h-3.5 w-3.5" />
+        <p className="font-medium">Scheduled after your free trial</p>
+      </div>
+      <p className="mt-1 text-muted-foreground">
+        The post will be scheduled, but it will not publish unless you{" "}
+        <Link href="/billing/plans" className="font-medium text-primary hover:underline">
+          choose a plan
+        </Link>{" "}
+        before the scheduled time.
+      </p>
+    </div>
   );
 }
 

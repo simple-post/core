@@ -110,6 +110,175 @@ describe("PinterestPublisher", () => {
           media_source: expect.objectContaining({ source_type: "image_url" }),
         }),
       );
+      expect(result.url).toBe("https://www.pinterest.com/pin/pin_123/");
+    });
+
+    it("recovers a Pin accepted before Pinterest returned transient error 2787", async () => {
+      jest.useFakeTimers();
+      const now = new Date().toISOString();
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: { status: 400, data: { code: 2787, message: "Sorry! Something went wrong on our end." } },
+      });
+      mockAxiosInstance.get.mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              id: "pin_recovered",
+              created_at: now,
+              board_id: "board_123",
+              title: "Recovered pin",
+              description: "Pinterest pin",
+              link: "https://example.com/story",
+              alt_text: "A quiet room",
+            },
+          ],
+        },
+      });
+
+      try {
+        const result = publisher.postContent(
+          {
+            text: "Pinterest pin",
+            media: [{ type: "image", url: "https://cdn.example.com/image.jpg", caption: "A quiet room" }],
+          },
+          {
+            pinterest: {
+              boardId: "board_123",
+              title: "Recovered pin",
+              link: "https://example.com/story",
+              credentials: { accessToken: "test_access_token" },
+            },
+          },
+        );
+        await jest.runAllTimersAsync();
+        await expect(result).resolves.toMatchObject({
+          id: "pin_recovered",
+          url: "https://www.pinterest.com/pin/pin_recovered/",
+          error: PostErrorType.NO_ERROR,
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith("/boards/board_123/pins", { params: { page_size: 250 } });
+    });
+
+    it("retries a confirmed-missing 2787 Pin once with direct Base64 image data", async () => {
+      jest.useFakeTimers();
+      const imagePath = path.join(process.cwd(), `.pinterest-fallback-${Date.now()}.jpg`);
+      fs.writeFileSync(imagePath, Buffer.from([255, 216, 255, 217]));
+      mockAxiosInstance.post
+        .mockRejectedValueOnce({
+          response: { status: 400, data: { code: 2787, message: "Sorry! Something went wrong on our end." } },
+        })
+        .mockResolvedValueOnce({ data: { id: "pin_retried" } });
+      mockAxiosInstance.get.mockResolvedValue({ data: { items: [] } });
+
+      try {
+        const result = publisher.postContent(
+          {
+            text: "Pinterest pin",
+            media: [{ type: "image", path: imagePath, contentType: "image/jpeg" }],
+          },
+          {
+            pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+          },
+        );
+        await jest.runAllTimersAsync();
+        await expect(result).resolves.toMatchObject({
+          id: "pin_retried",
+          url: "https://www.pinterest.com/pin/pin_retried/",
+          error: PostErrorType.NO_ERROR,
+        });
+      } finally {
+        jest.useRealTimers();
+        fs.rmSync(imagePath, { force: true });
+      }
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(3);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      expect(mockAxiosInstance.post).toHaveBeenLastCalledWith(
+        "/pins",
+        expect.objectContaining({
+          media_source: {
+            source_type: "image_base64",
+            content_type: "image/jpeg",
+            data: Buffer.from([255, 216, 255, 217]).toString("base64"),
+          },
+        }),
+      );
+    });
+
+    it("does not retry 2787 when Pinterest readback cannot confirm absence", async () => {
+      jest.useFakeTimers();
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: { code: 2787, message: "Sorry! Something went wrong on our end." },
+          headers: { "x-pinterest-rid": "request-2787" },
+        },
+      });
+      mockAxiosInstance.get.mockRejectedValueOnce(new Error("Pinterest readback unavailable"));
+
+      try {
+        const result = publisher.postContent(
+          { text: "Pinterest pin", media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }] },
+          {
+            pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+          },
+        );
+        const rejection = expect(result).rejects.toMatchObject({
+          errorType: PostErrorType.API_ERROR,
+          details: {
+            provider: "pinterest",
+            status: 400,
+            code: 2787,
+            requestId: "request-2787",
+            reconciliationError: "Pinterest readback unavailable",
+          },
+        });
+        await jest.runAllTimersAsync();
+        await rejection;
+      } finally {
+        jest.useRealTimers();
+      }
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+    });
+
+    it("records safe Pinterest diagnostics without retrying unrelated errors", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: { code: 1234, message: "Invalid request" },
+          headers: {
+            "x-pinterest-rid": "request-1234",
+            "x-ratelimit-remaining": "98",
+          },
+        },
+      });
+
+      await expect(
+        publisher.postContent(
+          { text: "Pinterest pin", media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }] },
+          {
+            pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+          },
+        ),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        details: {
+          provider: "pinterest",
+          status: 400,
+          code: 1234,
+          requestId: "request-1234",
+          rateLimitRemaining: "98",
+        },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.get).not.toHaveBeenCalled();
     });
 
     it("should throw if boardId is missing", async () => {

@@ -10,7 +10,15 @@ import { dispatchPostWebhooks } from "@/lib/webhooks";
 
 jest.mock("@/lib/webhooks", () => ({ dispatchPostWebhooks: jest.fn() }));
 
-jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: jest.fn() }));
+jest.mock("@/lib/config", () => ({
+  countAccountsByPlatform: (accounts: Array<{ platform: string }> = []) =>
+    accounts.reduce<Record<string, number>>((counts, account) => {
+      counts[account.platform] = (counts[account.platform] ?? 0) + 1;
+      return counts;
+    }, {}),
+  getPlatformName: (platform: string) => platform,
+  isSocialPlatformEnabled: jest.fn(),
+}));
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -187,6 +195,7 @@ function mockFindMany({
   staleReposts?: Array<{ id: string }>;
 }) {
   prismaMock.post.findMany.mockImplementation(({ where }: { where: { status?: string; repostStatus?: string } }) => {
+    if (typeof where.status === "object") return Promise.resolve([]);
     if (where.status === "pending") return Promise.resolve(stale);
     if (where.repostStatus === "pending") return Promise.resolve(staleReposts);
     if (where.status === "scheduled") return Promise.resolve(due);
@@ -435,6 +444,45 @@ describe("dispatchDueScheduledPosts", () => {
           errorMessage: "Scheduled post failed validation: X images cannot exceed 5 MB.",
         }),
       }),
+    );
+  });
+
+  it("records an expired-trial billing stop as blocked instead of an operational failure", async () => {
+    mockFindMany({ due: [duePost({ id: "trial-post", accounts: [{ id: "a1", platform: "x" }] })] });
+    prismaMock.user.findUnique.mockResolvedValue({
+      email: "trial@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: {
+        startsAt: new Date("2026-08-01T00:00:00.000Z"),
+        expiresAt: new Date("2026-08-08T00:00:00.000Z"),
+        bonusPostsPerPlatform: 0,
+      },
+    });
+
+    const result = await dispatchDueScheduledPosts();
+
+    expect(postToAccountsMock).not.toHaveBeenCalled();
+    expect(result.postResults).toEqual([
+      expect.objectContaining({ postId: "trial-post", success: false, status: "blocked" }),
+    ]);
+    expect(result.failedPosts).toBe(0);
+    expect(result.blockedPosts).toBe(1);
+    expect(prismaMock.post.update).toHaveBeenCalledWith({
+      where: { id: "trial-post" },
+      data: expect.objectContaining({
+        status: "failed",
+        errorMessage: "Your free trial has ended. Choose a plan to keep using SimplePost.",
+        errorDetails: {
+          code: "BILLING_ACCESS_REQUIRED",
+          reason: "billing_access_required",
+        },
+      }),
+    });
+    expect(dispatchPostWebhooks).toHaveBeenCalledWith(
+      "user-1",
+      "post.failed",
+      expect.objectContaining({ id: "trial-post" }),
     );
   });
 

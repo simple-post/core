@@ -8,7 +8,13 @@ import {
 } from "@simple-post/sdk";
 import { z } from "zod";
 
-import { assertCanCreatePost, lockUserForQuota, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
+import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
+import {
+  assertCanCreatePost,
+  getBillingStatus,
+  lockUserForQuota,
+  toBillingSocialAccounts,
+} from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
 import { McpToolError } from "@/lib/mcp/tool-errors";
@@ -122,6 +128,12 @@ const postingResultSchema = z.object({
   threadResults: z.array(threadSegmentResultSchema).optional(),
 });
 
+const scheduleWarningSchema = z.object({
+  code: z.literal("TRIAL_EXPIRES_BEFORE_PUBLISH"),
+  message: z.string(),
+  trialExpiresAt: z.string(),
+});
+
 export const previewPostOutputSchema = z.object({
   kind: z.literal("preview"),
   message: z.string(),
@@ -153,6 +165,7 @@ export const createPostOutputSchema = z.object({
   mediaCount: z.number(),
   post: mcpPostSchema,
   postingResults: z.array(postingResultSchema),
+  warnings: z.array(scheduleWarningSchema).optional(),
   summary: z.object({
     accountCount: z.number(),
     mediaCount: z.number(),
@@ -306,6 +319,7 @@ export const updateScheduledPostOutputSchema = z.object({
   kind: z.literal("scheduled_post_update"),
   post: managedPostSchema,
   validation: validatePostOutputSchema,
+  warnings: z.array(scheduleWarningSchema).optional(),
   summary: z.object({
     updated: z.boolean(),
     messageChanged: z.boolean(),
@@ -759,6 +773,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const targetPostingMode = input.postingMode ?? (input.scheduledFor === undefined ? currentPostingMode : "schedule");
   const scheduledFor =
     targetPostingMode === "schedule" ? resolveUpdatedScheduledFor(input.scheduledFor, currentPost.scheduledFor) : null;
+  const scheduleWarnings = targetPostingMode === "schedule" ? await getScheduleWarnings(userId, scheduledFor) : [];
   const quotePostId = input.quotePostId === undefined ? currentPost.quotePostId : input.quotePostId;
   await validateQuoteSource({
     userId,
@@ -874,6 +889,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     kind: "scheduled_post_update" as const,
     post: mapManagedPost(updatedPost, accountMap),
     validation,
+    warnings: scheduleWarnings,
     summary: {
       updated: true,
       messageChanged: input.message !== undefined,
@@ -937,7 +953,17 @@ function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof
   }));
 }
 
-function buildReplayResponse(post: SocialPost, input: z.infer<typeof createPostSchema>) {
+async function getScheduleWarnings(userId: string, scheduledFor: Date | string | null | undefined) {
+  if (!scheduledFor) return [];
+  const warning = getTrialExpiryScheduleWarning(await getBillingStatus(userId), scheduledFor);
+  return warning ? [warning] : [];
+}
+
+function buildReplayResponse(
+  post: SocialPost,
+  input: z.infer<typeof createPostSchema>,
+  warnings: z.infer<typeof scheduleWarningSchema>[],
+) {
   const accountResults = Object.values(post.accountResults ?? {});
   const successCount = accountResults.filter((result) => result.success).length;
   const failureCount = accountResults.filter((result) => !result.success).length;
@@ -957,6 +983,7 @@ function buildReplayResponse(post: SocialPost, input: z.infer<typeof createPostS
       postUrl: result.postUrl,
       postId: result.postId,
     })),
+    warnings,
     summary: {
       accountCount: post.accountIds.length,
       mediaCount: post.media.length,
@@ -988,7 +1015,7 @@ export async function createPost(
     if (existing) {
       const existingPost = await repository.getPostById(existing.id);
       if (existingPost) {
-        return buildReplayResponse(existingPost, input);
+        return buildReplayResponse(existingPost, input, await getScheduleWarnings(userId, existingPost.scheduledFor));
       }
     }
   }
@@ -1000,6 +1027,7 @@ export async function createPost(
 
   const scheduledFor = resolveScheduledFor(input);
   const postingMode = input.postingMode ?? "now";
+  const scheduleWarnings = postingMode === "schedule" ? await getScheduleWarnings(userId, scheduledFor) : [];
   let mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);
   let threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
@@ -1131,7 +1159,7 @@ export async function createPost(
 
     if ("replayedPostId" in creation) {
       const existingPost = await repository.getPostById(creation.replayedPostId!);
-      if (existingPost) return buildReplayResponse(existingPost, input);
+      if (existingPost) return buildReplayResponse(existingPost, input, scheduleWarnings);
       throw new Error("The idempotent post could not be loaded after creation");
     }
 
@@ -1150,7 +1178,7 @@ export async function createPost(
       });
       const existingPost = existing ? await repository.getPostById(existing.id) : null;
       if (existingPost) {
-        return buildReplayResponse(existingPost, input);
+        return buildReplayResponse(existingPost, input, scheduleWarnings);
       }
     }
     throw createError;
@@ -1252,6 +1280,7 @@ export async function createPost(
         post: mapPost(updatedPost ?? post),
         validation: mcpValidation,
         postingResults: sanitizedResults,
+        warnings: [],
         summary: {
           accountCount: input.accountIds.length,
           mediaCount: mediaFiles.length,
@@ -1286,6 +1315,7 @@ export async function createPost(
       ? fittableImageIssues.map((issue) => `${issue.platform}: ${issue.message}`).join(" ") + " " + IMAGE_FIT_HELP
       : undefined,
     postingResults: [],
+    warnings: scheduleWarnings,
     summary: {
       accountCount: input.accountIds.length,
       mediaCount: mediaFiles.length,

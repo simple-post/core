@@ -39,6 +39,7 @@ const request = (body: unknown, method = "POST", id = "") =>
   });
 beforeEach(async () => {
   jest.resetAllMocks();
+  delete process.env.SELF_HOSTED;
   await prisma.publishCheckpoint.deleteMany();
   await prisma.publishAttempt.deleteMany();
   await prisma.storageDeletion.deleteMany();
@@ -72,6 +73,30 @@ async function noPublish() {
   expect(await prisma.publishAttempt.count()).toBe(0);
   expect(await prisma.publishCheckpoint.count()).toBe(0);
 }
+
+it("schedules beyond trial expiry and returns a publish warning", async () => {
+  const scheduledFor = new Date(Date.now() + 2 * 86_400_000);
+  const response = await create(
+    request({
+      message: "Future post",
+      accountIds: ["telegram"],
+      postingMode: "schedule",
+      scheduledFor: scheduledFor.toISOString(),
+    }),
+  );
+
+  expect(response.status).toBe(201);
+  const body = await response.json();
+  expect(body.post).toMatchObject({ status: "scheduled", scheduledFor: scheduledFor.toISOString() });
+  expect(body.warnings).toEqual([
+    expect.objectContaining({
+      code: "TRIAL_EXPIRES_BEFORE_PUBLISH",
+      message: expect.stringContaining("will not publish"),
+    }),
+  ]);
+  expect(await prisma.post.count()).toBe(1);
+  await noPublish();
+});
 const cases = [
   { name: "Unicode bytes", accountIds: ["bluesky"], message: "👨‍👩‍👧‍👦".repeat(121), code: "text_bytes_exceeded" },
   {

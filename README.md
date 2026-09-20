@@ -26,6 +26,8 @@ codex plugin add simplepost@simplepost-core
 
 The repository root is also a portable Agent Plugin for Cursor and other compatible clients. See [Cursor installation and marketplace verification](docs/CURSOR.md).
 
+Kiro can install the same package as a Power. See [Kiro activation testing and submission guidance](docs/KIRO.md).
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

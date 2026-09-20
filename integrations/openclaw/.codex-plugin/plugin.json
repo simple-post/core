@@ -1,0 +1,14 @@
+{
+  "name": "simplepost",
+  "version": "1.0.0",
+  "description": "Publish, schedule, draft, preview, inspect, and manage social posts through SimplePost.",
+  "author": {
+    "name": "SimplePost",
+    "url": "https://simplepost.social"
+  },
+  "homepage": "https://github.com/simple-post/core/tree/main/integrations/openclaw",
+  "repository": "https://github.com/simple-post/core",
+  "license": "MIT",
+  "keywords": ["simplepost", "social-media", "posting", "mcp"],
+  "skills": "./skills/"
+}

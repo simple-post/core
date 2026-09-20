@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "simplepost": {
+      "type": "http",
+      "url": "https://app.simplepost.social/mcp"
+    }
+  }
+}

@@ -28,6 +28,8 @@ The repository root is also a portable Agent Plugin for Cursor and other compati
 
 Kiro can install the same package as a Power. See [Kiro activation testing and submission guidance](docs/KIRO.md).
 
+Grok Build can install this repository directly and use the same canonical skill. See [Grok Build verification and marketplace guidance](docs/GROK.md).
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

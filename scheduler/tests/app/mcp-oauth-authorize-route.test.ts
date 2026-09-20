@@ -63,7 +63,8 @@ it("treats a null OIDC nonce as absent", async () => {
   expect(response.status).toBe(200);
   expect(ensureTrialStarted).toHaveBeenCalledWith("review-user");
   await expect(response.json()).resolves.toEqual({
-    redirectUrl: "https://chatgpt.com/connector_platform_oauth_redirect?code=authorization-code&state=state-123",
+    redirectUrl:
+      "https://chatgpt.com/connector_platform_oauth_redirect?code=authorization-code&state=state-123&iss=http%3A%2F%2Flocalhost%3A3000",
   });
   expect(createAuthorizationCodeMock).toHaveBeenCalledWith(
     expect.objectContaining({

@@ -67,7 +67,7 @@ it("starts an eligible connector-first trial before enforcing billing", async ()
     expect.objectContaining({ clientId: "client-1", userId: "user-1", redirectUri }),
   );
   await expect(response.json()).resolves.toEqual({
-    redirectUrl: `${redirectUri}?code=authorization-code&state=state-1`,
+    redirectUrl: `${redirectUri}?code=authorization-code&state=state-1&iss=http%3A%2F%2Flocalhost%3A3000`,
   });
 });
 

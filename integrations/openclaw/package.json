@@ -1,0 +1,34 @@
+{
+  "name": "simplepost",
+  "version": "1.0.0",
+  "description": "Publish, schedule, draft, preview, inspect, and manage social posts through SimplePost.",
+  "license": "MIT",
+  "homepage": "https://simplepost.social",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simple-post/core.git",
+    "directory": "integrations/openclaw"
+  },
+  "keywords": [
+    "openclaw",
+    "social-media",
+    "publishing",
+    "scheduling",
+    "mcp"
+  ],
+  "files": [
+    ".codex-plugin/",
+    ".mcp.json",
+    "assets/icon.png",
+    "mcp.json",
+    "openclaw.plugin.json",
+    "plugin.json",
+    "skills/",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "sync:skill": "node ../../scripts/sync-openclaw-bundle.mjs",
+    "check:skill": "node ../../scripts/sync-openclaw-bundle.mjs --check"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "simplepost",
+  "name": "SimplePost",
+  "description": "Publish, schedule, draft, preview, inspect, and manage social posts through SimplePost.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}

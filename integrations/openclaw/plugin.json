@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "simplepost",
+  "version": "1.0.0",
+  "description": "Publish, schedule, draft, preview, inspect, and manage social posts through SimplePost.",
+  "author": {
+    "name": "SimplePost",
+    "email": "support@simplepost.social",
+    "url": "https://simplepost.social"
+  },
+  "homepage": "https://simplepost.social",
+  "repository": "https://github.com/simple-post/core",
+  "license": "MIT",
+  "keywords": ["social-media", "publishing", "scheduling", "mcp", "content"]
+}

@@ -38,6 +38,8 @@ gemini extensions install https://github.com/simple-post/core
 
 See [the Gemini CLI extension guide](docs/GEMINI_CLI_EXTENSION.md) for OAuth verification and gallery publication.
 
+The ClawHub bundle is packaged from [`integrations/openclaw`](integrations/openclaw) while keeping this repository's skill canonical. See [OpenClaw verification and publishing](docs/OPENCLAW.md).
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

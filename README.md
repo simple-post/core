@@ -24,6 +24,8 @@ codex plugin marketplace add simple-post/core
 codex plugin add simplepost@simplepost-core
 ```
 
+The repository root is also a portable Agent Plugin for Cursor and other compatible clients. See [Cursor installation and marketplace verification](docs/CURSOR.md).
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

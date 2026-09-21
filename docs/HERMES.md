@@ -59,9 +59,15 @@ hermes skills search simplepost --source clawhub
 
 Inspect the returned identifier before installing it. Confirm that the installed copy contains the canonical SimplePost skill and references from this repository.
 
-For a future Nous-reviewed listing, submit separate upstream pull requests to `NousResearch/hermes-agent`:
+For a Nous-reviewed listing, submit separate upstream pull requests to `NousResearch/hermes-agent`:
 
 - add the skill under `optional-skills/social-media/simplepost`;
 - add the hosted OAuth MCP server under `optional-mcps/`.
 
-The upstream route is optional and duplicates release material, so keep `skills/simplepost` in this repository as the source of truth.
+The copy-ready payloads, PR descriptions, verification steps, and source-drift validator live in [`integrations/hermes-agent`](../integrations/hermes-agent). Validate them before submission:
+
+```bash
+yarn hermes:validate
+```
+
+The upstream route is optional and duplicates release material, so keep `skills/simplepost` in this repository as the source of truth. Submit the skill and MCP catalog entry as separate PRs because Hermes applies different authoring, testing, and security-review gates to them.

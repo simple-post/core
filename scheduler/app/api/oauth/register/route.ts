@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error: "invalid_client_metadata",
-            error_description: `Redirect URI must use HTTPS or HTTP loopback: ${uri}`,
+            error_description: `Redirect URI must use HTTPS, HTTP loopback, or an approved native-app callback: ${uri}`,
           },
           { status: 400 },
         );

@@ -24,10 +24,17 @@ describe("isAllowedMcpRedirectUri", () => {
     expect(isAllowedMcpRedirectUri("https://example.com/oauth/callback")).toBe(true);
   });
 
+  it("allows Cursor's exact native MCP callback", () => {
+    expect(isAllowedMcpRedirectUri("cursor://anysphere.cursor-mcp/oauth/callback")).toBe(true);
+  });
+
   it.each([
     "http://example.com/callback",
     "http://localhost.example.com/callback",
     "ftp://localhost/callback",
+    "cursor://evil.example/oauth/callback",
+    "cursor://anysphere.cursor-mcp/oauth/callback?next=https://evil.example",
+    "cursor://anysphere.cursor-mcp/oauth/callback#code",
     "not a url",
   ])("rejects non-HTTPS, non-loopback redirects: %s", (uri) => {
     expect(isAllowedMcpRedirectUri(uri)).toBe(false);

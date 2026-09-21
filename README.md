@@ -40,6 +40,8 @@ See [the Gemini CLI extension guide](docs/GEMINI_CLI_EXTENSION.md) for OAuth ver
 
 The ClawHub bundle is packaged from [`integrations/openclaw`](integrations/openclaw) while keeping this repository's skill canonical. See [OpenClaw verification and publishing](docs/OPENCLAW.md).
 
+Hermes Agent can install the canonical skill directly from this repository and discover its ClawHub release through the Skills Hub. See [Hermes installation and discovery](docs/HERMES.md).
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

@@ -306,6 +306,38 @@ export const getRemoteMediaSize = async (url: string): Promise<number> => {
 // enforced by the HTTP server and scheduler upload endpoints.
 const MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;
 
+// Remote media downloads are safe to retry because they are read-only. Keep
+// the budget small so a brief CDN/origin connection reset does not fail an
+// otherwise valid post without turning a persistent outage into a long stall.
+const DOWNLOAD_RETRY_DELAYS_MS = [250, 750] as const;
+const TRANSIENT_DOWNLOAD_ERROR_CODES = new Set([
+  "EAI_AGAIN",
+  "ECONNABORTED",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "EPIPE",
+  "ERR_STREAM_PREMATURE_CLOSE",
+  "ETIMEDOUT",
+]);
+
+const isTransientDownloadError = (error: unknown): boolean => {
+  const candidate = error as {
+    code?: unknown;
+    cause?: { code?: unknown };
+    response?: { status?: unknown };
+  };
+  const status = typeof candidate?.response?.status === "number" ? candidate.response.status : undefined;
+  if (status === 408 || status === 425 || status === 429 || (status !== undefined && status >= 500)) return true;
+
+  const code = typeof candidate?.code === "string" ? candidate.code : candidate?.cause?.code;
+  return typeof code === "string" && TRANSIENT_DOWNLOAD_ERROR_CODES.has(code);
+};
+
+const waitForDownloadRetry = (delayMs: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, delayMs));
+
 /**
  * Downloads a file from a URL to a temporary local file
  * Returns the path to the downloaded file
@@ -328,87 +360,89 @@ export const downloadToTempFile = async (
   // dependency by Next.js/Turbopack's NFT tracing.
   let tempFilePath = path.join(/* turbopackIgnore: true */ tempDir, tempFilename);
 
-  try {
-    const response = await axios.get<Readable>(url, {
-      responseType: "stream",
-      timeout: 120_000, // 2 minutes timeout for large files
-      maxContentLength: maxBytes,
-      maxBodyLength: Infinity,
-      maxRedirects: 5,
-      // Validate the address actually connected to, not just the URL string.
-      lookup: ssrfSafeLookup,
-      // Each redirect hop is re-validated: a public URL must not be able to
-      // bounce the request to localhost, a private address, or a metadata
-      // endpoint. IP-literal hops would bypass DNS lookup entirely, so the
-      // string-level check here is load-bearing.
-      beforeRedirect: (options: Record<string, unknown>) => {
-        const redirectUrl =
-          typeof options.href === "string"
-            ? options.href
-            : `${String(options.protocol)}//${String(options.hostname)}${String(options.path ?? "")}`;
-        validateUrlForSSRF(redirectUrl);
-      },
-    });
+  for (let attempt = 0; attempt <= DOWNLOAD_RETRY_DELAYS_MS.length; attempt++) {
+    let responseStream: Readable | undefined;
+    try {
+      const response = await axios.get<Readable>(url, {
+        responseType: "stream",
+        timeout: 120_000, // 2 minutes timeout for large files
+        maxContentLength: maxBytes,
+        maxBodyLength: Infinity,
+        maxRedirects: 5,
+        // Validate the address actually connected to, not just the URL string.
+        lookup: ssrfSafeLookup,
+        // Each redirect hop is re-validated: a public URL must not be able to
+        // bounce the request to localhost, a private address, or a metadata
+        // endpoint. IP-literal hops would bypass DNS lookup entirely, so the
+        // string-level check here is load-bearing.
+        beforeRedirect: (options: Record<string, unknown>) => {
+          const redirectUrl =
+            typeof options.href === "string"
+              ? options.href
+              : `${String(options.protocol)}//${String(options.hostname)}${String(options.path ?? "")}`;
+          validateUrlForSSRF(redirectUrl);
+        },
+      });
+      responseStream = response.data;
 
-    const contentLength = Number(response.headers["content-length"]);
-    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-      response.data.destroy();
-      throw new Error(`Media at ${url} exceeds the maximum download size of ${maxBytes} bytes`);
-    }
+      const contentLength = Number(response.headers["content-length"]);
+      if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+        response.data.destroy();
+        throw new Error(`Media at ${url} exceeds the maximum download size of ${maxBytes} bytes`);
+      }
 
-    // Try to get extension from content-type if not available
-    if (!extension) {
-      const contentType = response.headers["content-type"] as string;
-      if (contentType) {
-        const mimeToExt: Record<string, string> = {
-          "video/mp4": ".mp4",
-          "video/quicktime": ".mov",
-          "video/webm": ".webm",
-          "image/jpeg": ".jpg",
-          "image/png": ".png",
-          "image/gif": ".gif",
-          "image/webp": ".webp",
-        };
-        const detectedExt = mimeToExt[contentType.split(";")[0]];
-        if (detectedExt) {
-          // Update the temp file path with the correct extension
-          const newTempFilePath = tempFilePath.replace(/\.tmp$/, detectedExt);
-          if (newTempFilePath !== tempFilePath) {
-            tempFilePath = newTempFilePath;
+      // Try to get extension from content-type if not available
+      if (!extension) {
+        const contentType = response.headers["content-type"] as string;
+        if (contentType) {
+          const mimeToExt: Record<string, string> = {
+            "video/mp4": ".mp4",
+            "video/quicktime": ".mov",
+            "video/webm": ".webm",
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/gif": ".gif",
+            "image/webp": ".webp",
+          };
+          const detectedExt = mimeToExt[contentType.split(";")[0]];
+          if (detectedExt) {
+            // Update the temp file path with the correct extension
+            const newTempFilePath = tempFilePath.replace(/\.tmp$/, detectedExt);
+            if (newTempFilePath !== tempFilePath) {
+              tempFilePath = newTempFilePath;
+            }
           }
         }
       }
-    }
 
-    // Write the stream to temp file, enforcing the size cap while streaming
-    // (the content-length header is optional and can lie).
-    const writer = fs.createWriteStream(/* turbopackIgnore: true */ tempFilePath);
-    let receivedBytes = 0;
-    const sizeLimiter = new Transform({
-      transform(chunk: Buffer, _encoding, transformCallback) {
-        receivedBytes += chunk.length;
-        if (receivedBytes > maxBytes) {
-          transformCallback(new Error(`Media at ${url} exceeds the maximum download size of ${maxBytes} bytes`));
-          return;
-        }
-        transformCallback(null, chunk);
-      },
-    });
+      // Write the stream to temp file, enforcing the size cap while streaming
+      // (the content-length header is optional and can lie).
+      const writer = fs.createWriteStream(/* turbopackIgnore: true */ tempFilePath);
+      let receivedBytes = 0;
+      const sizeLimiter = new Transform({
+        transform(chunk: Buffer, _encoding, transformCallback) {
+          receivedBytes += chunk.length;
+          if (receivedBytes > maxBytes) {
+            transformCallback(new Error(`Media at ${url} exceeds the maximum download size of ${maxBytes} bytes`));
+            return;
+          }
+          transformCallback(null, chunk);
+        },
+      });
 
-    try {
       await pipeline(response.data, sizeLimiter, writer);
-    } catch (pipelineError) {
-      // Clean up partially written file on pipeline failure
+      return tempFilePath;
+    } catch (error) {
+      responseStream?.destroy?.();
       cleanupTempFile(tempFilePath);
-      throw pipelineError;
-    }
 
-    return tempFilePath;
-  } catch (error) {
-    // Clean up temp file if it was created before the error
-    cleanupTempFile(tempFilePath);
-    throw error;
+      const retryDelayMs = DOWNLOAD_RETRY_DELAYS_MS[attempt];
+      if (retryDelayMs === undefined || !isTransientDownloadError(error)) throw error;
+      await waitForDownloadRetry(retryDelayMs);
+    }
   }
+
+  throw new Error("Media download retry loop exited unexpectedly");
 };
 
 /**

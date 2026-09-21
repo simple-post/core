@@ -366,6 +366,51 @@ describe("Media Utilities", () => {
       expect(mockedFs.unlinkSync).toHaveBeenCalled();
     });
 
+    it("should retry a transient connection reset with bounded backoff", async () => {
+      jest.useFakeTimers();
+      const connectionReset = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+      mockedAxios.get
+        .mockRejectedValueOnce(connectionReset)
+        .mockResolvedValueOnce({ data: createMockStreamData(), headers: { "content-type": "image/jpeg" } });
+
+      try {
+        const download = downloadToTempFile("https://example.com/image.jpg");
+        await jest.runAllTimersAsync();
+
+        await expect(download).resolves.toBe("/tmp/simplepost_mock-uuid-v7.jpg");
+        expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("should stop after two retries when a transient download error persists", async () => {
+      jest.useFakeTimers();
+      const connectionReset = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+      mockedAxios.get.mockRejectedValue(connectionReset);
+
+      try {
+        const download = downloadToTempFile("https://example.com/image.jpg");
+        const rejection = expect(download).rejects.toThrow("read ECONNRESET");
+        await jest.runAllTimersAsync();
+
+        await rejection;
+        expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("should not retry a permanent HTTP error", async () => {
+      const notFound = Object.assign(new Error("Request failed with status code 404"), {
+        response: { status: 404 },
+      });
+      mockedAxios.get.mockRejectedValue(notFound);
+
+      await expect(downloadToTempFile("https://example.com/missing.jpg")).rejects.toThrow("status code 404");
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    });
+
     it("should clean up temp file on stream pipeline error", async () => {
       mockedAxios.get.mockResolvedValue({
         data: {},

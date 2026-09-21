@@ -9,6 +9,7 @@ export type McpScope = (typeof MCP_SCOPES)[number];
 export type McpAuthorizationScope = (typeof MCP_AUTHORIZATION_SCOPES)[number];
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+const CURSOR_MCP_REDIRECT_URI = "cursor://anysphere.cursor-mcp/oauth/callback";
 
 export function getAppBaseUrl(): string {
   return env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
@@ -112,6 +113,11 @@ export function resolveMcpResource(resource?: string | null): string {
 }
 
 export function isAllowedMcpRedirectUri(uri: string): boolean {
+  // Cursor is migrating desktop MCP OAuth from this native callback to an
+  // HTTP loopback callback. Keep the exact legacy URI available during the
+  // rollout without allowing arbitrary custom schemes.
+  if (uri === CURSOR_MCP_REDIRECT_URI) return true;
+
   let parsed: URL;
   try {
     parsed = new URL(uri);

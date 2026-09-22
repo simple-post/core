@@ -14,6 +14,6 @@ export async function GET(req: NextRequest) {
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

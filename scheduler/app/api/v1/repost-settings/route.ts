@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const settings = await getUserRepostSettings(session.user.id);
     return NextResponse.json({ settings });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -26,6 +26,6 @@ export async function PUT(req: NextRequest) {
     const saved = await updateUserRepostSettings(session.user.id, settings);
     return NextResponse.json({ settings: saved });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

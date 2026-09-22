@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ webhooks: endpoints.map((endpoint) => toPublicWebhook(endpoint)) });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -86,6 +86,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ webhook: { ...toPublicWebhook(endpoint), secret } }, { status: 201 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

@@ -65,7 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       accounts: sanitizeAccounts(data.accounts),
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, _req);
   }
 }
 
@@ -140,6 +140,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ success: true, count: selectedAccounts.length });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

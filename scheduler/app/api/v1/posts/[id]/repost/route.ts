@@ -156,6 +156,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       summary: outcome.summary,
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

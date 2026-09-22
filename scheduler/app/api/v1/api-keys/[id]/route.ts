@@ -52,6 +52,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     return NextResponse.json({ success: true, key: serializeApiKey(revokedKey) });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

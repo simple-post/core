@@ -103,7 +103,7 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
       let fileSeen = false;
       let fileTooLarge = false;
       let failure: Error | undefined;
-      let uploadPromise: Promise<string> | undefined;
+      let uploadPromise: Promise<{ url: string } | { error: unknown }> | undefined;
       let filename = "";
       let resolvedType = "";
       let size = 0;
@@ -136,9 +136,15 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
           stream.resume();
         });
         stream.pipe(verifiedStream);
-        uploadPromise = uploader.uploadStream(verifiedStream, keyForCleanup, resolvedType, {
-          timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
-        });
+        // Observe rejection immediately: storage can fail before Busboy finishes.
+        uploadPromise = uploader
+          .uploadStream(verifiedStream, keyForCleanup, resolvedType, {
+            timeoutMs: STORAGE_UPLOAD_TIMEOUT_MS,
+          })
+          .then(
+            (url) => ({ url }),
+            (error: unknown) => ({ error }),
+          );
       });
 
       parser.on("filesLimit", () => {
@@ -157,13 +163,14 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
             throw failure ?? new BadRequestError("No file provided");
           }
 
-          const url = await uploadPromise;
+          const upload = await uploadPromise;
           if (fileTooLarge) {
             throw new BadRequestError(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB`);
           }
           if (failure) throw failure;
+          if ("error" in upload) throw upload.error;
 
-          resolve({ url, key: keyForCleanup, filename, size, type: resolvedType });
+          resolve({ url: upload.url, key: keyForCleanup, filename, size, type: resolvedType });
         })().catch(reject);
       });
 
@@ -192,6 +199,6 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth(req);
     return NextResponse.json(await streamMultipartUpload(req, session.user.id));
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       }
     }
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -484,7 +484,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     log.info({ postId: post.id, durationMs, postingMode }, "Post created successfully");
     return NextResponse.json({ post, warnings: scheduleWarnings }, { status: 201 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 

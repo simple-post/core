@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ keys: apiKeys.map((apiKey) => serializeApiKey(apiKey)) });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -75,6 +75,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ apiKey, key: serializeApiKey(record) }, { status: 201 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

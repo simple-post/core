@@ -68,6 +68,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     return response;
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

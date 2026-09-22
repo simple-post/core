@@ -29,6 +29,6 @@ export async function GET(req: NextRequest) {
       },
     );
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

@@ -96,7 +96,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ post });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -417,7 +417,7 @@ async function updatePost(
       throw new BadRequestError("Failed to post to platforms");
     }
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -459,6 +459,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

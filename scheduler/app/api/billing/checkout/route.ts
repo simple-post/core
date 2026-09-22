@@ -96,6 +96,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: checkoutSession.url, checkoutStarted: true });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

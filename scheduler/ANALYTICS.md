@@ -7,30 +7,30 @@ hosted production; local, preview and self-hosted origins do not send app events
 
 ## Questions and reports
 
-| Question | Report |
-| --- | --- |
-| When do people arrive, and from where? | Visitors over time, Sources, Channels and Campaigns; filter hostname to simplepost.social for marketing-only traffic. |
-| Which landing pages bring visitors? | Entry Pages. |
-| Where do they go next? | Pages, Exit Pages, and CTA Click → destination. These are aggregate reports, not a complete chronological session replay. |
-| Which button gets clicked? | CTA Click → label, section and plan; filter Page to compare equivalent pages. Total events count clicks; unique conversions count visitors. |
-| Which sources lead to purchases? | `/admin/analytics` joins original source to confirmed first payment, including conversions after the seven-day trial. Plausible Paid Subscription shows browser-return conversions in its own attribution window. |
-| Who is using a subscription versus a trial? | Authenticated Visit → access_type, subscription_status and plan. `stripe` means Stripe subscription access, not proof of a new payment. |
-| Which named accounts have paid? | The restricted `/admin/analytics` report lists name, email, original source, signup/trial/payment dates and current subscription status. Plausible has no names, emails or user IDs. |
+| Question                                    | Report                                                                                                                                                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| When do people arrive, and from where?      | Visitors over time, Sources, Channels and Campaigns; filter hostname to simplepost.social for marketing-only traffic.                                                                                             |
+| Which landing pages bring visitors?         | Entry Pages.                                                                                                                                                                                                      |
+| Where do they go next?                      | Pages, Exit Pages, and CTA Click → destination. These are aggregate reports, not a complete chronological session replay.                                                                                         |
+| Which button gets clicked?                  | CTA Click → label, section and plan; filter Page to compare equivalent pages. Total events count clicks; unique conversions count visitors.                                                                       |
+| Which sources lead to purchases?            | `/admin/analytics` joins original source to confirmed first payment, including conversions after the seven-day trial. Plausible Paid Subscription shows browser-return conversions in its own attribution window. |
+| Who is using a subscription versus a trial? | Authenticated Visit → access_type, subscription_status and plan. `stripe` means Stripe subscription access, not proof of a new payment.                                                                           |
+| Which named accounts have paid?             | The restricted `/admin/analytics` report lists name, email, original source, signup/trial/payment dates and current subscription status. Plausible has no names, emails or user IDs.                              |
 
 ## Goals configured on 2026-09-22
 
-| Goal | Meaning |
-| --- | --- |
-| Landing Page Viewed | Existing pageview at `/`. |
-| Landing Scroll 50% | Native scroll-depth goal on `/`. |
-| CTA Click | Click on a static landing-page link/button/FAQ summary, or an explicitly tagged CTA elsewhere. |
-| App Click | A tracked marketing link to app.simplepost.social. |
-| App Opened | First app opening per browser tab session. |
-| Sign In Started | Google or valid-email sign-in attempt; not a completed signup. |
-| Authenticated Visit | Verified signed-in user with a loaded billing status; once per browser tab session, auth session and access type. Includes existing users. |
-| Checkout Started | App successfully obtained a new Stripe checkout URL. Existing-subscriber redirects do not count. |
-| Checkout Cancelled | Visitor returned to the app's checkout cancellation URL; once per tab session. |
-| Paid Subscription | Browser returned and the authenticated API verified ownership of a completed live subscription checkout with a positive settled payment, created within 24 hours. |
+| Goal                | Meaning                                                                                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Landing Page Viewed | Existing pageview at `/`.                                                                                                                                         |
+| Landing Scroll 50%  | Native scroll-depth goal on `/`.                                                                                                                                  |
+| CTA Click           | Click on a static landing-page link/button/FAQ summary, or an explicitly tagged CTA elsewhere.                                                                    |
+| App Click           | A tracked marketing link to app.simplepost.social.                                                                                                                |
+| App Opened          | First app opening per browser tab session.                                                                                                                        |
+| Sign In Started     | Google or valid-email sign-in attempt; not a completed signup.                                                                                                    |
+| Authenticated Visit | Verified signed-in user with a loaded billing status; once per browser tab session, auth session and access type. Includes existing users.                        |
+| Checkout Started    | App successfully obtained a new Stripe checkout URL. Existing-subscriber redirects do not count.                                                                  |
+| Checkout Cancelled  | Visitor returned to the app's checkout cancellation URL; once per tab session.                                                                                    |
+| Paid Subscription   | Browser returned and the authenticated API verified ownership of a completed live subscription checkout with a positive settled payment, created within 24 hours. |
 
 The older Purchase Click goal is preserved; it is not a purchase metric.
 Properties enabled: `label`, `section`, `destination`, `plan`, `access_type`,
@@ -130,6 +130,7 @@ See core's `scheduler/tests/lib/analytics` for payment validation, delivery,
 deduplication, excluded hosts and URL privacy tests.
 
 References:
+
 - https://plausible.io/docs/subdomain-hostname-filter
 - https://plausible.io/docs/funnel-analysis
 - https://plausible.io/docs/custom-props/for-custom-events

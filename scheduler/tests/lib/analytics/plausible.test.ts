@@ -53,6 +53,27 @@ describe("Plausible client delivery", () => {
     jest.replaceProperty(process.env, "NODE_ENV", "development");
     expect(analyticsEnabled()).toBe(false);
   });
+  it("honors opt-out for direct and deduplicated events without delaying checkout", () => {
+    mockWindow.localStorage.setItem("plausible_ignore", "true");
+    const callback = jest.fn();
+    expect(analyticsEnabled()).toBe(false);
+    trackEvent("Checkout Started", { plan: "basic" }, callback);
+    trackOnce("opted-out-checkout", "Paid Subscription", { plan: "basic" }, true);
+    expect(send).not.toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledTimes(1);
+    mockWindow.localStorage.setItem("plausible_ignore", "false");
+    trackOnce("opted-out-checkout", "Paid Subscription", { plan: "basic" }, true);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it("skips optional events when the opt-out preference cannot be read", () => {
+    jest.spyOn(mockWindow.localStorage, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const callback = jest.fn();
+    trackEvent("Checkout Started", undefined, callback);
+    expect(send).not.toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
   it("deduplicates in-flight and delivered payments and scrubs all private URLs", async () => {
     trackOnce("private-checkout-1", "Paid Subscription", { plan: "basic" }, true);
     trackOnce("private-checkout-1", "Paid Subscription", { plan: "basic" }, true);

@@ -2,11 +2,18 @@ type EventResult = { status?: number; error?: unknown } | undefined;
 
 /** Hosted production only. Never send self-hosted, local or preview traffic. */
 export function analyticsEnabled(): boolean {
-  return (
-    process.env.NODE_ENV === "production" &&
-    typeof window !== "undefined" &&
-    window.location.hostname === "app.simplepost.social"
-  );
+  if (
+    process.env.NODE_ENV !== "production" ||
+    typeof window === "undefined" ||
+    window.location.hostname !== "app.simplepost.social"
+  )
+    return false;
+  try {
+    return window.localStorage.getItem("plausible_ignore") !== "true";
+  } catch {
+    // If the preference cannot be read, skip optional analytics.
+    return false;
+  }
 }
 
 /** Collapse dynamic IDs and exclude every query parameter except campaign tags. */

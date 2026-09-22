@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import { paidConversion } from "@/lib/analytics/paid-conversion";
 import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-currency";
 import { getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus, syncCheckoutSession } from "@/lib/billing/subscriptions";
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     const billing = await getBillingStatus(browserSession.user.id);
     const displayCurrency = getBillingDisplayCurrencyFromHeaders(req.headers);
     return NextResponse.json(
-      { ...billing, displayCurrency },
+      { ...billing, displayCurrency, analyticsConversion: paidConversion(checkoutSession) },
       {
         headers: {
           "Cache-Control": "private, no-store",

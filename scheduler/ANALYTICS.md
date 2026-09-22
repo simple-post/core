@@ -2,7 +2,7 @@
 
 The `simplepost.social` Plausible site combines the marketing website and hosted
 `app.simplepost.social` app. Both use the existing `api.simplepost.social` proxy.
-No API key or new environment variable is required. App tracking only loads in
+No Plausible API key is required. The internal report requires an admin allowlist. App tracking only loads in
 hosted production; local, preview and self-hosted origins do not send app events.
 
 ## Questions and reports
@@ -13,9 +13,9 @@ hosted production; local, preview and self-hosted origins do not send app events
 | Which landing pages bring visitors? | Entry Pages. |
 | Where do they go next? | Pages, Exit Pages, and CTA Click → destination. These are aggregate reports, not a complete chronological session replay. |
 | Which button gets clicked? | CTA Click → label, section and plan; filter Page to compare equivalent pages. Total events count clicks; unique conversions count visitors. |
-| Which sources lead to purchases? | Select Paid Subscription, then Sources or Campaigns to compare converters and conversion rates. |
+| Which sources lead to purchases? | `/admin/analytics` joins original source to confirmed first payment, including conversions after the seven-day trial. Plausible Paid Subscription shows browser-return conversions in its own attribution window. |
 | Who is using a subscription versus a trial? | Authenticated Visit → access_type, subscription_status and plan. `stripe` means Stripe subscription access, not proof of a new payment. |
-| Which named accounts are paying? | Use authenticated billing records / Stripe, not Plausible. Plausible has no names, emails or user IDs. |
+| Which named accounts have paid? | The restricted `/admin/analytics` report lists name, email, original source, signup/trial/payment dates and current subscription status. Plausible has no names, emails or user IDs. |
 
 ## Goals configured on 2026-09-22
 
@@ -59,16 +59,60 @@ browser storage can cause missing or repeated events. Checkout IDs only serve as
 local deduplication keys and are never sent to Plausible. This event records the
 checkout's initial positive payment, not renewals, MRR, refunds or lifetime value.
 
-Larger follow-up: persist first-touch source/campaign on signup, add an idempotent
-billing-webhook conversion ledger, and join those records in an internal paid-user
-report. This is needed for dependable acquisition-to-paid reporting through the
-seven-day trial. A separate account-level report can show names and actual billing
-status without exposing identity to Plausible.
+## Original visit → signup → trial → first payment
+
+The website and hosted app share the versioned `sp_first_touch_v1` first-party
+cookie on `simplepost.social`. It lasts up to 90 days and preserves the earliest
+valid visit, including source, UTM medium/campaign/content/term, public landing
+route and UTC time. Returning directly does not overwrite it. External campaign
+UTMs take precedence over referrer hostname; no referrer means direct. Arbitrary
+paths, URL queries, fragments and email-shaped UTM values are excluded. The
+cookie has no generated visitor identifier. `plausible_ignore=true` is respected.
+
+At account creation, Better Auth validates and copies that metadata into
+`User.acquisition` in the same database write. This field is server-owned,
+excluded from auth responses, and never changed by later sign-ins. Missing,
+expired or invalid cookies produce an explicit unknown source. Existing users
+remain untracked, so their renewals are not mistaken for first purchases.
+Before signup, switching device/browser or clearing cookies can lose the source.
+After signup, paying from another device still joins to the same account.
+
+After a signed Stripe webhook synchronizes the canonical subscription, a live,
+positive paid subscription invoice creates a `FirstPayment` row. Customer and
+subscription IDs must match the account's subscription. Atomic PostgreSQL UPSERT
+handles duplicates and concurrent delivery; an older invoice delivered later can
+move the first-payment date earlier. Test-mode, unpaid, zero-value and unrelated
+invoices are excluded. Webhook failures retain the existing retry behavior.
+Account deletion cascades to the first-payment record.
+
+The **internal report**, not a fabricated Plausible session, provides this
+cross-day attribution. It is dynamically rendered and requires a verified account
+whose exact user ID appears in `ANALYTICS_ADMIN_USER_IDS` (comma-separated). An
+empty allowlist denies everyone. It is unavailable on self-hosted installations.
+No named customer details are sent to Plausible.
+
+Choose a signup cohort (UTC, inclusive dates, up to 366 days / 10,000 accounts).
+Source/medium/campaign groups show signups, trials, first payers and running
+unpaid trials. The mature trial conversion rate includes only trials whose full
+window has ended, with payments through today, including later conversions.
+The latest 100 first payers in the cohort show identity, original acquisition,
+trial/payment dates and current subscription status. “Ever paid” is a historical
+conversion, not current active subscriptions, MRR, net revenue or refund-adjusted
+income. This does not backfill historical customers or infer sources for them.
+
+The shared first-touch contract is copied in both repositories; keep it compatible
+when changing cookie fields. This is basic first-touch attribution, not multi-touch
+attribution, cross-device tracking before signup or session replay.
 
 ## Release and verification
 
 The website and core changes must both be deployed before the complete journey
-appears. The website uses the normal reviewed `release/prod` promotion process.
+appears. Apply core's `20260922090000_acquisition_attribution` migration before
+starting the updated app and generate the Prisma client during the normal build.
+Set `ANALYTICS_ADMIN_USER_IDS` to the owner's verified account ID on the hosted
+app, then open `https://app.simplepost.social/admin/analytics`. Deploy the website
+first (or together) to start collecting first-touch cookies. No live configuration,
+production migration or deployment is performed by these PRs. The website uses the normal reviewed `release/prod` promotion process.
 Goals configured in Plausible alone do not deploy code or backfill missing events.
 
 After deployment, verify a real visitor's journey in browser Network and Plausible
@@ -87,3 +131,20 @@ References:
 - https://plausible.io/docs/subdomain-hostname-filter
 - https://plausible.io/docs/funnel-analysis
 - https://plausible.io/docs/custom-props/for-custom-events
+
+Validation includes attribution parsing and expiry, mature cohort calculations,
+admin denial rules, and disposable PostgreSQL integration tests exercising all
+migrations, concurrent duplicate/renewal/out-of-order invoices, invoice exclusions,
+legacy-account exclusion, account deletion and UTC timestamps.
+
+Run the database tests only against a disposable localhost `simplepost_review`
+database, after `prisma migrate deploy`:
+
+```sh
+INTEGRATION_DATABASE_URL=postgresql://localhost:55439/simplepost_review jest --config jest.integration.config.cjs --runInBand integration/acquisition-attribution.test.ts
+DATABASE_URL=postgresql://localhost:55439/simplepost_review BETTER_AUTH_SECRET=local-test-secret RESEND_API_KEY=local-test-key ENABLE_OPENAI_TEST_LOGIN=true tsx integration/auth-attribution.ts
+```
+
+The second test exercises the real Better Auth runtime: initial source capture,
+unchanged attribution on repeat login, unknown fallback, and omission from auth
+responses. It uses only the disposable database and sends no email.

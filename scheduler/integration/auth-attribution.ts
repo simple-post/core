@@ -45,12 +45,21 @@ async function main() {
     const payload = await session.json();
     assert.equal(payload.user.id, user.id);
     assert.ok(!Object.hasOwn(payload.user, "acquisition"), "Auth responses must not expose acquisition");
+    await auth.handler(
+      new Request("http://localhost:3000/api/auth/update-user", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie: cookies },
+        body: JSON.stringify({ name: "Demo User", isAdmin: true }),
+      }),
+    );
+    const attemptedAdmin = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    assert.equal(attemptedAdmin.isAdmin, false, "Auth profile updates must not grant admin access");
     await login(emails[1]);
     const unknown = await prisma.user.findUniqueOrThrow({ where: { email: emails[1] } });
     assert.equal(JSON.parse(unknown.acquisition!).source, "unknown");
     // eslint-disable-next-line no-console
     console.log(
-      "PASS actual Better Auth account creation, immutable first touch, unknown fallback and private auth responses",
+      "PASS actual Better Auth account creation, immutable first touch, unknown fallback, private auth responses and admin self-promotion denial",
     );
   } finally {
     await prisma.user.deleteMany({ where: { email: { in: emails } } });

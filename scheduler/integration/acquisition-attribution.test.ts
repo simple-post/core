@@ -1,3 +1,4 @@
+import { hasAnalyticsAdminAccess } from "@/lib/analytics/admin";
 import { recordFirstPayment } from "@/lib/analytics/first-payment";
 import { createFirstTouch } from "@/lib/analytics/first-touch";
 import { buildAcquisitionReport } from "@/lib/analytics/report";
@@ -88,4 +89,15 @@ it("removes attribution ledger when account is deleted", async () => {
   await recordFirstPayment(invoice("in_delete"), subscription);
   await prisma.user.delete({ where: { id: userId } });
   expect(await prisma.firstPayment.count({ where: { userId } })).toBe(0);
+});
+
+it("defaults to non-admin and honors database grants and revocations immediately", async () => {
+  expect(await hasAnalyticsAdminAccess(userId)).toBe(false);
+  await prisma.user.update({ where: { id: userId }, data: { isAdmin: true } });
+  expect(await hasAnalyticsAdminAccess(userId)).toBe(true);
+  await prisma.user.update({ where: { id: userId }, data: { isAdmin: false } });
+  expect(await hasAnalyticsAdminAccess(userId)).toBe(false);
+  await prisma.user.update({ where: { id: userId }, data: { isAdmin: true, emailVerified: false } });
+  expect(await hasAnalyticsAdminAccess(userId)).toBe(false);
+  expect(await hasAnalyticsAdminAccess("missing-admin-user")).toBe(false);
 });

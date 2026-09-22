@@ -2,7 +2,7 @@
 
 The `simplepost.social` Plausible site combines the marketing website and hosted
 `app.simplepost.social` app. Both use the existing `api.simplepost.social` proxy.
-No Plausible API key is required. The internal report requires an admin allowlist. App tracking only loads in
+No Plausible API key is required. The internal report requires a database admin flag. App tracking only loads in
 hosted production; local, preview and self-hosted origins do not send app events.
 
 ## Questions and reports
@@ -87,8 +87,10 @@ Account deletion cascades to the first-payment record.
 
 The **internal report**, not a fabricated Plausible session, provides this
 cross-day attribution. It is dynamically rendered and requires a verified account
-whose exact user ID appears in `ANALYTICS_ADMIN_USER_IDS` (comma-separated). An
-empty allowlist denies everyone. It is unavailable on self-hosted installations.
+whose `User.isAdmin` database column is true. The flag defaults to false for all
+existing and new users. Access reads the current database value on every request,
+so revoking the flag takes effect without signing out. The flag is not exposed as
+an editable auth field. It is unavailable on self-hosted installations.
 No named customer details are sent to Plausible.
 
 Choose a signup cohort (UTC, inclusive dates, up to 366 days / 10,000 accounts).
@@ -107,10 +109,10 @@ attribution, cross-device tracking before signup or session replay.
 ## Release and verification
 
 The website and core changes must both be deployed before the complete journey
-appears. Apply core's `20260922090000_acquisition_attribution` migration before
+appears. Apply core's `20260922090000_acquisition_attribution` and `20260922100000_user_admin_flag` migrations before
 starting the updated app and generate the Prisma client during the normal build.
-Set `ANALYTICS_ADMIN_USER_IDS` to the owner's verified account ID on the hosted
-app, then open `https://app.simplepost.social/admin/analytics`. Deploy the website
+Mark the owner's verified account as admin in the `user` table (set `isAdmin`
+to true), then open `https://app.simplepost.social/admin/analytics`. Deploy the website
 first (or together) to start collecting first-touch cookies. No live configuration,
 production migration or deployment is performed by these PRs. The website uses the normal reviewed `release/prod` promotion process.
 Goals configured in Plausible alone do not deploy code or backfill missing events.

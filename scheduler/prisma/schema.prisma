@@ -32,6 +32,7 @@ model User {
   emailVerified                Boolean                     @default(false)
   image                        String?
   stripeCustomerId             String?                     @unique
+  isAdmin                      Boolean                     @default(false)
   acquisition                  String?
   firstPayment                 FirstPayment?
   createdAt                    DateTime                    @default(now())

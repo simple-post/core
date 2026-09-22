@@ -2,7 +2,8 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { LoginForm } from "@/components/login-form";
-import { acquisitionLabels, buildAcquisitionReport, cohortRange, isAnalyticsAdmin } from "@/lib/analytics/report";
+import { hasAnalyticsAdminAccess } from "@/lib/analytics/admin";
+import { acquisitionLabels, buildAcquisitionReport, cohortRange } from "@/lib/analytics/report";
 import { auth } from "@/lib/auth/auth";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
@@ -20,7 +21,7 @@ export default async function AcquisitionReport({
   if (env.SELF_HOSTED) notFound();
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return <LoginForm callbackURL="/admin/analytics" />;
-  if (!isAnalyticsAdmin(session.user, process.env.ANALYTICS_ADMIN_USER_IDS)) notFound();
+  if (!(await hasAnalyticsAdminAccess(session.user.id))) notFound();
   const params = await searchParams;
   let range;
   try {

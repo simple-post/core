@@ -40,12 +40,12 @@ it("keeps unknown attribution visible", () =>
     source: "unknown",
     matureConversionRate: null,
   }));
-it("denies admin access unless the verified account ID is explicitly allowed", () => {
-  expect(isAnalyticsAdmin({ id: "one", emailVerified: true }, undefined)).toBe(false);
-  expect(isAnalyticsAdmin({ id: "one", emailVerified: false }, "one")).toBe(false);
-  expect(isAnalyticsAdmin({ id: "one", emailVerified: true }, "someone")).toBe(false);
-  expect(isAnalyticsAdmin(null, "one")).toBe(false);
-  expect(isAnalyticsAdmin({ id: "one", emailVerified: true }, " two, one ")).toBe(true);
+it("requires the database admin flag and verified email", () => {
+  expect(isAnalyticsAdmin({ isAdmin: false, emailVerified: true })).toBe(false);
+  expect(isAnalyticsAdmin({ isAdmin: true, emailVerified: false })).toBe(false);
+  expect(isAnalyticsAdmin(null)).toBe(false);
+  expect(isAnalyticsAdmin(undefined)).toBe(false);
+  expect(isAnalyticsAdmin({ isAdmin: true, emailVerified: true })).toBe(true);
 });
 it("uses inclusive UTC signup dates", () =>
   expect(cohortRange("2026-09-01", "2026-09-22", now)).toMatchObject({

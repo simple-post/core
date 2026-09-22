@@ -77,18 +77,8 @@ export function buildAcquisitionReport(accounts: AcquisitionAccount[], now = new
     .sort((a, b) => b.paid - a.paid || b.trials - a.trials || a.source.localeCompare(b.source));
 }
 
-export function isAnalyticsAdmin(
-  user: { id: string; emailVerified: boolean } | null | undefined,
-  allowlist: string | undefined,
-): boolean {
-  return (
-    !!user?.emailVerified &&
-    !!allowlist
-      ?.split(",")
-      .map((id) => id.trim())
-      .filter(Boolean)
-      .includes(user.id)
-  );
+export function isAnalyticsAdmin(user: { isAdmin: boolean; emailVerified: boolean } | null | undefined): boolean {
+  return user?.isAdmin === true && user.emailVerified === true;
 }
 
 /** Cohorts are selected by signup date, not by payment date. UTC, inclusive end date. */

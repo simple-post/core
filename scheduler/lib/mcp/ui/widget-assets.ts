@@ -5,7 +5,7 @@ export const WIDGET_ASSETS = {
     stylesheet: "schedule-2DSVH726.css",
   },
   "post-preview": {
-    script: "post-preview-RWJ4TT6F.js",
+    script: "post-preview-ANENLKRF.js",
     stylesheet: "post-preview-AOSOPNCK.css",
   },
 } as const;

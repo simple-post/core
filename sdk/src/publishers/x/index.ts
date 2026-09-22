@@ -42,6 +42,15 @@ interface XAuthenticatedUser {
   subscription_type?: string;
 }
 
+interface XMediaProcessingInfo {
+  state?: "pending" | "in_progress" | "succeeded" | "failed";
+  check_after_secs?: number;
+  error?: { code?: number; name?: string; message?: string };
+}
+
+const X_MEDIA_PROCESSING_FALLBACK_DELAY_MS = 1000;
+const X_MEDIA_PROCESSING_TIMEOUT_MS = 10 * 60_000;
+
 export class XPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
 
@@ -272,6 +281,68 @@ export class XPublisher extends Publisher {
     return mimeTypes[ext ?? ""] ?? EUploadMimeType.Jpeg;
   }
 
+  /**
+   * twitter-api-v2 stops polling when X returns pending/in_progress without a
+   * positive check_after_secs value. X documents a one-second fallback for
+   * that response, and attaching the ID before processing finishes produces
+   * a misleading "Your media IDs are invalid" rejection.
+   */
+  private async waitForMediaProcessing(mediaId: string): Promise<void> {
+    const deadline = Date.now() + X_MEDIA_PROCESSING_TIMEOUT_MS;
+
+    while (true) {
+      let processingInfo: XMediaProcessingInfo | undefined;
+      try {
+        const response = await this.client.v2.get("media/upload", {
+          command: "STATUS",
+          media_id: mediaId,
+        });
+        processingInfo = response.data.processing_info as XMediaProcessingInfo | undefined;
+      } catch (error: unknown) {
+        const err = error as { data?: unknown };
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          "Could not confirm that X finished processing the uploaded media. Retry the post.",
+          this.accountDetails({ provider: err.data }),
+        );
+      }
+
+      // X omits processing_info when no asynchronous processing is required.
+      if (!processingInfo || processingInfo.state === "succeeded") return;
+
+      if (processingInfo.state === "failed") {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          `X could not process the uploaded media${processingInfo.error?.message ? `: ${processingInfo.error.message}` : "."}`,
+          this.accountDetails({ code: "media_processing_failed", provider: processingInfo }),
+        );
+      }
+
+      if (processingInfo.state !== "pending" && processingInfo.state !== "in_progress") {
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          "X returned an unrecognized media processing status. Retry the post.",
+          this.accountDetails({ provider: processingInfo }),
+        );
+      }
+
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          "X did not finish processing the uploaded media within 10 minutes. Retry the post.",
+          this.accountDetails({ provider: processingInfo }),
+        );
+      }
+
+      const requestedDelayMs =
+        typeof processingInfo.check_after_secs === "number" && processingInfo.check_after_secs > 0
+          ? processingInfo.check_after_secs * 1000
+          : X_MEDIA_PROCESSING_FALLBACK_DELAY_MS;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(requestedDelayMs, remainingMs)));
+    }
+  }
+
   private async uploadMedia(resolvedPath: string): Promise<string> {
     // Check if the media file exists
     if (!fs.existsSync(resolvedPath)) {
@@ -312,13 +383,23 @@ export class XPublisher extends Publisher {
     try {
       const mediaId = await this.client.v2.uploadMedia(buffer, { media_type: mimeType });
 
+      // The dependency already polls async uploads, but currently exits early
+      // when X omits check_after_secs or returns zero. Verify the terminal state
+      // ourselves before making the first request that can create a post.
+      if (isGif || isVideo) await this.waitForMediaProcessing(mediaId);
+
       this.logger.info(`Media uploaded: ${mediaId}`);
 
       return mediaId;
     } catch (error: unknown) {
+      if (error instanceof PostError) throw error;
       const err = error as { data?: unknown };
       this.logger.error(error instanceof Error ? error : String(error));
-      throw new PostError(PostErrorType.API_ERROR, `Failed to upload media: ${error}`, err.data);
+      throw new PostError(
+        PostErrorType.PREPARATION_ERROR,
+        `Failed to upload media to X: ${error}. Retry the post.`,
+        this.accountDetails({ provider: err.data }),
+      );
     }
   }
 

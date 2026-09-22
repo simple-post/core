@@ -52,6 +52,7 @@ describe("XPublisher", () => {
     mockedFs.readFileSync.mockReturnValue(Buffer.from("mock-file-content"));
 
     mockV2Client = {
+      get: jest.fn(),
       tweet: jest.fn(),
       uploadMedia: jest.fn(),
     };
@@ -153,6 +154,48 @@ describe("XPublisher", () => {
         reply: undefined,
       });
       expect(result).toEqual({ id: "tweet_id_456", error: PostErrorType.NO_ERROR });
+    });
+
+    it("keeps polling video processing when X omits check_after_secs", async () => {
+      jest.useFakeTimers();
+      try {
+        const content: Content = {
+          text: "Video is ready only after processing",
+          media: [{ type: "video", path: "/path/to/video.mp4" }],
+        };
+        mockV2Client.uploadMedia.mockResolvedValue("video_media_id");
+        mockV2Client.get
+          .mockResolvedValueOnce({ data: { processing_info: { state: "in_progress" } } })
+          .mockResolvedValueOnce({ data: { processing_info: { state: "succeeded" } } });
+        mockV2Client.tweet.mockResolvedValue({ data: { id: "video_tweet_id" } });
+
+        const resultPromise = publisher.postContent(content, options);
+        await jest.advanceTimersByTimeAsync(1000);
+
+        await expect(resultPromise).resolves.toEqual({ id: "video_tweet_id", error: PostErrorType.NO_ERROR });
+        expect(mockV2Client.get).toHaveBeenCalledTimes(2);
+        expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("fails safely before posting when X media processing fails", async () => {
+      const content: Content = {
+        text: "Broken video",
+        media: [{ type: "video", path: "/path/to/video.mp4" }],
+      };
+      mockV2Client.uploadMedia.mockResolvedValue("broken_media_id");
+      mockV2Client.get.mockResolvedValue({
+        data: { processing_info: { state: "failed", error: { message: "Unsupported codec" } } },
+      });
+
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        message: "X could not process the uploaded media: Unsupported codec",
+        details: expect.objectContaining({ code: "media_processing_failed" }),
+      });
+      expect(mockV2Client.tweet).not.toHaveBeenCalled();
     });
 
     it("should post content with reply successfully", async () => {

@@ -24,6 +24,7 @@ interface PreviewAccountOverride {
   enabled?: boolean;
   message?: string;
   media?: MediaFile[];
+  thread?: ThreadSegment[];
 }
 
 type PreviewAccountOverridesMap = Record<string, PreviewAccountOverride>;
@@ -90,6 +91,7 @@ export function PlatformPostPreview({
   const overrideEnabled = override ? (override.enabled ?? true) : false;
   const effectiveMessage = overrideEnabled && typeof override?.message === "string" ? override.message : message;
   const effectiveMedia = overrideEnabled && Array.isArray(override?.media) ? override.media : media;
+  const effectiveThread = overrideEnabled && Array.isArray(override?.thread) ? override.thread : thread;
   const options = useMemo(
     () => (activeAccount ? accountOptions[activeAccount.id] : undefined) || {},
     [accountOptions, activeAccount],
@@ -109,13 +111,14 @@ export function PlatformPostPreview({
       message: effectiveMessage,
       media: toPreviewMedia(effectiveMedia),
       options,
-      thread: thread.map((segment) => ({
+      thread: effectiveThread.map((segment) => ({
         message: segment.message,
         media: toPreviewMedia(segment.media || []),
       })),
+      threadLayout: "expand",
       previewDate,
     };
-  }, [activeAccount, effectiveMedia, effectiveMessage, options, platform, previewDate, thread]);
+  }, [activeAccount, effectiveMedia, effectiveMessage, effectiveThread, options, platform, previewDate]);
 
   function focusTabByOffset(offset: number) {
     if (!platform || platformAccounts.length < 2) return;

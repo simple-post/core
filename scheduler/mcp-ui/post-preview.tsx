@@ -49,6 +49,7 @@ function PostPreviewApp() {
     if (!active) return null;
     return {
       ...active.data,
+      threadLayout: "scroll",
       previewDate: new Date(active.data.previewDate),
     };
   }, [active]);

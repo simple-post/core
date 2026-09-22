@@ -5,6 +5,7 @@ import { setSessionCookie } from "better-auth/cookies";
 import { magicLink } from "better-auth/plugins";
 import * as z from "zod";
 
+import { readFirstTouch } from "../analytics/first-touch";
 import { env } from "../env";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
@@ -131,6 +132,25 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
+  user: {
+    additionalFields: {
+      acquisition: { type: "json", required: false, input: false, returned: false },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user, ctx) => {
+          if (env.SELF_HOSTED) return { data: user };
+          // Written atomically with account creation. Never updated on later sign-ins.
+          const touch = readFirstTouch(ctx?.headers?.get("cookie") || "");
+          return {
+            data: { ...user, acquisition: touch || { version: 1, source: "unknown", reason: "no_valid_first_touch" } },
+          };
+        },
+      },
+    },
+  },
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.NEXT_PUBLIC_APP_URL,
   emailAndPassword: {

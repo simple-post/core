@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       throw new BadRequestError("Stripe did not return a Checkout URL");
     }
 
-    return NextResponse.json({ url: checkoutSession.url });
+    return NextResponse.json({ url: checkoutSession.url, checkoutStarted: true });
   } catch (error) {
     return handleApiError(error, req);
   }

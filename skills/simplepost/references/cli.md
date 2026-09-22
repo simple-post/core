@@ -15,7 +15,7 @@ node cli/bin/run.js post --help
 Published binary:
 
 ```bash
-npm install -g @simple-post/cli
+npm install -g @simple-post/cli@1.3.3
 simplepost post --help
 ```
 

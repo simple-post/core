@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 
+import { recordFirstPayment } from "@/lib/analytics/first-payment";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
 import {
   syncCheckoutSession,
@@ -127,7 +128,11 @@ export async function POST(req: NextRequest) {
       case "invoice.payment_attempt_required":
       case "invoice.payment_failed":
       case "invoice.payment_succeeded": {
-        await syncStripeInvoiceSubscription(event.data.object as Stripe.Invoice);
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscription = await syncStripeInvoiceSubscription(invoice);
+        if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
+          await recordFirstPayment(invoice, subscription);
+        }
         break;
       }
     }

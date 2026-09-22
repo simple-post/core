@@ -32,6 +32,9 @@ model User {
   emailVerified                Boolean                     @default(false)
   image                        String?
   stripeCustomerId             String?                     @unique
+  isAdmin                      Boolean                     @default(false)
+  acquisition                  String?
+  firstPayment                 FirstPayment?
   createdAt                    DateTime                    @default(now())
   updatedAt                    DateTime                    @default(now()) @updatedAt
   sessions                     Session[]
@@ -538,4 +541,21 @@ model StorageDeletion {
   updatedAt DateTime @updatedAt
   @@index([state, dueAt])
   @@map("storage_deletion")
+}
+
+// The earliest positive live subscription invoice for an account created with
+// acquisition tracking. Renewals and duplicate webhooks do not add conversions.
+model FirstPayment {
+  userId               String   @id
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeInvoiceId      String   @unique
+  stripeSubscriptionId String
+  paidAt               DateTime
+  amountPaid           Int
+  currency             String
+  planKey              String?
+  createdAt            DateTime @default(now())
+
+  @@index([paidAt])
+  @@map("first_payment")
 }

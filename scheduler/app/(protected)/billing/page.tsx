@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAccounts } from "@/hooks/use-accounts";
+import { trackOnce } from "@/lib/analytics/plausible";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
 import { getPlatformName } from "@/lib/config";
@@ -136,7 +137,11 @@ export default function BillingPage() {
     if (!response.ok) {
       throw new Error(await parseApiError(response));
     }
-    return (await response.json()) as BillingStatus;
+    const result = (await response.json()) as BillingStatus & { analyticsConversion?: { plan: string } | null };
+    if (result.analyticsConversion) {
+      trackOnce(`paid:${sessionId}`, "Paid Subscription", result.analyticsConversion, true);
+    }
+    return result;
   }, []);
 
   const fetchBilling = useCallback(async () => {

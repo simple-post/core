@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 
 import { usePathname } from "next/navigation";
 
@@ -9,6 +9,8 @@ import { TrialExpiredDialog } from "@/components/billing/trial-expired-dialog";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { useBillingStatus } from "@/hooks/use-billing";
+import { trackOnce } from "@/lib/analytics/plausible";
+import { useSession } from "@/lib/auth/auth-client";
 
 const SelfHostedContext = createContext(false);
 
@@ -24,6 +26,16 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
   // Shared with the trial banner, compose-form allowance, and welcome modal, so
   // the whole app reads one cached copy of the billing status per page load.
   const { data: billing, error, isPending } = useBillingStatus();
+
+  const { data: session } = useSession();
+  useEffect(() => {
+    if (!billing || billing.selfHosted || !session) return;
+    trackOnce(`authenticated:${session.session.id}:${billing.accessType}`, "Authenticated Visit", {
+      access_type: billing.accessType || "inactive",
+      plan: billing.plan?.key || "none",
+      subscription_status: billing.subscription?.status || "none",
+    });
+  }, [billing, session]);
 
   const selfHosted = billing?.selfHosted === true;
 

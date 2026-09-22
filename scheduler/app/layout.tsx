@@ -3,8 +3,10 @@ import { Suspense } from "react";
 
 import { Inter, JetBrains_Mono } from "next/font/google";
 
+import { AppAnalytics } from "@/components/app-analytics";
 import { ClientErrorLogger } from "@/components/client-error-logger";
 import { Toaster } from "@/components/ui/sonner";
+import { env } from "@/lib/env";
 import { QueryClientProvider } from "@/lib/query-client";
 
 import type { Metadata } from "next";
@@ -63,6 +65,11 @@ export default function RootLayout({
       <body className="antialiased">
         <QueryClientProvider>
           <ClientErrorLogger />
+          {!env.SELF_HOSTED && process.env.NODE_ENV === "production" && (
+            <Suspense fallback={null}>
+              <AppAnalytics />
+            </Suspense>
+          )}
           <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
           <Toaster />
         </QueryClientProvider>

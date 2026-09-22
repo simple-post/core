@@ -35,11 +35,11 @@ curl -X POST "$NEXT_PUBLIC_APP_URL/api/internal/scheduled-posts/dispatch" \
 
 ## API Keys
 
-Users can create API keys on the Scheduler app API Keys page. The raw key is shown once, stored only as a SHA-256 hash, and can later be deactivated or rotated. Use it as a bearer token:
+Users can create API keys on the Scheduler app API Keys page. The raw key is shown once, stored only as a SHA-256 hash, and can later be deactivated or rotated. Send the key only to the trusted SimplePost deployment that issued it; do not log it or reuse it with another host. Authenticate requests with this HTTP header:
 
-```bash
-curl -H "Authorization: Bearer $SIMPLEPOST_API_KEY" \
-  "$NEXT_PUBLIC_APP_URL/api/v1/accounts"
+```http
+GET /api/v1/accounts
+Authorization: Bearer <SimplePost API key>
 ```
 
 The OpenAPI document at `/api/openapi.json` includes the `apiBearerAuth` security scheme and API-key management routes.

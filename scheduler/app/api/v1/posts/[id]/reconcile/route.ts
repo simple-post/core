@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     });
     return NextResponse.json({ checkpoints });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -31,6 +31,6 @@ export async function POST(req: NextRequest, { params }: Context) {
     await reconcilePublish(session.user.id, id, reconciliationSchema.parse(await req.json()));
     return NextResponse.json({ success: true });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

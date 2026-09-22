@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { assertActiveSubscription, assertPlanFeature, type BillingGateContext } from "@/lib/billing/subscriptions";
 import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
+import { rememberRequestUser } from "@/lib/logger/request-context";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 import { hashApiKey, isApiKey } from "@/lib/security/api-keys";
@@ -120,6 +121,7 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
   // Try CLI bearer token first
   const cliSession = await authenticateCliToken(req);
   if (cliSession) {
+    rememberRequestUser(req, cliSession.user);
     await assertPlanFeature(cliSession.user.id, "cliAccess", {
       ...billingContext,
       action: billingContext.action ?? "cli_authenticated_request",
@@ -130,6 +132,7 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
   // Try MCP bearer token
   const mcpSession = await authenticateMcpBearerToken(req);
   if (mcpSession) {
+    rememberRequestUser(req, mcpSession.user);
     await assertActiveSubscription(mcpSession.user.id, {
       ...billingContext,
       action: billingContext.action ?? "mcp_authenticated_request",
@@ -140,6 +143,7 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
   // Try API key bearer token
   const apiKeySession = await authenticateApiKey(req);
   if (apiKeySession) {
+    rememberRequestUser(req, apiKeySession.user);
     await assertPlanFeature(apiKeySession.user.id, "apiAccess", {
       ...billingContext,
       action: billingContext.action ?? "api_key_authenticated_request",
@@ -154,6 +158,7 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
     throw new UnauthorizedError("Authentication required");
   }
 
+  rememberRequestUser(req, session.user);
   await assertActiveSubscription(session.user.id, {
     ...billingContext,
     action: billingContext.action ?? "browser_authenticated_request",
@@ -169,20 +174,25 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
 export async function getSession(req: NextRequest) {
   const cliSession = await authenticateCliToken(req);
   if (cliSession) {
+    rememberRequestUser(req, cliSession.user);
     return cliSession;
   }
 
   const mcpSession = await authenticateMcpBearerToken(req);
   if (mcpSession) {
+    rememberRequestUser(req, mcpSession.user);
     return mcpSession;
   }
 
   const apiKeySession = await authenticateApiKey(req);
   if (apiKeySession) {
+    rememberRequestUser(req, apiKeySession.user);
     return apiKeySession;
   }
 
-  return await auth.api.getSession({ headers: req.headers });
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (session?.user?.id) rememberRequestUser(req, session.user);
+  return session;
 }
 
 /**
@@ -196,5 +206,6 @@ export async function requireBrowserSession(req: NextRequest) {
     throw new UnauthorizedError("Authentication required");
   }
 
+  rememberRequestUser(req, session.user);
   return session;
 }

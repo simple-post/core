@@ -21,6 +21,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
     return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

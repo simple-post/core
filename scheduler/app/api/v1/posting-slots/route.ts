@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const slots = await getUserPostingSlots(session.user.id);
     return NextResponse.json({ slots });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }
 
@@ -24,6 +24,6 @@ export async function PUT(req: NextRequest) {
     const saved = await updateUserPostingSlots(session.user.id, slots);
     return NextResponse.json({ slots: saved });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

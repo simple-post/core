@@ -141,6 +141,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

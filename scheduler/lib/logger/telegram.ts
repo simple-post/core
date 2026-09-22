@@ -165,6 +165,22 @@ export function formatTelegramLogNotification(notification: TelegramLogNotificat
       .join(" ");
     lines.push(`<b>User:</b> ${escapeHtml(userLabel)}`);
   }
+  if (!userId && !userEmail && !userName) {
+    lines.push(`<b>User:</b> ${escapeHtml(String(context.userIdentityStatus || "unavailable (no user context)"))}`);
+  }
+  if (Array.isArray(context.connectedAccounts)) {
+    const accounts = context.connectedAccounts.map(
+      (account: Record<string, unknown>) =>
+        `${account.platform}: ${account.username || account.displayName || account.platformAccountId} (${account.id})`,
+    );
+    lines.push(
+      `<b>Connected accounts (not necessarily the destination):</b> ${escapeHtml(truncate(accounts.join("; ") || "none", 900))}`,
+    );
+  } else if (context.connectedAccountsStatus) {
+    lines.push(`<b>Connected accounts:</b> ${escapeHtml(String(context.connectedAccountsStatus))}`);
+  } else if (!accountId && !accountHandle && !accountUsername) {
+    lines.push("<b>Social account:</b> unavailable (no destination context)");
+  }
   if (postId) lines.push(`<b>Post:</b> ${escapeHtml(postId)}`);
   if (platform) lines.push(`<b>Platform:</b> ${escapeHtml(platform)}`);
   if (accountHandle) lines.push(`<b>Handle:</b> ${escapeHtml(accountHandle)}`);
@@ -189,6 +205,9 @@ export function formatTelegramLogNotification(notification: TelegramLogNotificat
   const extraContext = { ...context };
   delete extraContext.module;
   delete extraContext.requestId;
+  delete extraContext.connectedAccounts;
+  delete extraContext.connectedAccountsStatus;
+  delete extraContext.userIdentityStatus;
   delete extraContext.userId;
   delete extraContext.userEmail;
   delete extraContext.userName;

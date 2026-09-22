@@ -65,6 +65,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ apiKey, key: serializeApiKey(nextKey), rotatedFromId: currentKey.id }, { status: 201 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

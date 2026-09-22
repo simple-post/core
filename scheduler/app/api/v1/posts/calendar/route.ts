@@ -42,6 +42,6 @@ export async function GET(req: NextRequest) {
     const posts = await repository.getPostsBetween(from, to);
     return NextResponse.json({ posts });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, req);
   }
 }

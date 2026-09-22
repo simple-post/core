@@ -169,3 +169,17 @@ describe("Telegram log notifications", () => {
     }
   });
 });
+
+it("shows email and connected accounts ahead of long error details", () => {
+  const message = formatTelegramLogNotification({
+    level: "error",
+    message: "Upload failed",
+    timestamp: "2026-09-22",
+    context: { userEmail: "u@example.com", connectedAccounts: [{ id: "a1", platform: "x", username: "<handle>" }] },
+    error: { stack: "x".repeat(5000) },
+  });
+  expect(message).toContain("&lt;u@example.com&gt;");
+  expect(message).toContain("Connected accounts (not necessarily the destination)");
+  expect(message).toContain("x: &lt;handle&gt; (a1)");
+  expect(message.indexOf("u@example.com")).toBeLessThan(message.indexOf("<b>Error:"));
+});

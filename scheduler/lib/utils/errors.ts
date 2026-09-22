@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 
 import { apiLogger, serializeError } from "@/lib/logger";
 import { diagnosticText, flatErrorFields } from "@/lib/logger/error-fields";
+import { requestErrorContext } from "@/lib/logger/request-context";
 import { isSensitiveKey } from "@/lib/logger/sensitive-keys";
 
 /**
@@ -229,10 +230,17 @@ function validationLogFields(details: unknown): Record<string, string | number> 
 /**
  * Handles errors and returns appropriate NextResponse
  */
-export function handleApiError(error: unknown): NextResponse {
+export function handleApiError(error: unknown): NextResponse;
+export function handleApiError(error: unknown, req: NextRequest): Promise<NextResponse>;
+export function handleApiError(error: unknown, req?: NextRequest): NextResponse | Promise<NextResponse> {
+  if (req) return requestErrorContext(req).then((context) => respondToApiError(error, context));
+  return respondToApiError(error, {});
+}
+
+function respondToApiError(error: unknown, context: Record<string, unknown>): NextResponse {
   // Log error with structured logging
   if (error instanceof ApiError) {
-    const payload = apiErrorLogPayload(error);
+    const payload = { ...context, ...apiErrorLogPayload(error) };
     if (error.statusCode >= 500) {
       apiLogger.error(payload, "API error occurred");
     } else {
@@ -240,11 +248,16 @@ export function handleApiError(error: unknown): NextResponse {
     }
   } else if (error instanceof ZodError) {
     apiLogger.warn(
-      { errorMessage: diagnosticText(formatZodErrorMessage(error)), statusCode: 400, code: "VALIDATION_ERROR" },
+      {
+        ...context,
+        errorMessage: diagnosticText(formatZodErrorMessage(error)),
+        statusCode: 400,
+        code: "VALIDATION_ERROR",
+      },
       "API request rejected",
     );
   } else {
-    apiLogger.error({ err: serializeError(error) }, "Unexpected API error");
+    apiLogger.error({ ...context, err: serializeError(error) }, "Unexpected API error");
   }
 
   if (error instanceof ApiError) {
@@ -288,7 +301,7 @@ export function withErrorHandling(handler: (req: NextRequest, context?: unknown)
     try {
       return await handler(req, context);
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, req);
     }
   };
 }

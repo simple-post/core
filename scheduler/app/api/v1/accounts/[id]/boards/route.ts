@@ -69,6 +69,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ boards });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

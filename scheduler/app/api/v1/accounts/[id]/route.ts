@@ -29,6 +29,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ success: true, message: "Account disconnected successfully" });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }

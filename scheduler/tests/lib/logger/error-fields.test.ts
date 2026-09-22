@@ -5,6 +5,8 @@ it("exports flat exception diagnostics without copying credentials or request ob
     code: "INVALID_MEDIA",
     config: { headers: { authorization: "hidden" } },
   });
+  // Use a deterministic stack: checkout paths can themselves contain "private".
+  error.stack = `${error.name}: ${error.message}\n    at upload (app.js:1:1)`;
   const fields = flatErrorFields(error);
   expect(fields.errorType).toBe("Error");
   expect(fields.errorCode).toBe("INVALID_MEDIA");

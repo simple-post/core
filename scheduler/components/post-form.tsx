@@ -19,7 +19,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { AccountOptionsComponent } from "@/features/platform-options/account-options";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
@@ -137,7 +136,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [showImageFit, setShowImageFit] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
   const [tiktokConsent, setTikTokConsent] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
@@ -532,7 +530,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     (postingMode === "draft" ? !draftImageFittingRequired : (validation?.summary.isValid ?? false)) &&
     (postingMode !== "draft" || !imageFittingEnabled || !shouldPreflightImages || !validationLoading) &&
     (postingMode === "draft" || !validationLoading) &&
-    (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&
     !trialAllowance.blocked &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
@@ -557,14 +554,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           showAdvancedButton
           getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
           layout="row"
-        />
-
-        <AccountOptionsComponent
-          selectedAccountIds={selectedAccountIds}
-          options={accountOptions}
-          onOptionsChange={setAccountOptions}
-          media={media}
-          onBlockingChange={setAccountOptionsBlocked}
         />
 
         <div className="space-y-4">

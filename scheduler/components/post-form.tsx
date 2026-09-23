@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 
 import { Feature } from "@prisma/client";
 import { canFitImageIssue } from "@simple-post/sdk/image-fit";
-import { format } from "date-fns";
 import { AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,8 +48,10 @@ import type {
 
 import { AccountSelector } from "./account-selector";
 import { CreatePostForm } from "./create-post-form";
+import { type ExistingPostMode, normalizeDelayHours } from "./edit-post-draft";
 import { ImageFitReview } from "./image-fit-review";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
+import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
@@ -77,58 +78,43 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   return <EditPostForm existingPost={existingPost} mode={mode} />;
 }
 
-function normalizeDelayHours(value: number | undefined) {
-  if (!Number.isFinite(value)) return 12;
-  return Math.min(720, Math.max(1, Math.round(value ?? 12)));
-}
-
-function getFailedRetryAccountIds(post: SocialPost): string[] {
-  const originalAccountIds = new Set(post.accountIds);
-  const failedFromAccountResults = Object.values(post.accountResults ?? {})
-    .filter((result) => !result.success && originalAccountIds.has(result.accountId))
-    .map((result) => result.accountId);
-
-  if (failedFromAccountResults.length > 0) {
-    return [...new Set(failedFromAccountResults)];
-  }
-
-  const failedPlatforms = Array.isArray(post.errorDetails?.failedPlatforms)
-    ? (post.errorDetails.failedPlatforms as Array<{ accountId?: unknown; platform?: unknown }>)
-    : [];
-  const failedAccountIds = failedPlatforms
-    .map((failure) => (typeof failure.accountId === "string" ? failure.accountId : null))
-    .filter((accountId): accountId is string => accountId !== null && originalAccountIds.has(accountId));
-
-  if (failedAccountIds.length > 0) {
-    return [...new Set(failedAccountIds)];
-  }
-
-  return post.accountIds;
-}
-
-function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: "duplicate" | "edit" | "retry" }) {
+/**
+ * Edits, retries, or duplicates an existing post. Its content lives in the
+ * route layout's PostDraftProvider, so the per-account customize page shares
+ * it and navigating there and back keeps every change.
+ */
+function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: ExistingPostMode }) {
   const isRetry = mode === "retry";
   const isDuplicate = mode === "duplicate";
   const isCreating = isDuplicate;
   const router = useRouter();
-  const [message, setMessage] = useState(existingPost.message || "");
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
-    isRetry ? getFailedRetryAccountIds(existingPost) : existingPost.accountIds || [],
-  );
-  const [postingMode, setPostingMode] = useState<PostingMode>(
-    isCreating || isRetry ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
-  );
-  const [scheduledDate, setScheduledDate] = useState(
-    !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
-  );
-  const [scheduledTime, setScheduledTime] = useState(
-    !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
-  );
-  const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
-  const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
-  const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
-  const [accountOverrides, setAccountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
-  const [quotePostId, setQuotePostId] = useState<string | null>(existingPost.quotePostId ?? null);
+  const {
+    message,
+    media,
+    selectedAccountIds,
+    postingMode,
+    scheduledDate,
+    scheduledTime,
+    accountOptions,
+    accountOverrides,
+    thread,
+    quotePostId,
+    setMessage,
+    setMedia,
+    setSelectedAccountIds,
+    setPostingMode,
+    setScheduledDate,
+    setScheduledTime,
+    setAccountOptions,
+    setAccountOverrideMedia,
+    setAccountOverrideThread,
+    setThread,
+    setQuotePostId,
+    addThreadSegment,
+    removeThreadSegment,
+    updateThreadSegmentMessage,
+    updateThreadSegmentMedia,
+  } = usePostDraft();
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
@@ -150,13 +136,20 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
     [accounts, selectedAccountIds],
   );
-  const selectedAccountIdSet = useMemo(() => new Set(selectedAccountIds), [selectedAccountIds]);
   const enabledOverrides = useMemo<AccountOverridesMap>(
     () =>
-      Object.fromEntries(
-        Object.entries(accountOverrides).filter(([accountId]) => selectedAccountIdSet.has(accountId)),
-      ) as AccountOverridesMap,
-    [accountOverrides, selectedAccountIdSet],
+      selectedAccountIds.reduce((acc, accountId) => {
+        const override = accountOverrides[accountId];
+        if (override?.enabled) {
+          acc[accountId] = {
+            message: override.message,
+            media: override.media,
+            ...(override.thread ? { thread: override.thread } : {}),
+          };
+        }
+        return acc;
+      }, {} as AccountOverridesMap),
+    [accountOverrides, selectedAccountIds],
   );
   const shouldPreflightImages = useMemo(
     () =>
@@ -518,10 +511,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     threadSegments: longestThreadLength(selectedAccountIds, thread, enabledOverrides),
     isDraft: postingMode === "draft" || (!isCreating && existingPost.status !== "draft"),
   });
-  const customizedAccounts = selectedAccounts.filter((account) => {
-    const override = enabledOverrides[account.id];
-    return override?.message !== undefined || override?.media !== undefined || override?.thread !== undefined;
-  });
 
   const isFormValid =
     selectedAccountIds.length > 0 &&
@@ -552,7 +541,9 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           onSelectionChange={setSelectedAccountIds}
           title="Post to"
           showAdvancedButton
-          getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
+          getAdvancedHref={(accountId) =>
+            `/posts/${existingPost.id}/${isDuplicate ? "duplicate" : "edit"}/advanced/${accountId}`
+          }
           layout="row"
         />
 
@@ -589,27 +580,12 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
           <ThreadSegmentsEditor
             thread={thread}
-            onAdd={() => setThread((prev) => [...prev, { message: "" }])}
-            onRemove={(index) => setThread((prev) => prev.filter((_, i) => i !== index))}
-            onMessageChange={(index, msg) =>
-              setThread((prev) => prev.map((s, i) => (i === index ? { ...s, message: msg } : s)))
-            }
-            onMediaChange={(index, m) =>
-              setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))
-            }
+            onAdd={addThreadSegment}
+            onRemove={removeThreadSegment}
+            onMessageChange={updateThreadSegmentMessage}
+            onMediaChange={updateThreadSegmentMedia}
             maxThreadSegments={trialAllowance.maxThreadSegments}
           />
-
-          {customizedAccounts.length > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
-              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <p>
-                {customizedAccounts.map((account) => getAccountDisplayName(account)).join(", ")}{" "}
-                {customizedAccounts.length === 1 ? "has" : "have"} custom content, shown in the preview. Changes here
-                apply to the other accounts.
-              </p>
-            </div>
-          )}
 
           {/* Validation Feedback */}
           {/* Validation loading is shown in the submit button to avoid layout shift */}
@@ -622,8 +598,10 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               onApply={(fitted) => {
                 setMedia(fitted.media);
                 if (fitted.accountOptions) setAccountOptions(fitted.accountOptions);
-                if (fitted.accountOverrides)
-                  setAccountOverrides((current) => ({ ...current, ...fitted.accountOverrides }));
+                for (const [id, override] of Object.entries(fitted.accountOverrides ?? {})) {
+                  if (override.media) setAccountOverrideMedia(id, override.media);
+                  if (override.thread) setAccountOverrideThread(id, override.thread);
+                }
                 if (fitted.thread) setThread(fitted.thread);
                 setShowImageFit(false);
                 setServerValidation(null);

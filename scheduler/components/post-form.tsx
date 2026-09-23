@@ -35,7 +35,11 @@ import { longestThreadLength } from "@/lib/posting/thread-length";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
-import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
+import {
+  getDraftScheduledFor,
+  getLocalScheduledDateTimeError,
+  parseLocalScheduledDateTime,
+} from "@/lib/validations/scheduled-time";
 import type {
   AccountOptionsMap,
   AccountOverridesMap,
@@ -476,6 +480,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     isDraft: postingMode === "draft" || (!isCreating && existingPost.status !== "draft"),
   });
 
+  const scheduledForPreview = useMemo(
+    () => getDraftScheduledFor(postingMode, scheduledDate, scheduledTime),
+    [postingMode, scheduledDate, scheduledTime],
+  );
+
   const isFormValid =
     selectedAccountIds.length > 0 &&
     !accountsLoading &&
@@ -736,6 +745,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           accountOptions={accountOptions}
           accountOverrides={accountOverrides}
           thread={thread}
+          previewDate={scheduledForPreview}
         />
       </div>
 

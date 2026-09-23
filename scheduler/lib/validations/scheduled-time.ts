@@ -79,3 +79,10 @@ export function getScheduledForValueError(value: string | undefined, now: Date =
 
   return null;
 }
+
+/** The chosen publish time of a composer draft, or null unless it is being scheduled for a valid time. */
+export function getDraftScheduledFor(postingMode: string, dateValue: string, timeValue: string): Date | null {
+  return postingMode === "schedule" && dateValue && timeValue
+    ? parseLocalScheduledDateTime(dateValue, timeValue)
+    : null;
+}

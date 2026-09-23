@@ -284,6 +284,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               accountOptions={post.accountOptions}
               accountOverrides={post.accountOverrides}
               thread={post.thread}
+              previewDate={
+                post.status === "published" ? post.publishedAt : post.status === "scheduled" ? post.scheduledFor : null
+              }
             />
 
             <PublishedPostLinks post={post} accounts={postAccounts} />

@@ -45,7 +45,11 @@ import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
-import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
+import {
+  getDraftScheduledFor,
+  getLocalScheduledDateTimeError,
+  parseLocalScheduledDateTime,
+} from "@/lib/validations/scheduled-time";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
@@ -644,10 +648,7 @@ export function CreatePostForm() {
     isDraft: postingMode === "draft",
   });
   const scheduledForPreview = useMemo(
-    () =>
-      postingMode === "schedule" && scheduledDate && scheduledTime
-        ? parseLocalScheduledDateTime(scheduledDate, scheduledTime)
-        : null,
+    () => getDraftScheduledFor(postingMode, scheduledDate, scheduledTime),
     [postingMode, scheduledDate, scheduledTime],
   );
 
@@ -1002,6 +1003,7 @@ export function CreatePostForm() {
           accountOptions={accountOptions}
           accountOverrides={accountOverrides}
           thread={thread}
+          previewDate={scheduledForPreview}
         />
       </div>
 

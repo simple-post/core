@@ -22,6 +22,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
+import { getDraftScheduledFor } from "@/lib/validations/scheduled-time";
 import type { MediaFile, ThreadSegment } from "@/types";
 
 const NO_MEDIA: MediaFile[] = [];
@@ -65,6 +66,8 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
     media,
     thread,
     postingMode,
+    scheduledDate,
+    scheduledTime,
     selectedAccountIds,
     accountOptions,
     accountOverrides,
@@ -266,6 +269,7 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
               message={effectiveMessage}
               media={effectiveMedia}
               thread={effectiveThread}
+              previewDate={getDraftScheduledFor(postingMode, scheduledDate, scheduledTime)}
               selectedAccounts={[account]}
               accountOptions={accountOptions}
             />

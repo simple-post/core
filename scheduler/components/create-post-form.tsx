@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -34,7 +33,7 @@ import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
-import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
   mergePostingProgressResult,
@@ -51,12 +50,11 @@ import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, Th
 
 import { AccountSelector } from "./account-selector";
 import { ImageFitReview } from "./image-fit-review";
-import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
+import { PostContentEditor } from "./post-content-editor";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-import { ThreadSegmentsEditor } from "./thread-segments-editor";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -112,7 +110,6 @@ export function CreatePostForm() {
   } = usePostDraft();
   const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
-  const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
   const defaultRepostAppliedRef = useRef(false);
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
@@ -360,45 +357,14 @@ export function CreatePostForm() {
     shouldPreflightImages,
   ]);
 
-  const maxTextLength = useMemo(() => {
-    if (!validation) return undefined;
-
-    const commonResults = validation.results.filter((result) => result.usesCommonContent);
-    if (commonResults.length === 0) {
-      return undefined;
-    }
-
-    const hasMedia = media.length > 0;
-    const hasVideo = media.some((item) => item.type === "video");
-    const hasImage = media.some((item) => item.type === "image");
-
-    const limits = commonResults
-      .map((result) => {
-        const textRules = result.rules.text;
-        if (!textRules) return undefined;
-
-        if (hasMedia) {
-          if (textRules.maxCaptionLengthByMediaType) {
-            const candidates: number[] = [];
-            if (hasVideo && textRules.maxCaptionLengthByMediaType.video) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.video);
-            }
-            if (hasImage && textRules.maxCaptionLengthByMediaType.image) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.image);
-            }
-            if (candidates.length > 0) {
-              return Math.min(...candidates);
-            }
-          }
-          return textRules.maxCaptionLength ?? textRules.maxLength;
-        }
-
-        return textRules.maxLength ?? textRules.maxCaptionLength;
-      })
-      .filter((limit): limit is number => typeof limit === "number");
-
-    return limits.length > 0 ? Math.min(...limits) : undefined;
-  }, [validation, media]);
+  const maxTextLength = useMemo(
+    () =>
+      getMaxTextLength(
+        (validation?.results ?? []).filter((result) => result.usesCommonContent),
+        media,
+      ),
+    [validation, media],
+  );
 
   const charCounter = useMemo(
     () =>
@@ -453,14 +419,6 @@ export function CreatePostForm() {
 
     return `${platform}: ${issue.message}`;
   };
-
-  const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      setContentTouched(true);
-      void mediaUploadRef.current?.processFiles(imageFiles);
-    }
-  }, []);
 
   const handleMessageChange = useCallback(
     (value: string) => {
@@ -745,40 +703,23 @@ export function CreatePostForm() {
         />
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="message" className="text-sm font-medium">
-              Message
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="What's on your mind?"
-              value={message}
-              onChange={(e) => handleMessageChange(e.target.value)}
-              onPaste={handleMessagePaste}
-              className="min-h-32 resize-none mt-2"
-              maxLength={maxTextLength}
-            />
-            <div className="mt-1">
-              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={handleMediaChange} compact />
-            </div>
-            {maxTextLength ? (
-              <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
-                <span className={charCounter.countClassName}>
-                  {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
-                </span>
-                {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
-              </div>
-            ) : null}
-          </div>
-
-          <ThreadSegmentsEditor
-            thread={thread}
-            onAdd={handleAddThreadSegment}
-            onRemove={handleRemoveThreadSegment}
-            onMessageChange={handleThreadSegmentMessageChange}
-            onMediaChange={handleThreadSegmentMediaChange}
+          <PostContentEditor
+            id="message"
+            message={message}
+            onMessageChange={handleMessageChange}
+            media={media}
+            onMediaChange={handleMediaChange}
+            maxTextLength={maxTextLength}
+            charCounter={charCounter}
             onPasteMedia={() => setContentTouched(true)}
-            maxThreadSegments={trialAllowance.maxThreadSegments}
+            thread={{
+              segments: thread,
+              onAdd: handleAddThreadSegment,
+              onRemove: handleRemoveThreadSegment,
+              onMessageChange: handleThreadSegmentMessageChange,
+              onMediaChange: handleThreadSegmentMediaChange,
+              maxThreadSegments: trialAllowance.maxThreadSegments,
+            }}
           />
         </div>
 

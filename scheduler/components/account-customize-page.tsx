@@ -1,6 +1,6 @@
 "use client";
 
-import { type ClipboardEvent, useCallback, useMemo, useRef } from "react";
+import { useMemo } from "react";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -10,19 +10,21 @@ import { Info } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
 import { useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
-import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "@/components/media-upload";
 import { Navbar } from "@/components/navbar";
+import { PostContentEditor } from "@/components/post-content-editor";
 import { useOptionalPostDraft, usePostDraft } from "@/components/post-draft-context";
-import { ThreadSegmentsEditor } from "@/components/thread-segments-editor";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { AccountOptionsComponent } from "@/features/platform-options/account-options";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
+import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { MediaFile, ThreadSegment } from "@/types";
+
+const NO_MEDIA: MediaFile[] = [];
 
 interface AccountCustomizePageProps {
   /** Where the composer this page customizes lives. */
@@ -80,12 +82,11 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
   const override = accountOverrides[accountId];
   const overrideEnabled = override?.enabled ?? false;
   const overrideMessage = override?.message ?? "";
-  const overrideMedia = override?.media ?? [];
+  const overrideMedia = override?.media ?? NO_MEDIA;
   const supportsThreads = account ? isThreadCapablePlatform(mapPlatformName(account.platform)) : false;
   // An override saved before per-account threads existed has no thread and keeps the common one.
   const overrideThread = override?.thread ?? thread;
   const isSelected = selectedAccountIds.includes(accountId);
-  const overrideMediaUploadRef = useRef<MediaUploadHandle | null>(null);
 
   const effectiveMessage = overrideEnabled ? overrideMessage : message;
   const effectiveMedia = overrideEnabled ? overrideMedia : media;
@@ -95,6 +96,28 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
     threadSegments: effectiveThread.length + 1,
     isDraft: postingMode === "draft",
   });
+
+  // The same character budget the composer shows, for this account's platform only.
+  const { maxTextLength, charCounter } = useMemo(() => {
+    const results = account
+      ? validatePostForResolvedAccounts({
+          message: overrideMessage,
+          media: overrideMedia,
+          accounts: [account],
+          accountOptions,
+        }).results
+      : [];
+    const limit = getMaxTextLength(results, overrideMedia);
+    return {
+      maxTextLength: limit,
+      charCounter: getMainFieldCharCounterState({
+        message: overrideMessage,
+        maxTextLength: limit,
+        validationResults: results,
+        requireXCommonContent: false,
+      }),
+    };
+  }, [account, accountOptions, overrideMedia, overrideMessage]);
 
   const updateOverrideThread = (update: (current: ThreadSegment[]) => ThreadSegment[]) => {
     setAccountOverrideThread(accountId, update(overrideThread));
@@ -117,13 +140,6 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
 
     setAccountOverrideEnabled(accountId, false);
   };
-
-  const handleOverrideMessagePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      void overrideMediaUploadRef.current?.processFiles(imageFiles);
-    }
-  }, []);
 
   const handleAddToPost = () => {
     if (!isSelected) {
@@ -195,129 +211,46 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
 
             <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <Label className="text-sm font-medium">Content</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {overrideEnabled ? "Custom content for this account" : "Using common post content"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                    {overrideEnabled ? "Custom" : "Common"}
-                  </span>
-                  <Switch checked={overrideEnabled} onCheckedChange={handleOverrideToggle} />
-                </div>
+                <Label htmlFor="custom-content" className="text-sm font-medium cursor-pointer">
+                  Custom content for {platformConfig?.name ?? "this account"}
+                </Label>
+                <Switch id="custom-content" checked={overrideEnabled} onCheckedChange={handleOverrideToggle} />
               </div>
 
-              <div className="space-y-4">
-                <div className="relative">
-                  <Label htmlFor="override-message" className="text-sm font-medium">
-                    Message
-                  </Label>
-                  {overrideEnabled ? (
-                    <Textarea
-                      id="override-message"
-                      placeholder="Write a custom message for this account"
-                      value={overrideMessage}
-                      onChange={(event) => setAccountOverrideMessage(accountId, event.target.value)}
-                      onPaste={handleOverrideMessagePaste}
-                      className="min-h-28 resize-none mt-2"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="min-h-28 mt-2 p-3 rounded-lg border border-border bg-secondary/50 text-sm text-muted-foreground cursor-pointer hover:bg-secondary transition-colors text-left w-full"
-                      onClick={() => handleOverrideToggle(true)}>
-                      {message || <span className="italic">No message</span>}
-                    </button>
-                  )}
-                </div>
-
-                <div className="relative">
-                  <Label className="text-sm font-medium">Media</Label>
-                  {overrideEnabled ? (
-                    <div className="mt-2">
-                      <MediaUpload
-                        ref={overrideMediaUploadRef}
-                        media={overrideMedia}
-                        onMediaChange={(items) => setAccountOverrideMedia(accountId, items)}
-                      />
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="mt-2 p-3 rounded-lg border border-border bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors text-left w-full"
-                      onClick={() => handleOverrideToggle(true)}>
-                      {media.length > 0 ? (
-                        <div className="flex gap-2 flex-wrap opacity-60">
-                          {media.map((file) => (
-                            <div key={file.id} className="w-16 h-16 rounded-md overflow-hidden bg-secondary">
-                              {file.type === "image" ? (
-                                <img
-                                  src={file.thumbnailUrl || file.url}
-                                  alt={file.filename}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <video src={file.url} className="w-full h-full object-cover" muted />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground italic">No media attached</span>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {supportsThreads && (
-                  <div className="relative">
-                    <Label className="text-sm font-medium">Thread</Label>
-                    {overrideEnabled ? (
-                      <div className="mt-2 space-y-0">
-                        <ThreadSegmentsEditor
-                          thread={overrideThread}
-                          onAdd={() => updateOverrideThread((current) => [...current, { message: "" }])}
-                          onRemove={(index) => updateOverrideThread((current) => current.filter((_, i) => i !== index))}
-                          onMessageChange={(index, segmentMessage) =>
+              {overrideEnabled ? (
+                <PostContentEditor
+                  id="override-message"
+                  placeholder="Write a custom message for this account"
+                  message={overrideMessage}
+                  onMessageChange={(value) => setAccountOverrideMessage(accountId, value)}
+                  media={overrideMedia}
+                  onMediaChange={(items) => setAccountOverrideMedia(accountId, items)}
+                  maxTextLength={maxTextLength}
+                  charCounter={charCounter}
+                  thread={
+                    supportsThreads
+                      ? {
+                          segments: overrideThread,
+                          onAdd: () => updateOverrideThread((current) => [...current, { message: "" }]),
+                          onRemove: (index) => updateOverrideThread((current) => current.filter((_, i) => i !== index)),
+                          onMessageChange: (index, segmentMessage) =>
                             updateOverrideThread((current) =>
                               current.map((segment, i) =>
                                 i === index ? { ...segment, message: segmentMessage } : segment,
                               ),
-                            )
-                          }
-                          onMediaChange={(index, segmentMedia: MediaFile[]) =>
+                            ),
+                          onMediaChange: (index, segmentMedia) =>
                             updateOverrideThread((current) =>
                               current.map((segment, i) =>
                                 i === index ? { ...segment, media: segmentMedia } : segment,
                               ),
-                            )
-                          }
-                          maxThreadSegments={trialAllowance.maxThreadSegments}
-                        />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="mt-2 p-3 rounded-lg border border-border bg-secondary/50 text-sm text-muted-foreground cursor-pointer hover:bg-secondary transition-colors text-left w-full"
-                        onClick={() => handleOverrideToggle(true)}>
-                        {thread.length > 0 ? (
-                          `${thread.length} follow-up ${thread.length === 1 ? "post" : "posts"} from the common thread`
-                        ) : (
-                          <span className="italic">No follow-up posts</span>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {!overrideEnabled && (
-                <p className="text-xs text-muted-foreground">
-                  Click the content above or toggle the switch to customize for this account.
-                </p>
-              )}
+                            ),
+                          maxThreadSegments: trialAllowance.maxThreadSegments,
+                        }
+                      : undefined
+                  }
+                />
+              ) : null}
             </div>
 
             <AccountOptionsComponent

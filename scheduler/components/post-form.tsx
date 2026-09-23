@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
@@ -25,7 +24,7 @@ import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
-import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
   mergePostingProgressResult,
@@ -50,12 +49,11 @@ import { AccountSelector } from "./account-selector";
 import { CreatePostForm } from "./create-post-form";
 import { type ExistingPostMode, normalizeDelayHours } from "./edit-post-draft";
 import { ImageFitReview } from "./image-fit-review";
-import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
+import { PostContentEditor } from "./post-content-editor";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-import { ThreadSegmentsEditor } from "./thread-segments-editor";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -124,7 +122,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [tiktokConsent, setTikTokConsent] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
 
   const submitPostMutation = useSubmitPost();
   const { hasFeature } = useFeatures();
@@ -278,40 +275,14 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     shouldPreflightImages,
   ]);
 
-  const maxTextLength = useMemo(() => {
-    if (!validation) return undefined;
-
-    const hasMedia = media.length > 0;
-    const hasVideo = media.some((item) => item.type === "video");
-    const hasImage = media.some((item) => item.type === "image");
-
-    const limits = validation.results
-      .map((result) => {
-        const textRules = result.rules.text;
-        if (!textRules) return undefined;
-
-        if (hasMedia) {
-          if (textRules.maxCaptionLengthByMediaType) {
-            const candidates: number[] = [];
-            if (hasVideo && textRules.maxCaptionLengthByMediaType.video) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.video);
-            }
-            if (hasImage && textRules.maxCaptionLengthByMediaType.image) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.image);
-            }
-            if (candidates.length > 0) {
-              return Math.min(...candidates);
-            }
-          }
-          return textRules.maxCaptionLength ?? textRules.maxLength;
-        }
-
-        return textRules.maxLength ?? textRules.maxCaptionLength;
-      })
-      .filter((limit): limit is number => typeof limit === "number");
-
-    return limits.length > 0 ? Math.min(...limits) : undefined;
-  }, [validation, media]);
+  const maxTextLength = useMemo(
+    () =>
+      getMaxTextLength(
+        (validation?.results ?? []).filter((result) => result.usesCommonContent),
+        media,
+      ),
+    [validation, media],
+  );
 
   const charCounter = useMemo(
     () =>
@@ -319,7 +290,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         message,
         maxTextLength,
         validationResults: validation?.results ?? [],
-        requireXCommonContent: false,
+        requireXCommonContent: true,
       }),
     [maxTextLength, message, validation?.results],
   );
@@ -337,13 +308,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     postingMode === "draft" &&
     imageFittingEnabled &&
     (validation?.summary.errors ?? []).some((issue) => canFitImageIssue(issue));
-
-  const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      void mediaUploadRef.current?.processFiles(imageFiles);
-    }
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -548,43 +512,22 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         />
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="message" className="text-sm font-medium">
-              Message
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="What's on your mind?"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onPaste={handleMessagePaste}
-              className="min-h-32 resize-none mt-2"
-              maxLength={maxTextLength}
-            />
-            <div className="mt-1">
-              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={setMedia} compact />
-            </div>
-            <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
-              {maxTextLength ? (
-                <>
-                  <span className={charCounter.countClassName}>
-                    {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
-                  </span>
-                  {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
-                </>
-              ) : (
-                <span className="text-muted-foreground">{message.length.toLocaleString()}</span>
-              )}
-            </div>
-          </div>
-
-          <ThreadSegmentsEditor
-            thread={thread}
-            onAdd={addThreadSegment}
-            onRemove={removeThreadSegment}
-            onMessageChange={updateThreadSegmentMessage}
-            onMediaChange={updateThreadSegmentMedia}
-            maxThreadSegments={trialAllowance.maxThreadSegments}
+          <PostContentEditor
+            id="message"
+            message={message}
+            onMessageChange={setMessage}
+            media={media}
+            onMediaChange={setMedia}
+            maxTextLength={maxTextLength}
+            charCounter={charCounter}
+            thread={{
+              segments: thread,
+              onAdd: addThreadSegment,
+              onRemove: removeThreadSegment,
+              onMessageChange: updateThreadSegmentMessage,
+              onMediaChange: updateThreadSegmentMedia,
+              maxThreadSegments: trialAllowance.maxThreadSegments,
+            }}
           />
 
           {/* Validation Feedback */}

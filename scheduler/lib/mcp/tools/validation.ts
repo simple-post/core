@@ -75,6 +75,17 @@ export const validatePostOutputSchema = z.object({
   }),
 });
 
+function toMcpMedia(media: MediaFile[]): z.infer<typeof mcpMediaArraySchema> {
+  return media.map(({ type, url, thumbnailUrl, filename, durationSec, size }) => ({
+    type,
+    url,
+    ...(thumbnailUrl ? { thumbnailUrl } : {}),
+    ...(filename ? { filename } : {}),
+    ...(durationSec === undefined ? {} : { durationSec }),
+    ...(size === undefined ? {} : { size }),
+  }));
+}
+
 /**
  * Validates content that the caller has already materialized as SDK types.
  *
@@ -135,7 +146,9 @@ export async function toMcpValidationResult(
       (await hasFeature(userId, Feature.IMAGE_FITTING))
         ? IMAGE_FIT_HELP
         : undefined,
-    fittedMedia: input.media,
+    // MediaFile carries internal IDs and content-type fields. MCP output is
+    // strict, so return only the public fields declared by mcpMediaArraySchema.
+    fittedMedia: toMcpMedia(input.media),
     fittedAccountOptions: input.accountOptions,
     kind: "validation" as const,
     message: input.message,

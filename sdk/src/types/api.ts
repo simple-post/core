@@ -78,13 +78,10 @@ export type AccountOptionsMap = Record<string, Record<string, unknown> | undefin
 // posts in a thread, so 24 additional segments after the root.
 export const MAX_THREAD_SEGMENTS = 24;
 
-// Platforms with native thread / reply support today.
-export const THREAD_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "telegram"] as const;
-export type ThreadCapablePlatform = (typeof THREAD_CAPABLE_PLATFORMS)[number];
-
-export function isThreadCapablePlatform(platform: string): platform is ThreadCapablePlatform {
-  return (THREAD_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
-}
+// Thread capability lives in the browser-safe platform-names module so client
+// bundles can import it; re-exported here to keep the SDK barrel unchanged.
+export { THREAD_CAPABLE_PLATFORMS, isThreadCapablePlatform } from "../platform-names";
+export type { ThreadCapablePlatform } from "../platform-names";
 
 export const ThreadSegmentSchema = z.object({
   message: z.string().default(""),

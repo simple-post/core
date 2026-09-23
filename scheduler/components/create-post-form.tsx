@@ -9,7 +9,7 @@ import { Feature } from "@prisma/client";
 import { canFitImageIssue } from "@simple-post/sdk/image-fit";
 import { REPOST_CAPABLE_PLATFORMS } from "@simple-post/sdk/platform-names";
 import { format } from "date-fns";
-import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
+import { AlertTriangle, Info, Repeat2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -42,6 +42,7 @@ import {
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
@@ -56,6 +57,7 @@ import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
+import { ThreadSegmentsEditor } from "./thread-segments-editor";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -96,6 +98,7 @@ export function CreatePostForm() {
     setMedia,
     setAccountOptions,
     setAccountOverrideMedia,
+    setAccountOverrideThread,
     setSelectedAccountIds,
     setRepostSettings,
     setQuotePostId,
@@ -111,7 +114,6 @@ export function CreatePostForm() {
   const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
-  const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
   const defaultRepostAppliedRef = useRef(false);
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
@@ -138,6 +140,7 @@ export function CreatePostForm() {
         acc[accountId] = {
           message: override.message,
           media: override.media,
+          ...(override.thread ? { thread: override.thread } : {}),
         };
       }
       return acc;
@@ -415,7 +418,10 @@ export function CreatePostForm() {
       media.length > 0 ||
       thread.some((segment) => segment.message.trim().length > 0 || (segment.media?.length ?? 0) > 0) ||
       Object.values(enabledOverrides).some(
-        (override) => (override.message ?? "").trim().length > 0 || (override.media?.length ?? 0) > 0,
+        (override) =>
+          (override.message ?? "").trim().length > 0 ||
+          (override.media?.length ?? 0) > 0 ||
+          (override.thread ?? []).some((segment) => segment.message.trim().length > 0),
       ),
     [enabledOverrides, media.length, message, thread],
   );
@@ -454,14 +460,6 @@ export function CreatePostForm() {
     if (imageFiles.length > 0) {
       setContentTouched(true);
       void mediaUploadRef.current?.processFiles(imageFiles);
-    }
-  }, []);
-
-  const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      setContentTouched(true);
-      void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
     }
   }, []);
 
@@ -685,7 +683,7 @@ export function CreatePostForm() {
 
   const trialAllowance = useTrialPostAllowance({
     platforms: selectedAccounts.map((account) => account.platform),
-    threadSegments: thread.length + 1,
+    threadSegments: longestThreadLength(selectedAccountIds, thread, enabledOverrides),
     isDraft: postingMode === "draft",
   });
   const scheduledForPreview = useMemo(
@@ -775,59 +773,15 @@ export function CreatePostForm() {
             ) : null}
           </div>
 
-          {/* Thread segments */}
-          {thread.length > 0 && (
-            <div className="space-y-0">
-              {thread.map((segment, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="flex flex-col items-center pt-1">
-                    <div className="w-px bg-border flex-1" />
-                  </div>
-                  <div className="flex-1 space-y-2 pb-4 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                        Post {index + 2}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleRemoveThreadSegment(index)}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <Textarea
-                      placeholder="Continue your thread…"
-                      value={segment.message}
-                      onChange={(e) => handleThreadSegmentMessageChange(index, e.target.value)}
-                      onPaste={(event) => handleThreadSegmentPaste(index, event)}
-                      className="min-h-20 resize-none text-sm"
-                    />
-                    <MediaUpload
-                      ref={(node) => {
-                        threadMediaUploadRefs.current[index] = node;
-                      }}
-                      media={segment.media ?? []}
-                      onMediaChange={(m) => handleThreadSegmentMediaChange(index, m)}
-                      compact
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2 text-muted-foreground"
-            disabled={trialAllowance.threadAtLimit}
-            onClick={handleAddThreadSegment}>
-            <Plus className="h-3.5 w-3.5" />
-            {trialAllowance.threadAtLimit ? `Thread limit (${trialAllowance.maxThreadSegments})` : "Add to thread"}
-          </Button>
+          <ThreadSegmentsEditor
+            thread={thread}
+            onAdd={handleAddThreadSegment}
+            onRemove={handleRemoveThreadSegment}
+            onMessageChange={handleThreadSegmentMessageChange}
+            onMediaChange={handleThreadSegmentMediaChange}
+            onPasteMedia={() => setContentTouched(true)}
+            maxThreadSegments={trialAllowance.maxThreadSegments}
+          />
         </div>
 
         <div className="space-y-4">
@@ -1052,6 +1006,7 @@ export function CreatePostForm() {
                 if (fitted.accountOptions) setAccountOptions(fitted.accountOptions);
                 for (const [id, override] of Object.entries(fitted.accountOverrides ?? {})) {
                   if (override.media) setAccountOverrideMedia(id, override.media);
+                  if (override.thread) setAccountOverrideThread(id, override.thread);
                 }
                 for (const [index, segment] of (fitted.thread ?? []).entries())
                   updateThreadSegmentMedia(index, segment.media ?? []);

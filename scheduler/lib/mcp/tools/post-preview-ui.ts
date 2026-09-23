@@ -6,7 +6,15 @@ import { PostsModel } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
 
-import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
+import {
+  MCP_ACCOUNT_OVERRIDES_DESCRIPTION,
+  mcpAccountOverridesSchema,
+  mcpMediaArraySchema,
+  mcpThreadSchema,
+  toAccountOverrides,
+  toMediaFiles,
+  toThreadSegments,
+} from "./media-schema";
 
 export const showPostPreviewSchema = z.object({
   postId: z
@@ -27,6 +35,9 @@ export const showPostPreviewSchema = z.object({
     .optional()
     .describe("Optional media for an unsaved preview. Ignored when postId is provided."),
   thread: mcpThreadSchema,
+  accountOverrides: mcpAccountOverridesSchema
+    .optional()
+    .describe(`${MCP_ACCOUNT_OVERRIDES_DESCRIPTION} Ignored when postId is provided.`),
 });
 
 const previewMediaSchema = z.object({
@@ -183,7 +194,7 @@ async function resolveSource(userId: string, input: z.infer<typeof showPostPrevi
     thread: toThreadSegments(input.thread),
     accountIds: [...new Set(input.accountIds)],
     accountOptions: {},
-    accountOverrides: {},
+    accountOverrides: toAccountOverrides(input.accountOverrides) ?? {},
   };
 }
 

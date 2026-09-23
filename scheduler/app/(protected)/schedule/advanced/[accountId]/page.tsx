@@ -5,13 +5,16 @@ import { type ClipboardEvent, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+import { isThreadCapablePlatform, mapPlatformName } from "@simple-post/sdk/platform-names";
 import { Info } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
+import { useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "@/components/media-upload";
 import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
 import { PublishingHelp } from "@/components/publishing-help";
+import { ThreadSegmentsEditor } from "@/components/thread-segments-editor";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -20,6 +23,7 @@ import { AccountOptionsComponent } from "@/features/platform-options/account-opt
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import type { MediaFile, ThreadSegment } from "@/types";
 
 export default function AdvancedAccountSettingsPage() {
   const params = useParams<{ accountId: string }>();
@@ -29,6 +33,8 @@ export default function AdvancedAccountSettingsPage() {
   const {
     message,
     media,
+    thread,
+    postingMode,
     selectedAccountIds,
     accountOptions,
     accountOverrides,
@@ -38,6 +44,7 @@ export default function AdvancedAccountSettingsPage() {
     setAccountOverrideEnabled,
     setAccountOverrideMessage,
     setAccountOverrideMedia,
+    setAccountOverrideThread,
   } = usePostDraft();
 
   const account = accounts.find((acc) => acc.id === accountId);
@@ -46,11 +53,24 @@ export default function AdvancedAccountSettingsPage() {
   const overrideEnabled = override?.enabled ?? false;
   const overrideMessage = override?.message ?? "";
   const overrideMedia = override?.media ?? [];
+  const supportsThreads = account ? isThreadCapablePlatform(mapPlatformName(account.platform)) : false;
+  // An override saved before per-account threads existed has no thread and keeps the common one.
+  const overrideThread = override?.thread ?? thread;
   const isSelected = selectedAccountIds.includes(accountId);
   const overrideMediaUploadRef = useRef<MediaUploadHandle | null>(null);
 
   const effectiveMessage = overrideEnabled ? overrideMessage : message;
   const effectiveMedia = overrideEnabled ? overrideMedia : media;
+  const effectiveThread = overrideEnabled ? overrideThread : thread;
+  const trialAllowance = useTrialPostAllowance({
+    platforms: account ? [account.platform] : [],
+    threadSegments: effectiveThread.length + 1,
+    isDraft: postingMode === "draft",
+  });
+
+  const updateOverrideThread = (update: (current: ThreadSegment[]) => ThreadSegment[]) => {
+    setAccountOverrideThread(accountId, update(overrideThread));
+  };
 
   const handleOverrideToggle = (enabled: boolean) => {
     if (enabled) {
@@ -59,6 +79,7 @@ export default function AdvancedAccountSettingsPage() {
           enabled: true,
           message,
           media,
+          ...(supportsThreads ? { thread } : {}),
         });
         return;
       }
@@ -232,6 +253,47 @@ export default function AdvancedAccountSettingsPage() {
                     </button>
                   )}
                 </div>
+
+                {supportsThreads && (
+                  <div className="relative">
+                    <Label className="text-sm font-medium">Thread</Label>
+                    {overrideEnabled ? (
+                      <div className="mt-2 space-y-0">
+                        <ThreadSegmentsEditor
+                          thread={overrideThread}
+                          onAdd={() => updateOverrideThread((current) => [...current, { message: "" }])}
+                          onRemove={(index) => updateOverrideThread((current) => current.filter((_, i) => i !== index))}
+                          onMessageChange={(index, segmentMessage) =>
+                            updateOverrideThread((current) =>
+                              current.map((segment, i) =>
+                                i === index ? { ...segment, message: segmentMessage } : segment,
+                              ),
+                            )
+                          }
+                          onMediaChange={(index, segmentMedia: MediaFile[]) =>
+                            updateOverrideThread((current) =>
+                              current.map((segment, i) =>
+                                i === index ? { ...segment, media: segmentMedia } : segment,
+                              ),
+                            )
+                          }
+                          maxThreadSegments={trialAllowance.maxThreadSegments}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="mt-2 p-3 rounded-lg border border-border bg-secondary/50 text-sm text-muted-foreground cursor-pointer hover:bg-secondary transition-colors text-left w-full"
+                        onClick={() => handleOverrideToggle(true)}>
+                        {thread.length > 0 ? (
+                          `${thread.length} follow-up ${thread.length === 1 ? "post" : "posts"} from the common thread`
+                        ) : (
+                          <span className="italic">No follow-up posts</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {!overrideEnabled && (
@@ -253,6 +315,7 @@ export default function AdvancedAccountSettingsPage() {
             <PlatformPostPreview
               message={effectiveMessage}
               media={effectiveMedia}
+              thread={effectiveThread}
               selectedAccounts={[account]}
               accountOptions={accountOptions}
             />

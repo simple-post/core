@@ -23,6 +23,7 @@ import {
   sanitizePostingResult,
   wantsPostingProgress,
 } from "@/lib/posting/progress-stream";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -274,7 +275,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         await assertCanCreatePost(userId, tx, {
           action: `create_${postingMode}_post`,
           socialAccounts: toBillingSocialAccounts(validation.accounts),
-          threadSegments: (validated.thread?.length ?? 0) + 1,
+          threadSegments: longestThreadLength(validated.accountIds, validated.thread, validated.accountOverrides),
           isDraft: postingMode === "draft",
         });
         const createdPost = await repository.createPost(

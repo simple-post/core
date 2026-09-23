@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { Feature } from "@prisma/client";
 import { canFitImageIssue } from "@simple-post/sdk/image-fit";
 import { format } from "date-fns";
-import { AlertCircle, Info, Plus, X } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 
 import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
@@ -35,6 +35,7 @@ import {
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
@@ -55,6 +56,7 @@ import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./m
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
+import { ThreadSegmentsEditor } from "./thread-segments-editor";
 
 import type { ValidationIssue } from "@simple-post/sdk";
 
@@ -140,7 +142,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [tiktokConsent, setTikTokConsent] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
-  const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
 
   const submitPostMutation = useSubmitPost();
   const { hasFeature } = useFeatures();
@@ -354,13 +355,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     }
   }, []);
 
-  const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
-    }
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -524,8 +518,12 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   // an already scheduled post was charged when it was created.
   const trialAllowance = useTrialPostAllowance({
     platforms: selectedAccounts.map((account) => account.platform),
-    threadSegments: thread.length + 1,
+    threadSegments: longestThreadLength(selectedAccountIds, thread, enabledOverrides),
     isDraft: postingMode === "draft" || (!isCreating && existingPost.status !== "draft"),
+  });
+  const customizedAccounts = selectedAccounts.filter((account) => {
+    const override = enabledOverrides[account.id];
+    return override?.message !== undefined || override?.media !== undefined || override?.thread !== undefined;
   });
 
   const isFormValid =
@@ -602,64 +600,29 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             </div>
           </div>
 
-          {/* Thread segments */}
-          {thread.length > 0 && (
-            <div className="space-y-0">
-              {thread.map((segment, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="flex flex-col items-center pt-1">
-                    <div className="w-px bg-border flex-1" />
-                  </div>
-                  <div className="flex-1 space-y-2 pb-4 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                        Post {index + 2}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => setThread((prev) => prev.filter((_, i) => i !== index))}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <Textarea
-                      placeholder="Continue your thread…"
-                      value={segment.message}
-                      onChange={(e) => {
-                        const msg = e.target.value;
-                        setThread((prev) => prev.map((s, i) => (i === index ? { ...s, message: msg } : s)));
-                      }}
-                      onPaste={(event) => handleThreadSegmentPaste(index, event)}
-                      className="min-h-20 resize-none text-sm"
-                    />
-                    <MediaUpload
-                      ref={(node) => {
-                        threadMediaUploadRefs.current[index] = node;
-                      }}
-                      media={segment.media ?? []}
-                      onMediaChange={(m) =>
-                        setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))
-                      }
-                      compact
-                    />
-                  </div>
-                </div>
-              ))}
+          <ThreadSegmentsEditor
+            thread={thread}
+            onAdd={() => setThread((prev) => [...prev, { message: "" }])}
+            onRemove={(index) => setThread((prev) => prev.filter((_, i) => i !== index))}
+            onMessageChange={(index, msg) =>
+              setThread((prev) => prev.map((s, i) => (i === index ? { ...s, message: msg } : s)))
+            }
+            onMediaChange={(index, m) =>
+              setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))
+            }
+            maxThreadSegments={trialAllowance.maxThreadSegments}
+          />
+
+          {customizedAccounts.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <p>
+                {customizedAccounts.map((account) => getAccountDisplayName(account)).join(", ")}{" "}
+                {customizedAccounts.length === 1 ? "has" : "have"} custom content, shown in the preview. Changes here
+                apply to the other accounts.
+              </p>
             </div>
           )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2 text-muted-foreground"
-            disabled={trialAllowance.threadAtLimit}
-            onClick={() => setThread((prev) => [...prev, { message: "" }])}>
-            <Plus className="h-3.5 w-3.5" />
-            {trialAllowance.threadAtLimit ? `Thread limit (${trialAllowance.maxThreadSegments})` : "Add to thread"}
-          </Button>
 
           {/* Validation Feedback */}
           {/* Validation loading is shown in the submit button to avoid layout shift */}

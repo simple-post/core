@@ -22,6 +22,7 @@ import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -31,16 +32,20 @@ import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
-import type { AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
+import type { AccountOverridesMap, AccountResultsMap, MediaFile, SocialPost, ThreadSegment } from "@/types";
 
 import { resolveMcpAccountOptions } from "./account-options";
 import { listAccounts, mcpAccountIdentitySchema, mcpAccountSchema } from "./accounts";
 import {
+  assertOverridesTargetAccounts,
+  MCP_ACCOUNT_OVERRIDES_DESCRIPTION,
+  mcpAccountOverridesSchema,
   mcpMediaArraySchema,
   mcpMediaItemSchema,
   mcpThreadArraySchema,
   mcpThreadSchema,
   mcpThreadSegmentSchema,
+  toAccountOverrides,
   toMediaFiles,
   toThreadSegments,
 } from "./media-schema";
@@ -61,6 +66,7 @@ export const createPostSchema = z.object({
       "Optional images/videos to attach. Each item must have a public URL. External URLs are imported into SimplePost storage before saving or publishing. Some platforms, such as Instagram, require media; YouTube requires a video.",
     ),
   thread: mcpThreadSchema,
+  accountOverrides: mcpAccountOverridesSchema.optional().describe(MCP_ACCOUNT_OVERRIDES_DESCRIPTION),
   postingMode: z
     .enum(["now", "schedule", "draft"])
     .default("now")
@@ -231,6 +237,12 @@ export const updateScheduledPostSchema = z.object({
     .describe(
       'Replacement follow-up text-only thread segments. Each segment is {"message":"..."}. Any media already attached to a segment is kept at the same position, so editing text never drops images. Omit to keep current thread; pass null or [] to clear all follow-up segments.',
     ),
+  accountOverrides: mcpAccountOverridesSchema
+    .nullable()
+    .optional()
+    .describe(
+      `Replacement per-account content map. ${MCP_ACCOUNT_OVERRIDES_DESCRIPTION} When supplied, this replaces the entire map; media already attached to an account's thread segment is kept at the same position. Omit to keep current overrides; pass null or {} to make every account use the shared content.`,
+    ),
   scheduledFor: z
     .string()
     .datetime({ offset: true })
@@ -264,6 +276,12 @@ const storedThreadSegmentSchema = mcpThreadSegmentSchema.extend({
   media: z.array(storedMediaSchema).optional(),
 });
 
+const storedAccountOverrideSchema = z.object({
+  message: z.string().optional(),
+  media: z.array(storedMediaSchema).optional(),
+  thread: z.array(storedThreadSegmentSchema).optional(),
+});
+
 const managedPostStatusSchema = z.enum(["draft", "scheduled", "pending", "posted", "failed"]);
 
 const managedPostSchema = z.object({
@@ -274,6 +292,9 @@ const managedPostSchema = z.object({
   accounts: z.array(mcpAccountSchema),
   media: z.array(storedMediaSchema),
   thread: z.array(storedThreadSegmentSchema),
+  accountOverrides: z
+    .record(z.string(), storedAccountOverrideSchema)
+    .describe("Per-account content that replaces the shared message, media, or thread for that account."),
   scheduledFor: z.string().nullable(),
   createdAt: z.string(),
   publishedAt: z.string().nullable(),
@@ -326,6 +347,7 @@ export const updateScheduledPostOutputSchema = z.object({
     accountsChanged: z.boolean(),
     mediaChanged: z.boolean(),
     threadChanged: z.boolean(),
+    accountOverridesChanged: z.boolean(),
     statusChanged: z.boolean(),
     scheduledForChanged: z.boolean(),
     quoteChanged: z.boolean(),
@@ -437,6 +459,21 @@ function mapStoredThread(thread: ThreadSegment[] | undefined): z.infer<typeof st
   }));
 }
 
+function mapStoredAccountOverrides(
+  overrides: AccountOverridesMap | undefined,
+): Record<string, z.infer<typeof storedAccountOverrideSchema>> {
+  return Object.fromEntries(
+    Object.entries(overrides ?? {}).map(([accountId, override]) => [
+      accountId,
+      {
+        ...(override.message === undefined ? {} : { message: override.message }),
+        ...(override.media === undefined ? {} : { media: override.media.map((media) => mapStoredMedia(media)) }),
+        ...(override.thread === undefined ? {} : { thread: mapStoredThread(override.thread) }),
+      },
+    ]),
+  );
+}
+
 async function getAccountMap(userId: string) {
   const result = await listAccounts(userId);
   return new Map(result.accounts.map((account) => [account.accountId, account]));
@@ -452,6 +489,7 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
     accounts: post.accountIds.map((accountId) => accountMap.get(accountId)).filter((account) => account !== undefined),
     media: post.media.map((media) => mapStoredMedia(media)),
     thread,
+    accountOverrides: mapStoredAccountOverrides(post.accountOverrides),
     scheduledFor: post.scheduledFor?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     publishedAt: post.publishedAt?.toISOString() ?? null,
@@ -560,8 +598,19 @@ function mergeThreadMedia(replacement: ThreadSegment[], current: ThreadSegment[]
   });
 }
 
-function collectMediaForCleanup(post: Pick<SocialPost, "media" | "thread">): MediaFile[] {
-  return [...post.media, ...(post.thread ?? []).flatMap((segment) => segment.media ?? [])];
+function collectThreadMedia(thread: ThreadSegment[] | undefined): MediaFile[] {
+  return (thread ?? []).flatMap((segment) => segment.media ?? []);
+}
+
+function collectOverrideMedia(overrides: AccountOverridesMap | undefined): MediaFile[] {
+  return Object.values(overrides ?? {}).flatMap((override) => [
+    ...(override.media ?? []),
+    ...collectThreadMedia(override.thread),
+  ]);
+}
+
+function collectMediaForCleanup(post: Pick<SocialPost, "media" | "thread" | "accountOverrides">): MediaFile[] {
+  return [...post.media, ...collectThreadMedia(post.thread), ...collectOverrideMedia(post.accountOverrides)];
 }
 
 async function assertCredentialsReadyForPublish(params: {
@@ -591,12 +640,35 @@ async function assertCredentialsReadyForPublish(params: {
  * rewrite media URLs, and depending on whether they happen to copy rather than
  * mutate would make a replaced original undetectable.
  */
-function getRemovedMedia(original: MediaFile[], newMedia: MediaFile[], newThread: ThreadSegment[] | undefined) {
-  const keptUrls = new Set([
-    ...newMedia.map((media) => media.url),
-    ...(newThread ?? []).flatMap((segment) => (segment.media ?? []).map((media) => media.url)),
-  ]);
+function getRemovedMedia(
+  original: MediaFile[],
+  newMedia: MediaFile[],
+  newThread: ThreadSegment[] | undefined,
+  newOverrides: AccountOverridesMap | undefined,
+) {
+  const keptUrls = new Set(
+    [...newMedia, ...collectThreadMedia(newThread), ...collectOverrideMedia(newOverrides)].map((media) => media.url),
+  );
   return original.filter((media) => !keptUrls.has(media.url));
+}
+
+/**
+ * Applies `mergeThreadMedia` per account, so replacing the override map with
+ * text-only MCP threads keeps images already attached to an account's thread.
+ */
+function mergeOverrideThreadMedia(
+  replacement: AccountOverridesMap | undefined,
+  current: AccountOverridesMap | undefined,
+): AccountOverridesMap | undefined {
+  if (!replacement) return undefined;
+  return Object.fromEntries(
+    Object.entries(replacement).map(([accountId, override]) => [
+      accountId,
+      override.thread === undefined
+        ? override
+        : { ...override, thread: mergeThreadMedia(override.thread, current?.[accountId]?.thread) },
+    ]),
+  );
 }
 
 export async function previewPost(
@@ -608,6 +680,7 @@ export async function previewPost(
   const scheduledFor = postingMode === "schedule" ? resolveScheduledFor(input) : null;
   const mediaCount = input.media?.length ?? 0;
   const threadSegmentCount = input.thread?.length ?? 0;
+  assertOverridesTargetAccounts(toAccountOverrides(input.accountOverrides), input.accountIds);
   await validateQuoteSource({
     userId,
     quotePostId: input.quotePostId,
@@ -621,6 +694,7 @@ export async function previewPost(
     accountOptions: input.accountOptions,
     media: input.media,
     thread: input.thread,
+    accountOverrides: input.accountOverrides,
   });
 
   if (validation.accounts.length !== input.accountIds.length) {
@@ -716,6 +790,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     input.accountIds !== undefined ||
     input.media !== undefined ||
     input.thread !== undefined ||
+    input.accountOverrides !== undefined ||
     input.accountOptions !== undefined ||
     input.imageFit !== undefined ||
     input.postingMode !== undefined ||
@@ -754,7 +829,13 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       : input.thread === null
         ? []
         : mergeThreadMedia(toThreadSegments(input.thread), currentPost.thread);
-  let accountOverrides = currentPost.accountOverrides;
+  let accountOverrides =
+    input.accountOverrides === undefined
+      ? currentPost.accountOverrides
+      : input.accountOverrides === null
+        ? {}
+        : (mergeOverrideThreadMedia(toAccountOverrides(input.accountOverrides), currentPost.accountOverrides) ?? {});
+  assertOverridesTargetAccounts(input.accountOverrides ? accountOverrides : undefined, accountIds);
   const ingested = await ingestPostMedia(
     userId,
     { media, thread, accountOptions, accountOverrides },
@@ -861,7 +942,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
         accountLabel: account.username ?? account.displayName ?? account.accountId,
       })),
       replacingSocialAccounts,
-      threadSegments: (threadForValidation?.length ?? 0) + 1,
+      threadSegments: longestThreadLength(accountIds, threadForValidation, accountOverrides),
       isDraft: targetPostingMode === "draft",
       isExistingPostUpdate: currentPost.status !== "draft",
     });
@@ -877,8 +958,13 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   });
 
   // Fitting replaces originals with derivatives, so it orphans objects too.
-  if (input.media !== undefined || input.thread !== undefined || input.imageFit) {
-    const removedMedia = getRemovedMedia(originalMedia, media, thread ?? undefined);
+  if (
+    input.media !== undefined ||
+    input.thread !== undefined ||
+    input.accountOverrides !== undefined ||
+    input.imageFit
+  ) {
+    const removedMedia = getRemovedMedia(originalMedia, media, thread ?? undefined, accountOverrides);
     if (removedMedia.length > 0) {
       await deleteMediaFiles(userId, removedMedia);
     }
@@ -896,6 +982,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
       accountsChanged: input.accountIds !== undefined,
       mediaChanged: input.media !== undefined || input.imageFit !== undefined,
       threadChanged: input.thread !== undefined || (input.imageFit !== undefined && (thread?.length ?? 0) > 0),
+      accountOverridesChanged: input.accountOverrides !== undefined,
       statusChanged: targetPostingMode !== currentPostingMode,
       scheduledForChanged: input.scheduledFor !== undefined || targetPostingMode !== currentPostingMode,
       quoteChanged: input.quotePostId !== undefined,
@@ -1032,6 +1119,8 @@ export async function createPost(
   const threadSegments = toThreadSegments(input.thread);
   let threadForPersistence = threadSegments.length > 0 ? threadSegments : undefined;
   const threadSegmentCount = threadSegments.length;
+  let accountOverrides = toAccountOverrides(input.accountOverrides);
+  assertOverridesTargetAccounts(accountOverrides, input.accountIds);
   const repostSettings = await resolvePostRepostSettings(userId, undefined);
   const quoteSource = await validateQuoteSource({
     userId,
@@ -1046,6 +1135,7 @@ export async function createPost(
       media: mediaFiles,
       thread: threadForPersistence,
       accountOptions: input.accountOptions,
+      accountOverrides,
     },
     {
       onUploaded: async (url) => {
@@ -1055,6 +1145,7 @@ export async function createPost(
   );
   mediaFiles = ingested.media ?? [];
   threadForPersistence = ingested.thread;
+  accountOverrides = ingested.accountOverrides;
   input = { ...input, accountOptions: ingested.accountOptions };
 
   // Validate content
@@ -1066,6 +1157,7 @@ export async function createPost(
     media: mediaFiles,
     accountIds: input.accountIds,
     accountOptions: input.accountOptions,
+    accountOverrides,
     thread: threadForPersistence,
   });
 
@@ -1132,7 +1224,7 @@ export async function createPost(
       await assertCanCreatePost(userId, tx, {
         action: `mcp_create_${postingMode}_post`,
         socialAccounts: toBillingSocialAccounts(validation.accounts),
-        threadSegments: threadSegments.length + 1,
+        threadSegments: longestThreadLength(input.accountIds, threadForPersistence, accountOverrides),
         isDraft: postingMode === "draft",
       });
       const createdPost = await repository.createPost(
@@ -1140,6 +1232,7 @@ export async function createPost(
           message: input.message,
           accountIds: input.accountIds,
           accountOptions: input.accountOptions,
+          accountOverrides,
           media: mediaFiles,
           scheduledFor,
           status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
@@ -1194,7 +1287,7 @@ export async function createPost(
         mediaFiles,
         input.accountIds,
         input.accountOptions,
-        undefined,
+        accountOverrides,
         threadForPersistence,
         quoteTargets,
         undefined,

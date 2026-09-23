@@ -10,6 +10,8 @@ export interface DraftAccountOverride {
   enabled: boolean;
   message: string;
   media: MediaFile[];
+  /** Absent means this account uses the common thread; [] means it publishes no follow-ups. */
+  thread?: ThreadSegment[];
 }
 
 export type DraftAccountOverridesMap = Record<string, DraftAccountOverride>;
@@ -51,6 +53,7 @@ interface PostDraftContextValue extends PostDraftState {
   setAccountOverrideEnabled: (accountId: string, enabled: boolean) => void;
   setAccountOverrideMessage: (accountId: string, message: string) => void;
   setAccountOverrideMedia: (accountId: string, media: MediaFile[]) => void;
+  setAccountOverrideThread: (accountId: string, thread: ThreadSegment[] | undefined) => void;
   setThread: (value: ThreadSegment[]) => void;
   setQuotePostId: (value: string | null) => void;
   addThreadSegment: () => void;
@@ -168,6 +171,7 @@ function normalizeAccountOverrides(value: unknown): DraftAccountOverridesMap {
       enabled: override.enabled === true,
       message: typeof override.message === "string" ? override.message : "",
       media: normalizeMedia(override.media),
+      ...(Array.isArray(override.thread) ? { thread: normalizeThread(override.thread) } : {}),
     };
     return acc;
   }, {});
@@ -439,6 +443,13 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     [updateAccountOverride],
   );
 
+  const setAccountOverrideThread = useCallback(
+    (accountId: string, overrideThread: ThreadSegment[] | undefined) => {
+      updateAccountOverride(accountId, { thread: overrideThread });
+    },
+    [updateAccountOverride],
+  );
+
   const addThreadSegment = useCallback(() => {
     updateDraft({ thread: [...draftRef.current.thread, { message: "" }] });
   }, [updateDraft]);
@@ -512,6 +523,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setAccountOverrideEnabled,
       setAccountOverrideMessage,
       setAccountOverrideMedia,
+      setAccountOverrideThread,
       addThreadSegment,
       removeThreadSegment,
       updateThreadSegmentMessage,
@@ -548,6 +560,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setAccountOverrideEnabled,
       setAccountOverrideMedia,
       setAccountOverrideMessage,
+      setAccountOverrideThread,
       resetDraft,
       addThreadSegment,
       removeThreadSegment,

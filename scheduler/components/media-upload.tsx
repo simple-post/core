@@ -6,9 +6,10 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "
 import Link from "next/link";
 
 import { normalizeContentType } from "@simple-post/sdk/media-types";
-import { Upload, X, Video, ImageIcon, Images, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, X, Video, ImageIcon, Images, AlertCircle, Info, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { logClientError, logClientInfo, logClientWarning } from "@/lib/logger/client";
 import { WEB_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { generateThumbnail } from "@/lib/utils/client-thumbnail";
@@ -442,6 +443,30 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
 
   const canAddMore = totalFiles < maxFiles && !isUploading;
 
+  // Upload limits, kept beside the add control instead of on a line of their own.
+  const uploadLimitsInfo = (className = "") => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label="Upload limits"
+          className={`text-muted-foreground transition-colors hover:text-foreground ${className}`}>
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        Up to {Math.round(maxFileSize / (1024 * 1024))} MiB per file. Platform limits also apply.{" "}
+        <Link
+          href="https://docs.simplepost.social/publishing#upload-limits"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2">
+          Upload limits
+        </Link>
+      </TooltipContent>
+    </Tooltip>
+  );
+
   // Compact add button (shown in grid when there's already media)
   const cannotAddMore = !canAddMore;
   const compactAddButton = (
@@ -472,6 +497,7 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
         <Upload className={`h-6 w-6 mb-1 ${dragActive ? "text-foreground" : "text-muted-foreground"}`} />
         <p className="text-xs text-muted-foreground">Add more</p>
       </div>
+      {uploadLimitsInfo("absolute top-1.5 right-1.5 z-10")}
     </div>
   );
 
@@ -556,18 +582,16 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
   return (
     <div className="space-y-4">
       {/* Show upload area when no media and nothing uploading */}
-      {media.length === 0 && uploading.length === 0 && (compact ? stripUploadArea : largeUploadArea)}
-
-      <p className="text-xs text-muted-foreground">
-        Up to {Math.round(maxFileSize / (1024 * 1024))} MiB per file. Platform limits also apply.{" "}
-        <Link
-          href="https://docs.simplepost.social/publishing#upload-limits"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2">
-          Upload limits
-        </Link>
-      </p>
+      {media.length === 0 &&
+        uploading.length === 0 &&
+        (compact ? (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">{stripUploadArea}</div>
+            {uploadLimitsInfo()}
+          </div>
+        ) : (
+          largeUploadArea
+        ))}
 
       {/* Error Messages */}
       {errors.length > 0 && (

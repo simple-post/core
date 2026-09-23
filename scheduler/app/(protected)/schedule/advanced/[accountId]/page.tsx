@@ -13,7 +13,6 @@ import { useTrialPostAllowance } from "@/components/billing/trial-post-allowance
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "@/components/media-upload";
 import { Navbar } from "@/components/navbar";
 import { usePostDraft } from "@/components/post-draft-context";
-import { PublishingHelp } from "@/components/publishing-help";
 import { ThreadSegmentsEditor } from "@/components/thread-segments-editor";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -145,7 +144,6 @@ export default function AdvancedAccountSettingsPage() {
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <div className="mb-6 space-y-3 animate-reveal">
-          <PublishingHelp platforms={[account.platform]} />
           <BackLink href="/schedule" label="Back to create post" />
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">

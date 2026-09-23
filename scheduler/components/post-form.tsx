@@ -13,7 +13,6 @@ import { toast } from "sonner";
 
 import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
-import { PublishingHelp } from "@/components/publishing-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -541,7 +540,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <PublishingHelp platforms={selectedAccounts.map((account) => account.platform)} />
         {quotePostId ? (
           <QuotePostCard
             sourcePost={quotePost}

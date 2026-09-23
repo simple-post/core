@@ -18,7 +18,6 @@ import {
   useTrialPostAllowance,
 } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
-import { PublishingHelp } from "@/components/publishing-help";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -708,7 +707,6 @@ export function CreatePostForm() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <PublishingHelp platforms={selectedAccounts.map((account) => account.platform)} />
         <div className="flex justify-end">
           <Button
             type="button"

@@ -4,6 +4,13 @@ This document lists deployment and client changes that require an explicit
 action when upgrading SimplePost. Read it together with the
 [changelog](../../CHANGELOG.md).
 
+## 1.4.0
+
+Upgrade both `@simple-post/sdk` and `@simple-post/cli` to 1.4.0. CLI 1.4.0
+requires SDK `^1.4.0`. Image fitting is opt-in; existing publishing behavior is
+unchanged without `imageFit` or `--fit-images`. See the [image fitting guide](../image-fitting.md)
+for transformation behavior, limits, and hosted rollout requirements.
+
 ## 1.3.3
 
 Upgrade both packages to 1.3.3. CLI 1.3.3 requires SDK `^1.3.3`.

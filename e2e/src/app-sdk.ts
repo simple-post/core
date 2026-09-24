@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { configuredAppRoot } from "./app-root.js";
 
-type AppSdk = Pick<typeof import("@simple-post/sdk"), "PostOptionsSchema" | "validatePostMedia"> &
+type AppSdk = Pick<typeof import("@simple-post/sdk"), "PostOptionsSchema" | "validatePostMedia" | "fitPostImages"> &
   Pick<typeof import("@simple-post/sdk/validation"), "validateContentForPlatform">;
 const loaded = new Map<string, AppSdk>();
 export function applicationSdk(): AppSdk {
@@ -13,6 +13,7 @@ export function applicationSdk(): AppSdk {
   const require = createRequire(path.join(root, "package.json"));
   try {
     const sdk = {
+      fitPostImages: require("@simple-post/sdk").fitPostImages,
       validatePostMedia: require("@simple-post/sdk").validatePostMedia,
       PostOptionsSchema: require("@simple-post/sdk").PostOptionsSchema,
       validateContentForPlatform: require("@simple-post/sdk/validation").validateContentForPlatform,

@@ -1,3 +1,4 @@
+import { imageFitFixtures } from "./image-fit-fixtures.js";
 import { validationFixtures } from "./validation-fixtures.js";
 import { filenames } from "../src/media.js";
 import { spawnSync } from "node:child_process";
@@ -40,6 +41,7 @@ for (const sound of [true, false]) {
   ffmpeg([...args, path.join(dir, sound ? "video.mp4" : "silent-video.mp4")]);
 }
 await validationFixtures(dir);
+await imageFitFixtures(dir);
 const manifest: Record<string, unknown> = {};
 for (const file of Object.values(filenames)) {
   const bytes = await readFile(path.join(dir, file));

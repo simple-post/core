@@ -42,6 +42,8 @@ export function reportRows(config: LiveConfig, attempts: AggregateAttempt[], sce
             input: m.input ?? "default",
             mode: m.mode ?? "now",
             options: m.options,
+            ...(m.imageFitReview ? { imageFitReview: m.imageFitReview } : {}),
+            ...(m.imageFit ? { imageFit: m.imageFit } : {}),
             omittedOptions: m.omitOptions,
             message: m.message,
             expectedText: m.expectedText,

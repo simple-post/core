@@ -1,3 +1,4 @@
+import { imageFitCases } from "./image-fit-cases.js";
 import { validationCases } from "./validation-cases.js";
 import { createHash } from "node:crypto";
 import {
@@ -13,7 +14,7 @@ import {
 import { selection, type Account } from "./config.js";
 const all = [...interfaces];
 const hosted: Interface[] = ["mcp", "ui"];
-const cases: Scenario[] = [...validationCases];
+const cases: Scenario[] = [...validationCases, ...imageFitCases];
 function add(platform: Platform, id: string, media: MediaKey[], options: Options = {}, extra: Partial<Scenario> = {}) {
   cases.push({ id: `${platform}.${id}`, platform, media, options, tags: ["full"], interfaces: all, ...extra });
 }

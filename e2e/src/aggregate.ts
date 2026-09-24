@@ -49,6 +49,8 @@ function semanticSignature(scenario: JournalEntry["scenario"]): string {
           expectedText: scenario.expectedText,
           expectedTitle: scenario.expectedTitle,
           options: scenario.options,
+          ...(scenario.imageFitReview ? { imageFitReview: scenario.imageFitReview } : {}),
+          ...(scenario.imageFit ? { imageFit: scenario.imageFit } : {}),
           tags: scenario.tags,
           interfaces: scenario.interfaces,
           mode: scenario.mode,

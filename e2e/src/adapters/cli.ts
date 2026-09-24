@@ -106,6 +106,7 @@ export async function cliCreate(
       file,
       JSON.stringify({
         platforms: [s.platform],
+        ...(s.imageFit ? { imageFit: s.imageFit } : {}),
         content: { text: s.message, media: media.map((m) => ({ type: m.type, path: m.path })) },
         options: { [s.platform]: s.options },
       }),
@@ -114,6 +115,7 @@ export async function cliCreate(
     args.push("--post-json", file);
   } else {
     args.push("--text", s.message);
+    if (s.imageFit) args.push("--fit-images", s.imageFit);
     if (Object.keys(mapped.remaining).length) args.push("--options-json", optionsFile);
     else args.push(...mapped.args);
     const needsOrderedMedia = media.some(

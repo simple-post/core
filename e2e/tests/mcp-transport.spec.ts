@@ -7,6 +7,8 @@ import { materialize, catalog } from "../src/catalog.js";
 import { serve, config, account } from "./helpers.js";
 for (const id of [
   "tiktok.smoke",
+  "instagram.fit-portrait-crop",
+  "instagram.fit-portrait-blur",
   "telegram.album-photos",
   "telegram.album-videos",
   "telegram.album-mixed",
@@ -20,7 +22,9 @@ for (const id of [
           ...catalog.find((c) => c.id === id)!,
           options: id.startsWith("tiktok")
             ? { privacyLevel: "SELF_ONLY", autoAddMusic: false, description: "" }
-            : { parseMode: "HTML" },
+            : id.startsWith("telegram")
+              ? { parseMode: "HTML" }
+              : {},
         },
         a,
         "mcp",
@@ -98,6 +102,7 @@ for (const id of [
         },
       );
       expect(recorded).toBe(true);
+      expect(calls.at(-1)!.args.imageFit).toBe(s.imageFit);
       expect(schedulePrepared).toBe(s.mode === "schedule");
       if (s.mode === "schedule")
         expect(calls.at(-1)!.args).toMatchObject({

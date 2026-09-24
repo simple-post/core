@@ -6,6 +6,17 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-24
+
+### Added
+
+- Opt-in image fitting for incompatible image formats, dimensions, aspect ratios, and file sizes. Crop or add blurred padding before publishing; the SDK also exposes helpers for preparing and reviewing fitted images.
+- CLI `--fit-images crop|blur` for local and hosted posts, with an interactive choice when image validation finds a fixable issue.
+
+### Upgrade notes
+
+- Upgrade both packages to 1.4.0. CLI 1.4.0 requires SDK `^1.4.0`. Image fitting is opt-in; see [image fitting](docs/image-fitting.md) for behavior and processing limits. Hosted fitting is separately gated by the Scheduler feature flag.
+
 ## [1.3.3] - 2026-09-09
 
 ### Fixed

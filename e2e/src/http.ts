@@ -19,7 +19,7 @@ export type PostRecord = {
   accountIds?: string[];
   threadResults?: Record<string, PostingResult[]>;
   accounts?: { id: string }[];
-  media?: { url: string }[];
+  media?: { url: string; size?: number }[];
   thread?: { message: string }[];
 };
 export class SchedulerApi {
@@ -86,6 +86,34 @@ export class SchedulerApi {
     } finally {
       await context.dispose();
     }
+  }
+  /**
+   * Stage a deliberately malformed fixture with the same direct-to-storage
+   * mechanism available to browser clients. The normal streaming endpoint
+   * rejects it before it can reach the validation test, which is correct for
+   * customer uploads but prevents us from testing validation of a remote URL.
+   */
+  async uploadUncheckedFixture(file: MediaFile): Promise<{ url: string; size: number }> {
+    const mimeType = file.filename.endsWith(".mp4")
+      ? "video/mp4"
+      : file.filename.endsWith(".webp")
+        ? "image/webp"
+        : "image/jpeg";
+    const presigned = await this.request<{ uploadUrl: string; publicUrl: string }>("/api/v1/upload/presign", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filename: file.filename, contentType: mimeType, size: file.size }),
+    });
+    const bytes = await readFile(file.path);
+    const response = await fetch(presigned.uploadUrl, {
+      method: "PUT",
+      headers: { "content-type": mimeType, "content-length": String(bytes.length) },
+      body: bytes,
+      redirect: "error",
+      signal: AbortSignal.timeout(this.config.publishTimeoutMs),
+    });
+    if (!response.ok) throw new Error(`Fixture direct upload failed (${response.status})`);
+    return { url: presigned.publicUrl, size: file.size };
   }
   async post(id: string) {
     return (await this.request<{ post: PostRecord }>(`/api/v1/posts/${encodeURIComponent(id)}`)).post;

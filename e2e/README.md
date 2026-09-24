@@ -240,3 +240,29 @@ Artifacts are scoped to each run under `.local/runs/RUN_ID/`, including `test-re
 Cancel tests remove only the scheduled/draft post they created through the same customer interface. Other external posts remain for review and manual deletion. The runner deliberately does not assume that deleting a SimplePost record deletes the social post. Media uploaded during an interrupted setup may also require storage lifecycle cleanup. Artifacts may contain private test content; keep them private. Keep browser authentication state, OAuth tokens, and CLI secret stores separate from any reports you share. Traces are off because they can expose session credentials.
 
 Run the suite locally using the commands above. Keep `runDir` on persistent local storage so receipts, posting budgets, and recovery history survive interrupted runs.
+
+## Image fitting E2E (authored September 22; not run yet)
+
+The `image-fit` group adds 30 scenarios / 66 supported interface combinations: 18 UI, 28 MCP and 20 CLI-app. A full execution would create up to 64 real platform posts; two MCP cases only validate rejection. Select a platform/interface or exact scenario to keep the run small. These are authored coverage, **not verified passes**.
+
+- Instagram: crop versus blur with visible edge markers, WebP-to-JPEG conversion, ordered carousels with a compatible image left untouched, compatible-source preservation, remote URLs, CLI JSON, and MCP validation/preview followed by publishing the reviewed images.
+- Telegram and TikTok: images above their dimension limits are resized; LinkedIn: images above its pixel limit; Bluesky: an image above its 2,000,000-byte limit is recompressed.
+- UI: generate previews, cancel and reopen without changing originals, switch methods from the original source, apply, then submit exactly those reviewed URLs. Server post writes are blocked throughout review. Scheduling starts its timer only after review finishes.
+- UI/MCP lifecycle: save fitted drafts, edit and schedule them, reload stored media, wait for real dispatch and confirm derivatives were retained.
+- Negative controls: fitting must not hide a too-short Instagram video or an invalid TikTok photo cover index.
+
+Saved derivative bytes are downloaded and checked independently for format, dimensions, byte limits, crop/padding markers and unchanged compatible attachments. CLI source files and UI uploaded originals must survive unchanged. Existing native-platform observers still verify the author, exact post, caption, ordered media and image content; a successful resize API response alone never passes a publishing case. Journals retain receipts and image-fit evidence for verification-only resumption. Historical report signatures distinguish methods and reviewed-content flows.
+
+Hosted UI/MCP fitting requires the test user's `IMAGE_FITTING` feature. Each new hosted fitting case reads `/api/v1/features` before its adapter prepares or submits fitting. Missing access, authentication errors, or invalid responses block that case without submitting it; they are not treated as passes or skips. This check does not affect global preflight or non-fitting cases (the runner's normal stop-on-failure policy still applies). Existing receipts can be verified without another fitting request. CLI-app fits locally before uploading, matching the customer CLI path. Existing platform observer requirements still apply, including TikTok's manual challenges and settings observers.
+
+The two new generated fixtures are checked in; `yarn e2e:fixtures` can reproduce them. The high-entropy compression fixture is about 7.6 MB. No credentials or live account configuration were changed when authoring this group.
+
+When execution is explicitly requested later, a small starting selection is:
+
+```sh
+yarn e2e:live --platform instagram --interface ui --all --scenario '=instagram.fit-portrait-blur'
+```
+
+Use `--scenario fit-` to select this whole group (or combine it with `--platform telegram`, etc.). Do not start the full group just to list coverage. The associated offline tests cover the real CLI subprocess upload bytes, MCP transport arguments, SDK fixture validity and rejection of incorrect fitting evidence; those tests have also **not been run yet**.
+
+This group does not claim live coverage for EXIF rotation, transparent/animated input flattening, account-specific override/thread image fitting, video covers, or UI image replacement. Existing application tests cover portions of those behaviors; they need separate live scenarios before being counted here.

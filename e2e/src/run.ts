@@ -1,3 +1,5 @@
+import { verifyFittedMedia } from "./verification/image-fit.js";
+import { assertImageFitEntitlement } from "./image-fit-entitlement.js";
 import { expect, type Browser, type Page, type TestInfo } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -195,6 +197,7 @@ export async function runScenario(
     if (process.env.E2E_VERIFY_ONLY === "1" && !entry.receipt)
       throw new Error("BLOCKED: verification-only mode requires an existing receipt. No submission was sent.");
     if (!entry.receipt) {
+      await assertImageFitEntitlement(api, s, iface);
       progress("Preparing and submitting through the customer interface.");
       const media = await mediaFiles(config, s.media);
       const beforeSubmit = async () => {
@@ -208,6 +211,13 @@ export async function runScenario(
       else if (iface === "ui") receipt = await uiCreate(page, config, s, account, media, beforeSubmit, prepareSchedule);
       else receipt = await cliCreate(config, s, account, media, iface, journal.dir);
       await record(receipt);
+      if (s.imageFit) {
+        const after = await mediaFiles(config, s.media);
+        expect(
+          after.map((file) => file.sha256),
+          "Fitting must never overwrite the local source files",
+        ).toEqual(media.map((file) => file.sha256));
+      }
     }
     if (s.expectedError) {
       expect(entry.receipt!.status, "Invalid content must be rejected, never posted").toBe("validation-rejected");
@@ -229,6 +239,19 @@ export async function runScenario(
     if (receipt.simplePostId) {
       const post = await api.post(receipt.simplePostId);
       await assertSaved(post, s, account, config, iface);
+      if (entry.receipt!.reviewedMediaUrls)
+        expect(
+          post.media?.map((m) => m.url),
+          "The saved post must use exactly the images reviewed by the customer",
+        ).toEqual(entry.receipt!.reviewedMediaUrls);
+      if (s.imageFit) {
+        const evidence = await verifyFittedMedia(config, s, post.media ?? []);
+        const file = path.join(journal.dir, `${s.token}-image-fit.json`);
+        await writeFile(file, JSON.stringify(evidence, null, 2), { mode: 0o600 });
+        await info.attach("image-fit", { path: file, contentType: "application/json" });
+        entry.evidence = [...new Set([...(entry.evidence ?? []), file])];
+        await journal.save(entry);
+      }
       if (iface === "mcp") {
         const inspected = await mcp!.call<{ posts: PostRecord[] }>("inspect_posts", { postId: post.id });
         expect(inspected.posts).toHaveLength(1);
@@ -288,6 +311,17 @@ export async function runScenario(
       if (s.mode === "schedule" || s.mode === "draft-edit") {
         progress(`Waiting for scheduled dispatch at ${s.scheduledFor}.`);
         receipt = await waitForDispatch(api, post.id, s, account, config, iface);
+        if (s.imageFit) {
+          const dispatched = await api.post(post.id);
+          // Editing a draft can create a fresh database media row for the
+          // same stored object. The ID is an implementation detail; preserve
+          // the public file identity and bytes that customers actually get.
+          expect(
+            (dispatched.media ?? []).map((media) => ({ url: media.url, size: media.size })),
+            "Scheduling must not revert fitted media",
+          ).toEqual((post.media ?? []).map((media) => ({ url: media.url, size: media.size })));
+          await verifyFittedMedia(config, s, dispatched.media ?? []);
+        }
         await record(receipt);
       }
     }
@@ -331,7 +365,7 @@ export async function runScenario(
       );
     }
     entry.phase = "verified";
-    entry.evidence = evidence;
+    entry.evidence = [...new Set([...(entry.evidence ?? []), ...evidence])];
     clearVerifiedError(entry);
     await journal.save(entry);
     for (const file of evidence) await info.attach(path.basename(file), { path: file, contentType: "image/png" });

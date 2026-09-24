@@ -77,29 +77,37 @@ function TikTokPrivacyRow({
     hint = "This option isn't available for this account anymore. Choose another one.";
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={selectId} className="text-sm font-normal text-muted-foreground">
-        {showAccountName ? `Who can see this post on ${getAccountDisplayName(account)}` : "Who can see this post"}
-      </Label>
-      <Select
-        value={privacyLevel ?? ""}
-        disabled={unavailable || !creatorInfo}
-        onValueChange={(value) => onUpdate(account.id, { privacyLevel: value, visibility: undefined })}>
-        <SelectTrigger id={selectId} className="w-full border-border">
-          <SelectValue placeholder={isLoading ? "Loading options…" : "Choose who can see it"} />
-        </SelectTrigger>
-        <SelectContent>
-          {(creatorInfo?.privacyLevelOptions ?? []).map((level) => {
-            const blocked = brandedContent && level === "SELF_ONLY";
-            return (
-              <SelectItem key={level} value={level} disabled={blocked}>
-                {TIKTOK_PRIVACY_LABELS[level]}
-                {blocked ? " (not available for branded content)" : ""}
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={selectId} className="min-w-0 text-sm font-normal">
+          {showAccountName ? (
+            <span className="truncate">
+              Who can see it on <span className="font-medium">{getAccountDisplayName(account)}</span>
+            </span>
+          ) : (
+            "Who can see this post"
+          )}
+        </Label>
+        <Select
+          value={privacyLevel ?? ""}
+          disabled={unavailable || !creatorInfo}
+          onValueChange={(value) => onUpdate(account.id, { privacyLevel: value, visibility: undefined })}>
+          <SelectTrigger id={selectId} size="sm" className="w-36 shrink-0">
+            <SelectValue placeholder={isLoading ? "Loading…" : "Choose"} />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {(creatorInfo?.privacyLevelOptions ?? []).map((level) => {
+              const blocked = brandedContent && level === "SELF_ONLY";
+              return (
+                <SelectItem key={level} value={level} disabled={blocked}>
+                  {TIKTOK_PRIVACY_LABELS[level]}
+                  {blocked ? " (not for branded content)" : ""}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </div>
       {hint ? <p className="text-xs text-destructive">{hint}</p> : null}
     </div>
   );
@@ -127,7 +135,7 @@ function TikTokConsent({
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1 border-t border-border pt-3">
       <div className="flex items-start gap-2">
         <Checkbox
           id={id}
@@ -135,7 +143,7 @@ function TikTokConsent({
           onCheckedChange={(value) => onCheckedChange(value === true)}
           className="mt-0.5"
         />
-        <Label htmlFor={id} className="text-sm font-normal leading-relaxed cursor-pointer">
+        <Label htmlFor={id} className="block text-sm font-normal leading-snug cursor-pointer">
           By posting, you agree to TikTok&apos;s{" "}
           {brandedContent ? (
             <>
@@ -202,9 +210,9 @@ export function TikTokSettings({
   if (directPostAccounts.length === 0 && !consent) return null;
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-3 text-sm">
-      <div className="flex items-center gap-2 font-medium">
-        <PlatformIcon platform="tiktok" className="h-3.5 w-3.5" />
+    <div className="space-y-3 rounded-lg border border-border bg-card px-3 py-3 text-sm">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <PlatformIcon platform="tiktok" className="h-4 w-4 shrink-0 text-primary" />
         TikTok
       </div>
       {directPostAccounts.map((account) => (

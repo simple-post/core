@@ -19,7 +19,6 @@ import {
 } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -59,7 +58,7 @@ import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-import { TikTokPrivacySettings } from "./tiktok-privacy-settings";
+import { TikTokSettings } from "./tiktok-settings";
 import { ValidationIssueList } from "./validation-issue-list";
 
 type ValidationResponse = ValidationResultByPlatform;
@@ -179,10 +178,6 @@ export function CreatePostForm() {
   );
   const hasSelectedTikTok = selectedTikTokAccounts.length > 0;
   const tiktokConsentRequired = hasSelectedTikTok && postingMode !== "draft";
-  const hasTikTokBrandedContent = selectedTikTokAccounts.some((account) => {
-    const accountOption = accountOptions[account.id] as Record<string, unknown> | undefined;
-    return accountOption?.discloseBrandedContent === true;
-  });
 
   useEffect(() => {
     if (!tiktokConsentRequired) {
@@ -803,63 +798,17 @@ export function CreatePostForm() {
         ) : null}
 
         {hasSelectedTikTok ? (
-          <TikTokPrivacySettings
+          <TikTokSettings
             accounts={selectedTikTokAccounts}
             accountOptions={accountOptions}
             onAccountOptionsChange={setAccountOptions}
+            consent={
+              tiktokConsentRequired
+                ? { id: "tiktok-consent-create", checked: tiktokConsent, onCheckedChange: setTikTokConsent }
+                : undefined
+            }
           />
         ) : null}
-
-        {tiktokConsentRequired && (
-          <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="tiktok-consent-create"
-                checked={tiktokConsent}
-                onCheckedChange={(checked) => setTikTokConsent(checked === true)}
-                className="mt-0.5"
-              />
-              <Label htmlFor="tiktok-consent-create" className="text-sm font-normal leading-relaxed cursor-pointer">
-                {hasTikTokBrandedContent ? (
-                  <>
-                    By posting, you agree to TikTok&apos;s{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/bc-policy/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Branded Content Policy
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Music Usage Confirmation
-                    </a>
-                    .
-                  </>
-                ) : (
-                  <>
-                    By posting, you agree to TikTok&apos;s{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Music Usage Confirmation
-                    </a>
-                    .
-                  </>
-                )}
-              </Label>
-            </div>
-            <p className="pl-6 text-xs text-muted-foreground">
-              TikTok may take a few minutes to process your content before it is visible on your profile.
-            </p>
-          </div>
-        )}
 
         <div className="flex gap-4 pt-4">
           <Button

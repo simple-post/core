@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { PlatformIcon } from "@/components/platform-icons";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { mergeAccountOptions } from "@/features/platform-options/merge-account-options";
@@ -84,7 +85,7 @@ function TikTokPrivacyRow({
         value={privacyLevel ?? ""}
         disabled={unavailable || !creatorInfo}
         onValueChange={(value) => onUpdate(account.id, { privacyLevel: value, visibility: undefined })}>
-        <SelectTrigger id={selectId} className="border-border">
+        <SelectTrigger id={selectId} className="w-full border-border">
           <SelectValue placeholder={isLoading ? "Loading options…" : "Choose who can see it"} />
         </SelectTrigger>
         <SelectContent>
@@ -104,23 +105,82 @@ function TikTokPrivacyRow({
   );
 }
 
+function TikTokConsent({
+  id,
+  checked,
+  onCheckedChange,
+  brandedContent,
+}: {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  brandedContent: boolean;
+}) {
+  const musicLink = (
+    <a
+      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2">
+      Music Usage Confirmation
+    </a>
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id={id}
+          checked={checked}
+          onCheckedChange={(value) => onCheckedChange(value === true)}
+          className="mt-0.5"
+        />
+        <Label htmlFor={id} className="text-sm font-normal leading-relaxed cursor-pointer">
+          By posting, you agree to TikTok&apos;s{" "}
+          {brandedContent ? (
+            <>
+              <a
+                href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2">
+                Branded Content Policy
+              </a>{" "}
+              and {musicLink}
+            </>
+          ) : (
+            musicLink
+          )}
+          .
+        </Label>
+      </div>
+      <p className="pl-6 text-xs text-muted-foreground">
+        TikTok may take a few minutes to process your content before it is visible on your profile.
+      </p>
+    </div>
+  );
+}
+
 /**
- * Privacy picker shown in the post form whenever a TikTok account is
- * selected. TikTok requires the creator to pick an audience for every Direct
- * Post, so this keeps the choice next to the submit button instead of only on
- * the per-account customize page.
+ * TikTok panel shown in the post form whenever a TikTok account is selected.
+ * TikTok requires the creator to pick an audience for every Direct Post and to
+ * accept its music terms, so both sit next to the submit button instead of
+ * only on the per-account customize page.
  */
-export function TikTokPrivacySettings({
+export function TikTokSettings({
   accounts,
   accountOptions,
   onAccountOptionsChange,
   shouldApplyInteractionDefaults = () => true,
+  consent,
 }: {
   accounts: ConnectedAccount[];
   accountOptions: AccountOptionsMap;
   onAccountOptionsChange: (options: AccountOptionsMap) => void;
   /** Existing posts keep what was saved; only new selections get the defaults. */
   shouldApplyInteractionDefaults?: (accountId: string) => boolean;
+  /** Omitted when nothing is published yet (saving a SimplePost draft). */
+  consent?: { id: string; checked: boolean; onCheckedChange: (checked: boolean) => void };
 }) {
   const optionsRef = useRef(accountOptions);
   useEffect(() => {
@@ -138,13 +198,14 @@ export function TikTokPrivacySettings({
 
   // Inbox uploads pick the audience later inside TikTok.
   const directPostAccounts = accounts.filter((account) => accountOptions[account.id]?.publishMode !== "draft");
-  if (directPostAccounts.length === 0) return null;
+  const brandedContent = accounts.some((account) => accountOptions[account.id]?.discloseBrandedContent === true);
+  if (directPostAccounts.length === 0 && !consent) return null;
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-3 text-sm">
       <div className="flex items-center gap-2 font-medium">
         <PlatformIcon platform="tiktok" className="h-3.5 w-3.5" />
-        TikTok privacy
+        TikTok
       </div>
       {directPostAccounts.map((account) => (
         <TikTokPrivacyRow
@@ -156,6 +217,7 @@ export function TikTokPrivacySettings({
           onUpdate={updateOptions}
         />
       ))}
+      {consent ? <TikTokConsent {...consent} brandedContent={brandedContent} /> : null}
     </div>
   );
 }

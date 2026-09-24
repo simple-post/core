@@ -10,6 +10,8 @@ export interface DraftAccountOverride {
   enabled: boolean;
   message: string;
   media: MediaFile[];
+  /** Absent means this account uses the common thread; [] means it publishes no follow-ups. */
+  thread?: ThreadSegment[];
 }
 
 export type DraftAccountOverridesMap = Record<string, DraftAccountOverride>;
@@ -19,7 +21,7 @@ export interface DraftRepostSettings {
   delayHours: number;
 }
 
-interface PostDraftState {
+export interface PostDraftState {
   message: string;
   media: MediaFile[];
   selectedAccountIds: string[];
@@ -51,6 +53,7 @@ interface PostDraftContextValue extends PostDraftState {
   setAccountOverrideEnabled: (accountId: string, enabled: boolean) => void;
   setAccountOverrideMessage: (accountId: string, message: string) => void;
   setAccountOverrideMedia: (accountId: string, media: MediaFile[]) => void;
+  setAccountOverrideThread: (accountId: string, thread: ThreadSegment[] | undefined) => void;
   setThread: (value: ThreadSegment[]) => void;
   setQuotePostId: (value: string | null) => void;
   addThreadSegment: () => void;
@@ -168,6 +171,7 @@ function normalizeAccountOverrides(value: unknown): DraftAccountOverridesMap {
       enabled: override.enabled === true,
       message: typeof override.message === "string" ? override.message : "",
       media: normalizeMedia(override.media),
+      ...(Array.isArray(override.thread) ? { thread: normalizeThread(override.thread) } : {}),
     };
     return acc;
   }, {});
@@ -245,26 +249,38 @@ function getStorageErrorMessage(error: unknown) {
   return "Draft could not be saved in this browser.";
 }
 
-export function PostDraftProvider({ children }: { children: React.ReactNode }) {
+/**
+ * Holds the composer's draft across the composer and its per-account pages.
+ *
+ * Without `initialDraft` this is the new-post draft, persisted per user in
+ * localStorage. With it, the draft is an in-memory copy of an existing post
+ * being edited or duplicated, so it never touches the new-post draft.
+ */
+export function PostDraftProvider({
+  children,
+  initialDraft,
+}: {
+  children: React.ReactNode;
+  initialDraft?: PostDraftState;
+}) {
   const { data: session } = useSession();
-  const storageKey = session?.user?.id ? `${DRAFT_STORAGE_KEY_PREFIX}:${session.user.id}` : null;
+  const storageKey = !initialDraft && session?.user?.id ? `${DRAFT_STORAGE_KEY_PREFIX}:${session.user.id}` : null;
+  const [initial] = useState(() => initialDraft ?? DEFAULT_DRAFT);
   const hydratedStorageKeyRef = useRef<string | null>(null);
-  const draftRef = useRef<PostDraftState>(DEFAULT_DRAFT);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const draftRef = useRef<PostDraftState>(initial);
+  const [isHydrated, setIsHydrated] = useState(initialDraft !== undefined);
   const [storageError, setStorageError] = useState<string | null>(null);
-  const [message, setMessageState] = useState(DEFAULT_DRAFT.message);
-  const [media, setMediaState] = useState<MediaFile[]>(DEFAULT_DRAFT.media);
-  const [selectedAccountIds, setSelectedAccountIdsState] = useState<string[]>(DEFAULT_DRAFT.selectedAccountIds);
-  const [postingMode, setPostingModeState] = useState<PostDraftState["postingMode"]>(DEFAULT_DRAFT.postingMode);
-  const [scheduledDate, setScheduledDateState] = useState(DEFAULT_DRAFT.scheduledDate);
-  const [scheduledTime, setScheduledTimeState] = useState(DEFAULT_DRAFT.scheduledTime);
-  const [accountOptions, setAccountOptionsState] = useState<AccountOptionsMap>(DEFAULT_DRAFT.accountOptions);
-  const [accountOverrides, setAccountOverridesState] = useState<DraftAccountOverridesMap>(
-    DEFAULT_DRAFT.accountOverrides,
-  );
-  const [repostSettings, setRepostSettingsState] = useState<DraftRepostSettings>(DEFAULT_DRAFT.repostSettings);
-  const [thread, setThreadState] = useState<ThreadSegment[]>(DEFAULT_DRAFT.thread);
-  const [quotePostId, setQuotePostIdState] = useState<string | null>(DEFAULT_DRAFT.quotePostId);
+  const [message, setMessageState] = useState(initial.message);
+  const [media, setMediaState] = useState<MediaFile[]>(initial.media);
+  const [selectedAccountIds, setSelectedAccountIdsState] = useState<string[]>(initial.selectedAccountIds);
+  const [postingMode, setPostingModeState] = useState<PostDraftState["postingMode"]>(initial.postingMode);
+  const [scheduledDate, setScheduledDateState] = useState(initial.scheduledDate);
+  const [scheduledTime, setScheduledTimeState] = useState(initial.scheduledTime);
+  const [accountOptions, setAccountOptionsState] = useState<AccountOptionsMap>(initial.accountOptions);
+  const [accountOverrides, setAccountOverridesState] = useState<DraftAccountOverridesMap>(initial.accountOverrides);
+  const [repostSettings, setRepostSettingsState] = useState<DraftRepostSettings>(initial.repostSettings);
+  const [thread, setThreadState] = useState<ThreadSegment[]>(initial.thread);
+  const [quotePostId, setQuotePostIdState] = useState<string | null>(initial.quotePostId);
 
   const setDraftState = useCallback((draft: PostDraftState) => {
     draftRef.current = draft;
@@ -439,6 +455,13 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
     [updateAccountOverride],
   );
 
+  const setAccountOverrideThread = useCallback(
+    (accountId: string, overrideThread: ThreadSegment[] | undefined) => {
+      updateAccountOverride(accountId, { thread: overrideThread });
+    },
+    [updateAccountOverride],
+  );
+
   const addThreadSegment = useCallback(() => {
     updateDraft({ thread: [...draftRef.current.thread, { message: "" }] });
   }, [updateDraft]);
@@ -512,6 +535,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setAccountOverrideEnabled,
       setAccountOverrideMessage,
       setAccountOverrideMedia,
+      setAccountOverrideThread,
       addThreadSegment,
       removeThreadSegment,
       updateThreadSegmentMessage,
@@ -548,6 +572,7 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
       setAccountOverrideEnabled,
       setAccountOverrideMedia,
       setAccountOverrideMessage,
+      setAccountOverrideThread,
       resetDraft,
       addThreadSegment,
       removeThreadSegment,
@@ -557,6 +582,11 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <PostDraftContext.Provider value={value}>{children}</PostDraftContext.Provider>;
+}
+
+/** The draft when rendered inside a provider, or null while an edited post is still loading. */
+export function useOptionalPostDraft() {
+  return useContext(PostDraftContext);
 }
 
 export function usePostDraft() {

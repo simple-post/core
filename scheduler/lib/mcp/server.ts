@@ -114,6 +114,12 @@ Use the \`thread\` field on \`validate_post\`, \`preview_post\`, and \`create_po
 - **When to validate**: do not call \`validate_post\` automatically just because \`thread\` is non-empty. \`create_post\` validates every segment before creating or publishing. Use \`validate_post\` only when the user asks for validation-only feedback, and use \`preview_post\` only when the user asks for a preview or details are missing.
 - After \`create_post\` with \`postingMode: "now"\`, inspect \`postingResults[].threadResults\` for per-segment success, \`postId\`, and \`postUrl\` when the platform returned them.
 
+# Different content per account in one post
+
+Use \`accountOverrides\` on \`validate_post\`, \`preview_post\`, \`show_post_preview\`, \`create_post\`, and \`update_scheduled_post\` when accounts need different text or a different thread shape. Keep one post rather than creating separate posts per platform. The map is keyed by account ID; each override can set \`message\`, \`media\`, and \`thread\`, and any field it omits falls back to the shared value. An empty \`thread: []\` means that account publishes no follow-ups.
+
+Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threads is ONE \`create_post\` call: the long text goes in the shared \`message\` with no shared \`thread\`, and each Bluesky and Threads account gets \`{ "message": "<segment 1>", "thread": [{ "message": "<segment 2>" }, ...] }\`. When reporting, show the shared content and each account's custom content.
+
 # TikTok privacy and posting settings
 
 - Photo Direct Posts default to recommended music. To disable it, set \`accountOptions[accountId].autoAddMusic: false\`. Inbox uploads and videos do not get this default. TikTok chooses the track; a specific song cannot be selected here.
@@ -238,20 +244,46 @@ function requireScope(context: McpToolAuthContext, scope: McpScope): void {
   }
 }
 
-function formatPostContent(message: string, thread?: Array<{ message?: string }>): string {
+type ContentOverrides = Record<string, { message?: string; thread?: Array<{ message?: string }> }>;
+
+function formatSegments(heading: string, message: string, thread?: Array<{ message?: string }>): string {
   const segments = (thread ?? []).filter((segment) => segment.message !== undefined);
   if (segments.length === 0) {
-    return `Post content:\n${message}`;
+    return `${heading}\n${message}`;
   }
 
   return [
-    `Post content:\nRoot:\n${message}`,
+    `${heading}\nRoot:\n${message}`,
     ...segments.map((segment, index) => `Reply ${index + 1}:\n${segment.message ?? ""}`),
   ].join("\n\n");
 }
 
-function formatManagedPostContent(post: { message: string; thread?: Array<{ message?: string }> }): string {
-  return formatPostContent(post.message, post.thread);
+function formatPostContent(
+  message: string,
+  thread?: Array<{ message?: string }>,
+  accountOverrides?: ContentOverrides | null,
+): string {
+  const overrides = Object.entries(accountOverrides ?? {}).filter(
+    ([, override]) => override.message !== undefined || override.thread !== undefined,
+  );
+  return [
+    formatSegments("Post content:", message, thread),
+    ...overrides.map(([accountId, override]) =>
+      formatSegments(
+        `Custom content for account ${accountId}:`,
+        override.message ?? message,
+        override.thread ?? thread,
+      ),
+    ),
+  ].join("\n\n");
+}
+
+function formatManagedPostContent(post: {
+  message: string;
+  thread?: Array<{ message?: string }>;
+  accountOverrides?: ContentOverrides;
+}): string {
+  return formatPostContent(post.message, post.thread, post.accountOverrides);
 }
 
 interface AccountSummary {
@@ -641,6 +673,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                 ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
                     input.message,
                     input.thread,
+                    input.accountOverrides,
                   )}\n\n${formatValidationDetails(result)}`
                 : `The post has ${plural(
                     result.summary.errorCount,
@@ -648,6 +681,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                   )} that would block publishing.\n\n${formatPostContent(
                     input.message,
                     input.thread,
+                    input.accountOverrides,
                   )}\n\n${formatValidationDetails(result)}`,
             },
           ],
@@ -681,11 +715,11 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               result.summary.threadSegmentCount > 0
                 ? ` and ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
                 : ""
-            }.\n\n${formatPostContent(input.message, input.thread)}`
+            }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
           : `The preview found ${plural(
               result.summary.errorCount,
               "problem",
-            )} that would block publishing.\n\n${formatPostContent(input.message, input.thread)}`;
+            )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
 
         return {
           structuredContent: result,
@@ -741,7 +775,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
+      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. One call covers every selected account; use accountOverrides for per-account text or thread shape (for example a long post on X and LinkedIn with a thread on Bluesky and Threads) instead of creating separate posts. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
       inputSchema: fittingSchema(createPostSchema, context.imageFittingEnabled),
       outputSchema: createPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
@@ -764,21 +798,21 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                 blockerCount > 0
                   ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
                   : ""
-              }.\n\n${formatPostContent(input.message, input.thread)}`
+              }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
             : result.post.status === "scheduled"
               ? `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
                   result.summary.scheduledCount,
                   "account",
-                )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread)}`
+                )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
               : result.summary.overallSuccess
                 ? `Published the post to ${plural(
                     result.summary.successCount,
                     "account",
-                  )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread)}`
+                  )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
                 : `Published to ${result.summary.successCount} of ${plural(
                     result.summary.accountCount,
                     "account",
-                  )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread)}`;
+                  )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
         const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
 
         return {

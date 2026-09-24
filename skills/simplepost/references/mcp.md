@@ -88,6 +88,25 @@ SimplePost imports a public media URL into managed storage before saving or publ
 
 Use `upload_media.file` only for a structured file parameter registered by the current chat client. Never construct one from a filename, displayed path, file ID, base64 data, or an earlier message. If the reference is unavailable and the media has a public URL, retry once with `upload_media.url`; otherwise ask the user to reattach the file or provide a public URL.
 
+## Per-account content
+
+One post can carry different content per account through `accountOverrides`, keyed by connected account ID. Each override may set `message`, `media`, and `thread`; omitted fields fall back to the shared value, and `thread: []` means no follow-ups for that account. It works on `validate_post`, `preview_post`, `show_post_preview`, `create_post`, and `update_scheduled_post`.
+
+A long post on X and LinkedIn with a thread on Bluesky and Threads is one `create_post` call, not two:
+
+```json
+{
+  "message": "<long post for X and LinkedIn>",
+  "accountIds": ["X_ID", "LINKEDIN_ID", "BLUESKY_ID", "THREADS_ID"],
+  "accountOverrides": {
+    "BLUESKY_ID": { "message": "<part 1>", "thread": [{ "message": "<part 2>" }] },
+    "THREADS_ID": { "message": "<part 1>", "thread": [{ "message": "<part 2>" }] }
+  }
+}
+```
+
+On `update_scheduled_post`, a supplied `accountOverrides` replaces the whole map, and `null` clears it. `inspect_posts` returns each post's `accountOverrides`, so read them before editing.
+
 ## Result Handling
 
 For immediate publishing, inspect:
@@ -102,7 +121,7 @@ For every created or updated post, also inspect:
 - `validation.isValid`, errors, and warnings
 - `post.repostEnabled`, `post.repostDueAt`, and `post.repostStatus`
 
-Always show the exact content that was previewed, created, scheduled, drafted, edited, or discarded.
+Always show the exact content that was previewed, created, scheduled, drafted, edited, or discarded, including each account's custom content.
 
 Drafts are saved even when `validation.isValid` is false. Report that the draft was saved and separately list what must be fixed before publishing. Do not present a saved invalid draft as ready to publish.
 

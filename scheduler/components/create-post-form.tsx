@@ -9,7 +9,7 @@ import { Feature } from "@prisma/client";
 import { canFitImageIssue } from "@simple-post/sdk/image-fit";
 import { REPOST_CAPABLE_PLATFORMS } from "@simple-post/sdk/platform-names";
 import { format } from "date-fns";
-import { AlertTriangle, Info, Plus, Repeat2, Trash2, X } from "lucide-react";
+import { AlertTriangle, Info, Repeat2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -18,14 +18,12 @@ import {
   useTrialPostAllowance,
 } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
-import { PublishingHelp } from "@/components/publishing-help";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -35,23 +33,28 @@ import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
-import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
   mergePostingProgressResult,
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
-import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
+import {
+  getDraftScheduledFor,
+  getLocalScheduledDateTimeError,
+  parseLocalScheduledDateTime,
+} from "@/lib/validations/scheduled-time";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
 import { ImageFitReview } from "./image-fit-review";
-import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
+import { PostContentEditor } from "./post-content-editor";
 import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
@@ -96,6 +99,7 @@ export function CreatePostForm() {
     setMedia,
     setAccountOptions,
     setAccountOverrideMedia,
+    setAccountOverrideThread,
     setSelectedAccountIds,
     setRepostSettings,
     setQuotePostId,
@@ -110,8 +114,6 @@ export function CreatePostForm() {
   } = usePostDraft();
   const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
-  const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
-  const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
   const defaultRepostAppliedRef = useRef(false);
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
@@ -138,6 +140,7 @@ export function CreatePostForm() {
         acc[accountId] = {
           message: override.message,
           media: override.media,
+          ...(override.thread ? { thread: override.thread } : {}),
         };
       }
       return acc;
@@ -358,45 +361,14 @@ export function CreatePostForm() {
     shouldPreflightImages,
   ]);
 
-  const maxTextLength = useMemo(() => {
-    if (!validation) return undefined;
-
-    const commonResults = validation.results.filter((result) => result.usesCommonContent);
-    if (commonResults.length === 0) {
-      return undefined;
-    }
-
-    const hasMedia = media.length > 0;
-    const hasVideo = media.some((item) => item.type === "video");
-    const hasImage = media.some((item) => item.type === "image");
-
-    const limits = commonResults
-      .map((result) => {
-        const textRules = result.rules.text;
-        if (!textRules) return undefined;
-
-        if (hasMedia) {
-          if (textRules.maxCaptionLengthByMediaType) {
-            const candidates: number[] = [];
-            if (hasVideo && textRules.maxCaptionLengthByMediaType.video) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.video);
-            }
-            if (hasImage && textRules.maxCaptionLengthByMediaType.image) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.image);
-            }
-            if (candidates.length > 0) {
-              return Math.min(...candidates);
-            }
-          }
-          return textRules.maxCaptionLength ?? textRules.maxLength;
-        }
-
-        return textRules.maxLength ?? textRules.maxCaptionLength;
-      })
-      .filter((limit): limit is number => typeof limit === "number");
-
-    return limits.length > 0 ? Math.min(...limits) : undefined;
-  }, [validation, media]);
+  const maxTextLength = useMemo(
+    () =>
+      getMaxTextLength(
+        (validation?.results ?? []).filter((result) => result.usesCommonContent),
+        media,
+      ),
+    [validation, media],
+  );
 
   const charCounter = useMemo(
     () =>
@@ -415,7 +387,10 @@ export function CreatePostForm() {
       media.length > 0 ||
       thread.some((segment) => segment.message.trim().length > 0 || (segment.media?.length ?? 0) > 0) ||
       Object.values(enabledOverrides).some(
-        (override) => (override.message ?? "").trim().length > 0 || (override.media?.length ?? 0) > 0,
+        (override) =>
+          (override.message ?? "").trim().length > 0 ||
+          (override.media?.length ?? 0) > 0 ||
+          (override.thread ?? []).some((segment) => segment.message.trim().length > 0),
       ),
     [enabledOverrides, media.length, message, thread],
   );
@@ -448,22 +423,6 @@ export function CreatePostForm() {
 
     return `${platform}: ${issue.message}`;
   };
-
-  const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      setContentTouched(true);
-      void mediaUploadRef.current?.processFiles(imageFiles);
-    }
-  }, []);
-
-  const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      setContentTouched(true);
-      void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
-    }
-  }, []);
 
   const handleMessageChange = useCallback(
     (value: string) => {
@@ -685,14 +644,11 @@ export function CreatePostForm() {
 
   const trialAllowance = useTrialPostAllowance({
     platforms: selectedAccounts.map((account) => account.platform),
-    threadSegments: thread.length + 1,
+    threadSegments: longestThreadLength(selectedAccountIds, thread, enabledOverrides),
     isDraft: postingMode === "draft",
   });
   const scheduledForPreview = useMemo(
-    () =>
-      postingMode === "schedule" && scheduledDate && scheduledTime
-        ? parseLocalScheduledDateTime(scheduledDate, scheduledTime)
-        : null,
+    () => getDraftScheduledFor(postingMode, scheduledDate, scheduledTime),
     [postingMode, scheduledDate, scheduledTime],
   );
 
@@ -710,7 +666,6 @@ export function CreatePostForm() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <PublishingHelp platforms={selectedAccounts.map((account) => account.platform)} />
         <div className="flex justify-end">
           <Button
             type="button"
@@ -749,85 +704,24 @@ export function CreatePostForm() {
         />
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="message" className="text-sm font-medium">
-              Message
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="What's on your mind?"
-              value={message}
-              onChange={(e) => handleMessageChange(e.target.value)}
-              onPaste={handleMessagePaste}
-              className="min-h-32 resize-none mt-2"
-              maxLength={maxTextLength}
-            />
-            <div className="mt-1">
-              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={handleMediaChange} compact />
-            </div>
-            {maxTextLength ? (
-              <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
-                <span className={charCounter.countClassName}>
-                  {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
-                </span>
-                {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Thread segments */}
-          {thread.length > 0 && (
-            <div className="space-y-0">
-              {thread.map((segment, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="flex flex-col items-center pt-1">
-                    <div className="w-px bg-border flex-1" />
-                  </div>
-                  <div className="flex-1 space-y-2 pb-4 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                        Post {index + 2}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleRemoveThreadSegment(index)}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <Textarea
-                      placeholder="Continue your thread…"
-                      value={segment.message}
-                      onChange={(e) => handleThreadSegmentMessageChange(index, e.target.value)}
-                      onPaste={(event) => handleThreadSegmentPaste(index, event)}
-                      className="min-h-20 resize-none text-sm"
-                    />
-                    <MediaUpload
-                      ref={(node) => {
-                        threadMediaUploadRefs.current[index] = node;
-                      }}
-                      media={segment.media ?? []}
-                      onMediaChange={(m) => handleThreadSegmentMediaChange(index, m)}
-                      compact
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2 text-muted-foreground"
-            disabled={trialAllowance.threadAtLimit}
-            onClick={handleAddThreadSegment}>
-            <Plus className="h-3.5 w-3.5" />
-            {trialAllowance.threadAtLimit ? `Thread limit (${trialAllowance.maxThreadSegments})` : "Add to thread"}
-          </Button>
+          <PostContentEditor
+            id="message"
+            message={message}
+            onMessageChange={handleMessageChange}
+            media={media}
+            onMediaChange={handleMediaChange}
+            maxTextLength={maxTextLength}
+            charCounter={charCounter}
+            onPasteMedia={() => setContentTouched(true)}
+            thread={{
+              segments: thread,
+              onAdd: handleAddThreadSegment,
+              onRemove: handleRemoveThreadSegment,
+              onMessageChange: handleThreadSegmentMessageChange,
+              onMediaChange: handleThreadSegmentMediaChange,
+              maxThreadSegments: trialAllowance.maxThreadSegments,
+            }}
+          />
         </div>
 
         <div className="space-y-4">
@@ -1052,6 +946,7 @@ export function CreatePostForm() {
                 if (fitted.accountOptions) setAccountOptions(fitted.accountOptions);
                 for (const [id, override] of Object.entries(fitted.accountOverrides ?? {})) {
                   if (override.media) setAccountOverrideMedia(id, override.media);
+                  if (override.thread) setAccountOverrideThread(id, override.thread);
                 }
                 for (const [index, segment] of (fitted.thread ?? []).entries())
                   updateThreadSegmentMedia(index, segment.media ?? []);
@@ -1108,6 +1003,7 @@ export function CreatePostForm() {
           accountOptions={accountOptions}
           accountOverrides={accountOverrides}
           thread={thread}
+          previewDate={scheduledForPreview}
         />
       </div>
 

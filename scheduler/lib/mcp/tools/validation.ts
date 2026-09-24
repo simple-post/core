@@ -19,7 +19,16 @@ import type { AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
 
 import { resolveMcpAccountOptions } from "./account-options";
 import { mcpAccountIdentitySchema } from "./accounts";
-import { mcpMediaArraySchema, mcpThreadSchema, toMediaFiles, toThreadSegments } from "./media-schema";
+import {
+  assertOverridesTargetAccounts,
+  MCP_ACCOUNT_OVERRIDES_DESCRIPTION,
+  mcpAccountOverridesSchema,
+  mcpMediaArraySchema,
+  mcpThreadSchema,
+  toAccountOverrides,
+  toMediaFiles,
+  toThreadSegments,
+} from "./media-schema";
 
 export const validatePostSchema = z.object({
   imageFit: ImageFitSchema.optional(),
@@ -36,6 +45,7 @@ export const validatePostSchema = z.object({
       "Optional images/videos to validate alongside the text. Each item needs a public URL (user-provided or returned by upload_media).",
     ),
   thread: mcpThreadSchema,
+  accountOverrides: mcpAccountOverridesSchema.optional().describe(MCP_ACCOUNT_OVERRIDES_DESCRIPTION),
 });
 
 const validationIssueSchema = z.object({
@@ -199,6 +209,8 @@ export async function validatePost(
   const accountIds = [...new Set(input.accountIds)];
   const mediaFiles = toMediaFiles(input.media);
   const threadSegments = toThreadSegments(input.thread);
+  const accountOverrides = toAccountOverrides(input.accountOverrides);
+  assertOverridesTargetAccounts(accountOverrides, accountIds);
   const accountOptions = await resolveMcpAccountOptions(userId, accountIds, input.accountOptions, mediaFiles);
 
   // Import before checking, exactly as create_post does. A preflight that
@@ -215,7 +227,7 @@ export async function validatePost(
   // instead of replacing it with a single thrown failure.
   const ingested = await ingestPostMedia(
     userId,
-    { media: mediaFiles, thread: threadSegments, accountOptions },
+    { media: mediaFiles, thread: threadSegments, accountOptions, accountOverrides },
     {
       onUploaded: async (url) => {
         await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));
@@ -232,6 +244,7 @@ export async function validatePost(
     message: input.message,
     accountIds,
     accountOptions: ingested?.accountOptions ?? accountOptions,
+    accountOverrides: ingested?.accountOverrides ?? accountOverrides,
     media: ingested?.media ?? mediaFiles,
     thread: ingestedThread.length > 0 ? ingestedThread : undefined,
   });

@@ -40,6 +40,14 @@ export function isRepostCapablePlatform(platform: string): platform is RepostCap
   return (REPOST_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
 }
 
+/** Platforms with native thread / reply support today. Browser-safe, like the repost list above. */
+export const THREAD_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "telegram"] as const;
+export type ThreadCapablePlatform = (typeof THREAD_CAPABLE_PLATFORMS)[number];
+
+export function isThreadCapablePlatform(platform: string): platform is ThreadCapablePlatform {
+  return (THREAD_CAPABLE_PLATFORMS as readonly string[]).includes(platform);
+}
+
 /** Platforms where SimplePost can attach a native quoted post to new content. */
 export const QUOTE_CAPABLE_PLATFORMS = ["x", "bluesky", "threads", "linkedin"] as const;
 export type QuoteCapablePlatform = (typeof QUOTE_CAPABLE_PLATFORMS)[number];

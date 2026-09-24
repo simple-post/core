@@ -17,11 +17,25 @@ const selected = {
   filter: undefined,
 };
 const cases = selectedCases(selected);
+// Catalog additions change the selection cost; exercise aggregation separately
+// from the fixed per-scenario cost contracts below.
+const expectedPosts = cases.reduce(
+  (total, scenario) =>
+    total +
+    selected.interfaces
+      .filter((iface) => scenario.interfaces.includes(iface))
+      .reduce((sum, iface) => sum + postCost(scenario, iface), 0),
+  0,
+);
 
 test("automatic budget covers the whole supported Telegram selection, albums, threads and invalid cases", () => {
   expect(config().maxPosts).toBe("auto");
-  expect(budgetPlan(cases, selected.interfaces, [])).toEqual({ spent: 0, remaining: 115, total: 115 });
-  expect(115).toBeGreaterThan(12);
+  expect(budgetPlan(cases, selected.interfaces, [])).toEqual({
+    spent: 0,
+    remaining: expectedPosts,
+    total: expectedPosts,
+  });
+  expect(expectedPosts).toBeGreaterThan(12);
   const album = catalog.find((s) => s.id === "telegram.album-10")!;
   expect(budgetPlan([album], ["ui", "ui", "mcp"], []).total).toBe(20);
   const unsupported = catalog.find((s) => s.id === "telegram.remote-image")!;
@@ -90,9 +104,9 @@ test("the real journal can reserve and resume every selected Telegram case with 
     ).length;
     expect(entries).toHaveLength(expectedEntries);
     expect(budgetPlan(chosen, selected.interfaces, entries)).toEqual({
-      spent: 115,
+      spent: expectedPosts,
       remaining: 0,
-      total: 115,
+      total: expectedPosts,
     });
     for (const entry of entries) {
       const original = materialize(
@@ -145,7 +159,9 @@ test("an explicit budget too small for the selection fails preflight before acce
     });
     delete process.env.E2E_VERIFY_ONLY;
     delete process.env.E2E_SCENARIO;
-    await expect(preflight()).rejects.toThrow("Selected suite needs a total budget of 115, but maxPosts is 12");
+    await expect(preflight()).rejects.toThrow(
+      `Selected suite needs a total budget of ${expectedPosts}, but maxPosts is 12`,
+    );
     expect(await new Journal(config({ runDir: dir }), "fixed").entries()).toEqual([]);
     await expect(access(path.join(dir, ".live.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally {

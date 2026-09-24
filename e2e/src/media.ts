@@ -5,6 +5,8 @@ import type { LiveConfig } from "./config.js";
 import type { MediaKey, MediaFile } from "./types.js";
 import type { SchedulerApi } from "./http.js";
 export const filenames: Record<MediaKey, string> = {
+  fitPortrait: "fit-portrait.jpg",
+  fitNoise: "fit-noise.jpg",
   narrowImage: "narrow-image.jpg",
   largeImage: "large-image.jpg",
   squareVideo: "square-video.mp4",
@@ -51,7 +53,12 @@ export async function prepareMediaSources(config: LiveConfig, keys: MediaKey[], 
       if (process.env.E2E_VERIFY_ONLY === "1") throw new Error("Verification-only mode cannot upload missing fixtures");
       if (!config.mediaManifestFile)
         throw new Error("Run e2e:setup to enable automatic fixture hosting, or configure mediaBaseUrl");
-      const uploaded = await api.upload(file);
+      // The disguised-container scenarios deliberately use WebM bytes with an
+      // MP4 filename. Stage them with the customer-facing presigned upload
+      // path so the subsequent MCP validation, rather than fixture staging,
+      // reports the expected invalid-container error.
+      const uploaded =
+        file.filename === "disguised-video.mp4" ? await api.uploadUncheckedFixture(file) : await api.upload(file);
       const url = new URL(uploaded.url);
       if (url.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(url.hostname))
         throw new Error("Unexpected fixture upload URL");

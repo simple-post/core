@@ -1,3 +1,4 @@
+import { reviewImageFit } from "./ui-image-fit.js";
 import { expect, type Page, type Route, type Response } from "@playwright/test";
 import type { Account, LiveConfig } from "../config.js";
 import type { Materialized, MediaFile, Options, Receipt } from "../types.js";
@@ -157,6 +158,7 @@ async function submit(
   account: Account,
   mode: string,
   postId?: string,
+  fittedUrls?: string[],
 ): Promise<Receipt> {
   const routePath = postId ? `/api/v1/posts/${postId}` : "/api/v1/posts";
   const method = postId ? "PATCH" : "POST";
@@ -168,7 +170,12 @@ async function submit(
   const handler = async (route: Route) => {
     if (route.request().method() !== method) return route.continue();
     try {
-      assertUiPayload(route.request().postDataJSON(), s, account, mode);
+      const payload = route.request().postDataJSON();
+      assertUiPayload(payload, s, account, mode);
+      if (fittedUrls) {
+        expect(payload.imageFit, "Publish reviewed derivatives without fitting again").toBeUndefined();
+        expect(payload.media.map((m: { url: string }) => m.url)).toEqual(fittedUrls);
+      }
     } catch (error) {
       await route.abort();
       rejectGuard(
@@ -290,6 +297,7 @@ export async function uiCreate(
     submittedOptions = await setOptions(page, account, s, config);
     await page.getByRole("link", { name: "Back to create post", exact: true }).click();
   }
+  const fittedUrls = s.imageFit ? await reviewImageFit(page, config, s) : undefined;
   const mode =
     s.mode === "draft" || s.mode === "draft-edit"
       ? "draft"
@@ -304,7 +312,9 @@ export async function uiCreate(
   const consent = page.locator("#tiktok-consent-create");
   if (await consent.isVisible()) await consent.check();
   await beforeSubmit?.();
-  return submit(page, config, { ...s, options: submittedOptions }, account, mode);
+  const receipt = await submit(page, config, { ...s, options: submittedOptions }, account, mode, undefined, fittedUrls);
+  if (fittedUrls) receipt.reviewedMediaUrls = fittedUrls;
+  return receipt;
 }
 export async function uiEditDraft(
   page: Page,

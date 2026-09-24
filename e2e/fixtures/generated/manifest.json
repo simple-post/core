@@ -42,5 +42,13 @@
   "silent-video.mp4": {
     "bytes": 577024,
     "sha256": "3f4c9301c781036849816432de431cc8ad1a16ec07c6980c94a911ec252e17f9"
+  },
+  "fit-portrait.jpg": {
+    "bytes": 6409,
+    "sha256": "ca2ee5e5f12fc6363ccea4a62c62b790e862bc6a749871bf70a16425d56e9a8b"
+  },
+  "fit-noise.jpg": {
+    "bytes": 7576509,
+    "sha256": "5fe4d513c21561817683d9b6330f5df59b4b14193b44e77ac7abc126729a4c40"
   }
 }

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { applicationSdk } from "../src/app-sdk.js";
-import type { PostOptions } from "@simple-post/sdk";
+import type { Post, PostOptions } from "@simple-post/sdk";
 import { catalog, materialize } from "../src/catalog.js";
 import { account, config } from "./helpers.js";
 import { mediaFiles } from "../src/media.js";
@@ -11,6 +11,24 @@ for (const scenario of catalog.filter((c) => c.interfaces.length > 0 && !c.expec
     const cfg = config(),
       s = materialize(scenario, account(), "mcp", "contract", cfg.mediaBaseUrl);
     const files = await mediaFiles(cfg, s.media);
+    if (s.imageFit) {
+      // Fitting cases deliberately start invalid. Validate the prepared bytes,
+      // not the raw source; live cases independently inspect saved derivatives.
+      const original: Post = {
+        platforms: [s.platform],
+        content: { text: s.message, media: files.map((m) => ({ type: m.type, path: m.path })) },
+        options: { [s.platform]: s.options } as PostOptions,
+      };
+      const fitted = await applicationSdk().fitPostImages(original, s.imageFit);
+      try {
+        const issues = await validatePostMedia(fitted.post, new Map());
+        expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
+        expect(validateContentForPlatform(s.platform, fitted.post.content, fitted.post.options).errors).toEqual([]);
+      } finally {
+        await fitted.cleanup();
+      }
+      return;
+    }
     const result = validateContentForPlatform(
       s.platform,
       { text: s.message, media: files.map((m) => ({ type: m.type, url: m.url, size: m.size })) },

@@ -21,6 +21,8 @@ export type MediaKey =
   | "webp"
   | "video"
   | "silentVideo"
+  | "fitPortrait"
+  | "fitNoise"
   | "narrowImage"
   | "largeImage"
   | "squareVideo"
@@ -33,6 +35,8 @@ export interface Scenario {
   media: MediaKey[];
   message?: string;
   options: Options;
+  imageFit?: "crop" | "blur";
+  imageFitReview?: "validate_post" | "preview_post";
   tags: string[];
   interfaces: Interface[];
   mode?: "schedule" | "draft" | "draft-edit" | "cancel";
@@ -75,6 +79,7 @@ export interface PostingResult {
 }
 export interface Receipt {
   simplePostId?: string;
+  reviewedMediaUrls?: string[];
   results: PostingResult[];
   savedOptions?: Options;
   status?: string;

@@ -1,8 +1,10 @@
+import { expect } from "@playwright/test";
+import { verifyFittedMedia } from "../verification/image-fit.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { mcpToken, type LiveConfig, type Account } from "../config.js";
 import type { Materialized, MediaFile, Receipt } from "../types.js";
-import { receiptFrom } from "../http.js";
+import { receiptFrom, SchedulerApi } from "../http.js";
 export class McpClient {
   readonly client = new Client({ name: "simplepost-live-acceptance", version: "1.0.0" });
   constructor(readonly config: LiveConfig) {}
@@ -85,6 +87,7 @@ export async function mcpCreate(
     message: s.mode === "draft-edit" ? `${s.message} before edit` : s.message,
     media: files,
     accountIds: [account.id],
+    ...(s.imageFit ? { imageFit: s.imageFit } : {}),
     accountOptions: { [account.id]: s.options },
     ...(s.thread ? { thread: s.thread.map((message) => ({ message })) } : {}),
     postingMode:
@@ -130,7 +133,24 @@ export async function mcpCreate(
     }
     return { results: [], status: "validation-rejected" };
   }
+  let reviewedMediaUrls: string[] | undefined;
+  if (s.imageFitReview) {
+    type Review = { isValid: boolean; fittedMedia: typeof files; fittedAccountOptions?: typeof input.accountOptions };
+    const response = await client.call<Review & { validation?: Review }>(s.imageFitReview, input);
+    const review = s.imageFitReview === "preview_post" ? response.validation! : response;
+    expect(review.isValid, "Fitted content must pass real MCP validation").toBe(true);
+    await verifyFittedMedia(client.config, s, review.fittedMedia);
+    const previewPosts = (
+      await new SchedulerApi(client.config).request<{ posts: Array<{ message: string }> }>("/api/v1/posts?type=all")
+    ).posts.filter((post) => post.message === s.message);
+    expect(previewPosts, "MCP validation/preview must not save or publish a post").toHaveLength(0);
+    input.media = review.fittedMedia;
+    if (review.fittedAccountOptions) input.accountOptions = review.fittedAccountOptions;
+    delete input.imageFit;
+    reviewedMediaUrls = review.fittedMedia.map((m) => m.url);
+  }
   const result = receiptFrom(await client.call("create_post", input), account.id);
+  if (reviewedMediaUrls) result.reviewedMediaUrls = reviewedMediaUrls;
   await onReceipt(result);
   return result;
 }

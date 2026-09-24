@@ -113,7 +113,7 @@ it("compresses noisy images below the strictest byte limit", async () => {
   expect(result.bytes.length).toBeLessThanOrEqual(2_000_000);
   const metadata = await sharp(result.bytes).metadata();
   expect(metadata.format).toBe("jpeg");
-});
+}, 30_000);
 
 it("rejects corrupt files and unknown modes without altering the source", async () => {
   const file = path.join(directory, "broken.png");

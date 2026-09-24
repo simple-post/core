@@ -14,6 +14,8 @@ import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
 import type { TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
 import type { AccountOptionsMap, ConnectedAccount } from "@/types";
 
+import styles from "./tiktok-settings.module.css";
+
 const LEGACY_VISIBILITY: Record<string, TikTokPrivacyLevel> = {
   public: "PUBLIC_TO_EVERYONE",
   friends: "MUTUAL_FOLLOW_FRIENDS",
@@ -77,34 +79,48 @@ function TikTokPrivacyRow({
     hint = "This option isn't available for this account anymore. Choose another one.";
 
   return (
-    <>
-      <PlatformIcon platform="tiktok" className="h-4 w-4 justify-self-center" />
-      <Label htmlFor={selectId} className="min-w-0 text-sm font-normal">
-        <span className="truncate">
-          Who can see it on {showAccountName ? getAccountDisplayName(account) : "TikTok"}
-        </span>
-      </Label>
-      <Select
-        value={privacyLevel ?? ""}
-        disabled={unavailable || !creatorInfo}
-        onValueChange={(value) => onUpdate(account.id, { privacyLevel: value, visibility: undefined })}>
-        <SelectTrigger id={selectId} size="sm" className="w-32">
-          <SelectValue placeholder={isLoading ? "Loading…" : "Select"} />
-        </SelectTrigger>
-        <SelectContent align="end">
-          {(creatorInfo?.privacyLevelOptions ?? []).map((level) => {
-            const blocked = brandedContent && level === "SELF_ONLY";
-            return (
-              <SelectItem key={level} value={level} disabled={blocked}>
-                {TIKTOK_PRIVACY_LABELS[level]}
-                {blocked ? " (not for branded content)" : ""}
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
-      {hint ? <p className="col-span-2 col-start-2 -mt-1.5 text-xs text-destructive">{hint}</p> : null}
-    </>
+    <div className={styles.privacyRow}>
+      <div className={styles.audience}>
+        <div className={styles.identity}>
+          <span className={styles.icon} aria-hidden="true">
+            <PlatformIcon platform="tiktok" className="h-4 w-4" />
+          </span>
+          <Label htmlFor={selectId} className={styles.label}>
+            TikTok audience
+            {showAccountName ? <span className={styles.accountName}>{getAccountDisplayName(account)}</span> : null}
+          </Label>
+        </div>
+        <Select
+          value={privacyLevel ?? ""}
+          disabled={unavailable || !creatorInfo}
+          onValueChange={(value) => onUpdate(account.id, { privacyLevel: value, visibility: undefined })}>
+          <SelectTrigger
+            id={selectId}
+            size="sm"
+            className={styles.select}
+            aria-describedby={hint ? `${selectId}-hint` : undefined}
+            aria-invalid={Boolean(hint)}>
+            <SelectValue placeholder={isLoading ? "Loading…" : "Choose…"} />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {(creatorInfo?.privacyLevelOptions ?? []).map((level) => {
+              const blocked = brandedContent && level === "SELF_ONLY";
+              return (
+                <SelectItem key={level} value={level} disabled={blocked}>
+                  {TIKTOK_PRIVACY_LABELS[level]}
+                  {blocked ? " (not for branded content)" : ""}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </div>
+      {hint ? (
+        <p id={`${selectId}-hint`} role="status" className={styles.hint}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -120,7 +136,7 @@ function TikTokConsent({
   brandedContent: boolean;
 }) {
   const link = (href: string, text: string) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+    <a href={href} target="_blank" rel="noopener noreferrer" className={styles.link}>
       {text}
     </a>
   );
@@ -130,15 +146,15 @@ function TikTokConsent({
   );
 
   return (
-    <>
+    <div className={styles.consent}>
       <Checkbox
         id={id}
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(value === true)}
-        className="mt-0.5 self-start justify-self-center"
+        className={styles.checkbox}
       />
-      <div className="col-span-2 space-y-0.5">
-        <Label htmlFor={id} className="block text-sm font-normal leading-snug cursor-pointer">
+      <div>
+        <Label htmlFor={id} className={styles.consentLabel}>
           By posting, you agree to TikTok&apos;s{" "}
           {brandedContent ? (
             <>
@@ -149,9 +165,9 @@ function TikTokConsent({
           )}
           .
         </Label>
-        <p className="text-xs text-muted-foreground">Publishing can take a few minutes.</p>
+        <p className={styles.note}>Publishing can take a few minutes.</p>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -174,7 +190,11 @@ export function TikTokSettings({
   /** Existing posts keep what was saved; only new selections get the defaults. */
   shouldApplyInteractionDefaults?: (accountId: string) => boolean;
   /** Omitted when nothing is published yet (saving a SimplePost draft). */
-  consent?: { id: string; checked: boolean; onCheckedChange: (checked: boolean) => void };
+  consent?: {
+    id: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+  };
 }) {
   const optionsRef = useRef(accountOptions);
   useEffect(() => {
@@ -196,7 +216,7 @@ export function TikTokSettings({
   if (directPostAccounts.length === 0 && !consent) return null;
 
   return (
-    <div className="grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-lg border border-border bg-card p-3 text-sm">
+    <div className={styles.panel}>
       {directPostAccounts.map((account) => (
         <TikTokPrivacyRow
           key={account.id}

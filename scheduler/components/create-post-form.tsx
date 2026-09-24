@@ -31,7 +31,7 @@ import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
-import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
@@ -59,8 +59,8 @@ import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-
-import type { ValidationIssue } from "@simple-post/sdk";
+import { TikTokPrivacySettings } from "./tiktok-privacy-settings";
+import { ValidationIssueList } from "./validation-issue-list";
 
 type ValidationResponse = ValidationResultByPlatform;
 
@@ -410,19 +410,6 @@ export function CreatePostForm() {
     postingMode === "draft" &&
     imageFittingEnabled &&
     (validation?.summary.errors ?? []).some((issue) => canFitImageIssue(issue));
-
-  const formattedIssue = (issue: ValidationIssue) => {
-    const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
-    const accountId =
-      issue.meta && typeof issue.meta === "object" ? (issue.meta as { accountId?: string }).accountId : "";
-    const account = validation?.accounts.find((acc) => acc.id === accountId);
-
-    if (account) {
-      return `${getAccountDisplayName(account)} (${platform}): ${issue.message}`;
-    }
-
-    return `${platform}: ${issue.message}`;
-  };
 
   const handleMessageChange = useCallback(
     (value: string) => {
@@ -815,6 +802,14 @@ export function CreatePostForm() {
           </div>
         ) : null}
 
+        {hasSelectedTikTok ? (
+          <TikTokPrivacySettings
+            accounts={selectedTikTokAccounts}
+            accountOptions={accountOptions}
+            onAccountOptionsChange={setAccountOptions}
+          />
+        ) : null}
+
         {tiktokConsentRequired && (
           <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
             <div className="flex items-start gap-2">
@@ -968,11 +963,7 @@ export function CreatePostForm() {
                   Fit images…
                 </Button>
               )}
-              {visibleValidationErrors.map((issue, index) => (
-                <p key={`${issue.code}-${index}`} className="text-muted-foreground">
-                  {formattedIssue(issue)}
-                </p>
-              ))}
+              <ValidationIssueList issues={visibleValidationErrors} accounts={validation?.accounts} className="pt-1" />
             </div>
           ) : null}
 
@@ -987,11 +978,11 @@ export function CreatePostForm() {
                   Fit images…
                 </Button>
               )}
-              {visibleValidationWarnings.map((issue, index) => (
-                <p key={`${issue.code}-${index}`} className="text-muted-foreground">
-                  {formattedIssue(issue)}
-                </p>
-              ))}
+              <ValidationIssueList
+                issues={visibleValidationWarnings}
+                accounts={validation?.accounts}
+                className="pt-1"
+              />
             </div>
           ) : null}
         </div>

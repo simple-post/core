@@ -22,7 +22,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
-import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
@@ -58,8 +58,8 @@ import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-
-import type { ValidationIssue } from "@simple-post/sdk";
+import { TikTokPrivacySettings } from "./tiktok-privacy-settings";
+import { ValidationIssueList } from "./validation-issue-list";
 
 interface PostFormProps {
   mode: "create" | "duplicate" | "edit" | "retry";
@@ -299,10 +299,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     [maxTextLength, message, validation?.results],
   );
 
-  const formattedIssue = (issue: ValidationIssue) => {
-    const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
-    return `${platform}: ${issue.message}`;
-  };
   const canOfferImageFitting =
     imageFittingEnabled &&
     [...(validation?.summary.errors ?? []), ...(validation?.summary.warnings ?? [])].some((issue) =>
@@ -572,32 +568,28 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           {validation?.summary.errors.length ? (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>Errors</AlertTitle>
+              <AlertTitle>Before you can post</AlertTitle>
               <AlertDescription>
                 {canOfferImageFitting && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
                     Fit images…
                   </Button>
                 )}
-                {validation.summary.errors.map((issue, index) => (
-                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
-                ))}
+                <ValidationIssueList issues={validation.summary.errors} accounts={validation.accounts} />
               </AlertDescription>
             </Alert>
           ) : null}
           {validation?.summary.warnings.length ? (
             <Alert>
               <Info />
-              <AlertTitle>Warnings</AlertTitle>
+              <AlertTitle>Tips</AlertTitle>
               <AlertDescription>
                 {canOfferImageFitting && validation.summary.errors.length === 0 && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
                     Fit images…
                   </Button>
                 )}
-                {validation.summary.warnings.map((issue, index) => (
-                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
-                ))}
+                <ValidationIssueList issues={validation.summary.warnings} accounts={validation.accounts} />
               </AlertDescription>
             </Alert>
           ) : null}
@@ -646,6 +638,15 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             ) : null}
           </div>
         )}
+
+        {hasSelectedTikTok ? (
+          <TikTokPrivacySettings
+            accounts={selectedTikTokAccounts}
+            accountOptions={accountOptions}
+            onAccountOptionsChange={setAccountOptions}
+            shouldApplyInteractionDefaults={(accountId) => isDuplicate || !existingPost.accountIds.includes(accountId)}
+          />
+        ) : null}
 
         {tiktokConsentRequired && (
           <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">

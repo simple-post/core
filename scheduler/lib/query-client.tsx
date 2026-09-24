@@ -85,4 +85,5 @@ export const queryKeys = {
   paginatedPosts: (type: string, page: number, limit: number) => ["posts", type, { page, limit }],
   calendarPosts: (from: string, to: string) => ["posts", "calendar", { from, to }],
   post: (id: string) => ["posts", "detail", id],
+  tiktokCreatorInfo: (accountId: string) => ["tiktok-creator-info", accountId],
 } as const;

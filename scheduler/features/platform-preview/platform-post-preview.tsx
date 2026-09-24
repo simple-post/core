@@ -18,6 +18,8 @@ interface PlatformPostPreviewProps {
   accountOptions?: AccountOptionsMap;
   accountOverrides?: PreviewAccountOverridesMap;
   thread?: ThreadSegment[];
+  /** When the post goes out, shown as the post's timestamp. Defaults to now. */
+  previewDate?: Date | null;
 }
 
 interface PreviewAccountOverride {
@@ -64,6 +66,7 @@ export function PlatformPostPreview({
   accountOptions = {},
   accountOverrides = {},
   thread = [],
+  previewDate: publishDate,
 }: PlatformPostPreviewProps) {
   const platformAccounts = useMemo<PlatformAccount[]>(() => {
     const seen = new Set<PreviewPlatform>();
@@ -79,7 +82,8 @@ export function PlatformPostPreview({
   }, [selectedAccounts]);
 
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform | null>(null);
-  const [previewDate] = useState(() => new Date());
+  const [now] = useState(() => new Date());
+  const previewDate = publishDate ?? now;
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const active = platformAccounts.find((entry) => entry.platform === selectedPlatform) ?? platformAccounts[0];

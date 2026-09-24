@@ -1,26 +1,22 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
 import { Feature } from "@prisma/client";
 import { canFitImageIssue } from "@simple-post/sdk/image-fit";
-import { format } from "date-fns";
-import { AlertCircle, Info, Plus, X } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 
 import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
-import { PublishingHelp } from "@/components/publishing-help";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
-import { AccountOptionsComponent } from "@/features/platform-options/account-options";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
@@ -28,17 +24,22 @@ import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
-import { getMainFieldCharCounterState } from "@/lib/message-length-ui";
+import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
   mergePostingProgressResult,
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
-import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
+import {
+  getDraftScheduledFor,
+  getLocalScheduledDateTimeError,
+  parseLocalScheduledDateTime,
+} from "@/lib/validations/scheduled-time";
 import type {
   AccountOptionsMap,
   AccountOverridesMap,
@@ -50,8 +51,10 @@ import type {
 
 import { AccountSelector } from "./account-selector";
 import { CreatePostForm } from "./create-post-form";
+import { type ExistingPostMode, normalizeDelayHours } from "./edit-post-draft";
 import { ImageFitReview } from "./image-fit-review";
-import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
+import { PostContentEditor } from "./post-content-editor";
+import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
@@ -77,58 +80,43 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
   return <EditPostForm existingPost={existingPost} mode={mode} />;
 }
 
-function normalizeDelayHours(value: number | undefined) {
-  if (!Number.isFinite(value)) return 12;
-  return Math.min(720, Math.max(1, Math.round(value ?? 12)));
-}
-
-function getFailedRetryAccountIds(post: SocialPost): string[] {
-  const originalAccountIds = new Set(post.accountIds);
-  const failedFromAccountResults = Object.values(post.accountResults ?? {})
-    .filter((result) => !result.success && originalAccountIds.has(result.accountId))
-    .map((result) => result.accountId);
-
-  if (failedFromAccountResults.length > 0) {
-    return [...new Set(failedFromAccountResults)];
-  }
-
-  const failedPlatforms = Array.isArray(post.errorDetails?.failedPlatforms)
-    ? (post.errorDetails.failedPlatforms as Array<{ accountId?: unknown; platform?: unknown }>)
-    : [];
-  const failedAccountIds = failedPlatforms
-    .map((failure) => (typeof failure.accountId === "string" ? failure.accountId : null))
-    .filter((accountId): accountId is string => accountId !== null && originalAccountIds.has(accountId));
-
-  if (failedAccountIds.length > 0) {
-    return [...new Set(failedAccountIds)];
-  }
-
-  return post.accountIds;
-}
-
-function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: "duplicate" | "edit" | "retry" }) {
+/**
+ * Edits, retries, or duplicates an existing post. Its content lives in the
+ * route layout's PostDraftProvider, so the per-account customize page shares
+ * it and navigating there and back keeps every change.
+ */
+function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: ExistingPostMode }) {
   const isRetry = mode === "retry";
   const isDuplicate = mode === "duplicate";
   const isCreating = isDuplicate;
   const router = useRouter();
-  const [message, setMessage] = useState(existingPost.message || "");
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
-    isRetry ? getFailedRetryAccountIds(existingPost) : existingPost.accountIds || [],
-  );
-  const [postingMode, setPostingMode] = useState<PostingMode>(
-    isCreating || isRetry ? "now" : existingPost.status === "draft" ? "draft" : "schedule",
-  );
-  const [scheduledDate, setScheduledDate] = useState(
-    !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "yyyy-MM-dd") : "",
-  );
-  const [scheduledTime, setScheduledTime] = useState(
-    !isCreating && existingPost.scheduledFor ? format(existingPost.scheduledFor, "HH:mm") : "",
-  );
-  const [media, setMedia] = useState<MediaFile[]>(existingPost.media || []);
-  const [thread, setThread] = useState<ThreadSegment[]>(existingPost.thread || []);
-  const [accountOptions, setAccountOptions] = useState<AccountOptionsMap>(existingPost.accountOptions || {});
-  const [accountOverrides, setAccountOverrides] = useState<AccountOverridesMap>(existingPost.accountOverrides || {});
-  const [quotePostId, setQuotePostId] = useState<string | null>(existingPost.quotePostId ?? null);
+  const {
+    message,
+    media,
+    selectedAccountIds,
+    postingMode,
+    scheduledDate,
+    scheduledTime,
+    accountOptions,
+    accountOverrides,
+    thread,
+    quotePostId,
+    setMessage,
+    setMedia,
+    setSelectedAccountIds,
+    setPostingMode,
+    setScheduledDate,
+    setScheduledTime,
+    setAccountOptions,
+    setAccountOverrideMedia,
+    setAccountOverrideThread,
+    setThread,
+    setQuotePostId,
+    addThreadSegment,
+    removeThreadSegment,
+    updateThreadSegmentMessage,
+    updateThreadSegmentMedia,
+  } = usePostDraft();
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
@@ -136,11 +124,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const [showImageFit, setShowImageFit] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [accountOptionsBlocked, setAccountOptionsBlocked] = useState(false);
   const [tiktokConsent, setTikTokConsent] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
-  const threadMediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
 
   const submitPostMutation = useSubmitPost();
   const { hasFeature } = useFeatures();
@@ -152,13 +137,20 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     () => accounts.filter((account) => selectedAccountIds.includes(account.id)),
     [accounts, selectedAccountIds],
   );
-  const selectedAccountIdSet = useMemo(() => new Set(selectedAccountIds), [selectedAccountIds]);
   const enabledOverrides = useMemo<AccountOverridesMap>(
     () =>
-      Object.fromEntries(
-        Object.entries(accountOverrides).filter(([accountId]) => selectedAccountIdSet.has(accountId)),
-      ) as AccountOverridesMap,
-    [accountOverrides, selectedAccountIdSet],
+      selectedAccountIds.reduce((acc, accountId) => {
+        const override = accountOverrides[accountId];
+        if (override?.enabled) {
+          acc[accountId] = {
+            message: override.message,
+            media: override.media,
+            ...(override.thread ? { thread: override.thread } : {}),
+          };
+        }
+        return acc;
+      }, {} as AccountOverridesMap),
+    [accountOverrides, selectedAccountIds],
   );
   const shouldPreflightImages = useMemo(
     () =>
@@ -287,40 +279,14 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     shouldPreflightImages,
   ]);
 
-  const maxTextLength = useMemo(() => {
-    if (!validation) return undefined;
-
-    const hasMedia = media.length > 0;
-    const hasVideo = media.some((item) => item.type === "video");
-    const hasImage = media.some((item) => item.type === "image");
-
-    const limits = validation.results
-      .map((result) => {
-        const textRules = result.rules.text;
-        if (!textRules) return undefined;
-
-        if (hasMedia) {
-          if (textRules.maxCaptionLengthByMediaType) {
-            const candidates: number[] = [];
-            if (hasVideo && textRules.maxCaptionLengthByMediaType.video) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.video);
-            }
-            if (hasImage && textRules.maxCaptionLengthByMediaType.image) {
-              candidates.push(textRules.maxCaptionLengthByMediaType.image);
-            }
-            if (candidates.length > 0) {
-              return Math.min(...candidates);
-            }
-          }
-          return textRules.maxCaptionLength ?? textRules.maxLength;
-        }
-
-        return textRules.maxLength ?? textRules.maxCaptionLength;
-      })
-      .filter((limit): limit is number => typeof limit === "number");
-
-    return limits.length > 0 ? Math.min(...limits) : undefined;
-  }, [validation, media]);
+  const maxTextLength = useMemo(
+    () =>
+      getMaxTextLength(
+        (validation?.results ?? []).filter((result) => result.usesCommonContent),
+        media,
+      ),
+    [validation, media],
+  );
 
   const charCounter = useMemo(
     () =>
@@ -328,7 +294,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         message,
         maxTextLength,
         validationResults: validation?.results ?? [],
-        requireXCommonContent: false,
+        requireXCommonContent: true,
       }),
     [maxTextLength, message, validation?.results],
   );
@@ -346,20 +312,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     postingMode === "draft" &&
     imageFittingEnabled &&
     (validation?.summary.errors ?? []).some((issue) => canFitImageIssue(issue));
-
-  const handleMessagePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      void mediaUploadRef.current?.processFiles(imageFiles);
-    }
-  }, []);
-
-  const handleThreadSegmentPaste = useCallback((index: number, event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = getClipboardImageFiles(event.clipboardData);
-    if (imageFiles.length > 0) {
-      void threadMediaUploadRefs.current[index]?.processFiles(imageFiles);
-    }
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -524,9 +476,14 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   // an already scheduled post was charged when it was created.
   const trialAllowance = useTrialPostAllowance({
     platforms: selectedAccounts.map((account) => account.platform),
-    threadSegments: thread.length + 1,
+    threadSegments: longestThreadLength(selectedAccountIds, thread, enabledOverrides),
     isDraft: postingMode === "draft" || (!isCreating && existingPost.status !== "draft"),
   });
+
+  const scheduledForPreview = useMemo(
+    () => getDraftScheduledFor(postingMode, scheduledDate, scheduledTime),
+    [postingMode, scheduledDate, scheduledTime],
+  );
 
   const isFormValid =
     selectedAccountIds.length > 0 &&
@@ -535,7 +492,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     (postingMode === "draft" ? !draftImageFittingRequired : (validation?.summary.isValid ?? false)) &&
     (postingMode !== "draft" || !imageFittingEnabled || !shouldPreflightImages || !validationLoading) &&
     (postingMode === "draft" || !validationLoading) &&
-    (postingMode === "draft" || !accountOptionsBlocked) &&
     (!tiktokConsentRequired || tiktokConsent) &&
     !trialAllowance.blocked &&
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
@@ -543,7 +499,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <PublishingHelp platforms={selectedAccounts.map((account) => account.platform)} />
         {quotePostId ? (
           <QuotePostCard
             sourcePost={quotePost}
@@ -559,107 +514,30 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           onSelectionChange={setSelectedAccountIds}
           title="Post to"
           showAdvancedButton
-          getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
+          getAdvancedHref={(accountId) =>
+            `/posts/${existingPost.id}/${isDuplicate ? "duplicate" : "edit"}/advanced/${accountId}`
+          }
           layout="row"
         />
 
-        <AccountOptionsComponent
-          selectedAccountIds={selectedAccountIds}
-          options={accountOptions}
-          onOptionsChange={setAccountOptions}
-          media={media}
-          onBlockingChange={setAccountOptionsBlocked}
-        />
-
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="message" className="text-sm font-medium">
-              Message
-            </Label>
-            <Textarea
-              id="message"
-              placeholder="What's on your mind?"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onPaste={handleMessagePaste}
-              className="min-h-32 resize-none mt-2"
-              maxLength={maxTextLength}
-            />
-            <div className="mt-1">
-              <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={setMedia} compact />
-            </div>
-            <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
-              {maxTextLength ? (
-                <>
-                  <span className={charCounter.countClassName}>
-                    {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
-                  </span>
-                  {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
-                </>
-              ) : (
-                <span className="text-muted-foreground">{message.length.toLocaleString()}</span>
-              )}
-            </div>
-          </div>
-
-          {/* Thread segments */}
-          {thread.length > 0 && (
-            <div className="space-y-0">
-              {thread.map((segment, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="flex flex-col items-center pt-1">
-                    <div className="w-px bg-border flex-1" />
-                  </div>
-                  <div className="flex-1 space-y-2 pb-4 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                        Post {index + 2}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => setThread((prev) => prev.filter((_, i) => i !== index))}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <Textarea
-                      placeholder="Continue your thread…"
-                      value={segment.message}
-                      onChange={(e) => {
-                        const msg = e.target.value;
-                        setThread((prev) => prev.map((s, i) => (i === index ? { ...s, message: msg } : s)));
-                      }}
-                      onPaste={(event) => handleThreadSegmentPaste(index, event)}
-                      className="min-h-20 resize-none text-sm"
-                    />
-                    <MediaUpload
-                      ref={(node) => {
-                        threadMediaUploadRefs.current[index] = node;
-                      }}
-                      media={segment.media ?? []}
-                      onMediaChange={(m) =>
-                        setThread((prev) => prev.map((s, i) => (i === index ? { ...s, media: m } : s)))
-                      }
-                      compact
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2 text-muted-foreground"
-            disabled={trialAllowance.threadAtLimit}
-            onClick={() => setThread((prev) => [...prev, { message: "" }])}>
-            <Plus className="h-3.5 w-3.5" />
-            {trialAllowance.threadAtLimit ? `Thread limit (${trialAllowance.maxThreadSegments})` : "Add to thread"}
-          </Button>
+          <PostContentEditor
+            id="message"
+            message={message}
+            onMessageChange={setMessage}
+            media={media}
+            onMediaChange={setMedia}
+            maxTextLength={maxTextLength}
+            charCounter={charCounter}
+            thread={{
+              segments: thread,
+              onAdd: addThreadSegment,
+              onRemove: removeThreadSegment,
+              onMessageChange: updateThreadSegmentMessage,
+              onMediaChange: updateThreadSegmentMedia,
+              maxThreadSegments: trialAllowance.maxThreadSegments,
+            }}
+          />
 
           {/* Validation Feedback */}
           {/* Validation loading is shown in the submit button to avoid layout shift */}
@@ -672,8 +550,10 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               onApply={(fitted) => {
                 setMedia(fitted.media);
                 if (fitted.accountOptions) setAccountOptions(fitted.accountOptions);
-                if (fitted.accountOverrides)
-                  setAccountOverrides((current) => ({ ...current, ...fitted.accountOverrides }));
+                for (const [id, override] of Object.entries(fitted.accountOverrides ?? {})) {
+                  if (override.media) setAccountOverrideMedia(id, override.media);
+                  if (override.thread) setAccountOverrideThread(id, override.thread);
+                }
                 if (fitted.thread) setThread(fitted.thread);
                 setShowImageFit(false);
                 setServerValidation(null);
@@ -865,6 +745,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           accountOptions={accountOptions}
           accountOverrides={accountOverrides}
           thread={thread}
+          previewDate={scheduledForPreview}
         />
       </div>
 

@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { MAX_THREAD_SEGMENTS } from "@simple-post/sdk";
 import { z } from "zod";
 
-import type { MediaFile, ThreadSegment } from "@/types";
+import type { AccountOverridesMap, MediaFile, ThreadSegment } from "@/types";
 
 function createMcpMediaItemSchema() {
   return z.object({
@@ -70,6 +70,25 @@ export const mcpThreadSchema = mcpThreadArraySchema
 
 export type McpThreadSegment = z.infer<typeof mcpThreadSegmentSchema>;
 
+export const mcpAccountOverrideSchema = z.object({
+  message: z.string().optional().describe("Root post text for this account. Omit to use the shared message."),
+  media: mcpMediaArraySchema
+    .optional()
+    .describe("Root media for this account. Omit to use the shared media; pass [] for no media on this account."),
+  thread: mcpThreadArraySchema
+    .optional()
+    .describe(
+      "Follow-up segments for this account only. Omit to use the shared thread; pass [] so this account publishes no follow-ups.",
+    ),
+});
+
+export const MCP_ACCOUNT_OVERRIDES_DESCRIPTION =
+  'Per-account content, keyed by account ID (not platform name). Each field replaces the shared value for that account only; omitted fields fall back to the shared message, media, or thread. Use this to keep platform variants in ONE post instead of creating separate posts, e.g. one long post on X and LinkedIn plus a thread on Bluesky and Threads: put the long text in the shared message with no shared thread, and give each Bluesky/Threads account {"message":"first segment","thread":[{"message":"..."}]}.';
+
+export const mcpAccountOverridesSchema = z.record(z.string(), mcpAccountOverrideSchema);
+
+export type McpAccountOverrides = z.infer<typeof mcpAccountOverridesSchema>;
+
 export function toMediaFiles(items: McpMediaItem[] | undefined): MediaFile[] {
   if (!items || items.length === 0) return [];
 
@@ -102,4 +121,31 @@ export function toThreadSegments(segments: McpThreadSegment[] | undefined): Thre
   return segments.map((segment) => ({
     message: segment.message ?? "",
   }));
+}
+
+/**
+ * Maps MCP per-account overrides to SDK overrides. Absent fields stay absent,
+ * because an absent field means "use the shared value" while [] means "none".
+ */
+export function toAccountOverrides(overrides: McpAccountOverrides | undefined): AccountOverridesMap | undefined {
+  if (!overrides) return undefined;
+  const entries = Object.entries(overrides).map(([accountId, override]) => [
+    accountId,
+    {
+      ...(override.message === undefined ? {} : { message: override.message }),
+      ...(override.media === undefined ? {} : { media: toMediaFiles(override.media) }),
+      ...(override.thread === undefined ? {} : { thread: toThreadSegments(override.thread) }),
+    },
+  ]);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+/** Rejects overrides for accounts the post does not target, so content is never silently dropped. */
+export function assertOverridesTargetAccounts(overrides: AccountOverridesMap | undefined, accountIds: string[]): void {
+  const unknown = Object.keys(overrides ?? {}).filter((accountId) => !accountIds.includes(accountId));
+  if (unknown.length > 0) {
+    throw new Error(
+      `accountOverrides has content for accounts that aren't in accountIds: ${unknown.join(", ")}. Key overrides by the account IDs the post targets.`,
+    );
+  }
 }

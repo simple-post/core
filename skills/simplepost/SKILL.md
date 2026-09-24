@@ -44,6 +44,7 @@ Do not mix payload shapes between interfaces. MCP, the hosted API, and connected
 
 - The root message is the first post. Use `thread` for ordered follow-up segments on X, Bluesky, Threads, and Telegram. Other targets receive only the root and should surface a warning.
 - Use `accountOverrides` or account-scoped options when the user wants platform-specific copy or settings. Do not mechanically rewrite content for every platform unless requested.
+- Keep platform variants in one post. When some accounts get a single long post and others get a thread (for example X and LinkedIn long form, Bluesky and Threads as a thread), put the long text in the shared `message` and give each thread account an override with its own `message` and `thread`. Do not create separate posts per platform.
 - To quote an earlier post through MCP, find the exact SimplePost record with `inspect_posts` and pass its ID as `quotePostId`. Never infer a post ID from text.
 - Drafts may be saved even when validation fails. Clearly distinguish “saved as a draft” from “valid and ready to publish,” and report the returned per-account errors.
 
@@ -51,7 +52,7 @@ Do not mix payload shapes between interfaces. MCP, the hosted API, and connected
 
 For every preview, draft, schedule, edit, discard, or publish result, make the outcome auditable in the visible response:
 
-- show the exact root text and ordered thread segments;
+- show the exact root text and ordered thread segments, plus any per-account custom content;
 - identify the selected account names or platforms;
 - include the absolute scheduled time and timezone when relevant;
 - surface validation warnings and partial failures once;

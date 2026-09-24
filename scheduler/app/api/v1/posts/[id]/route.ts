@@ -22,6 +22,7 @@ import {
   sanitizePostingResult,
   wantsPostingProgress,
 } from "@/lib/posting/progress-stream";
+import { longestThreadLength } from "@/lib/posting/thread-length";
 import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -223,16 +224,20 @@ async function updatePost(
     // Capture removed media before update for R2 cleanup. Include media from
     // every thread segment in the comparison, otherwise removing a segment
     // would orphan its media in R2.
-    const newMediaUrls = new Set([
-      ...finalMedia.map((m) => m.url),
-      ...(validated.thread ?? []).flatMap((s) => (s.media ?? []).map((m) => m.url)),
-    ]);
-    const newMediaThumbnailUrls = new Set([
-      ...finalMedia.map((m) => m.thumbnailUrl).filter((url): url is string => typeof url === "string"),
-      ...(validated.thread ?? []).flatMap((s) =>
-        (s.media ?? []).map((m) => m.thumbnailUrl).filter((url): url is string => typeof url === "string"),
-      ),
-    ]);
+    // Account overrides can reference the same objects (a custom thread is
+    // seeded from the common one), so their media counts as kept too.
+    const keptMedia = [
+      ...finalMedia,
+      ...(validated.thread ?? []).flatMap((s) => s.media ?? []),
+      ...Object.values(validated.accountOverrides ?? {}).flatMap((override) => [
+        ...(override.media ?? []),
+        ...(override.thread ?? []).flatMap((s) => s.media ?? []),
+      ]),
+    ];
+    const newMediaUrls = new Set(keptMedia.map((m) => m.url));
+    const newMediaThumbnailUrls = new Set(
+      keptMedia.map((m) => m.thumbnailUrl).filter((url): url is string => typeof url === "string"),
+    );
     const oldThreadMedia = (currentPost.thread ?? []).flatMap((s) => s.media ?? []);
     const removedMedia = [...currentPost.media, ...oldThreadMedia].filter((m) => !newMediaUrls.has(m.url));
     const removedAccountOptionThumbnailUrls = getRemovedAccountOptionThumbnailUrls(
@@ -248,7 +253,7 @@ async function updatePost(
         postId: id,
         socialAccounts: toBillingSocialAccounts(validation.accounts),
         replacingSocialAccounts,
-        threadSegments: (validated.thread?.length ?? 0) + 1,
+        threadSegments: longestThreadLength(validated.accountIds, validated.thread, validated.accountOverrides),
         isDraft: postingMode === "draft",
         isExistingPostUpdate: currentPost.status !== "draft",
       });

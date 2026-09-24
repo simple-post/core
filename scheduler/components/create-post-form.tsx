@@ -19,7 +19,6 @@ import {
 } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -31,7 +30,7 @@ import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
-import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
@@ -59,8 +58,8 @@ import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-
-import type { ValidationIssue } from "@simple-post/sdk";
+import { TikTokSettings } from "./tiktok-settings";
+import { ValidationIssueList } from "./validation-issue-list";
 
 type ValidationResponse = ValidationResultByPlatform;
 
@@ -179,10 +178,6 @@ export function CreatePostForm() {
   );
   const hasSelectedTikTok = selectedTikTokAccounts.length > 0;
   const tiktokConsentRequired = hasSelectedTikTok && postingMode !== "draft";
-  const hasTikTokBrandedContent = selectedTikTokAccounts.some((account) => {
-    const accountOption = accountOptions[account.id] as Record<string, unknown> | undefined;
-    return accountOption?.discloseBrandedContent === true;
-  });
 
   useEffect(() => {
     if (!tiktokConsentRequired) {
@@ -410,19 +405,6 @@ export function CreatePostForm() {
     postingMode === "draft" &&
     imageFittingEnabled &&
     (validation?.summary.errors ?? []).some((issue) => canFitImageIssue(issue));
-
-  const formattedIssue = (issue: ValidationIssue) => {
-    const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
-    const accountId =
-      issue.meta && typeof issue.meta === "object" ? (issue.meta as { accountId?: string }).accountId : "";
-    const account = validation?.accounts.find((acc) => acc.id === accountId);
-
-    if (account) {
-      return `${getAccountDisplayName(account)} (${platform}): ${issue.message}`;
-    }
-
-    return `${platform}: ${issue.message}`;
-  };
 
   const handleMessageChange = useCallback(
     (value: string) => {
@@ -815,56 +797,18 @@ export function CreatePostForm() {
           </div>
         ) : null}
 
-        {tiktokConsentRequired && (
-          <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="tiktok-consent-create"
-                checked={tiktokConsent}
-                onCheckedChange={(checked) => setTikTokConsent(checked === true)}
-                className="mt-0.5"
-              />
-              <Label htmlFor="tiktok-consent-create" className="text-sm font-normal leading-relaxed cursor-pointer">
-                {hasTikTokBrandedContent ? (
-                  <>
-                    By posting, you agree to TikTok&apos;s{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/bc-policy/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Branded Content Policy
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Music Usage Confirmation
-                    </a>
-                    .
-                  </>
-                ) : (
-                  <>
-                    By posting, you agree to TikTok&apos;s{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Music Usage Confirmation
-                    </a>
-                    .
-                  </>
-                )}
-              </Label>
-            </div>
-            <p className="pl-6 text-xs text-muted-foreground">
-              TikTok may take a few minutes to process your content before it is visible on your profile.
-            </p>
-          </div>
-        )}
+        {hasSelectedTikTok ? (
+          <TikTokSettings
+            accounts={selectedTikTokAccounts}
+            accountOptions={accountOptions}
+            onAccountOptionsChange={setAccountOptions}
+            consent={
+              tiktokConsentRequired
+                ? { id: "tiktok-consent-create", checked: tiktokConsent, onCheckedChange: setTikTokConsent }
+                : undefined
+            }
+          />
+        ) : null}
 
         <div className="flex gap-4 pt-4">
           <Button
@@ -968,11 +912,7 @@ export function CreatePostForm() {
                   Fit images…
                 </Button>
               )}
-              {visibleValidationErrors.map((issue, index) => (
-                <p key={`${issue.code}-${index}`} className="text-muted-foreground">
-                  {formattedIssue(issue)}
-                </p>
-              ))}
+              <ValidationIssueList issues={visibleValidationErrors} accounts={validation?.accounts} className="pt-1" />
             </div>
           ) : null}
 
@@ -987,11 +927,11 @@ export function CreatePostForm() {
                   Fit images…
                 </Button>
               )}
-              {visibleValidationWarnings.map((issue, index) => (
-                <p key={`${issue.code}-${index}`} className="text-muted-foreground">
-                  {formattedIssue(issue)}
-                </p>
-              ))}
+              <ValidationIssueList
+                issues={visibleValidationWarnings}
+                accounts={validation?.accounts}
+                className="pt-1"
+              />
             </div>
           ) : null}
         </div>

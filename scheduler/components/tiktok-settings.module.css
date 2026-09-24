@@ -1,0 +1,161 @@
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 0.875rem;
+}
+
+.privacyRow {
+  padding: 0.625rem 0.75rem;
+}
+
+.privacyRow + .privacyRow {
+  border-top: 1px solid var(--border);
+}
+
+.audience {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0;
+}
+
+.identity {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 0.5rem;
+}
+
+.icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--secondary);
+}
+
+.label {
+  display: block;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+.accountName {
+  display: block;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select {
+  width: 11rem;
+  max-width: 100%;
+  margin-inline: auto;
+  flex: none;
+  border-color: color-mix(in srgb, var(--foreground) 30%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 8%, var(--card));
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.select[data-placeholder] {
+  color: var(--foreground);
+}
+
+.select > svg {
+  color: var(--foreground);
+  opacity: 1;
+}
+
+.select:hover:not(:disabled),
+.select[data-state="open"] {
+  border-color: var(--primary);
+}
+
+.select:focus-visible {
+  border-color: var(--primary);
+}
+
+.hint {
+  margin: 0.375rem 0 0 2rem;
+  color: var(--destructive);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.privacyRow + .consent {
+  border-top: 1px solid var(--border);
+}
+
+.checkbox {
+  flex: none;
+  margin-top: 0.125rem;
+}
+
+.consentLabel {
+  display: block;
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  cursor: pointer;
+}
+
+.link {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: var(--muted-foreground);
+  text-underline-offset: 0.1875rem;
+}
+
+.link:hover {
+  text-decoration-color: var(--foreground);
+}
+
+.link:focus-visible {
+  border-radius: 0.125rem;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.note {
+  margin-top: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+@media (max-width: 480px) {
+  .identity {
+    flex-basis: 100%;
+  }
+
+  .select {
+    width: 100%;
+  }
+
+  .hint {
+    margin-left: 0;
+  }
+}

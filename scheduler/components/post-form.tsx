@@ -14,7 +14,6 @@ import { TrialLimitNotice, useTrialPostAllowance } from "@/components/billing/tr
 import { HelpLink } from "@/components/help-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { PlatformPostPreview } from "@/features/platform-preview";
@@ -22,7 +21,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
-import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
@@ -58,8 +57,8 @@ import { usePostDraft } from "./post-draft-context";
 import { PostLinksModal } from "./post-links-modal";
 import { QuotePostCard } from "./quote-post-card";
 import { SchedulePicker } from "./schedule-picker";
-
-import type { ValidationIssue } from "@simple-post/sdk";
+import { TikTokSettings } from "./tiktok-settings";
+import { ValidationIssueList } from "./validation-issue-list";
 
 interface PostFormProps {
   mode: "create" | "duplicate" | "edit" | "retry";
@@ -168,10 +167,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   );
   const hasSelectedTikTok = selectedTikTokAccounts.length > 0;
   const tiktokConsentRequired = hasSelectedTikTok && postingMode !== "draft";
-  const hasTikTokBrandedContent = selectedTikTokAccounts.some((account) => {
-    const accountOption = accountOptions[account.id] as Record<string, unknown> | undefined;
-    return accountOption?.discloseBrandedContent === true;
-  });
 
   useEffect(() => {
     if (!tiktokConsentRequired) {
@@ -299,10 +294,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     [maxTextLength, message, validation?.results],
   );
 
-  const formattedIssue = (issue: ValidationIssue) => {
-    const platform = getPlatformById(issue.platform)?.name || issue.platform.toUpperCase();
-    return `${platform}: ${issue.message}`;
-  };
   const canOfferImageFitting =
     imageFittingEnabled &&
     [...(validation?.summary.errors ?? []), ...(validation?.summary.warnings ?? [])].some((issue) =>
@@ -572,32 +563,28 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           {validation?.summary.errors.length ? (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>Errors</AlertTitle>
+              <AlertTitle>Before you can post</AlertTitle>
               <AlertDescription>
                 {canOfferImageFitting && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
                     Fit images…
                   </Button>
                 )}
-                {validation.summary.errors.map((issue, index) => (
-                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
-                ))}
+                <ValidationIssueList issues={validation.summary.errors} accounts={validation.accounts} />
               </AlertDescription>
             </Alert>
           ) : null}
           {validation?.summary.warnings.length ? (
             <Alert>
               <Info />
-              <AlertTitle>Warnings</AlertTitle>
+              <AlertTitle>Tips</AlertTitle>
               <AlertDescription>
                 {canOfferImageFitting && validation.summary.errors.length === 0 && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
                     Fit images…
                   </Button>
                 )}
-                {validation.summary.warnings.map((issue, index) => (
-                  <p key={`${issue.code}-${index}`}>{formattedIssue(issue)}</p>
-                ))}
+                <ValidationIssueList issues={validation.summary.warnings} accounts={validation.accounts} />
               </AlertDescription>
             </Alert>
           ) : null}
@@ -647,56 +634,19 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           </div>
         )}
 
-        {tiktokConsentRequired && (
-          <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="tiktok-consent-edit"
-                checked={tiktokConsent}
-                onCheckedChange={(checked) => setTikTokConsent(checked === true)}
-                className="mt-0.5"
-              />
-              <Label htmlFor="tiktok-consent-edit" className="text-sm font-normal leading-relaxed cursor-pointer">
-                {hasTikTokBrandedContent ? (
-                  <>
-                    By posting, you agree to TikTok&apos;s{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/bc-policy/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Branded Content Policy
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Music Usage Confirmation
-                    </a>
-                    .
-                  </>
-                ) : (
-                  <>
-                    By posting, you agree to TikTok&apos;s{" "}
-                    <a
-                      href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2">
-                      Music Usage Confirmation
-                    </a>
-                    .
-                  </>
-                )}
-              </Label>
-            </div>
-            <p className="pl-6 text-xs text-muted-foreground">
-              TikTok may take a few minutes to process your content before it is visible on your profile.
-            </p>
-          </div>
-        )}
+        {hasSelectedTikTok ? (
+          <TikTokSettings
+            accounts={selectedTikTokAccounts}
+            accountOptions={accountOptions}
+            onAccountOptionsChange={setAccountOptions}
+            consent={
+              tiktokConsentRequired
+                ? { id: "tiktok-consent-edit", checked: tiktokConsent, onCheckedChange: setTikTokConsent }
+                : undefined
+            }
+            shouldApplyInteractionDefaults={(accountId) => isDuplicate || !existingPost.accountIds.includes(accountId)}
+          />
+        ) : null}
 
         <TrialLimitNotice allowance={trialAllowance} />
 

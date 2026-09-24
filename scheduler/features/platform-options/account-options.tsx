@@ -16,6 +16,7 @@ import { mergeAccountOptions } from "@/features/platform-options/merge-account-o
 import { useAccounts } from "@/hooks/use-accounts";
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
 import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
 import type { AccountOptionsMap, ConnectedAccount, MediaFile } from "@/types";
 
@@ -43,13 +44,6 @@ const MAX_YOUTUBE_THUMBNAIL_SIZE = 2 * 1024 * 1024;
 const YOUTUBE_TITLE_MAX_LENGTH = 100;
 const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
 const YOUTUBE_THUMBNAIL_TYPES = new Set(["image/jpeg", "image/png"]);
-
-const TIKTOK_PRIVACY_LABELS: Record<TikTokPrivacyLevel, string> = {
-  PUBLIC_TO_EVERYONE: "Everyone",
-  MUTUAL_FOLLOW_FRIENDS: "Friends",
-  FOLLOWER_OF_CREATOR: "Followers",
-  SELF_ONLY: "Only me",
-};
 
 const TIKTOK_PRIVACY_VALUES = new Set<string>(Object.keys(TIKTOK_PRIVACY_LABELS));
 

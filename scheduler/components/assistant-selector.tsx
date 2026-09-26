@@ -7,6 +7,8 @@ import { Check, Copy, Cpu, ExternalLink, Plug, Terminal } from "lucide-react";
 import { ClaudeIcon, OpenAIIcon } from "@/components/brand-icons";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
+import { trackEvent } from "@/lib/analytics/plausible";
+import { STARTER_PROMPTS } from "@/lib/distribution/starter-prompts";
 import { cn } from "@/lib/utils";
 
 type IconComponent = ComponentType<{ className?: string }>;
@@ -90,13 +92,14 @@ const options: AssistantOption[] = [
   },
 ];
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, promptId }: { text: string; promptId?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      if (promptId) trackEvent("Assistant Starter Copied", { prompt: promptId });
       setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard access can be blocked by the browser.
@@ -224,6 +227,34 @@ export function AssistantSelector() {
               ))}
             </div>
           ) : null}
+          {activeId !== "cli" && (
+            <div className="mt-6 border-t border-border pt-5">
+              <h3 className="text-sm font-semibold">Start with a draft</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Connect a social account in{" "}
+                <a href="/accounts?onboarding=connect" className="underline underline-offset-4">
+                  Accounts
+                </a>
+                , then paste a prompt into your assistant with SimplePost enabled. Connecting the assistant alone does
+                not connect a social account.
+              </p>
+              <div className="mt-4 grid gap-3">
+                {STARTER_PROMPTS.map((starter) => (
+                  <details key={starter.id} className="rounded-lg border border-border bg-background p-3">
+                    <summary className="cursor-pointer text-sm font-medium">{starter.title}</summary>
+                    <div className="mt-3 flex items-start gap-2">
+                      <p className="select-all text-sm leading-6 text-muted-foreground">{starter.prompt}</p>
+                      <CopyButton text={starter.prompt} promptId={starter.id} />
+                    </div>
+                  </details>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                Replace bracketed details with your own. You can select and copy the text if clipboard access is
+                blocked.
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </div>

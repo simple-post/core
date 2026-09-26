@@ -57,7 +57,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 - Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. Billing or trial-allowance denials require a plan change in the SimplePost web app. Explain the returned reason and do not retry automatically or repeatedly inspect accounts to bypass the denial.
 
-1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, tell the user they need to connect an account in the SimplePost web app before posting — there is no MCP tool to add accounts.
+1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, give the user this direct link: https://app.simplepost.social/accounts?onboarding=connect . Explain that connecting SimplePost to their assistant does not connect a social account. Ask them to connect one destination there, return to this conversation, and say "My account is connected; help me save my first draft." There is no MCP tool to add accounts.
 
 2. If the post needs an image or video, attach it via the \`media\` field on \`validate_post\`, \`preview_post\`, and \`create_post\`. See the "Media" section below for how to obtain a URL.
 
@@ -315,7 +315,7 @@ function formatAccount(account: AccountSummary): string {
 
 function formatAccounts(accounts: AccountSummary[]): string {
   if (accounts.length === 0)
-    return "You don't have any connected accounts yet. Connect one in the SimplePost web app to start posting.";
+    return "Your assistant is connected, but no social account is linked yet. Connect one at https://app.simplepost.social/accounts?onboarding=connect, then return to this conversation and ask me to save your first draft.";
 
   return `Connected accounts:\n${accounts.map((account) => `- ${formatAccount(account)}`).join("\n")}`;
 }

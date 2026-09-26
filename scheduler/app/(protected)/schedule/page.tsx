@@ -3,6 +3,7 @@
 import { TrialScheduleNotice } from "@/components/billing/trial-post-allowance";
 import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { Navbar } from "@/components/navbar";
+import { PreviewImport } from "@/components/preview-import";
 import { SchedulePostForm } from "@/components/schedule-post-form";
 
 export default function SchedulePage() {
@@ -25,6 +26,7 @@ export default function SchedulePage() {
         </div>
         <CreatePostWebMcp />
         <TrialScheduleNotice />
+        <PreviewImport />
         <SchedulePostForm />
       </main>
     </div>

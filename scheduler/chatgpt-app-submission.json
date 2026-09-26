@@ -3,8 +3,8 @@
   "schema_version": 1,
   "app_info": {
     "display_name": "SimplePost",
-    "subtitle": "Post to social media",
-    "description": "SimplePost helps users work with their connected social media accounts directly from ChatGPT: list accounts, upload media, validate drafts, preview posts across platforms, publish or schedule posts, save and manage drafts, and open an interactive day, week, or month schedule showing slots and post activity.",
+    "subtitle": "Draft, preview, and schedule social posts",
+    "description": "Turn an idea into a social post without leaving ChatGPT. Use SimplePost to prepare versions for your connected accounts, save drafts, see post previews, and review your publishing calendar. When you are ready, confirm the content, destination accounts, media, and timing to publish or schedule. Start by connecting at least one social account in the SimplePost web app, then authorize this integration with the same SimplePost login. Instagram requires an eligible professional account and media. Hosted access requires an active SimplePost trial or paid plan. Supported clients show interactive previews and calendars, with text fallbacks where needed. SimplePost does not read social engagement analytics or edit posts already published on a social network.",
     "category": "PRODUCTIVITY"
   },
   "tools": {

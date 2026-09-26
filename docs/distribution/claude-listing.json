@@ -1,0 +1,14 @@
+{
+  "status": "review-copy-not-submitted",
+  "name": "SimplePost",
+  "shortDescription": "Draft, preview, and schedule posts for your social accounts from Claude.",
+  "description": "Turn a rough idea into platform-specific social posts in your Claude conversation. SimplePost lets you save drafts, see previews, review your publishing calendar, and schedule the versions you approve. Start by connecting a social account in the SimplePost web app, then authorize the Claude connector with the same SimplePost login. Ask Claude to list your accounts and help you save your first draft. Confirm the exact content, accounts, media, date and timezone before publishing or scheduling. After publishing, inspect the result for each destination. Hosted access requires an active SimplePost trial or paid plan. Some platforms require media or specific account types. Interactive previews and calendars depend on client support; text results remain available. The connector cannot read engagement analytics or edit already-published social posts.",
+  "website": "https://simplepost.social/",
+  "support": "https://simplepost.social/contact/",
+  "privacy": "https://simplepost.social/privacy/",
+  "terms": "https://simplepost.social/terms/",
+  "setup": "https://docs.simplepost.social/mcp#claude",
+  "accountConnection": "https://app.simplepost.social/accounts?onboarding=connect",
+  "directory": "https://claude.ai/directory/simplepost",
+  "endpoint": "https://app.simplepost.social/mcp"
+}

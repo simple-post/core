@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>
+    SimplePost — listing demo storyboard
+  </title>
+  <style>
+    body {
+      margin: 0;
+      background: #101310;
+      color: #f0f2ea;
+      font:
+        16px/1.6 system-ui,
+        sans-serif;
+    }
+    main {
+      max-width: 1000px;
+      margin: auto;
+      padding: 48px 24px;
+    }
+    small {
+      color: #b5bbac;
+    }
+    h1 {
+      font-size: clamp(30px, 5vw, 52px);
+      line-height: 1.12;
+      max-width: 700px;
+      letter-spacing: -0.04em;
+    }
+    nav {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 30px 0;
+    }
+    button {
+      border: 1px solid #424a37;
+      background: #20261d;
+      color: inherit;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button[aria-pressed="true"] {
+      background: #d2ff5a;
+      color: #17200b;
+    }
+    button:focus-visible {
+      outline: 3px solid #fff;
+      outline-offset: 3px;
+    }
+    article {
+      border: 1px solid #424a37;
+      border-radius: 16px;
+      padding: 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    blockquote {
+      margin: 0;
+      padding: 24px;
+      background: #20261d;
+      border-radius: 12px;
+    }
+    .status {
+      color: #d2ff5a;
+      font-family: monospace;
+    }
+    p {
+      max-width: 64ch;
+    }
+    footer {
+      margin-top: 24px;
+      color: #b5bbac;
+    }
+    @media (max-width: 650px) {
+      article {
+        grid-template-columns: 1fr;
+        padding: 20px;
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      article {
+        animation: appear 0.2s ease-out;
+      }
+      @keyframes appear {
+        from {
+          opacity: 0.5;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    }
+  </style>
+  <main>
+    <small>SIMPLEPOST / ILLUSTRATIVE WALKTHROUGH</small>
+    <h1>Your idea. A draft you can review. A time you choose.</h1>
+    <p>
+      This offline storyboard demonstrates the proposed listing narrative. It is not a screenshot or recording of
+      ChatGPT, Claude, or a live publishing result.
+    </p>
+    <nav aria-label="Workflow steps">
+      <button aria-pressed="true" data-step="0">1. Connect</button
+      ><button aria-pressed="false" data-step="1">2. Prepare</button
+      ><button aria-pressed="false" data-step="2">3. Review</button
+      ><button aria-pressed="false" data-step="3">4. Choose a time</button>
+    </nav>
+    <article aria-live="polite">
+      <div>
+        <p class="status" id="state">ONE ACCOUNT TO START</p>
+        <h2 id="heading">Give your assistant a destination</h2>
+        <p id="body">
+          Connect a social account in SimplePost, then authorize SimplePost in your assistant using the same login.
+        </p>
+      </div>
+      <blockquote id="example">
+        “List my connected SimplePost accounts. If none are connected, help me find the account connection page.”
+      </blockquote>
+    </article>
+    <footer>Example content only. No network requests. No posts created, scheduled or published.</footer>
+  </main>
+  <script>
+    const steps = [
+      [
+        "ONE ACCOUNT TO START",
+        "Give your assistant a destination",
+        "Connect a social account in SimplePost, then authorize SimplePost in your assistant using the same login.",
+        "“List my connected SimplePost accounts. If none are connected, help me find the account connection page.”",
+      ],
+      [
+        "SAVE AS DRAFT",
+        "Shape one idea for your audience",
+        "Ask for versions for the accounts you choose. Media-based platforms need an image or video.",
+        "“Turn our onboarding update into an X post and a LinkedIn post. Save drafts and show their previews. Do not publish.”",
+      ],
+      [
+        "REVIEW BEFORE SCHEDULING",
+        "See the text, media and destinations",
+        "Read each version and resolve any validation errors. Saving a draft is not a claim that it is ready to publish.",
+        "Example draft: “We made onboarding shorter. Connect an account, prepare a post, and review it before publishing.”",
+      ],
+      [
+        "YOUR DATE AND TIMEZONE",
+        "Decide when the approved draft goes out",
+        "Review your calendar and confirm the exact content, accounts, media and time. Check the publishing result after dispatch.",
+        "“Show next week’s schedule in Europe/Berlin. Wait for me to choose and confirm a time for this draft.”",
+      ],
+    ];
+    document.querySelectorAll("button").forEach((button) =>
+      button.addEventListener("click", () => {
+        document.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        const step = steps[Number(button.dataset.step)];
+        ["state", "heading", "body", "example"].forEach(
+          (id, index) => (document.getElementById(id).textContent = step[index]),
+        );
+      }),
+    );
+  </script>
+</html>

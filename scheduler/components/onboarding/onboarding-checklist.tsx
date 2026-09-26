@@ -63,12 +63,12 @@ function StepRow({ step, index }: { step: ChecklistStep; index: number }) {
 }
 
 /**
- * First-run guidance on the dashboard. The middle step is the AI integration
+ * First-run guidance on the dashboard. The second step is the AI integration
  * rather than an afterthought, because that is what makes SimplePost different
  * from every other scheduler. Connecting an assistant is deliberately placed
  * before writing a first post.
  *
- * Disappears on its own once all three steps are done, so it never needs
+ * Disappears on its own once all milestones are done, so it never needs
  * dismissing in the normal case.
  */
 export function OnboardingChecklist() {
@@ -76,7 +76,7 @@ export function OnboardingChecklist() {
   const { dismissed, dismiss, ready } = useOnboardingDismissal("checklist");
   const [aiModalOpen, setAiModalOpen] = useState(false);
 
-  const complete = state ? state.hasConnectedAccount && state.hasAiConnection && state.hasPost : false;
+  const complete = state ? state.hasConnectedAccount && state.hasAiConnection && state.hasPublishedPost : false;
   if (!state || complete || !ready || dismissed) {
     return null;
   }
@@ -88,7 +88,7 @@ export function OnboardingChecklist() {
       description: "Link X, LinkedIn, Bluesky, Instagram, or any of the 10 supported platforms.",
       done: state.hasConnectedAccount,
       Icon: Users,
-      action: { label: "Connect", href: "/accounts" },
+      action: { label: "Connect", href: "/accounts?onboarding=connect" },
     },
     {
       id: "ai",
@@ -106,6 +106,16 @@ export function OnboardingChecklist() {
       Icon: PenLine,
       action: { label: "Compose", href: "/schedule" },
     },
+    {
+      id: "published",
+      title: "Confirm your first successful post",
+      description: state.hasPost
+        ? "Check the published result. If a destination failed, open the post to fix it and retry."
+        : "After publishing, check the result on each destination.",
+      done: state.hasPublishedPost,
+      Icon: Check,
+      action: { label: "View posts", href: "/" },
+    },
   ];
 
   const doneCount = steps.filter((step) => step.done).length;
@@ -122,7 +132,7 @@ export function OnboardingChecklist() {
               </span>
             </div>
             <h2 className="text-base font-semibold tracking-[-0.025em] text-foreground">
-              Three steps to posting from <span className="text-primary">your AI assistant</span>
+              Start posting from <span className="text-primary">your AI assistant</span>
             </h2>
           </div>
           <Button

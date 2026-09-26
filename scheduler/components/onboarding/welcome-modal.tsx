@@ -39,8 +39,7 @@ const STEPS = [
  * and hand off directly into the first one. The dashboard checklist is the
  * fallback for anyone who dismisses it or comes back later.
  *
- * Suppressed once the user has done anything at all, so returning users and
- * anyone who signed up through the MCP server never get an empty pep talk.
+ * Assistant-first signups still need a destination before they can publish.
  */
 export function WelcomeModal() {
   const router = useRouter();
@@ -50,10 +49,14 @@ export function WelcomeModal() {
   const { dismissed, dismiss, ready } = useOnboardingDismissal("welcome");
 
   const onTrial = billing?.accessType === "trial" && billing.trial?.status === "active";
-  const untouched = state ? !state.hasConnectedAccount && !state.hasAiConnection && !state.hasPost : false;
-  // Billing pages are a deliberate destination; do not interrupt them there.
-  const onBillingPath = pathname.startsWith("/billing") || pathname === "/subscribe";
-  const open = Boolean(ready && !dismissed && onTrial && untouched && !onBillingPath);
+  const untouched = state ? !state.hasConnectedAccount && !state.hasPost : false;
+  // Do not interrupt billing, account connection, or an incoming preview draft.
+  const onTaskPath =
+    pathname.startsWith("/billing") ||
+    pathname === "/subscribe" ||
+    pathname === "/schedule" ||
+    pathname === "/accounts";
+  const open = Boolean(ready && !dismissed && onTrial && untouched && !onTaskPath);
 
   const trialDays = billing?.trial?.daysRemaining ?? 0;
 
@@ -64,28 +67,35 @@ export function WelcomeModal() {
           <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
             <Rocket className="h-5 w-5" />
           </div>
-          <DialogTitle className="text-xl tracking-[-0.025em]">Your {trialDays}-day free trial is ready</DialogTitle>
+          <DialogTitle className="text-xl tracking-[-0.025em]">
+            {state?.hasAiConnection
+              ? "Your assistant is connected. Add a social account."
+              : `Your ${trialDays}-day free trial is ready`}
+          </DialogTitle>
           <DialogDescription className="leading-6">
-            Every feature is unlocked and no card is required. Start with one social account, then let your AI assistant
-            schedule the first post.
+            {state?.hasAiConnection
+              ? "One more connection gives your assistant somewhere to publish. Link a social account, then return to your conversation to prepare the first post."
+              : "Every feature is unlocked and no card is required. Start with one social account, then let your AI assistant schedule the first post."}
           </DialogDescription>
         </DialogHeader>
 
         <ol className="grid gap-2">
-          {STEPS.map(({ Icon, title, description }, index) => (
-            <li key={title} className="flex gap-3 rounded-xl border border-border bg-secondary/50 p-3.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[11px] font-semibold text-primary">
-                {index + 1}
-              </span>
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                  <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  {title}
-                </p>
-                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>
-              </div>
-            </li>
-          ))}
+          {STEPS.filter((step) => !state?.hasAiConnection || step.Icon !== Bot).map(
+            ({ Icon, title, description }, index) => (
+              <li key={title} className="flex gap-3 rounded-xl border border-border bg-secondary/50 p-3.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[11px] font-semibold text-primary">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    {title}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>
+                </div>
+              </li>
+            ),
+          )}
         </ol>
 
         <DialogFooter>

@@ -65,6 +65,7 @@ COPY --from=builder --chown=nonroot:nonroot /app/scheduler/public ./scheduler/pu
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/.next ./scheduler/.next
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/prisma ./scheduler/prisma
+COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/prune-experiments.mjs ./scheduler/scripts/prune-experiments.mjs
 USER nonroot:nonroot
 WORKDIR /app/scheduler
 EXPOSE 3000
@@ -100,6 +101,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/scheduler/public ./scheduler/publ
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/.next ./scheduler/.next
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/prisma ./scheduler/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/prune-experiments.mjs ./scheduler/scripts/prune-experiments.mjs
 USER nextjs
 WORKDIR /app/scheduler
 EXPOSE 3000

@@ -1,0 +1,20 @@
+{
+  "name": "List accounts",
+  "type": "search",
+  "label": "List accounts",
+  "description": "Returns social accounts connected to SimplePost.",
+  "communication": {
+    "url": "/api/v1/accounts",
+    "method": "GET",
+    "response": {
+      "iterate": "{{body.accounts}}",
+      "output": "{{item}}"
+    }
+  },
+  "interface": [
+    { "name": "id", "label": "Account ID", "type": "text" },
+    { "name": "platform", "label": "Platform", "type": "text" },
+    { "name": "displayName", "label": "Display name", "type": "text" },
+    { "name": "username", "label": "Username", "type": "text" }
+  ]
+}

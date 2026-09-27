@@ -1,0 +1,20 @@
+{
+  "url": "{{parameters.baseUrl}}/api/v1/accounts",
+  "headers": {
+    "Authorization": "Bearer {{parameters.apiKey}}"
+  },
+  "response": {
+    "error": {
+      "message": "{{ifempty(body.error, body.message)}}"
+    },
+    "metadata": {
+      "id": "{{parameters.baseUrl}}",
+      "label": "SimplePost"
+    }
+  },
+  "log": {
+    "sanitize": [
+      "request.headers.Authorization"
+    ]
+  }
+}

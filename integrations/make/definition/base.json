@@ -1,0 +1,17 @@
+{
+  "baseUrl": "{{connection.baseUrl}}",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json"
+  },
+  "response": {
+    "error": {
+      "message": "{{ifempty(body.error, body.message)}}"
+    }
+  },
+  "log": {
+    "sanitize": [
+      "request.headers.Authorization"
+    ]
+  }
+}

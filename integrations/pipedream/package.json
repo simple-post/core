@@ -1,0 +1,11 @@
+{
+  "name": "@simple-post/pipedream",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pipedream components for SimplePost.",
+  "license": "MIT",
+  "scripts": {
+    "check": "node --check components/simplepost.app.mjs && node --check components/actions/create-post/create-post.mjs && node --check components/actions/validate-post/validate-post.mjs && node --test test/*.test.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

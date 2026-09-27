@@ -1,4 +1,5 @@
 import { claimMilestoneEvents } from "@/lib/analytics/activation";
+import { buildLandingReport } from "@/lib/analytics/landing-report";
 import { createFirstTouch } from "@/lib/analytics/first-touch";
 import { prisma } from "@/lib/prisma";
 
@@ -122,4 +123,29 @@ it("records the first payment and removes milestones with the account", async ()
   expect(claimed.map((event) => event.kind)).not.toContain("subscription_started");
   await prisma.user.delete({ where: { id: tracked } });
   expect(await prisma.activationMilestone.count({ where: { userId: tracked } })).toBe(0);
+});
+
+it("feeds the admin landing report from the same query shape as /admin/analytics", async () => {
+  await account(tracked, "linkedin", new Date("2026-09-27T09:30:00Z"));
+  const accounts = await prisma.user.findMany({
+    where: { id: { in: [tracked, legacy] }, acquisition: { not: null } },
+    select: {
+      acquisition: true,
+      firstPayment: { select: { paidAt: true } },
+      activationMilestone: {
+        select: {
+          socialConnectedAt: true,
+          aiConnectedAt: true,
+          firstPostCreatedAt: true,
+          firstPostScheduledAt: true,
+          firstPostPublishedAt: true,
+        },
+      },
+    },
+  });
+  const report = buildLandingReport(accounts, new Date("2026-12-01"));
+  expect(report.categories).toEqual([
+    expect.objectContaining({ key: "ai_client", signups: 1, socialConnected: 1, postPublished: 0 }),
+  ]);
+  expect(report.pages[0]).toMatchObject({ key: "/ai/claude", signups: 1 });
 });

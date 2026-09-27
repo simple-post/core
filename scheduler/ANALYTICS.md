@@ -233,3 +233,17 @@ Deleting an account cascades to its milestone row.
 - `integration/activation-milestones.test.ts`, which needs a disposable
   `simplepost_review` database. It covers every trigger, the earliest-time rule,
   concurrent claims, legacy exclusion, the subscription exclusion and deletion.
+
+
+### Free tool → imported draft
+
+The website's free tools share the v1 preview handoff:
+
+- post preview;
+- post checker;
+- thread generator;
+- cross-post generator.
+
+The handoff now includes an optional `source` field. It must be one of `post-preview`, `post-checker`, `thread-generator` or `cross-post-generator`. Unknown values are dropped rather than rejected, so older links still import.
+
+`Preview Draft Imported` includes `source`, defaulting to `post-preview`. Together with the website's `Tool Used` and `Preview Schedule Click`, this shows which free tool leads to imported drafts. Deploy this before the website tools that send `source`. An older receiver ignores the field, so nothing breaks.

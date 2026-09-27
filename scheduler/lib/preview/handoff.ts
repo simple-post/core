@@ -4,10 +4,15 @@ export interface PreviewVariant {
   message: string;
   thread: string[];
 }
+/** Free website tool that produced the draft. Used only as an analytics label. */
+export const PREVIEW_SOURCES = ["post-preview", "post-checker", "thread-generator", "cross-post-generator"] as const;
+export type PreviewSource = (typeof PREVIEW_SOURCES)[number];
 export interface PreviewHandoff {
   version: 1;
   variants: PreviewVariant[];
   hasMedia: boolean;
+  /** Optional; unknown values are dropped rather than rejected so older links keep working. */
+  source?: PreviewSource;
 }
 export const PREVIEW_KEY = "simplepost:preview:v1:";
 export const PREVIEW_TTL = 24 * 60 * 60 * 1000;
@@ -52,6 +57,7 @@ export function parsePreview(value: unknown): PreviewHandoff {
     return { platform: variant.platform, message: variant.message, thread: [...variant.thread] };
   });
   const result: PreviewHandoff = { version: 1, hasMedia: data.hasMedia, variants };
+  if ((PREVIEW_SOURCES as readonly unknown[]).includes(data.source)) result.source = data.source;
   if (JSON.stringify(result).length > 48_000) throw new Error("Preview is too large");
   return result;
 }

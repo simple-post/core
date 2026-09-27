@@ -29,4 +29,12 @@ describe("preview transfer boundary", () => {
   it("rejects malformed fragments", () => {
     for (const hash of ["", "#other=x", "#preview=%", "#preview=null"]) expect(() => decodePreview(hash)).toThrow();
   });
+  it("keeps a known tool source and drops unknown ones without rejecting the draft", () => {
+    expect(parsePreview({ ...payload, source: "thread-generator" })).toEqual({
+      ...payload,
+      source: "thread-generator",
+    });
+    expect(parsePreview({ ...payload, source: "<script>" })).toEqual(payload);
+    expect(parsePreview({ ...payload, source: 42 })).toEqual(payload);
+  });
 });

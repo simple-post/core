@@ -113,7 +113,10 @@ export function PreviewImport() {
                   draft.setRepostSettings({ enabled: false, delayHours: 12 });
                   setImported(true);
                   setReplace(false);
-                  trackEvent("Preview Draft Imported", { platform: variant.platform });
+                  trackEvent("Preview Draft Imported", {
+                    platform: variant.platform,
+                    source: preview.source ?? "post-preview",
+                  });
                 }}>
                 Use this draft
               </Button>

@@ -1,0 +1,27 @@
+{
+  "name": "@simple-post/zapier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zapier integration for publishing and scheduling SimplePost social media posts.",
+  "license": "MIT",
+  "homepage": "https://github.com/simple-post/core/tree/main/integrations/zapier",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simple-post/core.git",
+    "directory": "integrations/zapier"
+  },
+  "scripts": {
+    "check": "zapier-platform validate",
+    "test": "node --test test/*.test.js",
+    "build": "zapier-platform build"
+  },
+  "dependencies": {
+    "zapier-platform-core": "19.0.0"
+  },
+  "devDependencies": {
+    "zapier-platform-cli": "^19.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

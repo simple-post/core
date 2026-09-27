@@ -151,3 +151,85 @@ DATABASE_URL=postgresql://localhost:55439/simplepost_review BETTER_AUTH_SECRET=l
 The second test exercises the real Better Auth runtime: initial source capture,
 unchanged attribution on repeat login, unknown fallback, and omission from auth
 responses. It uses only the disposable database and sends no email.
+
+## SEO landing categories and activation milestones
+
+### Landing pages and categories
+
+The first-touch `landingPage` allowlist accepts the public SEO sections with one slug
+grammar shared with the website (`lib/analytics/landing-category.ts`, mirrored in
+`website-social/lib/seo/categories.ts`):
+
+- `/platforms`, `/ai`, `/guides`, `/tools` and `/compare`, each with an optional
+  lowercase slug;
+- the standalone workflow pages;
+- `/social-media-mcp-server` and `/social-media-scheduler-for-ai-agents`.
+
+Nested paths, uppercase letters, `@` and other characters become `/other`.
+The category (`platform`, `ai_client`, `guide`, `tool`, `comparison`, `mcp`) is always
+derived from the stored route and is never stored separately, so the v1 cookie shape
+does not change.
+
+**Deploy this before the website pages that use the new routes.** An older reader
+rejects an unknown `landingPage` and records the signup as `unknown`.
+
+### Activation milestones
+
+The migration `20260927120000_activation_milestones` adds `activation_milestone`, one row
+per account created with acquisition tracking. PostgreSQL triggers fill it for every
+interface: web app, MCP, CLI, API and the scheduled dispatcher. Each timestamp keeps
+the earliest value.
+
+| Concept                  | Recorded when                                                         | Plausible event (relayed once)                   |
+| ------------------------ | --------------------------------------------------------------------- | ------------------------------------------------ |
+| page_view                | Website/app navigation                                                | Built-in pageview                                |
+| tool_used                | Website free tool interaction                                         | `Preview Started` (preview tools) or `Tool Used` |
+| signup_started           | Sign-in attempt; sign-up and sign-in cannot be told apart before auth | Existing `Sign In Started`                       |
+| signup_completed         | `user` insert with acquisition                                        | `Signup Completed`                               |
+| AI integration connected | First MCP OAuth token, CLI token or API key                           | `AI Integration Connected` (`client`)            |
+| social account connected | First `connected_account` insert                                      | `Social Account Connected` (`platform`)          |
+| first post created       | First `post` insert, including drafts                                 | `First Post Created`                             |
+| first post scheduled     | First transition to `scheduled`                                       | `First Post Scheduled`                           |
+| first post published     | First transition to `published`                                       | `First Post Published`                           |
+| subscription_started     | First positive live invoice (`first_payment`)                         | Existing `Paid Subscription`; not relayed again  |
+
+Relayed events carry `landing_page` and `landing_category` from the account's first touch.
+
+- **`client`** is normalized from the self-reported MCP client name to a fixed set:
+  `chatgpt`, `claude`, `claude-code`, `cursor`, `openclaw`, `gemini-cli`, `hermes`,
+  `codex`, `windsurf`, `kiro`, `grok`, `cli`, `api` or `other-mcp`.
+- **`platform`** is limited to known platform IDs.
+- No IDs, emails or content are sent.
+
+**How relaying works.** A signed-in browser calls
+`POST /api/v1/analytics/milestones` at most once a minute (only where
+`analyticsEnabled()`), receives unreported milestones, and sends them to Plausible.
+The claim is an optimistic update of `reportedKinds`. Concurrent tabs or devices cannot
+both receive the same milestone, so events are emitted at most once.
+
+**Limits.**
+
+- An event can be missing if its browser delivery fails, or if the user never opens the
+  app again. Connector-first users are an example.
+- The event time is the relay time, not the milestone time.
+- Use the database timestamps for exact funnels.
+
+**Backfill.** Accounts that already had acquisition data are backfilled from history
+and marked as reported, so historical activity is never relayed as new conversions.
+
+- "First scheduled" is approximated from posts created with a future `scheduledFor`.
+- Legacy accounts without acquisition data, and self-hosted deployments, get no row.
+
+Deleting an account cascades to its milestone row.
+
+**Plausible setup.** Create the goals `Signup Completed`, `AI Integration Connected`,
+`Social Account Connected`, `First Post Created`, `First Post Scheduled`,
+`First Post Published` and `Tool Used`. Enable the custom properties
+`landing_page`, `landing_category`, `client`, `platform` and `tool`.
+
+**Tests.**
+
+- `tests/lib/analytics/activation.test.ts` and `landing-category.test.ts`.
+- `integration/activation-milestones.test.ts`, which needs a disposable
+  `simplepost_review` database. It covers every trigger, the earliest-time rule,
+  concurrent claims, legacy exclusion, the subscription exclusion and deletion.

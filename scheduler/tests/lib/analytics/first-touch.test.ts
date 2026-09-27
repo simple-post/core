@@ -38,3 +38,20 @@ describe("first-touch attribution", () => {
     expect(readFirstTouch(cookie({ ...touch, landingPage: "/private/person" }), now)).toBeNull();
   });
 });
+
+describe("SEO landing pages", () => {
+  it.each([
+    ["https://simplepost.social/platforms/linkedin/", "/platforms/linkedin"],
+    ["https://simplepost.social/ai/claude-code/", "/ai/claude-code"],
+    ["https://simplepost.social/guides/", "/guides"],
+    ["https://simplepost.social/tools/thread-generator/", "/tools/thread-generator"],
+    ["https://simplepost.social/social-media-mcp-server/", "/social-media-mcp-server"],
+    ["https://simplepost.social/instagram-from-chatgpt/", "/instagram-from-chatgpt"],
+    ["https://simplepost.social/platforms/linkedin/extra", "/other"],
+    ["https://simplepost.social/ai/User@Example.com", "/other"],
+  ])("records %s as %s and accepts it back from the cookie", (href, landingPage) => {
+    const touch = createFirstTouch(href, "", now);
+    expect(touch.landingPage).toBe(landingPage);
+    expect(readFirstTouch(cookie(touch), now)).toEqual(touch);
+  });
+});

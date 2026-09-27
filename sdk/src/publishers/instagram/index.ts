@@ -16,6 +16,23 @@ const INSTAGRAM_API_VERSION = "v25.0";
 const FACEBOOK_GRAPH_API_VERSION = "v25.0";
 const PROCESSING_POLL_INTERVAL = 3000;
 const PROACTIVE_REFRESH_DAYS = 7;
+// Retry only Meta's explicit missing-media rejection, always using the same container ID.
+const PUBLISH_PROPAGATION_DELAYS = [5000, 10_000, 20_000];
+
+interface InstagramPublishErrorLike {
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        code?: number;
+        error_subcode?: number;
+        message?: string;
+        type?: string;
+      };
+    };
+  };
+  message?: string;
+}
 
 interface InstagramRefreshResponse {
   access_token: string;
@@ -218,6 +235,41 @@ export class InstagramPublisher extends Publisher {
     );
   }
 
+  private async publishContainer(containerId: string): Promise<{ data: { id: string } }> {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media_publish`, {
+          creation_id: containerId,
+        });
+      } catch (error) {
+        const err = error as InstagramPublishErrorLike;
+        const providerError = err.response?.data?.error;
+        // FINISHED can precede visibility to media_publish. Meta explicitly
+        // rejects this request before publication, so retrying the same
+        // creation_id is safe. Other failures may be ambiguous and must not
+        // trigger another publish automatically.
+        if (err.response?.status !== 400 || providerError?.code !== 9007 || providerError.error_subcode !== 2_207_027) {
+          throw error;
+        }
+
+        const delay = PUBLISH_PROPAGATION_DELAYS[attempt];
+        if (delay === undefined) {
+          throw new PostError(
+            PostErrorType.PUBLISH_REJECTED,
+            "Instagram could not find the prepared media after waiting for it to become available. Please retry the failed Instagram target.",
+            { provider: err.response?.data, creationId: containerId },
+          );
+        }
+
+        this.logger.warn(
+          `Instagram container ${containerId} is not visible to publishing yet; retrying in ${delay}ms.`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        // Do not create a replacement container or re-run the whole post.
+      }
+    }
+  }
+
   private async createMediaObject(media: Media, isCarousel: boolean, caption?: string): Promise<string> {
     // Get the Instagram media type
     // Standalone videos are Reels, while a video inside a carousel is a
@@ -321,9 +373,7 @@ export class InstagramPublisher extends Publisher {
       await this.waitForMediaReady(containerId);
 
       // Publish the container
-      const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media_publish`, {
-        creation_id: containerId,
-      });
+      const response = await this.publishContainer(containerId);
 
       const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
 

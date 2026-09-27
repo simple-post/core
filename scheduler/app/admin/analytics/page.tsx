@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { LoginForm } from "@/components/login-form";
 import { hasAnalyticsAdminAccess } from "@/lib/analytics/admin";
+import { buildLandingReport, rate, type LandingRow } from "@/lib/analytics/landing-report";
 import { acquisitionLabels, buildAcquisitionReport, cohortRange } from "@/lib/analytics/report";
 import { auth } from "@/lib/auth/auth";
 import { env } from "@/lib/env";
@@ -48,6 +49,15 @@ export default async function AcquisitionReport({
       freeTrial: { select: { startsAt: true, expiresAt: true } },
       firstPayment: { select: { paidAt: true, planKey: true } },
       subscription: { select: { status: true, planKey: true } },
+      activationMilestone: {
+        select: {
+          socialConnectedAt: true,
+          aiConnectedAt: true,
+          firstPostCreatedAt: true,
+          firstPostScheduledAt: true,
+          firstPostPublishedAt: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 10_001,
@@ -63,6 +73,7 @@ export default async function AcquisitionReport({
       </main>
     );
   const rows = buildAcquisitionReport(accounts);
+  const landing = buildLandingReport(accounts);
   const payers = accounts
     .filter((account) => account.firstPayment)
     .sort((a, b) => b.firstPayment!.paidAt.getTime() - a.firstPayment!.paidAt.getTime());
@@ -174,6 +185,18 @@ export default async function AcquisitionReport({
           )}
         </div>
       </section>
+      <LandingTable
+        title="Landing categories → activation"
+        description="Signups by the category of their first landing page (platform, AI client, guide, tool, comparison, MCP), and how many reached each first-time milestone. Milestones are recorded for every interface, including MCP and scheduled dispatch; percentages are of signups."
+        firstColumn="Category"
+        rows={landing.categories}
+      />
+      <LandingTable
+        title="SEO landing pages → activation"
+        description="Top 50 SEO landing pages in this cohort. Use this with Search Console to decide which topics deserve more pages."
+        firstColumn="Landing page"
+        rows={landing.pages}
+      />
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Customers who have paid</h2>
         <p className="text-sm text-muted-foreground">
@@ -241,5 +264,67 @@ export default async function AcquisitionReport({
         do not erase the historical conversion.
       </p>
     </main>
+  );
+}
+
+function LandingTable({
+  title,
+  description,
+  firstColumn,
+  rows,
+}: {
+  title: string;
+  description: string;
+  firstColumn: string;
+  rows: LandingRow[];
+}) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold">{title}</h2>
+      <p className="text-sm text-muted-foreground max-w-3xl">{description}</p>
+      <div className="overflow-x-auto border border-border rounded-xl">
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              {[
+                firstColumn,
+                "Signups",
+                "Social account",
+                "AI integration",
+                "First post",
+                "First scheduled",
+                "First published",
+                "Paid",
+              ].map((label) => (
+                <th className={cell} key={label}>
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td className={cell}>{row.key}</td>
+                <td className={cell}>{row.signups}</td>
+                {[
+                  row.socialConnected,
+                  row.aiConnected,
+                  row.postCreated,
+                  row.postScheduled,
+                  row.postPublished,
+                  row.paid,
+                ].map((value, index) => (
+                  <td className={cell} key={index}>
+                    {value} <span className="text-muted-foreground">({rate(value, row.signups)})</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && <p className="p-6 text-muted-foreground">No tracked signups in this date range.</p>}
+      </div>
+    </section>
   );
 }

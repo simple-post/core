@@ -53,6 +53,7 @@ model User {
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
   postingSlots                 PostingSlot[]
+  activationMilestone          ActivationMilestone?
 
   @@unique([email])
   @@map("user")
@@ -558,4 +559,28 @@ model FirstPayment {
 
   @@index([paidAt])
   @@map("first_payment")
+}
+
+// First-time activation milestones for accounts created with acquisition tracking.
+// Written only by database triggers (see migration 20260927120000_activation_milestones)
+// so web, MCP, CLI, API and dispatcher paths are all covered. `reportedKinds` lists
+// milestones already relayed to browser analytics; historical backfill is pre-reported.
+model ActivationMilestone {
+  userId                String    @id
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signupCompletedAt     DateTime?
+  aiConnectedAt         DateTime?
+  aiClient              String?
+  socialConnectedAt     DateTime?
+  socialPlatform        String?
+  firstPostCreatedAt    DateTime?
+  firstPostScheduledAt  DateTime?
+  firstPostPublishedAt  DateTime?
+  subscriptionStartedAt DateTime?
+  reportedKinds         String[]  @default([])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now())
+
+  @@index([signupCompletedAt])
+  @@map("activation_milestone")
 }

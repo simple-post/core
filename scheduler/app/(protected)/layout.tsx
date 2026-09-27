@@ -7,6 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ActivationAnalytics } from "@/components/activation-analytics";
 import { SubscriptionGate } from "@/components/billing/subscription-gate";
 import { WebMcpProvider } from "@/components/create-post-webmcp";
 import { LoginForm } from "@/components/login-form";
@@ -109,6 +110,8 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   // Render protected content only after subscription status is known.
   return (
     <InviteRedemptionGate userId={session.user.id}>
+      {/* Outside the subscription gate: milestones still relay after a trial ends. */}
+      <ActivationAnalytics />
       <WebMcpProvider key={session.user.id}>
         <ScheduleCalendarProvider>
           <SubscriptionGate>

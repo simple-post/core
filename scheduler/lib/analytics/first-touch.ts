@@ -1,3 +1,5 @@
+import { seoRoute } from "./landing-category";
+
 /** Shared v1 cookie contract with the marketing repository. No visitor identifier. */
 export const FIRST_TOUCH_COOKIE = "sp_first_touch_v1";
 export const FIRST_TOUCH_MAX_AGE = 90 * 24 * 60 * 60;
@@ -34,8 +36,8 @@ function landingPage(url: URL): string {
   }
   if (["/", "/clean", "/contact", "/privacy", "/terms", "/post-to-all-social-media-at-once"].includes(path))
     return path;
-  if (/^\/tools\/(social-media|twitter|linkedin|instagram|facebook)-post-preview$/.test(path)) return path;
-  return "/other";
+  // Public SEO sections share one slug grammar with the website's copy of this contract.
+  return seoRoute(path) ?? "/other";
 }
 
 export function createFirstTouch(href: string, referrer: string, now = new Date()): FirstTouch {

@@ -312,6 +312,116 @@ describe("InstagramPublisher", () => {
       });
     });
 
+    it("retries the same ready container when publishing reports that its media ID is not available", async () => {
+      jest.useFakeTimers();
+      const content: Content = {
+        text: "Ready before propagation",
+        media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }],
+      };
+      const rejection = {
+        response: {
+          status: 400,
+          data: { error: { code: 9007, error_subcode: 2_207_027, message: "Media ID is not available" } },
+        },
+      };
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_123" } })
+        .mockRejectedValueOnce(rejection)
+        .mockRejectedValueOnce(rejection)
+        .mockRejectedValueOnce(rejection)
+        .mockResolvedValueOnce({ data: { id: "post_id_456" } });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/SHORTCODE_456/" } });
+
+      try {
+        const started = Date.now();
+        const result = publisher.postContent(content, options);
+        await jest.runAllTimersAsync();
+
+        expect(await result).toMatchObject({ id: "post_id_456", error: PostErrorType.NO_ERROR });
+        expect(Date.now() - started).toBe(35_000);
+        expect(mockAxiosInstance.post.mock.calls.filter(([url]: [string]) => url.endsWith("/media"))).toHaveLength(1);
+        const publishes = mockAxiosInstance.post.mock.calls.filter(([url]: [string]) => url.endsWith("/media_publish"));
+        expect(publishes).toHaveLength(4);
+        for (const [, payload] of publishes) expect(payload.creation_id).toBe("container_id_123");
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("returns a conclusive retryable rejection when media propagation retries are exhausted", async () => {
+      jest.useFakeTimers();
+      const content: Content = {
+        text: "Still unavailable",
+        media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }],
+      };
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container_id_123" } }).mockRejectedValue({
+        response: {
+          status: 400,
+          data: { error: { code: 9007, error_subcode: 2_207_027, message: "Media ID is not available" } },
+        },
+      });
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { status_code: "FINISHED" } });
+
+      try {
+        const result = expect(publisher.postContent(content, options)).rejects.toMatchObject({
+          errorType: PostErrorType.PUBLISH_REJECTED,
+          message: expect.stringContaining("retry the failed Instagram target"),
+        });
+        await jest.runAllTimersAsync();
+        await result;
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(5);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it.each([
+      { message: "timeout", code: "ECONNABORTED" },
+      { response: { status: 500, data: { error: { code: 9007, error_subcode: 2_207_027 } } } },
+      { response: { status: 400, data: { error: { code: 9007, error_subcode: 999 } } } },
+      { response: { status: 400, data: { error: { code: 999, error_subcode: 2_207_027 } } } },
+    ])("does not retry ambiguous or unrelated publish errors: %j", async (error) => {
+      const content: Content = {
+        text: "No duplicate",
+        media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }],
+      };
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container_id_123" } }).mockRejectedValueOnce(error);
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { status_code: "FINISHED" } });
+
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops retrying if a propagation rejection is followed by an ambiguous failure", async () => {
+      jest.useFakeTimers();
+      const content: Content = {
+        text: "No duplicate",
+        media: [{ type: "image", url: "https://cdn.example.com/image.jpg" }],
+      };
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_id_123" } })
+        .mockRejectedValueOnce({
+          response: { status: 400, data: { error: { code: 9007, error_subcode: 2_207_027 } } },
+        })
+        .mockRejectedValueOnce(new Error("Connection dropped after publish"));
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { status_code: "FINISHED" } });
+
+      try {
+        const result = expect(publisher.postContent(content, options)).rejects.toMatchObject({
+          errorType: PostErrorType.API_ERROR,
+        });
+        await jest.runAllTimersAsync();
+        await result;
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("uses a VIDEO child container for a mixed image and video carousel", async () => {
       const content: Content = {
         text: "Mixed carousel post",

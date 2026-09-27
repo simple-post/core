@@ -234,6 +234,7 @@ Deleting an account cascades to its milestone row.
   `simplepost_review` database. It covers every trigger, the earliest-time rule,
   concurrent claims, legacy exclusion, the subscription exclusion and deletion.
 
+
 ### Free tool → imported draft
 
 The website's free tools share the v1 preview handoff:

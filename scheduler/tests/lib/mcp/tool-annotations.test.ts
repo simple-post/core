@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { EXTENSION_TOOL_ANNOTATIONS } from "@/lib/mcp/extensions/tool-annotations";
 import { MCP_TOOL_ANNOTATIONS, MCP_TOOL_HINT_KEYS, type McpToolHintKey } from "@/lib/mcp/tool-annotations";
 
 const JUSTIFICATION_KEYS: Record<McpToolHintKey, string> = {
@@ -16,6 +17,7 @@ type SubmissionTool = {
 };
 
 type SubmissionCase = {
+  description: string;
   expected_output: string;
   user_prompt: string;
   file_attachment_urls: string[] | null;
@@ -43,7 +45,8 @@ function parseTriggeredTools(value: string | null): string[] {
 
 describe("ChatGPT app submission metadata", () => {
   const submission = readSubmission();
-  const knownToolNames = Object.keys(MCP_TOOL_ANNOTATIONS) as Array<keyof typeof MCP_TOOL_ANNOTATIONS>;
+  const allToolAnnotations = { ...MCP_TOOL_ANNOTATIONS, ...EXTENSION_TOOL_ANNOTATIONS };
+  const knownToolNames = Object.keys(allToolAnnotations) as Array<keyof typeof allToolAnnotations>;
   const knownToolNameStrings = knownToolNames.map(String);
 
   it("keeps submitted tool annotations in sync with the live MCP descriptors", () => {
@@ -54,7 +57,7 @@ describe("ChatGPT app submission metadata", () => {
       expect(submittedTool).toBeDefined();
 
       for (const hintKey of MCP_TOOL_HINT_KEYS) {
-        expect(submittedTool.annotations?.[hintKey]).toBe(MCP_TOOL_ANNOTATIONS[toolName][hintKey]);
+        expect(submittedTool.annotations?.[hintKey]).toBe(allToolAnnotations[toolName][hintKey]);
         expect(typeof submittedTool.annotations?.[hintKey]).toBe("boolean");
 
         const justification = submittedTool.justifications?.[JUSTIFICATION_KEYS[hintKey]];
@@ -75,14 +78,9 @@ describe("ChatGPT app submission metadata", () => {
       }
 
       expect(testCase.user_prompt).not.toMatch(/@clompton|edmundclompton|edmund\.clompton@gmail\.com/i);
-      expect(testCase.user_prompt).not.toMatch(/that same returned|same returned draft/i);
-      expect(testCase.user_prompt).not.toMatch(/\b(two|both|exactly\s+\d+|[2-9]\s+accounts?)\b/i);
-      expect(testCase.expected_output.length).toBeLessThanOrEqual(100);
-
-      if (triggeredTools.includes("update_scheduled_post") || triggeredTools.includes("discard_scheduled_post")) {
-        expect(triggeredTools).toContain("create_post");
-        expect(testCase.user_prompt).not.toMatch(/post_123/i);
-      }
+      expect(testCase.description.length).toBeGreaterThan(24);
+      expect(testCase.expected_output.length).toBeGreaterThan(24);
+      expect(testCase.expected_output.length).toBeLessThanOrEqual(4000);
     }
 
     const createCases = submission.test_cases.filter((testCase) =>

@@ -1,10 +1,10 @@
 {
-  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "$schema": "https://developers.openai.com/plugins/schemas/chatgpt-app-submission.v1.json",
   "schema_version": 1,
   "app_info": {
     "display_name": "SimplePost",
-    "subtitle": "Draft, preview, and schedule social posts",
-    "description": "Turn an idea into a social post without leaving ChatGPT. Use SimplePost to prepare versions for your connected accounts, save drafts, see post previews, and review your publishing calendar. When you are ready, confirm the content, destination accounts, media, and timing to publish or schedule. Start by connecting at least one social account in the SimplePost web app, then authorize this integration with the same SimplePost login. Instagram requires an eligible professional account and media. Hosted access requires an active SimplePost trial or paid plan. Supported clients show interactive previews and calendars, with text fallbacks where needed. SimplePost does not read social engagement analytics or edit posts already published on a social network.",
+    "subtitle": "Plan and edit social posts",
+    "description": "SimplePost helps you draft, preview, schedule, and publish posts for your connected social accounts from ChatGPT. Open the sidebar workspace to browse a day, week, or month calendar, select posting slots or posts, and ask ChatGPT for help with that selection. Use the persistent post editor to write shared content or per-account versions, work with media and threads, and see live platform previews as you edit. Working copies autosave and can be recovered for seven inactive days. ChatGPT writing suggestions appear as separate proposals for you to review and apply. Saving a draft, scheduling, and publishing are explicit actions. Confirm your destination accounts, content, media, and timing before publishing or scheduling. Your timezone and calendar preferences are saved; changing timezone does not move existing scheduled posts. Start by connecting at least one social account in the SimplePost web app and authorizing the plugin with the same login. The existing standalone preview and calendar tools remain available. Hosted access requires an active SimplePost trial or paid plan, and each platform has its own account and media requirements. SimplePost does not provide engagement analytics, social inbox access, or editing of posts already published on social platforms.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -175,74 +175,212 @@
         "destructive_justification": "Does not delete, overwrite content, publish posts, or revoke account access.",
         "idempotent_justification": "Repeated calls retrieve current creator settings without duplicating content or changing creator preferences."
       }
+    },
+    "open_simplepost_workspace": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads owned accounts, calendar, post lists, preferences, and active working-copy summaries to launch the sidebar.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated calls only read current owned records and do not create or change data."
+      }
+    },
+    "get_simplepost_workspace": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Refreshes the same owned workspace data without creating or changing posts.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated calls only read current owned records and do not create or change data."
+      }
+    },
+    "open_post_editor": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads owned workspace data and an optional requested post ID to launch the editor; it does not create a working copy.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated calls only read current owned records and do not create or change data."
+      }
+    },
+    "start_post_editor_session": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a persistent working-copy record from an editable owned post or a blank draft; it does not change the source post.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated calls create separate working copies with distinct session IDs."
+      }
+    },
+    "read_post_editor_session": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads one unexpired owned working copy and checks its source post version.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated calls only read current owned records and do not create or change data."
+      }
+    },
+    "update_post_editor_session": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Updates working-copy content and revision using an expected revision guard; the saved post is unchanged.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "A successful update increments the revision; replaying the old revision is rejected instead of overwriting newer changes."
+      }
+    },
+    "propose_post_edit": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Stores a separate suggested patch for an owned session at its current revision; neither editor content nor the saved post is changed.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Proposal metadata can change on repeated calls; stale revisions are rejected."
+      }
+    },
+    "commit_post_editor_session": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Saves an owned working copy as a draft or updates its saved post and may schedule or publish it.",
+        "open_world_justification": "Can upload media, place content in the publishing queue, or publish to connected external social platforms.",
+        "destructive_justification": "Can overwrite saved draft or scheduled content; immediate publishing is an external action that may not be reversible here.",
+        "idempotent_justification": "An exact replay for the same session, expected revision, mode, and scheduling/image-fit arguments returns the stored commit receipt without a second platform action. Interrupted uncertain attempts remain locked for results review."
+      }
+    },
+    "validate_post_editor_session": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Validates current working-copy content; optional image fitting creates derivative media objects in storage.",
+        "open_world_justification": "Can fetch external source media and upload publicly fetchable fitted images.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated image-fitting calls can create new derivative image objects; ordinary validation does not commit content."
+      }
+    },
+    "read_simplepost_settings": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads publishing preferences and their schema for native settings; it is app-visible rather than model-visible.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "idempotent_justification": "Repeated calls only read current owned records and do not create or change data."
+      }
+    },
+    "update_simplepost_settings": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Persists the user-selected timezone, calendar view, or owned default account IDs.",
+        "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
+        "destructive_justification": "Changes only preferences; existing scheduled instants, posts, and platform connections are unchanged.",
+        "idempotent_justification": "Repeated updates may update bookkeeping; this operation is conservatively labeled non-idempotent."
+      }
     }
   },
   "test_cases": [
     {
-      "description": "List all social accounts currently connected to the review account.",
-      "user_prompt": "List my connected SimplePost accounts.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts",
-      "expected_output": "Returns the connected accounts.",
-      "expected_output_url": null
+      "description": "Sidebar workspace and connected destinations. Setup: dedicated reviewer account with at least one ready social destination and PLUGIN_EXTENSIONS enabled; authorize accounts:read and all posts scopes. Open the SimplePost global entrypoint if the host does not automatically render it. Expected calls: open_simplepost_workspace (view=month, timeZone=Europe/Berlin); list_accounts may also be used; get_simplepost_workspace for manual refresh.",
+      "user_prompt": "Open my SimplePost workspace and show this month in Europe/Berlin. Which connected accounts can I use?",
+      "tools_triggered": "open_simplepost_workspace, list_accounts, get_simplepost_workspace",
+      "expected_output": "A month calendar shows returned slots and post activity, owned account names and readiness, and a working-copy recovery list or explicit empty state. IDs, statuses, and dates agree with returned structuredContent. Opening or refreshing the workspace creates no post or editor session. The account connection link uses the saved MCP environment origin."
     },
     {
-      "description": "Validate a unique text-only post for the connected X account.",
-      "user_prompt": "Validate this text-only post for my connected X account: SimplePost validation test <current Unix timestamp in seconds>.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, validate_post",
-      "expected_output": "Returns a validation result or a clear explanation of any issue.",
-      "expected_output_url": null
+      "description": "Persistent editor, previews, and draft save. Setup: dedicated ready X destination; a second supported test destination is needed to verify variant isolation. No publishing is requested. In the editor, type a shared message, select both test accounts, and edit only the second account variant. Save as draft, close the editor, reopen the workspace, and recover the copy. Expected calls: open_post_editor; start_post_editor_session; update_post_editor_session for autosave; validate_post_editor_session when checking; commit_post_editor_session with mode=draft and the current expectedRevision; read_post_editor_session on recovery.",
+      "user_prompt": "Open a new SimplePost editor for a draft saying \"SimplePost review draft: a small product update.\" I want to preview it and save it as a draft, without scheduling or publishing.",
+      "tools_triggered": "open_post_editor, start_post_editor_session, update_post_editor_session, validate_post_editor_session, commit_post_editor_session, read_post_editor_session",
+      "expected_output": "Live previews update for each selected supported destination. Autosave changes only the working copy, whose sessionId and increasing revision are returned. Editing one account variant preserves shared content and the other variant. Saving returns an owned draft post ID with draft status and no scheduledFor or platform publish result. Recovery restores content, selected accounts, variants, media/thread/options where present, and the same session ID."
     },
     {
-      "description": "Show a standalone preview for the connected X account.",
-      "user_prompt": "Preview this post for my connected X account: SimplePost preview test <current Unix timestamp in seconds>.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, show_post_preview",
-      "expected_output": "Shows a preview or clearly explains why it cannot be shown.",
-      "expected_output_url": null
+      "description": "Selection-aware chat and separate writing proposals. Setup: recover the working copy from case 2. Focus its text field or select the editor in the workspace, then use Ask ChatGPT. Also select an available future calendar slot and invoke its chat action. Do not press Schedule or Publish. Expected calls: read_post_editor_session with the attached sessionId; propose_post_edit with that current expectedRevision and a message patch. get_simplepost_workspace may refresh the selected slot.",
+      "user_prompt": "Shorten the draft in my selected SimplePost editor to one sentence. Show the suggestion for me to review; keep my current text until I apply it.",
+      "tools_triggered": "read_post_editor_session, propose_post_edit, get_simplepost_workspace",
+      "expected_output": "The suggestion is stored as proposal.patch.message with its explanation and current revision. Current editor content and saved draft remain unchanged until manual Apply. Applying changes the working copy and increments its revision through autosave, preserving other account variants. Slot chat context includes the selected local time and IANA zone without creating a schedule. Removing the selection removes its context. No commit_post_editor_session, create_post, update_scheduled_post, or discard_scheduled_post is used for the suggestion request."
     },
     {
-      "description": "Create one unique draft for the connected X account.",
-      "user_prompt": "Save a draft for my connected X account only with this text: SimplePost review draft <current Unix timestamp in seconds>.",
-      "file_attachment_urls": null,
-      "tools_triggered": "list_accounts, create_post",
-      "expected_output": "Saves the draft or clearly explains why it could not be saved.",
-      "expected_output_url": null
+      "description": "Timezone preferences and explicit schedule review. Setup: use one dedicated ready X destination and the draft from case 2, with all normal posting scopes. Use a unique future time at least one day ahead that is not a daylight-saving transition. Review and confirm only this designated sample. After checking, return the sample to draft before its due time. Expected calls: update_simplepost_settings with set.timeZone=Europe/Berlin; read_post_editor_session; commit_post_editor_session only after confirmation, using the exact current expectedRevision, mode=schedule, scheduledLocal=<tomorrow YYYY-MM-DD>T14:00, timeZone=Europe/Berlin (or the equivalent correctly offset scheduledFor). inspect_posts or get_schedule to verify.",
+      "user_prompt": "Use Europe/Berlin as my SimplePost timezone. Schedule my review draft for tomorrow at 14:00 in that timezone on my dedicated X test account only. Show me the content, account, and exact time before I confirm.",
+      "tools_triggered": "update_simplepost_settings, read_post_editor_session, commit_post_editor_session, inspect_posts, get_schedule",
+      "expected_output": "Preferences persist and existing scheduled timestamps are unchanged. Before confirmation, the review shows the actual draft text, exact destination and local time/zone; no new scheduled action occurs. After explicit confirmation, one scheduled owned post has scheduledFor equal to that local time converted with the actual date-specific Berlin offset. Returned status and saved post agree. A stale editor revision or changed source post returns a conflict without silent overwrite. Return the sample to draft with the existing update workflow before its due time."
     },
     {
-      "description": "List the review account's scheduled posts.",
-      "user_prompt": "List my scheduled SimplePost posts.",
-      "file_attachment_urls": null,
-      "tools_triggered": "inspect_posts",
-      "expected_output": "Returns scheduled posts or a clear empty-state result.",
-      "expected_output_url": null
+      "description": "Legacy MCP Apps compatibility. Setup: dedicated ready X destination; use text-only content so no attachment fixture is required. This case deliberately requests standalone interfaces, leaving any active editor unchanged. Expected calls: list_accounts; show_post_preview with draft.accountIds containing the returned X test account ID and draft.message equal to the supplied text; show_schedule with view=week and timeZone=Europe/Berlin.",
+      "user_prompt": "Show a standalone SimplePost preview for my X test account with the text \"SimplePost legacy preview review.\" Then show the standalone week calendar for this week in Europe/Berlin. Do not save or publish anything.",
+      "tools_triggered": "list_accounts, show_post_preview, show_schedule",
+      "expected_output": "The legacy preview renders the supplied text for the returned X account and the existing calendar renders the returned week schedule. Existing resource URIs and launch behavior remain supported. No create_post, commit_post_editor_session, update_scheduled_post, or discard_scheduled_post is called, and neither saved posts nor active working copies change."
     }
   ],
   "negative_test_cases": [
     {
-      "description": "Do not trigger for unrelated calendar scheduling.",
-      "user_prompt": "Schedule a team meeting tomorrow at 10 AM.",
-      "file_attachment_urls": null,
-      "tools_triggered": null,
-      "expected_output": "Handles the request without using SimplePost because it is not a social-posting task.",
-      "expected_output_url": null
+      "description": "Unsupported analytics request. Explain that SimplePost cannot retrieve engagement or follower analytics; do not invent metrics or use posting, editor, or calendar tools to answer it.",
+      "user_prompt": "Show the impressions, likes, and follower growth for my last ten LinkedIn posts.",
+      "expected_output": "Explains the analytics limitation and suggests checking the social platform analytics. No SimplePost tool is invoked.",
+      "tools_triggered": null
     },
     {
-      "description": "Do not trigger for unrelated arithmetic.",
-      "user_prompt": "What is 23 + 19?",
-      "file_attachment_urls": null,
-      "tools_triggered": null,
-      "expected_output": "Handles the request without using SimplePost because it is unrelated to the app.",
-      "expected_output_url": null
+      "description": "Editing a post already published on a social platform is unsupported. Do not confuse this with editing a saved draft or a future scheduled post; do not create a replacement or delete anything.",
+      "user_prompt": "Edit the LinkedIn post that is already live on my profile so its first sentence says \"Our launch is tomorrow.\"",
+      "expected_output": "Explains that SimplePost cannot edit live platform content and directs the user to that platform. No SimplePost tool is invoked and no replacement post is created.",
+      "tools_triggered": null
     },
     {
-      "description": "Do not trigger for generic writing help with no intent to use SimplePost.",
-      "user_prompt": "Write three short caption ideas for a product launch.",
-      "file_attachment_urls": null,
-      "tools_triggered": null,
-      "expected_output": "Handles the request without using SimplePost because no posting action was requested.",
-      "expected_output_url": null
+      "description": "Social direct messaging/inbox is unsupported, despite the social-network context. Do not treat this as a public publishing request.",
+      "user_prompt": "Send a private Instagram message to everyone who commented on my latest post.",
+      "expected_output": "Explains that SimplePost cannot read comments or send direct messages. No SimplePost tool is invoked, no recipients are fabricated, and no public post is created.",
+      "tools_triggered": null
     }
   ]
 }

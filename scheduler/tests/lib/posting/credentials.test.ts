@@ -26,6 +26,21 @@ function account(overrides: Partial<ConnectedAccount>): ConnectedAccount {
 }
 
 describe("posting credentials", () => {
+  it("keeps personal IDs compatible and passes organization credentials for Page destinations", () => {
+    expect(buildCredentials(account({ platform: "linkedin", platformAccountId: "member123" }))).toEqual({
+      accessToken: "access-token",
+      memberId: "member123",
+    });
+    const page = account({
+      platform: "linkedin",
+      platformAccountId: "urn:li:organization:123",
+      tokenMetadata: { linkedinMemberId: "admin" },
+    });
+    expect(buildPostOptions(page)).toEqual({
+      linkedin: { credentials: { accessToken: "access-token", organizationId: "123" } },
+    });
+    expect(buildCredentials(page)).not.toHaveProperty("refreshToken");
+  });
   it("never borrows another Pinterest account's global default board", () => {
     const previous = process.env.PINTEREST_BOARD_ID;
     process.env.PINTEREST_BOARD_ID = "another-users-board";

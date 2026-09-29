@@ -80,6 +80,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: true,
         userId: true,
         platform: true,
+        platformAccountId: true,
         profilePicture: true,
         accessToken: true,
         refreshToken: true,
@@ -109,7 +110,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!imageResponse && (platform === "linkedin" || platform === "threads")) {
       const { accessToken } = decryptConnectedAccountSecrets(account);
-      const freshProfilePicture = await fetchFreshProfilePicture(platform, accessToken);
+      const freshProfilePicture = await fetchFreshProfilePicture(platform, accessToken, account.platformAccountId);
       const freshAvatarUrl = getAllowedAvatarUrl(freshProfilePicture, platform);
 
       imageResponse = await fetchAvatar(freshAvatarUrl);

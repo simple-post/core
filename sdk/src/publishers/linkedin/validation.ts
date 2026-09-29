@@ -18,7 +18,7 @@ export const LINKEDIN_VALIDATION_RULES: PlatformValidationRules = {
   },
   video: { maxSizeBytes: LINKEDIN_MAX_SINGLE_UPLOAD_VIDEO_SIZE_BYTES },
   notes: [
-    "LinkedIn allows larger multipart video uploads, but this publisher currently uses the single-request Assets API upload.",
+    "SimplePost limits LinkedIn videos to 200 MB. Personal profiles use the Assets API; company Pages use multipart uploads.",
     "LinkedIn documents an image pixel-count limit, but not a maximum image byte size.",
   ],
 };

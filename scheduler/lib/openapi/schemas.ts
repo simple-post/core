@@ -520,6 +520,7 @@ export const PendingConnectionAccountSchema = z
     name: z.string().nullable().optional(),
     username: z.string().nullable().optional(),
     profilePicture: z.url().nullable().optional(),
+    accountType: z.string().optional(),
   })
   .meta({ id: "PendingConnectionAccount" });
 
@@ -528,6 +529,7 @@ export const PendingConnectionResponseSchema = z
     id: z.string(),
     platform: z.string(),
     accounts: z.array(PendingConnectionAccountSchema),
+    warning: z.string().optional(),
   })
   .meta({ id: "PendingConnectionResponse" });
 

@@ -22,12 +22,14 @@ type PendingAccount = {
   name?: string | null;
   username?: string | null;
   profilePicture?: string | null;
+  accountType?: string;
 };
 
 type PendingConnection = {
   id: string;
   platform: string;
   accounts: PendingAccount[];
+  warning?: string;
 };
 
 export default function ConnectAccountPickerPage() {
@@ -70,7 +72,8 @@ export default function ConnectAccountPickerPage() {
           throw new Error("Pending connection does not match the selected platform.");
         }
         setPending(data);
-        setSelectedIds(data.accounts.map((account) => account.id));
+        // Connecting Pages can consume multiple account slots; let users choose destinations explicitly.
+        setSelectedIds(platformId === "linkedin" ? [] : data.accounts.map((account) => account.id));
         setError(null);
       } catch (error_) {
         setError(error_ instanceof Error ? error_.message : "Failed to load pending connection");
@@ -133,7 +136,7 @@ export default function ConnectAccountPickerPage() {
     );
   }
 
-  if (error || !pending || !platformConfig) {
+  if (!pending || !platformConfig) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -180,6 +183,19 @@ export default function ConnectAccountPickerPage() {
           </div>
         </div>
 
+        {platformId === "linkedin" && (
+          <p className="text-sm text-muted-foreground">
+            Choose your personal profile, company Pages, or both. Each selected destination counts as one connected
+            account.
+          </p>
+        )}
+        {pending.warning && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{pending.warning}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={selectAll} disabled={pending.accounts.length === 0}>
             Select all
@@ -217,9 +233,14 @@ export default function ConnectAccountPickerPage() {
                     </div>
                     <div>
                       <div className="font-medium text-sm">{account.name || account.username || account.id}</div>
+                      {platformId === "linkedin" && (
+                        <div className="text-xs text-muted-foreground">
+                          {account.accountType === "organization" ? "Company Page" : "Personal profile"}
+                        </div>
+                      )}
                       {account.username && (
                         <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
-                          @{account.username.replace(/^@/, "")}
+                          {platformId === "linkedin" ? account.username : `@${account.username.replace(/^@/, "")}`}
                         </div>
                       )}
                     </div>

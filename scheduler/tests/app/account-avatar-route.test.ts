@@ -52,6 +52,20 @@ beforeEach(() => {
 });
 
 describe("account avatar route", () => {
+  it("passes the Page identity when refreshing a missing LinkedIn logo", async () => {
+    const account = { ...storedAccount("linkedin", null), platformAccountId: "urn:li:organization:123" };
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(account);
+    fetchFreshProfilePictureMock.mockResolvedValue(null);
+    const response = await GET(new NextRequest(`http://localhost/api/v1/accounts/${account.id}/avatar`), {
+      params: Promise.resolve({ id: account.id }),
+    });
+    expect(response.status).toBe(204);
+    expect(fetchFreshProfilePictureMock).toHaveBeenCalledWith(
+      "linkedin",
+      "decrypted-access-token",
+      "urn:li:organization:123",
+    );
+  });
   it.each([
     {
       platform: "linkedin" as const,
@@ -79,7 +93,7 @@ describe("account avatar route", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/jpeg");
-    expect(fetchFreshProfilePictureMock).toHaveBeenCalledWith(platform, "decrypted-access-token");
+    expect(fetchFreshProfilePictureMock).toHaveBeenCalledWith(platform, "decrypted-access-token", undefined);
     expect(prismaMock.connectedAccount.update).toHaveBeenCalledWith({
       where: { id: account.id },
       data: { profilePicture: freshUrl },
@@ -101,7 +115,7 @@ describe("account avatar route", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(fetchFreshProfilePictureMock).toHaveBeenCalledWith("threads", "decrypted-access-token");
+    expect(fetchFreshProfilePictureMock).toHaveBeenCalledWith("threads", "decrypted-access-token", undefined);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

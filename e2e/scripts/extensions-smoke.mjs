@@ -401,6 +401,15 @@ try {
   await expect.poll(() => page.evaluate(() => JSON.stringify(window.links))).toMatch(/accounts\?onboarding=connect/);
   await page.goto(`${base}/?editor`);
   await expect(ui.getByRole("heading", { name: "Choose a draft to edit" })).toBeVisible();
+  await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();
+  await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
+  await ui.getByRole("button", { name: "Accounts", exact: true }).click();
+  await expect(ui.getByRole("heading", { name: "Connected accounts" })).toBeVisible();
+  // Closing an editor opened through the dedicated entrypoint also returns to the workspace.
+  await page.goto(`${base}/?editor`);
+  await ui.getByRole("button", { name: "New draft", exact: true }).click();
+  await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();
+  await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
   await page.goto(`${base}/?review`);
   await expect(ui.getByRole("tab")).toHaveCount(2);
   await expect(ui.locator("simple-post-preview")).toContainText("Scheduled review content");

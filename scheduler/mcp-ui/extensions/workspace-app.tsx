@@ -11,6 +11,7 @@ import {
   ExternalLink,
   CircleHelp,
   ImageIcon,
+  ArrowLeft,
 } from "lucide-react";
 
 import { AccountIdentity } from "./account-identity";
@@ -24,6 +25,8 @@ import type { EditorData, WorkspaceData } from "./types";
 import "./workspace.css";
 
 export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
+  const [workspaceOpened, setWorkspaceOpened] = useState(false);
+  const chooserOnly = editorOnly && !workspaceOpened;
   const { app, launch, setLaunch, incoming, error } = useExtensionHost<WorkspaceData>();
   const [editor, setEditor] = useState<EditorData | null>(null);
   const [selected, setSelected] = useState<ScheduleEntry | null>(null);
@@ -140,7 +143,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         <div>
           <span className="sp-mark">SP</span>
           <strong>SimplePost</strong>
-          {editorOnly || editor ? null : (
+          {chooserOnly || editor ? null : (
             <nav className="sp-top-nav" aria-label="Workspace sections">
               <button
                 aria-pressed={tab !== "accounts"}
@@ -304,6 +307,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           onClose={() => {
             setEditor(null);
             setSlotTime(null);
+            setWorkspaceOpened(true);
           }}
           onCommitted={(next) => {
             setEditor(next);
@@ -312,8 +316,13 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         />
       ) : (
         <>
-          {editorOnly ? (
-            <h1>Choose a draft to edit</h1>
+          {chooserOnly ? (
+            <div className="sp-page-heading">
+              <button onClick={() => setWorkspaceOpened(true)}>
+                <ArrowLeft size={14} /> Back to workspace
+              </button>
+              <h1>Choose a draft to edit</h1>
+            </div>
           ) : (
             <>
               {tab === "accounts" ? null : (
@@ -408,10 +417,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               ) : null}
             </>
           )}
-          {tab !== "accounts" || editorOnly ? (
+          {tab !== "accounts" || chooserOnly ? (
             <section className="sp-post-list" aria-label="Saved posts">
               <h2 className="sp-sr-only">
-                {editorOnly || tab === "calendar"
+                {chooserOnly || tab === "calendar"
                   ? "Drafts and working copies"
                   : tab === "posted"
                     ? "Published posts"

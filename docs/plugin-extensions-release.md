@@ -9,7 +9,7 @@ This release adds a SimplePost sidebar workspace and thread editor alongside the
 - Slot, post, multi-post, and active editor selections attached to chat through MCP Apps model context. Explicit chat buttons send requests; selecting a slot never schedules a post. Hosts without selection attachments can receive the selected context in an explicit chat request.
 - AI edits arrive as proposals. Applying a proposal changes the working copy; saving, scheduling, and publishing are separate actions. Sparse proposals preserve other destination variants and options.
 - User timezone, default view, and default account preferences. Local scheduling uses the chosen IANA zone and rejects ambiguous or nonexistent clock-change times. Existing scheduled timestamps do not move when preferences change. An editor's planned local time and timezone are retained with its working copy.
-- Onboarding skill and an empty-account connection screen that reuse the existing `/accounts` OAuth flow. Refresh after connecting; confirm timezone before scheduling.
+- Onboarding skill and an empty-account connection screen that reuse the existing `/accounts` OAuth flow. Refresh after connecting; the workspace infers the browser timezone on first use and preserves saved preferences.
 - Explicit schedule/publish review, optional image fitting for users with that feature, version checks, atomic commit receipts, and guarded publishing retries.
 
 ## Dev-first rollout
@@ -22,7 +22,7 @@ Main deploys to `https://dev.simplepost.social` through the configured hosting p
 4. Enable `PLUGIN_EXTENSIONS` in **dev** only. Add it to dev's existing `GLOBAL_FEATURES` list, preserving any enabled features, then redeploy/restart. Alternatively, grant it to the dev test user with the existing per-user feature-grant mechanism. Leave production rollout settings unchanged during dev testing.
 5. Install a dev copy of the plugin. Its `.mcp.json` must point to `https://dev.simplepost.social/mcp`, while including root `plugin.json` and the `skills/` directory. The checked-in `.mcp.json` points to production, so change the URL only in the dev test copy. Give the dev listing a distinct name such as SimplePost Dev. Connect through the dev OAuth endpoint with all normal posting scopes.
 6. Verify discovery and read-only behavior first: sidebar workspace, thread editor, preferences, and legacy calendar/preview tools. Opening either new entrypoint must not create or schedule posts. For onboarding, use a test user with no connected destinations; the connection link must open dev's `/accounts`.
-7. Connect at least one dedicated social test account and confirm timezone. Save a draft, verify every selected destination's live preview, switch a platform variant, close/reopen and recover the working copy, then check that text, media, options, variants, and planned time remain intact.
+7. Connect at least one dedicated social test account and check the timezone displayed under the calendar. Use chat to write a draft (or expand **Edit manually**), save it, and verify every selected destination's live preview, switch a platform variant, close/reopen and recover the working copy, then check that text, media, options, variants, and planned time remain intact.
 8. Select a calendar slot and ask chat for help. Verify selection attachment/removal, separate AI proposals, manual application, and preservation of other variants. Test schedule review without confirming, then confirm one explicitly chosen test schedule; verify its exact time in the dev web app. Check conflict handling by editing the saved post in another view. Use the existing results/reconciliation/retry interfaces for interrupted or failed publishing.
 9. After dev passes, promote the tested commit through the production deployment workflow, verify migrations/startup, grant the feature to a production test user, and repeat the actual-host smoke checks. For public rollout, add `PLUGIN_EXTENSIONS` to production's existing `GLOBAL_FEATURES`, preserving current flags, then refresh plugin discovery.
 
@@ -77,3 +77,13 @@ yarn workspace @simple-post/scheduler jest -c jest.integration.config.cjs --runI
 ```
 
 The integration config rejects other database names/hosts. CI runs migrations, concurrency/reliability tests, and the browser smoke command. Live OAuth return, extension discovery, and deliberate platform publishing remain checks in the real target host before announcing public availability.
+
+## Sidebar discovery troubleshooting
+
+The global entrypoint is `open_simplepost_workspace`; its tool metadata must contain `_meta["openai/ui"].entrypoints: [{"type":"global"}]`, a UI resource URI, a tool icon, and an input schema accepting `{}`. The protocol regression tests check these descriptors alongside the legacy tools.
+
+The [OpenAI extension specification](https://github.com/openai/mcp-extensions/blob/main/docs/spec.md#platform-support) defines browser support as the **Work browser**, explicitly excluding classic ChatGPT. A calendar opened by a conversational tool call in classic ChatGPT is not proof that sidebar extensions are available there.
+
+After deploying to dev, verify `PLUGIN_EXTENSIONS` for the connected dev user, refresh the connection's tools/metadata, and open a new conversation. For a local plugin install, confirm its `.mcp.json` points to `https://dev.simplepost.social/mcp` and reconnect/refresh that plugin. Test the SimplePost global entrypoint and Post editor thread tab in an extension-capable host. A production connection cannot discover a feature enabled only on dev. If the metadata is present and the entry is still absent, record the host/version and connection type; do not change working metadata merely to guess around unsupported host UI.
+
+The editor now starts with destination selection and live previews. Manual writing, attachments, threads, and platform options are under **Edit manually**. Publishing time is shown in **Review schedule**, and scheduling/publishing still require explicit confirmation. Choosing a calendar day opens its day view; selecting an actual slot attaches that slot to chat.

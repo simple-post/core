@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { usePostDraft } from "@/components/post-draft-context";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics/plausible";
+import { getPlatformName, isSocialPlatformEnabled } from "@/lib/config";
 import { PREVIEW_KEY, readStoredPreview, type PreviewHandoff } from "@/lib/preview/handoff";
 
 export function PreviewImport() {
@@ -73,12 +74,25 @@ export function PreviewImport() {
                 }}>
                 {preview.variants.map((variant, i) => (
                   <option key={variant.platform} value={i}>
-                    {variant.platform}
+                    {getPlatformName(variant.platform)}
+                    {isSocialPlatformEnabled(variant.platform) ? "" : " (unavailable on this installation)"}
                   </option>
                 ))}
               </select>
             </label>
             <p className="my-3 max-h-32 overflow-auto whitespace-pre-wrap text-sm">{preview.variants[index].message}</p>
+            {!isSocialPlatformEnabled(preview.variants[index].platform) && (
+              <p role="status" className="my-3 text-sm">
+                This network is unavailable on this installation. You can still import its text as a draft and adapt it
+                for a supported connected account.
+              </p>
+            )}
+            {preview.variants[index].thread.length > 0 && (
+              <p className="my-3 text-sm">
+                This version contains {preview.variants[index].thread.length + 1} posts. Threads support up to 25 posts
+                on paid plans and 20 during the trial. Review every segment and select a network that supports threads.
+              </p>
+            )}
             {preview.hasMedia && (
               <p className="my-3 text-sm">
                 Upload your media again below. Images and videos stay in the preview tool and are not transferred.

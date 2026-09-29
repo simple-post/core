@@ -2,7 +2,16 @@
  * Landing-page categories for SEO attribution. The same route rules are mirrored in
  * website-social/lib/seo/categories.ts; keep both copies identical.
  */
-export const LANDING_CATEGORIES = ["platform", "ai_client", "guide", "tool", "comparison", "mcp", "pricing", "about"] as const;
+export const LANDING_CATEGORIES = [
+  "platform",
+  "ai_client",
+  "guide",
+  "tool",
+  "comparison",
+  "mcp",
+  "pricing",
+  "about",
+] as const;
 
 export type LandingCategory = (typeof LANDING_CATEGORIES)[number];
 
@@ -19,7 +28,7 @@ export const MCP_PATHS = ["/social-media-mcp-server", "/social-media-scheduler-f
 export const PRICING_PATHS = ["/pricing"] as const;
 
 /** Company / trust pages. */
-export const ABOUT_PATHS = ["/about"] as const;
+export const ABOUT_PATHS = ["/about", "/updates"] as const;
 
 const SECTION_CATEGORIES: Record<string, LandingCategory> = {
   platforms: "platform",

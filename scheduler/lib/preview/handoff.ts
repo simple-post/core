@@ -47,10 +47,10 @@ export function parsePreview(value: unknown): PreviewHandoff {
       !PLATFORMS.has(variant.platform) ||
       seen.has(variant.platform) ||
       typeof variant.message !== "string" ||
-      variant.message.length > 10_000 ||
+      variant.message.length > 126_412 ||
       !Array.isArray(variant.thread) ||
-      variant.thread.length > 19 ||
-      variant.thread.some((message) => typeof message !== "string" || message.length > 10_000)
+      variant.thread.length > 24 ||
+      variant.thread.some((message) => typeof message !== "string" || message.length > 126_412)
     )
       throw new Error("Invalid preview");
     seen.add(variant.platform);
@@ -58,11 +58,11 @@ export function parsePreview(value: unknown): PreviewHandoff {
   });
   const result: PreviewHandoff = { version: 1, hasMedia: data.hasMedia, variants };
   if ((PREVIEW_SOURCES as readonly unknown[]).includes(data.source)) result.source = data.source;
-  if (JSON.stringify(result).length > 48_000) throw new Error("Preview is too large");
+  if (JSON.stringify(result).length > 200_000) throw new Error("Preview is too large");
   return result;
 }
 export function decodePreview(fragment: string): PreviewHandoff {
-  if (!fragment.startsWith("#preview=") || fragment.length > 300_000) throw new Error("Invalid preview link");
+  if (!fragment.startsWith("#preview=") || fragment.length > 1_800_000) throw new Error("Invalid preview link");
   return parsePreview(JSON.parse(decodeURIComponent(fragment.slice(9))));
 }
 export function readStoredPreview(raw: string, now = Date.now()): PreviewHandoff {

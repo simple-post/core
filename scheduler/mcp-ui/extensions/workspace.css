@@ -1,3 +1,17 @@
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/inter-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../fonts/jetbrains-mono-latin.woff2") format("woff2");
+}
 .sp-workspace {
   --sp-accent: #c6f432;
   margin: auto;
@@ -1003,4 +1017,433 @@ body {
 }
 .sp-live-previews .platform-switcher {
   margin-bottom: 16px;
+}
+
+/* Accounts and draft detail follow the Scheduler's page and card hierarchy. */
+.sp-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-muted);
+  font:
+    10px "JetBrains Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.sp-kicker::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--sp-accent);
+  flex-shrink: 0;
+}
+.sp-account-heading,
+.sp-inline-heading,
+.sp-publishing-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sp-account-heading {
+  margin: 30px 0 20px;
+}
+.sp-inline-heading {
+  justify-content: flex-start;
+}
+.sp-inline-heading .sp-kicker {
+  border-right: 1px solid var(--sp-border);
+  padding-right: 16px;
+}
+.sp-account-heading h1 {
+  font-size: 20px;
+  letter-spacing: -0.5px;
+}
+.sp-account-heading em {
+  font-style: normal;
+  color: var(--sp-accent);
+}
+.sp-workspace .sp-primary {
+  border-radius: 12px;
+}
+.sp-workspace .sp-help-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--sp-muted);
+  font-size: 12px;
+  justify-content: flex-start;
+}
+.sp-accounts > .sp-help-link {
+  margin-bottom: 16px;
+}
+.sp-accounts .sp-account-card {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  margin-bottom: 12px;
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-card);
+  gap: 20px;
+  min-height: 114px;
+}
+.sp-account-card:hover {
+  border-color: #c6f43240;
+}
+.sp-account-main {
+  min-width: 0;
+  flex: 1;
+}
+.sp-account-identity {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+}
+.sp-account-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background-color: #171717;
+  color: white;
+}
+.sp-account-avatar > img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.sp-account-avatar > .sp-platform-icon {
+  width: 25px;
+  height: 25px;
+}
+.sp-avatar-platform {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 21px;
+  height: 21px;
+  border: 2px solid var(--sp-card);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background-color: #111;
+}
+.sp-avatar-platform .sp-platform-icon {
+  width: 11px;
+  height: 11px;
+}
+.sp-account-copy {
+  min-width: 0;
+}
+.sp-account-copy strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.sp-account-copy > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--sp-muted);
+  text-transform: uppercase;
+  font:
+    10px "JetBrains Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  letter-spacing: 1px;
+}
+.sp-account-main > .sp-help-link {
+  margin: 8px 0 0 64px;
+}
+.sp-account-main > small {
+  display: block;
+  margin: 8px 0 0 64px;
+  color: var(--sp-muted);
+}
+.sp-account-health {
+  margin: 10px 0 0 64px;
+  font-size: 12px;
+}
+.sp-account-health > span {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+  font: 10px monospace;
+}
+.sp-account-health.error {
+  color: var(--sp-danger);
+}
+.sp-account-health.warning {
+  color: var(--sp-warning);
+}
+.sp-account-health p {
+  margin-top: 6px !important;
+}
+.sp-workspace .platform-instagram {
+  background: linear-gradient(90deg, #9333ea, #db2777);
+}
+.sp-workspace .platform-linkedin {
+  background-color: #1d4ed8;
+}
+.sp-workspace .platform-bluesky {
+  background-color: #0ea5e9;
+}
+.sp-workspace .platform-facebook {
+  background-color: #2563eb;
+}
+.sp-workspace .platform-telegram {
+  background-color: #3b82f6;
+}
+.sp-workspace .platform-youtube,
+.sp-workspace .platform-pinterest {
+  background-color: #dc2626;
+}
+.sp-post-list article {
+  padding: 20px;
+  border-radius: 16px;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.sp-post-list article > label {
+  flex: 1;
+  gap: 20px;
+}
+.sp-post-thumbnail {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: #1b1b1b;
+  border-radius: 8px;
+  color: var(--sp-muted);
+}
+.sp-post-thumbnail > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.sp-post-platforms {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 88px;
+}
+.sp-post-copy {
+  min-width: 0;
+}
+.sp-post-copy strong {
+  font-size: 14px;
+  font-weight: 400;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sp-post-copy small {
+  margin: 8px 0;
+}
+.sp-post-handles {
+  display: block;
+  color: var(--sp-muted);
+  font:
+    10px "JetBrains Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  overflow-wrap: anywhere;
+}
+.sp-post-status {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  background: #1c1c1c;
+  border-radius: 6px;
+  padding: 4px 7px;
+  text-transform: capitalize;
+  font-size: 11px;
+}
+.sp-post-status.status-failed {
+  color: var(--sp-danger);
+}
+.sp-empty-posts {
+  padding: 48px 20px;
+  text-align: center;
+  border: 1px dashed var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-card);
+  color: var(--sp-muted);
+}
+.sp-editor {
+  max-width: 800px;
+  margin: 30px auto 0;
+}
+.sp-editor-header {
+  border: 0;
+  padding: 0;
+}
+.sp-editor-header > div {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sp-editor-header h1.sp-kicker {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 1.5px;
+}
+.sp-editor-header > div > span {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--sp-border);
+  font-size: 12px;
+}
+.sp-editor-footer {
+  margin: 14px 0 20px;
+  padding: 0;
+  border: 0;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.sp-editor-footer .sp-actions {
+  gap: 8px;
+}
+.sp-editor-grid {
+  margin-top: 0;
+}
+.sp-preview-heading h2.sp-kicker {
+  font-size: 10px;
+  font-weight: 400;
+  margin: 0;
+}
+.sp-editor-destinations {
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--sp-card);
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+}
+.sp-publishing-heading h2 {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 400;
+}
+.sp-publishing-accounts {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+.sp-publishing-accounts .sp-account-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.sp-publishing-accounts .sp-account-avatar > .sp-platform-icon {
+  width: 15px;
+  height: 15px;
+}
+.sp-publishing-accounts .sp-avatar-platform {
+  display: none;
+}
+.sp-publishing-accounts .sp-account-identity {
+  gap: 12px;
+}
+.sp-publishing-accounts .sp-account-copy strong {
+  font-size: 14px;
+  font-weight: 400;
+}
+.sp-editor-destinations fieldset {
+  margin: 20px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--sp-border);
+}
+@media (max-width: 600px) {
+  .sp-account-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .sp-inline-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .sp-accounts .sp-account-card {
+    flex-wrap: wrap;
+    padding: 16px;
+    gap: 14px;
+  }
+  .sp-account-main {
+    flex-basis: 100%;
+  }
+  .sp-account-card > button {
+    margin-left: 64px;
+  }
+  .sp-post-list article {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .sp-post-list article > label {
+    flex-basis: 100%;
+    gap: 12px;
+  }
+  .sp-post-thumbnail {
+    width: 56px;
+    height: 56px;
+  }
+  .sp-post-status {
+    margin-left: auto;
+  }
+  .sp-editor-footer {
+    justify-content: flex-start;
+  }
+  .sp-editor-destinations {
+    padding: 18px;
+  }
+  .sp-editor-header {
+    gap: 16px;
+  }
+  .sp-editor-header > div {
+    gap: 8px;
+  }
+}
+
+.sp-header strong {
+  font-weight: 400;
+  font-size: 14px;
+}
+.sp-mark {
+  background: #181c10;
+  color: var(--sp-accent);
+  border-radius: 0;
+  padding: 4px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.sp-account-copy strong {
+  font-weight: 500;
+}
+.sp-account-health > span {
+  font-family: "JetBrains Mono", monospace;
 }

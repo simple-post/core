@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +17,11 @@ const entryPoints = {
 };
 
 await mkdir(outdir, { recursive: true });
+await Promise.all(
+  ["Inter-OFL.txt", "JetBrains-Mono-OFL.txt"].map((name) =>
+    copyFile(path.resolve(schedulerRoot, "mcp-ui/fonts", name), path.join(outdir, name)),
+  ),
+);
 // Keep previous immutable assets when building into an existing deployment artifact.
 const result = await build({
   entryPoints,
@@ -26,6 +31,7 @@ const result = await build({
   outdir,
   format: "esm",
   platform: "browser",
+  loader: { ".woff2": "file" },
   target: "es2022",
   jsx: "automatic",
   sourcemap: false,

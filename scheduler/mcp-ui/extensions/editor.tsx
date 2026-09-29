@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizePreviewPlatform } from "@simple-post/preview";
 import { type PostPreviewData } from "@simple-post/preview-react";
+import { CalendarClock, Send, Pencil, Save, ArrowLeft } from "lucide-react";
 
 import { PlatformIcon } from "../../components/platform-icon";
 import { PreviewSwitcher } from "../preview-switcher";
 
+import { AccountIdentity, platformName } from "./account-identity";
 import { askChat, attachSelection, callTool, keepEditorHint, restoreEditorHint } from "./host";
 import { localDateTime } from "./timezone";
 
@@ -116,6 +118,7 @@ export function Editor({
   const [results, setResults] = useState<Record<string, unknown> | null>(null);
   const [contextActive, setContextActive] = useState(true);
   const [manual, setManual] = useState(false);
+  const [chooseAccounts, setChooseAccounts] = useState(false);
   const liveContent = useRef(content);
   const liveSession = useRef(session);
   const stored = useRef(fingerprint(initial.content));
@@ -333,7 +336,7 @@ export function Editor({
     <section className="sp-editor" aria-label="Post editor">
       <header className="sp-editor-header">
         <div>
-          <h1>{session.postId ? "Edit post" : "New draft"}</h1>
+          <h1 className="sp-kicker">{session.postId ? "Edit post" : "New draft"}</h1>
           <span aria-live="polite">
             {syncing
               ? "Keeping working copy…"
@@ -354,7 +357,7 @@ export function Editor({
               onClose();
             })
           }>
-          Back to workspace
+          <ArrowLeft size={14} /> Back to workspace
         </button>
       </header>
       {notice ? (
@@ -453,42 +456,49 @@ export function Editor({
           <span>Applying does not save or publish the post.</span>
         </section>
       ) : null}
-      <div className="sp-editor-destinations">
-        <fieldset disabled={!statusEditable || working}>
-          <legend>Destinations</legend>
-          <div className="sp-destinations">
-            {accounts.map((account) => (
-              <label key={account.accountId}>
-                <input
-                  type="checkbox"
-                  checked={content.accountIds.includes(account.accountId)}
-                  onChange={(event) => {
-                    const ids = event.target.checked
-                      ? [...content.accountIds, account.accountId]
-                      : content.accountIds.filter((id) => id !== account.accountId);
-                    change({
-                      ...content,
-                      accountIds: ids,
-                      accountOverrides: Object.fromEntries(
-                        Object.entries(content.accountOverrides).filter(([id]) => ids.includes(id)),
-                      ),
-                    });
-                    if (!event.target.checked && activeAccount === account.accountId) setActiveAccount(null);
-                  }}
-                />
-                <PlatformIcon platform={account.platform} className="sp-platform-icon" />
-                <span>{account.displayName ?? account.username ?? account.platform}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <div className="sp-editor-controls">
-          <p>Describe your post in chat. Review it here on every destination.</p>
-          <button aria-expanded={manual} aria-controls="sp-manual-editor" onClick={() => setManual(!manual)}>
-            {manual ? "Hide manual editor" : "Edit manually"}
+      <footer className="sp-editor-footer">
+        <div className="sp-actions">
+          <button
+            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
+            onClick={() =>
+              void act(async () => {
+                const next = await flush();
+                setValidation(
+                  await callTool<Validation>(app, "validate_post_editor_session", {
+                    sessionId: next.sessionId,
+                    expectedRevision: next.revision,
+                    ...(imageFit ? { imageFit } : {}),
+                  }),
+                );
+              })
+            }>
+            Check platform rules
+          </button>
+          <button
+            className="sp-primary"
+            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
+            onClick={() => void act(() => commit("draft"))}>
+            <Save size={14} /> {session.status === "scheduled" ? "Move to drafts" : "Save draft"}
           </button>
         </div>
-      </div>
+        <div className="sp-actions">
+          <button
+            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
+            onClick={() => setReview("schedule")}>
+            <CalendarClock size={14} /> Schedule
+          </button>
+          <button
+            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
+            onClick={() => setReview("now")}>
+            <Send size={14} /> Post now
+          </button>
+        </div>
+        <div className="sp-actions">
+          <button aria-expanded={manual} aria-controls="sp-manual-editor" onClick={() => setManual(!manual)}>
+            <Pencil size={14} /> {manual ? "Hide manual editor" : "Edit manually"}
+          </button>
+        </div>
+      </footer>
       <div className={manual ? "sp-editor-grid is-manual" : "sp-editor-grid"}>
         {manual ? (
           <div className="sp-compose" id="sp-manual-editor">
@@ -781,8 +791,10 @@ export function Editor({
         ) : null}
         <aside className="sp-live-previews">
           <div className="sp-preview-heading">
-            <h2>Live previews</h2>
-            <span>Updates as your draft changes</span>
+            <h2 className="sp-kicker">Platform preview</h2>
+            <span>
+              {platformName((variants.find((a) => a.accountId === activeAccount) ?? variants[0])?.platform ?? "")}
+            </span>
           </div>
           <PreviewSwitcher
             selectedId={activeAccount}
@@ -833,6 +845,51 @@ export function Editor({
             })}
           />
         </aside>
+      </div>
+      <div className="sp-editor-destinations">
+        <div className="sp-publishing-heading">
+          <h2 className="sp-kicker">Publishing to</h2>
+          <button aria-expanded={chooseAccounts} onClick={() => setChooseAccounts(!chooseAccounts)}>
+            Change destinations
+          </button>
+        </div>
+        <div className="sp-publishing-accounts">
+          {variants.map((account) => (
+            <AccountIdentity key={account.accountId} account={account} />
+          ))}
+        </div>
+        {chooseAccounts || variants.length === 0 ? (
+          <>
+            <fieldset disabled={!statusEditable || working}>
+              <legend className="sp-sr-only">Destinations</legend>
+              <div className="sp-destinations">
+                {accounts.map((account) => (
+                  <label key={account.accountId}>
+                    <input
+                      type="checkbox"
+                      checked={content.accountIds.includes(account.accountId)}
+                      onChange={(event) => {
+                        const ids = event.target.checked
+                          ? [...content.accountIds, account.accountId]
+                          : content.accountIds.filter((id) => id !== account.accountId);
+                        change({
+                          ...content,
+                          accountIds: ids,
+                          accountOverrides: Object.fromEntries(
+                            Object.entries(content.accountOverrides).filter(([id]) => ids.includes(id)),
+                          ),
+                        });
+                        if (!event.target.checked && activeAccount === account.accountId) setActiveAccount(null);
+                      }}
+                    />
+                    <PlatformIcon platform={account.platform} className="sp-platform-icon" />
+                    <span>{account.displayName ?? account.username ?? account.platform}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </>
+        ) : null}
       </div>
       {validation ? (
         <section className="sp-validation" aria-live="polite">
@@ -888,44 +945,7 @@ export function Editor({
           </select>
         </label>
       ) : null}
-      <footer className="sp-editor-footer">
-        <div className="sp-actions">
-          <button
-            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
-            onClick={() =>
-              void act(async () => {
-                const next = await flush();
-                setValidation(
-                  await callTool<Validation>(app, "validate_post_editor_session", {
-                    sessionId: next.sessionId,
-                    expectedRevision: next.revision,
-                    ...(imageFit ? { imageFit } : {}),
-                  }),
-                );
-              })
-            }>
-            Check platform rules
-          </button>
-          <button
-            className="sp-primary"
-            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
-            onClick={() => void act(() => commit("draft"))}>
-            {session.status === "scheduled" ? "Move to drafts" : "Save draft"}
-          </button>
-        </div>
-        <div className="sp-actions">
-          <button
-            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
-            onClick={() => setReview("schedule")}>
-            Review schedule
-          </button>
-          <button
-            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
-            onClick={() => setReview("now")}>
-            Review publish now
-          </button>
-        </div>
-      </footer>
+
       {review ? (
         <section className="sp-publish-review" role="region" aria-label="Review publishing action">
           {review === "schedule" ? (

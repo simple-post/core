@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { CheckCircle2, Clock3, FileText, AlertCircle, Plus, RefreshCw, Settings2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  FileText,
+  AlertCircle,
+  Plus,
+  RefreshCw,
+  Settings2,
+  ExternalLink,
+  CircleHelp,
+  ImageIcon,
+} from "lucide-react";
 
+import { AccountIdentity } from "./account-identity";
 import { Calendar, PlatformBadge } from "./calendar";
 import { Editor } from "./editor";
 import { askChat, attachSelection, callTool, restoreEditorHint, useExtensionHost } from "./host";
@@ -344,19 +356,54 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               )}
               {tab === "accounts" ? (
                 <section className="sp-accounts">
-                  <h1>Connected destinations</h1>
+                  <header className="sp-account-heading">
+                    <div className="sp-inline-heading">
+                      <span className="sp-kicker">Accounts</span>
+                      <h1>
+                        Connected <em>accounts</em>
+                      </h1>
+                    </div>
+                    <button className="sp-primary" onClick={() => void app?.openLink({ url: launch.accountsUrl })}>
+                      <Plus size={16} />
+                      Connect account
+                    </button>
+                  </header>
+                  <button
+                    className="sp-help-link"
+                    onClick={() => void app?.openLink({ url: "https://docs.simplepost.social/accounts" })}>
+                    <CircleHelp size={13} />
+                    Connection and account requirements
+                  </button>
                   {launch.accounts.map((account) => (
-                    <article key={account.accountId}>
-                      <PlatformBadge platform={account.platform} />
-                      <strong>{account.displayName ?? account.username ?? account.platform}</strong>
-                      <span>{account.platform}</span>
-                      <p>{account.credentialStatus.message}</p>
-                      {account.trialAllowance ? (
-                        <small>{account.trialAllowance.remaining} trial posts remaining</small>
-                      ) : null}
+                    <article key={account.accountId} className="sp-account-card">
+                      <div className="sp-account-main">
+                        <AccountIdentity account={account} />
+                        {account.credentialStatus.severity && account.credentialStatus.severity !== "ok" ? (
+                          <div className={`sp-account-health ${account.credentialStatus.severity}`}>
+                            <span>{account.credentialStatus.label}</span>
+                            <p>{account.credentialStatus.message}</p>
+                          </div>
+                        ) : null}
+                        <button
+                          className="sp-help-link"
+                          onClick={() =>
+                            void app?.openLink({ url: `https://docs.simplepost.social/accounts#${account.platform}` })
+                          }>
+                          <CircleHelp size={12} />
+                          Connection help
+                        </button>
+                        {account.trialAllowance ? (
+                          <small>{account.trialAllowance.remaining} trial posts remaining</small>
+                        ) : null}
+                      </div>
+                      <button
+                        aria-label={`Manage ${account.displayName ?? account.username ?? account.platform}`}
+                        onClick={() => void app?.openLink({ url: launch.accountsUrl.split("?")[0] })}>
+                        <ExternalLink size={14} />
+                        Manage account
+                      </button>
                     </article>
                   ))}
-                  <button onClick={() => void app?.openLink({ url: launch.accountsUrl })}>Manage destinations</button>
                 </section>
               ) : null}
             </>
@@ -371,7 +418,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     : `${tab.charAt(0).toUpperCase() + tab.slice(1)} posts`}
               </h2>
               {launch.posts.posts.length === 0 ? (
-                <p>No posts here yet. Start a new draft when you’re ready.</p>
+                <div className="sp-empty-posts">
+                  <FileText size={24} />
+                  <p>No posts here yet. Start a new draft when you’re ready.</p>
+                </div>
               ) : (
                 launch.posts.posts.map((post) => (
                   <article key={post.id}>
@@ -391,19 +441,43 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                             });
                         }}
                       />
-                      <span>
+                      <span className="sp-post-thumbnail">
+                        {post.media?.[0] && (post.media[0].type === "image" || post.media[0].thumbnailUrl) ? (
+                          <img src={post.media[0].thumbnailUrl || post.media[0].url} alt="" />
+                        ) : (
+                          <ImageIcon size={32} />
+                        )}
+                        <span className="sp-post-platforms">
+                          {[...new Set(post.accounts.map((a) => a.platform))].map((platform) => (
+                            <PlatformBadge key={platform} platform={platform} />
+                          ))}
+                        </span>
+                      </span>
+                      <span className="sp-post-copy">
                         <strong>{post.message.slice(0, 160) || "Untitled draft"}</strong>
                         <small>
-                          {post.accounts.map((a) => (
-                            <PlatformBadge key={a.accountId} platform={a.platform} />
-                          ))}{" "}
-                          {post.status}
+                          <Clock3 size={12} />
                           {post.scheduledFor
-                            ? ` · ${localDateTime(new Date(post.scheduledFor), launch.schedule.timeZone).replace("T", " ")}`
-                            : ""}
+                            ? localDateTime(new Date(post.scheduledFor), launch.schedule.timeZone).replace("T", " ")
+                            : post.createdAt
+                              ? `Saved ${new Date(post.createdAt).toLocaleDateString()}`
+                              : "Draft"}
                         </small>
+                        <span className="sp-post-handles">
+                          {post.accounts
+                            .slice(0, 2)
+                            .map((a) =>
+                              a.username ? `@${a.username.replace(/^@/, "")}` : (a.displayName ?? a.platform),
+                            )
+                            .join(" · ")}
+                          {post.accounts.length > 2 ? ` +${post.accounts.length - 2}` : ""}
+                        </span>
                       </span>
                     </label>
+                    <span className={`sp-post-status status-${post.status}`}>
+                      <FileText size={12} />
+                      {post.status}
+                    </span>
                     <button
                       disabled={busy || ((post.status === "draft" || post.status === "scheduled") && !canCompose)}
                       onClick={() =>

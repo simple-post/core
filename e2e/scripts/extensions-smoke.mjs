@@ -16,7 +16,15 @@ const account = (platform) => ({
   displayName: `Test ${platform}`,
   username: "simplepost",
   profilePicture: null,
-  credentialStatus: { message: "Connected" },
+  credentialStatus:
+    platform === "x"
+      ? {
+          severity: "error",
+          label: "Reconnect",
+          message: "Reconnect this account before posting.",
+          action: "reconnect",
+        }
+      : { severity: "ok", label: "Connected", message: "Connected", action: "none" },
 });
 const workspace = {
   kind: "workspace",
@@ -132,7 +140,10 @@ const server = createServer(async (req, res) => {
   try {
     if (req.url.startsWith("/mcp-widgets/")) {
       const filename = path.basename(req.url.split("?")[0]);
-      res.setHeader("content-type", filename.endsWith(".css") ? "text/css" : "text/javascript");
+      res.setHeader(
+        "content-type",
+        filename.endsWith(".woff2") ? "font/woff2" : filename.endsWith(".css") ? "text/css" : "text/javascript",
+      );
       res.end(await readFile(path.join(root, "public/mcp-widgets", filename)));
     } else if (req.url.startsWith("/widget")) {
       const name = req.url.includes("review")
@@ -176,6 +187,27 @@ try {
   await page.goto(`${base}/?week`);
   await expect(page.frameLocator("iframe").getByRole("heading", { name: "Sep 28 – Oct 4, 2026" })).toBeVisible();
   await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-desktop.png") });
+  await page.frameLocator("iframe").getByRole("button", { name: "Accounts", exact: true }).click();
+  await expect(
+    page.frameLocator("iframe").getByRole("heading", { name: "Connected accounts", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.frameLocator("iframe").getByText("Reconnect this account before posting.", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/accounts-desktop.png") });
+  await page.frameLocator("iframe").getByRole("button", { name: "Manage Test x", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.links.at(-1)?.url)).toBe("https://app.simplepost.social/accounts");
+  await page.setViewportSize({ width: 400, height: 900 });
+  assert.equal(
+    await page
+      .frameLocator("iframe")
+      .locator("body")
+      .evaluate((el) => el.scrollWidth > window.innerWidth + 1),
+    false,
+    "accounts must fit narrow panels",
+  );
+  await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/accounts-sidebar.png") });
+  await page.frameLocator("iframe").getByRole("button", { name: "Posts", exact: true }).click();
   await page.setViewportSize({ width: 400, height: 900 });
   assert.equal(
     await page
@@ -219,7 +251,7 @@ try {
   await expect(ui.getByText("Selected slot: 16:30 · Europe/Berlin")).toHaveCount(0);
   await ui.getByRole("button", { name: /16:30/ }).click();
   await ui.getByRole("button", { name: "Draft for this slot" }).click();
-  await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
+  await ui.getByRole("button", { name: "Schedule", exact: true }).click();
   await expect(ui.getByLabel("Publishing time · Europe/Berlin")).toHaveValue("2026-09-29T16:30");
   await ui.getByRole("button", { name: "Keep editing" }).click();
   await expect.poll(() => page.evaluate(() => JSON.stringify(window.contexts))).toMatch(/editorSessionId/);
@@ -247,6 +279,7 @@ try {
     path: path.resolve(root, "../e2e/test-results/extensions-smoke/editor-two-platforms.png"),
     fullPage: true,
   });
+  await ui.getByRole("button", { name: "Change destinations", exact: true }).click();
   for (const platform of [
     "bluesky",
     "instagram",
@@ -282,7 +315,7 @@ try {
   await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
   await ui.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(ui.getByText("Draft saved. Nothing will be published.")).toBeVisible();
-  await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
+  await ui.getByRole("button", { name: "Schedule", exact: true }).click();
   assert.equal(
     await page.evaluate(() => window.calls.filter((c) => c.name === "commit_post_editor_session").length),
     1,
@@ -299,6 +332,8 @@ try {
   });
   await ui.getByRole("button", { name: "Keep editing" }).click();
   await page.setViewportSize({ width: 400, height: 900 });
+  await ui.locator("body").evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/draft-sidebar.png") });
   await ui.getByRole("button", { name: "Edit manually", exact: true }).click();
   await expect(ui.getByLabel("Post text", { exact: true })).toBeVisible();
   assert.equal(
@@ -311,7 +346,7 @@ try {
   await ui.getByRole("button", { name: /Suggested shared text ·/ }).click();
   await ui.getByRole("button", { name: "Edit manually", exact: true }).click();
   await expect(ui.getByLabel("Post text", { exact: true })).toHaveValue("Suggested shared text");
-  await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
+  await ui.getByRole("button", { name: "Schedule", exact: true }).click();
   await expect(ui.getByLabel("Publishing time · Europe/Berlin")).toHaveValue("2026-09-29T16:30");
   await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");

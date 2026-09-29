@@ -9,6 +9,7 @@ import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
+import { registerExtensionTools } from "./extensions/register";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { isMcpBillingDenial, MCP_ERROR_INSTRUCTIONS, mcpToolLogLevel, toMcpErrorDiagnostic } from "./tool-errors";
@@ -159,6 +160,7 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 
 export interface McpToolAuthContext {
   imageFittingEnabled?: boolean;
+  pluginExtensionsEnabled?: boolean;
   clientId?: string;
   userEmail?: string | null;
   userId: string;
@@ -543,7 +545,8 @@ function formatManagedPosts(posts: Array<Parameters<typeof formatManagedPostDeta
  * The userId is bound to tool handlers so they operate on the authenticated user's data.
  */
 export function registerTools(server: McpServer, context: McpToolAuthContext): void {
-  registerMcpUiResources(server);
+  registerMcpUiResources(server, context.pluginExtensionsEnabled);
+  if (context.pluginExtensionsEnabled) registerExtensionTools(server, context, errorResult);
 
   registerAppTool(
     server,

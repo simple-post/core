@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+import { Feature } from "@prisma/client";
+
 import { POST } from "@/app/mcp/route";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { hasFeature } from "@/lib/features";
@@ -43,7 +45,7 @@ jest.mock("@/lib/mcp/review-logging", () => ({ shouldLogReviewMcpExchange: () =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(hasFeature).mockResolvedValue(true);
+  jest.mocked(hasFeature).mockImplementation(async (_user, feature) => feature === Feature.IMAGE_FITTING);
   jest.mocked(assertActiveSubscription).mockResolvedValue(undefined as never);
   jest.mocked(authenticateMcpToken).mockResolvedValue({
     user: { id: "user", email: "test@example.com" },
@@ -123,3 +125,30 @@ it("keeps JSON responses and the complete tool surface for MCP 2025-11-25 client
   expect(response.headers.get("content-type")).toContain("application/json");
   expectToolSurface(body);
 });
+
+it.each([modernRequest, legacyRequest])(
+  "adds extensions without removing legacy tools or resource URIs",
+  async (request) => {
+    jest.mocked(hasFeature).mockResolvedValue(true);
+    const toolResponse = await POST(request("tools/list"));
+    const toolBody = await toolResponse.json();
+    const tools = toolBody.result.tools;
+    expect(tools.map((tool: { name: string }) => tool.name)).toEqual(expect.arrayContaining(TOOL_NAMES));
+    expect(tools).toHaveLength(TOOL_NAMES.length + 11);
+    expect(
+      tools.find((tool: { name: string }) => tool.name === "open_simplepost_workspace")._meta["openai/ui"].entrypoints,
+    ).toEqual([{ type: "global" }]);
+    const resourceResponse = await POST(request("resources/list"));
+    const resourceBody = await resourceResponse.json();
+    const resources = resourceBody.result.resources;
+    expect(resources.map((resource: { uri: string }) => resource.uri)).toEqual(
+      expect.arrayContaining([
+        "ui://simplepost/schedule-v1.html",
+        "ui://simplepost/schedule-v2.html",
+        "ui://simplepost/post-preview-v1.html",
+        "ui://simplepost/workspace-v1.html",
+        "ui://simplepost/post-editor-v1.html",
+      ]),
+    );
+  },
+);

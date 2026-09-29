@@ -25,7 +25,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
 
     steps:
       - name: Checkout code
@@ -78,6 +78,11 @@ jobs:
 
       - name: Run offline end-to-end checks
         run: xvfb-run --auto-servernum yarn e2e:test
+
+      - name: Build and smoke-test plugin extensions
+        run: |
+          yarn workspace @simple-post/scheduler build:mcp-widgets
+          yarn workspace @simple-post/e2e extensions:smoke
 
       - name: Run CLI tests
         env:

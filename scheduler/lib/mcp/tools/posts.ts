@@ -27,7 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
-import { sanitizeForJson } from "@/lib/utils/errors";
+import { ConflictError, sanitizeForJson } from "@/lib/utils/errors";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -210,6 +210,10 @@ export const inspectPostsSchema = z.object({
 });
 
 export const updateScheduledPostSchema = z.object({
+  expectedUpdatedAt: z.iso
+    .datetime()
+    .optional()
+    .describe("Version returned by inspect_posts; reject stale edits when provided."),
   imageFit: ImageFitSchema.optional(),
   postId: z
     .string()
@@ -261,6 +265,7 @@ export const updateScheduledPostSchema = z.object({
 });
 
 export const discardScheduledPostSchema = z.object({
+  expectedUpdatedAt: z.iso.datetime().optional(),
   postId: z
     .string()
     .describe("ID of the draft or future scheduled SimplePost post to discard. Use inspect_posts to find it."),
@@ -297,6 +302,7 @@ const managedPostSchema = z.object({
     .describe("Per-account content that replaces the shared message, media, or thread for that account."),
   scheduledFor: z.string().nullable(),
   createdAt: z.string(),
+  updatedAt: z.string(),
   publishedAt: z.string().nullable(),
   status: managedPostStatusSchema,
   errorMessage: z.string().nullable(),
@@ -479,7 +485,10 @@ async function getAccountMap(userId: string) {
   return new Map(result.accounts.map((account) => [account.accountId, account]));
 }
 
-function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof getAccountMap>>): ManagedPost {
+function mapManagedPost(
+  post: SocialPost & { updatedAt: Date },
+  accountMap: Awaited<ReturnType<typeof getAccountMap>>,
+): ManagedPost {
   const thread = mapStoredThread(post.thread);
   return {
     id: post.id,
@@ -492,6 +501,7 @@ function mapManagedPost(post: SocialPost, accountMap: Awaited<ReturnType<typeof 
     accountOverrides: mapStoredAccountOverrides(post.accountOverrides),
     scheduledFor: post.scheduledFor?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
+    updatedAt: post.updatedAt.toISOString(),
     publishedAt: post.publishedAt?.toISOString() ?? null,
     status: mapManagedStatus(post.status),
     errorMessage: post.errorMessage ?? null,
@@ -809,6 +819,9 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     throw new Error(POST_NOT_FOUND_MESSAGE);
   }
   assertEditableManagedPost(currentPost);
+  if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentPost.updatedAt.toISOString()) {
+    throw new ConflictError("This post changed. Reload it before saving.");
+  }
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
@@ -1003,6 +1016,9 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const mappedPost = mapManagedPost(post, accountMap);
   const media = collectMediaForCleanup(post);
 
+  if (input.expectedUpdatedAt && input.expectedUpdatedAt !== post.updatedAt.toISOString()) {
+    throw new ConflictError("This post changed. Reload it before discarding.");
+  }
   await repository.deletePost(input.postId, post.updatedAt);
   if (media.length > 0) {
     await deleteMediaFiles(userId, media);

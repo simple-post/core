@@ -40,7 +40,7 @@ export class PostsModel {
     this.userId = userId;
   }
 
-  async getScheduledPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+  async getScheduledPosts(options: PaginationOptions = {}): Promise<PaginatedResult<PostSnapshot>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
     const where = {
@@ -80,7 +80,7 @@ export class PostsModel {
   // Non-draft posts scheduled inside [start, end), used by the dashboard
   // calendar. Not paginated: the range is capped by the API route and a
   // month of posts is small.
-  async getPostsBetween(start: Date, end: Date): Promise<SocialPost[]> {
+  async getPostsBetween(start: Date, end: Date): Promise<PostSnapshot[]> {
     const posts = await prisma.post.findMany({
       where: {
         userId: this.userId,
@@ -102,7 +102,7 @@ export class PostsModel {
     return posts.map((post) => this.mapPostToSocialPost(post));
   }
 
-  async getDraftPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+  async getDraftPosts(options: PaginationOptions = {}): Promise<PaginatedResult<PostSnapshot>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
 
@@ -142,11 +142,11 @@ export class PostsModel {
     };
   }
 
-  async getPastPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+  async getPastPosts(options: PaginationOptions = {}): Promise<PaginatedResult<PostSnapshot>> {
     return this.getPublishedPosts(options);
   }
 
-  async getPublishedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+  async getPublishedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<PostSnapshot>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
 
@@ -191,7 +191,7 @@ export class PostsModel {
     };
   }
 
-  async getFailedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<SocialPost>> {
+  async getFailedPosts(options: PaginationOptions = {}): Promise<PaginatedResult<PostSnapshot>> {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
 
@@ -233,7 +233,7 @@ export class PostsModel {
     postData: Omit<SocialPost, "id" | "createdAt">,
     userId: string,
     client: PostWriteClient = prisma,
-  ): Promise<SocialPost> {
+  ): Promise<PostSnapshot> {
     if (client === prisma) return prisma.$transaction((tx) => this.createPost(postData, userId, tx));
     await lockUserForQuota(client, userId);
     await assertStorageAvailable(client, userId, postData);
@@ -281,7 +281,7 @@ export class PostsModel {
     updates: Partial<SocialPost>,
     expected?: Pick<PostSnapshot, "status" | "updatedAt">,
     client: PostWriteClient = prisma,
-  ): Promise<SocialPost> {
+  ): Promise<PostSnapshot> {
     if (client === prisma) return prisma.$transaction((tx) => this.updatePost(id, updates, expected, tx));
     await lockUserForQuota(client, this.userId);
     await assertStorageAvailable(client, this.userId, updates);

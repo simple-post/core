@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simplepost",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Publish, schedule, draft, preview, inspect, and manage social posts through SimplePost.",
   "author": {
     "name": "SimplePost",
@@ -20,5 +20,11 @@
     "content-calendar",
     "mcp",
     "content"
-  ]
+  ],
+  "skills": "./skills/",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md"
+    }
+  }
 }

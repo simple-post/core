@@ -6,6 +6,9 @@ import type { WidgetName } from "@/lib/mcp/ui/widget-assets";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
+export const WORKSPACE_WIDGET_URI = "ui://simplepost/workspace-v1.html";
+export const EDITOR_WIDGET_URI = "ui://simplepost/post-editor-v1.html";
+
 export const SCHEDULE_WIDGET_URI = "ui://simplepost/schedule-v2.html";
 export const LEGACY_SCHEDULE_WIDGET_URIS = ["ui://simplepost/schedule-v1.html"] as const;
 const POST_PREVIEW_WIDGET_VERSION = "1";
@@ -156,6 +159,7 @@ type WidgetResourceOptions = {
   uri: string;
   widgetDescription: string;
   widgetName: WidgetName;
+  fullscreen?: boolean;
 };
 
 function registerWidgetResource(server: McpServer, options: WidgetResourceOptions): void {
@@ -178,6 +182,9 @@ function registerWidgetResource(server: McpServer, options: WidgetResourceOption
           text: widgetHtml(options.widgetName),
           _meta: {
             ui: widgetUiMeta(),
+            ...(options.fullscreen
+              ? { "openai/ui": { availableDisplayModes: ["fullscreen"], preferredDisplayMode: "fullscreen" } }
+              : {}),
             "openai/widgetDescription": options.widgetDescription,
             "openai/widgetDomain": widgetOrigin(),
             "openai/widgetPrefersBorder": true,
@@ -188,7 +195,25 @@ function registerWidgetResource(server: McpServer, options: WidgetResourceOption
   );
 }
 
-export function registerMcpUiResources(server: McpServer): void {
+export function registerMcpUiResources(server: McpServer, extensionsEnabled = false): void {
+  if (extensionsEnabled) {
+    registerWidgetResource(server, {
+      name: "SimplePost workspace",
+      uri: WORKSPACE_WIDGET_URI,
+      description: "Publishing calendar, drafts and destinations.",
+      widgetDescription: "Interactive publishing workspace.",
+      widgetName: "workspace",
+      fullscreen: true,
+    });
+    registerWidgetResource(server, {
+      name: "Post editor",
+      uri: EDITOR_WIDGET_URI,
+      description: "Persistent editor with live platform previews.",
+      widgetDescription: "A working copy and live previews for every destination.",
+      widgetName: "post-editor",
+      fullscreen: true,
+    });
+  }
   const scheduleOptions = {
     description: "Interactive day, week, and month view of posting slots and post activity.",
     name: "SimplePost schedule",

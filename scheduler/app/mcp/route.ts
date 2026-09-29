@@ -14,6 +14,7 @@ import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { hasFeature } from "@/lib/features";
 import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
+import { EXTENSION_INSTRUCTIONS } from "@/lib/mcp/extensions/instructions";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { logReviewMcpExchange, shouldLogReviewMcpExchange } from "@/lib/mcp/review-logging";
 import {
@@ -116,14 +117,21 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
 }
 
 async function createMcpServer(authContext: McpToolAuthContext): Promise<McpServer> {
-  authContext = { ...authContext, imageFittingEnabled: await hasFeature(authContext.userId, Feature.IMAGE_FITTING) };
+  const [imageFittingEnabled, pluginExtensionsEnabled] = await Promise.all([
+    hasFeature(authContext.userId, Feature.IMAGE_FITTING),
+    hasFeature(authContext.userId, Feature.PLUGIN_EXTENSIONS),
+  ]);
+  authContext = { ...authContext, imageFittingEnabled, pluginExtensionsEnabled };
   const server = new McpServer(
     {
       name: "SimplePost",
       version: "1.0.0",
     },
     {
-      instructions: SERVER_INSTRUCTIONS + (authContext.imageFittingEnabled ? "\n\n" + IMAGE_FITTING_INSTRUCTIONS : ""),
+      instructions:
+        SERVER_INSTRUCTIONS +
+        (pluginExtensionsEnabled ? "\n\n" + EXTENSION_INSTRUCTIONS : "") +
+        (authContext.imageFittingEnabled ? "\n\n" + IMAGE_FITTING_INSTRUCTIONS : ""),
     },
   );
   registerTools(server, authContext);

@@ -12,6 +12,7 @@ datasource db {
 
 enum Feature {
   IMAGE_FITTING
+  PLUGIN_EXTENSIONS
 }
 
 model UserFeature {
@@ -53,6 +54,8 @@ model User {
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
   postingSlots                 PostingSlot[]
+  publishingPreferences        UserPublishingPreferences?
+  editorSessions               PostEditorSession[]
   activationMilestone          ActivationMilestone?
 
   @@unique([email])
@@ -583,4 +586,38 @@ model ActivationMilestone {
 
   @@index([signupCompletedAt])
   @@map("activation_milestone")
+}
+
+// Publishing defaults are shared by MCP entrypoints and authenticated web settings.
+model UserPublishingPreferences {
+  userId            String   @id
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeZone          String?
+  calendarView      String   @default("week")
+  defaultAccountIds String[] @default([])
+  updatedAt         DateTime @updatedAt
+
+  @@map("user_publishing_preferences")
+}
+
+// Scratch work is deliberately separate from the publishing queue.
+model PostEditorSession {
+  id                String   @id
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId            String?
+  baseUpdatedAt     DateTime?
+  payload           Json
+  revision          Int      @default(0)
+  proposal          Json?
+  committing        Boolean  @default(false)
+  commitRevision    Int?
+  commitMode        String?
+  commitResult      Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  expiresAt         DateTime
+
+  @@index([userId, expiresAt])
+  @@map("post_editor_session")
 }

@@ -8,10 +8,10 @@ import type { App } from "@modelcontextprotocol/ext-apps";
 
 import "./schedule.css";
 
-type ScheduleView = "day" | "week" | "month";
+export type ScheduleView = "day" | "week" | "month";
 type ScheduleStatus = "open" | "scheduled" | "pending" | "published" | "failed" | "past_due";
 
-type ScheduleEntry = {
+export type ScheduleEntry = {
   id: string;
   kind: "slot" | "post";
   at: string;
@@ -24,7 +24,7 @@ type ScheduleEntry = {
   errorMessage: string | null;
 };
 
-type ScheduleDay = {
+export type ScheduleDay = {
   date: string;
   weekday: string;
   weekdayShort: string;
@@ -34,7 +34,7 @@ type ScheduleDay = {
   entries: ScheduleEntry[];
 };
 
-type ScheduleData = {
+export type ScheduleData = {
   kind: "schedule";
   view: ScheduleView;
   anchorDate: string;
@@ -80,7 +80,7 @@ async function loadSchedule(
   return result.structuredContent as ScheduleData;
 }
 
-function Summary({ data }: { data: ScheduleData }) {
+export function Summary({ data }: { data: ScheduleData }) {
   const items = [
     { label: "open", value: data.summary.openSlotCount, tone: "open" },
     { label: "scheduled", value: data.summary.scheduledCount, tone: "scheduled" },
@@ -99,7 +99,15 @@ function Summary({ data }: { data: ScheduleData }) {
   );
 }
 
-function Entry({ entry, compact = false }: { entry: ScheduleEntry; compact?: boolean }) {
+function Entry({
+  entry,
+  compact = false,
+  onSelect,
+}: {
+  entry: ScheduleEntry;
+  compact?: boolean;
+  onSelect?: (entry: ScheduleEntry) => void;
+}) {
   const statusLabel =
     entry.status === "open"
       ? entry.isPast
@@ -113,7 +121,20 @@ function Entry({ entry, compact = false }: { entry: ScheduleEntry; compact?: boo
   return (
     <article
       className={`entry status-${entry.status} ${entry.isPast ? "is-past" : ""} ${compact ? "compact" : ""}`}
-      title={entry.message ?? statusLabel}>
+      title={entry.message ?? statusLabel}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect ? () => onSelect(entry) : undefined}
+      onKeyDown={
+        onSelect
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect(entry);
+              }
+            }
+          : undefined
+      }>
       <div className="entry-topline">
         <time>{entry.localTime}</time>
         <span className="entry-status">{statusLabel}</span>
@@ -131,7 +152,7 @@ function Entry({ entry, compact = false }: { entry: ScheduleEntry; compact?: boo
   );
 }
 
-function DayAgenda({ day }: { day: ScheduleDay }) {
+export function DayAgenda({ day, onSelect }: { day: ScheduleDay; onSelect?: (entry: ScheduleEntry) => void }) {
   return (
     <section className="day-agenda">
       <header className="day-agenda-header">
@@ -146,7 +167,7 @@ function DayAgenda({ day }: { day: ScheduleDay }) {
       </header>
       <div className="agenda-list">
         {day.entries.length > 0 ? (
-          day.entries.map((entry) => <Entry key={entry.id} entry={entry} />)
+          day.entries.map((entry) => <Entry key={entry.id} entry={entry} onSelect={onSelect} />)
         ) : (
           <div className="empty-day">Nothing planned</div>
         )}
@@ -155,7 +176,7 @@ function DayAgenda({ day }: { day: ScheduleDay }) {
   );
 }
 
-function WeekView({ days }: { days: ScheduleDay[] }) {
+export function WeekView({ days, onSelect }: { days: ScheduleDay[]; onSelect?: (entry: ScheduleEntry) => void }) {
   return (
     <div className="week-grid">
       {days.map((day) => (
@@ -166,7 +187,7 @@ function WeekView({ days }: { days: ScheduleDay[] }) {
           </header>
           <div className="week-entries">
             {day.entries.length > 0 ? (
-              day.entries.map((entry) => <Entry key={entry.id} entry={entry} compact />)
+              day.entries.map((entry) => <Entry key={entry.id} entry={entry} compact onSelect={onSelect} />)
             ) : (
               <span className="no-activity">No activity</span>
             )}
@@ -177,7 +198,7 @@ function WeekView({ days }: { days: ScheduleDay[] }) {
   );
 }
 
-function MonthView({ days }: { days: ScheduleDay[] }) {
+export function MonthView({ days, onSelect }: { days: ScheduleDay[]; onSelect?: (entry: ScheduleEntry) => void }) {
   const weekdays = days.slice(0, 7).map((day) => day.weekdayShort);
   return (
     <div className="month-shell">
@@ -196,7 +217,7 @@ function MonthView({ days }: { days: ScheduleDay[] }) {
             </header>
             <div className="month-entries">
               {day.entries.slice(0, 3).map((entry) => (
-                <Entry key={entry.id} entry={entry} compact />
+                <Entry key={entry.id} entry={entry} compact onSelect={onSelect} />
               ))}
               {day.entries.length > 3 ? <span className="more">+{day.entries.length - 3} more</span> : null}
             </div>

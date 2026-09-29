@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizePreviewPlatform } from "@simple-post/preview";
-import { PostPreview, type PostPreviewData } from "@simple-post/preview-react";
+import { type PostPreviewData } from "@simple-post/preview-react";
 
 import { PlatformIcon } from "../../components/platform-icon";
+import { PreviewSwitcher } from "../preview-switcher";
 
 import { askChat, attachSelection, callTool, keepEditorHint, restoreEditorHint } from "./host";
 import { localDateTime } from "./timezone";
@@ -53,7 +54,6 @@ export function Editor({
   app,
   accounts,
   timeZone: preferenceTimeZone,
-  timeZoneConfirmed,
   proposedTime,
   incoming,
   canValidate,
@@ -66,7 +66,6 @@ export function Editor({
   app: App;
   accounts: WorkspaceData["accounts"];
   timeZone: string;
-  timeZoneConfirmed: boolean;
   proposedTime: string | null;
   incoming: Record<string, unknown> | null;
   canValidate: boolean;
@@ -115,7 +114,8 @@ export function Editor({
   const [imageFit, setImageFit] = useState<"crop" | "blur" | "">("");
   const [review, setReview] = useState<"schedule" | "now" | null>(null);
   const [results, setResults] = useState<Record<string, unknown> | null>(null);
-  const [contextActive, setContextActive] = useState(false);
+  const [contextActive, setContextActive] = useState(true);
+  const [manual, setManual] = useState(false);
   const liveContent = useRef(content);
   const liveSession = useRef(session);
   const stored = useRef(fingerprint(initial.content));
@@ -453,334 +453,347 @@ export function Editor({
           <span>Applying does not save or publish the post.</span>
         </section>
       ) : null}
-      <div className="sp-editor-grid">
-        <div className="sp-compose">
-          <fieldset disabled={!statusEditable || working}>
-            <legend>Destinations</legend>
-            <div className="sp-destinations">
-              {accounts.map((account) => (
-                <label key={account.accountId}>
-                  <input
-                    type="checkbox"
-                    checked={content.accountIds.includes(account.accountId)}
-                    onChange={(event) => {
-                      const ids = event.target.checked
-                        ? [...content.accountIds, account.accountId]
-                        : content.accountIds.filter((id) => id !== account.accountId);
-                      change({
-                        ...content,
-                        accountIds: ids,
-                        accountOverrides: Object.fromEntries(
-                          Object.entries(content.accountOverrides).filter(([id]) => ids.includes(id)),
-                        ),
-                      });
-                      if (!event.target.checked && activeAccount === account.accountId) setActiveAccount(null);
-                    }}
-                  />
-                  <PlatformIcon platform={account.platform} className="sp-platform-icon" />
-                  <span>{account.displayName ?? account.username ?? account.platform}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <div className="sp-variant-tabs" aria-label="Edit destination variant">
-            <button
-              aria-pressed={!activeAccount}
-              onClick={() => {
-                setActiveAccount(null);
-                setContextActive(true);
-              }}>
-              Shared content
-            </button>
-            {variants.map((account) => (
-              <button
-                key={account.accountId}
-                aria-pressed={activeAccount === account.accountId}
-                onClick={() => {
-                  setActiveAccount(account.accountId);
-                  setContextActive(true);
-                }}>
-                {account.platform} · {account.displayName ?? account.username ?? "account"}
-              </button>
-            ))}
-          </div>
-          {activeAccount ? (
-            <p>
-              {override
-                ? "Custom content for this destination."
-                : "This destination inherits the shared content. Editing creates a custom version."}{" "}
-              {override ? (
-                <button
-                  disabled={working || !statusEditable}
-                  onClick={() =>
+      <div className="sp-editor-destinations">
+        <fieldset disabled={!statusEditable || working}>
+          <legend>Destinations</legend>
+          <div className="sp-destinations">
+            {accounts.map((account) => (
+              <label key={account.accountId}>
+                <input
+                  type="checkbox"
+                  checked={content.accountIds.includes(account.accountId)}
+                  onChange={(event) => {
+                    const ids = event.target.checked
+                      ? [...content.accountIds, account.accountId]
+                      : content.accountIds.filter((id) => id !== account.accountId);
                     change({
                       ...content,
+                      accountIds: ids,
                       accountOverrides: Object.fromEntries(
-                        Object.entries(content.accountOverrides).filter(([id]) => id !== activeAccount),
+                        Object.entries(content.accountOverrides).filter(([id]) => ids.includes(id)),
                       ),
-                    })
-                  }>
-                  Use shared content
-                </button>
-              ) : null}
-            </p>
-          ) : null}
-          <fieldset disabled={!statusEditable || working}>
-            <legend>{selectedAccount ? `${selectedAccount.platform} version` : "Shared post"}</legend>
-            <label>
-              Post text
-              <textarea
-                aria-label="Post text"
-                value={displayedMessage}
-                maxLength={100_000}
-                rows={9}
-                onChange={(event) => changeVariant({ message: event.target.value })}
-                onFocus={() => setContextActive(true)}
-              />
-            </label>
-            <small>{displayedMessage.length.toLocaleString()} characters</small>
-            <div className="sp-thread">
-              <h3>Thread replies</h3>
-              {displayedThread.map((part, index) => (
-                <div key={index}>
-                  <label>
-                    Reply {index + 1}
-                    <textarea
-                      rows={3}
-                      value={part.message}
-                      onChange={(event) =>
-                        changeVariant({
-                          thread: displayedThread.map((segment, i) =>
-                            i === index ? { ...segment, message: event.target.value } : segment,
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  {part.media?.length ? <small>{part.media.length} existing attachment(s) preserved</small> : null}
-                  <button onClick={() => changeVariant({ thread: displayedThread.filter((_, i) => i !== index) })}>
-                    Remove reply
-                  </button>
-                </div>
-              ))}
+                    });
+                    if (!event.target.checked && activeAccount === account.accountId) setActiveAccount(null);
+                  }}
+                />
+                <PlatformIcon platform={account.platform} className="sp-platform-icon" />
+                <span>{account.displayName ?? account.username ?? account.platform}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="sp-editor-controls">
+          <p>Describe your post in chat. Review it here on every destination.</p>
+          <button aria-expanded={manual} aria-controls="sp-manual-editor" onClick={() => setManual(!manual)}>
+            {manual ? "Hide manual editor" : "Edit manually"}
+          </button>
+        </div>
+      </div>
+      <div className={manual ? "sp-editor-grid is-manual" : "sp-editor-grid"}>
+        {manual ? (
+          <div className="sp-compose" id="sp-manual-editor">
+            <div className="sp-variant-tabs" aria-label="Edit destination variant">
               <button
-                disabled={displayedThread.length >= 24}
-                onClick={() => changeVariant({ thread: [...displayedThread, { message: "" }] })}>
-                Add reply
+                aria-pressed={!activeAccount}
+                onClick={() => {
+                  setActiveAccount(null);
+                  setContextActive(true);
+                }}>
+                Shared content
               </button>
-            </div>
-            <div className="sp-media">
-              <h3>Media</h3>
-              {displayedMedia.map((file) => (
-                <div key={file.id}>
-                  <span>
-                    {file.filename} · {file.type}
-                  </span>
-                  <button
-                    onClick={() => changeVariant({ media: displayedMedia.filter((item) => item.id !== file.id) })}>
-                    Remove
-                  </button>
-                </div>
+              {variants.map((account) => (
+                <button
+                  key={account.accountId}
+                  aria-pressed={activeAccount === account.accountId}
+                  onClick={() => {
+                    setActiveAccount(account.accountId);
+                    setContextActive(true);
+                  }}>
+                  {account.platform} · {account.displayName ?? account.username ?? "account"}
+                </button>
               ))}
+            </div>
+            {activeAccount ? (
+              <p>
+                {override
+                  ? "Custom content for this destination."
+                  : "This destination inherits the shared content. Editing creates a custom version."}{" "}
+                {override ? (
+                  <button
+                    disabled={working || !statusEditable}
+                    onClick={() =>
+                      change({
+                        ...content,
+                        accountOverrides: Object.fromEntries(
+                          Object.entries(content.accountOverrides).filter(([id]) => id !== activeAccount),
+                        ),
+                      })
+                    }>
+                    Use shared content
+                  </button>
+                ) : null}
+              </p>
+            ) : null}
+            <fieldset disabled={!statusEditable || working}>
+              <legend>{selectedAccount ? `${selectedAccount.platform} version` : "Shared post"}</legend>
               <label>
-                Image or video URL
-                <input
-                  type="url"
-                  value={mediaUrl}
-                  onChange={(event) => setMediaUrl(event.target.value)}
-                  placeholder="https://…"
+                Post text
+                <textarea
+                  aria-label="Post text"
+                  value={displayedMessage}
+                  maxLength={100_000}
+                  rows={9}
+                  onChange={(event) => changeVariant({ message: event.target.value })}
+                  onFocus={() => setContextActive(true)}
                 />
               </label>
-              <button
-                disabled={!mediaUrl}
-                onClick={() =>
-                  void act(async () => {
-                    const uploaded = await callTool<{
-                      url: string;
-                      type: "image" | "video";
-                      filename: string;
-                      size: number;
-                      mimeType: string;
-                    }>(app, "upload_media", { url: mediaUrl });
-                    changeVariant({
-                      media: [
-                        ...displayedMedia,
-                        {
-                          id: crypto.randomUUID(),
-                          url: uploaded.url,
-                          type: uploaded.type,
-                          filename: uploaded.filename,
-                          size: uploaded.size,
-                          contentType: uploaded.mimeType,
-                        },
-                      ],
-                    });
-                    setMediaUrl("");
-                  })
-                }>
-                Import media
-              </button>
-              <small>
-                Media from chat can also be imported by your assistant. Original attachments are retained while editing.
-              </small>
-            </div>
-            {selectedAccount ? (
-              <details className="sp-options">
-                <summary>{selectedAccount.platform} publishing options</summary>
-                {["youtube", "pinterest", "tiktok", "forem"].includes(selectedAccount.platform) ? (
-                  <label>
-                    Title
-                    <input
-                      value={typeof options.title === "string" ? options.title : ""}
-                      onChange={(event) => option("title", event.target.value)}
-                    />
-                  </label>
-                ) : null}
-                {selectedAccount.platform === "youtube" ? (
-                  <>
+              <small>{displayedMessage.length.toLocaleString()} characters</small>
+              <div className="sp-thread">
+                <h3>Thread replies</h3>
+                {displayedThread.map((part, index) => (
+                  <div key={index}>
+                    <label>
+                      Reply {index + 1}
+                      <textarea
+                        rows={3}
+                        value={part.message}
+                        onChange={(event) =>
+                          changeVariant({
+                            thread: displayedThread.map((segment, i) =>
+                              i === index ? { ...segment, message: event.target.value } : segment,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                    {part.media?.length ? <small>{part.media.length} existing attachment(s) preserved</small> : null}
+                    <button onClick={() => changeVariant({ thread: displayedThread.filter((_, i) => i !== index) })}>
+                      Remove reply
+                    </button>
+                  </div>
+                ))}
+                <button
+                  disabled={displayedThread.length >= 24}
+                  onClick={() => changeVariant({ thread: [...displayedThread, { message: "" }] })}>
+                  Add reply
+                </button>
+              </div>
+              <div className="sp-media">
+                <h3>Media</h3>
+                {displayedMedia.map((file) => (
+                  <div key={file.id}>
+                    <span>
+                      {file.filename} · {file.type}
+                    </span>
+                    <button
+                      onClick={() => changeVariant({ media: displayedMedia.filter((item) => item.id !== file.id) })}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <label>
+                  Image or video URL
+                  <input
+                    type="url"
+                    value={mediaUrl}
+                    onChange={(event) => setMediaUrl(event.target.value)}
+                    placeholder="https://…"
+                  />
+                </label>
+                <button
+                  disabled={!mediaUrl}
+                  onClick={() =>
+                    void act(async () => {
+                      const uploaded = await callTool<{
+                        url: string;
+                        type: "image" | "video";
+                        filename: string;
+                        size: number;
+                        mimeType: string;
+                      }>(app, "upload_media", { url: mediaUrl });
+                      changeVariant({
+                        media: [
+                          ...displayedMedia,
+                          {
+                            id: crypto.randomUUID(),
+                            url: uploaded.url,
+                            type: uploaded.type,
+                            filename: uploaded.filename,
+                            size: uploaded.size,
+                            contentType: uploaded.mimeType,
+                          },
+                        ],
+                      });
+                      setMediaUrl("");
+                    })
+                  }>
+                  Import media
+                </button>
+                <small>
+                  Media from chat can also be imported by your assistant. Original attachments are retained while
+                  editing.
+                </small>
+              </div>
+              {selectedAccount ? (
+                <details className="sp-options">
+                  <summary>{selectedAccount.platform} publishing options</summary>
+                  {["youtube", "pinterest", "tiktok", "forem"].includes(selectedAccount.platform) ? (
+                    <label>
+                      Title
+                      <input
+                        value={typeof options.title === "string" ? options.title : ""}
+                        onChange={(event) => option("title", event.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                  {selectedAccount.platform === "youtube" ? (
+                    <>
+                      <label>
+                        Audience
+                        <select
+                          value={String(options.privacyStatus ?? "private")}
+                          onChange={(event) => option("privacyStatus", event.target.value)}>
+                          {["private", "unlisted", "public"].map((value) => (
+                            <option key={value}>{value}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={options.selfDeclaredMadeForKids === true}
+                          onChange={(event) => option("selfDeclaredMadeForKids", event.target.checked)}
+                        />
+                        Made for kids
+                      </label>
+                    </>
+                  ) : null}
+                  {selectedAccount.platform === "linkedin" ? (
                     <label>
                       Audience
                       <select
-                        value={String(options.privacyStatus ?? "private")}
-                        onChange={(event) => option("privacyStatus", event.target.value)}>
-                        {["private", "unlisted", "public"].map((value) => (
+                        value={String(options.visibility ?? "PUBLIC")}
+                        onChange={(event) => option("visibility", event.target.value)}>
+                        <option value="PUBLIC">Public</option>
+                        <option value="CONNECTIONS">Connections</option>
+                      </select>
+                    </label>
+                  ) : null}
+                  {selectedAccount.platform === "tiktok" ? (
+                    <>
+                      <label>
+                        Posting destination
+                        <select
+                          value={String(options.publishMode ?? "public")}
+                          onChange={(event) => option("publishMode", event.target.value)}>
+                          <option value="public">Publish directly</option>
+                          <option value="draft">TikTok inbox for manual editing</option>
+                        </select>
+                      </label>
+                      <label>
+                        Audience
+                        <select
+                          value={String(options.privacyLevel ?? "PUBLIC_TO_EVERYONE")}
+                          onChange={(event) => option("privacyLevel", event.target.value)}>
+                          <option value="PUBLIC_TO_EVERYONE">Public</option>
+                          <option value="SELF_ONLY">Only me</option>
+                          <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+                          <option value="FOLLOWER_OF_CREATOR">Followers</option>
+                        </select>
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={options.autoAddMusic !== false}
+                          onChange={(event) => option("autoAddMusic", event.target.checked)}
+                        />
+                        Add recommended music to photos
+                      </label>
+                    </>
+                  ) : null}
+                  {selectedAccount.platform === "pinterest" ? (
+                    <>
+                      <label>
+                        Board ID
+                        <input
+                          value={String(options.boardId ?? "")}
+                          onChange={(event) => option("boardId", event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Destination link
+                        <input
+                          type="url"
+                          value={String(options.link ?? "")}
+                          onChange={(event) => option("link", event.target.value)}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                  {selectedAccount.platform === "telegram" ? (
+                    <label>
+                      Text format
+                      <select
+                        value={String(options.parseMode ?? "HTML")}
+                        onChange={(event) => option("parseMode", event.target.value)}>
+                        {["HTML", "Markdown", "MarkdownV2"].map((value) => (
                           <option key={value}>{value}</option>
                         ))}
                       </select>
                     </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={options.selfDeclaredMadeForKids === true}
-                        onChange={(event) => option("selfDeclaredMadeForKids", event.target.checked)}
-                      />
-                      Made for kids
-                    </label>
-                  </>
-                ) : null}
-                {selectedAccount.platform === "linkedin" ? (
-                  <label>
-                    Audience
-                    <select
-                      value={String(options.visibility ?? "PUBLIC")}
-                      onChange={(event) => option("visibility", event.target.value)}>
-                      <option value="PUBLIC">Public</option>
-                      <option value="CONNECTIONS">Connections</option>
-                    </select>
-                  </label>
-                ) : null}
-                {selectedAccount.platform === "tiktok" ? (
-                  <>
-                    <label>
-                      Posting destination
-                      <select
-                        value={String(options.publishMode ?? "public")}
-                        onChange={(event) => option("publishMode", event.target.value)}>
-                        <option value="public">Publish directly</option>
-                        <option value="draft">TikTok inbox for manual editing</option>
-                      </select>
-                    </label>
-                    <label>
-                      Audience
-                      <select
-                        value={String(options.privacyLevel ?? "PUBLIC_TO_EVERYONE")}
-                        onChange={(event) => option("privacyLevel", event.target.value)}>
-                        <option value="PUBLIC_TO_EVERYONE">Public</option>
-                        <option value="SELF_ONLY">Only me</option>
-                        <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
-                        <option value="FOLLOWER_OF_CREATOR">Followers</option>
-                      </select>
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={options.autoAddMusic !== false}
-                        onChange={(event) => option("autoAddMusic", event.target.checked)}
-                      />
-                      Add recommended music to photos
-                    </label>
-                  </>
-                ) : null}
-                {selectedAccount.platform === "pinterest" ? (
-                  <>
-                    <label>
-                      Board ID
-                      <input
-                        value={String(options.boardId ?? "")}
-                        onChange={(event) => option("boardId", event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Destination link
-                      <input
-                        type="url"
-                        value={String(options.link ?? "")}
-                        onChange={(event) => option("link", event.target.value)}
-                      />
-                    </label>
-                  </>
-                ) : null}
-                {selectedAccount.platform === "telegram" ? (
-                  <label>
-                    Text format
-                    <select
-                      value={String(options.parseMode ?? "HTML")}
-                      onChange={(event) => option("parseMode", event.target.value)}>
-                      {["HTML", "Markdown", "MarkdownV2"].map((value) => (
-                        <option key={value}>{value}</option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </details>
-            ) : null}
-          </fieldset>
-          <div className="sp-ai-actions">
-            <button
-              disabled={working || !statusEditable}
-              onClick={() =>
-                void act(async () => {
-                  const next = await flush();
-                  setContextActive(true);
-                  await askChat(
-                    app,
-                    `Propose a shorter ${selectedAccount?.platform ?? "shared"} version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.`,
-                    selection(next),
-                  );
-                })
-              }>
-              Ask ChatGPT to shorten
-            </button>
-            <button
-              disabled={working || !statusEditable}
-              onClick={() =>
-                void act(async () => {
-                  const next = await flush();
-                  setContextActive(true);
-                  await askChat(
-                    app,
-                    "Propose writing tailored to each selected destination. Keep one SimplePost post and preserve media. Do not publish or schedule.",
-                    selection(next),
-                  );
-                })
-              }>
-              Ask for platform versions
-            </button>
+                  ) : null}
+                </details>
+              ) : null}
+            </fieldset>
+            <div className="sp-ai-actions">
+              <button
+                disabled={working || !statusEditable}
+                onClick={() =>
+                  void act(async () => {
+                    const next = await flush();
+                    setContextActive(true);
+                    await askChat(
+                      app,
+                      `Propose a shorter ${selectedAccount?.platform ?? "shared"} version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.`,
+                      selection(next),
+                    );
+                  })
+                }>
+                Ask ChatGPT to shorten
+              </button>
+              <button
+                disabled={working || !statusEditable}
+                onClick={() =>
+                  void act(async () => {
+                    const next = await flush();
+                    setContextActive(true);
+                    await askChat(
+                      app,
+                      "Propose writing tailored to each selected destination. Keep one SimplePost post and preserve media. Do not publish or schedule.",
+                      selection(next),
+                    );
+                  })
+                }>
+                Ask for platform versions
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
         <aside className="sp-live-previews">
           <div className="sp-preview-heading">
             <h2>Live previews</h2>
-            <span>Updates as you type</span>
+            <span>Updates as your draft changes</span>
           </div>
-          {variants.length === 0 ? (
-            <p>Select destinations to see your post on each platform.</p>
-          ) : (
-            variants.map((account) => {
+          <PreviewSwitcher
+            selectedId={activeAccount}
+            onSelect={(id) => {
+              setActiveAccount(id);
+              setContextActive(true);
+            }}
+            items={variants.flatMap((account) => {
               const platform = normalizePreviewPlatform(account.platform);
               const variant = content.accountOverrides[account.accountId];
-              if (!platform)
-                return <p key={account.accountId}>A visual preview for {account.platform} is unavailable.</p>;
+              if (!platform) return [];
               const preview: PostPreviewData = {
                 platform,
                 account: {
@@ -803,24 +816,22 @@ export function Editor({
                 previewDate: new Date(),
                 threadLayout: "scroll",
               };
-              return (
-                <section
-                  key={account.accountId}
-                  className={activeAccount === account.accountId ? "sp-preview selected" : "sp-preview"}>
-                  <button
-                    className="sp-preview-label"
-                    onClick={() => {
-                      setActiveAccount(account.accountId);
-                      setContextActive(true);
-                    }}>
-                    <PlatformIcon platform={platform} className="sp-platform-icon" />
-                    {account.platform} · {account.displayName ?? account.username ?? "account"}
-                  </button>
-                  <PostPreview data={preview} />
-                </section>
-              );
-            })
-          )}
+              return [
+                {
+                  id: account.accountId,
+                  platform,
+                  platformLabel:
+                    platform === "x"
+                      ? "X"
+                      : platform === "linkedin"
+                        ? "LinkedIn"
+                        : platform[0].toUpperCase() + platform.slice(1),
+                  accountLabel: account.displayName ?? account.username ?? "account",
+                  data: preview,
+                },
+              ];
+            })}
+          />
         </aside>
       </div>
       {validation ? (
@@ -860,7 +871,7 @@ export function Editor({
           )}
         </section>
       ) : null}
-      {imageFittingEnabled ? (
+      {imageFittingEnabled && manual ? (
         <label>
           Image fitting
           <select
@@ -902,29 +913,9 @@ export function Editor({
             {session.status === "scheduled" ? "Move to drafts" : "Save draft"}
           </button>
         </div>
-        <label>
-          Publishing time · {timeZone}
-          <input
-            type="datetime-local"
-            value={localTime}
-            disabled={working || !statusEditable}
-            onChange={(event) => {
-              setLocalTime(event.target.value);
-              change({ ...content, plannedSchedule: { localTime: event.target.value, timeZone } });
-              setReview(null);
-            }}
-          />
-        </label>
         <div className="sp-actions">
           <button
-            disabled={
-              working ||
-              !statusEditable ||
-              !canValidate ||
-              !localTime ||
-              !timeZoneConfirmed ||
-              content.accountIds.length === 0
-            }
+            disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("schedule")}>
             Review schedule
           </button>
@@ -937,6 +928,21 @@ export function Editor({
       </footer>
       {review ? (
         <section className="sp-publish-review" role="region" aria-label="Review publishing action">
+          {review === "schedule" ? (
+            <label>
+              Publishing time · {timeZone}
+              <input
+                type="datetime-local"
+                value={localTime}
+                disabled={working || !statusEditable}
+                onChange={(event) => {
+                  setLocalTime(event.target.value);
+                  change({ ...content, plannedSchedule: { localTime: event.target.value, timeZone } });
+                  setReview("schedule");
+                }}
+              />
+            </label>
+          ) : null}
           <h2>{review === "schedule" ? `Schedule for ${localTime.replace("T", " ")} · ${timeZone}` : "Publish now"}</h2>
           <p>
             Send this single post to{" "}
@@ -945,7 +951,10 @@ export function Editor({
               .join(", ")}
             . Review every preview above before continuing.
           </p>
-          <button className="sp-primary" disabled={working} onClick={() => void act(() => commit(review))}>
+          <button
+            className="sp-primary"
+            disabled={working || (review === "schedule" && !localTime)}
+            onClick={() => void act(() => commit(review))}>
             {review === "schedule" ? "Confirm schedule" : "Confirm publish now"}
           </button>
           <button disabled={working} onClick={() => setReview(null)}>

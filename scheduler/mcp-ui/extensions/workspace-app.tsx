@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { DayAgenda, WeekView, MonthView, Summary, type ScheduleEntry } from "../schedule";
+import { CheckCircle2, Clock3, FileText, AlertCircle, Plus, RefreshCw, Settings2 } from "lucide-react";
 
+import { Calendar, PlatformBadge } from "./calendar";
 import { Editor } from "./editor";
 import { askChat, attachSelection, callTool, restoreEditorHint, useExtensionHost } from "./host";
 import { localDateTime } from "./timezone";
 
+import type { ScheduleEntry } from "../schedule";
 import type { EditorData, WorkspaceData } from "./types";
 import "./workspace.css";
 
@@ -20,6 +22,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const [settings, setSettings] = useState(false);
   const [zone, setZone] = useState("");
   const restored = useRef(false);
+  const guessedZone = useRef(false);
   const requested = useRef<string | null>(null);
   const [slotTime, setSlotTime] = useState<string | null>(null);
 
@@ -39,6 +42,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
     const data = await callTool<WorkspaceData>(app, "get_simplepost_workspace", {
       view: launch.schedule.view,
       date: launch.schedule.anchorDate,
+      timeZone: launch.schedule.timeZone,
       status: launch.posts.status === "single" || launch.posts.status === "all" ? "drafts" : launch.posts.status,
       ...overrides,
     });
@@ -76,6 +80,21 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
     app.addEventListener("hostcontextchanged", onContext);
     return () => app.removeEventListener("hostcontextchanged", onContext);
   }, [app]);
+  useEffect(() => {
+    if (!app || !launch || launch.preferences.timeZoneConfirmed || guessedZone.current) return;
+    guessedZone.current = true;
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    void act(async () => {
+      if (launch.canWrite) await callTool(app, "update_simplepost_settings", { set: { timeZone } });
+      const next = await callTool<WorkspaceData>(app, "get_simplepost_workspace", {
+        view: launch.schedule.view,
+        date: launch.schedule.anchorDate,
+        timeZone,
+        status: launch.posts.status === "all" || launch.posts.status === "single" ? "drafts" : launch.posts.status,
+      });
+      setLaunch(next);
+    });
+  }, [app, launch, setLaunch, act]);
   if (!launch)
     return (
       <main className="sp-workspace">
@@ -109,27 +128,52 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         <div>
           <span className="sp-mark">SP</span>
           <strong>SimplePost</strong>
-          <span className="sp-subtitle">{editorOnly ? "Post editor" : "Publishing workspace"}</span>
+          {editorOnly || editor ? null : (
+            <nav className="sp-top-nav" aria-label="Workspace sections">
+              <button
+                aria-pressed={tab !== "accounts"}
+                onClick={() =>
+                  setTab(
+                    ["drafts", "scheduled", "posted", "failed"].includes(launch.posts.status)
+                      ? launch.posts.status
+                      : "calendar",
+                  )
+                }>
+                Posts
+              </button>
+              <button aria-pressed={tab === "accounts"} onClick={() => setTab("accounts")}>
+                Accounts
+              </button>
+            </nav>
+          )}
         </div>
-        <div className="sp-actions">
-          <button disabled={busy} onClick={() => void act(() => refresh())}>
-            Refresh
-          </button>
-          <button
-            onClick={() => {
-              setZone(
-                launch.preferences.timeZoneConfirmed
-                  ? launch.preferences.timeZone
-                  : Intl.DateTimeFormat().resolvedOptions().timeZone,
-              );
-              setSettings(!settings);
-            }}>
-            Preferences
-          </button>
-          <button className="sp-primary" disabled={!canCompose || busy} onClick={() => void act(() => openEditor())}>
-            New draft
-          </button>
-        </div>
+        {editor ? null : (
+          <div className="sp-actions">
+            <button
+              className="sp-icon-button"
+              aria-label="Refresh"
+              disabled={busy}
+              onClick={() => void act(() => refresh())}>
+              <RefreshCw size={16} />
+            </button>
+            <button
+              className="sp-icon-button"
+              aria-label="Preferences"
+              onClick={() => {
+                setZone(
+                  launch.preferences.timeZoneConfirmed
+                    ? launch.preferences.timeZone
+                    : Intl.DateTimeFormat().resolvedOptions().timeZone,
+                );
+                setSettings(!settings);
+              }}>
+              <Settings2 size={16} />
+            </button>
+            <button className="sp-primary" disabled={!canCompose || busy} onClick={() => void act(() => openEditor())}>
+              <Plus size={16} /> New draft
+            </button>
+          </div>
+        )}
       </header>
       {notice ? (
         <div role="alert" className="sp-notice">
@@ -147,18 +191,6 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           </button>
           <button disabled={busy} onClick={() => void act(() => refresh())}>
             I’ve connected a platform — refresh
-          </button>
-        </section>
-      ) : null}
-      {launch.accounts.length > 0 && !launch.preferences.timeZoneConfirmed ? (
-        <section className="sp-banner">
-          <span>Confirm your timezone before choosing publishing times. The calendar currently shows UTC.</span>
-          <button
-            onClick={() => {
-              setSettings(true);
-              setZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
-            }}>
-            Set timezone
           </button>
         </section>
       ) : null}
@@ -252,7 +284,6 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           app={app}
           accounts={launch.accounts}
           timeZone={launch.schedule.timeZone}
-          timeZoneConfirmed={launch.preferences.timeZoneConfirmed}
           proposedTime={slotTime}
           incoming={incoming}
           canValidate={launch.canValidate}
@@ -273,83 +304,50 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
             <h1>Choose a draft to edit</h1>
           ) : (
             <>
-              <nav className="sp-nav" aria-label="Workspace sections">
-                {["calendar", "drafts", "scheduled", "posted", "failed", "accounts"].map((name) => (
-                  <button
-                    key={name}
-                    aria-pressed={tab === name}
-                    onClick={() => {
-                      setTab(name);
-                      if (name !== "accounts")
-                        void act(() => refresh({ status: name === "calendar" ? "drafts" : name, page: 1 }));
-                    }}>
-                    {name === "posted" ? "Published" : name.charAt(0).toUpperCase() + name.slice(1)}
-                  </button>
-                ))}
-              </nav>
-              {tab === "calendar" ? (
-                <section className="sp-calendar">
-                  <div className="sp-calendar-toolbar">
-                    <h1>{launch.schedule.periodLabel}</h1>
-                    <button
-                      onClick={() =>
-                        void app?.openLink({ url: `${launch.accountsUrl.split("/accounts")[0]}/settings` })
-                      }>
-                      Manage recurring slots
-                    </button>
-                    <div className="sp-actions">
-                      <button
-                        aria-label="Previous period"
-                        disabled={busy}
-                        onClick={() => void act(() => refresh({ date: launch.schedule.previousAnchorDate }))}>
-                        ←
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() => void act(() => refresh({ date: launch.schedule.todayAnchorDate }))}>
-                        Today
-                      </button>
-                      <button
-                        aria-label="Next period"
-                        disabled={busy}
-                        onClick={() => void act(() => refresh({ date: launch.schedule.nextAnchorDate }))}>
-                        →
-                      </button>
-                      {["day", "week", "month"].map((view) => (
-                        <button
-                          key={view}
-                          aria-pressed={launch.schedule.view === view}
-                          disabled={busy}
-                          onClick={() => void act(() => refresh({ view }))}>
-                          {view}
-                        </button>
-                      ))}
-                    </div>
+              {tab === "accounts" ? null : (
+                <>
+                  <div className="sp-page-heading">
+                    <span>DASHBOARD</span>
+                    <h1>Your posts</h1>
                   </div>
-                  <div className="sp-calendar-summary">
-                    <Summary data={launch.schedule} />
-                    <span>{launch.schedule.timeZone}</span>
-                  </div>
-                  {launch.schedule.view === "day" ? (
-                    <DayAgenda
-                      day={
-                        launch.schedule.days.find((day) => day.date === launch.schedule.anchorDate) ??
-                        launch.schedule.days[0]
-                      }
-                      onSelect={select}
-                    />
-                  ) : launch.schedule.view === "week" ? (
-                    <WeekView days={launch.schedule.days} onSelect={select} />
-                  ) : (
-                    <MonthView days={launch.schedule.days} onSelect={select} />
-                  )}
-                </section>
-              ) : null}
+                  <Calendar
+                    data={launch.schedule}
+                    busy={busy}
+                    selectedId={selected?.id}
+                    onSelect={select}
+                    onNavigate={(input) => void act(() => refresh(input))}
+                    onSettings={() =>
+                      void app?.openLink({ url: `${launch.accountsUrl.split("/accounts")[0]}/settings` })
+                    }
+                  />
+                  <nav className="sp-nav" aria-label="Post status">
+                    {[
+                      { name: "drafts", label: "Drafts", icon: FileText },
+                      { name: "scheduled", label: "Scheduled", icon: Clock3 },
+                      { name: "posted", label: "Published", icon: CheckCircle2 },
+                      { name: "failed", label: "Failed", icon: AlertCircle },
+                    ].map(({ name, label, icon: Icon }) => (
+                      <button
+                        key={name}
+                        disabled={busy}
+                        aria-pressed={(tab === "calendar" ? "drafts" : tab) === name}
+                        onClick={() => {
+                          setTab(name);
+                          void act(() => refresh({ status: name, page: 1 }));
+                        }}>
+                        <Icon size={15} />
+                        {label}
+                      </button>
+                    ))}
+                  </nav>
+                </>
+              )}
               {tab === "accounts" ? (
                 <section className="sp-accounts">
                   <h1>Connected destinations</h1>
                   {launch.accounts.map((account) => (
                     <article key={account.accountId}>
+                      <PlatformBadge platform={account.platform} />
                       <strong>{account.displayName ?? account.username ?? account.platform}</strong>
                       <span>{account.platform}</span>
                       <p>{account.credentialStatus.message}</p>
@@ -365,7 +363,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           )}
           {tab !== "accounts" || editorOnly ? (
             <section className="sp-post-list" aria-label="Saved posts">
-              <h2>
+              <h2 className="sp-sr-only">
                 {editorOnly || tab === "calendar"
                   ? "Drafts and working copies"
                   : tab === "posted"
@@ -396,7 +394,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                       <span>
                         <strong>{post.message.slice(0, 160) || "Untitled draft"}</strong>
                         <small>
-                          {post.status} · {post.accounts.map((a) => a.platform).join(", ")}
+                          {post.accounts.map((a) => (
+                            <PlatformBadge key={a.accountId} platform={a.platform} />
+                          ))}{" "}
+                          {post.status}
                           {post.scheduledFor
                             ? ` · ${localDateTime(new Date(post.scheduledFor), launch.schedule.timeZone).replace("T", " ")}`
                             : ""}

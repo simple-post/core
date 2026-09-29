@@ -138,6 +138,11 @@ it.each([modernRequest, legacyRequest])(
     expect(
       tools.find((tool: { name: string }) => tool.name === "open_simplepost_workspace")._meta["openai/ui"].entrypoints,
     ).toEqual([{ type: "global" }]);
+    const opener = tools.find((tool: { name: string }) => tool.name === "open_simplepost_workspace");
+    expect(opener.inputSchema.required ?? []).toEqual([]);
+    expect(opener.icons).toEqual([
+      expect.objectContaining({ mimeType: "image/svg+xml", src: expect.stringContaining("/simplepost-sidebar.svg") }),
+    ]);
     const resourceResponse = await POST(request("resources/list"));
     const resourceBody = await resourceResponse.json();
     const resources = resourceBody.result.resources;

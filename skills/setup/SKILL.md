@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up SimplePost by connecting at least one social platform, confirming timezone preferences, and saving the first draft without publishing.
+description: Set up SimplePost by connecting at least one social platform, configuring timezone preferences, and saving the first draft without publishing.
 ---
 
 # Set up SimplePost
@@ -11,10 +11,10 @@ If no social platform is connected, explain that connecting the assistant does n
 
 If accounts already exist, preserve them and offer to continue with existing drafts. Do not force returning users through setup again.
 
-Ask the user to confirm their IANA timezone (for example Europe/Berlin) and optional default destinations. Save their choices with `update_simplepost_settings`; timezone changes do not move existing scheduled posts.
+Keep an existing timezone preference. On first use, the workspace automatically saves the browser’s IANA timezone; do not ask users to confirm it. Ask only if their timezone cannot be inferred or they request a change. Save requested changes and optional default destinations with `update_simplepost_settings`; timezone changes do not move existing scheduled posts.
 
 Open `open_post_editor`. Help the user write and preview one draft for their connected destinations. Use the editor's current session and revision when proposing changes. The user can apply the proposal and save the draft in the editor.
 
-Setup is complete when at least one destination is connected, the timezone is confirmed, and a draft is saved. Do not publish, schedule, discard, or retry a post as part of setup unless the user explicitly asks.
+Setup is complete when at least one destination is connected, the timezone is configured, and a draft is saved. Do not publish, schedule, discard, or retry a post as part of setup unless the user explicitly asks.
 
 If extension tools are unavailable, use `list_accounts`, the SimplePost accounts web handoff, and the existing draft/preview tools. Never invent IDs, file references, or access tokens.

@@ -6,6 +6,7 @@
   "scripts": {
     "check": "tsc --noEmit && prettier --check .",
     "test": "node --import tsx scripts/self-test.ts",
+    "extensions:smoke": "node scripts/extensions-smoke.mjs",
     "live": "node --import tsx scripts/live.ts",
     "plan": "node --import tsx scripts/plan.ts",
     "auth": "node --import tsx scripts/auth.ts",

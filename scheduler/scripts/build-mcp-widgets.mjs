@@ -1,4 +1,4 @@
-import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,19 +10,14 @@ const schedulerRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 const outdir = path.resolve(schedulerRoot, "public/mcp-widgets");
 const generatedAssetsPath = path.resolve(schedulerRoot, "lib/mcp/ui/widget-assets.ts");
 const entryPoints = {
+  workspace: path.resolve(schedulerRoot, "mcp-ui/extensions/workspace.tsx"),
+  "post-editor": path.resolve(schedulerRoot, "mcp-ui/extensions/post-editor.tsx"),
   schedule: path.resolve(schedulerRoot, "mcp-ui/schedule.tsx"),
   "post-preview": path.resolve(schedulerRoot, "mcp-ui/post-preview.tsx"),
 };
 
 await mkdir(outdir, { recursive: true });
-const staleAssetPattern = /^(?:schedule|post-preview)(?:-[A-Z0-9]+)?\.(?:css|js)$/i;
-const existingAssets = await readdir(outdir);
-await Promise.all(
-  existingAssets
-    .filter((filename) => staleAssetPattern.test(filename))
-    .map((filename) => unlink(path.join(outdir, filename))),
-);
-
+// Keep previous immutable assets when building into an existing deployment artifact.
 const result = await build({
   entryPoints,
   bundle: true,

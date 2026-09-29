@@ -54,6 +54,8 @@ export async function queueStorageDeletion(
 
 export async function collectUnusedStorage(): Promise<void> {
   const deadline = Date.now() + 30_000;
+  // Expired scratch copies no longer retain uploads or occupy editor storage.
+  await prisma.postEditorSession.deleteMany({ where: { expiresAt: { lte: new Date() } } });
   const candidates = await prisma.storageDeletion.findMany({
     where: { state: { in: ["queued", "deleting"] }, dueAt: { lte: new Date() } },
     orderBy: { dueAt: "asc" },
@@ -70,7 +72,11 @@ export async function collectUnusedStorage(): Promise<void> {
           where: { userId: candidate.userId },
           select: { media: true, thread: true, accountOptions: true, accountOverrides: true },
         });
-        if (collectStorageKeys(candidate.userId, posts).has(candidate.key)) {
+        const editors = await tx.postEditorSession.findMany({
+          where: { userId: candidate.userId, expiresAt: { gt: new Date() } },
+          select: { payload: true, proposal: true },
+        });
+        if (collectStorageKeys(candidate.userId, [posts, editors]).has(candidate.key)) {
           await tx.storageDeletion.update({
             where: { key: candidate.key },
             data: { dueAt: new Date(Date.now() + RETENTION_MS) },

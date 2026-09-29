@@ -26,6 +26,7 @@ export const createPostSchema = sdkCreatePostSchema.extend({
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 
 export const updatePostSchema = z.object({
+  expectedUpdatedAt: z.iso.datetime().optional(),
   imageFit: ImageFitSchema.optional(),
   message: z.string().default(""),
   accountIds: AccountIdsSchema,

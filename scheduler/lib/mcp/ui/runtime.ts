@@ -6,6 +6,8 @@ export const WIDGET_RUNTIME_TIMEOUT_MS = 10_000;
 
 const WIDGET_RUNTIME_EXPORTS = {
   schedule: "mountScheduleWidget",
+  workspace: "mountWorkspaceWidget",
+  "post-editor": "mountPostEditorWidget",
   "post-preview": "mountPostPreviewWidget",
 } as const satisfies Record<WidgetName, string>;
 

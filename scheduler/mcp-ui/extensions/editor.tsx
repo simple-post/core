@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizePreviewPlatform } from "@simple-post/preview";
-import { PostPreview, type PostPreviewData } from "@simple-post/preview-react";
+import { type PostPreviewData } from "@simple-post/preview-react";
 
 import { PlatformIcon } from "../../components/platform-icon";
+import { PreviewSwitcher } from "../preview-switcher";
 
 import { askChat, attachSelection, callTool, keepEditorHint, restoreEditorHint } from "./host";
 import { localDateTime } from "./timezone";
@@ -783,14 +784,16 @@ export function Editor({
             <h2>Live previews</h2>
             <span>Updates as your draft changes</span>
           </div>
-          {variants.length === 0 ? (
-            <p>Select destinations to see your post on each platform.</p>
-          ) : (
-            variants.map((account) => {
+          <PreviewSwitcher
+            selectedId={activeAccount}
+            onSelect={(id) => {
+              setActiveAccount(id);
+              setContextActive(true);
+            }}
+            items={variants.flatMap((account) => {
               const platform = normalizePreviewPlatform(account.platform);
               const variant = content.accountOverrides[account.accountId];
-              if (!platform)
-                return <p key={account.accountId}>A visual preview for {account.platform} is unavailable.</p>;
+              if (!platform) return [];
               const preview: PostPreviewData = {
                 platform,
                 account: {
@@ -813,25 +816,22 @@ export function Editor({
                 previewDate: new Date(),
                 threadLayout: "scroll",
               };
-              return (
-                <section
-                  key={account.accountId}
-                  className={activeAccount === account.accountId ? "sp-preview selected" : "sp-preview"}>
-                  <button
-                    className="sp-preview-label"
-                    aria-pressed={activeAccount === account.accountId}
-                    onClick={() => {
-                      setActiveAccount(account.accountId);
-                      setContextActive(true);
-                    }}>
-                    <PlatformIcon platform={platform} className="sp-platform-icon" />
-                    {account.platform} · {account.displayName ?? account.username ?? "account"}
-                  </button>
-                  <PostPreview data={preview} />
-                </section>
-              );
-            })
-          )}
+              return [
+                {
+                  id: account.accountId,
+                  platform,
+                  platformLabel:
+                    platform === "x"
+                      ? "X"
+                      : platform === "linkedin"
+                        ? "LinkedIn"
+                        : platform[0].toUpperCase() + platform.slice(1),
+                  accountLabel: account.displayName ?? account.username ?? "account",
+                  data: preview,
+                },
+              ];
+            })}
+          />
         </aside>
       </div>
       {validation ? (

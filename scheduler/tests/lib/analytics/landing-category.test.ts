@@ -9,6 +9,8 @@ describe("landing categories", () => {
     ["/tools/social-media-post-checker", "tool"],
     ["/compare/example", "comparison"],
     ["/social-media-scheduler-for-ai-agents/", "mcp"],
+    ["/pricing/", "pricing"],
+    ["/about/", "about"],
     ["/", null],
     ["/app/schedule", null],
   ])("%s → %s", (path, category) => expect(landingCategory(path)).toBe(category));

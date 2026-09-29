@@ -61,7 +61,7 @@ function sorted(rows: Map<string, LandingRow>) {
 
 /**
  * Signups grouped by first-touch landing category (platform, ai_client, guide, tool,
- * comparison, mcp, home, app, other, unknown) and by individual SEO landing page, with
+ * comparison, mcp, pricing, about, home, app, other, unknown) and by individual SEO landing page, with
  * how many reached each activation milestone. Milestones come from activation_milestone.
  */
 export function buildLandingReport(accounts: readonly LandingAccount[], now = new Date()) {

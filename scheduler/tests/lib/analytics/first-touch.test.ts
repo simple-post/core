@@ -47,6 +47,8 @@ describe("SEO landing pages", () => {
     ["https://simplepost.social/tools/thread-generator/", "/tools/thread-generator"],
     ["https://simplepost.social/social-media-mcp-server/", "/social-media-mcp-server"],
     ["https://simplepost.social/instagram-from-chatgpt/", "/instagram-from-chatgpt"],
+    ["https://simplepost.social/pricing/", "/pricing"],
+    ["https://simplepost.social/about/", "/about"],
     ["https://simplepost.social/platforms/linkedin/extra", "/other"],
     ["https://simplepost.social/ai/User@Example.com", "/other"],
   ])("records %s as %s and accepts it back from the cookie", (href, landingPage) => {

@@ -163,10 +163,12 @@ grammar shared with the website (`lib/analytics/landing-category.ts`, mirrored i
 - `/platforms`, `/ai`, `/guides`, `/tools` and `/compare`, each with an optional
   lowercase slug;
 - the standalone workflow pages;
-- `/social-media-mcp-server` and `/social-media-scheduler-for-ai-agents`.
+- `/social-media-mcp-server` and `/social-media-scheduler-for-ai-agents`;
+- `/pricing`;
+- `/about`.
 
 Nested paths, uppercase letters, `@` and other characters become `/other`.
-The category (`platform`, `ai_client`, `guide`, `tool`, `comparison`, `mcp`) is always
+The category (`platform`, `ai_client`, `guide`, `tool`, `comparison`, `mcp`, `pricing`, `about`) is always
 derived from the stored route and is never stored separately, so the v1 cookie shape
 does not change.
 

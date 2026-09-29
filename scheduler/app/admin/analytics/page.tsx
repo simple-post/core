@@ -187,7 +187,7 @@ export default async function AcquisitionReport({
       </section>
       <LandingTable
         title="Landing categories → activation"
-        description="Signups by the category of their first landing page (platform, AI client, guide, tool, comparison, MCP), and how many reached each first-time milestone. Milestones are recorded for every interface, including MCP and scheduled dispatch; percentages are of signups."
+        description="Signups by the category of their first landing page (platform, AI client, guide, tool, comparison, MCP, pricing, about), and how many reached each first-time milestone. Milestones are recorded for every interface, including MCP and scheduled dispatch; percentages are of signups."
         firstColumn="Category"
         rows={landing.categories}
       />

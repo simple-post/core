@@ -2,7 +2,7 @@
  * Landing-page categories for SEO attribution. The same route rules are mirrored in
  * website-social/lib/seo/categories.ts; keep both copies identical.
  */
-export const LANDING_CATEGORIES = ["platform", "ai_client", "guide", "tool", "comparison", "mcp"] as const;
+export const LANDING_CATEGORIES = ["platform", "ai_client", "guide", "tool", "comparison", "mcp", "pricing", "about"] as const;
 
 export type LandingCategory = (typeof LANDING_CATEGORIES)[number];
 
@@ -14,6 +14,12 @@ export const LEGACY_GUIDE_PATHS = [
 ] as const;
 
 export const MCP_PATHS = ["/social-media-mcp-server", "/social-media-scheduler-for-ai-agents"] as const;
+
+/** Commercial pages that get their own category. */
+export const PRICING_PATHS = ["/pricing"] as const;
+
+/** Company / trust pages. */
+export const ABOUT_PATHS = ["/about"] as const;
 
 const SECTION_CATEGORIES: Record<string, LandingCategory> = {
   platforms: "platform",
@@ -37,6 +43,8 @@ export function seoRoute(pathname: string): string | null {
   if (path.length > 100) return null;
   if ((LEGACY_GUIDE_PATHS as readonly string[]).includes(path)) return path;
   if ((MCP_PATHS as readonly string[]).includes(path)) return path;
+  if ((PRICING_PATHS as readonly string[]).includes(path)) return path;
+  if ((ABOUT_PATHS as readonly string[]).includes(path)) return path;
   return SECTION_ROUTE.test(path) ? path : null;
 }
 
@@ -45,5 +53,7 @@ export function landingCategory(pathname: string): LandingCategory | null {
   if (!path) return null;
   if ((LEGACY_GUIDE_PATHS as readonly string[]).includes(path)) return "guide";
   if ((MCP_PATHS as readonly string[]).includes(path)) return "mcp";
+  if ((PRICING_PATHS as readonly string[]).includes(path)) return "pricing";
+  if ((ABOUT_PATHS as readonly string[]).includes(path)) return "about";
   return SECTION_CATEGORIES[path.split("/")[1]] ?? null;
 }

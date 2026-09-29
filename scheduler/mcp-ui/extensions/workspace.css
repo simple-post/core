@@ -1,11 +1,8 @@
 .sp-workspace {
   --sp-accent: #c6f432;
-  max-width: 1600px;
   margin: auto;
-  padding: 24px;
   background: var(--sp-bg);
   color: var(--sp-text);
-  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
   min-height: 100vh;
 }
 .sp-workspace button,
@@ -20,7 +17,6 @@
   border-radius: 8px;
   background: var(--sp-card-strong);
   color: var(--sp-text);
-  padding: 9px 13px;
 }
 .sp-workspace button:hover:not(:disabled),
 .sp-workspace button[aria-pressed="true"] {
@@ -39,17 +35,13 @@
 }
 .sp-workspace .sp-primary {
   background: var(--sp-accent);
-  color: #152000;
   border-color: var(--sp-accent);
   font-weight: 650;
 }
 .sp-workspace h1 {
   margin: 0;
-  font-size: 25px;
-  letter-spacing: -0.6px;
 }
 .sp-workspace h2 {
-  font-size: 18px;
   margin: 0 0 12px;
 }
 .sp-workspace h3 {
@@ -68,20 +60,15 @@
   flex-wrap: wrap;
 }
 .sp-header {
-  padding-bottom: 20px;
   border-bottom: 1px solid var(--sp-border);
 }
 .sp-header strong {
-  font-size: 20px;
   letter-spacing: -0.4px;
 }
 .sp-mark {
   background: var(--sp-accent);
   color: #152000;
-  font-size: 13px;
   font-weight: 800;
-  padding: 8px;
-  border-radius: 7px;
 }
 .sp-subtitle,
 .sp-calendar-summary > span,
@@ -92,9 +79,6 @@
 }
 .sp-nav {
   display: flex;
-  gap: 8px;
-  padding: 20px 0;
-  flex-wrap: wrap;
 }
 .sp-onboarding {
   padding: 36px;
@@ -129,7 +113,6 @@
 }
 .sp-calendar {
   border: 1px solid var(--sp-border);
-  border-radius: 12px;
   overflow: hidden;
 }
 .sp-calendar-toolbar,
@@ -142,15 +125,11 @@
 .sp-calendar .entry:hover {
   border-color: var(--sp-accent);
 }
-.sp-post-list {
-  margin-top: 28px;
-}
 .sp-post-list article {
   display: flex;
   gap: 16px;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 0;
   border-bottom: 1px solid var(--sp-border);
 }
 .sp-post-list label {
@@ -165,7 +144,6 @@
   font-size: 14px;
 }
 .sp-post-list small {
-  display: block;
   margin-top: 6px;
   color: var(--sp-muted);
 }
@@ -236,9 +214,6 @@
   margin-top: 6px;
 }
 .sp-editor-grid {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(390px, 1.2fr);
-  gap: 32px;
   margin-top: 24px;
   align-items: start;
 }
@@ -254,9 +229,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px;
   border: 1px solid var(--sp-border);
-  border-radius: 8px;
 }
 .sp-platform-icon {
   width: 18px;
@@ -285,7 +258,6 @@
 }
 .sp-live-previews {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr));
   gap: 20px;
   align-items: start;
 }
@@ -395,4 +367,627 @@
   .sp-workspace * {
     transition: none;
   }
+}
+
+/* Scheduler brand tokens are independent of the assistant host's theme. */
+:root {
+  color-scheme: dark;
+  background: #0a0a0a;
+}
+body {
+  margin: 0;
+  background: #0a0a0a;
+}
+* {
+  box-sizing: border-box;
+}
+.sp-workspace {
+  --sp-bg: #0a0a0a;
+  --sp-card: #111111;
+  --sp-card-strong: #161616;
+  --sp-border: #232323;
+  --sp-text: #f5f5f5;
+  --sp-muted: #858585;
+  --sp-danger: #ef4444;
+  --sp-warning: #f59e0b;
+  max-width: 1104px;
+  padding: 24px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.sp-workspace button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  padding: 7px 11px;
+}
+.sp-workspace .sp-primary {
+  border-radius: 999px;
+  padding: 9px 16px;
+  color: #0a0a0a;
+}
+.sp-workspace h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+}
+.sp-workspace h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.sp-workspace p {
+  color: var(--sp-muted);
+}
+.sp-header {
+  padding-bottom: 20px;
+}
+.sp-header strong {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 17px;
+}
+.sp-header > div {
+  gap: 10px;
+}
+.sp-mark {
+  padding: 6px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.sp-top-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 18px;
+}
+.sp-top-nav button {
+  border: 0;
+  background: transparent;
+  color: var(--sp-muted);
+}
+.sp-top-nav button[aria-pressed="true"] {
+  color: var(--sp-text);
+  background: #161616;
+}
+.sp-workspace .sp-icon-button {
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--sp-muted);
+}
+.sp-page-heading {
+  margin: 30px 0 26px;
+}
+.sp-page-heading > span {
+  font:
+    10px ui-monospace,
+    monospace;
+  letter-spacing: 2px;
+  color: var(--sp-muted);
+}
+.sp-page-heading h1 {
+  margin-top: 7px;
+}
+.sp-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.sp-section-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.sp-section-heading h2 svg {
+  color: var(--sp-accent);
+  box-sizing: content-box;
+  padding: 8px;
+  background: #161a0c;
+  border-radius: 8px;
+}
+.sp-calendar {
+  background: var(--sp-card);
+  border-radius: 16px;
+}
+.sp-calendar-toolbar {
+  padding: 16px 20px 8px;
+  gap: 14px;
+}
+.sp-calendar-period {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sp-calendar-period h3 {
+  margin: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.sp-calendar-period > button:nth-child(-n + 2) {
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  color: var(--sp-muted);
+}
+.sp-view-switch {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--sp-border);
+  border-radius: 9px;
+  background: #0a0a0a;
+}
+.sp-view-switch button {
+  border: 0;
+  background: transparent;
+  padding: 5px 12px;
+  color: var(--sp-muted);
+  border-radius: 6px;
+}
+.sp-view-switch button[aria-pressed="true"] {
+  background: var(--sp-accent);
+  color: #0a0a0a;
+}
+.sp-calendar-summary {
+  padding: 8px 20px 16px;
+  font-size: 11px;
+}
+.sp-calendar-summary > span {
+  font-size: 10px;
+}
+.sp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--sp-muted);
+}
+.sp-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sp-legend i,
+.sp-entry-time > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c6f432;
+  display: inline-block;
+}
+.sp-legend .open {
+  background: #666;
+}
+.sp-legend .scheduled {
+  background: #3b82f6;
+}
+.sp-legend .failed {
+  background: #ef4444;
+}
+.sp-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--sp-border);
+}
+.sp-calendar-day {
+  min-width: 0;
+  border-right: 1px solid var(--sp-border);
+}
+.sp-calendar-day:nth-child(7n) {
+  border-right: 0;
+}
+.sp-calendar-day.is-today {
+  background: #c6f43205;
+}
+.sp-calendar-day.is-outside {
+  opacity: 0.45;
+}
+.sp-workspace .sp-day-heading {
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  border-bottom: 1px solid var(--sp-border);
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 4px;
+}
+.sp-day-heading > span {
+  text-transform: uppercase;
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  color: var(--sp-muted);
+}
+.sp-day-heading strong {
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+}
+.is-today .sp-day-heading strong {
+  background: var(--sp-accent);
+  color: #0a0a0a;
+}
+.sp-day-entries {
+  min-height: 220px;
+  padding: 6px;
+}
+.sp-workspace .sp-calendar-entry {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #191919;
+  margin-bottom: 6px;
+  padding: 8px;
+  border-radius: 7px;
+}
+.sp-calendar-entry.status-open {
+  border-style: dashed;
+  background: transparent;
+}
+.sp-calendar-entry.is-selected {
+  border-color: var(--sp-accent);
+  background: #c6f4320c;
+}
+.sp-entry-time {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font:
+    10px ui-monospace,
+    monospace;
+  color: var(--sp-muted);
+}
+.sp-entry-platforms {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+.sp-entry-message {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sp-no-activity {
+  text-align: center;
+  font-size: 10px;
+  padding: 70px 0;
+  opacity: 0.6;
+}
+.sp-calendar-view-month .sp-day-entries {
+  min-height: 100px;
+}
+.sp-calendar-view-month .sp-no-activity {
+  display: none;
+}
+.sp-calendar-view-month .sp-calendar-day {
+  border-bottom: 1px solid var(--sp-border);
+}
+.sp-calendar-view-month .sp-day-heading {
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 0;
+}
+.sp-calendar-day {
+  overflow: hidden;
+}
+.sp-calendar-view-day {
+  grid-template-columns: 1fr;
+}
+.sp-calendar-view-day .sp-day-heading {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 12px 18px;
+}
+.sp-calendar-view-day .sp-day-entries {
+  padding: 14px;
+}
+.sp-calendar-view-day .sp-calendar-entry {
+  padding: 12px;
+}
+.sp-nav {
+  gap: 24px;
+  padding: 0;
+  margin-top: 28px;
+  border-bottom: 1px solid var(--sp-border);
+  flex-wrap: nowrap;
+}
+.sp-nav button {
+  border: 0;
+  border-radius: 0;
+  padding: 12px 0;
+  background: transparent;
+  text-transform: uppercase;
+  font:
+    11px ui-monospace,
+    monospace;
+  letter-spacing: 0.7px;
+  color: var(--sp-muted);
+  border-bottom: 2px solid transparent;
+}
+.sp-nav button[aria-pressed="true"] {
+  color: var(--sp-accent);
+  border-bottom-color: var(--sp-accent);
+}
+.sp-post-list {
+  margin-top: 18px;
+}
+.sp-post-list article {
+  background: var(--sp-card);
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 10px;
+}
+.sp-post-list small {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sp-post-list strong {
+  font-weight: 500;
+}
+.sp-platform-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: #252525;
+  color: white;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.sp-platform-badge .sp-platform-icon {
+  width: 12px;
+  height: 12px;
+}
+.sp-entry-platforms .sp-platform-badge {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+}
+.sp-entry-platforms .sp-platform-icon {
+  width: 9px;
+  height: 9px;
+}
+.platform-linkedin {
+  background: #0a66c2;
+}
+.platform-bluesky {
+  background: #0085ff;
+}
+.platform-facebook {
+  background: #1877f2;
+}
+.platform-instagram {
+  background: #c13584;
+}
+.platform-youtube,
+.platform-pinterest {
+  background: #e60023;
+}
+.platform-telegram {
+  background: #229ed9;
+}
+.sp-accounts article {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sp-accounts article p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.sp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.sp-editor-destinations {
+  margin-top: 24px;
+}
+.sp-destinations label {
+  padding: 8px 12px;
+  background: var(--sp-card);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.sp-destinations label:has(input:checked) {
+  border-color: #c6f43266;
+  background: #c6f4320a;
+}
+.sp-destinations input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+}
+.sp-editor-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.sp-editor-controls p {
+  font-size: 12px;
+  margin: 0;
+}
+.sp-editor-controls button {
+  flex-shrink: 0;
+}
+.sp-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+.sp-editor-grid.is-manual {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.sp-compose {
+  order: 2;
+  min-width: 0;
+  background: var(--sp-card);
+  padding: 18px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+}
+.sp-live-previews {
+  order: 1;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr));
+}
+.sp-preview-label {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 12px !important;
+  justify-content: flex-start !important;
+  color: var(--sp-muted) !important;
+}
+.sp-preview-heading h2 {
+  margin: 0;
+  font-size: 13px;
+}
+.sp-preview-heading span {
+  font-size: 11px;
+}
+.sp-preview {
+  width: 100%;
+  max-width: 540px;
+  justify-self: center;
+}
+.sp-selection {
+  position: sticky;
+  bottom: 12px;
+  box-shadow: 0 8px 24px #0008;
+}
+@media (max-width: 800px) {
+  .sp-editor-grid.is-manual {
+    grid-template-columns: 1fr;
+  }
+  .sp-compose {
+    order: 0;
+  }
+  .sp-top-nav {
+    margin-left: 4px;
+  }
+}
+@media (max-width: 600px) {
+  .sp-workspace {
+    padding: 16px;
+  }
+  .sp-header {
+    gap: 14px;
+  }
+  .sp-header > .sp-actions {
+    margin-left: auto;
+  }
+  .sp-calendar-toolbar {
+    padding: 12px;
+  }
+  .sp-calendar-period h3 {
+    margin: 0 2px;
+    font-size: 12px;
+  }
+  .sp-calendar-summary {
+    padding: 8px 12px 12px;
+  }
+  .sp-calendar-view-week {
+    grid-template-columns: 1fr;
+  }
+  .sp-calendar-view-week .sp-calendar-day {
+    display: grid;
+    grid-template-columns: 55px minmax(0, 1fr);
+    border-right: 0;
+    border-bottom: 1px solid var(--sp-border);
+  }
+  .sp-calendar-view-week .sp-day-heading {
+    border-bottom: 0;
+    justify-content: flex-start;
+    padding-top: 14px;
+  }
+  .sp-calendar-view-week .sp-day-entries {
+    min-height: 75px;
+  }
+  .sp-calendar-view-week .sp-no-activity {
+    padding: 12px;
+    text-align: left;
+  }
+  .sp-calendar-view-month .sp-day-heading {
+    padding: 5px 0;
+    flex-direction: column;
+  }
+  .sp-calendar-view-month .sp-day-heading > span {
+    font-size: 8px;
+    letter-spacing: 0;
+  }
+  .sp-calendar-view-month .sp-day-entries {
+    min-height: 55px;
+    padding: 2px;
+  }
+  .sp-calendar-view-month .sp-calendar-entry {
+    padding: 3px;
+  }
+  .sp-calendar-view-month .sp-entry-time {
+    font-size: 8px;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .sp-calendar-view-month .sp-entry-platforms,
+  .sp-calendar-view-month .sp-entry-message {
+    display: none;
+  }
+  .sp-nav {
+    gap: 14px;
+    justify-content: space-between;
+  }
+  .sp-nav button {
+    font-size: 9px;
+    gap: 5px;
+    letter-spacing: 0;
+  }
+  .sp-nav svg {
+    width: 12px;
+  }
+  .sp-post-list article {
+    padding: 12px;
+  }
+  .sp-editor-controls {
+    align-items: flex-start;
+  }
+}
+
+.sp-calendar-entry.status-scheduled .sp-entry-time > i {
+  background: #3b82f6;
+}
+.sp-calendar-entry.status-failed .sp-entry-time > i {
+  background: #ef4444;
+}
+
+.sp-workspace .sp-more-entries {
+  border: 0;
+  background: transparent;
+  color: var(--sp-muted);
+  font-size: 10px;
+  padding: 4px;
 }

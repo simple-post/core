@@ -85,6 +85,19 @@ const workspace = {
 };
 const fixture = `
 const launch = ${JSON.stringify(workspace)};
+if (location.search.includes('week') || location.search.includes('month')) {
+ const slot=launch.schedule.days[0].entries[0];
+ launch.schedule.view='week'; launch.schedule.periodLabel='Sep 28 – Oct 4, 2026';
+ launch.schedule.days=Array.from({length:7},(_,i)=>{const date=new Date(Date.UTC(2026,8,28+i)); return {date:date.toISOString().slice(0,10),weekday:date.toLocaleDateString('en-US',{weekday:'long',timeZone:'UTC'}),weekdayShort:date.toLocaleDateString('en-US',{weekday:'short',timeZone:'UTC'}),dayNumber:date.getUTCDate(),inPeriod:true,isToday:i===1,entries:i===1?[slot]:i===3?[{...slot,id:'post',kind:'post',postId:'example',message:'A little behind the scenes from today’s launch.',platforms:['x','linkedin'],status:'scheduled',localTime:'10:00'}]:[]};});
+ launch.schedule.summary.scheduledCount=1;
+ if(location.search.includes('month')) {
+   launch.schedule.view='month'; launch.schedule.periodLabel='September 2026';
+   launch.schedule.days=Array.from({length:35},(_,i)=>{const date=new Date(Date.UTC(2026,7,31+i));return {date:date.toISOString().slice(0,10),weekday:date.toLocaleDateString('en-US',{weekday:'long',timeZone:'UTC'}),weekdayShort:date.toLocaleDateString('en-US',{weekday:'short',timeZone:'UTC'}),dayNumber:date.getUTCDate(),inPeriod:date.getUTCMonth()===8,isToday:i===29,entries:i===29?Array.from({length:5},(_,j)=>({...slot,id:"slot-"+j})):[]};});
+ }
+ launch.posts.posts=[{id:'example',message:'A little behind the scenes from today’s launch.',status:'draft',accounts:[{accountId:'x',platform:'x'},{accountId:'linkedin',platform:'linkedin'}],scheduledFor:null}];
+
+}
+if (location.search.includes('guess-zone')) { launch.preferences.timeZoneConfirmed=false; launch.preferences.timeZone='UTC'; }
 if (location.search.includes('onboarding')) launch.accounts=[];
 if (location.search.includes('readonly')) { launch.canWrite=false; launch.canValidate=false; }
 window.calls=[]; window.contexts=[]; window.messages=[]; window.links=[];
@@ -100,7 +113,8 @@ window.addEventListener('message', async event => {
    const {name,arguments:args}=req.params; window.calls.push({name,args}); let result;
    if(name==='start_post_editor_session'||name==='read_post_editor_session') result=session;
    else if(name==='update_post_editor_session') { if(args.expectedRevision!==session.revision) throw Error('stale'); session={...session,content:args.content,revision:session.revision+1,proposal:null}; result=session; }
-   else if(name==='get_simplepost_workspace') result={...launch,recovery:[{id:session.sessionId,postId:session.postId,message:session.content.message,updatedAt:new Date().toISOString(),revision:session.revision,committing:false}]};
+   else if(name==='update_simplepost_settings') { launch.preferences={...launch.preferences,...args.set,timeZoneConfirmed:true}; result=launch.preferences; }
+   else if(name==='get_simplepost_workspace') { if(args.timeZone) launch.schedule.timeZone=args.timeZone; if(args.view) launch.schedule.view=args.view; if(args.date) launch.schedule.anchorDate=args.date; result={...launch,recovery:[{id:session.sessionId,postId:session.postId,message:session.content.message,updatedAt:new Date().toISOString(),revision:session.revision,committing:false}]}; }
    else if(name==='commit_post_editor_session') { session={...session,postId:'saved',status:args.mode==='draft'?'draft':'scheduled',revision:session.revision+1}; result={editor:session,outcome:{post:{id:'saved'}}}; }
    else if(name==='validate_post_editor_session') result={summary:{isValid:true,errors:[],warnings:[]},accounts:[]};
    else throw Error('Unexpected tool '+name);
@@ -120,12 +134,12 @@ const server = createServer(async (req, res) => {
     } else if (req.url.startsWith("/widget")) {
       const name = req.url.includes("editor") ? "post-editor" : "workspace";
       const mount = name === "workspace" ? "mountWorkspaceWidget" : "mountPostEditorWidget";
-      res.setHeader("content-type", "text/html");
+      res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
         `<link rel="stylesheet" href="/mcp-widgets/${assets[name].stylesheet}"><div id="root"></div><script type="module">import {${mount}} from '/mcp-widgets/${assets[name].script}'; ${mount}();</script>`,
       );
     } else {
-      res.setHeader("content-type", "text/html");
+      res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
         `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${req.url.includes("editor") ? "?editor" : ""}"></iframe>`,
       );
@@ -146,6 +160,41 @@ try {
     errors.push(error.message);
     console.error("Widget error:", error.message);
   });
+  await mkdir(path.resolve(root, "../e2e/test-results/extensions-smoke"), { recursive: true });
+  await page.goto(`${base}/?week`);
+  await expect(page.frameLocator("iframe").getByRole("heading", { name: "Sep 28 – Oct 4, 2026" })).toBeVisible();
+  await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-desktop.png") });
+  await page.setViewportSize({ width: 400, height: 900 });
+  assert.equal(
+    await page
+      .frameLocator("iframe")
+      .locator("body")
+      .evaluate((el) => el.scrollWidth > window.innerWidth + 1),
+    false,
+    "sidebar calendar must not overflow",
+  );
+  await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-sidebar.png") });
+  await page.goto(`${base}/?month`);
+  await expect(page.frameLocator("iframe").getByRole("button", { name: "Month", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  assert.equal(
+    await page
+      .frameLocator("iframe")
+      .locator("body")
+      .evaluate((el) => el.scrollWidth > window.innerWidth + 1),
+    false,
+    "narrow month must not overflow",
+  );
+  await page.frameLocator("iframe").getByRole("button", { name: "Open Tuesday, 2026-09-29 in day view" }).click();
+  await expect(page.frameLocator("iframe").getByRole("button", { name: "Day", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${base}/?month`);
+  await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-month.png") });
   await page.goto(base);
   const ui = page.frameLocator("iframe");
   await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
@@ -158,18 +207,25 @@ try {
   await expect(ui.getByText("Selected slot: 16:30 · Europe/Berlin")).toHaveCount(0);
   await ui.getByRole("button", { name: /16:30/ }).click();
   await ui.getByRole("button", { name: "Draft for this slot" }).click();
+  await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
   await expect(ui.getByLabel("Publishing time · Europe/Berlin")).toHaveValue("2026-09-29T16:30");
+  await ui.getByRole("button", { name: "Keep editing" }).click();
+  await expect.poll(() => page.evaluate(() => JSON.stringify(window.contexts))).toMatch(/editorSessionId/);
+  await expect(ui.getByLabel("Post text", { exact: true })).toHaveCount(0);
+  await ui.getByRole("button", { name: "Edit manually", exact: true }).click();
   await ui.getByLabel("Post text", { exact: true }).fill("Launch day. Working on the details.");
   await expect(ui.locator("simple-post-preview")).toHaveCount(2);
   await expect
     .poll(() => page.evaluate(() => window.calls.filter((c) => c.name === "update_post_editor_session").length))
     .toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => JSON.stringify(window.contexts))).toMatch(/editorSessionId/);
   // Preview component renders in Shadow DOM, so Playwright sees live text.
   await expect(ui.locator("simple-post-preview").first()).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "linkedin · Test linkedin", exact: true }).first().click();
   await ui.getByLabel("Post text", { exact: true }).fill("LinkedIn version");
   await expect(ui.locator("simple-post-preview").nth(1)).toContainText("LinkedIn version");
   await expect(ui.locator("simple-post-preview").first()).toContainText("Launch day. Working on the details.");
+  await ui.getByRole("button", { name: "Hide manual editor", exact: true }).click();
   await mkdir(path.resolve(root, "../e2e/test-results/extensions-smoke"), { recursive: true });
   await ui.locator("body").evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
@@ -205,13 +261,17 @@ try {
     "review must not schedule",
   );
   await expect(ui.getByRole("button", { name: "Confirm schedule" })).toBeVisible();
+  await ui.getByLabel("Publishing time · Europe/Berlin").fill("2026-09-29T17:00");
+  await expect(ui.getByRole("button", { name: "Confirm schedule" })).toBeVisible();
+  await ui.getByLabel("Publishing time · Europe/Berlin").fill("2026-09-29T16:30");
   await mkdir(path.resolve(root, "../e2e/test-results/extensions-smoke"), { recursive: true });
   await page.screenshot({
     path: path.resolve(root, "../e2e/test-results/extensions-smoke/editor.png"),
     fullPage: true,
   });
   await ui.getByRole("button", { name: "Keep editing" }).click();
-  await page.setViewportSize({ width: 480, height: 900 });
+  await page.setViewportSize({ width: 400, height: 900 });
+  await ui.getByRole("button", { name: "Edit manually", exact: true }).click();
   await expect(ui.getByLabel("Post text", { exact: true })).toBeVisible();
   assert.equal(
     await ui.locator("body").evaluate((el) => el.scrollWidth > window.innerWidth + 1),
@@ -221,9 +281,20 @@ try {
   await ui.getByRole("button", { name: "Back to workspace" }).click();
   await ui.getByText("Recover a working copy", { exact: true }).click();
   await ui.getByRole("button", { name: /Suggested shared text ·/ }).click();
+  await ui.getByRole("button", { name: "Edit manually", exact: true }).click();
   await expect(ui.getByLabel("Post text", { exact: true })).toHaveValue("Suggested shared text");
+  await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
   await expect(ui.getByLabel("Publishing time · Europe/Berlin")).toHaveValue("2026-09-29T16:30");
   await expect(ui.locator("simple-post-preview").nth(1)).toContainText("LinkedIn version");
+  await page.goto(`${base}/?guess-zone`);
+  await expect
+    .poll(() => page.evaluate(() => window.calls.filter((c) => c.name === "update_simplepost_settings").length))
+    .toBe(1);
+  assert.equal(
+    await page.evaluate(() => window.calls.find((c) => c.name === "update_simplepost_settings").args.set.timeZone),
+    await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone),
+  );
+  await expect(ui.getByText(/Confirm your timezone/)).toHaveCount(0);
   await page.goto(`${base}/?readonly`);
   await expect(ui.getByRole("button", { name: "New draft", exact: true })).toBeDisabled();
   await page.goto(`${base}/?onboarding`);

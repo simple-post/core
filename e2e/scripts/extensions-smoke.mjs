@@ -185,6 +185,23 @@ try {
   });
   await mkdir(path.resolve(root, "../e2e/test-results/extensions-smoke"), { recursive: true });
   await page.goto(`${base}/?week`);
+  await expect(page.frameLocator("iframe").getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
+  await page
+    .frameLocator("iframe")
+    .locator("body")
+    .evaluate(() => document.fonts.ready);
+  assert.equal(
+    await page
+      .frameLocator("iframe")
+      .locator("body")
+      .evaluate(() =>
+        ["Inter", "JetBrains Mono"].every((name) =>
+          [...document.fonts].some((font) => font.family.replaceAll('"', "") === name && font.status === "loaded"),
+        ),
+      ),
+    true,
+    "both Scheduler fonts must load",
+  );
   await expect(page.frameLocator("iframe").getByRole("heading", { name: "Sep 28 – Oct 4, 2026" })).toBeVisible();
   await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-desktop.png") });
   await page.frameLocator("iframe").getByRole("button", { name: "Accounts", exact: true }).click();

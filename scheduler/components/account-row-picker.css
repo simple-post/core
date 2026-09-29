@@ -1,0 +1,118 @@
+.account-row-picker {
+  --picker-primary: var(--primary, #c6f432);
+  --picker-border: var(--border, #232323);
+  --picker-muted: var(--muted-foreground, #858585);
+  --picker-text: var(--foreground, #f5f5f5);
+}
+.account-row-picker > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.account-row-picker > header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.account-row-picker > header p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--picker-muted);
+}
+.account-row-picker > header > span {
+  font-size: 12px;
+  color: var(--picker-muted);
+  white-space: nowrap;
+}
+.account-row-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.account-row-tile {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border: 1px solid var(--picker-border);
+  border-radius: 8px;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.account-row-tile[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--picker-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--picker-primary) 5%, transparent);
+}
+.account-row-tile[data-disabled="true"] {
+  opacity: 0.5;
+}
+.account-row-picker .account-row-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--picker-text);
+  text-align: center;
+  cursor: pointer;
+  font: inherit;
+}
+.account-row-picker .account-row-toggle:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--picker-muted) 8%, transparent);
+}
+.account-row-picker .account-row-toggle:focus-visible {
+  outline: 2px solid var(--picker-primary);
+  outline-offset: 3px;
+}
+.account-row-picker .account-row-toggle:disabled {
+  cursor: not-allowed;
+}
+.account-row-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 12px;
+  height: 12px;
+}
+.account-row-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.account-row-name {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  width: 100%;
+  padding: 0 2px;
+}
+.account-row-action {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-row-tile {
+    transition: none;
+  }
+}

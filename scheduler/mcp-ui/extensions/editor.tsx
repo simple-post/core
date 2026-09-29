@@ -4,7 +4,7 @@ import { normalizePreviewPlatform } from "@simple-post/preview";
 import { type PostPreviewData } from "@simple-post/preview-react";
 import { CalendarClock, Send, Pencil, Save, ArrowLeft } from "lucide-react";
 
-import { PlatformIcon } from "../../components/platform-icon";
+import { AccountRowPicker } from "../../components/account-row-picker";
 import { PreviewSwitcher } from "../preview-switcher";
 
 import { AccountIdentity, platformName } from "./account-identity";
@@ -118,7 +118,7 @@ export function Editor({
   const [results, setResults] = useState<Record<string, unknown> | null>(null);
   const [contextActive, setContextActive] = useState(true);
   const [manual, setManual] = useState(false);
-  const [chooseAccounts, setChooseAccounts] = useState(false);
+  const deselectedOverrides = useRef<EditorContent["accountOverrides"]>({});
   const liveContent = useRef(content);
   const liveSession = useRef(session);
   const stored = useRef(fingerprint(initial.content));
@@ -141,7 +141,9 @@ export function Editor({
   const displayedMedia = override?.media ?? content.media;
 
   function change(next: EditorContent) {
-    setContent(localTime && !next.plannedSchedule ? { ...next, plannedSchedule: { localTime, timeZone } } : next);
+    const updated = localTime && !next.plannedSchedule ? { ...next, plannedSchedule: { localTime, timeZone } } : next;
+    liveContent.current = updated;
+    setContent(updated);
     if (next.plannedSchedule) setLocalTime(next.plannedSchedule.localTime);
     setValidation(null);
     setReview(null);
@@ -847,49 +849,39 @@ export function Editor({
         </aside>
       </div>
       <div className="sp-editor-destinations">
-        <div className="sp-publishing-heading">
-          <h2 className="sp-kicker">Publishing to</h2>
-          <button aria-expanded={chooseAccounts} onClick={() => setChooseAccounts(!chooseAccounts)}>
-            Change destinations
-          </button>
-        </div>
-        <div className="sp-publishing-accounts">
-          {variants.map((account) => (
-            <AccountIdentity key={account.accountId} account={account} />
-          ))}
-        </div>
-        {chooseAccounts || variants.length === 0 ? (
-          <>
-            <fieldset disabled={!statusEditable || working}>
-              <legend className="sp-sr-only">Destinations</legend>
-              <div className="sp-destinations">
-                {accounts.map((account) => (
-                  <label key={account.accountId}>
-                    <input
-                      type="checkbox"
-                      checked={content.accountIds.includes(account.accountId)}
-                      onChange={(event) => {
-                        const ids = event.target.checked
-                          ? [...content.accountIds, account.accountId]
-                          : content.accountIds.filter((id) => id !== account.accountId);
-                        change({
-                          ...content,
-                          accountIds: ids,
-                          accountOverrides: Object.fromEntries(
-                            Object.entries(content.accountOverrides).filter(([id]) => ids.includes(id)),
-                          ),
-                        });
-                        if (!event.target.checked && activeAccount === account.accountId) setActiveAccount(null);
-                      }}
-                    />
-                    <PlatformIcon platform={account.platform} className="sp-platform-icon" />
-                    <span>{account.displayName ?? account.username ?? account.platform}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </>
-        ) : null}
+        <AccountRowPicker
+          selectedIds={content.accountIds}
+          onToggle={(id) => {
+            const current = liveContent.current;
+            const selected = current.accountIds.includes(id);
+            if (selected) {
+              if (current.accountOverrides[id]) deselectedOverrides.current[id] = current.accountOverrides[id];
+              else delete deselectedOverrides.current[id];
+            }
+            const accountIds = selected
+              ? current.accountIds.filter((value) => value !== id)
+              : [...current.accountIds, id];
+            const accountOverrides = Object.fromEntries(
+              Object.entries(current.accountOverrides).filter(([key]) => accountIds.includes(key)),
+            );
+            if (!selected && deselectedOverrides.current[id]) accountOverrides[id] = deselectedOverrides.current[id];
+            change({ ...current, accountIds, accountOverrides });
+            if (selected && activeAccount === id) setActiveAccount(null);
+            setContextActive(true);
+          }}
+          items={accounts.map((account) => ({
+            id: account.accountId,
+            platform: account.platform,
+            label:
+              ["x", "instagram", "tiktok", "bluesky", "threads"].includes(account.platform) && account.username
+                ? `@${account.username.replace(/^@/, "")}`
+                : account.displayName ||
+                  (account.username ? `@${account.username.replace(/^@/, "")}` : platformName(account.platform)),
+            accessibleLabel: `${platformName(account.platform)}: ${account.displayName ?? account.username ?? account.platform}`,
+            avatar: <AccountIdentity account={account} />,
+            disabled: !statusEditable || working,
+          }))}
+        />
       </div>
       {validation ? (
         <section className="sp-validation" aria-live="polite">

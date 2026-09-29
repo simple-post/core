@@ -1447,3 +1447,34 @@ body {
 .sp-account-health > span {
   font-family: "JetBrains Mono", monospace;
 }
+.sp-editor-destinations .account-row-picker {
+  --picker-primary: #c6f432;
+  --picker-border: #232323;
+  --picker-muted: #858585;
+  --picker-text: #f5f5f5;
+}
+.account-row-avatar .sp-account-copy {
+  display: none;
+}
+.account-row-avatar .sp-account-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+}
+.account-row-avatar .sp-account-avatar > .sp-platform-icon {
+  width: 16px;
+  height: 16px;
+}
+.account-row-avatar .sp-avatar-platform {
+  width: 16px;
+  height: 16px;
+  bottom: -2px;
+  right: -2px;
+}
+.account-row-avatar .sp-avatar-platform .sp-platform-icon {
+  width: 8px;
+  height: 8px;
+}
+.account-row-avatar .sp-account-avatar > .sp-platform-icon + .sp-avatar-platform {
+  display: none;
+}

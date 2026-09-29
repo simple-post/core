@@ -296,7 +296,23 @@ try {
     path: path.resolve(root, "../e2e/test-results/extensions-smoke/editor-two-platforms.png"),
     fullPage: true,
   });
-  await ui.getByRole("button", { name: "Change destinations", exact: true }).click();
+  // Removing and restoring a destination must keep its custom copy.
+  const linkedinPicker = ui.getByTestId("account-toggle-linkedin-linkedin");
+  await linkedinPicker.click();
+  await expect(linkedinPicker).toHaveAttribute("aria-pressed", "false");
+  await expect(ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true })).toHaveCount(0);
+  await linkedinPicker.click();
+  await expect(linkedinPicker).toHaveAttribute("aria-pressed", "true");
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
+  await linkedinPicker.click();
+  await ui.getByTestId("account-toggle-x-x").click();
+  await expect(ui.getByRole("region", { name: "Post to", exact: true })).toContainText("0 selected");
+  await ui.getByTestId("account-toggle-x-x").click();
+  await linkedinPicker.click();
+  await expect(ui.getByRole("region", { name: "Post to", exact: true })).toContainText("2 selected");
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
   for (const platform of [
     "bluesky",
     "instagram",
@@ -308,7 +324,7 @@ try {
     "telegram",
     "forem",
   ])
-    await ui.getByLabel(`Test ${platform}`, { exact: true }).check();
+    await ui.getByTestId(`account-toggle-${platform}-${platform}`).click();
   await expect(ui.getByRole("tab")).toHaveCount(11);
   for (const tab of await ui.getByRole("tab").all()) {
     await tab.click();

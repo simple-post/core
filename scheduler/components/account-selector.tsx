@@ -10,6 +10,8 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { ConnectedAccount } from "@/types";
 
+import { AccountRowPicker } from "./account-row-picker";
+
 interface AccountSelectorProps {
   selectedAccountIds: string[];
   onSelectionChange: (accountIds: string[]) => void;
@@ -131,71 +133,46 @@ export function AccountSelector({
   // Row layout: flat list of all accounts
   if (layout === "row") {
     return (
-      <div className="space-y-3">
-        {!compact && (
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium">{title}</h3>
-              {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
-            </div>
-            <div className="text-xs text-muted-foreground">{selectedAccountIds.length} selected</div>
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          {accounts.map((account: ConnectedAccount) => {
-            const platformConfig = getPlatformById(account.platform);
-            if (!platformConfig) return null;
-
-            const isSelected = selectedAccountIds.includes(account.id);
-            const isDisabled = !!(maxSelections && !isSelected && selectedAccountIds.length >= maxSelections);
-            const cardClass = `relative shrink-0 w-20 h-20 rounded-lg border transition-colors ${
-              isSelected
-                ? "border-primary/50 bg-primary/5"
-                : isDisabled
-                  ? "border-border bg-secondary/40 opacity-50"
-                  : "border-border hover:border-border/80 hover:bg-secondary/40"
-            }`;
-
-            return (
-              <div key={account.id} className={cardClass}>
-                <button
-                  type="button"
-                  data-testid={`account-toggle-${account.platform}-${account.id}`}
-                  aria-label={`${platformConfig.name}: ${getAccountDisplayName(account)}`}
-                  aria-pressed={isSelected}
-                  onClick={() => handleAccountToggle(account.id)}
-                  disabled={isDisabled}
-                  className="absolute inset-0 w-full h-full p-2 text-center disabled:cursor-not-allowed">
-                  {isSelected && <Check className="absolute top-1.5 left-1.5 h-3 w-3" />}
-                  <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <AccountAvatar
-                      accountId={account.id}
-                      avatarVersion={account.updatedAt}
-                      profilePicture={account.profilePicture}
-                      platform={platformConfig.id}
-                      size="sm"
-                    />
-                    <div className="text-[10px] font-medium leading-tight line-clamp-2 w-full break-all px-0.5">
-                      {getAccountDisplayName(account)}
-                    </div>
-                  </div>
-                </button>
-                {showAdvancedButton && isSelected && getAdvancedHref ? (
-                  <Button asChild variant="ghost" size="icon" className="absolute top-1 right-1 z-10 h-5 w-5">
+      <AccountRowPicker
+        title={title}
+        description={description}
+        compact={compact}
+        selectedIds={selectedAccountIds}
+        onToggle={handleAccountToggle}
+        items={accounts.flatMap((account: ConnectedAccount) => {
+          const platform = getPlatformById(account.platform);
+          if (!platform) return [];
+          const selected = selectedAccountIds.includes(account.id);
+          return [
+            {
+              id: account.id,
+              platform: account.platform,
+              label: getAccountDisplayName(account),
+              accessibleLabel: `${platform.name}: ${getAccountDisplayName(account)}`,
+              disabled: !!(maxSelections && !selected && selectedAccountIds.length >= maxSelections),
+              avatar: (
+                <AccountAvatar
+                  accountId={account.id}
+                  avatarVersion={account.updatedAt}
+                  profilePicture={account.profilePicture}
+                  platform={platform.id}
+                  size="sm"
+                />
+              ),
+              action:
+                showAdvancedButton && getAdvancedHref ? (
+                  <Button asChild variant="ghost" size="icon" className="h-5 w-5">
                     <Link
                       href={getAdvancedHref(account.id)}
-                      aria-label={`Settings for ${platformConfig.name}: ${getAccountDisplayName(account)}`}
-                      onClick={(event) => event.stopPropagation()}>
+                      aria-label={`Settings for ${platform.name}: ${getAccountDisplayName(account)}`}>
                       <Settings className="h-3 w-3" />
                     </Link>
                   </Button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                ) : null,
+            },
+          ];
+        })}
+      />
     );
   }
 

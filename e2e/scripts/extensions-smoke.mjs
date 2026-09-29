@@ -104,6 +104,9 @@ window.calls=[]; window.contexts=[]; window.messages=[]; window.links=[];
 let session={kind:'editor',sessionId:'3e07953d-c01f-4a95-baf0-20b597ff9373',postId:null,revision:0,baseUpdatedAt:null,committing:false,proposal:null,status:'new',scheduledFor:null,content:{message:'',accountIds:launch.preferences.defaultAccountIds,media:[],thread:[],accountOptions:{},accountOverrides:{},quotePostId:null}};
 window.propose=(patch)=>{ session={...session,proposal:{patch,explanation:'Shorter proposed text',revision:session.revision}}; document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:session}},'*'); };
 window.removeSelection=()=>document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/host-context-changed',params:{'openai/modelContext':null}},'*');
+if(location.search.includes('review')) {
+ launch.kind='post_preview'; launch.previews=['x','linkedin'].map(platform=>({accountId:platform,platform,platformLabel:platform==='x'?'X':'LinkedIn',accountLabel:'Test '+platform,data:{platform,account:{id:platform,platform,displayName:'Test '+platform,username:'simplepost',profilePicture:null},message:'Scheduled review content',media:[],thread:[],options:{},previewDate:'2026-09-29T14:30:00Z'}}));
+}
 window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
  const send=(result)=>event.source.postMessage({jsonrpc:'2.0',id:req.id,result},'*');
@@ -132,8 +135,17 @@ const server = createServer(async (req, res) => {
       res.setHeader("content-type", filename.endsWith(".css") ? "text/css" : "text/javascript");
       res.end(await readFile(path.join(root, "public/mcp-widgets", filename)));
     } else if (req.url.startsWith("/widget")) {
-      const name = req.url.includes("editor") ? "post-editor" : "workspace";
-      const mount = name === "workspace" ? "mountWorkspaceWidget" : "mountPostEditorWidget";
+      const name = req.url.includes("review")
+        ? "post-preview"
+        : req.url.includes("editor")
+          ? "post-editor"
+          : "workspace";
+      const mount =
+        name === "workspace"
+          ? "mountWorkspaceWidget"
+          : name === "post-preview"
+            ? "mountPostPreviewWidget"
+            : "mountPostEditorWidget";
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
         `<link rel="stylesheet" href="/mcp-widgets/${assets[name].stylesheet}"><div id="root"></div><script type="module">import {${mount}} from '/mcp-widgets/${assets[name].script}'; ${mount}();</script>`,
@@ -141,7 +153,7 @@ const server = createServer(async (req, res) => {
     } else {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
-        `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${req.url.includes("editor") ? "?editor" : ""}"></iframe>`,
+        `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${req.url.includes("review") ? "?review" : req.url.includes("editor") ? "?editor" : ""}"></iframe>`,
       );
     }
   } catch (error) {
@@ -214,17 +226,20 @@ try {
   await expect(ui.getByLabel("Post text", { exact: true })).toHaveCount(0);
   await ui.getByRole("button", { name: "Edit manually", exact: true }).click();
   await ui.getByLabel("Post text", { exact: true }).fill("Launch day. Working on the details.");
-  await expect(ui.locator("simple-post-preview")).toHaveCount(2);
+  await expect(ui.locator("simple-post-preview")).toHaveCount(1);
   await expect
     .poll(() => page.evaluate(() => window.calls.filter((c) => c.name === "update_post_editor_session").length))
     .toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => JSON.stringify(window.contexts))).toMatch(/editorSessionId/);
   // Preview component renders in Shadow DOM, so Playwright sees live text.
-  await expect(ui.locator("simple-post-preview").first()).toContainText("Launch day. Working on the details.");
+  await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "linkedin · Test linkedin", exact: true }).first().click();
   await ui.getByLabel("Post text", { exact: true }).fill("LinkedIn version");
-  await expect(ui.locator("simple-post-preview").nth(1)).toContainText("LinkedIn version");
-  await expect(ui.locator("simple-post-preview").first()).toContainText("Launch day. Working on the details.");
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
+  await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "Hide manual editor", exact: true }).click();
   await mkdir(path.resolve(root, "../e2e/test-results/extensions-smoke"), { recursive: true });
   await ui.locator("body").evaluate(() => window.scrollTo(0, 0));
@@ -244,14 +259,27 @@ try {
     "forem",
   ])
     await ui.getByLabel(`Test ${platform}`, { exact: true }).check();
-  await expect(ui.locator("simple-post-preview")).toHaveCount(11);
+  await expect(ui.getByRole("tab")).toHaveCount(11);
+  for (const tab of await ui.getByRole("tab").all()) {
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+    await expect(ui.locator("simple-post-preview")).toHaveCount(1);
+  }
+  await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
+  await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).press("ArrowRight");
+  await expect(ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true })).toBeFocused();
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).press("Home");
+  await expect(ui.getByRole("tab", { name: "Preview X for Test x", exact: true })).toBeFocused();
   await expect(ui.getByText("Working copy saved · draft not saved yet", { exact: true })).toBeVisible();
   await page.evaluate(() => window.propose({ message: "Suggested shared text" }));
   await expect(ui.getByRole("heading", { name: "Proposed writing changes" })).toBeVisible();
-  await expect(ui.locator("simple-post-preview").first()).toContainText("Launch day. Working on the details.");
+  await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "Apply to working copy" }).click();
-  await expect(ui.locator("simple-post-preview").first()).toContainText("Suggested shared text");
-  await expect(ui.locator("simple-post-preview").nth(1)).toContainText("LinkedIn version");
+  await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("Suggested shared text");
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
   await ui.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(ui.getByText("Draft saved. Nothing will be published.")).toBeVisible();
   await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
@@ -285,7 +313,8 @@ try {
   await expect(ui.getByLabel("Post text", { exact: true })).toHaveValue("Suggested shared text");
   await ui.getByRole("button", { name: "Review schedule", exact: true }).click();
   await expect(ui.getByLabel("Publishing time · Europe/Berlin")).toHaveValue("2026-09-29T16:30");
-  await expect(ui.locator("simple-post-preview").nth(1)).toContainText("LinkedIn version");
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
+  await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
   await page.goto(`${base}/?guess-zone`);
   await expect
     .poll(() => page.evaluate(() => window.calls.filter((c) => c.name === "update_simplepost_settings").length))
@@ -304,9 +333,19 @@ try {
   await expect.poll(() => page.evaluate(() => JSON.stringify(window.links))).toMatch(/accounts\?onboarding=connect/);
   await page.goto(`${base}/?editor`);
   await expect(ui.getByRole("heading", { name: "Choose a draft to edit" })).toBeVisible();
+  await page.goto(`${base}/?review`);
+  await expect(ui.getByRole("tab")).toHaveCount(2);
+  await expect(ui.locator("simple-post-preview")).toContainText("Scheduled review content");
+  await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
+  await expect(ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(ui.locator("simple-post-preview")).toHaveCount(1);
+  await expect(ui.locator("simple-post-preview")).toContainText("Scheduled review content");
   assert.deepEqual(errors, []);
   console.log(
-    "PASS extensions browser smoke: calendar, selection chat, slot time, autosave, 11 live previews, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
+    "PASS extensions browser smoke: calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
   );
 } finally {
   await browser?.close();

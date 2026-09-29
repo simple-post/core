@@ -991,3 +991,16 @@ body {
   font-size: 10px;
   padding: 4px;
 }
+
+.sp-live-previews {
+  display: block;
+}
+.sp-live-previews .sp-preview-heading {
+  margin-bottom: 20px;
+}
+.sp-live-previews .preview-frame {
+  width: min(390px, 100%);
+}
+.sp-live-previews .platform-switcher {
+  margin-bottom: 16px;
+}

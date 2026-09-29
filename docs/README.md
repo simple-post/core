@@ -17,6 +17,8 @@ For hosted onboarding and product help, start at [docs.simplepost.social](https:
 
 Most users only need one row. The common concepts below explain how the pieces fit together.
 
+For Meta's agent and models, see [Muse integration and connector publication preparation](MUSE.md).
+
 ## How The Pieces Fit
 
 ```text

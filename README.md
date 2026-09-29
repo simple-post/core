@@ -42,6 +42,8 @@ The ClawHub bundle is packaged from [`integrations/openclaw`](integrations/openc
 
 Hermes Agent can install the canonical skill directly from this repository and discover its ClawHub release through the Skills Hub. See [Hermes installation and discovery](docs/HERMES.md).
 
+Meta Muse Code can use the same skill and hosted OAuth MCP server. See [Muse agent, model examples, and connector submission preparation](docs/MUSE.md).
+
 ## What You Can Build With It
 
 | Interface       | Best for                                                     | Docs                                                                           |

@@ -27,7 +27,8 @@
     "e2e:fixtures": "yarn workspace @simple-post/e2e fixtures",
     "e2e:report": "yarn workspace @simple-post/e2e report",
     "docs:export": "node scripts/export-docs.mjs",
-    "hermes:validate": "node scripts/validate-hermes-submission.mjs"
+    "hermes:validate": "node scripts/validate-hermes-submission.mjs",
+    "muse:check": "node --test integrations/meta-muse/integration.test.mjs"
   },
   "resolutions": {
     "postcss": "^8.5.16"

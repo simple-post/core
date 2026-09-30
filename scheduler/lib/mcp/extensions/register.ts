@@ -16,6 +16,7 @@ import { ForbiddenError } from "@/lib/utils/errors";
 
 import { proposalSchema, sessionCommitSchema, sessionUpdateSchema, sessionVersionSchema } from "./contracts";
 import { EXTENSION_TOOL_ANNOTATIONS } from "./tool-annotations";
+import { EXTENSION_TOOL_DESCRIPTIONS } from "./tool-descriptions";
 import {
   commitEditor,
   loadWorkspace,
@@ -62,7 +63,7 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
       name,
       {
         title,
-        description: `Use this when ${title.toLowerCase()}.`,
+        description: EXTENSION_TOOL_DESCRIPTIONS[name],
         inputSchema: schema.shape,
         ...(outputSchema ? { outputSchema } : {}),
         annotations: EXTENSION_TOOL_ANNOTATIONS[name],

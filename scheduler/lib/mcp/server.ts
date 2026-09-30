@@ -52,7 +52,13 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 - If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call any tool. Tell them account management must happen in the SimplePost web app.
 - If the user asks to delete, edit, undo, remove, or take down a post already published on a social platform such as X, Instagram, Facebook, YouTube, Threads, Telegram, or Bluesky, do not call any tool. Explain that SimplePost tools can only manage drafts and future scheduled posts, and direct them to the social platform.
 - Do not inspect accounts or posts merely to confirm that an unsupported action is unsupported.
-- If the user asks for writing, brainstorming, translation, arithmetic, calendar scheduling, or other non-SimplePost work, do not call any SimplePost tool.
+- If the user asks for generic writing, brainstorming, translation, arithmetic, meeting calendars, reminders, or SEO research without a social publishing action or selected SimplePost editor, do not call any SimplePost tool. Writing changes to a selected SimplePost working copy are supported through the editor tools when available.
+
+# Tool selection
+
+- A user can request a supported social publishing action without naming SimplePost. Match the requested action, not just the mention of a social network.
+- When extension tools are available, use \`open_simplepost_workspace\` for the persistent sidebar and \`open_post_editor\` for the persistent visual editor. Use \`show_schedule\` and \`show_post_preview\` for standalone views; use data-only tools for text questions.
+- For writing suggestions in a selected editor, read its actual session and revision, then use \`propose_post_edit\`. Do not apply a suggestion or commit a post when the user asked only to review it. Reuse the selected session. Opening a view or selecting a calendar slot does not authorize scheduling or publication.
 
 # Recommended workflow
 
@@ -778,7 +784,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "create_post",
     {
       title: "Create Post",
-      description: `Use this to create a post with optional media, thread replies, or a quoted SimplePost source. One call covers every selected account; use accountOverrides for per-account text or thread shape (for example a long post on X and LinkedIn with a thread on Bluesky and Threads) instead of creating separate posts. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
+      description: `Use this when the user wants to publish a social post now, schedule it for later, or save a draft to connected accounts, with optional media, thread replies, or a quoted SimplePost source. Do not use for copywriting alone, private messages, or editing already-published social content. One call covers every selected account; use accountOverrides for per-account text or thread shape (for example a long post on X and LinkedIn with a thread on Bluesky and Threads) instead of creating separate posts. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
       inputSchema: fittingSchema(createPostSchema, context.imageFittingEnabled),
       outputSchema: createPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
@@ -844,7 +850,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: "Inspect Posts",
-      description: `Use this to search or inspect SimplePost records that are drafts, scheduled, posted, or failed. It supports text/status filters and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI.`,
+      description: `Use this to search or inspect SimplePost records that are drafts, scheduled, posted, or failed. It supports text/status filters and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI. It cannot retrieve engagement, impressions, follower growth, comments, or social inbox messages.`,
       inputSchema: inspectPostsSchema,
       outputSchema: inspectPostsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
@@ -891,7 +897,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "get_schedule",
     {
       title: "Get Schedule",
-      description: `Use this when the user wants a text or structured-data view of a day, week, or month of SimplePost posting slots and activity. It includes open slots and scheduled, pending, published, failed, and past posts without rendering UI.`,
+      description: `Use this when the user wants a text or structured-data view of a day, week, or month of SimplePost posting slots and activity. It includes open slots and scheduled, pending, published, failed, and past posts without rendering UI. Use for questions like "What social posts are scheduled next week?", not meeting calendars, reminders, or engagement analytics.`,
       inputSchema: showScheduleSchema,
       outputSchema: showScheduleOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.get_schedule,

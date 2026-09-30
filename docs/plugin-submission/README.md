@@ -19,6 +19,10 @@ Outputs under `dist/plugin-submission/`:
 
 The public upload excludes private app bindings, credentials, development URLs, compatibility manifests, dependencies, and backend source. Reviewer credentials stay only in the portal's secure Testing field. The original source and saved portal MCP binding are preserved.
 
+## Discovery preparation
+
+See [discovery.md](discovery.md) for the proposed positioning, 17-case routing evaluation, evidence template, and publication/first-user checklist. The listing and starter prompts in this branch are proposed updates; they have not been uploaded to the saved portal draft. The generated ZIP remains a review draft with the outstanding items below.
+
 ## Recording walkthrough
 
 Record actual interactions in the intended ChatGPT host using the new dev connection, a dedicated test account, and sample content. This is a script, not a completed recording. Start your screen recorder before the walkthrough; browser control and screenshots alone do not record a video. Keep passwords, tokens, and unrelated chats out of the recording. Aim for four to six minutes with readable pauses.

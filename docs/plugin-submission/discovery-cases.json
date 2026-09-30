@@ -1,0 +1,186 @@
+{
+  "description": "Manual host routing evaluation, separate from the five positive and three negative submission cases. Expected tools describe the intended path; equivalent safe paths must be recorded and reviewed. All cases are unexecuted.",
+  "cases": [
+    {
+      "id": "direct-calendar",
+      "kind": "direct",
+      "prompt": "Open my SimplePost workspace for next week.",
+      "setup": "Extensions enabled; connected dedicated test account.",
+      "expected_tools": [
+        "open_simplepost_workspace"
+      ],
+      "expected_behavior": "Open the sidebar for the requested week in the known user timezone. No write tools.",
+      "status": "not_run"
+    },
+    {
+      "id": "indirect-schedule-read",
+      "kind": "indirect",
+      "prompt": "What social posts do I have scheduled next week?",
+      "setup": "Connected test account with a known scheduled post and saved timezone.",
+      "expected_tools": [
+        "get_schedule"
+      ],
+      "expected_behavior": "Report the returned period, times, destinations and statuses. No write tools; do not invent posts or engagement.",
+      "status": "not_run"
+    },
+    {
+      "id": "indirect-preview",
+      "kind": "indirect",
+      "prompt": "Show how \"Our new guide is out today.\" will look on my connected accounts. Do not save it.",
+      "setup": "At least two dedicated connected destinations.",
+      "expected_tools": [
+        "list_accounts",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Preview exact supplied text for resolved account IDs. No create, session start, commit, or update tools.",
+      "status": "not_run"
+    },
+    {
+      "id": "indirect-draft",
+      "kind": "indirect",
+      "prompt": "Save \"Our new guide is out today.\" as a draft for my connected accounts.",
+      "setup": "Dedicated connected accounts; no active editor.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "create_post uses postingMode=draft, exact text, returned account IDs and a new idempotencyKey. Preview returned post. No schedule or immediate publication.",
+      "status": "not_run"
+    },
+    {
+      "id": "indirect-schedule-write",
+      "kind": "indirect",
+      "prompt": "Schedule \"Our new guide is out today.\" on my X test account tomorrow at 14:00 Europe/Berlin.",
+      "setup": "Dedicated X test account; run only with authorization to schedule sample content, and remove before due time.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Resolve exact account, use postingMode=schedule, correct future date-specific UTC offset and idempotencyKey. Report returned schedule and preview; no other account targeted.",
+      "status": "not_run"
+    },
+    {
+      "id": "indirect-reschedule",
+      "kind": "indirect",
+      "prompt": "Move my scheduled guide announcement to Monday at 10:00 Europe/Berlin.",
+      "setup": "One uniquely identifiable future scheduled test post. Authorized sample scheduling only.",
+      "expected_tools": [
+        "inspect_posts",
+        "update_scheduled_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Resolve saved post ID and next future Monday. Change timing only, preserve content and destinations; ask if ambiguous. Report returned time, not a fabricated success.",
+      "status": "not_run"
+    },
+    {
+      "id": "indirect-editor",
+      "kind": "indirect",
+      "prompt": "Open an editor so I can preview and work on a new social post.",
+      "setup": "Extensions enabled.",
+      "expected_tools": [
+        "open_post_editor"
+      ],
+      "expected_behavior": "Open persistent editor/new-draft flow. Opening alone does not commit, schedule, or publish.",
+      "status": "not_run"
+    },
+    {
+      "id": "selected-adaptation",
+      "kind": "indirect",
+      "prompt": "Shorten the selected draft for Bluesky. Let me review your suggestion first.",
+      "setup": "Active selected session with connected Bluesky account and another account variant; record baseline revision.",
+      "expected_tools": [
+        "read_post_editor_session",
+        "propose_post_edit"
+      ],
+      "expected_behavior": "Propose a patch for the requested account at current revision. Leave working-copy content and other variants unchanged; no update or commit.",
+      "status": "not_run"
+    },
+    {
+      "id": "selected-slot",
+      "kind": "indirect",
+      "prompt": "What time is the selected slot?",
+      "setup": "Select a future calendar slot and share selection with chat.",
+      "expected_tools": [
+        "get_simplepost_workspace"
+      ],
+      "expected_behavior": "Answer from selection local time and timezone; refresh only if needed. No write required; expected_tools is optional here. Selecting a slot is not authorization to schedule.",
+      "status": "not_run"
+    },
+    {
+      "id": "timezone",
+      "kind": "direct",
+      "prompt": "Set my SimplePost timezone to Europe/Berlin.",
+      "setup": "Extensions enabled; record an existing scheduled timestamp.",
+      "expected_tools": [
+        "update_simplepost_settings"
+      ],
+      "expected_behavior": "Use set.timeZone=Europe/Berlin. Existing scheduled instant remains unchanged; no post update.",
+      "status": "not_run"
+    },
+    {
+      "id": "generic-writing",
+      "kind": "negative",
+      "prompt": "Write three punchier versions of this launch announcement: Our guide is out today.",
+      "setup": "No selected SimplePost editor or requested account action.",
+      "expected_tools": [],
+      "expected_behavior": "Answer in chat without invoking SimplePost or saving drafts.",
+      "status": "not_run"
+    },
+    {
+      "id": "analytics",
+      "kind": "negative",
+      "prompt": "Which of my LinkedIn posts got the most impressions?",
+      "setup": "No analytics tools are exposed by SimplePost.",
+      "expected_tools": [],
+      "expected_behavior": "Explain SimplePost cannot retrieve engagement analytics; do not inspect posts as a substitute or invent metrics.",
+      "status": "not_run"
+    },
+    {
+      "id": "research",
+      "kind": "negative",
+      "prompt": "Research how Postiz grows through SEO and recommend a marketing strategy.",
+      "setup": "No requested publishing action.",
+      "expected_tools": [],
+      "expected_behavior": "Use appropriate research capabilities, not SimplePost tools. Do not create posts or claim SimplePost supplies SEO research.",
+      "status": "not_run"
+    },
+    {
+      "id": "private-messages",
+      "kind": "negative",
+      "prompt": "Send an Instagram DM to everyone who commented on my latest post.",
+      "setup": "Unsupported inbox and comments workflow.",
+      "expected_tools": [],
+      "expected_behavior": "Explain SimplePost cannot read comments or send private messages; no public post as a substitute.",
+      "status": "not_run"
+    },
+    {
+      "id": "published-edit",
+      "kind": "negative",
+      "prompt": "Edit the LinkedIn post already live on my profile to fix a typo.",
+      "setup": "Already-published external content, not a draft.",
+      "expected_tools": [],
+      "expected_behavior": "Explain the limitation and direct the user to the platform. No replacement, deletion, or update via SimplePost.",
+      "status": "not_run"
+    },
+    {
+      "id": "meeting-calendar",
+      "kind": "negative",
+      "prompt": "Move my team meeting to Monday at 10.",
+      "setup": "No social-post context.",
+      "expected_tools": [],
+      "expected_behavior": "Do not invoke the social publishing calendar or change posting timezone.",
+      "status": "not_run"
+    },
+    {
+      "id": "image-generation",
+      "kind": "negative",
+      "prompt": "Generate a funny illustration for my announcement.",
+      "setup": "No request to upload, save, or publish.",
+      "expected_tools": [],
+      "expected_behavior": "Use an appropriate image capability if available. Do not invoke SimplePost or imply it generates images.",
+      "status": "not_run"
+    }
+  ]
+}

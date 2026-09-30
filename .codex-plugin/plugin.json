@@ -9,20 +9,31 @@
   "homepage": "https://github.com/simple-post/core/tree/main/docs",
   "repository": "https://github.com/simple-post/core",
   "license": "MIT",
-  "keywords": ["simplepost", "social-media", "posting", "mcp", "cli", "sdk"],
+  "keywords": [
+    "simplepost",
+    "social-media",
+    "posting",
+    "mcp",
+    "cli",
+    "sdk"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "SimplePost",
-    "shortDescription": "Publish and schedule social posts with SimplePost.",
+    "shortDescription": "Schedule and publish posts",
     "longDescription": "A flagship SimplePost skill for publishing, scheduling, drafting, previewing, inspecting, and managing posts across connected social accounts. It also guides developers through the CLI, HTTP API, Scheduler app, and TypeScript SDK when integrating social publishing into an application.",
     "developerName": "SimplePost",
     "category": "Productivity",
-    "capabilities": ["Interactive", "Read", "Write"],
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://simplepost.social",
     "defaultPrompt": [
-      "Use SimplePost to publish this post.",
-      "Set up SimplePost MCP for this agent.",
-      "Add SimplePost posting to this app."
+      "Show my social posting calendar for next week.",
+      "Preview this announcement for my connected social accounts.",
+      "Save this update as a draft for my connected accounts."
     ],
     "brandColor": "#C6F432",
     "screenshots": []

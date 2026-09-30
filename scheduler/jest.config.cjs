@@ -10,6 +10,7 @@ module.exports = {
   testMatch: ["<rootDir>/tests/**/*.test.ts"],
   setupFiles: ["<rootDir>/tests/setup.ts"],
   moduleNameMapper: {
+    "\\.css$": "<rootDir>/tests/style-mock.cjs",
     "^@/(.*)$": "<rootDir>/$1",
     "^@simple-post/sdk$": "<rootDir>/../sdk/src/index.ts",
     "^@simple-post/sdk/validation$": "<rootDir>/../sdk/src/validation.ts",

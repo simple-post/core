@@ -1,0 +1,94 @@
+.platform-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.simplepost-preview .platform-switcher button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--card, #111111);
+  border-radius: 999px;
+  background: #000;
+  box-shadow: 0 0 0 1px var(--border, #232323);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.65;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.simplepost-preview .platform-switcher button:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.simplepost-preview .platform-switcher button[aria-selected="true"] {
+  border-color: var(--foreground, #f5f5f5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--foreground, #f5f5f5) 15%, transparent);
+  opacity: 1;
+}
+
+.simplepost-preview .platform-switcher button:focus-visible {
+  outline: 2px solid var(--primary, #c6f432);
+  outline-offset: 2px;
+}
+
+.simplepost-preview .platform-switcher button[data-platform="youtube"],
+.simplepost-preview .platform-switcher button[data-platform="pinterest"] {
+  background: #dc2626;
+}
+
+.simplepost-preview .platform-switcher button[data-platform="instagram"] {
+  background: linear-gradient(90deg, #9333ea, #db2777);
+}
+
+.simplepost-preview .platform-switcher button[data-platform="facebook"] {
+  background: #2563eb;
+}
+
+.simplepost-preview .platform-switcher button[data-platform="bluesky"] {
+  background: #0ea5e9;
+}
+
+.simplepost-preview .platform-switcher button[data-platform="linkedin"] {
+  background: #1d4ed8;
+}
+
+.simplepost-preview .platform-switcher button[data-platform="telegram"] {
+  background: #3b82f6;
+}
+
+.platform-logo {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.preview-frame {
+  width: min(390px, 100%);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #303030;
+  border-radius: 17px;
+  background: #0a0a0a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.preview-frame simple-post-preview {
+  width: 100%;
+}
+
+.preview-empty {
+  padding: 32px;
+  text-align: center;
+}

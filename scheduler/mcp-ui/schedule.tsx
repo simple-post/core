@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { createRoot } from "react-dom/client";
 
+import { Button } from "../components/ui/button";
+
+import { Calendar } from "./extensions/calendar";
 import { useMcpToolData } from "./use-mcp-tool-data";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 
-import "./schedule.css";
+import "./extensions/design-system.css";
+import "./extensions/workspace.css";
 
 export type ScheduleView = "day" | "week" | "month";
 type ScheduleStatus = "open" | "scheduled" | "pending" | "published" | "failed" | "past_due";
@@ -55,12 +59,6 @@ export type ScheduleData = {
   };
 };
 
-const VIEW_OPTIONS: Array<{ value: ScheduleView; label: string }> = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-];
-
 function textFromError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -80,163 +78,10 @@ async function loadSchedule(
   return result.structuredContent as ScheduleData;
 }
 
-export function Summary({ data }: { data: ScheduleData }) {
-  const items = [
-    { label: "open", value: data.summary.openSlotCount, tone: "open" },
-    { label: "scheduled", value: data.summary.scheduledCount, tone: "scheduled" },
-    { label: "published", value: data.summary.publishedCount, tone: "published" },
-    { label: "failed", value: data.summary.failedCount, tone: "failed" },
-  ];
-  return (
-    <div className="summary" aria-label="Schedule summary">
-      {items.map((item) => (
-        <span className="summary-item" key={item.label}>
-          <span className={`summary-dot ${item.tone}`} />
-          <strong>{item.value}</strong> {item.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function Entry({
-  entry,
-  compact = false,
-  onSelect,
-}: {
-  entry: ScheduleEntry;
-  compact?: boolean;
-  onSelect?: (entry: ScheduleEntry) => void;
-}) {
-  const statusLabel =
-    entry.status === "open"
-      ? entry.isPast
-        ? "Unused slot"
-        : "Open slot"
-      : entry.status === "past_due"
-        ? "Past due"
-        : entry.status === "pending"
-          ? "Publishing"
-          : entry.status.charAt(0).toUpperCase() + entry.status.slice(1);
-  return (
-    <article
-      className={`entry status-${entry.status} ${entry.isPast ? "is-past" : ""} ${compact ? "compact" : ""}`}
-      title={entry.message ?? statusLabel}
-      role={onSelect ? "button" : undefined}
-      tabIndex={onSelect ? 0 : undefined}
-      onClick={onSelect ? () => onSelect(entry) : undefined}
-      onKeyDown={
-        onSelect
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelect(entry);
-              }
-            }
-          : undefined
-      }>
-      <div className="entry-topline">
-        <time>{entry.localTime}</time>
-        <span className="entry-status">{statusLabel}</span>
-      </div>
-      {entry.message ? <p>{entry.message}</p> : null}
-      {!compact && entry.platforms.length > 0 ? (
-        <div className="platforms" aria-label="Platforms">
-          {entry.platforms.map((platform) => (
-            <span key={platform}>{platform}</span>
-          ))}
-        </div>
-      ) : null}
-      {!compact && entry.errorMessage ? <div className="entry-error">{entry.errorMessage}</div> : null}
-    </article>
-  );
-}
-
-export function DayAgenda({ day, onSelect }: { day: ScheduleDay; onSelect?: (entry: ScheduleEntry) => void }) {
-  return (
-    <section className="day-agenda">
-      <header className="day-agenda-header">
-        <span className={day.isToday ? "date-tile today" : "date-tile"}>
-          <small>{day.weekdayShort}</small>
-          <strong>{day.dayNumber}</strong>
-        </span>
-        <div>
-          <h3>{day.isToday ? "Today" : day.weekday}</h3>
-          <p>{day.date}</p>
-        </div>
-      </header>
-      <div className="agenda-list">
-        {day.entries.length > 0 ? (
-          day.entries.map((entry) => <Entry key={entry.id} entry={entry} onSelect={onSelect} />)
-        ) : (
-          <div className="empty-day">Nothing planned</div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-export function WeekView({ days, onSelect }: { days: ScheduleDay[]; onSelect?: (entry: ScheduleEntry) => void }) {
-  return (
-    <div className="week-grid">
-      {days.map((day) => (
-        <section className={day.isToday ? "week-day today" : "week-day"} key={day.date}>
-          <header>
-            <span>{day.weekdayShort}</span>
-            <strong>{day.dayNumber}</strong>
-          </header>
-          <div className="week-entries">
-            {day.entries.length > 0 ? (
-              day.entries.map((entry) => <Entry key={entry.id} entry={entry} compact onSelect={onSelect} />)
-            ) : (
-              <span className="no-activity">No activity</span>
-            )}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-export function MonthView({ days, onSelect }: { days: ScheduleDay[]; onSelect?: (entry: ScheduleEntry) => void }) {
-  const weekdays = days.slice(0, 7).map((day) => day.weekdayShort);
-  return (
-    <div className="month-shell">
-      <div className="month-weekdays">
-        {weekdays.map((weekday) => (
-          <span key={weekday}>{weekday}</span>
-        ))}
-      </div>
-      <div className="month-grid">
-        {days.map((day) => (
-          <section
-            className={`${day.inPeriod ? "month-day" : "month-day outside"} ${day.isToday ? "today" : ""}`}
-            key={day.date}>
-            <header>
-              <strong>{day.dayNumber}</strong>
-            </header>
-            <div className="month-entries">
-              {day.entries.slice(0, 3).map((entry) => (
-                <Entry key={entry.id} entry={entry} compact onSelect={onSelect} />
-              ))}
-              {day.entries.length > 3 ? <span className="more">+{day.entries.length - 3} more</span> : null}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function ScheduleApp() {
   const { app, data, setData, isConnected, error, toolError, setToolError } =
     useMcpToolData<ScheduleData>("SimplePost Schedule");
   const [loading, setLoading] = useState(false);
-
-  const activeDay = useMemo(() => {
-    if (!data) return null;
-    return data.days.find((day) => day.date === data.anchorDate) ?? data.days.find((day) => day.inPeriod) ?? null;
-  }, [data]);
 
   async function navigate(view: ScheduleView, date: string) {
     if (!app || !data) return;
@@ -259,74 +104,26 @@ function ScheduleApp() {
   }
 
   return (
-    <main className={loading ? "schedule-app is-loading" : "schedule-app"}>
-      <header className="toolbar">
-        <div className="brand-lockup">
-          <span className="brand-mark" />
-          <div>
-            <span className="eyebrow">SimplePost schedule</span>
-            <h1>{data.periodLabel}</h1>
-          </div>
+    <main className="sp-workspace" aria-busy={loading}>
+      <header className="sp-header">
+        <div>
+          <span className="sp-mark">SP</span>
+          <strong>SimplePost</strong>
         </div>
-        <div className="toolbar-actions">
-          <button
-            className="icon-button"
-            type="button"
-            aria-label={`Previous ${data.view}`}
-            onClick={() => navigate(data.view, data.previousAnchorDate)}>
-            ←
-          </button>
-          <button
-            className="icon-button"
-            type="button"
-            aria-label={`Next ${data.view}`}
-            onClick={() => navigate(data.view, data.nextAnchorDate)}>
-            →
-          </button>
-          <button className="today-button" type="button" onClick={() => navigate(data.view, data.todayAnchorDate)}>
-            Today
-          </button>
-          {app ? (
-            <button
-              className="expand-button"
-              type="button"
-              onClick={() => app.requestDisplayMode({ mode: "fullscreen" })}>
-              Expand
-            </button>
-          ) : null}
-        </div>
+        <Button variant="outline" size="sm" onClick={() => void app?.requestDisplayMode({ mode: "fullscreen" })}>
+          Expand
+        </Button>
       </header>
-
-      <div className="view-row">
-        <Summary data={data} />
-        <div className="view-switcher" role="tablist" aria-label="Schedule view">
-          {VIEW_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="tab"
-              aria-selected={data.view === option.value}
-              onClick={() => navigate(option.value, data.anchorDate)}>
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <section className="calendar-frame" aria-busy={loading}>
-        {data.view === "month" ? (
-          <MonthView days={data.days} />
-        ) : data.view === "week" ? (
-          <WeekView days={data.days} />
-        ) : activeDay ? (
-          <DayAgenda day={activeDay} />
-        ) : null}
-      </section>
-
-      <footer>
-        <span>{data.timeZone}</span>
-        {data.summary.pastCount > 0 ? <span>{data.summary.pastCount} past items shown</span> : null}
-      </footer>
+      <Calendar
+        data={data}
+        busy={loading}
+        onNavigate={(input) =>
+          void navigate((input.view as ScheduleView) ?? data.view, (input.date as string) ?? data.anchorDate)
+        }
+      />
+      {data.summary.pastCount > 0 ? (
+        <p className="text-xs text-muted-foreground mt-3">{data.summary.pastCount} past items shown</p>
+      ) : null}
     </main>
   );
 }

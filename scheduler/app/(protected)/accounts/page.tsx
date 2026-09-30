@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AccountCardView, AccountsHeading, ConnectAccountsEmpty } from "@/components/visual/account-card";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
@@ -168,25 +169,14 @@ export default function AccountsPage() {
       <PostConnectAiPrompt />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-        <div className="mb-6 flex items-center justify-between gap-3 animate-reveal">
-          <div className="flex items-center gap-3">
-            <div className="section-kicker !mb-0">
-              <span className="section-kicker-dot" />
-              <span className="section-kicker-label">Accounts</span>
-            </div>
-            <span className="h-3 w-px bg-border" />
-            <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              Connected <span className="text-primary">accounts</span>
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
+        <AccountsHeading
+          action={
             <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Connect account</span>
+              <span>Connect account</span>
             </Button>
-          </div>
-        </div>
-
+          }
+        />
         <HelpLink path="/accounts" className="mb-4">
           Connection and account requirements
         </HelpLink>
@@ -205,19 +195,14 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : accounts.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center animate-reveal animate-reveal-delay-1">
-            <div className="w-12 h-12 mx-auto rounded-lg border border-border bg-secondary flex items-center justify-center mb-5">
-              <Plus className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <h3 className="text-base font-semibold mb-1.5">No accounts connected</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-              Connect your first social media account to start scheduling and publishing posts.
-            </p>
-            <Button onClick={() => setShowConnectDialog(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Connect your first account
-            </Button>
-          </div>
+          <ConnectAccountsEmpty
+            action={
+              <Button onClick={() => setShowConnectDialog(true)}>
+                <Plus className="h-4 w-4" />
+                Connect your first account
+              </Button>
+            }
+          />
         ) : (
           <div className="space-y-3 animate-reveal animate-reveal-delay-1">
             {accounts.map((account: ConnectedAccount) => {
@@ -226,47 +211,46 @@ export default function AccountsPage() {
               const credentialBadge = getCredentialBadge(account);
 
               return (
-                <div key={account.id} className="rounded-2xl border border-border bg-card p-5 card-accent-hover">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <AccountAvatar
-                        accountId={account.id}
-                        avatarVersion={account.updatedAt}
-                        profilePicture={account.profilePicture}
-                        platform={platformConfig.id}
-                        size="lg"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-base text-foreground truncate">
-                            {getAccountDisplayName(account)}
-                          </h3>
-                          {credentialBadge ? (
-                            <span
-                              className={`inline-flex w-fit shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${credentialBadge.className}`}>
-                              {credentialBadge.label}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                          <span>{platformConfig.name}</span>
-                          <span className="text-[#555555]">·</span>
-                          <span>Connected {new Date(account.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        <HelpLink path={platformHelpPath(account.platform)} className="mt-2">
-                          Connection help
-                        </HelpLink>
-                        {account.email && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>
-                        )}
-                        {credentialBadge && account.credentialStatus && (
-                          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-                            {account.credentialStatus.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                <AccountCardView
+                  key={account.id}
+                  avatar={
+                    <AccountAvatar
+                      accountId={account.id}
+                      avatarVersion={account.updatedAt}
+                      profilePicture={account.profilePicture}
+                      platform={platformConfig.id}
+                      size="lg"
+                    />
+                  }
+                  name={getAccountDisplayName(account)}
+                  platform={platformConfig.name}
+                  connectedAt={new Date(account.createdAt).toLocaleDateString()}
+                  health={
+                    credentialBadge ? (
+                      <span
+                        className={`inline-flex w-fit shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${credentialBadge.className}`}>
+                        {credentialBadge.label}
+                      </span>
+                    ) : null
+                  }
+                  help={
+                    <HelpLink path={platformHelpPath(account.platform)} className="mt-2">
+                      Connection help
+                    </HelpLink>
+                  }
+                  details={
+                    <>
+                      {account.email && <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>}
+                      {credentialBadge && account.credentialStatus && (
+                        <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+                          {account.credentialStatus.message}
+                        </p>
+                      )}
+                    </>
+                  }
+                  actions={
+                    <>
+                      {" "}
                       <Button
                         variant="outline"
                         size="sm"
@@ -283,9 +267,9 @@ export default function AccountsPage() {
                         <X className="h-3 w-3" />
                         <span className="hidden sm:inline">Disconnect</span>
                       </Button>
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
               );
             })}
           </div>

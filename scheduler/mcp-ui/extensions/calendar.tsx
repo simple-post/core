@@ -1,18 +1,20 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Settings2 } from "lucide-react";
+import { useState } from "react";
 
-import { PlatformIcon } from "../../components/platform-icon";
+import { format } from "date-fns";
+import { CalendarDays, Settings2 } from "lucide-react";
+
+import { PlatformIconBadge } from "../../components/platform-icons";
+import { Button } from "../../components/ui/button";
+import {
+  ScheduleCalendarView,
+  type CalendarActionProps,
+  type DayEntry,
+} from "../../components/visual/schedule-calendar";
 
 import type { ScheduleData, ScheduleEntry } from "../schedule";
-
 export function PlatformBadge({ platform }: { platform: string }) {
-  return (
-    <span className={`sp-platform-badge platform-${platform}`} title={platform}>
-      <PlatformIcon platform={platform} className="sp-platform-icon" />
-      <span className="sp-sr-only">{platform}</span>
-    </span>
-  );
+  return <PlatformIconBadge platform={platform} />;
 }
-
 export function Calendar({
   data,
   busy,
@@ -20,124 +22,110 @@ export function Calendar({
   onSelect,
   onNavigate,
   onSettings,
+  onCreate,
 }: {
   data: ScheduleData;
   busy: boolean;
   selectedId?: string;
-  onSelect: (entry: ScheduleEntry) => void;
+  onSelect?: (entry: ScheduleEntry) => void;
   onNavigate: (input: Record<string, unknown>) => void;
-  onSettings: () => void;
+  onSettings?: () => void;
+  onCreate?: () => void;
 }) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const entriesByDay = new Map<string, DayEntry[]>();
+  const entries = new Map<string, ScheduleEntry>();
+  for (const day of data.days) {
+    entriesByDay.set(
+      day.date,
+      day.entries.map((entry) => {
+        entries.set(entry.id, entry);
+        if (entry.postId) entries.set(entry.postId, entry);
+        return {
+          key: entry.id,
+          time: new Date(`${day.date}T${entry.localTime}`),
+          timeLabel: entry.localTime,
+          isPast: entry.isPast,
+          isSlot: entry.kind === "slot",
+          posts:
+            entry.kind === "post"
+              ? [
+                  {
+                    id: entry.postId ?? entry.id,
+                    message: entry.message ?? "",
+                    status: entry.status,
+                    platforms: entry.platforms,
+                    errorMessage: entry.errorMessage,
+                  },
+                ]
+              : [],
+        };
+      }),
+    );
+  }
+  const date = (value: string) => new Date(`${value}T12:00:00`);
+  const Action = ({ target, children, className, title }: CalendarActionProps) => {
+    const entry = "id" in target ? entries.get(target.id) : undefined;
+    if (entry && !onSelect)
+      return (
+        <div className={className} title={title}>
+          {children}
+        </div>
+      );
+    if (target.kind === "create" && !onCreate) return null;
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        title={title}
+        className={`${className ?? ""} w-full text-left ${entry?.id === selectedId ? "ring-2 ring-primary" : ""}`}
+        aria-pressed={entry ? entry.id === selectedId : undefined}
+        onClick={() => {
+          if (entry) onSelect?.(entry);
+          else if (target.kind === "settings") onSettings?.();
+          else if (target.kind === "create") onCreate?.();
+        }}>
+        {children}
+      </button>
+    );
+  };
   const days = data.view === "day" ? data.days.filter((day) => day.date === data.anchorDate) : data.days;
   return (
-    <section className="sp-calendar-section" aria-label="Publishing calendar">
-      <div className="sp-section-heading">
-        <h2>
+    <section aria-label="Publishing calendar" className="simplepost-visual space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
           <CalendarDays size={18} /> Calendar
         </h2>
-        <button className="sp-icon-button" aria-label="Manage recurring slots" onClick={onSettings}>
-          <Settings2 size={16} />
-        </button>
+        {onSettings ? (
+          <Button variant="ghost" size="icon" aria-label="Manage recurring slots" onClick={onSettings}>
+            <Settings2 size={16} />
+          </Button>
+        ) : null}
       </div>
-      <div className="sp-calendar">
-        <div className="sp-calendar-toolbar">
-          <div className="sp-calendar-period">
-            <button
-              aria-label="Previous period"
-              disabled={busy}
-              onClick={() => onNavigate({ date: data.previousAnchorDate })}>
-              <ChevronLeft size={16} />
-            </button>
-            <button aria-label="Next period" disabled={busy} onClick={() => onNavigate({ date: data.nextAnchorDate })}>
-              <ChevronRight size={16} />
-            </button>
-            <h3>{data.periodLabel}</h3>
-            <button disabled={busy} onClick={() => onNavigate({ date: data.todayAnchorDate })}>
-              Today
-            </button>
-          </div>
-          <div className="sp-view-switch" aria-label="Calendar view">
-            {(["month", "week", "day"] as const).map((view) => (
-              <button key={view} disabled={busy} aria-pressed={data.view === view} onClick={() => onNavigate({ view })}>
-                {view[0].toUpperCase() + view.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="sp-calendar-summary">
-          <div className="sp-legend">
-            <span>
-              <i className="open" />
-              {data.summary.openSlotCount} open
-            </span>
-            <span>
-              <i className="scheduled" />
-              {data.summary.scheduledCount} scheduled
-            </span>
-            <span>
-              <i className="published" />
-              {data.summary.publishedCount} posted
-            </span>
-            {data.summary.failedCount > 0 ? (
-              <span>
-                <i className="failed" />
-                {data.summary.failedCount} failed
-              </span>
-            ) : null}
-          </div>
-          <span>{data.timeZone}</span>
-        </div>
-        <div className={`sp-calendar-grid sp-calendar-view-${data.view}`}>
-          {days.map((day) => (
-            <div
-              key={day.date}
-              className={`sp-calendar-day${day.isToday ? " is-today" : ""}${day.inPeriod ? "" : " is-outside"}`}>
-              <button
-                className="sp-day-heading"
-                aria-label={`Open ${day.weekday}, ${day.date} in day view`}
-                disabled={busy}
-                onClick={() => onNavigate({ view: "day", date: day.date })}>
-                <span>{day.weekdayShort}</span>
-                <strong>{day.dayNumber}</strong>
-              </button>
-              <div className="sp-day-entries">
-                {day.entries.length > 0 ? (
-                  (data.view === "month" ? day.entries.slice(0, 3) : day.entries).map((entry) => (
-                    <button
-                      key={entry.id}
-                      className={`sp-calendar-entry status-${entry.status}${selectedId === entry.id ? " is-selected" : ""}`}
-                      aria-pressed={selectedId === entry.id}
-                      onClick={() => onSelect(entry)}>
-                      <span className="sp-entry-time">
-                        {entry.kind === "slot" ? <Plus size={12} /> : <i />}
-                        {entry.localTime}
-                        <span className="sp-entry-platforms">
-                          {entry.platforms.map((platform) => (
-                            <PlatformBadge key={platform} platform={platform} />
-                          ))}
-                        </span>
-                      </span>
-                      <span className="sp-entry-message">
-                        {entry.message || (entry.isPast ? "Unused slot" : "Open slot")}
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="sp-no-activity">No activity</p>
-                )}
-                {data.view === "month" && day.entries.length > 3 ? (
-                  <button
-                    className="sp-more-entries"
-                    disabled={busy}
-                    onClick={() => onNavigate({ view: "day", date: day.date })}>
-                    +{day.entries.length - 3} more
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <fieldset disabled={busy} className="min-w-0">
+        <ScheduleCalendarView
+          view={data.view}
+          periodLabel={data.periodLabel}
+          range={{ days: days.map((day) => date(day.date)), periodStart: date(data.anchorDate) }}
+          anchorDate={date(selectedDay && days.some((day) => day.date === selectedDay) ? selectedDay : data.anchorDate)}
+          now={date(data.todayAnchorDate)}
+          entriesByDay={entriesByDay}
+          summary={{
+            open: data.summary.openSlotCount,
+            scheduled: data.summary.scheduledCount,
+            posted: data.summary.publishedCount,
+            failed: data.summary.failedCount,
+          }}
+          help={<span className="block mb-3 text-xs text-muted-foreground">{data.timeZone}</span>}
+          setAnchorDate={(day) => setSelectedDay(format(day, "yyyy-MM-dd"))}
+          setView={(view) => onNavigate({ view })}
+          onOpenDay={(day) => onNavigate({ view: "day", date: format(day, "yyyy-MM-dd") })}
+          move={(direction) => onNavigate({ date: direction < 0 ? data.previousAnchorDate : data.nextAnchorDate })}
+          onToday={() => onNavigate({ date: data.todayAnchorDate })}
+          renderAction={Action}
+          slotHint={onSelect ? "Select this time to plan a post with ChatGPT" : "Available for a new post"}
+        />
+      </fieldset>
     </section>
   );
 }

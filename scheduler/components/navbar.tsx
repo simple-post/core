@@ -1,43 +1,18 @@
 "use client";
 
-import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { LayoutGrid, Plus, Users } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 
-/**
- * Primary navigation: the core workspace destinations shown on every app page.
- * To add a new top-level section, add an entry here. Account/settings pages
- * (Subscription, API keys, AI integrations) live in the UserMenu instead.
- */
-interface NavItem {
-  href: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  isActive: (pathname: string) => boolean;
-}
-
-const PRIMARY_NAV: NavItem[] = [
-  {
-    href: "/",
-    label: "Posts",
-    icon: LayoutGrid,
-    isActive: (pathname) => pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule"),
-  },
-  {
-    href: "/accounts",
-    label: "Accounts",
-    icon: Users,
-    isActive: (pathname) => pathname.startsWith("/accounts"),
-  },
-];
+import { SimplePostBrand, WorkspaceNavigation } from "./visual/navigation";
 
 interface NavbarProps {
   /** Page-specific contextual actions (e.g. Edit/Delete on a post). */
@@ -69,34 +44,35 @@ export function Navbar({ actions }: NavbarProps) {
           href="/"
           className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
           aria-label="SimplePost home">
-          <img src="/simplepost-logo.png" alt="" className="h-7 w-7 drop-shadow-lg" />
-          <span className="hidden font-mono text-sm font-medium tracking-tight text-foreground sm:inline">
-            SimplePost
-          </span>
+          <SimplePostBrand logoSrc="/simplepost-logo.png" />
         </Link>
 
-        <nav className="ml-1 flex items-center gap-1 sm:ml-3" aria-label="Primary">
-          {PRIMARY_NAV.map((item) => {
-            const active = item.isActive(pathname);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-label={item.label}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "inline-flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors sm:px-3",
-                  active
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
-                )}>
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        <WorkspaceNavigation
+          active={
+            pathname.startsWith("/accounts")
+              ? "accounts"
+              : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
+                ? "posts"
+                : null
+          }
+          renderItem={({ id, label, className, children }) => (
+            <Link
+              href={id === "posts" ? "/" : "/accounts"}
+              aria-label={label}
+              aria-current={
+                (
+                  id === "accounts"
+                    ? pathname.startsWith("/accounts")
+                    : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
+                )
+                  ? "page"
+                  : undefined
+              }
+              className={className}>
+              {children}
+            </Link>
+          )}
+        />
 
         <div className="ml-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
           {actions}

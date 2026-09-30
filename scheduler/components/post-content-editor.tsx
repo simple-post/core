@@ -3,13 +3,12 @@
 import type React from "react";
 import { useCallback, useRef } from "react";
 
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import type { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import type { MediaFile, ThreadSegment } from "@/types";
 
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
 import { ThreadSegmentsEditor } from "./thread-segments-editor";
+import { MessageComposer } from "./visual/message-composer";
 
 type CharCounterState = ReturnType<typeof getMainFieldCharCounterState>;
 
@@ -67,35 +66,25 @@ export function PostContentEditor({
 
   return (
     <div className="space-y-4">
-      <div>
-        <Label htmlFor={id} className="text-sm font-medium">
-          Message
-        </Label>
-        <Textarea
-          id={id}
-          placeholder={placeholder}
-          value={message}
-          onChange={(e) => onMessageChange(e.target.value)}
-          onPaste={handlePaste}
-          className="min-h-32 resize-none mt-2"
-          maxLength={maxTextLength}
-        />
-        <div className="mt-1">
-          <MediaUpload ref={mediaUploadRef} media={media} onMediaChange={onMediaChange} compact />
-        </div>
-        <div className="mt-2 flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-xs">
-          {maxTextLength && charCounter ? (
+      <MessageComposer
+        id={id}
+        message={message}
+        onMessageChange={onMessageChange}
+        placeholder={placeholder}
+        onPaste={handlePaste}
+        maxLength={maxTextLength}
+        media={<MediaUpload ref={mediaUploadRef} media={media} onMediaChange={onMediaChange} compact />}
+        counter={
+          maxTextLength && charCounter ? (
             <>
               <span className={charCounter.countClassName}>
                 {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
               </span>
               {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
             </>
-          ) : (
-            <span className="text-muted-foreground">{message.length.toLocaleString()}</span>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
       {thread ? (
         <ThreadSegmentsEditor

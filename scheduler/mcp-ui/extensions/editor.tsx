@@ -5,6 +5,10 @@ import { type PostPreviewData } from "@simple-post/preview-react";
 import { CalendarClock, Send, Pencil, Save, ArrowLeft } from "lucide-react";
 
 import { AccountRowPicker } from "../../components/account-row-picker";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { MessageComposer } from "../../components/visual/message-composer";
 import { PreviewSwitcher } from "../preview-switcher";
 
 import { AccountIdentity, platformName } from "./account-identity";
@@ -349,7 +353,9 @@ export function Editor({
                   : "Working copy saved"}
           </span>
         </div>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           disabled={working}
           onClick={() =>
             void act(async () => {
@@ -360,7 +366,7 @@ export function Editor({
             })
           }>
           <ArrowLeft size={14} /> Back to workspace
-        </button>
+        </Button>
       </header>
       {notice ? (
         <div role="status" className="sp-notice">
@@ -368,7 +374,9 @@ export function Editor({
         </div>
       ) : null}
       {conflicted ? (
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => {
             const blob = new Blob([JSON.stringify(content, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
@@ -379,7 +387,7 @@ export function Editor({
             URL.revokeObjectURL(url);
           }}>
           Download preserved local edits
-        </button>
+        </Button>
       ) : null}
       {canValidate ? null : (
         <div className="sp-notice">
@@ -449,18 +457,21 @@ export function Editor({
               </p>
             ) : null}
           </details>
-          <button
+          <Button
+            size="sm"
             disabled={working || !statusEditable || dirty || proposal.revision !== session.revision}
-            className="sp-primary"
+            variant="default"
             onClick={() => change(mergeProposal(content, proposal.patch))}>
             Apply to working copy
-          </button>
+          </Button>
           <span>Applying does not save or publish the post.</span>
         </section>
       ) : null}
       <footer className="sp-editor-footer">
         <div className="sp-actions">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() =>
               void act(async () => {
@@ -475,46 +486,60 @@ export function Editor({
               })
             }>
             Check platform rules
-          </button>
-          <button
-            className="sp-primary"
+          </Button>
+          <Button
+            size="sm"
+            variant="default"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => void act(() => commit("draft"))}>
             <Save size={14} /> {session.status === "scheduled" ? "Move to drafts" : "Save draft"}
-          </button>
+          </Button>
         </div>
         <div className="sp-actions">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("schedule")}>
             <CalendarClock size={14} /> Schedule
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("now")}>
             <Send size={14} /> Post now
-          </button>
+          </Button>
         </div>
         <div className="sp-actions">
-          <button aria-expanded={manual} aria-controls="sp-manual-editor" onClick={() => setManual(!manual)}>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={manual}
+            aria-controls="sp-manual-editor"
+            onClick={() => setManual(!manual)}>
             <Pencil size={14} /> {manual ? "Hide manual editor" : "Edit manually"}
-          </button>
+          </Button>
         </div>
       </footer>
       <div className={manual ? "sp-editor-grid is-manual" : "sp-editor-grid"}>
         {manual ? (
           <div className="sp-compose" id="sp-manual-editor">
             <div className="sp-variant-tabs" aria-label="Edit destination variant">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 aria-pressed={!activeAccount}
                 onClick={() => {
                   setActiveAccount(null);
                   setContextActive(true);
                 }}>
                 Shared content
-              </button>
+              </Button>
               {variants.map((account) => (
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   key={account.accountId}
                   aria-pressed={activeAccount === account.accountId}
                   onClick={() => {
@@ -522,7 +547,7 @@ export function Editor({
                     setContextActive(true);
                   }}>
                   {account.platform} · {account.displayName ?? account.username ?? "account"}
-                </button>
+                </Button>
               ))}
             </div>
             {activeAccount ? (
@@ -531,7 +556,9 @@ export function Editor({
                   ? "Custom content for this destination."
                   : "This destination inherits the shared content. Editing creates a custom version."}{" "}
                 {override ? (
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={working || !statusEditable}
                     onClick={() =>
                       change({
@@ -542,31 +569,27 @@ export function Editor({
                       })
                     }>
                     Use shared content
-                  </button>
+                  </Button>
                 ) : null}
               </p>
             ) : null}
             <fieldset disabled={!statusEditable || working}>
               <legend>{selectedAccount ? `${selectedAccount.platform} version` : "Shared post"}</legend>
-              <label>
-                Post text
-                <textarea
-                  aria-label="Post text"
-                  value={displayedMessage}
-                  maxLength={100_000}
-                  rows={9}
-                  onChange={(event) => changeVariant({ message: event.target.value })}
-                  onFocus={() => setContextActive(true)}
-                />
-              </label>
-              <small>{displayedMessage.length.toLocaleString()} characters</small>
+              <MessageComposer
+                id="sp-post-text"
+                label="Post text"
+                message={displayedMessage}
+                maxLength={100_000}
+                onMessageChange={(message) => changeVariant({ message })}
+                onFocus={() => setContextActive(true)}
+              />
               <div className="sp-thread">
                 <h3>Thread replies</h3>
                 {displayedThread.map((part, index) => (
                   <div key={index}>
                     <label>
                       Reply {index + 1}
-                      <textarea
+                      <Textarea
                         rows={3}
                         value={part.message}
                         onChange={(event) =>
@@ -579,16 +602,21 @@ export function Editor({
                       />
                     </label>
                     {part.media?.length ? <small>{part.media.length} existing attachment(s) preserved</small> : null}
-                    <button onClick={() => changeVariant({ thread: displayedThread.filter((_, i) => i !== index) })}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => changeVariant({ thread: displayedThread.filter((_, i) => i !== index) })}>
                       Remove reply
-                    </button>
+                    </Button>
                   </div>
                 ))}
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={displayedThread.length >= 24}
                   onClick={() => changeVariant({ thread: [...displayedThread, { message: "" }] })}>
                   Add reply
-                </button>
+                </Button>
               </div>
               <div className="sp-media">
                 <h3>Media</h3>
@@ -597,22 +625,26 @@ export function Editor({
                     <span>
                       {file.filename} · {file.type}
                     </span>
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => changeVariant({ media: displayedMedia.filter((item) => item.id !== file.id) })}>
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 ))}
                 <label>
                   Image or video URL
-                  <input
+                  <Input
                     type="url"
                     value={mediaUrl}
                     onChange={(event) => setMediaUrl(event.target.value)}
                     placeholder="https://…"
                   />
                 </label>
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={!mediaUrl}
                   onClick={() =>
                     void act(async () => {
@@ -640,7 +672,7 @@ export function Editor({
                     })
                   }>
                   Import media
-                </button>
+                </Button>
                 <small>
                   Media from chat can also be imported by your assistant. Original attachments are retained while
                   editing.
@@ -652,7 +684,7 @@ export function Editor({
                   {["youtube", "pinterest", "tiktok", "forem"].includes(selectedAccount.platform) ? (
                     <label>
                       Title
-                      <input
+                      <Input
                         value={typeof options.title === "string" ? options.title : ""}
                         onChange={(event) => option("title", event.target.value)}
                       />
@@ -727,14 +759,14 @@ export function Editor({
                     <>
                       <label>
                         Board ID
-                        <input
+                        <Input
                           value={String(options.boardId ?? "")}
                           onChange={(event) => option("boardId", event.target.value)}
                         />
                       </label>
                       <label>
                         Destination link
-                        <input
+                        <Input
                           type="url"
                           value={String(options.link ?? "")}
                           onChange={(event) => option("link", event.target.value)}
@@ -758,7 +790,9 @@ export function Editor({
               ) : null}
             </fieldset>
             <div className="sp-ai-actions">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={working || !statusEditable}
                 onClick={() =>
                   void act(async () => {
@@ -772,8 +806,10 @@ export function Editor({
                   })
                 }>
                 Ask ChatGPT to shorten
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={working || !statusEditable}
                 onClick={() =>
                   void act(async () => {
@@ -787,7 +823,7 @@ export function Editor({
                   })
                 }>
                 Ask for platform versions
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -913,7 +949,9 @@ export function Editor({
               <p key={result.accountId}>
                 {result.platform}: {result.success ? "Published" : (result.message ?? result.error ?? "Failed")}
                 {result.postUrl ? (
-                  <button onClick={() => void app.openLink({ url: result.postUrl! })}>Open published post</button>
+                  <Button variant="outline" size="sm" onClick={() => void app.openLink({ url: result.postUrl! })}>
+                    Open published post
+                  </Button>
                 ) : null}
               </p>
             ),
@@ -943,7 +981,7 @@ export function Editor({
           {review === "schedule" ? (
             <label>
               Publishing time · {timeZone}
-              <input
+              <Input
                 type="datetime-local"
                 value={localTime}
                 disabled={working || !statusEditable}
@@ -963,15 +1001,16 @@ export function Editor({
               .join(", ")}
             . Review every preview above before continuing.
           </p>
-          <button
-            className="sp-primary"
+          <Button
+            size="sm"
+            variant="default"
             disabled={working || (review === "schedule" && !localTime)}
             onClick={() => void act(() => commit(review))}>
             {review === "schedule" ? "Confirm schedule" : "Confirm publish now"}
-          </button>
-          <button disabled={working} onClick={() => setReview(null)}>
+          </Button>
+          <Button variant="outline" size="sm" disabled={working} onClick={() => setReview(null)}>
             Keep editing
-          </button>
+          </Button>
         </section>
       ) : null}
     </section>

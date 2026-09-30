@@ -4,20 +4,9 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import {
-  Trash2,
-  Edit,
-  AlertCircle,
-  CalendarClock,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Quote,
-  Send,
-} from "lucide-react";
+import { Trash2, Edit, CalendarClock, ChevronLeft, ChevronRight, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
-import { PlatformIconBadge } from "@/components/platform-icons";
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
 import {
   AlertDialog,
@@ -29,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,10 +26,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PostCardView } from "@/components/visual/post-card";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
-import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { SocialPost, ConnectedAccount } from "@/types";
 
@@ -334,229 +323,111 @@ function PostCard({
   return (
     <>
       <Link href={`/posts/${post.id}`}>
-        <div className="border border-border rounded-2xl p-4 cursor-pointer bg-card card-accent-hover">
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 relative">
-              {hasMedia ? (
-                <div className="w-20 h-20 bg-secondary border border-border rounded-xl relative overflow-hidden">
-                  {post.media[0].thumbnailUrl || post.media[0].type === "image" ? (
-                    <img
-                      src={post.media[0].thumbnailUrl || post.media[0].url}
-                      alt={post.media[0].filename}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        // Use placeholder image and prevent infinite loop
-                        if (target.src !== "/placeholder.jpg") {
-                          target.src = "/placeholder.jpg";
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-secondary gap-1">
-                      <svg
-                        className="h-10 w-10 text-muted-foreground"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span className="text-[10px] text-muted-foreground">Video</span>
-                    </div>
-                  )}
-                  {post.media.length > 1 && (
-                    <div className="absolute top-1.5 right-1.5 h-5 w-5 bg-foreground/90 backdrop-blur-sm text-background rounded-full text-xs flex items-center justify-center shadow-md font-medium">
-                      {post.media.length}
-                    </div>
-                  )}
-                  {post.media[0].type === "video" && post.media[0].thumbnailUrl && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                        <svg className="h-4 w-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-20 h-20 bg-secondary border border-border rounded-xl flex items-center justify-center">
-                  <svg
-                    className="h-10 w-10 text-muted-foreground"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24">
+        <PostCardView
+          onImageError={(event) => {
+            const target = event.currentTarget;
+            if (!target.src.endsWith("/placeholder.jpg")) target.src = "/placeholder.jpg";
+          }}
+          post={post}
+          platforms={uniquePlatforms}
+          dateLabel={
+            isScheduled && post.scheduledFor
+              ? formatDate(post.scheduledFor)
+              : isFailed
+                ? formatTimeAgo(post.scheduledFor || post.createdAt)
+                : isDraft
+                  ? `Saved ${formatTimeAgo(post.createdAt)}`
+                  : formatTimeAgo(post.publishedAt || post.createdAt)
+          }
+          accountLabels={[
+            ...postAccounts.slice(0, 2).map((account) => getAccountDisplayName(account)),
+            ...(postAccounts.length > 2 ? [`+${postAccounts.length - 2}`] : []),
+          ]}
+          actions={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-shrink-0 h-8 w-8 p-0"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}>
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
                     />
                   </svg>
-                </div>
-              )}
-              {/* Platform indicator */}
-              {uniquePlatforms.length > 0 && (
-                <div className="absolute -bottom-1 -right-1 flex max-w-[5.5rem] flex-wrap justify-end gap-0.5">
-                  {uniquePlatforms.map((platform) => (
-                    <PlatformIconBadge key={platform} platform={platform} />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <p className="text-sm text-foreground line-clamp-2 flex-1">{post.message || "No message"}</p>
-                    {isFailed && (
-                      <Badge variant="destructive" className="flex-shrink-0 text-xs">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Failed
-                      </Badge>
-                    )}
-                    {isDraft && (
-                      <Badge variant="secondary" className="flex-shrink-0 text-xs">
-                        <FileText className="h-3 w-3 mr-1" />
-                        Draft
-                      </Badge>
-                    )}
-                    {post.quotePostId && (
-                      <Badge variant="outline" className="flex-shrink-0 text-xs">
-                        <Quote className="h-3 w-3 mr-1" />
-                        Quote
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    {isScheduled && post.scheduledFor ? (
-                      <span>{formatDate(post.scheduledFor)}</span>
-                    ) : isFailed ? (
-                      <span>{formatTimeAgo(post.scheduledFor || post.createdAt)}</span>
-                    ) : isDraft ? (
-                      <span>Saved {formatTimeAgo(post.createdAt)}</span>
-                    ) : (
-                      <span>{formatTimeAgo(post.publishedAt || post.createdAt)}</span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 font-mono text-[11px] uppercase tracking-[0.08em]">
-                    {postAccounts.slice(0, 2).map((account, idx) => {
-                      const platformConfig = getPlatformById(account.platform);
-                      return (
-                        <div key={account.id} className="flex items-center gap-1 text-muted-foreground">
-                          {platformConfig && <div className={`w-1 h-1 rounded-[1px] ${platformConfig.color}`} />}
-                          <span>{getAccountDisplayName(account)}</span>
-                          {idx < Math.min(postAccounts.length - 1, 1) && <span className="text-[#555555]">·</span>}
-                        </div>
-                      );
-                    })}
-                    {postAccounts.length > 2 && <div className="text-muted-foreground">+{postAccounts.length - 2}</div>}
-                  </div>
-                </div>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex-shrink-0 h-8 w-8 p-0"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}>
-                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                        />
-                      </svg>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {isDraft && (
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void handlePostNow();
-                        }}
-                        disabled={submitPostMutation.isPending}
-                        className="cursor-pointer">
-                        <Send className="h-4 w-4 mr-2" />
-                        {submitPostMutation.isPending ? "Posting..." : "Post Now"}
-                      </DropdownMenuItem>
-                    )}
-                    {(isScheduled || isDraft) && (
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowScheduleDialog(true);
-                        }}
-                        className="cursor-pointer">
-                        <CalendarClock className="h-4 w-4 mr-2" />
-                        {isScheduled ? "Reschedule" : "Schedule"}
-                      </DropdownMenuItem>
-                    )}
-                    {(isScheduled || isDraft || isFailed) && (
-                      <Link href={`/posts/${post.id}/edit`}>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                          className="cursor-pointer">
-                          <Edit className="h-4 w-4 mr-2" />
-                          {isFailed ? "Edit and Retry" : "Edit"}
-                        </DropdownMenuItem>
-                      </Link>
-                    )}
-                    {canQuote && (
-                      <Link href={`/schedule?quotePostId=${post.id}`}>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                          className="cursor-pointer">
-                          <Quote className="h-4 w-4 mr-2" />
-                          Quote
-                        </DropdownMenuItem>
-                      </Link>
-                    )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isDraft && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handlePostNow();
+                    }}
+                    disabled={submitPostMutation.isPending}
+                    className="cursor-pointer">
+                    <Send className="h-4 w-4 mr-2" />
+                    {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                  </DropdownMenuItem>
+                )}
+                {(isScheduled || isDraft) && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowScheduleDialog(true);
+                    }}
+                    className="cursor-pointer">
+                    <CalendarClock className="h-4 w-4 mr-2" />
+                    {isScheduled ? "Reschedule" : "Schedule"}
+                  </DropdownMenuItem>
+                )}
+                {(isScheduled || isDraft || isFailed) && (
+                  <Link href={`/posts/${post.id}/edit`}>
                     <DropdownMenuItem
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
-                        setShowDeleteDialog(true);
                       }}
-                      className="text-destructive focus:text-destructive cursor-pointer">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
+                      className="cursor-pointer">
+                      <Edit className="h-4 w-4 mr-2" />
+                      {isFailed ? "Edit and Retry" : "Edit"}
                     </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </div>
+                  </Link>
+                )}
+                {canQuote && (
+                  <Link href={`/schedule?quotePostId=${post.id}`}>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className="cursor-pointer">
+                      <Quote className="h-4 w-4 mr-2" />
+                      Quote
+                    </DropdownMenuItem>
+                  </Link>
+                )}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowDeleteDialog(true);
+                  }}
+                  className="text-destructive focus:text-destructive cursor-pointer">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+        />
       </Link>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

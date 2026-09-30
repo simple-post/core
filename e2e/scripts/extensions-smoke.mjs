@@ -119,12 +119,13 @@ window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
  const send=(result)=>event.source.postMessage({jsonrpc:'2.0',id:req.id,result},'*');
  if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
- else if(req.method==='ui/notifications/initialized') event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:launch}},'*');
+ else if(req.method==='ui/notifications/initialized') event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:location.search.includes('legacy-schedule')?launch.schedule:launch}},'*');
  else if(req.method==='tools/call') {
    const {name,arguments:args}=req.params; window.calls.push({name,args}); let result;
    if(name==='start_post_editor_session'||name==='read_post_editor_session') result=session;
    else if(name==='update_post_editor_session') { if(args.expectedRevision!==session.revision) throw Error('stale'); session={...session,content:args.content,revision:session.revision+1,proposal:null}; result=session; }
    else if(name==='update_simplepost_settings') { launch.preferences={...launch.preferences,...args.set,timeZoneConfirmed:true}; result=launch.preferences; }
+   else if(name==='get_schedule') { if(args.view) launch.schedule.view=args.view;if(args.date)launch.schedule.anchorDate=args.date;result=launch.schedule;}
    else if(name==='get_simplepost_workspace') { if(args.timeZone) launch.schedule.timeZone=args.timeZone; if(args.view) launch.schedule.view=args.view; if(args.date) launch.schedule.anchorDate=args.date; result={...launch,recovery:[{id:session.sessionId,postId:session.postId,message:session.content.message,updatedAt:new Date().toISOString(),revision:session.revision,committing:false}]}; }
    else if(name==='commit_post_editor_session') { session={...session,postId:'saved',status:args.mode==='draft'?'draft':'scheduled',revision:session.revision+1}; result={editor:session,outcome:{post:{id:'saved'}}}; }
    else if(name==='validate_post_editor_session') result={summary:{isValid:true,errors:[],warnings:[]},accounts:[]};
@@ -146,17 +147,21 @@ const server = createServer(async (req, res) => {
       );
       res.end(await readFile(path.join(root, "public/mcp-widgets", filename)));
     } else if (req.url.startsWith("/widget")) {
-      const name = req.url.includes("review")
-        ? "post-preview"
-        : req.url.includes("editor")
-          ? "post-editor"
-          : "workspace";
+      const name = req.url.includes("legacy-schedule")
+        ? "schedule"
+        : req.url.includes("review")
+          ? "post-preview"
+          : req.url.includes("editor")
+            ? "post-editor"
+            : "workspace";
       const mount =
-        name === "workspace"
-          ? "mountWorkspaceWidget"
-          : name === "post-preview"
-            ? "mountPostPreviewWidget"
-            : "mountPostEditorWidget";
+        name === "schedule"
+          ? "mountScheduleWidget"
+          : name === "workspace"
+            ? "mountWorkspaceWidget"
+            : name === "post-preview"
+              ? "mountPostPreviewWidget"
+              : "mountPostEditorWidget";
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
         `<link rel="stylesheet" href="/mcp-widgets/${assets[name].stylesheet}"><div id="root"></div><script type="module">import {${mount}} from '/mcp-widgets/${assets[name].script}'; ${mount}();</script>`,
@@ -164,7 +169,7 @@ const server = createServer(async (req, res) => {
     } else {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
-        `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${req.url.includes("review") ? "?review" : req.url.includes("editor") ? "?editor" : ""}"></iframe>`,
+        `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${req.url.includes("legacy-schedule") ? "?legacy-schedule" : req.url.includes("review") ? "?review" : req.url.includes("editor") ? "?editor" : ""}"></iframe>`,
       );
     }
   } catch (error) {
@@ -236,9 +241,9 @@ try {
   );
   await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-sidebar.png") });
   await page.goto(`${base}/?month`);
-  await expect(page.frameLocator("iframe").getByRole("button", { name: "Month", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  await expect(page.frameLocator("iframe").getByRole("radio", { name: "Month view", exact: true })).toHaveAttribute(
+    "data-state",
+    "on",
   );
   assert.equal(
     await page
@@ -248,10 +253,10 @@ try {
     false,
     "narrow month must not overflow",
   );
-  await page.frameLocator("iframe").getByRole("button", { name: "Open Tuesday, 2026-09-29 in day view" }).click();
-  await expect(page.frameLocator("iframe").getByRole("button", { name: "Day", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  await page.frameLocator("iframe").getByRole("button", { name: "Open Tuesday, September 29 in day view" }).click();
+  await expect(page.frameLocator("iframe").getByRole("radio", { name: "Day view", exact: true })).toHaveAttribute(
+    "data-state",
+    "on",
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${base}/?month`);
@@ -420,6 +425,13 @@ try {
   );
   await expect(ui.locator("simple-post-preview")).toHaveCount(1);
   await expect(ui.locator("simple-post-preview")).toContainText("Scheduled review content");
+  await page.goto(`${base}/?legacy-schedule&week`);
+  await expect(ui.getByRole("heading", { name: "Sep 28 – Oct 4, 2026" })).toBeVisible();
+  await ui.getByRole("button", { name: "Next week", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.calls.filter((c) => c.name === "get_schedule").length)).toBe(1);
+  await ui.getByRole("radio", { name: "Month view", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.calls.at(-1)?.args.view)).toBe("month");
+  await expect(ui.getByRole("button", { name: "Expand", exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
   console.log(
     "PASS extensions browser smoke: calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",

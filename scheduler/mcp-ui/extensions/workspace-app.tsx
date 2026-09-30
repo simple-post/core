@@ -10,18 +10,28 @@ import {
   Settings2,
   ExternalLink,
   CircleHelp,
-  ImageIcon,
   ArrowLeft,
 } from "lucide-react";
 
-import { AccountIdentity } from "./account-identity";
-import { Calendar, PlatformBadge } from "./calendar";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Tabs } from "../../components/ui/tabs";
+import { AccountAvatarView } from "../../components/visual/account-avatar";
+import { AccountCardView, AccountsHeading, ConnectAccountsEmpty } from "../../components/visual/account-card";
+import { SimplePostBrand, WorkspaceNavigation } from "../../components/visual/navigation";
+import { getAccountDisplayName, getPlatformName } from "../../components/visual/platforms";
+import { PostCardView } from "../../components/visual/post-card";
+import { PostStatusTabs } from "../../components/visual/post-status-tabs";
+
+import { Calendar } from "./calendar";
 import { Editor } from "./editor";
 import { askChat, attachSelection, callTool, restoreEditorHint, useExtensionHost } from "./host";
 import { localDateTime } from "./timezone";
 
 import type { ScheduleEntry } from "../schedule";
 import type { EditorData, WorkspaceData } from "./types";
+import "./design-system.css";
 import "./workspace.css";
 
 export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
@@ -141,37 +151,45 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
     <main className="sp-workspace">
       <header className="sp-header">
         <div>
-          <span className="sp-mark">SP</span>
-          <strong>SimplePost</strong>
+          <SimplePostBrand logoSrc={`${launch.accountsUrl.split("/accounts")[0]}/simplepost-logo.png`} />
           {chooserOnly || editor ? null : (
-            <nav className="sp-top-nav" aria-label="Workspace sections">
-              <button
-                aria-pressed={tab !== "accounts"}
-                onClick={() =>
-                  setTab(
-                    ["drafts", "scheduled", "posted", "failed"].includes(launch.posts.status)
-                      ? launch.posts.status
-                      : "calendar",
-                  )
-                }>
-                Posts
-              </button>
-              <button aria-pressed={tab === "accounts"} onClick={() => setTab("accounts")}>
-                Accounts
-              </button>
-            </nav>
+            <WorkspaceNavigation
+              active={tab === "accounts" ? "accounts" : "posts"}
+              renderItem={({ id, label, className, children }) => (
+                <button
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={id === "accounts" ? tab === "accounts" : tab !== "accounts"}
+                  className={className}
+                  onClick={() =>
+                    setTab(
+                      id === "accounts"
+                        ? "accounts"
+                        : ["drafts", "scheduled", "posted", "failed"].includes(launch.posts.status)
+                          ? launch.posts.status
+                          : "calendar",
+                    )
+                  }>
+                  {children}
+                </button>
+              )}
+            />
           )}
         </div>
         {editor ? null : (
           <div className="sp-actions">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               className="sp-icon-button"
               aria-label="Refresh"
               disabled={busy}
               onClick={() => void act(() => refresh())}>
               <RefreshCw size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               className="sp-icon-button"
               aria-label="Preferences"
               onClick={() => {
@@ -183,10 +201,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                 setSettings(!settings);
               }}>
               <Settings2 size={16} />
-            </button>
-            <button className="sp-primary" disabled={!canCompose || busy} onClick={() => void act(() => openEditor())}>
+            </Button>
+            <Button className="sp-primary" disabled={!canCompose || busy} onClick={() => void act(() => openEditor())}>
               <Plus size={16} /> New draft
-            </button>
+            </Button>
           </div>
         )}
       </header>
@@ -196,25 +214,25 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         </div>
       ) : null}
       {launch.accounts.length === 0 ? (
-        <section className="sp-onboarding">
-          <h1>Connect your first destination</h1>
-          <p>
-            Choose at least one social platform in SimplePost, then return here to write and preview your first draft.
-          </p>
-          <button className="sp-primary" onClick={() => void app?.openLink({ url: launch.accountsUrl })}>
-            Connect a platform
-          </button>
-          <button disabled={busy} onClick={() => void act(() => refresh())}>
-            I’ve connected a platform — refresh
-          </button>
-        </section>
+        <ConnectAccountsEmpty
+          title="Connect your first destination"
+          description="Choose at least one social platform in SimplePost, then return here to write and preview your first draft."
+          action={
+            <>
+              <Button onClick={() => void app?.openLink({ url: launch.accountsUrl })}>Connect a platform</Button>
+              <Button variant="outline" disabled={busy} onClick={() => void act(() => refresh())}>
+                I’ve connected a platform — refresh
+              </Button>
+            </>
+          }
+        />
       ) : null}
       {settings ? (
         <section className="sp-settings" aria-label="Publishing preferences">
           <h2>Publishing preferences</h2>
           <label>
             Timezone
-            <input
+            <Input
               value={zone}
               onChange={(event) => setZone(event.target.value)}
               placeholder="Europe/Berlin"
@@ -276,7 +294,9 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               </label>
             ))}
           </fieldset>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             disabled={busy || !launch.canWrite}
             className="sp-primary"
             onClick={() =>
@@ -289,7 +309,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               })
             }>
             Save timezone
-          </button>
+          </Button>
         </section>
       ) : null}
       {editor && app ? (
@@ -318,9 +338,9 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         <>
           {chooserOnly ? (
             <div className="sp-page-heading">
-              <button onClick={() => setWorkspaceOpened(true)}>
+              <Button variant="outline" size="sm" onClick={() => setWorkspaceOpened(true)}>
                 <ArrowLeft size={14} /> Back to workspace
-              </button>
+              </Button>
               <h1>Choose a draft to edit</h1>
             </div>
           ) : (
@@ -333,6 +353,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                   </div>
                   <Calendar
                     data={launch.schedule}
+                    onCreate={() => void act(() => openEditor())}
                     busy={busy}
                     selectedId={selected?.id}
                     onSelect={select}
@@ -341,78 +362,98 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                       void app?.openLink({ url: `${launch.accountsUrl.split("/accounts")[0]}/settings` })
                     }
                   />
-                  <nav className="sp-nav" aria-label="Post status">
-                    {[
-                      { name: "drafts", label: "Drafts", icon: FileText },
-                      { name: "scheduled", label: "Scheduled", icon: Clock3 },
-                      { name: "posted", label: "Published", icon: CheckCircle2 },
-                      { name: "failed", label: "Failed", icon: AlertCircle },
-                    ].map(({ name, label, icon: Icon }) => (
-                      <button
-                        key={name}
-                        disabled={busy}
-                        aria-pressed={(tab === "calendar" ? "drafts" : tab) === name}
-                        onClick={() => {
-                          setTab(name);
-                          void act(() => refresh({ status: name, page: 1 }));
-                        }}>
-                        <Icon size={15} />
-                        {label}
-                      </button>
-                    ))}
-                  </nav>
+                  <Tabs
+                    className="mt-8"
+                    value={tab === "calendar" ? "drafts" : tab}
+                    onValueChange={(value) => {
+                      setTab(value);
+                      void act(() => refresh({ status: value, page: 1 }));
+                    }}>
+                    <PostStatusTabs
+                      disabled={busy}
+                      items={[
+                        { name: "drafts", label: "Drafts", icon: FileText },
+                        { name: "scheduled", label: "Scheduled", icon: Clock3 },
+                        { name: "posted", label: "Published", icon: CheckCircle2 },
+                        { name: "failed", label: "Failed", icon: AlertCircle },
+                      ].map(({ name, label, icon: Icon }) => ({
+                        id: name,
+                        label,
+                        icon: <Icon className="hidden h-3.5 w-3.5 sm:block" />,
+                      }))}
+                    />
+                  </Tabs>
                 </>
               )}
               {tab === "accounts" ? (
                 <section className="sp-accounts">
-                  <header className="sp-account-heading">
-                    <div className="sp-inline-heading">
-                      <span className="sp-kicker">Accounts</span>
-                      <h1>
-                        Connected <em>accounts</em>
-                      </h1>
-                    </div>
-                    <button className="sp-primary" onClick={() => void app?.openLink({ url: launch.accountsUrl })}>
-                      <Plus size={16} />
-                      Connect account
-                    </button>
-                  </header>
-                  <button
+                  <AccountsHeading
+                    action={
+                      <Button onClick={() => void app?.openLink({ url: launch.accountsUrl })}>
+                        <Plus size={16} />
+                        Connect account
+                      </Button>
+                    }
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="sp-help-link"
                     onClick={() => void app?.openLink({ url: "https://docs.simplepost.social/accounts" })}>
                     <CircleHelp size={13} />
                     Connection and account requirements
-                  </button>
-                  {launch.accounts.map((account) => (
-                    <article key={account.accountId} className="sp-account-card">
-                      <div className="sp-account-main">
-                        <AccountIdentity account={account} />
-                        {account.credentialStatus.severity && account.credentialStatus.severity !== "ok" ? (
-                          <div className={`sp-account-health ${account.credentialStatus.severity}`}>
-                            <span>{account.credentialStatus.label}</span>
-                            <p>{account.credentialStatus.message}</p>
-                          </div>
-                        ) : null}
-                        <button
-                          className="sp-help-link"
-                          onClick={() =>
-                            void app?.openLink({ url: `https://docs.simplepost.social/accounts#${account.platform}` })
-                          }>
-                          <CircleHelp size={12} />
-                          Connection help
-                        </button>
-                        {account.trialAllowance ? (
-                          <small>{account.trialAllowance.remaining} trial posts remaining</small>
-                        ) : null}
-                      </div>
-                      <button
-                        aria-label={`Manage ${account.displayName ?? account.username ?? account.platform}`}
-                        onClick={() => void app?.openLink({ url: launch.accountsUrl.split("?")[0] })}>
-                        <ExternalLink size={14} />
-                        Manage account
-                      </button>
-                    </article>
-                  ))}
+                  </Button>
+                  <div className="space-y-3">
+                    {launch.accounts.map((account) => (
+                      <AccountCardView
+                        key={account.accountId}
+                        avatar={<AccountAvatarView src={account.profilePicture ?? null} platform={account.platform} />}
+                        name={getAccountDisplayName({ ...account, email: null, platformAccountId: account.accountId })}
+                        platform={getPlatformName(account.platform)}
+                        health={
+                          account.credentialStatus.severity && account.credentialStatus.severity !== "ok" ? (
+                            <Badge
+                              variant={account.credentialStatus.severity === "error" ? "destructive" : "secondary"}>
+                              {account.credentialStatus.label}
+                            </Badge>
+                          ) : null
+                        }
+                        help={
+                          <Button
+                            variant="link"
+                            className="h-auto p-0 mt-2 text-xs text-muted-foreground"
+                            onClick={() =>
+                              void app?.openLink({ url: `https://docs.simplepost.social/accounts#${account.platform}` })
+                            }>
+                            <CircleHelp size={12} />
+                            Connection help
+                          </Button>
+                        }
+                        details={
+                          <>
+                            {account.credentialStatus.severity !== "ok" && (
+                              <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+                                {account.credentialStatus.message}
+                              </p>
+                            )}
+                            {account.trialAllowance && (
+                              <small>{account.trialAllowance.remaining} trial posts remaining</small>
+                            )}
+                          </>
+                        }
+                        actions={
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Manage ${account.displayName ?? account.username ?? account.platform}`}
+                            onClick={() => void app?.openLink({ url: launch.accountsUrl.split("?")[0] })}>
+                            <ExternalLink size={14} />
+                            Manage account
+                          </Button>
+                        }
+                      />
+                    ))}
+                  </div>
                 </section>
               ) : null}
             </>
@@ -433,8 +474,26 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                 </div>
               ) : (
                 launch.posts.posts.map((post) => (
-                  <article key={post.id}>
-                    <label>
+                  <PostCardView
+                    key={post.id}
+                    post={{ message: post.message, status: post.status, media: post.media ?? [] }}
+                    platforms={[...new Set(post.accounts.map((a) => a.platform))]}
+                    dateLabel={
+                      post.scheduledFor
+                        ? localDateTime(new Date(post.scheduledFor), launch.schedule.timeZone).replace("T", " ")
+                        : post.createdAt
+                          ? `Saved ${new Date(post.createdAt).toLocaleDateString()}`
+                          : "Draft"
+                    }
+                    accountLabels={[
+                      ...post.accounts
+                        .slice(0, 2)
+                        .map((a) =>
+                          getAccountDisplayName({ ...a, email: null, platformAccountId: a.username ?? a.platform }),
+                        ),
+                      ...(post.accounts.length > 2 ? [`+${post.accounts.length - 2}`] : []),
+                    ]}
+                    selection={
                       <input
                         type="checkbox"
                         aria-label={`Select ${post.message.slice(0, 60) || "untitled post"}`}
@@ -450,79 +509,53 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                             });
                         }}
                       />
-                      <span className="sp-post-thumbnail">
-                        {post.media?.[0] && (post.media[0].type === "image" || post.media[0].thumbnailUrl) ? (
-                          <img src={post.media[0].thumbnailUrl || post.media[0].url} alt="" />
-                        ) : (
-                          <ImageIcon size={32} />
-                        )}
-                        <span className="sp-post-platforms">
-                          {[...new Set(post.accounts.map((a) => a.platform))].map((platform) => (
-                            <PlatformBadge key={platform} platform={platform} />
-                          ))}
-                        </span>
-                      </span>
-                      <span className="sp-post-copy">
-                        <strong>{post.message.slice(0, 160) || "Untitled draft"}</strong>
-                        <small>
-                          <Clock3 size={12} />
-                          {post.scheduledFor
-                            ? localDateTime(new Date(post.scheduledFor), launch.schedule.timeZone).replace("T", " ")
-                            : post.createdAt
-                              ? `Saved ${new Date(post.createdAt).toLocaleDateString()}`
-                              : "Draft"}
-                        </small>
-                        <span className="sp-post-handles">
-                          {post.accounts
-                            .slice(0, 2)
-                            .map((a) =>
-                              a.username ? `@${a.username.replace(/^@/, "")}` : (a.displayName ?? a.platform),
-                            )
-                            .join(" · ")}
-                          {post.accounts.length > 2 ? ` +${post.accounts.length - 2}` : ""}
-                        </span>
-                      </span>
-                    </label>
-                    <span className={`sp-post-status status-${post.status}`}>
-                      <FileText size={12} />
-                      {post.status}
-                    </span>
-                    <button
-                      disabled={busy || ((post.status === "draft" || post.status === "scheduled") && !canCompose)}
-                      onClick={() =>
-                        void act(async () => {
-                          await (post.status === "draft" || post.status === "scheduled"
-                            ? openEditor(post.id)
-                            : app?.openLink({ url: `${launch.accountsUrl.split("/accounts")[0]}/posts/${post.id}` }));
-                        })
-                      }>
-                      {post.status === "draft" || post.status === "scheduled" ? "Edit" : "View results"}
-                    </button>
-                  </article>
+                    }
+                    actions={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || ((post.status === "draft" || post.status === "scheduled") && !canCompose)}
+                        onClick={() =>
+                          void act(async () => {
+                            await (post.status === "draft" || post.status === "scheduled"
+                              ? openEditor(post.id)
+                              : app?.openLink({ url: `${launch.accountsUrl.split("/accounts")[0]}/posts/${post.id}` }));
+                          })
+                        }>
+                        {post.status === "draft" || post.status === "scheduled" ? "Edit" : "View results"}
+                      </Button>
+                    }
+                  />
                 ))
               )}
               {launch.posts.pagination ? (
                 <div className="sp-actions">
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={busy || !launch.posts.pagination.hasPreviousPage}
                     onClick={() => void act(() => refresh({ page: launch.posts.pagination!.page - 1 }))}>
                     Previous page
-                  </button>
+                  </Button>
                   <span>
                     Page {launch.posts.pagination.page} of {launch.posts.pagination.totalPages || 1}
                   </span>
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={busy || !launch.posts.pagination.hasNextPage}
                     onClick={() => void act(() => refresh({ page: launch.posts.pagination!.page + 1 }))}>
                     Next page
-                  </button>
+                  </Button>
                 </div>
               ) : null}
               {launch.recovery.length > 0 ? (
                 <details>
                   <summary>Recover a working copy</summary>
                   {launch.recovery.map((session) => (
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       key={session.id}
                       disabled={busy}
                       onClick={() =>
@@ -534,7 +567,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                         })
                       }>
                       {session.message || "Untitled working copy"} · {new Date(session.updatedAt).toLocaleString()}
-                    </button>
+                    </Button>
                   ))}
                 </details>
               ) : null}
@@ -551,12 +584,18 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           </strong>
           <div className="sp-actions">
             {selected?.postId ? (
-              <button disabled={!canCompose || busy} onClick={() => void act(() => openEditor(selected.postId!))}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canCompose || busy}
+                onClick={() => void act(() => openEditor(selected.postId!))}>
                 Edit selected post
-              </button>
+              </Button>
             ) : null}
             {selected?.kind === "slot" && !selected.isPast ? (
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 className="sp-primary"
                 disabled={!canCompose || busy}
                 onClick={() =>
@@ -566,9 +605,11 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                   })
                 }>
                 Draft for this slot
-              </button>
+              </Button>
             ) : null}
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               disabled={!app || busy}
               onClick={() =>
                 void act(async () => {
@@ -583,8 +624,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                 })
               }>
               Ask ChatGPT
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setSelected(null);
                 setChosenPosts([]);
@@ -594,7 +637,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                   });
               }}>
               Clear selection
-            </button>
+            </Button>
           </div>
         </aside>
       ) : null}

@@ -1,0 +1,10 @@
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "../../components/visual/theme.css";
+@source "../../components";
+@source "./";
+@source "../preview-switcher.tsx";
+:root {
+  --font-inter: Inter, sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", monospace;
+}

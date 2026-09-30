@@ -1,8 +1,10 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import tailwind from "@tailwindcss/postcss";
 import { build } from "esbuild";
+import postcss from "postcss";
 
 const { format } = await import("prettier");
 
@@ -24,6 +26,23 @@ await Promise.all(
 );
 // Keep previous immutable assets when building into an existing deployment artifact.
 const result = await build({
+  plugins: [
+    {
+      name: "shared-design-system",
+      setup(build) {
+        build.onResolve(
+          { filter: /^(next(?:\/|$)|@\/hooks\/|@\/lib\/(?:config|api|auth|mcp))/ },
+          ({ path: imported, importer }) => {
+            throw new Error(`Widget UI must not import application services: ${imported} from ${importer}`);
+          },
+        );
+        build.onLoad({ filter: /design-system\.css$/ }, async ({ path: cssPath }) => {
+          const output = await postcss([tailwind()]).process(await readFile(cssPath, "utf8"), { from: cssPath });
+          return { contents: output.css, loader: "css", resolveDir: path.dirname(cssPath) };
+        });
+      },
+    },
+  ],
   entryPoints,
   bundle: true,
   entryNames: "[name]-[hash]",

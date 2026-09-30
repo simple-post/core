@@ -1,5 +1,5 @@
 import { PlatformIcon } from "@/components/platform-icon";
-import { getPlatformById } from "@/lib/config";
+import { getPlatformById } from "@/components/visual/platforms";
 import { cn } from "@/lib/utils";
 
 export { PlatformIcon, platformIcons } from "@/components/platform-icon";

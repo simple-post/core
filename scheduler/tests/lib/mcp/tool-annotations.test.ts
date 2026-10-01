@@ -67,6 +67,15 @@ describe("ChatGPT app submission metadata", () => {
     }
   });
 
+  it("marks full working-copy replacement as destructive even before committing a post", () => {
+    expect(EXTENSION_TOOL_ANNOTATIONS.update_post_editor_session).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: false,
+      idempotentHint: false,
+    });
+  });
+
   it("keeps submitted test cases self-contained and tied to registered tools", () => {
     expect(submission.test_cases).toHaveLength(5);
 

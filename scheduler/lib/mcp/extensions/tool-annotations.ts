@@ -9,7 +9,8 @@ export const EXTENSION_TOOL_ANNOTATIONS = {
   get_simplepost_workspace: readOnly,
   start_post_editor_session: scratchWrite,
   read_post_editor_session: readOnly,
-  update_post_editor_session: scratchWrite,
+  // Replaces working-copy content and clears its proposal without retaining undo history.
+  update_post_editor_session: { ...scratchWrite, destructiveHint: true },
   propose_post_edit: scratchWrite,
   commit_post_editor_session: { readOnlyHint: false, destructiveHint: true, openWorldHint: true, idempotentHint: true },
   validate_post_editor_session: {

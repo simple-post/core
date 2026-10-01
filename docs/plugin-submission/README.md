@@ -91,3 +91,9 @@ The reuploaded draft `appsub_6abe579d45ac8191b8636a84814c4afb` was inspected on 
 ### ZIP category format correction
 
 The ZIP-specific [submission error reference](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors) lists `Business & Operations`, not `Business`. The older JSON form importer separately accepts `BUSINESS`. The public ZIP and compatibility listing now use `Business & Operations`; the legacy importer retains `BUSINESS`. Archive validation now enforces the complete documented ZIP category allowlist and rejects both `Business` and `BUSINESS`. This corrects the invalid category value; portal acceptance still requires reupload and its checks.
+
+### MCP review follow-up: editor overwrite
+
+`update_post_editor_session` replaces the working-copy payload and clears its pending proposal without retaining old revisions as undo history. Its `destructiveHint` is now true in the live descriptor and submission reference, and its description explains the overwrite. The revision guard prevents stale writes; it does not make accepted edits reversible. No tool schema or handler changed.
+
+Deploy this server change to the production MCP endpoint, then rescan the existing connection and inspect the discovered annotation. Rebuilding/uploading a ZIP alone does not change the hosted tool descriptor. The other reported findings only request further review: `list_accounts` and `inspect_posts` remain read-only; `update_scheduled_post` and `discard_scheduled_post` already declare destructive behavior. Do not weaken or randomly change correct annotations to clear a review hold. If these holds persist after the deployed scan, contact OpenAI support with the plugin ID, tool names, scan time, and exact findings; no support message was sent here. Server instructions likewise require further review without a specified actionable defect.

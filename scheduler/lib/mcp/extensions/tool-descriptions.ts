@@ -13,7 +13,7 @@ export const EXTENSION_TOOL_DESCRIPTIONS = {
   read_post_editor_session:
     "Use this when reading or recovering a known editor session before proposing, applying, validating, or committing changes. Returns current content and revision; use the actual sessionId from editor context or tool results. Does not change content or publish.",
   update_post_editor_session:
-    "Use this when persisting requested working-copy edits or editor autosave using the current expectedRevision. Does not save a post, schedule, or publish it. For an AI writing suggestion the user wants to review first, use propose_post_edit instead; do not silently apply a suggestion.",
+    "Use this when persisting requested working-copy edits or editor autosave using the current expectedRevision. Replaces the full working-copy content and clears its pending proposal; previous content is not retained as undo history. Preserve all content the user did not request changing. Does not save a post, schedule, or publish it. For an AI writing suggestion the user wants to review first, use propose_post_edit instead; do not silently apply a suggestion.",
   propose_post_edit:
     "Use this when the user asks for writing changes or platform-specific adaptation of the selected editor content for review. Read the current session first and submit a separate patch at its current revision. Keeps existing editor content and saved posts unchanged until the user applies the proposal. Do not create a session for generic copywriting unrelated to a SimplePost draft.",
   commit_post_editor_session:

@@ -250,13 +250,13 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false,
+        "destructiveHint": true,
         "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Updates working-copy content and revision using an expected revision guard; the saved post is unchanged.",
         "open_world_justification": "Does not publish to social platforms, fetch external media, or change public internet state.",
-        "destructive_justification": "Does not delete a saved post, schedule, publish, or revoke account access.",
+        "destructive_justification": "Replaces the entire editor working-copy payload and clears its pending proposal without retaining previous revisions as undo history. The expectedRevision guard prevents stale overwrites but does not make an accepted replacement reversible. Saved posts are unchanged until a separate commit.",
         "idempotent_justification": "A successful update increments the revision; replaying the old revision is rejected instead of overwriting newer changes."
       }
     },

@@ -45,12 +45,12 @@ const log = createLogger("mcp:tools");
 export const IMAGE_FITTING_INSTRUCTIONS =
   "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post, update_scheduled_post, or validate_post. A call that fails with recovery retry_with_image_fit means exactly this: repeat it once with imageFit set. Drafts are saved either way — when a saved draft reports fixable image errors, say so and offer to fit rather than re-saving it. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
 
-export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule posts to multiple social media platforms (X, Telegram, Facebook, Instagram, YouTube, Meta Threads, ...) from a single tool call. Only call tools for SimplePost posting workflows. Do not call tools for generic writing help, connecting accounts, or editing/deleting social posts that were already published externally; explain those are unsupported and direct the user to the SimplePost web app or social platform.
+export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Account connection and edits or deletions of already-published social content are unsupported by these tools; explain that limitation and direct the user to the SimplePost web app or social platform.
 
 # No-tool routing rules
 
-- If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call any tool. Tell them account management must happen in the SimplePost web app.
-- If the user asks to delete, edit, undo, remove, or take down a post already published on a social platform such as X, Instagram, Facebook, YouTube, Threads, Telegram, or Bluesky, do not call any tool. Explain that SimplePost tools can only manage drafts and future scheduled posts, and direct them to the social platform.
+- If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call a SimplePost tool for that action. Tell them SimplePost account management must happen in the SimplePost web app.
+- If the user asks to delete, edit, undo, remove, or take down a post already published on a social platform such as X, Instagram, Facebook, YouTube, Threads, Telegram, or Bluesky, do not call a SimplePost tool for that action. Explain that SimplePost tools can only manage drafts and future scheduled posts, and direct them to the social platform.
 - Do not inspect accounts or posts merely to confirm that an unsupported action is unsupported.
 - If the user asks for generic writing, brainstorming, translation, arithmetic, meeting calendars, reminders, or SEO research without a social publishing action or selected SimplePost editor, do not call any SimplePost tool. Writing changes to a selected SimplePost working copy are supported through the editor tools when available.
 
@@ -62,7 +62,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user publish or schedule
 
 # Recommended workflow
 
-- Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. Billing or trial-allowance denials require a plan change in the SimplePost web app. Explain the returned reason and do not retry automatically or repeatedly inspect accounts to bypass the denial.
+- Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. If access or an allowance prevents posting, explain the returned restriction without offering a purchase or subscription. Do not retry automatically or repeatedly inspect accounts to bypass the denial.
 
 1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, give the user this direct link: https://app.simplepost.social/accounts?onboarding=connect . Explain that connecting SimplePost to their assistant does not connect a social account. Ask them to connect one destination there, return to this conversation, and say "My account is connected; help me save my first draft." There is no MCP tool to add accounts.
 
@@ -850,7 +850,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: "Inspect Posts",
-      description: `Use this to search or inspect SimplePost records that are drafts, scheduled, posted, or failed. It supports text/status filters and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI. It cannot retrieve engagement, impressions, follower growth, comments, or social inbox messages.`,
+      description: `Use this to list or inspect the authenticated user's SimplePost records that are drafts, scheduled, posted, or failed. It supports status filtering, pagination, and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI. It has no text-search parameter and cannot retrieve engagement, impressions, follower growth, comments, or social inbox messages.`,
       inputSchema: inspectPostsSchema,
       outputSchema: inspectPostsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,

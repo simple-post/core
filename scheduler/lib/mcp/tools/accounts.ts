@@ -30,7 +30,7 @@ export const mcpAccountSchema = mcpAccountIdentitySchema.extend({
     })
     .optional()
     .describe(
-      "Trial posts remaining for this platform, shared across its accounts. Scheduling consumes allowance; drafts do not. Choose a plan when remaining is zero.",
+      "Trial posts remaining for this platform, shared across its accounts. Scheduling consumes allowance; drafts do not. Zero remaining means the current allowance does not permit another scheduled or immediate post.",
     ),
   credentialStatus: z
     .object({

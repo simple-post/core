@@ -119,7 +119,15 @@ window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
  const send=(result)=>event.source.postMessage({jsonrpc:'2.0',id:req.id,result},'*');
  if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
- else if(req.method==='ui/notifications/initialized') event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:location.search.includes('legacy-schedule')?launch.schedule:launch}},'*');
+ else if(req.method==='ui/notifications/initialized') {
+   if(location.search.includes('launch-error')) event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{isError:true,content:[{type:'text',text:'The workspace could not be opened. Reconnect SimplePost and try again.'}]}},'*');
+   else if(location.search.includes('missing-result')) { /* Sidebar host did not deliver the opening result. */ }
+   else if(location.search.includes('late-globals')) setTimeout(()=>{
+     event.source.openai={toolOutput:launch};
+     event.source.dispatchEvent(new event.source.CustomEvent('openai:set_globals',{detail:{globals:{toolOutput:launch}}}));
+   },100);
+   else event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:location.search.includes('legacy-schedule')?launch.schedule:launch}},'*');
+ }
  else if(req.method==='tools/call') {
    const {name,arguments:args}=req.params; window.calls.push({name,args}); let result;
    if(name==='start_post_editor_session'||name==='read_post_editor_session') result=session;
@@ -130,7 +138,8 @@ window.addEventListener('message', async event => {
    else if(name==='commit_post_editor_session') { session={...session,postId:'saved',status:args.mode==='draft'?'draft':'scheduled',revision:session.revision+1}; result={editor:session,outcome:{post:{id:'saved'}}}; }
    else if(name==='validate_post_editor_session') result={summary:{isValid:true,errors:[],warnings:[]},accounts:[]};
    else throw Error('Unexpected tool '+name);
-   send({content:[],structuredContent:result});
+   if(location.search.includes('missing-result-error') && name==='get_simplepost_workspace' && window.calls.length===1) send({isError:true,content:[{type:'text',text:'The workspace request failed. Please try again.'}]});
+   else send({content:[],structuredContent:result});
  } else if(req.method==='ui/update-model-context'){ window.contexts.push(req.params); send({}); }
  else if(req.method==='ui/message'){window.messages.push(req.params);send({});}
  else if(req.method==='ui/open-link'){window.links.push(req.params);send({});}
@@ -164,12 +173,12 @@ const server = createServer(async (req, res) => {
               : "mountPostEditorWidget";
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
-        `<link rel="stylesheet" href="/mcp-widgets/${assets[name].stylesheet}"><div id="root"></div><script type="module">import {${mount}} from '/mcp-widgets/${assets[name].script}'; ${mount}();</script>`,
+        `<link rel="stylesheet" href="/mcp-widgets/${assets[name].stylesheet}"><div id="root"></div><script type="module">${req.url.includes("invalid-initial") ? "window.openai={toolOutput:{}};" : ""}import {${mount}} from '/mcp-widgets/${assets[name].script}'; ${mount}();</script>`,
       );
     } else {
       res.setHeader("content-type", "text/html; charset=utf-8");
       res.end(
-        `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${req.url.includes("legacy-schedule") ? "?legacy-schedule" : req.url.includes("review") ? "?review" : req.url.includes("editor") ? "?editor" : ""}"></iframe>`,
+        `<style>body{margin:0}iframe{border:0;width:100vw;height:100vh}</style><script>${fixture}</script><iframe src="/widget${new URL(req.url, "http://localhost").search}"></iframe>`,
       );
     }
   } catch (error) {
@@ -265,6 +274,34 @@ try {
   const ui = page.frameLocator("iframe");
   await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
   assert.equal(await page.evaluate(() => window.calls.length), 0, "launch must not trigger a redundant initial read");
+  await page.goto(`${base}/?launch-error`);
+  await expect(ui.getByRole("alert")).toContainText("Reconnect SimplePost and try again.");
+  assert.equal(await page.evaluate(() => window.calls.length), 0, "launch errors must not automatically retry");
+  await ui.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
+  assert.deepEqual(
+    await page.evaluate(() => window.calls.map((call) => call.name)),
+    ["get_simplepost_workspace"],
+    "Retry reads the workspace without creating a post",
+  );
+  await page.goto(`${base}/?late-globals&invalid-initial`);
+  await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
+  assert.equal(await page.evaluate(() => window.calls.length), 0, "late initial data must not cause a duplicate read");
+  await page.goto(`${base}/?missing-result`);
+  await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible({ timeout: 10_000 });
+  assert.deepEqual(
+    await page.evaluate(() => window.calls.map((call) => call.name)),
+    ["get_simplepost_workspace"],
+    "missing sidebar data falls back to one read-only workspace request",
+  );
+  await page.goto(`${base}/?missing-result-error`);
+  await expect(ui.getByRole("alert")).toContainText("The workspace request failed.", { timeout: 10_000 });
+  assert.equal(await page.evaluate(() => window.calls.length), 1, "a failed recovery must not retry itself");
+  await ui.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
+  assert.equal(await page.evaluate(() => window.calls.length), 2, "a user retry can recover after the failed read");
+  await page.goto(base);
+  await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
   await ui.getByRole("button", { name: /16:30/ }).click();
   await expect(ui.getByText("Selected slot: 16:30 · Europe/Berlin")).toBeVisible();
   await ui.getByRole("button", { name: "Ask ChatGPT", exact: true }).click();
@@ -434,7 +471,7 @@ try {
   await expect(ui.getByRole("button", { name: "Expand", exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS extensions browser smoke: calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
+    "PASS extensions browser smoke: sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
   );
 } finally {
   await browser?.close();

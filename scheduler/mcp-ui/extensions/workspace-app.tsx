@@ -26,7 +26,7 @@ import { PostStatusTabs } from "../../components/visual/post-status-tabs";
 
 import { Calendar } from "./calendar";
 import { Editor } from "./editor";
-import { askChat, attachSelection, callTool, restoreEditorHint, useExtensionHost } from "./host";
+import { askChat, attachSelection, callTool, isWorkspaceLaunch, restoreEditorHint, useExtensionHost } from "./host";
 import { localDateTime } from "./timezone";
 
 import type { ScheduleEntry } from "../schedule";
@@ -37,7 +37,7 @@ import "./workspace.css";
 export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const [workspaceOpened, setWorkspaceOpened] = useState(false);
   const chooserOnly = editorOnly && !workspaceOpened;
-  const { app, launch, setLaunch, incoming, error } = useExtensionHost<WorkspaceData>();
+  const { app, launch, setLaunch, incoming, error, toolError, setToolError } = useExtensionHost<WorkspaceData>();
   const [editor, setEditor] = useState<EditorData | null>(null);
   const [selected, setSelected] = useState<ScheduleEntry | null>(null);
   const [chosenPosts, setChosenPosts] = useState<string[]>([]);
@@ -50,6 +50,30 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const guessedZone = useRef(false);
   const requested = useRef<string | null>(null);
   const [slotTime, setSlotTime] = useState<string | null>(null);
+  const launchError = error?.message ?? toolError;
+
+  const loadLaunch = useCallback(async () => {
+    if (!app) return;
+    setBusy(true);
+    setToolError(null);
+    try {
+      const data = await callTool<WorkspaceData>(app, "get_simplepost_workspace");
+      if (!isWorkspaceLaunch(data)) throw new Error("The publishing workspace returned incomplete data.");
+      setLaunch((current) => current ?? data);
+    } catch (error_) {
+      setToolError(error_ instanceof Error ? error_.message : String(error_));
+    } finally {
+      setBusy(false);
+    }
+  }, [app, setLaunch, setToolError]);
+
+  useEffect(() => {
+    if (!app || launch || launchError || busy) return;
+    // Prefer the opening result. Recover once only if the connected host never
+    // delivers it; explicit failures need a user retry rather than a retry loop.
+    const timeout = window.setTimeout(() => void loadLaunch(), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [app, launch, launchError, busy, loadLaunch]);
 
   const act = useCallback(async (action: () => Promise<void>) => {
     setBusy(true);
@@ -123,7 +147,20 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   if (!launch)
     return (
       <main className="sp-workspace">
-        <p role="status">{error?.message ?? "Opening your publishing workspace…"}</p>
+        {launchError ? (
+          <div role="alert" className="sp-notice">
+            <p>{launchError}</p>
+            {app ? (
+              <Button variant="outline" disabled={busy} onClick={() => void loadLaunch()}>
+                Retry
+              </Button>
+            ) : (
+              <p>Close SimplePost and open it again to reconnect.</p>
+            )}
+          </div>
+        ) : (
+          <p role="status">Opening your publishing workspace…</p>
+        )}
       </main>
     );
 

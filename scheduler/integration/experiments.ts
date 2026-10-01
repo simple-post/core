@@ -15,6 +15,7 @@ async function main() {
     "Disposable local review database required",
   );
   assert.equal(process.env.SELF_HOSTED, "false");
+  assert.equal(process.env.NEXT_PUBLIC_APP_URL, "http://localhost:3000");
   assert.equal(process.env.GOOGLE_CLIENT_ID, "local-review-google");
   assert.equal(process.env.GOOGLE_CLIENT_SECRET, "local-review-google-secret");
   assert.equal(process.env.RESEND_API_KEY, "re_local_review");
@@ -183,7 +184,7 @@ async function main() {
       data: { userId: google.id, message: "Local database fixture only", status: "failed", publishedAt: first },
     });
     assert.equal(
-      (await prisma.experimentMilestone.findUniqueOrThrow({ where: { userId: google.id } })).firstPublishedAt,
+      (await prisma.activationMilestone.findUniqueOrThrow({ where: { userId: google.id } })).firstPostPublishedAt,
       null,
     );
     await prisma.post.update({ where: { id: failed.id }, data: { status: "published" } });
@@ -196,12 +197,12 @@ async function main() {
     );
     await prisma.post.deleteMany({ where: { userId: google.id } });
     await prisma.connectedAccount.deleteMany({ where: { userId: google.id } });
-    const milestone = await prisma.experimentMilestone.findUniqueOrThrow({ where: { userId: google.id } });
-    assert.equal(+milestone.firstPublishedAt!, +first);
-    assert.equal(+milestone.firstConnectedAt!, +first);
+    const milestone = await prisma.activationMilestone.findUniqueOrThrow({ where: { userId: google.id } });
+    assert.equal(+milestone.firstPostPublishedAt!, +first);
+    assert.equal(+milestone.socialConnectedAt!, +first);
     await prisma.user.delete({ where: { id: google.id } });
     assert.equal(await prisma.experimentExposure.count({ where: { id: exposure.id } }), 0);
-    assert.equal(await prisma.experimentMilestone.count({ where: { userId: google.id } }), 0);
+    assert.equal(await prisma.activationMilestone.count({ where: { userId: google.id } }), 0);
     const oldDate = new Date(Date.now() - 181 * 86_400_000);
     const oldKey = assignmentKey(makeAssignment("a"));
     const old = await prisma.user.create({
@@ -238,10 +239,11 @@ async function main() {
     execFileSync(process.execPath, ["scripts/prune-experiments.mjs", "--apply"], { stdio: "pipe", env: process.env });
     const retained = await prisma.user.findUniqueOrThrow({
       where: { id: old.id },
-      include: { firstPayment: true, experimentMilestone: true },
+      include: { firstPayment: true, activationMilestone: true },
     });
     assert.equal(retained.experimentAttribution, null);
-    assert.equal(retained.experimentMilestone, null);
+    assert.equal(+retained.activationMilestone!.firstPostPublishedAt!, +oldDate);
+    assert.equal(+retained.activationMilestone!.subscriptionStartedAt!, +oldDate);
     assert.equal(retained.acquisition, "original-first-touch");
     assert.equal(retained.firstPayment?.amountPaid, 1000);
     assert.equal(await prisma.experimentExposure.count({ where: { id: oldKey } }), 0);

@@ -7,8 +7,9 @@ The website's `docs/homepage-experiment.md` contains copy, power examples and th
 ## Deploy and configure
 
 1. Apply migrations using `yarn workspace @simple-post/scheduler exec prisma migrate deploy`
-   in the normal deployment environment. This adds nullable user attribution, exposure and
-   milestone tables, and PostgreSQL triggers. Use migrations, not `prisma db push`: the latter
+   in the normal deployment environment. This adds nullable user attribution,
+   an exposure table, and an account-deletion trigger. Connection and publication
+   outcomes reuse the existing activation milestone table and triggers. Use migrations, not `prisma db push`: the latter
    does not install the triggers. Generate Prisma client as part of the normal build.
 2. Set `HOMEPAGE_EXPERIMENT_SECRET` to the same strong random secret (at least 32 characters)
    on the hosted scheduler and marketing server, through the existing secret manager.
@@ -21,8 +22,8 @@ The website's `docs/homepage-experiment.md` contains copy, power examples and th
    exposure or app session is needed for this server-to-server endpoint.
 4. Schedule `node scripts/prune-experiments.mjs --apply` daily from the `scheduler/` directory
    with the scheduler's normal `DATABASE_URL`, and alert on failures. This is an operator cron
-   job, **not automatically scheduled by this PR**. It removes experiment evidence older than
-   180 days, without deleting users, first-touch attribution or billing records. Configure it
+   job, **not automatically scheduled by this PR**. It removes experiment attribution and exposures older than
+   180 days, without deleting users, shared activation milestones, first-touch attribution or billing records. Configure it
    before enrollment to match the website privacy disclosure. For an export, aggregate results
    before pruning; do not retain raw assignment data indefinitely.
 5. Open `/admin/experiments` as an existing verified analytics admin. It reuses the current
@@ -46,10 +47,12 @@ Keep the additive schema when rolling back the website or app code.
   It is server-only, not accepted as profile input, not returned in auth responses, and not
   updated at later sign-in. There is no analytics query in the auth hook. A signup without
   a matching, earlier recorded exposure cannot count as an experimental conversion.
-- `experiment_milestone` preserves the earliest connected-account and fully-published-post
-  times. PostgreSQL triggers cover UI, MCP, API and scheduled dispatch, with conflict-safe
-  minimum timestamps. Failed/partial publishing does not count. Deleting a post or social
-  connection does not erase the milestone. Only users with experiment attribution are recorded.
+- The existing `activation_milestone` supplies `socialConnectedAt` and `firstPostPublishedAt`.
+  Its PostgreSQL triggers cover UI, MCP, API and scheduled dispatch, retaining earliest
+  timestamps. Failed/partial publishing does not count. Deleting a post or social connection
+  does not erase the milestone. Experiment signups also receive the existing acquisition
+  attribution, so the shared signup trigger creates their activation row atomically.
+  Pruning experiment evidence leaves these shared acquisition outcomes intact.
 - Account deletion cascades milestones and removes its linked exposure. Deleting one of
   multiple accounts sharing the same browser assignment removes that shared exposure too;
   this is a documented privacy tradeoff and a reason not to interpret browsers as people.
@@ -59,12 +62,12 @@ Keep the additive schema when rolling back the website or app code.
 The date filters select **first-exposure dates in UTC**, not signup dates. A/B and A/A are
 always reported separately. A browser can contribute at most one new signup:
 
-| Metric | Conversion condition | Denominator |
-| --- | --- | --- |
-| Primary signup | New account within 7 days after exposure | Exposures at least 7 days old |
-| First connection | Eligible signup and first connection within 7 days after signup | Exposures at least 14 days old |
-| Activation | Eligible signup and first fully published post within 7 days after signup | Exposures at least 14 days old |
-| Paid | Eligible signup and positive first payment within 30 days after exposure | Exposures at least 30 days old |
+| Metric           | Conversion condition                                                      | Denominator                    |
+| ---------------- | ------------------------------------------------------------------------- | ------------------------------ |
+| Primary signup   | New account within 7 days after exposure                                  | Exposures at least 7 days old  |
+| First connection | Eligible signup and first connection within 7 days after signup           | Exposures at least 14 days old |
+| Activation       | Eligible signup and first fully published post within 7 days after signup | Exposures at least 14 days old |
+| Paid             | Eligible signup and positive first payment within 30 days after exposure  | Exposures at least 30 days old |
 
 Boundary timestamps are inclusive for outcomes. Enrollment end is exclusive. The report
 shows pending windows, observed signups, descriptive 95% Wilson signup intervals, and a
@@ -99,6 +102,7 @@ are intentionally non-production and must never be used in deployments.
 DATABASE_URL=postgresql://LOCAL_USER@127.0.0.1:55440/simplepost_review \
 BETTER_AUTH_SECRET=local-review-better-auth-secret-at-least-32 \
 SELF_HOSTED=false \
+NEXT_PUBLIC_APP_URL=http://localhost:3000 \
 GOOGLE_CLIENT_ID=local-review-google \
 GOOGLE_CLIENT_SECRET=local-review-google-secret \
 RESEND_API_KEY=re_local_review \

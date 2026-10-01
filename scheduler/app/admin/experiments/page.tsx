@@ -50,7 +50,7 @@ export default async function Experiments({
       select: {
         createdAt: true,
         experimentAttribution: true,
-        experimentMilestone: { select: { firstConnectedAt: true, firstPublishedAt: true } },
+        activationMilestone: { select: { socialConnectedAt: true, firstPostPublishedAt: true } },
         firstPayment: { select: { paidAt: true, amountPaid: true } },
       },
       take: 10_001,

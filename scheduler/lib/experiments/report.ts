@@ -3,7 +3,7 @@ export type Exposure = { id: string; experimentId: string; variant: string; expo
 export type ExperimentAccount = {
   createdAt: Date;
   experimentAttribution: string | null;
-  experimentMilestone: { firstConnectedAt: Date | null; firstPublishedAt: Date | null } | null;
+  activationMilestone: { socialConnectedAt: Date | null; firstPostPublishedAt: Date | null } | null;
   firstPayment: { paidAt: Date; amountPaid: number } | null;
 };
 export function attribution(
@@ -66,11 +66,11 @@ export function buildExperimentReport(exposures: Exposure[], accounts: Experimen
       mature14d: activationCohort.length,
       connected: activationCohort.filter((e) => {
         const a = signups.get(e.id);
-        return a && within(a.experimentMilestone?.firstConnectedAt, a.createdAt, 7);
+        return a && within(a.activationMilestone?.socialConnectedAt, a.createdAt, 7);
       }).length,
       activated: activationCohort.filter((e) => {
         const a = signups.get(e.id);
-        return a && within(a.experimentMilestone?.firstPublishedAt, a.createdAt, 7);
+        return a && within(a.activationMilestone?.firstPostPublishedAt, a.createdAt, 7);
       }).length,
       mature30d: paidCohort.length,
       paid: paidCohort.filter((e) => {

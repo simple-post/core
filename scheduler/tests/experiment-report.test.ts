@@ -19,7 +19,7 @@ const account = (days = 1): ExperimentAccount => ({
     experimentId: exposure.experimentId,
     variant: "a",
   }),
-  experimentMilestone: { firstConnectedAt: date(2), firstPublishedAt: date(3) },
+  activationMilestone: { socialConnectedAt: date(2), firstPostPublishedAt: date(3) },
   firstPayment: { paidAt: date(10), amountPaid: 1000 },
 });
 test("cohorts mature at 7/14/30 days and use exposures as denominators", () => {
@@ -42,7 +42,7 @@ test("boundary signups count once; late, pre-exposure and unmatched accounts nev
 test("excludes wrong-arm matches, unpaid invoices, and out-of-window activation/payment", () => {
   const a = account();
   a.firstPayment!.amountPaid = 0;
-  a.experimentMilestone!.firstPublishedAt = date(9);
+  a.activationMilestone!.firstPostPublishedAt = date(9);
   expect(buildExperimentReport([exposure], [a], date(31)).rows[0]).toMatchObject({ paid: 0, activated: 0 });
   a.firstPayment = { amountPaid: 1000, paidAt: date(30.001) };
   expect(buildExperimentReport([exposure], [a], date(31)).rows[0].paid).toBe(0);

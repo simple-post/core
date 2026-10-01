@@ -36,7 +36,6 @@ model User {
   isAdmin                      Boolean                     @default(false)
   acquisition                  String?
   experimentAttribution        String?
-  experimentMilestone          ExperimentMilestone?
   firstPayment                 FirstPayment?
   createdAt                    DateTime                    @default(now())
   updatedAt                    DateTime                    @default(now()) @updatedAt
@@ -634,14 +633,4 @@ model ExperimentExposure {
 
   @@index([experimentId, exposedAt])
   @@map("experiment_exposure")
-}
-
-// First milestones survive post/account deletion. Written by database triggers.
-model ExperimentMilestone {
-  userId           String    @id
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firstConnectedAt DateTime?
-  firstPublishedAt DateTime?
-
-  @@map("experiment_milestone")
 }

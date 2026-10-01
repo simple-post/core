@@ -6,7 +6,6 @@ async function main() {
     throw new Error("Pass --apply to prune experiment evidence older than 180 days");
   const cutoff = new Date(Date.now() - 180 * 86_400_000);
   await prisma.$transaction(async (tx) => {
-    await tx.experimentMilestone.deleteMany({ where: { user: { createdAt: { lt: cutoff } } } });
     await tx.user.updateMany({
       where: { createdAt: { lt: cutoff }, experimentAttribution: { not: null } },
       data: { experimentAttribution: null },

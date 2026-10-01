@@ -84,6 +84,9 @@ export default async function AcquisitionReport({
           ← Back to SimplePost
         </a>
         <h1 className="text-3xl font-semibold">Acquisition analytics</h1>
+        <a href="/admin/experiments" className="underline">
+          Homepage experiments
+        </a>
         <p className="text-muted-foreground max-w-3xl">
           Follow each signup’s original source through the trial to their first payment. Payments are confirmed by
           Stripe, even if the customer never returns to the app.

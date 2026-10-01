@@ -7,6 +7,7 @@ import * as z from "zod";
 
 import { readFirstTouch } from "../analytics/first-touch";
 import { env } from "../env";
+import { signupExperiment } from "../experiments/signup";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
 
@@ -135,6 +136,7 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       acquisition: { type: "json", required: false, input: false, returned: false },
+      experimentAttribution: { type: "json", required: false, input: false, returned: false },
     },
   },
   databaseHooks: {
@@ -145,7 +147,11 @@ export const auth = betterAuth({
           // Written atomically with account creation. Never updated on later sign-ins.
           const touch = readFirstTouch(ctx?.headers?.get("cookie") || "");
           return {
-            data: { ...user, acquisition: touch || { version: 1, source: "unknown", reason: "no_valid_first_touch" } },
+            data: {
+              ...user,
+              acquisition: touch || { version: 1, source: "unknown", reason: "no_valid_first_touch" },
+              experimentAttribution: signupExperiment(ctx?.headers),
+            },
           };
         },
       },

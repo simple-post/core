@@ -35,6 +35,7 @@ model User {
   stripeCustomerId             String?                     @unique
   isAdmin                      Boolean                     @default(false)
   acquisition                  String?
+  experimentAttribution        String?
   firstPayment                 FirstPayment?
   createdAt                    DateTime                    @default(now())
   updatedAt                    DateTime                    @default(now()) @updatedAt
@@ -620,4 +621,16 @@ model PostEditorSession {
 
   @@index([userId, expiresAt])
   @@map("post_editor_session")
+}
+
+// One actual browser exposure, deduplicated using a hash of its signed assignment.
+model ExperimentExposure {
+  id           String   @id
+  experimentId String
+  variant      String
+  assignedAt   DateTime
+  exposedAt    DateTime @default(now())
+
+  @@index([experimentId, exposedAt])
+  @@map("experiment_exposure")
 }

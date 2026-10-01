@@ -6,7 +6,7 @@ Target the moment someone wants to turn content in a conversation into a saved s
 
 The proposed subtitle is **Schedule and publish posts** (26 characters). The full public description is in `scheduler/chatgpt-app-submission.json`; starter prompts and release notes are in `listing.json`. The public ZIP builder reads those files. The repository compatibility manifest carries the same subtitle and starters. Existing identities, endpoint, country targeting, permissions, and tool contracts remain unchanged.
 
-The description leads with user outcomes, then explains previews, calendar selection, editor proposals, account connection, plan requirements, and unsupported capabilities. Starter prompts demonstrate platform-specific read, preview, and draft workflows without encouraging an accidental public post. They do not imply SimplePost generates images.
+The description leads with user outcomes, then explains previews, calendar selection, editor proposals, account connection and unsupported capabilities. The category is Productivity: the main purpose is organizing, scheduling, and publishing social content. Public descriptions contain no pricing, subscription offers, or temporary promotions. Starter prompts demonstrate platform-specific read, preview, and draft workflows without encouraging an accidental public post. They do not imply SimplePost generates images.
 
 ## What this can and cannot achieve
 

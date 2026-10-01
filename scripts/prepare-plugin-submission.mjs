@@ -79,7 +79,7 @@ const plugin = {
         shortDescription: info.subtitle,
         longDescription: info.description,
         developerName: listing.developerName,
-        category: "Productivity",
+        category: listing.category,
         defaultPrompt: listing.defaultPrompt,
         websiteURL: listing.websiteURL,
         supportURL: listing.supportURL,

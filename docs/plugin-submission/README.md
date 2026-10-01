@@ -77,3 +77,9 @@ Read-only inspection of the existing plugin confirmed:
 - The saved commerce checkbox is unchecked, consistent with the developer's answer. Demo URL is recorded above but playback remains unverified.
 
 Use the existing plugin's **Upload plugin to make changes**/**Upload new version** action for the new ZIP workflow, rather than importing JSON into the legacy 3.0.0 form. Verify the destination and preserved MCP association after upload; do not create another public plugin.
+
+## Listing review corrections
+
+Removed trial/paid-plan language from public descriptions and led with the main purpose: social media scheduling and publishing. The public package uses the documented category title `Productivity`, now explicitly configured in `listing.json`; the legacy form importer uses its existing `PRODUCTIVITY` enum. Compatibility listing copy is aligned. The private review commerce declaration remains separate from public listing copy. Rebuild and reupload the ZIP, then wait for metadata checks to confirm whether the category finding is resolved. Local validation cannot clear a portal finding.
+
+On 2026-10-01, the uploaded 3.0.0 draft showed both reported findings. The published 2.0.0 version was checked directly: its category is Productivity and metadata checks show no issues. The category is preserved; the revised description states the scheduling/publishing purpose immediately. The corrected ZIP has not yet been reuploaded or accepted by portal checks.

@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simplepost",
   "version": "1.1.0",
-  "description": "Schedule and publish social posts, save drafts, preview platform-specific versions, and manage your connected accounts\u2019 publishing calendar with SimplePost. Also supports developer integration through MCP, CLI, HTTP, and TypeScript.",
+  "description": "SimplePost is a social media scheduling and publishing tool. Save drafts, preview posts for each platform, and organize your publishing calendar across connected social accounts.",
   "author": {
     "name": "SimplePost",
     "email": "support@simplepost.social",

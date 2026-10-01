@@ -87,3 +87,7 @@ On 2026-10-01, the uploaded 3.0.0 draft showed both reported findings. The publi
 ### Category-only follow-up
 
 The reuploaded draft `appsub_6abe579d45ac8191b8636a84814c4afb` was inspected on 2026-10-01. Pricing feedback is gone and both skills show Checks passed; the category finding persists without diagnostic detail. This candidate changes only the category metadata to `Business` (`BUSINESS` in the legacy importer), retaining the now-accepted description. Business is a supported category in OpenAI’s submission schema and is a reasonable fit for social publishing/marketing workflows. This is a category-fit hypothesis, not a confirmed validator root cause. Reupload and inspect the check result. If the same finding persists, provide the plugin/version IDs and copied finding to OpenAI support rather than repeatedly rewriting accurate copy. No support message has been sent.
+
+### ZIP category format correction
+
+The ZIP-specific [submission error reference](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors) lists `Business & Operations`, not `Business`. The older JSON form importer separately accepts `BUSINESS`. The public ZIP and compatibility listing now use `Business & Operations`; the legacy importer retains `BUSINESS`. Archive validation now enforces the complete documented ZIP category allowlist and rejects both `Business` and `BUSINESS`. This corrects the invalid category value; portal acceptance still requires reupload and its checks.

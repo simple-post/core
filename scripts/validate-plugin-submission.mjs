@@ -32,6 +32,14 @@ const extension = plugin.extensions["com.openai"];
 for (const key of ["apps", "skills", "mcpServers", "interface"]) assert(plugin[key] == null, `Nonportable ${key}`);
 assert(extension.apps == null, "Private app binding");
 const listing = extension.interface;
+// ZIP categories differ from the legacy form importer enum (e.g. BUSINESS).
+// https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors
+const categories = new Set([
+  "Productivity", "Creativity", "Developer Tools", "Business & Operations",
+  "Data & Analytics", "Communication", "Education & Research", "Security",
+  "Finance", "Healthcare", "Travel", "Entertainment", "Other",
+]);
+assert(categories.has(listing.category), `Unsupported ZIP category: ${listing.category}`);
 for (const [key, max] of Object.entries({ displayName: 30, shortDescription: 30, longDescription: 4000, developerName: 80, category: 120 })) text(listing[key], max, key);
 for (const key of ["websiteURL", "supportURL", "privacyPolicyURL", "termsOfServiceURL"]) url(listing[key], key);
 assert(Array.isArray(listing.defaultPrompt) && listing.defaultPrompt.length <= 3, "Invalid starter prompts");

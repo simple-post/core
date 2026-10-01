@@ -59,8 +59,9 @@ test.beforeAll(async () => {
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { SocialInbox, PostSocialPanel } from './components/social-activity';
+          import { WorkspaceNavigation } from './components/visual/navigation';
           const component = location.pathname === '/post' ? <PostSocialPanel postId="post-1" /> : <SocialInbox />;
-          createRoot(document.getElementById('root')).render(component);
+          createRoot(document.getElementById('root')).render(<><WorkspaceNavigation includeInbox={location.pathname !== '/plugin'} active={location.pathname === '/social' ? 'inbox' : 'posts'} renderItem={({id, label, className, children}) => <a href={id === 'posts' ? '/' : id === 'inbox' ? '/social' : '/accounts'} aria-label={label} aria-current={(location.pathname === '/social' ? 'inbox' : 'posts') === id ? 'page' : undefined} className={className}>{children}</a>} />{location.pathname === '/plugin' ? null : component}</>);
         `,
       },
       bundle: true,
@@ -163,6 +164,8 @@ test("social inbox renders real styled cards, filters, pagination, and reply out
   });
   await page.addScriptTag({ content: bundle });
 
+  await expect(page.getByRole("link", { name: "Inbox", exact: true })).toHaveAttribute("href", "/social");
+  await expect(page.getByRole("link", { name: "Inbox", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Comments and mentions" })).toBeVisible();
   await expect(page.getByText("Could you share the source?")).toBeVisible();
 
@@ -195,6 +198,8 @@ test("social inbox renders real styled cards, filters, pagination, and reply out
   await expect(secondComposer.getByRole("alert")).toContainText("Test provider temporarily unavailable");
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: testInfo.outputPath("social-inbox-mobile.png"), fullPage: true });
   expect(browserErrors).toEqual([]);
 });
@@ -234,5 +239,15 @@ test("post activity uses cached metric cards and reports continuation/error cove
   await expect(page.getByText("Latest refresh: Insights permission was not granted")).toBeVisible();
   await expect(page.getByRole("button", { name: "Load older comments" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("post-social-metrics.png"), fullPage: true });
+  expect(browserErrors).toEqual([]);
+});
+
+test("embedded workspace navigation retains its supported sections", async ({ page }) => {
+  const browserErrors = await mount(page, "/plugin");
+  await page.addScriptTag({ content: bundle });
+  const navigation = page.getByRole("navigation", { name: "Workspace sections" });
+  await expect(navigation.getByRole("link", { name: "Posts", exact: true })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Accounts", exact: true })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Inbox", exact: true })).toHaveCount(0);
   expect(browserErrors).toEqual([]);
 });

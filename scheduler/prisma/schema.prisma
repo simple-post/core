@@ -486,6 +486,7 @@ model SocialActivityItem {
   replies          SocialActivityReply[]
 
   @@unique([accountId, kind, nativeId])
+  @@index([userId, firstSeenAt, id])
   @@index([userId, kind, createdAtNative])
   @@index([postId, createdAtNative])
   @@map("social_activity_item")

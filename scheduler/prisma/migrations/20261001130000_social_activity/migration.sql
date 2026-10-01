@@ -65,6 +65,7 @@ CREATE TABLE "social_activity_reply" (
     CONSTRAINT "social_activity_reply_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX "social_activity_item_accountId_kind_nativeId_key" ON "social_activity_item"("accountId", "kind", "nativeId");
+CREATE INDEX "social_activity_item_userId_firstSeenAt_id_idx" ON "social_activity_item"("userId", "firstSeenAt", "id");
 CREATE INDEX "social_activity_item_userId_kind_createdAtNative_idx" ON "social_activity_item"("userId", "kind", "createdAtNative");
 CREATE INDEX "social_activity_item_postId_createdAtNative_idx" ON "social_activity_item"("postId", "createdAtNative");
 CREATE UNIQUE INDEX "social_post_metric_accountId_nativePostId_key" ON "social_post_metric"("accountId", "nativePostId");

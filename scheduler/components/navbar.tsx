@@ -31,6 +31,13 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
+  const activeSection = pathname.startsWith("/accounts")
+    ? "accounts"
+    : pathname.startsWith("/social")
+      ? "inbox"
+      : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
+        ? "posts"
+        : null;
   const showCreateCta = !pathname.startsWith("/schedule");
 
   return (
@@ -48,26 +55,13 @@ export function Navbar({ actions }: NavbarProps) {
         </Link>
 
         <WorkspaceNavigation
-          active={
-            pathname.startsWith("/accounts")
-              ? "accounts"
-              : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
-                ? "posts"
-                : null
-          }
+          includeInbox
+          active={activeSection}
           renderItem={({ id, label, className, children }) => (
             <Link
-              href={id === "posts" ? "/" : "/accounts"}
+              href={id === "posts" ? "/" : id === "inbox" ? "/social" : "/accounts"}
               aria-label={label}
-              aria-current={
-                (
-                  id === "accounts"
-                    ? pathname.startsWith("/accounts")
-                    : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
-                )
-                  ? "page"
-                  : undefined
-              }
+              aria-current={activeSection === id ? "page" : undefined}
               className={className}>
               {children}
             </Link>

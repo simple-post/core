@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { LayoutGrid, Users } from "lucide-react";
+import { Inbox, LayoutGrid, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,9 +15,16 @@ export function SimplePostBrand({ logoSrc }: { logoSrc: string }) {
 export function WorkspaceNavigation({
   active,
   renderItem,
+  includeInbox = false,
 }: {
-  active: "posts" | "accounts" | null;
-  renderItem: (props: { id: "posts" | "accounts"; label: string; className: string; children: ReactNode }) => ReactNode;
+  active: "posts" | "accounts" | "inbox" | null;
+  includeInbox?: boolean;
+  renderItem: (props: {
+    id: "posts" | "accounts" | "inbox";
+    label: string;
+    className: string;
+    children: ReactNode;
+  }) => ReactNode;
 }) {
   return (
     <nav className="simplepost-visual ml-1 flex items-center gap-1 sm:ml-3" aria-label="Workspace sections">
@@ -25,6 +32,7 @@ export function WorkspaceNavigation({
         [
           { id: "posts", label: "Posts", Icon: LayoutGrid },
           { id: "accounts", label: "Accounts", Icon: Users },
+          ...(includeInbox ? ([{ id: "inbox", label: "Inbox", Icon: Inbox }] as const) : []),
         ] as const
       ).map(({ id, label, Icon }) => (
         <span key={id}>

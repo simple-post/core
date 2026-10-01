@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "SimplePost",
     "shortDescription": "Schedule and publish posts",
-    "longDescription": "A flagship SimplePost skill for publishing, scheduling, drafting, previewing, inspecting, and managing posts across connected social accounts. It also guides developers through the CLI, HTTP API, Scheduler app, and TypeScript SDK when integrating social publishing into an application.",
+    "longDescription": "A flagship SimplePost skill for publishing, scheduling, drafting, previewing, inspecting, and managing posts across connected social accounts. It also guides developers through the CLI, HTTP API, Scheduler app, and TypeScript SDK when integrating social publishing into an application. Connected-account publishing supports X (Twitter), LinkedIn, Instagram, Facebook, Threads, Bluesky, TikTok, YouTube, Pinterest, and Telegram, with platform-specific media and account requirements.",
     "developerName": "SimplePost",
     "category": "Productivity",
     "capabilities": [
@@ -31,9 +31,9 @@
     ],
     "websiteURL": "https://simplepost.social",
     "defaultPrompt": [
-      "Show my social posting calendar for next week.",
-      "Preview this announcement for my connected social accounts.",
-      "Save this update as a draft for my connected accounts."
+      "Preview these photos as an Instagram carousel.",
+      "Save this announcement as a draft with different versions for LinkedIn and X.",
+      "Show my scheduled TikTok and YouTube posts for next week."
     ],
     "brandColor": "#C6F432",
     "screenshots": []

@@ -6,9 +6,9 @@
   "privacyPolicyURL": "https://simplepost.social/privacy",
   "termsOfServiceURL": "https://simplepost.social/terms",
   "defaultPrompt": [
-    "Show my social posting calendar for next week.",
-    "Preview this announcement for my connected social accounts.",
-    "Save this update as a draft for my connected accounts."
+    "Preview these photos as an Instagram carousel.",
+    "Save this announcement as a draft with different versions for LinkedIn and X.",
+    "Show my scheduled TikTok and YouTube posts for next week."
   ],
   "countries": [],
   "release_notes": "Adds an interactive sidebar calendar workspace and a persistent post editor with live platform previews, recoverable working copies, per-account variants, and separate AI edit proposals. Calendar and editor selections can be shared with chat. Publishing preferences now include timezone, calendar view, and default destinations. Onboarding guides users to connect a social account and save their first draft. Existing MCP preview, calendar, and posting tools remain available. Clarifies publishing use cases, tool selection boundaries, and starter prompts, with a separate discovery evaluation set.",

@@ -29,7 +29,7 @@ Local validation does not verify portal identity, domain ownership, authenticati
 
 ## Discovery preparation
 
-See [discovery.md](discovery.md) for the proposed positioning, 17-case routing evaluation, evidence template, and publication/first-user checklist. The listing and starter prompts in this branch are proposed updates; they have not been uploaded to the saved portal draft. The generated ZIP remains a review draft with the outstanding items below.
+See [discovery.md](discovery.md) for the proposed positioning, 33-case routing evaluation, evidence template, and publication/first-user checklist. The listing and starter prompts in this branch are proposed updates; they have not been uploaded to the saved portal draft. The generated ZIP remains a review draft with the outstanding items below.
 
 ## Recording walkthrough
 

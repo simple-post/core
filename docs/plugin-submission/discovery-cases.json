@@ -181,6 +181,247 @@
       "expected_tools": [],
       "expected_behavior": "Use an appropriate image capability if available. Do not invoke SimplePost or imply it generates images.",
       "status": "not_run"
+    },
+    {
+      "id": "instagram-carousel",
+      "kind": "indirect",
+      "platforms": [
+        "instagram"
+      ],
+      "prompt": "Schedule these three photos in this order as an Instagram carousel tomorrow at 09:00 Europe/Berlin. Caption: \"Three views of our launch.\"",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Provide three accessible JPEG fixture URLs in order, within Instagram media limits. Authorized sample schedule only; remove before due time.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "One post to the Instagram account only, postingMode=schedule, ordered root media images, exact caption, tomorrow at the date-specific Berlin offset, and idempotencyKey. No generated video and no thread. Preview returned post; report validation failures truthfully.",
+      "status": "not_run"
+    },
+    {
+      "id": "tiktok-video",
+      "kind": "indirect",
+      "platforms": [
+        "tiktok"
+      ],
+      "prompt": "Post this video publicly to my TikTok test account. Caption: \"A quick product tour.\"",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Supply a valid accessible MP4 fixture URL. Run only with explicit authorization for public test publication; validate account readiness. Cleanup happens on TikTok, not via SimplePost.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post"
+      ],
+      "expected_behavior": "Use postingMode=now, video root media, exact caption, target only TikTok, public privacyLevel and idempotencyKey. Do not confuse TikTok inbox mode with a SimplePost draft. Report actual per-account result/URL or failure, not merely tool success.",
+      "status": "not_run"
+    },
+    {
+      "id": "x-thread",
+      "kind": "indirect",
+      "platforms": [
+        "x"
+      ],
+      "prompt": "Publish these five numbered paragraphs as a five-post thread on my X test account, keeping the wording and order.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Provide five short text paragraphs within X limits. Authorized public test account only; removal of live posts happens on X.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post"
+      ],
+      "expected_behavior": "First paragraph is message; remaining four are ordered thread message entries. One create_post, one target, postingMode=now and idempotencyKey. Inspect per-segment threadResults; report partial failures rather than claiming the entire thread succeeded.",
+      "status": "not_run"
+    },
+    {
+      "id": "linkedin-announcement",
+      "kind": "indirect",
+      "platforms": [
+        "linkedin"
+      ],
+      "prompt": "Schedule \"Our new guide is out today.\" on my LinkedIn account tomorrow at 10:00 Europe/Berlin.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Exactly one LinkedIn test destination. Authorized sample schedule; remove before due time.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "One LinkedIn accountId, exact message, postingMode=schedule, correct future offset-aware time, idempotencyKey. Preserve destination type from account data; do not assume a personal profile versus organization.",
+      "status": "not_run"
+    },
+    {
+      "id": "facebook-page",
+      "kind": "indirect",
+      "platforms": [
+        "facebook"
+      ],
+      "prompt": "Publish this photo to my Facebook Page with the caption \"Meet our new workspace.\"",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Connected Facebook Page (not personal profile) and accessible JPEG fixture. Authorized public sample only; cleanup on Facebook.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post"
+      ],
+      "expected_behavior": "Resolve the Page account, one root image, exact caption, postingMode=now and idempotencyKey. Do not send to a group, personal profile or other platform. Report returned Page result or error.",
+      "status": "not_run"
+    },
+    {
+      "id": "threads-draft",
+      "kind": "indirect",
+      "platforms": [
+        "threads"
+      ],
+      "prompt": "Save these three paragraphs as a three-part Threads thread draft. Do not publish.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Supply three distinct short paragraphs.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Use postingMode=draft, first paragraph as message and two ordered text-only follow-ups. Select Meta Threads account, not X. Preview saved draft; no external publishing or scheduled time.",
+      "status": "not_run"
+    },
+    {
+      "id": "bluesky-thread-preview",
+      "kind": "indirect",
+      "platforms": [
+        "bluesky"
+      ],
+      "prompt": "Preview these three paragraphs as a Bluesky thread without saving anything.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Supply three short paragraphs fitting Bluesky limits.",
+      "expected_tools": [
+        "list_accounts",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Resolve Bluesky account; render unsaved draft with message plus two thread entries. No create_post, editor-session write, schedule or publication.",
+      "status": "not_run"
+    },
+    {
+      "id": "youtube-video",
+      "kind": "indirect",
+      "platforms": [
+        "youtube"
+      ],
+      "prompt": "Upload this video to my YouTube test channel as unlisted. Title: \"Product tour\". Description: \"A walkthrough of our new workspace.\" It is not made for kids.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Supply accessible valid MP4 fixture. Authorized unlisted test upload only; cleanup in YouTube Studio.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post"
+      ],
+      "expected_behavior": "Use root video and accountOptions keyed by actual YouTube account ID: title=Product tour, description as supplied, privacyStatus=unlisted, selfDeclaredMadeForKids=false. postingMode=now with idempotencyKey. No playlist assignment. Report actual upload result; do not invent a URL.",
+      "status": "not_run"
+    },
+    {
+      "id": "pinterest-pin",
+      "kind": "indirect",
+      "platforms": [
+        "pinterest"
+      ],
+      "prompt": "Publish this image as a Pin on my Pinterest test board using the board ID I supplied. Title: \"Workspace inspiration\".",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Supply accessible JPEG and an actual numeric board ID owned by the test account in the same prompt/context. Authorized sample publication only.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post"
+      ],
+      "expected_behavior": "Use Pinterest accountId, image root media, accountOptions[accountId].boardId from the user, and supplied title. postingMode=now with idempotencyKey. No invented board lookup tool or guessed board ID. Ask if board ID is absent; never fall back to a random board.",
+      "status": "not_run"
+    },
+    {
+      "id": "telegram-channel",
+      "kind": "indirect",
+      "platforms": [
+        "telegram"
+      ],
+      "prompt": "Schedule \"Our product tour goes live tomorrow.\" for my connected Telegram test channel tomorrow at 12:00 Europe/Berlin.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. One Telegram channel connection with publishing permission. Authorized sample schedule; remove before due time.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Use returned Telegram accountId, exact text, postingMode=schedule with date-specific offset and idempotencyKey. Use connected channel, not an invented recipient or private message. Show returned schedule.",
+      "status": "not_run"
+    },
+    {
+      "id": "cross-platform-variants",
+      "kind": "indirect",
+      "platforms": [
+        "linkedin",
+        "x"
+      ],
+      "prompt": "Save this announcement as one draft for LinkedIn and X. Use the supplied long version on LinkedIn and the short version on X.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Provide exact long/short fixture texts; short version within X limits.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "Create one draft covering both actual accountIds with accountOverrides keyed by IDs for differing message text. No duplicate post per platform, no publication. Preview each variant; verify saved texts match fixtures.",
+      "status": "not_run"
+    },
+    {
+      "id": "cross-platform-thread-shapes",
+      "kind": "indirect",
+      "platforms": [
+        "x",
+        "bluesky",
+        "linkedin"
+      ],
+      "prompt": "Save this as one draft: a three-post thread on X and Bluesky, but one complete post on LinkedIn.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Supply three short paragraphs and their combined LinkedIn text.",
+      "expected_tools": [
+        "list_accounts",
+        "create_post",
+        "show_post_preview"
+      ],
+      "expected_behavior": "One draft with account-scoped message/thread overrides for X and Bluesky and no thread for LinkedIn. Both thread accounts have one root plus two follow-ups. Preserve supplied wording; preview all three without flattening or dropping follow-ups.",
+      "status": "not_run"
+    },
+    {
+      "id": "cross-platform-media-preview",
+      "kind": "indirect",
+      "platforms": [
+        "instagram",
+        "facebook"
+      ],
+      "prompt": "Preview these three photos for an Instagram carousel and a Facebook Page post. Do not save or publish.",
+      "setup": "Use dedicated connected test accounts, no active editor, and the supplied fixture content. Resolve actual account IDs with list_accounts; never invent IDs. Provide three accessible JPEG URLs in a specified order and a shared caption.",
+      "expected_tools": [
+        "list_accounts",
+        "show_post_preview"
+      ],
+      "expected_behavior": "One unsaved preview targeting Instagram and Facebook Page account IDs with ordered root media and shared caption. Check both platform previews. No creation, schedule, session write, or platform publication.",
+      "status": "not_run"
+    },
+    {
+      "id": "youtube-analytics",
+      "kind": "negative",
+      "platforms": [
+        "youtube"
+      ],
+      "prompt": "Which of my YouTube videos has the best audience retention?",
+      "setup": "No publishing request.",
+      "expected_tools": [],
+      "expected_behavior": "Explain SimplePost does not expose YouTube audience-retention analytics. No account inspection or posting tools; do not infer performance from publishing status.",
+      "status": "not_run"
+    },
+    {
+      "id": "pinterest-board-create",
+      "kind": "negative",
+      "platforms": [
+        "pinterest"
+      ],
+      "prompt": "Create a new Pinterest board called Workspace Ideas.",
+      "setup": "No supported board-management MCP tool.",
+      "expected_tools": [],
+      "expected_behavior": "Explain board creation must be done in Pinterest. No create_post, fabricated board ID, or placeholder Pin.",
+      "status": "not_run"
+    },
+    {
+      "id": "tiktok-trending-audio",
+      "kind": "negative",
+      "platforms": [
+        "tiktok"
+      ],
+      "prompt": "Find the most popular TikTok sound this week.",
+      "setup": "No supplied video or publishing request.",
+      "expected_tools": [],
+      "expected_behavior": "Do not use creator-info or publishing tools as a trending-audio search. Explain SimplePost cannot search or select trending sounds.",
+      "status": "not_run"
     }
   ]
 }

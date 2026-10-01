@@ -6,7 +6,7 @@ Target the moment someone wants to turn content in a conversation into a saved s
 
 The proposed subtitle is **Schedule and publish posts** (26 characters). The full public description is in `scheduler/chatgpt-app-submission.json`; starter prompts and release notes are in `listing.json`. The public ZIP builder reads those files. The repository compatibility manifest carries the same subtitle and starters. Existing identities, endpoint, country targeting, permissions, and tool contracts remain unchanged.
 
-The description leads with user outcomes, then explains previews, calendar selection, editor proposals, account connection, plan requirements, and unsupported capabilities. Starter prompts demonstrate read, preview, and draft workflows without encouraging an accidental public post. They do not imply SimplePost generates images.
+The description leads with user outcomes, then explains previews, calendar selection, editor proposals, account connection, plan requirements, and unsupported capabilities. Starter prompts demonstrate platform-specific read, preview, and draft workflows without encouraging an accidental public post. They do not imply SimplePost generates images.
 
 ## What this can and cannot achieve
 
@@ -16,7 +16,7 @@ Intent-specific descriptions and positive/negative prompt tests help the model s
 
 ## Routing evaluation
 
-`discovery-cases.json` contains 17 direct, indirect, selection-aware, and negative cases. These supplement rather than replace the five positive and three negative portal review cases. All host cases are **Not run**. Static checks and MCP protocol tests verify implementation compatibility, not model routing or recommendation eligibility.
+`discovery-cases.json` contains 33 direct, indirect, selection-aware, and negative cases. These supplement rather than replace the five positive and three negative portal review cases. All host cases are **Not run**. Static checks and MCP protocol tests verify implementation compatibility, not model routing or recommendation eligibility.
 
 1. Connect the deployed version in developer mode with a dedicated test account. Record deployment SHA, client/surface, date, available tool names, feature flags, scopes, timezone, and connected platform types. Never record credentials.
 2. Run each prompt in a fresh conversation, except cases requiring explicit editor/slot context. Use the setup in each case. Run mutation cases only against authorized test destinations; remove sample schedules before their due times. Draft and preview cases must never publish.
@@ -41,3 +41,26 @@ Use this result template outside the public ZIP:
 - Separately observe discovery from an account without the plugin installed using realistic publishing prompts. Record recommendations actually shown, account/surface/date and region where relevant; do not mistake installed-tool routing for install-card distribution. Absence of a card does not prove the listing is broken.
 
 This PR prepares source and review materials only. It does not update the portal, submit for review, publish a plugin, or contact customers.
+
+## Platform and format coverage
+
+The public listing names all ten connected-account platforms. The discovery suite includes one primary workflow per platform and three multi-platform cases. Existing negative Instagram DM and LinkedIn engagement cases are joined by YouTube retention analytics, Pinterest board creation, and TikTok sound discovery. Keep the portal review set at five positive and three negative cases; the larger suite is for development and routing evaluation.
+
+| Platform | Primary case | Format/argument checks |
+| --- | --- | --- |
+| Instagram | instagram-carousel | Three ordered root images; carousel, not generated video; implementation supports up to 10 items |
+| TikTok | tiktok-video | Root video, public audience, immediate publication; separate inbox mode from saved draft |
+| X (Twitter) | x-thread | One root plus four follow-up messages; inspect per-segment results |
+| LinkedIn | linkedin-announcement | Exact account and offset-aware future schedule |
+| Facebook | facebook-page | Connected Page, image and caption; no personal-profile or group claim |
+| Threads | threads-draft | Meta Threads account, one root plus two follow-ups; draft only |
+| Bluesky | bluesky-thread-preview | Unsaved three-part thread preview; no writes |
+| YouTube | youtube-video | Video, explicit title/description, unlisted privacy and audience setting; no playlists |
+| Pinterest | pinterest-pin | Image, title and actual supplied numeric board ID; no board discovery/creation |
+| Telegram | telegram-channel | Connected channel and future schedule; no arbitrary private recipient |
+
+Cross-platform cases cover LinkedIn/X text variants, X/Bluesky threads versus a single LinkedIn post, and Instagram/Facebook multi-image previews. Preserve one post with account-specific overrides where requested, rather than duplicating posts by platform.
+
+Implementation sources reviewed: `scheduler/components/visual/platforms.ts` (hosted platform catalog), `scheduler/lib/mcp/tools/posts.ts` and `media-schema.ts` (wire fields), `sdk/src/types/api.ts` (account options), `scheduler/lib/validation/post-validation.ts` (thread platforms, required Pinterest board and unavailable YouTube playlists), `scheduler/lib/posting/credentials.ts` (connected Telegram destination and Pinterest options), and `sdk/src/publishers/instagram/` (carousel publishing and media limits). These establish implemented capability, not live platform-account readiness.
+
+Fixture preparation: supply actual reviewer-owned media URLs and text in each case's conversation before running it. Do not substitute invented public URLs or board IDs. Record fixture names and account platform types alongside results; keep credentials out. Publishing cases require explicit test-publication authorization and platform-side cleanup; scheduled cases must be removed before due time. All 33 remain **Not run** in the host until observed evidence is recorded.

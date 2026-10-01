@@ -23,7 +23,7 @@
     "shortDescription": "Schedule and publish posts",
     "longDescription": "SimplePost is a social media scheduling and publishing tool. Save drafts, preview posts for each platform, and organize your publishing calendar across connected social accounts.\n\nSchedule and publish to X (Twitter), LinkedIn, Instagram, Facebook, Threads, Bluesky, TikTok, YouTube, Pinterest, and Telegram. Supported workflows include Instagram photo carousels, TikTok and YouTube videos, X, Threads and Bluesky threads, LinkedIn updates, Facebook Page posts, Pinterest Pins with a supplied board ID, and Telegram channel announcements. Platform account and media requirements vary.\n\nUse the calendar to review upcoming posts, choose posting times, and reschedule future posts. Use the post editor to prepare shared content or different versions for each account and preview how they will look. Editor working copies autosave, and proposed writing changes stay separate until applied. Saving a draft does not publish it.\n\nConnect your social accounts in the SimplePost web app and authorize the plugin with the same login. SimplePost does not generate images, provide engagement analytics, read social inboxes or comments, or edit posts already published on social platforms.",
     "developerName": "SimplePost",
-    "category": "Productivity",
+    "category": "Business",
     "capabilities": [
       "Interactive",
       "Read",

@@ -6,10 +6,14 @@
   "privacyPolicyURL": "https://simplepost.social/privacy",
   "termsOfServiceURL": "https://simplepost.social/terms",
   "defaultPrompt": [
-    "what is scheduled today?",
-    "post a product update on all channels",
-    "create a funny image and post it on my Instagram"
+    "Preview these photos as an Instagram carousel.",
+    "Save this announcement as a draft with different versions for LinkedIn and X.",
+    "Show my scheduled TikTok and YouTube posts for next week."
   ],
   "countries": [],
-  "release_notes": "Adds an interactive sidebar calendar workspace and a persistent post editor with live platform previews, recoverable working copies, per-account variants, and separate AI edit proposals. Calendar and editor selections can be shared with chat. Publishing preferences now include timezone, calendar view, and default destinations. Onboarding guides users to connect a social account and save their first draft. Existing MCP preview, calendar, and posting tools remain available."
+  "release_notes": "Adds an interactive sidebar calendar workspace and a persistent post editor with live platform previews, recoverable working copies, per-account variants, and separate AI edit proposals. Calendar and editor selections can be shared with chat. Publishing preferences now include timezone, calendar view, and default destinations. Onboarding guides users to connect a social account and save their first draft. Existing MCP preview, calendar, and posting tools remain available. Clarifies publishing use cases, tool selection boundaries, and starter prompts, with a separate discovery evaluation set.",
+  "commerce": false,
+  "commerce_description": "The plugin does not support purchases or direct subscriptions. Hosted publishing requires an existing active SimplePost trial or paid plan; no purchase or checkout is performed through the plugin.",
+  "packageName": "app-69f882652190819192ab1c88f1218795",
+  "category": "Productivity"
 }

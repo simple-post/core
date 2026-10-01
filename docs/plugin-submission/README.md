@@ -13,11 +13,23 @@ node scripts/prepare-plugin-submission.mjs
 Outputs under `dist/plugin-submission/`:
 
 - `simplepost-3.0.0-review-draft.zip`: portable public upload copy with production MCP endpoint, two skills, onboarding reference, existing branding, listing, release notes, worldwide targeting, and five positive/three negative review cases.
-- `chatgpt-app-submission.json`: the portal's form importer, with listing text, all 23 tool annotations and justifications, and the same review cases. The canonical input is `scheduler/chatgpt-app-submission.json`.
-- `setup-skill-3.0.0.zip` and `simplepost-skill-3.0.0.zip`: individual skill uploads for the existing draft's Skills section.
 - `PACKAGE-STATUS.md`: archive checksum, inventory, and outstanding preparation items.
 
+The single ZIP contains both skills, `plugin.json`, `mcp.json`, and the icon. Listing, onboarding, five positive/three negative review cases, commerce declaration, release notes, and country targeting live under `extensions.com.openai` in the packaged manifest. Do not upload skills separately in the current ZIP-based flow. The builder validates the actual archive. For old tooling only, `--legacy-exports` additionally emits the form importer and separate skill ZIPs; those files are not needed for the new flow.
+
 The public upload excludes private app bindings, credentials, development URLs, compatibility manifests, dependencies, and backend source. Reviewer credentials stay only in the portal's secure Testing field. The original source and saved portal MCP binding are preserved.
+
+## ZIP-based submission flow
+
+Follow the [current OpenAI submission guide](https://developers.openai.com/plugins/deploy/submission). Finish the replacement recording first, add its verified URL to `listing.json`, and rebuild. When upload is authorized, open the existing SimplePost plugin draft and use its package update/upload action; do not create a duplicate plugin. Choose the existing verified publisher identity. Upload `simplepost-3.0.0-review-draft.zip`, inspect **Metadata & Skills**, and resolve all scan findings by editing source and rebuilding the complete ZIP. Imported review cases are read-only: update them in source, not the portal.
+
+In **MCPs**, preserve the production endpoint and existing connection. Verify domain ownership, OAuth, and discovered tools; reconnect only if needed, and rescan deployed changes. Run the review cases against the saved version. Reviewer access goes only in secure portal fields. Reupload replaces the bundle and resets attestations; inspect the saved state again. The developer completes legal attestations. **Submit for review** and **Publish** after approval are separate authorized actions. Neither has been performed by this preparation.
+
+Local validation does not verify portal identity, domain ownership, authentication, skill/tool scans, live behavior, or approval.
+
+## Discovery preparation
+
+See [discovery.md](discovery.md) for the proposed positioning, 33-case routing evaluation, evidence template, and publication/first-user checklist. The listing and starter prompts in this branch are proposed updates; they have not been uploaded to the saved portal draft. The generated ZIP remains a review draft with the outstanding items below.
 
 ## Recording walkthrough
 
@@ -41,12 +53,33 @@ The drafted positive cases cover sidebar/calendar discovery, persistent draft/pr
 ## Remaining preparation
 
 - Portal draft updated: listing, five positive/three negative cases, and release notes were imported/saved and checked after a reload. Both skills were uploaded. The setup skill passed; the main workflow skill was scanning at handoff. The portal requires an MCP scan, so the annotation justifications may need reimporting after that scan. No review was submitted and all legal confirmations remain unchecked.
-- Replacement recording: the developer will record during dev testing. No new recording URL is available yet.
-- Commerce: confirm whether plugin flows direct users to subscribe. The portal currently has the purchase-routing box unchecked; preserve it until the developer answers. Hosted trial/paid-plan requirements are disclosed in the listing. Do not attest that subscription access is a physical-goods sale or invent an exemption.
+- Replacement recording: the current 3.0.0 portal draft contains https://youtu.be/9XTzNhhaRSY (observed 2026-09-30). Playback verification was blocked by a YouTube CAPTCHA. Preserve this saved value; verify actual playback and coverage before adding `demo_recording_url` to the ZIP. Omitting it preserves the saved portal value.
+- Commerce: the developer confirmed that direct subscriptions through the plugin are not allowed. The ZIP declares `commerce: false` and explains that hosted access requires an existing trial or paid plan, with no plugin checkout. Confirm imported values when the ZIP is uploaded; this declaration is not a legal attestation.
 - Deployment and scan: the saved public draft points to `https://app.simplepost.social/mcp`. After dev passes, deploy this version to production, apply its migration, enable `PLUGIN_EXTENSIONS` for the review account, then scan and verify all expected extension tools/entrypoints. Do not change the public listing's endpoint to dev.
-- Skills: verify both skill uploads and scan results. If the portal does not expose the onboarding reference, preserve it in the portable ZIP and report the portal mapping as unverified.
+- Skills: both skills and the onboarding reference are included in the single ZIP. Verify their scans under **Metadata & Skills** after upload.
 - Reviewer access: preserve secure credentials, add exact login/tenant/sign-in instructions in the secure field, and verify access plus sample-account readiness. No credentials belong in this document or any public archive.
 - Developer attestations: the developer must review and complete the portal's legal/policy confirmations themselves. Leave them unchecked during preparation.
 - Privacy: the published policy covers preferences, draft content, AI requests, storage, sharing, and account deletion. The implementation now expires editor copies after seven inactive days; consider stating that specific editor-copy retention behavior in the published policy. No legal page was edited by this task.
 
 Listing website, support, privacy, and terms pages were inspected as public pages. The source logo is a square 1254 × 1254 PNG under 5 MiB. Existing portal identity, countries, prompts, screenshots, icons, and MCP URL are preserved unless a specific update is requested. Import success does not mean the MCP scan, live tests, reviewer access, or submission is complete.
+
+ZIP preparation recheck: public website, contact form, privacy policy, and terms were inspected on 2026-09-30. The privacy page identifies Creafex Lab Vladimir Haltakov and covers assistant/MCP data and hosted service practices; the terms cover assistant integrations and subscription access. The existing SP icon was visually inspected and its PNG dimensions/size are validated from the archive. These checks do not constitute legal approval.
+
+## Current portal snapshot (2026-09-30)
+
+Read-only inspection of the existing plugin confirmed:
+
+- Package identity: `app-69f882652190819192ab1c88f1218795`; published version 2.0.0, existing legacy draft 3.0.0. The public upload manifest and its containing folder now preserve that package identity. The repository's development plugin remains named `simplepost`.
+- Published metadata/skills: no issues; no skills packaged in 2.0.0. The 3.0.0 legacy draft still has the prior listing copy. No portal content was updated.
+- Production MCP: `https://app.simplepost.social/mcp`, authorized, domain verified, MCP key displayed as “Not specified.” Preserve the existing associated app/connection when updating via ZIP and verify association after upload.
+- The visible scan lists 12 legacy tools, not the 23 expected with extensions. Verify feature access for the connected reviewer account and scan after deploying the candidate before testing extension cases.
+- Server instructions, list_accounts, create_post, inspect_posts, update_scheduled_post, and discard_scheduled_post show “Earlier version live.” The issues list names server instructions and four tools (list_accounts, inspect_posts, update_scheduled_post, discard_scheduled_post). Opened instruction/account findings only state further review is required; no actionable defect was supplied. A new ZIP does not resolve held server updates by itself.
+- The saved commerce checkbox is unchecked, consistent with the developer's answer. Demo URL is recorded above but playback remains unverified.
+
+Use the existing plugin's **Upload plugin to make changes**/**Upload new version** action for the new ZIP workflow, rather than importing JSON into the legacy 3.0.0 form. Verify the destination and preserved MCP association after upload; do not create another public plugin.
+
+## Listing review corrections
+
+Removed trial/paid-plan language from public descriptions and led with the main purpose: social media scheduling and publishing. The public package uses the documented category title `Productivity`, now explicitly configured in `listing.json`; the legacy form importer uses its existing `PRODUCTIVITY` enum. Compatibility listing copy is aligned. The private review commerce declaration remains separate from public listing copy. Rebuild and reupload the ZIP, then wait for metadata checks to confirm whether the category finding is resolved. Local validation cannot clear a portal finding.
+
+On 2026-10-01, the uploaded 3.0.0 draft showed both reported findings. The published 2.0.0 version was checked directly: its category is Productivity and metadata checks show no issues. The category is preserved; the revised description states the scheduling/publishing purpose immediately. The corrected ZIP has not yet been reuploaded or accepted by portal checks.

@@ -1,6 +1,6 @@
 ---
 name: simplepost
-description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost, or integrate SimplePost through MCP, CLI, HTTP, or TypeScript. Use for SimplePost actions and integrations; do not use for generic social copywriting.
+description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost, or integrate SimplePost through MCP, CLI, HTTP, or TypeScript. Use when users want to schedule or publish social content, save a social draft, preview connected-account posts, or manage their publishing calendar, even without naming SimplePost. Do not use for generic copywriting, SEO research, engagement analytics, or private messages.
 license: MIT
 metadata:
   hermes:

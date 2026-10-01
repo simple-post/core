@@ -6,9 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const output = join(root, "dist", "plugin-submission");
-const packagePath = join(output, "simplepost");
+
 const submission = JSON.parse(readFileSync(join(root, "scheduler", "chatgpt-app-submission.json"), "utf8"));
 const listing = JSON.parse(readFileSync(join(root, "docs", "plugin-submission", "listing.json"), "utf8"));
+const packageName = listing.packageName;
+if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(packageName) || packageName.length > 64) throw new Error("Invalid public package identity");
+const packagePath = join(output, packageName);
+const legacyExports = process.argv.includes("--legacy-exports");
 const source = JSON.parse(readFileSync(join(root, "plugin.json"), "utf8"));
 const fail = (message) => {
   throw new Error(message);
@@ -59,7 +63,7 @@ if (typeof listing.commerce === "boolean") review.commerce = listing.commerce;
 if (listing.commerce_description) review.commerce_description = listing.commerce_description;
 const plugin = {
   $schema: source.$schema,
-  name: source.name,
+  name: packageName,
   version: listing.version,
   description: source.description,
   author: { ...source.author, name: listing.developerName },
@@ -75,7 +79,7 @@ const plugin = {
         shortDescription: info.subtitle,
         longDescription: info.description,
         developerName: listing.developerName,
-        category: "Productivity",
+        category: listing.category,
         defaultPrompt: listing.defaultPrompt,
         websiteURL: listing.websiteURL,
         supportURL: listing.supportURL,
@@ -101,11 +105,11 @@ writeFileSync(
     2,
   ) + "\n",
 );
-writeFileSync(join(output, "chatgpt-app-submission.json"), JSON.stringify(submission, null, 2) + "\n");
+if (legacyExports) writeFileSync(join(output, "chatgpt-app-submission.json"), JSON.stringify(submission, null, 2) + "\n");
 const archive = join(output, `simplepost-${listing.version}-review-draft.zip`);
 rmSync(archive, { force: true });
-execFileSync("zip", ["-qr", archive, "simplepost"], { cwd: output });
-for (const name of ["setup", "simplepost"]) {
+execFileSync("zip", ["-qr", archive, packageName], { cwd: output });
+for (const name of legacyExports ? ["setup", "simplepost"] : []) {
   const skillArchive = join(output, `${name}-skill-${listing.version}.zip`);
   rmSync(skillArchive, { force: true });
   execFileSync("zip", ["-qr", skillArchive, name], { cwd: join(packagePath, "skills") });
@@ -122,10 +126,11 @@ function walk(path) {
 walk(packagePath);
 if (files.some((file) => /(^|\/)\.app\.json$|(^|\/)\.env|node_modules|\.codex-plugin/.test(file)))
   fail("Unexpected private or compatibility files in public upload.");
-const parsed = JSON.parse(execFileSync("unzip", ["-p", archive, "simplepost/plugin.json"], { encoding: "utf8" }));
+const parsed = JSON.parse(execFileSync("unzip", ["-p", archive, `${packageName}/plugin.json`], { encoding: "utf8" }));
 if (parsed.apps != null || parsed.extensions["com.openai"].apps != null || parsed.skills != null)
   fail("Public manifest contains private app bindings or non-portable skill discovery.");
 const inventory = execFileSync("unzip", ["-Z1", archive], { encoding: "utf8" });
+execFileSync(process.execPath, [join(root, "scripts", "validate-plugin-submission.mjs"), archive], { stdio: "inherit" });
 const missing = [];
 if (!listing.demo_recording_url) missing.push("Replacement demo recording URL and verified playback");
 if (typeof listing.commerce !== "boolean") missing.push("Confirmed commerce declaration");
@@ -138,7 +143,7 @@ console.log(
   JSON.stringify(
     {
       archive,
-      import: join(output, "chatgpt-app-submission.json"),
+      ...(legacyExports ? { legacyImport: join(output, "chatgpt-app-submission.json") } : {}),
       files: files.length,
       tools: Object.keys(submission.tools).length,
       missing,

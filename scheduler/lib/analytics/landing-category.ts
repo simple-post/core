@@ -2,7 +2,16 @@
  * Landing-page categories for SEO attribution. The same route rules are mirrored in
  * website-social/lib/seo/categories.ts; keep both copies identical.
  */
-export const LANDING_CATEGORIES = ["platform", "ai_client", "guide", "tool", "comparison", "mcp", "pricing", "about"] as const;
+export const LANDING_CATEGORIES = [
+  "platform",
+  "ai_client",
+  "guide",
+  "tool",
+  "comparison",
+  "mcp",
+  "pricing",
+  "about",
+] as const;
 
 export type LandingCategory = (typeof LANDING_CATEGORIES)[number];
 

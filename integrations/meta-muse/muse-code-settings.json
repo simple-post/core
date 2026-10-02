@@ -1,0 +1,10 @@
+{
+  "mcp_servers": {
+    "simplepost": {
+      "transport": "streamable_http",
+      "url": "https://app.simplepost.social/mcp",
+      "enabled": true,
+      "mode": "optional"
+    }
+  }
+}

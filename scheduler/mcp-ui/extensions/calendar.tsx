@@ -11,6 +11,8 @@ import {
   type DayEntry,
 } from "../../components/visual/schedule-calendar";
 
+import { localDateTime } from "./timezone";
+
 import type { ScheduleData, ScheduleEntry } from "../schedule";
 export function PlatformBadge({ platform }: { platform: string }) {
   return <PlatformIconBadge platform={platform} />;
@@ -43,7 +45,10 @@ export function Calendar({
         if (entry.postId) entries.set(entry.postId, entry);
         return {
           key: entry.id,
-          time: new Date(`${day.date}T${entry.localTime}`),
+          // localTime is a display label (for example "5:00 PM"), not an ISO
+          // time. Project the actual instant into the workspace's timezone for
+          // the shared calendar, independently of the browser's timezone.
+          time: new Date(localDateTime(new Date(entry.at), data.timeZone)),
           timeLabel: entry.localTime,
           isPast: entry.isPast,
           isSlot: entry.kind === "slot",

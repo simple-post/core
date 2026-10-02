@@ -106,6 +106,11 @@ if (location.search.includes('week') || location.search.includes('month')) {
 
 }
 if (location.search.includes('guess-zone')) { launch.preferences.timeZoneConfirmed=false; launch.preferences.timeZone='UTC'; }
+if (location.search.includes('localized-times')) {
+ for (const day of launch.schedule.days) for (const entry of day.entries) {
+   entry.localTime=new Intl.DateTimeFormat('en-US',{timeZone:launch.schedule.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(entry.at));
+ }
+}
 if (location.search.includes('onboarding')) launch.accounts=[];
 if (location.search.includes('readonly')) { launch.canWrite=false; launch.canValidate=false; }
 window.calls=[]; window.contexts=[]; window.messages=[]; window.links=[];
@@ -191,7 +196,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
   browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: "America/Los_Angeles" });
   const errors = [];
   page.on("pageerror", (error) => {
     errors.push(error.message);
@@ -270,6 +275,33 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${base}/?month`);
   await page.screenshot({ path: path.resolve(root, "../e2e/test-results/extensions-smoke/calendar-month.png") });
+  // The server's localTime is a display label, including AM/PM. Exercise all
+  // calendar surfaces with a browser timezone different from the workspace.
+  for (const query of ["localized-times", "week&localized-times", "month&localized-times"]) {
+    await page.goto(`${base}/?${query}`);
+    const slot = page
+      .frameLocator("iframe")
+      .getByRole("button", { name: /4:30 PM/ })
+      .first();
+    await expect(slot).toBeVisible();
+    if (query !== "localized-times")
+      await expect(slot).toHaveAttribute("title", "Schedule a post for Tuesday, September 29 at 4:30 PM");
+  }
+  await page.goto(`${base}/?legacy-schedule&week&localized-times`);
+  await expect(page.frameLocator("iframe").getByRole("heading", { name: "Sep 28 – Oct 4, 2026" })).toBeVisible();
+  await expect(
+    page.frameLocator("iframe").getByText("4:30 PM", { exact: true }).filter({ visible: true }).first(),
+  ).toBeVisible();
+  await page.goto(`${base}/?localized-times`);
+  await page
+    .frameLocator("iframe")
+    .getByRole("button", { name: /4:30 PM/ })
+    .click();
+  await page.frameLocator("iframe").getByRole("button", { name: "Draft for this slot" }).click();
+  await page.frameLocator("iframe").getByRole("button", { name: "Schedule", exact: true }).click();
+  await expect(page.frameLocator("iframe").getByLabel("Publishing time · Europe/Berlin")).toHaveValue(
+    "2026-09-29T16:30",
+  );
   await page.goto(base);
   const ui = page.frameLocator("iframe");
   await expect(ui.getByRole("heading", { name: "Tuesday, 29 September" })).toBeVisible();
@@ -471,7 +503,7 @@ try {
   await expect(ui.getByRole("button", { name: "Expand", exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS extensions browser smoke: sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
+    "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
   );
 } finally {
   await browser?.close();

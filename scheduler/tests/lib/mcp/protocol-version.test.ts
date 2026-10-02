@@ -141,7 +141,10 @@ it.each([modernRequest, legacyRequest])(
     const opener = tools.find((tool: { name: string }) => tool.name === "open_simplepost_workspace");
     expect(opener.inputSchema.required ?? []).toEqual([]);
     expect(opener.icons).toEqual([
-      expect.objectContaining({ mimeType: "image/png", src: expect.stringContaining("/simplepost-logo.png") }),
+      expect.objectContaining({
+        mimeType: "image/svg+xml",
+        src: expect.stringContaining("/simplepost-sidebar-sp-v1.svg"),
+      }),
     ]);
     const resourceResponse = await POST(request("resources/list"));
     const resourceBody = await resourceResponse.json();

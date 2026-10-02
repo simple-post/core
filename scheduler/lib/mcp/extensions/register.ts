@@ -35,7 +35,9 @@ type ErrorResult = (
 
 export function registerExtensionTools(server: McpServer, context: McpToolAuthContext, errorResult: ErrorResult) {
   // ext-apps forwards icons, though its compatibility config type omits them.
-  const toolIcons = { icons: [{ src: `${getAppBaseUrl()}/simplepost-logo.png`, mimeType: "image/png" }] };
+  const toolIcons = {
+    icons: [{ src: `${getAppBaseUrl()}/simplepost-sidebar-sp-v1.svg`, mimeType: "image/svg+xml" }],
+  };
   const meta = {
     securitySchemes: [{ type: "oauth2", scopes: ["accounts:read", "posts:read", "posts:validate", "posts:write"] }],
     ui: { visibility: ["model", "app"] },

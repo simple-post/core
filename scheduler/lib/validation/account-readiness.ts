@@ -1,10 +1,10 @@
-import { validatePostReadiness } from "@simple-post/sdk";
+import { isMetaCredentialPlatform, validatePostReadiness } from "@simple-post/sdk";
 import { getXTextLength } from "@simple-post/sdk/validation";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
-import { recordInstagramCredentialRejection } from "@/lib/posting/credential-rejection";
+import { recordMetaCredentialRejection } from "@/lib/posting/credential-rejection";
 import { buildPostOptions } from "@/lib/posting/credentials";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@/types";
 
@@ -80,9 +80,9 @@ export async function validateAccountReadiness(
             buildPostOptions(credentials.account, params.accountOptions),
           );
           const rejection = issues.find((issue) => issue.credentialRejection)?.credentialRejection;
-          if (rejection && result.platform === "instagram") {
+          if (rejection && isMetaCredentialPlatform(result.platform)) {
             try {
-              const recorded = await recordInstagramCredentialRejection(credentials.account, rejection);
+              const recorded = await recordMetaCredentialRejection(credentials.account, rejection);
               if (recorded === "stale" && attempt === 0) continue;
             } catch (error) {
               // Persistence trouble must not turn a confirmed rejection into a nonblocking warning.

@@ -1,5 +1,18 @@
 import type { CredentialRejection } from "../types/validation";
 
+// Instagram, Facebook and Threads share Graph API OAuth errors (code 190 with subcodes 458/460/463).
+const META_PLATFORM_LABELS = { instagram: "Instagram", facebook: "Facebook", threads: "Threads" } as const;
+
+export type MetaCredentialPlatform = keyof typeof META_PLATFORM_LABELS;
+
+export function isMetaCredentialPlatform(platform: unknown): platform is MetaCredentialPlatform {
+  return typeof platform === "string" && Object.hasOwn(META_PLATFORM_LABELS, platform);
+}
+
+export function metaPlatformLabel(platform: MetaCredentialPlatform): string {
+  return META_PLATFORM_LABELS[platform];
+}
+
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -7,7 +20,7 @@ function object(value: unknown): Record<string, unknown> | undefined {
 }
 
 /** Recognize permanent revocation, not ordinary expiry, missing scopes, rate limits, or outages. */
-export function getInstagramCredentialRejection(value: unknown): CredentialRejection | undefined {
+export function getMetaCredentialRejection(value: unknown): CredentialRejection | undefined {
   const source = object(value);
   const response = object(source?.response);
   const body = object(response?.data) ?? object(source?.details) ?? source;

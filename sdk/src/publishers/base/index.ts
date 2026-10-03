@@ -2,8 +2,8 @@ import fs from "node:fs";
 
 import { PostError, PostErrorType } from "../../types";
 import { checkAccountReadiness, readinessFailure } from "../../utils/account-readiness";
-import { getInstagramCredentialRejection } from "../../utils/instagram-credential-rejection";
 import { Logger } from "../../utils/logger";
+import { getMetaCredentialRejection, isMetaCredentialPlatform } from "../../utils/meta-credential-rejection";
 import { validatePostMedia, type MediaInspectionCache } from "../../utils/post-media-validation";
 
 import type { PostResult, QuoteResult, RepostResult } from "../../types";
@@ -99,6 +99,18 @@ export abstract class Publisher {
     }
   }
 
+  /** Allowlisted Meta revocation evidence only; raw provider errors can contain request credentials. */
+  private credentialRejectionIssue(error: unknown): ValidationIssue | undefined {
+    if (!isMetaCredentialPlatform(this.platform) || !getMetaCredentialRejection(error)) return undefined;
+    return readinessFailure(this.platform, error);
+  }
+
+  /** Revoked sessions cannot be repaired by refreshing; retain the diagnosis without exposing request data. */
+  protected throwIfCredentialRevoked(error: unknown): void {
+    const issue = this.credentialRejectionIssue(error);
+    if (issue) throw new PostError(PostErrorType.CREDENTIALS_ERROR, issue.message, [issue]);
+  }
+
   private async validateBeforeSend(
     content: Content,
     options?: PostOptionsWithCredentials,
@@ -136,11 +148,8 @@ export abstract class Publisher {
       return result;
     } catch (error: unknown) {
       // Handle PostErrors and generic errors
-      const rejection = this.platform === "instagram" ? getInstagramCredentialRejection(error) : undefined;
-      if (rejection) {
-        const issue = readinessFailure("instagram", error);
-        return { error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] };
-      }
+      const issue = this.credentialRejectionIssue(error);
+      if (issue) return { error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] };
 
       const message = error instanceof Error ? error.message : "Unknown error";
       const data =
@@ -171,6 +180,9 @@ export abstract class Publisher {
 
       return result;
     } catch (error: unknown) {
+      const issue = this.credentialRejectionIssue(error);
+      if (issue) return { error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] };
+
       const message = error instanceof Error ? error.message : "Unknown error";
       const data =
         typeof error === "object" && error && "data" in error ? (error as { data?: unknown }).data : undefined;
@@ -207,6 +219,9 @@ export abstract class Publisher {
 
       return result;
     } catch (error: unknown) {
+      const issue = this.credentialRejectionIssue(error);
+      if (issue) return { error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] };
+
       const message = error instanceof Error ? error.message : "Unknown error";
       const data =
         typeof error === "object" && error && "data" in error ? (error as { data?: unknown }).data : undefined;

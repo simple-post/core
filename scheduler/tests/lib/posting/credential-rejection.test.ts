@@ -1,4 +1,4 @@
-import { recordInstagramCredentialRejection, recordRevokedInstagramSession } from "@/lib/posting/credential-rejection";
+import { recordMetaCredentialRejection, recordRevokedMetaSession } from "@/lib/posting/credential-rejection";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata, encryptTokenMetadata } from "@/lib/security/connected-account-secrets";
 
@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 it("records an encrypted diagnosis once, preserving metadata and credential-generation guards", async () => {
-  expect(await recordInstagramCredentialRejection(account, rejection)).toBe("recorded");
+  expect(await recordMetaCredentialRejection(account, rejection)).toBe("recorded");
   const update = updateMany.mock.calls[0][0];
   expect(update.where).toEqual({ id: account.id, updatedAt: account.updatedAt, credentialRefreshBlockedAt: null });
   expect(update.data).toMatchObject({ credentialRefreshBlockedAt: expect.any(Date), credentialRefreshRetryAt: null });
@@ -34,26 +34,35 @@ it("records an encrypted diagnosis once, preserving metadata and credential-gene
     credentialRejection: { ...rejection, detectedAt: expect.any(String) },
   });
   findUnique.mockResolvedValue({ ...account, ...update.data });
-  expect(await recordInstagramCredentialRejection(account, rejection)).toBe("already_blocked");
+  expect(await recordMetaCredentialRejection(account, rejection)).toBe("already_blocked");
   expect(updateMany).toHaveBeenCalledTimes(1);
 });
 
 it("preserves a newer reconnect and does not mark deleted accounts", async () => {
   findUnique.mockResolvedValueOnce({ ...account, updatedAt: new Date(account.updatedAt.getTime() + 1) });
-  expect(await recordInstagramCredentialRejection(account, rejection)).toBe("stale");
+  expect(await recordMetaCredentialRejection(account, rejection)).toBe("stale");
   findUnique.mockResolvedValueOnce(null);
-  expect(await recordInstagramCredentialRejection(account, rejection)).toBe("stale");
+  expect(await recordMetaCredentialRejection(account, rejection)).toBe("stale");
   expect(updateMany).not.toHaveBeenCalled();
 });
 
 it("handles a lost compare-and-swap without reporting a successful transition", async () => {
   updateMany.mockResolvedValueOnce({ count: 0 });
-  expect(await recordInstagramCredentialRejection(account, rejection)).toBe("stale");
+  expect(await recordMetaCredentialRejection(account, rejection)).toBe("stale");
 });
 
 it("records revocation from both raw provider rejections and SDK preflight results", async () => {
-  await recordRevokedInstagramSession(account, { error: { code: 190, message: "The session has been invalidated." } });
-  await recordRevokedInstagramSession(account, [{ platform: "instagram", credentialRejection: rejection }]);
+  await recordRevokedMetaSession(account, { error: { code: 190, message: "The session has been invalidated." } });
+  await recordRevokedMetaSession(account, [{ platform: "instagram", credentialRejection: rejection }]);
+  expect(updateMany).toHaveBeenCalledTimes(2);
+});
+
+it.each(["facebook", "threads"])("records %s revocations through the shared Meta path", async (platform) => {
+  const meta = { ...account, platform };
+  await recordRevokedMetaSession(meta, { error: { code: 190, error_subcode: 458 } });
+  await recordRevokedMetaSession(meta, [{ platform, credentialRejection: rejection }]);
+  // Preflight evidence is attributed per platform; another platform's issue is not this account's.
+  await recordRevokedMetaSession(meta, [{ platform: "instagram", credentialRejection: rejection }]);
   expect(updateMany).toHaveBeenCalledTimes(2);
 });
 
@@ -64,11 +73,8 @@ it("does not block accounts for quota, ordinary expiration, incomplete evidence,
     "Token expired",
     "session has been invalidated",
   ]) {
-    await recordRevokedInstagramSession(account, { message });
+    await recordRevokedMetaSession(account, { message });
   }
-  await recordRevokedInstagramSession(
-    { ...account, platform: "bluesky" },
-    { error: { code: 190, error_subcode: 460 } },
-  );
+  await recordRevokedMetaSession({ ...account, platform: "bluesky" }, { error: { code: 190, error_subcode: 460 } });
   expect(prisma.$transaction).not.toHaveBeenCalled();
 });

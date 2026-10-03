@@ -2,7 +2,7 @@ import { validatePostReadiness } from "@simple-post/sdk";
 
 import { refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
-import { recordInstagramCredentialRejection } from "@/lib/posting/credential-rejection";
+import { recordMetaCredentialRejection } from "@/lib/posting/credential-rejection";
 import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ConnectedAccount } from "@/types";
@@ -15,7 +15,7 @@ jest.mock("@/lib/posting/account-lock", () => ({
 jest.mock("@/lib/oauth/credential-health", () => ({
   refreshConnectedAccountIfNeeded: jest.fn(async (account: unknown) => ({ account })),
 }));
-jest.mock("@/lib/posting/credential-rejection", () => ({ recordInstagramCredentialRejection: jest.fn() }));
+jest.mock("@/lib/posting/credential-rejection", () => ({ recordMetaCredentialRejection: jest.fn() }));
 const account = {
   id: "account",
   platform: "bluesky",
@@ -24,7 +24,7 @@ const account = {
 } as ConnectedAccount;
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(recordInstagramCredentialRejection).mockReset().mockResolvedValue("recorded");
+  jest.mocked(recordMetaCredentialRejection).mockReset().mockResolvedValue("recorded");
   jest
     .mocked(reloadAccountSecrets)
     .mockReset()
@@ -86,14 +86,14 @@ it("records preflight revocation before returning the blocking validation issue"
   jest.mocked(validatePostReadiness).mockResolvedValue([revokedIssue]);
   const validation = instagramValidation();
   await validateAccountReadiness(validation, { message: "Hello", media: [] });
-  expect(recordInstagramCredentialRejection).toHaveBeenCalledWith(instagram, revokedIssue.credentialRejection);
+  expect(recordMetaCredentialRejection).toHaveBeenCalledWith(instagram, revokedIssue.credentialRejection);
   expect(validation.summary.isValid).toBe(false);
   expect(validation.summary.errors).toContainEqual(expect.objectContaining({ code: "account_unauthorized" }));
 });
 
 it("preserves the rejection when recording state fails", async () => {
   jest.mocked(validatePostReadiness).mockResolvedValue([revokedIssue]);
-  jest.mocked(recordInstagramCredentialRejection).mockRejectedValue(new Error("database unavailable"));
+  jest.mocked(recordMetaCredentialRejection).mockRejectedValue(new Error("database unavailable"));
   const validation = instagramValidation();
   await validateAccountReadiness(validation, { message: "Hello", media: [] });
   expect(validation.summary.isValid).toBe(false);
@@ -104,7 +104,7 @@ it("rechecks once against a newer connection when an old request loses the gener
   const newer = { ...instagram, accessToken: "new-session", updatedAt: new Date("2026-10-03T12:00:00Z") };
   jest.mocked(reloadAccountSecrets).mockResolvedValueOnce(instagram).mockResolvedValueOnce(newer);
   jest.mocked(validatePostReadiness).mockResolvedValueOnce([revokedIssue]).mockResolvedValueOnce([]);
-  jest.mocked(recordInstagramCredentialRejection).mockResolvedValueOnce("stale");
+  jest.mocked(recordMetaCredentialRejection).mockResolvedValueOnce("stale");
   const validation = instagramValidation();
   await validateAccountReadiness(validation, { message: "Hello", media: [] });
   expect(validatePostReadiness).toHaveBeenCalledTimes(2);
@@ -120,7 +120,7 @@ it("rechecks once against a newer connection when an old request loses the gener
 
 it("bounds rechecks and keeps rejecting when two credential generations are rejected", async () => {
   jest.mocked(validatePostReadiness).mockResolvedValue([revokedIssue]);
-  jest.mocked(recordInstagramCredentialRejection).mockResolvedValue("stale");
+  jest.mocked(recordMetaCredentialRejection).mockResolvedValue("stale");
   const validation = instagramValidation();
   await validateAccountReadiness(validation, { message: "Hello", media: [] });
   expect(validatePostReadiness).toHaveBeenCalledTimes(2);
@@ -138,9 +138,19 @@ it("stops before provider calls for blocked credentials even without a legacy er
   expect(validation.summary.isValid).toBe(false);
 });
 
+it.each(["facebook", "threads"] as const)("records %s preflight revocation", async (platform) => {
+  const meta = { ...instagram, platform } as ConnectedAccount;
+  const issue = { ...revokedIssue, platform };
+  jest.mocked(validatePostReadiness).mockResolvedValue([issue]);
+  const validation = validatePostForResolvedAccounts({ accounts: [meta], message: "Hello", media: [] });
+  await validateAccountReadiness(validation, { message: "Hello", media: [] });
+  expect(recordMetaCredentialRejection).toHaveBeenCalledWith(meta, issue.credentialRejection);
+  expect(validation.summary.isValid).toBe(false);
+});
+
 it("does not persist generic 401s or transient provider warnings", async () => {
   jest.mocked(validatePostReadiness).mockResolvedValue([{ ...revokedIssue, credentialRejection: undefined }]);
   const validation = instagramValidation();
   await validateAccountReadiness(validation, { message: "Hello", media: [] });
-  expect(recordInstagramCredentialRejection).not.toHaveBeenCalled();
+  expect(recordMetaCredentialRejection).not.toHaveBeenCalled();
 });

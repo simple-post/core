@@ -1,4 +1,4 @@
-import { getInstagramCredentialRejection } from "@simple-post/sdk";
+import { getMetaCredentialRejection, isMetaCredentialPlatform } from "@simple-post/sdk";
 
 import { createLogger } from "@/lib/logger";
 import {
@@ -15,12 +15,12 @@ type RejectionAccount = { id: string; platform: string; updatedAt: Date };
 export type RecordCredentialRejectionResult = "recorded" | "already_blocked" | "stale" | "not_revoked";
 
 /** One transition per credential generation. A newer reconnect/refresh always wins. */
-export async function recordInstagramCredentialRejection(
+export async function recordMetaCredentialRejection(
   account: RejectionAccount,
   rejection: CredentialRejection,
 ): Promise<RecordCredentialRejectionResult> {
   if (
-    account.platform !== "instagram" ||
+    !isMetaCredentialPlatform(account.platform) ||
     rejection.code !== 190 ||
     !["session_revoked", "authorization_removed"].includes(rejection.reason)
   )
@@ -63,10 +63,10 @@ export async function recordInstagramCredentialRejection(
 }
 
 /** Only explicit revoked-session responses require reconnecting an otherwise unexpired token. */
-export async function recordRevokedInstagramSession(account: RejectionAccount, details: unknown): Promise<void> {
-  if (account.platform !== "instagram" || !details) return;
+export async function recordRevokedMetaSession(account: RejectionAccount, details: unknown): Promise<void> {
+  if (!isMetaCredentialPlatform(account.platform) || !details) return;
   const rejection = Array.isArray(details)
-    ? details.find((issue) => issue?.platform === "instagram" && issue?.credentialRejection)?.credentialRejection
-    : getInstagramCredentialRejection(details);
-  if (rejection) await recordInstagramCredentialRejection(account, rejection);
+    ? details.find((issue) => issue?.platform === account.platform && issue?.credentialRejection)?.credentialRejection
+    : getMetaCredentialRejection(details);
+  if (rejection) await recordMetaCredentialRejection(account, rejection);
 }

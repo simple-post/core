@@ -7,7 +7,7 @@ import { GET as listAccounts } from "@/app/api/v1/accounts/route";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
-import { recordInstagramCredentialRejection } from "@/lib/posting/credential-rejection";
+import { recordMetaCredentialRejection } from "@/lib/posting/credential-rejection";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -98,7 +98,7 @@ it("serializes simultaneous revocations into one durable transition without chan
   const account = await snapshot();
   const before = await storedAccount();
   const outcomes = await Promise.all(
-    Array.from({ length: 10 }, () => recordInstagramCredentialRejection(account, rejection)),
+    Array.from({ length: 10 }, () => recordMetaCredentialRejection(account, rejection)),
   );
   expect(outcomes.filter((result) => result === "recorded")).toHaveLength(1);
   expect(outcomes.filter((result) => result === "already_blocked")).toHaveLength(9);
@@ -171,9 +171,9 @@ it("reconnect clears the rejection while preserving account identity and queued 
       accounts: { connect: { id: account.id } },
     },
   });
-  await recordInstagramCredentialRejection(account, rejection);
+  await recordMetaCredentialRejection(account, rejection);
   await reconnect();
-  expect(await recordInstagramCredentialRejection(account, rejection)).toBe("stale");
+  expect(await recordMetaCredentialRejection(account, rejection)).toBe("stale");
   const current = await snapshot();
   expect(current).toMatchObject({
     id: account.id,
@@ -195,9 +195,46 @@ it.each([429, 503])("does not set a permanent flag for provider status %s", asyn
   expect((await storedAccount()).credentialRefreshBlockedAt).toBeNull();
 });
 
+it.each(["facebook", "threads"] as const)(
+  "records %s preflight revocation through the real SDK and blocks the account",
+  async (platform) => {
+    const created = await prisma.connectedAccount.create({
+      data: {
+        id: `${platform}-review`,
+        userId,
+        platform,
+        platformAccountId: "remote",
+        expiresAt: platform === "threads" ? new Date(Date.now() + 60 * 86_400_000) : null,
+        ...encryptConnectedAccountSecrets({ accessToken: "old-session" }),
+      },
+    });
+    const account = decryptConnectedAccountSecrets(created) as ConnectedAccount;
+    jest.mocked(axios.get).mockRejectedValueOnce({
+      ...providerError,
+      response: { status: 400, data: { error: { code: 190, error_subcode: 458 } } },
+    });
+    const validation = validatePostForResolvedAccounts({ message: "Hello", media: [], accounts: [account] });
+    expect(validation.summary.errors).toEqual([]);
+    await validateAccountReadiness(validation, { message: "Hello", media: [] });
+    expect(validation.summary.isValid).toBe(false);
+    expect(JSON.stringify(validation.summary)).not.toContain("DO_NOT_STORE");
+    const stored = decryptConnectedAccountSecrets(
+      await prisma.connectedAccount.findUniqueOrThrow({ where: { id: account.id } }),
+    ) as ConnectedAccount;
+    expect(stored.credentialRefreshBlockedAt).toBeInstanceOf(Date);
+    expect(stored.tokenMetadata).toMatchObject({
+      credentialRejection: { reason: "authorization_removed", code: 190, status: 400, subcode: 458 },
+    });
+    expect(getConnectedAccountCredentialStatus(stored)).toMatchObject({
+      state: "reauth_required",
+      message: expect.stringContaining("authorization for SimplePost was removed"),
+    });
+  },
+);
+
 it("exposes reconnect impact only for the owner's queued targets, with no credential data", async () => {
   const account = await snapshot();
-  await recordInstagramCredentialRejection(account, rejection);
+  await recordMetaCredentialRejection(account, rejection);
   await prisma.user.create({ data: { id: "other-owner", name: "Other", email: "other@example.invalid" } });
   for (const post of [
     { id: "queued", status: "scheduled", userId },

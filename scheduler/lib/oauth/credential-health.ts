@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { derToRaw, getInstagramCredentialRejection } from "@simple-post/sdk";
+import { derToRaw, getMetaCredentialRejection, isMetaCredentialPlatform } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { addBlueskyClientAuthentication, getBlueskyClientId, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
@@ -525,8 +525,8 @@ async function expectTokenResponse(platform: string, response: Response): Promis
       response.status,
       details.code,
       details.subtype,
-      (platform === "instagram" &&
-        Boolean(getInstagramCredentialRejection({ response: { status: response.status, data } }))) ||
+      (isMetaCredentialPlatform(platform) &&
+        Boolean(getMetaCredentialRejection({ response: { status: response.status, data } }))) ||
         isPermanentRefreshRejection(response.status, details.code, combinedMessage),
     );
   }

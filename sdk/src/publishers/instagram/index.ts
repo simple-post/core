@@ -4,8 +4,6 @@ import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES } from "./validat
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaUrl } from "../../utils";
-import { readinessFailure } from "../../utils/account-readiness";
-import { getInstagramCredentialRejection } from "../../utils/instagram-credential-rejection";
 import { S3MediaUploader } from "../../utils/s3";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
@@ -145,12 +143,6 @@ export class InstagramPublisher extends Publisher {
     if (this.graphApi === "instagram" && this.isTokenExpiringSoon()) {
       await this.refreshAccessToken();
     }
-  }
-
-  private throwIfCredentialRevoked(error: unknown): void {
-    if (!getInstagramCredentialRejection(error)) return;
-    const issue = readinessFailure("instagram", error);
-    throw new PostError(PostErrorType.CREDENTIALS_ERROR, issue.message, [issue]);
   }
 
   private withAccessToken(url: string): string {

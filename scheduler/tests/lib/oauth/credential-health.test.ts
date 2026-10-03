@@ -121,6 +121,27 @@ it("keeps an unexpired revoked snapshot blocked if its state cannot be read safe
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
+it.each(["instagram", "threads"])(
+  "permanently blocks %s when a token refresh reports removed authorization",
+  async (platform) => {
+    const storedAccount = account({ platform });
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(storedAccount));
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: 190, error_subcode: 458, message: "Invalid OAuth access token." } }),
+        {
+          status: 400,
+        },
+      ),
+    );
+    const result = await refreshConnectedAccountIfNeeded(storedAccount, { minValidityMs: 5 * 60 * 1000 });
+    expect(result.status.state).toBe("reauth_required");
+    expect(prismaMock.connectedAccount.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ credentialRefreshBlockedAt: now }) }),
+    );
+  },
+);
+
 describe("connected account credential health", () => {
   it("warns when a valid expiring token has no refresh path", () => {
     const status = getConnectedAccountCredentialStatus(

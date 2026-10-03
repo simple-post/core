@@ -1,5 +1,5 @@
 import { readinessFailure } from "../src/utils/account-readiness";
-import { getInstagramCredentialRejection } from "../src/utils/instagram-credential-rejection";
+import { getMetaCredentialRejection } from "../src/utils/meta-credential-rejection";
 
 const message =
   "Error validating access token: The session has been invalidated because the user changed their password or Facebook has changed the session for security reasons.";
@@ -26,8 +26,8 @@ it.each([
   [{ code: 190, error_subcode: 458 }, "authorization_removed"],
   [{ code: 190, message: "The user has not authorized application 123." }, "authorization_removed"],
 ])("recognizes permanent code/subcode or message evidence %j", (error, reason) => {
-  expect(getInstagramCredentialRejection(response(400, error))).toMatchObject({ reason, code: 190, status: 400 });
-  expect(getInstagramCredentialRejection({ error })).toMatchObject({ reason });
+  expect(getMetaCredentialRejection(response(400, error))).toMatchObject({ reason, code: 190, status: 400 });
+  expect(getMetaCredentialRejection({ error })).toMatchObject({ reason });
 });
 
 it.each([
@@ -42,14 +42,28 @@ it.each([
   { message },
   null,
 ])("does not persist revocation for inconclusive or recoverable evidence %j", (error) => {
-  expect(getInstagramCredentialRejection(error)).toBeUndefined();
+  expect(getMetaCredentialRejection(error)).toBeUndefined();
 });
 
-it("does not apply Instagram-specific persistence evidence to other platforms", () => {
-  expect(readinessFailure("threads", response(401, { code: 190, message })).credentialRejection).toBeUndefined();
+it.each([
+  ["facebook", "Facebook"],
+  ["threads", "Threads"],
+] as const)("applies the shared Graph API evidence to %s", (platform, label) => {
+  expect(readinessFailure(platform, response(401, { code: 190, error_subcode: 458 }))).toMatchObject({
+    platform,
+    code: "account_unauthorized",
+    severity: "error",
+    message: `${label} invalidated this connection. Reconnect the account before publishing.`,
+    credentialRejection: { reason: "authorization_removed", code: 190, status: 401, subcode: 458 },
+  });
+});
+
+it("does not apply Meta persistence evidence to other platforms", () => {
+  for (const platform of ["x", "bluesky", "linkedin"] as const)
+    expect(readinessFailure(platform, response(401, { code: 190, message })).credentialRejection).toBeUndefined();
 });
 
 it("drops malformed trace identifiers and ignores response fields outside the allowlist", () => {
-  const evidence = getInstagramCredentialRejection(response(401, { code: 190, message, fbtrace_id: "Bearer secret" }));
+  const evidence = getMetaCredentialRejection(response(401, { code: 190, message, fbtrace_id: "Bearer secret" }));
   expect(evidence).toEqual({ reason: "session_revoked", code: 190, status: 401 });
 });

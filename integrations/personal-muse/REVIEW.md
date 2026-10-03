@@ -47,7 +47,7 @@ Capture clean screenshots of the listing/icon, connection/access choice, tool co
 
 ## Maintainer publication checklist
 
-- [ ] Merge and deploy this new **core** PR. Select the clean deployed commit; download CI's `personal-muse-connector-review` artifact or regenerate it from that commit.
+- [ ] Merge and deploy this new **core** PR. Select the clean deployed commit and run `yarn muse:personal:prepare` locally from that commit to generate the review bundle.
 - [ ] Sign into [Muse Connector Platform](https://muse.ai/platform) with the authorized company/work account and select **Submit a connector**. Re-read current guidelines and inspect private portal requirements before accepting terms.
 - [ ] Complete business verification with the actual company details and authorized developer. Confirm product/support/privacy/terms URLs, brand rights, category, availability and maintenance owner; do not infer missing business facts from repository metadata.
 - [ ] Use `connector.json` for editorial answers and the production MCP URL for technical setup. Confirm Meta's exact OAuth callback and token-authentication method; register those exact settings or use discovery/DCR if supported. Supply secrets only in the private portal.

@@ -12,7 +12,7 @@ This is **prepared, not submitted, approved or live-tested in Personal Muse**. P
 - Read-only grants retain only the requested identity/account/post-read scopes. They exclude **both** `posts:write` and `posts:validate`: MCP validation and preview can import media, even without image fitting. Empty or invalid grants fail closed. Choosing access never expands a client's registered/requested scopes.
 - Existing MCP handlers enforce these scopes. REST authentication also enforces narrowed MCP grants, so the token cannot bypass consent through REST mutations or fall back to a broader browser session. API keys, CLI tokens and normal browser sessions are unchanged.
 - A reproducible review bundle exports actual registered tool descriptions, input/output JSON schemas and MCP hints, plus Muse-specific **read / write / sensitive write** classifications. All four combinations of base vs extension tools and image-fitting entitlement are separate. All 23 tools are covered; 12 are always registered and 11 depend on the workspace/editor entitlement.
-- Offline tests verify catalog completeness, risk labels, exported schemas, rejected write calls, OAuth narrowing and REST enforcement. CI uploads the generated review bundle.
+- Offline tests verify catalog completeness, risk labels, exported schemas, rejected write calls, OAuth narrowing and REST enforcement. CI runs these checks; generate the review bundle locally when preparing a submission.
 
 ## Prepare the review bundle
 

@@ -61,14 +61,8 @@ jobs:
       - name: Check Meta Muse integration examples (offline)
         run: yarn muse:check
 
-      - name: Prepare Personal Muse connector review bundle (offline)
-        run: yarn muse:personal:prepare
-
-      - name: Upload Personal Muse connector review bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: personal-muse-connector-review
-          path: dist/personal-muse-connector
+      - name: Check Personal Muse connector preparation (offline)
+        run: yarn muse:personal:check
 
       - name: Run checks
         env:

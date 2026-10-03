@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 import { PostError, PostErrorType } from "../../types";
 import { checkAccountReadiness, readinessFailure } from "../../utils/account-readiness";
+import { getInstagramCredentialRejection } from "../../utils/instagram-credential-rejection";
 import { Logger } from "../../utils/logger";
 import { validatePostMedia, type MediaInspectionCache } from "../../utils/post-media-validation";
 
@@ -135,6 +136,11 @@ export abstract class Publisher {
       return result;
     } catch (error: unknown) {
       // Handle PostErrors and generic errors
+      const rejection = this.platform === "instagram" ? getInstagramCredentialRejection(error) : undefined;
+      if (rejection) {
+        const issue = readinessFailure("instagram", error);
+        return { error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] };
+      }
 
       const message = error instanceof Error ? error.message : "Unknown error";
       const data =

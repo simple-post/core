@@ -217,11 +217,21 @@ function validationLogFields(details: unknown): Record<string, string | number> 
       issues.slice(0, 20).map((issue) => {
         if (!issue || typeof issue !== "object") return {};
         const entry = issue as Record<string, unknown>;
-        return Object.fromEntries(
+        const fields: Record<string, string | number> = Object.fromEntries(
           ["platform", "code", "field", "message"]
             .filter((key) => typeof entry[key] === "string")
             .map((key) => [key, diagnosticText(entry[key] as string)]),
         );
+        const rejection = entry.credentialRejection;
+        if (rejection && typeof rejection === "object") {
+          const evidence = rejection as Record<string, unknown>;
+          for (const key of ["reason", "status", "code", "subcode", "traceId"]) {
+            const value = evidence[key];
+            if (typeof value === "string") fields[`provider.${key}`] = diagnosticText(value);
+            else if (typeof value === "number" && Number.isFinite(value)) fields[`provider.${key}`] = value;
+          }
+        }
+        return fields;
       }),
     ),
   };

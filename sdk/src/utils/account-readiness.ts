@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { getInstagramCredentialRejection } from "./instagram-credential-rejection";
+
 import { getXTextLength } from "../publishers/x/validation";
 import { PostError, PostErrorType } from "../types";
 
@@ -12,10 +14,15 @@ export function readinessFailure(platform: Platform, error: unknown): Validation
     error instanceof PostError &&
     [PostErrorType.INVALID_CONTENT, PostErrorType.CREDENTIALS_ERROR].includes(error.errorType);
   const unauthorized = response?.status === 401 || response?.data?.error?.code === 190;
+  const credentialRejection = platform === "instagram" ? getInstagramCredentialRejection(error) : undefined;
   let code = "account_readiness_unverified";
   let severity: "error" | "warning" = "warning";
   let message = `${platform}: current account permissions and limits could not be verified. The provider may still reject this post; check the account connection and retry validation.`;
-  if (known) {
+  if (credentialRejection) {
+    code = "account_unauthorized";
+    severity = "error";
+    message = "Instagram invalidated this connection. Reconnect the account before publishing.";
+  } else if (known) {
     code = "account_ineligible";
     severity = "error";
     message = error.message;
@@ -28,7 +35,14 @@ export function readinessFailure(platform: Platform, error: unknown): Validation
     severity = "error";
     message = `${platform}: account checks are rate limited. Wait before retrying.`;
   }
-  return { platform, severity, code, field: "account", message };
+  return {
+    platform,
+    severity,
+    code,
+    field: "account",
+    message,
+    ...(credentialRejection && { credentialRejection }),
+  };
 }
 
 /** Only read endpoints. Never infer posting permission from a failed optional read scope. */

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { derToRaw } from "@simple-post/sdk";
+import { derToRaw, getInstagramCredentialRejection } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { addBlueskyClientAuthentication, getBlueskyClientId, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
@@ -319,12 +319,18 @@ export function getConnectedAccountCredentialStatus(
   const refreshTokenExpiresAt = metadataDate(account, "refreshTokenExpiresAt");
 
   if (account.credentialRefreshBlockedAt || hasStoredPermanentRefreshFailure(account)) {
+    const rejection = getTokenMetadata(account).credentialRejection;
+    const rejectionReason = isPlainObject(rejection) ? rejection.reason : undefined;
     return status(
       account,
       "reauth_required",
       "error",
       "Reconnect",
-      `${label} credentials cannot be refreshed. Reconnect this account before posting.`,
+      rejectionReason === "session_revoked"
+        ? `${label} invalidated this login session. This can follow a password change or a security action by the provider. Reconnect this account before posting.`
+        : rejectionReason === "authorization_removed"
+          ? `${label} authorization for SimplePost was removed. Reconnect this account before posting.`
+          : `${label} credentials cannot be refreshed. Reconnect this account before posting.`,
       "reconnect",
       false,
     );
@@ -519,7 +525,9 @@ async function expectTokenResponse(platform: string, response: Response): Promis
       response.status,
       details.code,
       details.subtype,
-      isPermanentRefreshRejection(response.status, details.code, combinedMessage),
+      (platform === "instagram" &&
+        Boolean(getInstagramCredentialRejection({ response: { status: response.status, data } }))) ||
+        isPermanentRefreshRejection(response.status, details.code, combinedMessage),
     );
   }
   return data;
@@ -922,6 +930,7 @@ function shouldRefreshAccount(
   account: ConnectedAccount,
   options: { force?: boolean; minValidityMs: number; now: Date },
 ): boolean {
+  if (account.credentialRefreshBlockedAt || hasStoredPermanentRefreshFailure(account)) return true;
   if (options.force) {
     return true;
   }
@@ -963,7 +972,7 @@ function refreshFailureResult(
   now: Date,
   message: string,
 ): RefreshConnectedAccountResult {
-  return isTokenExpired(account, now)
+  return account.credentialRefreshBlockedAt || hasStoredPermanentRefreshFailure(account) || isTokenExpired(account, now)
     ? { account, error: message, refreshed: false, refreshError: message, status }
     : { account, refreshed: false, refreshError: message, status };
 }
@@ -980,6 +989,11 @@ async function refreshConnectedAccountWhileLocked(
 ): Promise<RefreshConnectedAccountResult> {
   const { minValidityMs, now, reason } = options;
   const currentStatus = getConnectedAccountCredentialStatus(account, { now, warningWindowMs: minValidityMs });
+
+  // Revocation is authoritative even when the provider's original expiry is still in the future.
+  if (account.credentialRefreshBlockedAt) {
+    return refreshFailureResult(account, currentStatus, now, currentStatus.message);
+  }
 
   // Another request may have refreshed or reconnected this account while this
   // request was waiting for the PostgreSQL advisory lock.
@@ -1082,7 +1096,10 @@ export async function refreshConnectedAccountIfNeeded(
   const reason = options?.reason ?? "post";
   const currentStatus = getConnectedAccountCredentialStatus(account, { now, warningWindowMs: minValidityMs });
 
-  if (!shouldRefreshAccount(account, { force: options?.force, minValidityMs, now })) {
+  if (
+    currentStatus.state !== "reauth_required" &&
+    !shouldRefreshAccount(account, { force: options?.force, minValidityMs, now })
+  ) {
     return { account, refreshed: false, status: currentStatus };
   }
 

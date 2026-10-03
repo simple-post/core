@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { normalizePlatformId } from "@/lib/config";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
@@ -41,6 +42,7 @@ export const mcpAccountSchema = mcpAccountIdentitySchema.extend({
       action: z.enum(["none", "refresh", "reconnect"]),
       expiresAt: z.string().nullable(),
       refreshTokenExpiresAt: z.string().nullable(),
+      affectedQueuedPosts: z.number().int().nonnegative().optional(),
     })
     .describe("Safe credential health summary. If action is reconnect, ask the user to reconnect before posting."),
 });
@@ -93,6 +95,16 @@ export async function listAccounts(userId: string): Promise<z.infer<typeof listA
       username: account.username,
     };
   });
+  const impact = await getReconnectImpact(
+    userId,
+    mappedAccounts
+      .filter((account) => account.credentialStatus.state === "reauth_required")
+      .map((account) => account.accountId),
+  );
+  for (const account of mappedAccounts) {
+    if (impact.has(account.accountId))
+      Object.assign(account.credentialStatus, { affectedQueuedPosts: impact.get(account.accountId) });
+  }
 
   return {
     kind: "accounts" as const,

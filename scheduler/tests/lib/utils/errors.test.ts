@@ -76,3 +76,39 @@ it("logs validation reasons once at warning severity without account data", asyn
   expect(payload.validationIssues).toContain("Instagram does not support PNG");
   expect(JSON.stringify(payload)).not.toContain("secret");
 });
+
+it("keeps allowlisted provider evidence in validation logs without credentials", () => {
+  jest.clearAllMocks();
+  handleApiError(
+    new ValidationError({
+      summary: {
+        errors: [
+          {
+            platform: "instagram",
+            code: "account_unauthorized",
+            message: "Reconnect Instagram",
+            credentialRejection: {
+              reason: "session_revoked",
+              code: 190,
+              status: 401,
+              subcode: 0,
+              traceId: "meta-trace",
+            },
+          },
+        ],
+      },
+      accounts: [{ accessToken: "DO_NOT_STORE" }],
+    }),
+  );
+  const payload = mockApiLogger.warn.mock.calls[0][0];
+  expect(JSON.parse(payload.validationIssues)).toEqual([
+    expect.objectContaining({
+      "provider.reason": "session_revoked",
+      "provider.code": 190,
+      "provider.status": 401,
+      "provider.subcode": 0,
+      "provider.traceId": "meta-trace",
+    }),
+  ]);
+  expect(JSON.stringify(payload)).not.toContain("DO_NOT_STORE");
+});

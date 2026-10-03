@@ -2,6 +2,15 @@ import type { Platform } from "./post";
 
 export type ValidationSeverity = "error" | "warning";
 
+/** Allowlisted provider evidence. Never includes request configuration or arbitrary response bodies. */
+export interface CredentialRejection {
+  reason: "session_revoked" | "authorization_removed";
+  code: number;
+  status?: number;
+  subcode?: number;
+  traceId?: string;
+}
+
 export interface ValidationIssue {
   // "common" is used for cross-account / post-level issues (e.g. "thread has
   // no thread-capable accounts"); otherwise this is a Platform.
@@ -15,6 +24,7 @@ export interface ValidationIssue {
   field?: string;
   limit?: number;
   actual?: number;
+  credentialRejection?: CredentialRejection;
   meta?: Record<string, unknown>;
 }
 

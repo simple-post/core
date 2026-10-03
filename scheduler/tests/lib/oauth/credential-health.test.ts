@@ -74,6 +74,53 @@ afterEach(() => {
   delete process.env.LINKEDIN_CLIENT_SECRET;
 });
 
+it.each([false, true])(
+  "blocks an unexpired revoked session even with force=%s, without contacting the provider",
+  async (force) => {
+    const revoked = account({
+      platform: "instagram",
+      expiresAt: new Date("2026-11-26T05:25:33Z"),
+      credentialRefreshBlockedAt: now,
+      tokenMetadata: { credentialRejection: { reason: "session_revoked" } },
+    });
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(revoked));
+    const result = await refreshConnectedAccountIfNeeded(revoked, { force });
+    expect(result.error).toContain("invalidated this login session");
+    expect(result.status.state).toBe("reauth_required");
+    expect(fetchMock).not.toHaveBeenCalled();
+  },
+);
+
+it("accepts a new connection that replaced a blocked snapshot while waiting for the credential lock", async () => {
+  const revoked = account({ platform: "instagram", credentialRefreshBlockedAt: now });
+  const reconnected = account({
+    platform: "instagram",
+    accessToken: "new-access",
+    credentialRefreshBlockedAt: null,
+    expiresAt: new Date("2026-11-26T05:25:33Z"),
+    updatedAt: new Date(now.getTime() + 1),
+  });
+  prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(reconnected));
+  const result = await refreshConnectedAccountIfNeeded(revoked);
+  expect(result.error).toBeUndefined();
+  expect(result.account.accessToken).toBe("new-access");
+  expect(result.status.state).toBe("healthy");
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("keeps an unexpired revoked snapshot blocked if its state cannot be read safely", async () => {
+  prismaMock.$transaction.mockRejectedValueOnce(new Error("database unavailable"));
+  const result = await refreshConnectedAccountIfNeeded(
+    account({
+      platform: "instagram",
+      expiresAt: new Date("2026-11-26T05:25:33Z"),
+      credentialRefreshBlockedAt: now,
+    }),
+  );
+  expect(result.error).toBeDefined();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 describe("connected account credential health", () => {
   it("warns when a valid expiring token has no refresh path", () => {
     const status = getConnectedAccountCredentialStatus(

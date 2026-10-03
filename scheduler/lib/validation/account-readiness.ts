@@ -1,13 +1,17 @@
 import { validatePostReadiness } from "@simple-post/sdk";
 import { getXTextLength } from "@simple-post/sdk/validation";
 
+import { createLogger, serializeError } from "@/lib/logger";
 import { refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
+import { recordInstagramCredentialRejection } from "@/lib/posting/credential-rejection";
 import { buildPostOptions } from "@/lib/posting/credentials";
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile } from "@/types";
 
 import type { ValidationResultByPlatform } from "./post-validation";
 import type { Content, ThreadSegment } from "@simple-post/sdk";
+
+const log = createLogger("account-readiness");
 
 /** Refresh under the same lock as publishing; never serialize credentials in validation results. */
 export async function validateAccountReadiness(
@@ -54,23 +58,40 @@ export async function validateAccountReadiness(
     }
     try {
       const issues = await withAccountLock(account.id, async () => {
-        const fresh = await reloadAccountSecrets(account);
-        const credentials = await refreshConnectedAccountIfNeeded(fresh, { reason: "post" });
-        if (credentials.error)
-          return [
-            {
-              platform: result.platform,
-              severity: "error" as const,
-              code: "account_unauthorized",
-              field: "account",
-              message: "The account connection needs attention. Reconnect it before publishing.",
-            },
-          ];
-        return validatePostReadiness(
-          result.platform,
-          content,
-          buildPostOptions(credentials.account, params.accountOptions),
-        );
+        // At most one recheck when a reconnect wins the credential-generation guard.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const fresh = await reloadAccountSecrets(account);
+          const credentials = await refreshConnectedAccountIfNeeded(fresh, { reason: "post" });
+          if (credentials.error || credentials.account.credentialRefreshBlockedAt)
+            return [
+              {
+                platform: result.platform,
+                severity: "error" as const,
+                code: "account_unauthorized",
+                field: "account",
+                message:
+                  credentials.status?.message ??
+                  "The account connection needs attention. Reconnect it before publishing.",
+              },
+            ];
+          const issues = await validatePostReadiness(
+            result.platform,
+            content,
+            buildPostOptions(credentials.account, params.accountOptions),
+          );
+          const rejection = issues.find((issue) => issue.credentialRejection)?.credentialRejection;
+          if (rejection && result.platform === "instagram") {
+            try {
+              const recorded = await recordInstagramCredentialRejection(credentials.account, rejection);
+              if (recorded === "stale" && attempt === 0) continue;
+            } catch (error) {
+              // Persistence trouble must not turn a confirmed rejection into a nonblocking warning.
+              log.error({ accountId: account.id, err: serializeError(error) }, "Could not record credential rejection");
+            }
+          }
+          return issues;
+        }
+        return [];
       });
       for (const issue of issues)
         (issue.severity === "error" ? result.errors : result.warnings).push({

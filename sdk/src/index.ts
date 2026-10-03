@@ -346,6 +346,8 @@ export {
 } from "./types/post";
 
 export { validatePostMedia } from "./utils/post-media-validation";
+export { getInstagramCredentialRejection } from "./utils/instagram-credential-rejection";
+export type { CredentialRejection } from "./types/validation";
 
 /** Check current account capabilities without uploading media or creating a post. */
 export async function validatePostReadiness(

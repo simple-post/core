@@ -82,6 +82,9 @@ jobs:
       - name: Run offline end-to-end checks
         run: xvfb-run --auto-servernum yarn e2e:test
 
+      - name: Verify privacy page hydration after CDN email rewriting
+        run: yarn workspace @simple-post/e2e privacy:hydration
+
       - name: Build and smoke-test plugin extensions
         run: |
           yarn workspace @simple-post/scheduler build:mcp-widgets

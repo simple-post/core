@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SupportEmail } from "@/components/support-email";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
@@ -12,14 +13,14 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-[clamp(18px,4vw,48px)] py-16">
         <div className="mb-10 animate-reveal">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="gap-2 mb-6 -ml-2">
+          <Button asChild variant="ghost" size="sm" className="gap-2 mb-6 -ml-2">
+            <Link href="/">
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               <span className="font-mono text-[11px] uppercase tracking-[0.12em]">Back to login</span>
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <div className="section-kicker">
             <span className="section-kicker-dot" />
             <span className="section-kicker-label">Legal</span>
@@ -210,8 +211,8 @@ export default function PrivacyPage() {
               <li>Withdraw consent where processing is based on consent</li>
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-4">
-              To exercise these rights, email support@simplepost.social. You can also disconnect social media accounts
-              in the Accounts page and disconnect authorized MCP clients from their app or connector settings. See the{" "}
+              To exercise these rights, email <SupportEmail />. You can also disconnect social media accounts in the
+              Accounts page and disconnect authorized MCP clients from their app or connector settings. See the{" "}
               <Link href="/deletion" className="text-primary hover:underline">
                 account and data deletion page
               </Link>{" "}
@@ -292,20 +293,20 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">13. Contact Us</h2>
             <p className="text-muted-foreground leading-relaxed">
               The data controller for the hosted service is Creafex Lab Vladimir Haltakov. If you have questions about
-              this privacy policy or want to exercise a privacy right, email support@simplepost.social.
+              this privacy policy or want to exercise a privacy right, email <SupportEmail />.
             </p>
           </section>
         </div>
 
         <div className="mt-12 pt-8 border-t border-border">
-          <Link href="/">
-            <Button variant="outline" className="gap-2">
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               Back to login
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

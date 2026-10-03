@@ -115,6 +115,7 @@ export class ThreadsPublisher extends Publisher {
 
       this.logger.info("Threads access token refreshed successfully");
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(`Failed to refresh Threads token: ${err.message || error}`);
       throw new PostError(
@@ -149,13 +150,18 @@ export class ThreadsPublisher extends Publisher {
     try {
       return await request();
     } catch (error) {
+      // Revoked sessions cannot be repaired by refreshing.
+      this.throwIfCredentialRevoked(error);
       if (!this.isAuthError(error)) {
         throw error;
       }
 
       this.logger.warn("Threads API rejected the access token, attempting refresh...");
       await this.refreshAccessToken();
-      return request();
+      return request().catch((retryError: unknown) => {
+        this.throwIfCredentialRevoked(retryError);
+        throw retryError;
+      });
     }
   }
 
@@ -429,6 +435,7 @@ export class ThreadsPublisher extends Publisher {
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       if (error instanceof PostError) throw error;
+      this.throwIfCredentialRevoked(error);
 
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(
@@ -471,6 +478,7 @@ export class ThreadsPublisher extends Publisher {
       };
     } catch (error: unknown) {
       if (error instanceof PostError) throw error;
+      this.throwIfCredentialRevoked(error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
       throw new PostError(

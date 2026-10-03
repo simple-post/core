@@ -128,6 +128,7 @@ export class InstagramPublisher extends Publisher {
       this.client.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
       this.logger.info("Instagram access token refreshed successfully");
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(`Failed to refresh Instagram token: ${err.message || error}`);
       throw new PostError(
@@ -161,6 +162,8 @@ export class InstagramPublisher extends Publisher {
     try {
       return await doRequest();
     } catch (error) {
+      // Revoked sessions cannot be repaired by refreshing; retain the diagnosis without exposing request data.
+      this.throwIfCredentialRevoked(error);
       const axiosError = error as AxiosError<{ error?: { message?: string } }>;
       if (axiosError.response?.status === 401 && this.graphApi === "instagram") {
         this.logger.warn("Received 401, attempting token refresh...");
@@ -299,6 +302,8 @@ export class InstagramPublisher extends Publisher {
 
       return response.data.id;
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
+      if (error instanceof PostError && error.errorType === PostErrorType.CREDENTIALS_ERROR) throw error;
       const err = error as { message?: string; response?: { data?: { error?: { message?: string } } } };
       this.logger.error(error instanceof Error ? error : String(error));
       const apiMessage = err.response?.data?.error?.message || err.message || "Unknown error";
@@ -334,6 +339,8 @@ export class InstagramPublisher extends Publisher {
 
       return containerId;
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
+      if (error instanceof PostError && error.errorType === PostErrorType.CREDENTIALS_ERROR) throw error;
       const err = error as { message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
 
@@ -397,6 +404,8 @@ export class InstagramPublisher extends Publisher {
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       if (error instanceof PostError) throw error;
+
+      this.throwIfCredentialRevoked(error);
 
       this.logger.error(error instanceof Error ? error : String(error));
 

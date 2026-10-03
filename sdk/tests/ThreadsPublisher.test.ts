@@ -344,6 +344,87 @@ describe("ThreadsPublisher", () => {
       expect(result).toMatchObject({ id: "post_quote", error: PostErrorType.NO_ERROR });
     });
   });
+
+  describe("credential revocation", () => {
+    const revoked = {
+      message: "request access_token=DO_NOT_STORE",
+      config: { params: { access_token: "DO_NOT_STORE" } },
+      response: {
+        status: 401,
+        data: { error: { code: 190, error_subcode: 458, message: "The user has not authorized application 123." } },
+      },
+    };
+    const expectRevoked = (result: unknown) =>
+      expect(result).toEqual({
+        error: PostErrorType.CREDENTIALS_ERROR,
+        message: "Threads invalidated this connection. Reconnect the account before publishing.",
+        details: [
+          expect.objectContaining({
+            platform: "threads",
+            credentialRejection: { reason: "authorization_removed", code: 190, status: 401, subcode: 458 },
+          }),
+        ],
+      });
+
+    it("stops at the account lookup without attempting a token refresh", async () => {
+      const logError = jest.spyOn(publisher.logger, "error");
+      mockAxiosInstance.get.mockRejectedValueOnce(revoked);
+      const result = await publisher.post({ text: "Hello" });
+      expectRevoked(result);
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      expect(logError).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("DO_NOT_STORE");
+    });
+
+    it("preserves revocation when creating the container", async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { id: "user_123" } });
+      mockAxiosInstance.post.mockRejectedValueOnce(revoked);
+      const result = await publisher.post({ text: "Hello" });
+      expectRevoked(result);
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("retains revocation returned by a proactive token refresh", async () => {
+      publisher = new ThreadsPublisher({
+        threads: {
+          credentials: {
+            accessToken: "old_access_token",
+            userId: "user_123",
+            expiresAt: Math.floor(Date.now() / 1000) + 60,
+          },
+        },
+      });
+      const logError = jest.spyOn(publisher.logger, "error");
+      mockedAxios.get.mockRejectedValueOnce(revoked);
+      expectRevoked(await publisher.post({ text: "Hello" }));
+      expect(mockAxiosInstance.get).not.toHaveBeenCalled();
+      expect(logError).not.toHaveBeenCalled();
+    });
+
+    it("sanitizes a revoked response from the single retry after an ordinary expiry", async () => {
+      mockAxiosInstance.get
+        .mockRejectedValueOnce({
+          response: { status: 401, data: { error: { code: 190, message: "Session has expired." } } },
+        })
+        .mockRejectedValueOnce(revoked);
+      mockedAxios.get.mockResolvedValueOnce({
+        data: { access_token: "retry_access_token", token_type: "bearer", expires_in: 5_184_000 },
+      });
+      const result = await publisher.post({ text: "Hello" });
+      expectRevoked(result);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("DO_NOT_STORE");
+    });
+
+    it("preserves revocation when reposting", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce(revoked);
+      expectRevoked(await publisher.repost({ postId: "source_thread" }));
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // Transport unit tests use synthetic paths. Real probes and the common send boundary

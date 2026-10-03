@@ -21,7 +21,7 @@ import {
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/telemetry";
 import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
-import { recordRevokedInstagramSession } from "@/lib/posting/credential-rejection";
+import { recordRevokedMetaSession } from "@/lib/posting/credential-rejection";
 import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
 import { prisma } from "@/lib/prisma";
 import {
@@ -262,7 +262,7 @@ async function postSingleSegment(
     }
 
     const errorMsg = result?.error || "Unknown error occurred";
-    await recordRevokedInstagramSession(account, result?.details).catch((error: unknown) => {
+    await recordRevokedMetaSession(account, result?.details).catch((error: unknown) => {
       log.warn({ err: serializeError(error) }, "Could not record revoked account session");
     });
     const errorMessage = result?.message || errorMsg;
@@ -767,6 +767,9 @@ async function repostSingleTarget(
     }
 
     const errorMsg = result?.error || "Unknown error occurred";
+    await recordRevokedMetaSession(freshAccount, result?.details).catch((error: unknown) => {
+      log.warn({ err: serializeError(error) }, "Could not record revoked account session");
+    });
     return {
       accountId: account.id,
       platform: account.platform,

@@ -72,6 +72,104 @@ describe("InstagramPublisher", () => {
     expect(mockAxiosInstance.post).not.toHaveBeenCalled();
   });
 
+  it.each(["media", "media_publish"])(
+    "preserves revocation during %s without refresh retries or secret logging",
+    async (stage) => {
+      const error = {
+        message: "request https://graph.instagram.com?access_token=DO_NOT_STORE",
+        config: { headers: { Authorization: "Bearer DO_NOT_STORE" } },
+        response: {
+          status: 401,
+          data: { error: { code: 190, error_subcode: 0, message: "The session has been invalidated." } },
+        },
+      };
+      // Media inspection/readiness is covered separately; here the session is revoked after it succeeds.
+      jest
+        .spyOn(publisher as unknown as { validateBeforeSend(): Promise<void> }, "validateBeforeSend")
+        .mockResolvedValue();
+      const info = jest.spyOn(publisher.logger, "info");
+      const logError = jest.spyOn(publisher.logger, "error");
+      if (stage === "media_publish") {
+        mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container" } });
+        mockAxiosInstance.get.mockResolvedValueOnce({ data: { status_code: "FINISHED" } });
+      }
+      mockAxiosInstance.post.mockRejectedValueOnce(error);
+      const result = await publisher.post({
+        text: "Photo",
+        media: [{ type: "image", url: "https://example.invalid/photo.jpg" }],
+      });
+      expect(result).toMatchObject({
+        error: PostErrorType.CREDENTIALS_ERROR,
+        details: [
+          expect.objectContaining({
+            credentialRejection: { reason: "session_revoked", code: 190, status: 401, subcode: 0 },
+          }),
+        ],
+      });
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(stage === "media" ? 1 : 2);
+      expect(JSON.stringify({ result, info: info.mock.calls, errors: logError.mock.calls })).not.toContain(
+        "DO_NOT_STORE",
+      );
+    },
+  );
+
+  it("retains permanent revocation returned by a proactive SDK token refresh", async () => {
+    const options: PostOptionsWithCredentials = {
+      instagram: {
+        credentials: {
+          accessToken: "old-session",
+          businessAccountId: "business",
+          expiresAt: Math.floor(Date.now() / 1000) + 60,
+        },
+      },
+    };
+    const expiring = new InstagramPublisher(options);
+    const logError = jest.spyOn(expiring.logger, "error");
+    mockedAxios.get.mockRejectedValueOnce({
+      response: { status: 400, data: { error: { code: 190, error_subcode: 460 } } },
+    });
+    await expect(expiring.postContent({ text: "Photo" }, options)).rejects.toMatchObject({
+      errorType: PostErrorType.CREDENTIALS_ERROR,
+      details: [
+        expect.objectContaining({
+          credentialRejection: { reason: "session_revoked", code: 190, status: 400, subcode: 460 },
+        }),
+      ],
+    });
+    expect(logError).not.toHaveBeenCalled();
+    expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes a revoked response from the single retry after an ordinary 401", async () => {
+    jest
+      .spyOn(publisher as unknown as { validateBeforeSend(): Promise<void> }, "validateBeforeSend")
+      .mockResolvedValue();
+    const logError = jest.spyOn(publisher.logger, "error");
+    mockAxiosInstance.defaults = { headers: { common: {} } };
+    mockAxiosInstance.post.mockRejectedValueOnce({ response: { status: 401 } }).mockRejectedValueOnce({
+      message: "request access_token=DO_NOT_STORE",
+      response: { status: 401, data: { error: { code: 190, message: "The session has been invalidated." } } },
+    });
+    mockedAxios.get.mockResolvedValueOnce({ data: { access_token: "new-session", expires_in: 60 * 86_400 } });
+    const result = await publisher.post({
+      text: "Photo",
+      media: [{ type: "image", url: "https://example.invalid/photo.jpg" }],
+    });
+    expect(result).toMatchObject({
+      error: PostErrorType.CREDENTIALS_ERROR,
+      details: [
+        expect.objectContaining({
+          credentialRejection: { reason: "session_revoked", code: 190, status: 401 },
+        }),
+      ],
+    });
+    expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+    expect(logError).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain("DO_NOT_STORE");
+  });
+
   it("stops waiting for an Instagram container that never finishes processing", async () => {
     jest.useFakeTimers();
     try {

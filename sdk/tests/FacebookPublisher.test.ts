@@ -409,6 +409,54 @@ describe("FacebookPublisher", () => {
       });
     });
   });
+
+  describe("credential revocation", () => {
+    const options: PostOptionsWithCredentials = {
+      facebook: { credentials: { pageAccessToken: "test_access_token", pageId: "test_page_id" } },
+    };
+    const revoked = {
+      message: "request access_token=DO_NOT_STORE",
+      config: { data: "access_token=DO_NOT_STORE" },
+      response: {
+        status: 400,
+        data: {
+          error: { code: 190, error_subcode: 460, message: "The session has been invalidated.", fbtrace_id: "trace" },
+        },
+      },
+    };
+
+    it.each<[string, Content]>([
+      ["feed", { text: "Hello" }],
+      ["photo upload", { text: "Photo", media: [{ type: "image", path: "/path/to/image.jpg" }] }],
+      ["video upload", { text: "Video", media: [{ type: "video", path: "/path/to/video.mp4", title: "Video" }] }],
+    ])("preserves revocation during %s without logging the request", async (_stage, content) => {
+      const logError = jest.spyOn(publisher.logger, "error");
+      mockAxiosInstance.post.mockRejectedValueOnce(revoked);
+      const result = await publisher.post(content, options);
+      expect(result).toEqual({
+        error: PostErrorType.CREDENTIALS_ERROR,
+        message: "Facebook invalidated this connection. Reconnect the account before publishing.",
+        details: [
+          expect.objectContaining({
+            platform: "facebook",
+            credentialRejection: { reason: "session_revoked", code: 190, status: 400, subcode: 460, traceId: "trace" },
+          }),
+        ],
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(logError).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("DO_NOT_STORE");
+    });
+
+    it("keeps ordinary Graph API failures as API errors", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: { status: 400, data: { error: { code: 100, message: "Invalid parameter" } } },
+      });
+      const result = await publisher.post({ text: "Hello" }, options);
+      expect(result.error).toBe(PostErrorType.API_ERROR);
+      expect(JSON.stringify(result)).not.toContain("credentialRejection");
+    });
+  });
 });
 
 // Transport unit tests use synthetic paths. Real probes and the common send boundary

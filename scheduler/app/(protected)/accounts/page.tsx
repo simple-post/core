@@ -246,6 +246,14 @@ export default function AccountsPage() {
                           {account.credentialStatus.message}
                         </p>
                       )}
+                      {account.credentialStatus?.state === "reauth_required" && (
+                        <p role="status" className="text-xs text-destructive mt-1 max-w-xl">
+                          {(account.credentialStatus.affectedQueuedPosts ?? 0) > 0
+                            ? `${account.credentialStatus.affectedQueuedPosts} queued ${account.credentialStatus.affectedQueuedPosts === 1 ? "post needs" : "posts need"} this connection. Reconnect before the next scheduled post.`
+                            : "Reconnect before publishing again."}{" "}
+                          Failed posts must be rescheduled separately.
+                        </p>
+                      )}
                     </>
                   }
                   actions={

@@ -217,6 +217,7 @@ export const ConnectedAccountSchema = z
         label: z.string(),
         lastRefreshAttemptAt: z.iso.datetime().nullable(),
         lastRefreshError: z.string().nullable(),
+        affectedQueuedPosts: z.number().int().nonnegative().optional(),
         message: z.string(),
         refreshTokenExpiresAt: z.iso.datetime().nullable(),
         severity: z.enum(["ok", "warning", "error"]),

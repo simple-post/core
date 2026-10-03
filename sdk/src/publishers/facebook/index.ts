@@ -75,6 +75,7 @@ export class FacebookPublisher extends Publisher {
 
       return response.data.id;
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
 
@@ -130,6 +131,7 @@ export class FacebookPublisher extends Publisher {
         error: PostErrorType.NO_ERROR,
       };
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
 
@@ -208,6 +210,8 @@ export class FacebookPublisher extends Publisher {
         error: PostErrorType.NO_ERROR,
       };
     } catch (error: unknown) {
+      this.throwIfCredentialRevoked(error);
+      if (error instanceof PostError && error.errorType === PostErrorType.CREDENTIALS_ERROR) throw error;
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
 

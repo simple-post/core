@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
+import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
@@ -33,6 +34,16 @@ export async function GET(req: NextRequest) {
         credentialStatus: getConnectedAccountCredentialStatus(account),
       };
     });
+    const reconnectImpact = await getReconnectImpact(
+      session.user.id,
+      connectedAccounts
+        .filter((account) => account.credentialStatus.state === "reauth_required")
+        .map((account) => account.id),
+    );
+    for (const account of connectedAccounts) {
+      if (reconnectImpact.has(account.id))
+        account.credentialStatus.affectedQueuedPosts = reconnectImpact.get(account.id);
+    }
 
     return NextResponse.json(
       { accounts: connectedAccounts },

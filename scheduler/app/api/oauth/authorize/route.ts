@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
+  applyMcpAccessMode,
   canUpgradeLegacyMcpClientScope,
   getAppBaseUrl,
   isMcpScopeSubset,
@@ -23,6 +24,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
+    const accessMode = body.access_mode ?? "read_write";
+    if (accessMode !== "read_only" && accessMode !== "read_write") {
+      return NextResponse.json(
+        { error: "invalid_request", error_description: "Unsupported access mode" },
+        { status: 400 },
+      );
+    }
 
     if (!client_id || !redirect_uri || !state || !code_challenge) {
       return NextResponse.json(
@@ -75,6 +83,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const grantedScope = applyMcpAccessMode(scopeResult.scope, accessMode);
+    if (!grantedScope) {
+      return NextResponse.json(
+        { error: "invalid_scope", error_description: "The requested scopes do not support read-only access" },
+        { status: 400 },
+      );
+    }
+
     // Connector-first users return directly here after signing in and never
     // pass through the dashboard billing query that normally initializes a
     // first trial. Validate the OAuth request before granting access, then use
@@ -95,7 +111,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate authorization code
+    // Generate authorization code with the user's narrowed consent, not the original request.
     const code = await createAuthorizationCode({
       clientId: client_id,
       userId: session.user.id,
@@ -104,7 +120,7 @@ export async function POST(req: NextRequest) {
       nonce: typeof nonce === "string" && nonce.length > 0 ? nonce : undefined,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method || "S256",
-      scope: scopeResult.scope,
+      scope: grantedScope,
     });
 
     // RFC 9207 issuer identification prevents authorization-server mix-up

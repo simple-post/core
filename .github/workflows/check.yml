@@ -61,6 +61,15 @@ jobs:
       - name: Check Meta Muse integration examples (offline)
         run: yarn muse:check
 
+      - name: Prepare Personal Muse connector review bundle (offline)
+        run: yarn muse:personal:prepare
+
+      - name: Upload Personal Muse connector review bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-muse-connector-review
+          path: dist/personal-muse-connector
+
       - name: Run checks
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"

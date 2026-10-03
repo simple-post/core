@@ -2,18 +2,22 @@
 
 Prepared against official Meta documentation on **2026-09-29**. These are distinct products and publication paths, not one plugin marketplace. All SimplePost implementation lives in `core`; [`skills/simplepost`](../skills/simplepost) remains the skill source of truth.
 
-| Surface                     | Prepared in this PR                                                                    | Remaining gate                                                    |
-| --------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Muse Code terminal/CI agent | Canonical skill installation and OAuth MCP settings                                    | Install Muse Code; complete live OAuth checks                     |
-| Muse personal agent         | Connector description, integration specification, review demo and submission checklist | Work-email login, Meta requirements after login, connector review |
-| Meta AI app/web/glasses     | Separate early-access application answers                                              | Selection into the connector preview                              |
-| Muse Spark models           | Bounded, read-only social tool loop; separate reviewed-draft command                   | Model API access, billing and live smoke tests                    |
-| Muse Image                  | PNG generation and reference-image editing example                                     | Model API access; inspect image and upload it to SimplePost       |
-| Muse Voice Transcribe       | WAV transcription example                                                              | Model API access; review transcript before reuse                  |
-| SAM 3.1                     | Image segmentation request and raw event capture                                       | Decode masks and composite a final asset separately               |
-| Muse Glimmer local weights  | Loopback Chat Completions mode, with separate credentials                              | Install/serve a compatible model and test its tool parser         |
+| Surface                     | Prepared in this PR                                                                          | Remaining gate                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Muse Code terminal/CI agent | Canonical skill installation and OAuth MCP settings                                          | Install Muse Code; complete live OAuth checks                                   |
+| Muse personal agent         | Hosted OAuth MCP, read-only consent, schema/risk review bundle and end-to-end review runbook | Live Personal Muse approval/auth testing, private portal fields and Meta review |
+| Meta AI app/web/glasses     | Separate early-access application answers                                                    | Selection into the connector preview                                            |
+| Muse Spark models           | Bounded, read-only social tool loop; separate reviewed-draft command                         | Model API access, billing and live smoke tests                                  |
+| Muse Image                  | PNG generation and reference-image editing example                                           | Model API access; inspect image and upload it to SimplePost                     |
+| Muse Voice Transcribe       | WAV transcription example                                                                    | Model API access; review transcript before reuse                                |
+| SAM 3.1                     | Image segmentation request and raw event capture                                             | Decode masks and composite a final asset separately                             |
+| Muse Glimmer local weights  | Loopback Chat Completions mode, with separate credentials                                    | Install/serve a compatible model and test its tool parser                       |
 
 The scripts are examples, not a new model backend inside the Scheduler. They use Node 20+ built-ins and add no runtime dependencies. They have mock tests, but have **not** been live-tested against Meta or a local Glimmer server. Muse Code is not installed in the preparation environment. No connector has been submitted or approved.
+
+## Personal Muse AI agent: dedicated connector preparation
+
+The [Personal Muse review kit](../integrations/personal-muse/README.md), updated **2026-10-03**, targets the personal agent, not Muse Code or model examples. [Meta's published guidelines](https://muse.ai/platform/docs) accept API or MCP connectors. It reuses the hosted OAuth MCP server, adds a genuinely read-only connection choice and prepares actual tool schemas, all current tool classifications, data-processing answers, reviewer scenarios and publication steps. Run `yarn muse:personal:check` and `yarn muse:personal:prepare` to verify/build the review bundle. Live Muse-side approvals and portal submission remain maintainer steps.
 
 ## Muse Code: reuse our skill and MCP
 

@@ -47,6 +47,8 @@ export const IMAGE_FITTING_INSTRUCTIONS =
 
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Account connection and edits or deletions of already-published social content are unsupported by these tools; explain that limitation and direct the user to the SimplePost web app or social platform.
 
+Respect the client's approval controls for every tool call. Account connection is not blanket approval to write or publish. Review-only and draft-only requests do not authorize publication; changed content, destinations, media or timing must not reuse approval for an earlier payload. A read-only connection cannot use validation/preview tools that import media, even when no post would be saved.
+
 # No-tool routing rules
 
 - If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call a SimplePost tool for that action. Tell them SimplePost account management must happen in the SimplePost web app.

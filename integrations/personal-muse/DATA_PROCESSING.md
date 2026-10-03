@@ -1,0 +1,41 @@
+# Personal Muse data-processing questionnaire draft
+
+This is evidence to help the owner fill Meta's questionnaire, **not** legal advice, a compliance attestation or a new privacy policy. The owner must verify actual production practices and Meta's current requirements. Sources: [Personal Muse guidelines](https://muse.ai/platform/docs), [SimplePost privacy policy](https://simplepost.social/privacy), core's MCP/OAuth/auth/media/logging implementation.
+
+## Proposed purpose and data-flow answers
+
+| Data                                                                                                  | Purpose / handling                                                                                              | Sent to the authorized Muse client                                                                                            |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| SimplePost user identity                                                                              | Bind the OAuth grant to one signed-in user; OIDC claims only with requested/granted identity scopes             | Authorized identity claims, not another user's identity                                                                       |
+| Connected account IDs, platform/profile identity, readiness and allowance                             | Choose owned destinations and explain restrictions                                                              | Selected tool response metadata, including usernames/display names/profile images where returned                              |
+| Draft/post text, media URLs, selected destinations, scheduling options and platform-specific settings | Validate, preview, save, schedule or publish the user-requested content                                         | Requested post/preview/schedule results and per-account validation or publishing results                                      |
+| Media bytes and derived assets                                                                        | Import user-approved URLs/attachments into owned storage and optionally fit images                              | Owned media URLs/metadata; source and derivatives can be retained according to storage lifecycle                              |
+| Editor working copies/proposals/preferences, when entitled                                            | Recover requested edits, enforce revisions and support workspace settings                                       | Authorized session/workspace/preferences data and requested edit results                                                      |
+| Social provider OAuth credentials                                                                     | Authenticate SimplePost to the user's connected social destinations                                             | **Not** returned by MCP tools; provider credentials remain server-side                                                        |
+| MCP client credentials, grant records and access tokens                                               | OAuth registration, scoped authorization, expiry and revocation; credential values are hashed where implemented | Client secret/access token only through their dedicated OAuth protocol responses, never tool results or the public review kit |
+| Operational diagnostics                                                                               | Reliability/security investigation and bounded error recovery                                                   | Sanitized errors/support identifiers; confirm actual log exports and processor access below                                   |
+
+Tool calls are bound to the authenticated user. Account/post/editor ownership checks are exercised in review; account connection is not permission for unrelated cross-user access. Narrow read-only consent excludes media-importing validation and all writes. Muse receives tool responses for the tasks it invokes; this server does not receive or reconstruct the entire Muse conversation.
+
+This connector does **not** invoke Meta model inference APIs or send user prompts to the earlier Muse Spark example. Muse itself processes its conversation/tool results under its own applicable terms. Do not claim that Meta receives no personal data: authorized tool results may contain private drafts, schedules and account metadata.
+
+Publishing shares approved content with the selected social providers. Hosting, database/object storage, diagnostics and other actual service providers may process data according to the published policy and deployment. There are no new model keys, shared end-user API keys or extra tracking integrations in this PR.
+
+## Security and lifecycle evidence
+
+- OAuth uses PKCE S256, validated registered redirects, single-use expiring authorization codes, scoped expiring bearer grants and revocation. Tokens are not returned inside tool results. Transport encryption depends on the HTTPS deployment; verify it in production.
+- Tool permissions are checked server-side. Restricted MCP credentials cannot gain broader rights via REST/browser fallback. Revoked/expired grants are rejected; reconnect is required. Removing the Muse connection is not deletion of already-saved SimplePost posts or previously published social content.
+- Use the published privacy/deletion routes for user deletion requests. Retention is not universally “zero”: drafts, schedules, uploads, grant records and operational logs have different lifecycles. The owner must supply actual retention periods and backup handling.
+- Existing designated review/demo accounts can trigger extended MCP request/result logging and private operator notifications. The current privacy policy documents this and its review-log retention. Use a **new** dedicated Personal Muse reviewer account and inspect `lib/mcp/review-logging.ts` and deployment settings before review; do not claim all review payload logging is disabled without checking.
+- The bundle exports schemas/metadata only; it does not execute tools, include customer data or credentials, or send anything to Meta. Keep live review evidence private and redact tokens, unrelated account data and conversations.
+
+## Owner confirmations required before submission
+
+- [ ] Confirm legal entity/controller, privacy/product terms and authorized contacts match current production.
+- [ ] List actual subprocessors, regions, third-party sharing, safeguards and access roles. Verify database/object storage encryption and secret handling; avoid claiming unverified certifications or residency.
+- [ ] Document the exact purpose of each data class, optional feature data, minimization controls, consent and revocation behavior. Do not use connector-derived data for unrelated advertising, profiling or model training contrary to Meta's terms.
+- [ ] Confirm whether any training, analytics or secondary use exists and disclose it accurately; this PR introduces no training pipeline.
+- [ ] Specify production retention/deletion periods for posts, media, abandoned previews, editor sessions, grants, logs and backups, plus deletion request process and owner. Ensure questionnaire answers match actual lifecycle jobs and public policy.
+- [ ] Inspect review/demo payload logging, diagnostics exports, notification channels and their retention/access. Keep the dedicated reviewer account non-sensitive and disclose any enabled extended logging.
+- [ ] Supply actual support/security contact and maintenance owner through the portal. Establish the applicable incident-reporting process and response ownership; no incident email is sent by this kit.
+- [ ] Review Meta's current business verification, security/privacy questionnaire and terms; resolve missing information with the owner before accepting or submitting.

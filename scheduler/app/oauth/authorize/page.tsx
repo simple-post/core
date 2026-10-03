@@ -7,6 +7,7 @@ export default function OAuthAuthorizePage() {
     <AuthorizePage
       config={{
         title: "Connect SimplePost",
+        allowReadOnly: true,
         description:
           "ChatGPT or another MCP client is requesting permission to view connected accounts, inspect post history, validate drafts, and create or manage drafts and scheduled posts through SimplePost.",
         invalidMessage:
@@ -20,7 +21,7 @@ export default function OAuthAuthorizePage() {
             params.get("state") &&
             params.get("code_challenge")
           ),
-        authorize: (params) =>
+        authorize: (params, accessMode) =>
           fetch("/api/oauth/authorize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -33,6 +34,7 @@ export default function OAuthAuthorizePage() {
               scope: params.get("scope"),
               resource: params.get("resource"),
               nonce: params.get("nonce") || undefined,
+              access_mode: accessMode,
             }),
           }),
         buildCancelUrl: (params) => {

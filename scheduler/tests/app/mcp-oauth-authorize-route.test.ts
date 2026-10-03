@@ -74,3 +74,49 @@ it("treats a null OIDC nonce as absent", async () => {
     }),
   );
 });
+
+const consentRequest = (overrides: Record<string, unknown> = {}) =>
+  new NextRequest("http://localhost:3000/api/oauth/authorize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: "muse-client",
+      redirect_uri: "https://example.com/callback",
+      state: "state",
+      code_challenge: "challenge",
+      scope: "openid email accounts:read posts:read posts:validate posts:write",
+      ...overrides,
+    }),
+  });
+
+it("persists read-only consent without granting writes", async () => {
+  const response = await POST(consentRequest({ access_mode: "read_only" }));
+  expect(response.status).toBe(200);
+  expect(createAuthorizationCodeMock).toHaveBeenCalledWith(
+    expect.objectContaining({ scope: "openid email accounts:read posts:read" }),
+  );
+});
+
+it("never broadens a limited request when choosing read-only", async () => {
+  const response = await POST(consentRequest({ access_mode: "read_only", scope: "accounts:read" }));
+  expect(response.status).toBe(200);
+  expect(createAuthorizationCodeMock).toHaveBeenCalledWith(expect.objectContaining({ scope: "accounts:read" }));
+});
+
+it.each([
+  { access_mode: "admin" },
+  { access_mode: "read_only", scope: "posts:write" },
+  { access_mode: "read_only", scope: "posts:validate" },
+  { access_mode: "read_only", scope: "unknown posts:write" },
+])("rejects invalid or empty consent grants: %j", async (overrides) => {
+  const response = await POST(consentRequest(overrides));
+  expect(response.status).toBe(400);
+  expect(createAuthorizationCodeMock).not.toHaveBeenCalled();
+});
+
+it("still rejects scope escalation even when choosing read-only", async () => {
+  validateClientMock.mockResolvedValue({ scope: "accounts:read" } as never);
+  const response = await POST(consentRequest({ access_mode: "read_only", scope: "accounts:read posts:write" }));
+  expect(response.status).toBe(400);
+  expect(createAuthorizationCodeMock).not.toHaveBeenCalled();
+});

@@ -171,6 +171,17 @@ export function logClientError(
   const serializedError = serializeError(error);
   if (isBrowserExtensionError(serializedError, context)) return;
 
+  // Cloudflare's email rewriting causes recoverable hydration mismatches here.
+  // Keep its rewriting enabled, but omit this known error from telemetry.
+  if (
+    typeof window !== "undefined" &&
+    window.location.pathname === "/privacy" &&
+    typeof serializedError.message === "string" &&
+    serializedError.message.startsWith("Minified React error #418;")
+  ) {
+    return;
+  }
+
   if (error instanceof ApiResponseError && error.status >= 400 && error.status < 500) {
     logClientWarning(message, { ...context, status: error.status, reason: error.message });
     return;

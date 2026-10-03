@@ -35,8 +35,6 @@ Contract validation and option inventory load the SDK from the selected applicat
 
 ## Local publishing reliability checks
 
-`yarn workspace @simple-post/e2e privacy:hydration` runs an offline Chromium regression for the scheduler's privacy page. It server-renders and hydrates the actual page, reproduces React #418 after replacing unprotected email text with the links observed in Cloudflare's production response, and verifies that the protected page hydrates cleanly with decoding both pending and completed. It also checks that the two login controls render as single links. The fixture uses only a loopback server and needs no application credentials or database. CI runs it after installing Chromium.
-
 ```sh
 yarn e2e:reliability
 ```

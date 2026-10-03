@@ -5,6 +5,7 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger, serializeError } from "@/lib/logger";
+import { dispatchDisconnectNotifications } from "@/lib/notifications/disconnect-notifications";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
@@ -1194,5 +1195,10 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
 }
 
 export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResult> {
-  return withScheduledDispatch(dispatchDueScheduledPostsInternal);
+  try {
+    return await withScheduledDispatch(dispatchDueScheduledPostsInternal);
+  } finally {
+    // Send after publishing/refresh checks so this run's disconnects are included.
+    await dispatchDisconnectNotifications();
+  }
 }

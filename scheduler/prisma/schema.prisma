@@ -276,12 +276,37 @@ model ConnectedAccount {
   updatedAt DateTime @updatedAt
 
   // Relations
-  posts Post[]
+  posts                   Post[]
+  disconnectNotifications AccountDisconnectNotification[]
 
   @@unique([userId, platform, platformAccountId])
   @@index([userId])
   @@index([credentialRefreshBlockedAt, credentialRefreshRetryAt, expiresAt], map: "connected_account_refresh_sweep_idx")
   @@map("connected_account")
+}
+
+// One durable email per confirmed disconnect episode. Credentials are never stored here.
+model AccountDisconnectNotification {
+  id                String           @id @default(cuid())
+  accountId         String
+  account           ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  disconnectedAt    DateTime
+  status            String           @default("pending") // pending, sent, cancelled, failed
+  attempts          Int              @default(0)
+  nextAttemptAt     DateTime         @default(now())
+  leaseToken        String?
+  leaseUntil        DateTime?
+  firstAttemptAt    DateTime?
+  message           Json? // Frozen recipient/from/subject/html/text for idempotent retries.
+  sentAt            DateTime?
+  providerMessageId String?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([accountId, disconnectedAt])
+  @@index([status, nextAttemptAt])
+  @@map("account_disconnect_notification")
 }
 
 // Pending OAuth connections (used for Facebook/Instagram account pickers)

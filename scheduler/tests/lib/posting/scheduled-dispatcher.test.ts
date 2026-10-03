@@ -1,4 +1,5 @@
 import { isSocialPlatformEnabled } from "@/lib/config";
+import { dispatchDisconnectNotifications } from "@/lib/notifications/disconnect-notifications";
 import { postToAccounts, repostToAccounts } from "@/lib/posting";
 import type { PostingResult } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
@@ -9,6 +10,9 @@ import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 
 jest.mock("@/lib/webhooks", () => ({ dispatchPostWebhooks: jest.fn() }));
+jest.mock("@/lib/notifications/disconnect-notifications", () => ({
+  dispatchDisconnectNotifications: jest.fn(async () => {}),
+}));
 
 jest.mock("@/lib/config", () => ({
   countAccountsByPlatform: (accounts: Array<{ platform: string }> = []) =>
@@ -337,6 +341,7 @@ describe("dispatchDueScheduledPosts", () => {
 
   it("returns an empty result when no posts are due", async () => {
     const result = await dispatchDueScheduledPosts();
+    expect(dispatchDisconnectNotifications).toHaveBeenCalledTimes(1);
 
     expect(result.processedPosts).toBe(0);
     expect(result.publishedPosts).toBe(0);
@@ -348,6 +353,12 @@ describe("dispatchDueScheduledPosts", () => {
     expect(result.skippedReposts).toBe(0);
     expect(postToAccountsMock).not.toHaveBeenCalled();
     expect(repostToAccountsMock).not.toHaveBeenCalled();
+  });
+
+  it("still sweeps disconnect emails when post dispatch fails", async () => {
+    jest.mocked(prisma.publishAttempt.deleteMany).mockRejectedValueOnce(new Error("post infrastructure failed"));
+    await expect(dispatchDueScheduledPosts()).rejects.toThrow("post infrastructure failed");
+    expect(dispatchDisconnectNotifications).toHaveBeenCalledTimes(1);
   });
 
   it("recovers stale pending posts and reports the count", async () => {

@@ -2,7 +2,7 @@
 
 Use the Scheduler app when humans need a web UI to connect social accounts, compose posts, preview how they will look, publish immediately, or schedule for later.
 
-The app is also the account hub for the AI features. The MCP server and scheduler-connected CLI use the accounts stored in the Scheduler app.
+The app is also the account hub for integrations. The MCP server, scheduler-connected CLI, API clients, and n8n node use the accounts stored in the Scheduler app.
 
 For hosted users: [Get started](https://docs.simplepost.social/getting-started), [publishing](https://docs.simplepost.social/publishing), and [plans](https://docs.simplepost.social/billing). This README covers running the Scheduler yourself.
 
@@ -48,7 +48,7 @@ yarn workspace @simple-post/scheduler db:migrate
 yarn workspace @simple-post/scheduler dev
 ```
 
-The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:3000` is the local base URL used by OAuth callbacks, CLI authorization, and MCP metadata.
+The app runs with Next.js. By default, `NEXT_PUBLIC_APP_URL=http://localhost:3000` is the local base URL used by OAuth callbacks, CLI authorization, and MCP metadata. Set `NEXT_PUBLIC_N8N_NODE_URL` to show an n8n node link on the API Keys page once the node is published; the card is hidden while it is unset.
 
 Social account connections are disabled by default. Set `NEXT_PUBLIC_ENABLED_SOCIAL_PROVIDERS` to a comma-separated allowlist for each environment, for example `x,youtube,forem`, or to `*` to enable every provider. Supported IDs are `x`, `youtube`, `instagram`, `facebook`, `tiktok`, `bluesky`, `threads`, `linkedin`, `pinterest`, `telegram`, and `forem`. Because this value is exposed to the Scheduler client bundle, rebuild/redeploy the app after changing it.
 

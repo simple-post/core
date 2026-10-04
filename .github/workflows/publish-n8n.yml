@@ -1,0 +1,51 @@
+name: Publish n8n node
+
+on:
+  push:
+    tags:
+      - "n8n-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#n8n-v}"
+          PACKAGE_VERSION="$(node -p "require('./integrations/n8n/package.json').version")"
+          if [[ "$TAG_VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "Tag version $TAG_VERSION does not match integrations/n8n/package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run checks
+        run: yarn workspace n8n-nodes-simplepost check
+
+      - name: Run tests
+        run: yarn workspace n8n-nodes-simplepost test
+
+      - name: Publish with provenance
+        working-directory: integrations/n8n
+        run: npm publish --provenance --access public

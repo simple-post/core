@@ -1,0 +1,23 @@
+[
+	{
+		"name": "apiKey",
+		"type": "password",
+		"label": "API key",
+		"required": true,
+		"editable": true,
+		"help": "Your SimplePost API key. It starts with `sp_api_`. Create one in SimplePost under [API keys](https://app.simplepost.social/api-keys). API keys require a SimplePost plan with API access. For details, see the [SimplePost API documentation](https://docs.simplepost.social/api)."
+	},
+	{
+		"name": "baseUrl",
+		"type": "url",
+		"label": "SimplePost URL",
+		"required": true,
+		"advanced": true,
+		"editable": false,
+		"default": "https://app.simplepost.social",
+		"validate": {
+			"pattern": "^https://[^/?#]+$"
+		},
+		"help": "Leave as `https://app.simplepost.social` unless you run your own self-hosted SimplePost Scheduler. Enter the HTTPS address of that Scheduler without a trailing slash."
+	}
+]

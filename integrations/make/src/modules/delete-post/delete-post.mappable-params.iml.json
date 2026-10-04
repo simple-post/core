@@ -1,0 +1,9 @@
+[
+	{
+		"name": "postId",
+		"type": "text",
+		"label": "Post ID",
+		"required": true,
+		"help": "ID of the SimplePost post to delete."
+	}
+]

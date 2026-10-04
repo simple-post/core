@@ -1,0 +1,17 @@
+{
+	"url": "{{parameters.baseUrl}}/api/v1/accounts",
+	"method": "GET",
+	"headers": {
+		"Authorization": "Bearer {{parameters.apiKey}}"
+	},
+	"response": {
+		"error": {
+			"message": "[{{statusCode}}] {{ifempty(body.error, 'SimplePost did not accept the API key.')}}"
+		}
+	},
+	"log": {
+		"sanitize": [
+			"request.headers.authorization"
+		]
+	}
+}

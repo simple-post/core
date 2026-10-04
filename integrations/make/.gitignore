@@ -1,0 +1,3 @@
+node_modules/
+# Make API key used by the Make Apps Editor (makecomapp.json -> origins[].apikeyFile)
+.secrets/

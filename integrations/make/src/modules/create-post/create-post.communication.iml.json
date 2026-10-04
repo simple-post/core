@@ -1,0 +1,8 @@
+{
+	"url": "/api/v1/posts",
+	"method": "POST",
+	"body": "{{parameters}}",
+	"response": {
+		"output": "{{body}}"
+	}
+}

@@ -145,7 +145,9 @@ export async function toMcpValidationResult(
       (await hasFeature(userId, Feature.IMAGE_FITTING))
         ? IMAGE_FIT_HELP
         : undefined,
-    fittedMedia: input.media,
+    // Return a wire-safe copy; persistence and dispatch still need the internal
+    // media IDs and contentType added by ingestion and image fitting.
+    fittedMedia: mcpMediaArraySchema.parse(input.media),
     fittedAccountOptions: input.accountOptions,
     kind: "validation" as const,
     message: input.message,

@@ -100,5 +100,7 @@ export interface JournalEntry {
   error?: string;
   historicalErrors?: string[];
   evidence?: string[];
+  timings?: import("./timing.js").StageTimings;
+  pendingMutation?: "schedule";
   cleanup: "not-created" | "review-external-post" | "pending-schedule" | "discarded";
 }

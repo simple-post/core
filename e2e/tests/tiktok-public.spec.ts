@@ -63,7 +63,8 @@ for (const fault of ["none", "wrong-author", "wrong-receipt", "login", "missing-
     try {
       const operation = verifyOnPlatform(
         guest,
-        config({ verifyTimeoutMs: 1 }),
+        // Enough for one offline proof, shorter than the minimum 1000ms retry delay.
+        config({ verifyTimeoutMs: 600 }),
         scenario,
         owner,
         { success: true, postId: "123", postUrl: "https://www.tiktok.com/@testuser/video/123" },

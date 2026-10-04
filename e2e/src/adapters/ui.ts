@@ -1,5 +1,6 @@
 import { reviewImageFit } from "./ui-image-fit.js";
 import { expect, type Page, type Route, type Response } from "@playwright/test";
+import { timed } from "../timing.js";
 import type { Account, LiveConfig } from "../config.js";
 import type { Materialized, MediaFile, Options, Receipt } from "../types.js";
 import { parsePostingResponse, receiptFrom } from "../http.js";
@@ -151,7 +152,7 @@ export function assertUiPayload(raw: Record<string, unknown>, s: Materialized, a
   if (s.thread) expect((raw.thread as { message: string }[])?.map((t) => t.message)).toEqual(s.thread);
   if (mode === "schedule") expect(raw.scheduledFor).toBe(s.scheduledFor);
 }
-async function submit(
+export async function submitUiRequest(
   page: Page,
   config: LiveConfig,
   s: Materialized,
@@ -159,6 +160,7 @@ async function submit(
   mode: string,
   postId?: string,
   fittedUrls?: string[],
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   const routePath = postId ? `/api/v1/posts/${postId}` : "/api/v1/posts";
   const method = postId ? "PATCH" : "POST";
@@ -170,6 +172,7 @@ async function submit(
   const handler = async (route: Route) => {
     if (route.request().method() !== method) return route.continue();
     try {
+      await assertCanSubmit?.();
       const payload = route.request().postDataJSON();
       assertUiPayload(payload, s, account, mode);
       if (fittedUrls) {
@@ -272,6 +275,7 @@ export async function uiCreate(
   media: MediaFile[],
   beforeSubmit?: () => Promise<void>,
   prepareSchedule?: () => Promise<void>,
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   await openComposer(page, config);
   let submittedOptions = s.options;
@@ -282,11 +286,13 @@ export async function uiCreate(
     .getByLabel("Message", { exact: true })
     .fill(s.mode === "draft-edit" ? `${s.message} before edit` : s.message);
   if (media.length) {
-    await page
-      .locator('input[type="file"]')
-      .first()
-      .setInputFiles(media.map((m) => m.path));
-    await waitForMedia(page, media, config.publishTimeoutMs);
+    await timed("upload", async () => {
+      await page
+        .locator('input[type="file"]')
+        .first()
+        .setInputFiles(media.map((m) => m.path));
+      await waitForMedia(page, media, config.publishTimeoutMs);
+    });
   }
   for (const segment of s.thread ?? []) {
     await page.getByRole("button", { name: "Add to thread", exact: true }).click();
@@ -312,7 +318,16 @@ export async function uiCreate(
   const consent = page.locator("#tiktok-consent-create");
   if (await consent.isVisible()) await consent.check();
   await beforeSubmit?.();
-  const receipt = await submit(page, config, { ...s, options: submittedOptions }, account, mode, undefined, fittedUrls);
+  const receipt = await submitUiRequest(
+    page,
+    config,
+    { ...s, options: submittedOptions },
+    account,
+    mode,
+    undefined,
+    fittedUrls,
+    assertCanSubmit,
+  );
   if (fittedUrls) receipt.reviewedMediaUrls = fittedUrls;
   return receipt;
 }
@@ -323,6 +338,7 @@ export async function uiEditDraft(
   account: Account,
   id: string,
   prepareSchedule?: () => Promise<void>,
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   await page.goto(`${config.baseUrl}/posts/${id}/edit`);
   await expect(page.getByLabel("Message", { exact: true })).toHaveValue(`${s.message} before edit`);
@@ -335,5 +351,14 @@ export async function uiEditDraft(
   await pickSchedule(page, s.scheduledFor!);
   const consent = page.locator("#tiktok-consent-edit");
   if (await consent.isVisible()) await consent.check();
-  return submit(page, config, { ...s, options: submittedOptions }, account, "schedule", id);
+  return submitUiRequest(
+    page,
+    config,
+    { ...s, options: submittedOptions },
+    account,
+    "schedule",
+    id,
+    undefined,
+    assertCanSubmit,
+  );
 }

@@ -1,6 +1,7 @@
-import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
+import { open, stat, mkdir, writeFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import type { BigIntStats } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import type { LiveConfig } from "./config.js";
 import type { MediaKey, MediaFile } from "./types.js";
 import type { SchedulerApi } from "./http.js";
@@ -22,25 +23,62 @@ export const filenames: Record<MediaKey, string> = {
 export function isVideoFixture(key: MediaKey): boolean {
   return filenames[key].endsWith(".mp4");
 }
+type LocalMetadata = Readonly<{ size: number; sha256: string }>;
+// One entry per resolved path: no URLs, account data, or mutable MediaFile objects.
+const metadataCache = new Map<string, { key: string; value: Promise<LocalMetadata> }>();
+function inputKey(file: string, info: BigIntStats): string {
+  return JSON.stringify([file, ...[info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].map(String)]);
+}
+async function localMetadata(file: string): Promise<LocalMetadata> {
+  const before = await stat(file, { bigint: true });
+  const key = inputKey(file, before);
+  const cached = metadataCache.get(file);
+  if (cached?.key === key) return cached.value;
+  const value = (async () => {
+    const handle = await open(file, "r");
+    try {
+      if (inputKey(file, await handle.stat({ bigint: true })) !== key)
+        throw new Error(`Fixture changed while reading: ${file}`);
+      const bytes = await handle.readFile();
+      // Check both the open inode and the path, including replacement during read.
+      if (
+        inputKey(file, await handle.stat({ bigint: true })) !== key ||
+        inputKey(file, await stat(file, { bigint: true })) !== key ||
+        BigInt(bytes.length) !== before.size
+      )
+        throw new Error(`Fixture changed while reading: ${file}`);
+      return Object.freeze({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
+    } finally {
+      await handle.close();
+    }
+  })();
+  metadataCache.set(file, { key, value });
+  try {
+    return await value;
+  } catch (error) {
+    if (metadataCache.get(file)?.value === value) metadataCache.delete(file);
+    throw error;
+  }
+}
 export async function mediaFiles(config: LiveConfig, keys: readonly MediaKey[]): Promise<MediaFile[]> {
   return Promise.all(
     keys.map(async (key) => {
       const filename = filenames[key],
-        file = path.join(config.fixtureDir, filename),
-        bytes = await readFile(file);
+        file = path.resolve(config.fixtureDir, filename),
+        metadata = await localMetadata(file);
       return {
         filename,
         path: file,
         url: config.fixtureUrls[filename] ?? new URL(filename, config.mediaBaseUrl.replace(/\/?$/, "/")).href,
         type: isVideoFixture(key) ? "video" : "image",
-        size: bytes.length,
+        size: metadata.size,
         ...(isVideoFixture(key)
           ? {
               thumbnailUrl:
                 config.fixtureUrls["image.jpg"] ?? new URL("image.jpg", config.mediaBaseUrl.replace(/\/?$/, "/")).href,
             }
           : {}),
-        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sha256: metadata.sha256,
         ...(filename.endsWith(".mp4") ? { durationSec: key === "shortVideo" || key === "disguisedVideo" ? 1 : 4 } : {}),
       };
     }),
@@ -66,12 +104,17 @@ export async function prepareMediaSources(config: LiveConfig, keys: MediaKey[], 
       config.fixtureUrls[file.filename] = uploaded.url;
       file.url = uploaded.url;
       await mkdir(path.dirname(config.mediaManifestFile), { recursive: true, mode: 0o700 });
-      await writeFile(
-        config.mediaManifestFile + ".tmp",
-        JSON.stringify({ baseUrl: config.baseUrl, userId: config.userId, urls: config.fixtureUrls }, null, 2),
-        { mode: 0o600 },
-      );
-      await rename(config.mediaManifestFile + ".tmp", config.mediaManifestFile);
+      const temporary = `${config.mediaManifestFile}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(
+          temporary,
+          JSON.stringify({ baseUrl: config.baseUrl, userId: config.userId, urls: config.fixtureUrls }, null, 2),
+          { mode: 0o600, flag: "wx" },
+        );
+        await rename(temporary, config.mediaManifestFile);
+      } finally {
+        await rm(temporary, { force: true });
+      }
     }
     const response = await fetch(file.url, { redirect: "error", signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error(`Fixture ${file.filename} is not publicly accessible (${response.status})`);

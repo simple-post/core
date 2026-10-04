@@ -17,6 +17,9 @@ import { uiCreate, uiEditDraft, UiSubmissionBlockedError, verifyUiThumbnail } fr
 import { verifyOnPlatform } from "./verification/browser.js";
 import { verifyPublishingProgress } from "./verification/publishing.js";
 import type { Interface, Scenario, Materialized, Receipt, JournalEntry, PostingResult } from "./types.js";
+import { atomicJson, withFileLock } from "./files.js";
+import { timed, TimingRecorder } from "./timing.js";
+import { RunControl, pendingExternalWork, PendingWorkError } from "./execution.js";
 export function publishingFailure(result: PostingResult): string {
   const detail = [...new Set([result.error, result.message].filter((value): value is string => Boolean(value)))];
   return (
@@ -118,6 +121,25 @@ export async function runScenario(
   browser: Browser,
   info: TestInfo,
 ) {
+  const timing = new TimingRecorder();
+  try {
+    return await timing.run(() => runScenarioInner(config, scenario, iface, page, browser, info, timing));
+  } finally {
+    await info.attach("stage-timings", {
+      body: JSON.stringify(timing.stages, null, 2),
+      contentType: "application/json",
+    });
+  }
+}
+async function runScenarioInner(
+  config: LiveConfig,
+  scenario: Scenario,
+  iface: Interface,
+  page: Page,
+  browser: Browser,
+  info: TestInfo,
+  timing: TimingRecorder,
+) {
   const account = config.accounts[scenario.platform];
   if (!account) throw new Error(`Missing ${scenario.platform} account`);
   const initial = materialize(scenario, account, iface, runId(), config.mediaBaseUrl, config.fixtureUrls);
@@ -134,7 +156,13 @@ export async function runScenario(
     if (existing.accountId !== account.id)
       throw new Error("INCONCLUSIVE: recovery account differs from the saved journal; no receipt recovered.");
     const api = new SchedulerApi(config);
-    const matches = (await api.publishedSince(existing.createdAt)).filter(
+    let posts: PostRecord[];
+    try {
+      posts = await api.publishedSince(existing.createdAt);
+    } finally {
+      await api.dispose();
+    }
+    const matches = posts.filter(
       (post) =>
         post.status === "published" &&
         post.message === initial.message &&
@@ -157,15 +185,34 @@ export async function runScenario(
   if (process.env.E2E_VERIFY_ONLY === "1" && !(await journal.get(`${iface}/${initial.id}`))?.receipt)
     throw new Error("BLOCKED: verification-only mode requires an existing receipt. No submission was sent.");
   const entry = await journal.reserve(initial, iface, account);
+  entry.timings = timing.stages;
   const s = entry.scenario;
   const progress = (message: string) => console.log(`[${iface}/${s.id}] ${message}`);
   const api = new SchedulerApi(config);
   let mcp: McpClient | undefined;
+  const assertCanSubmit = async () => {
+    const blocked = await new RunControl(config, runId()).blocked(s.platform);
+    if (blocked) throw new UiSubmissionBlockedError(`No post submitted: ${blocked}`);
+    const pending = (await journal.entries()).find(
+      (other) =>
+        other.platform === s.platform &&
+        other.accountId === account.id &&
+        other.key !== entry.key &&
+        pendingExternalWork(other),
+    );
+    if (pending)
+      throw new PendingWorkError(
+        `No post submitted: ${s.platform} has unresolved external work for ${pending.key}; reconcile its saved receipt first`,
+      );
+  };
   const prepareSchedule = async () => {
+    await assertCanSubmit();
     s.scheduledFor = nextScheduleTime(config);
+    if (s.mode === "draft-edit") entry.pendingMutation = "schedule";
     await journal.save(entry);
   };
   const record = async (receipt: Receipt) => {
+    delete entry.pendingMutation;
     entry.receipt = receipt;
     entry.phase = "accepted";
     entry.cleanup =
@@ -192,24 +239,30 @@ export async function runScenario(
       progress("Rechecking the existing published receipt with the current platform observer; no new submission.");
     if (iface === "mcp") {
       mcp = new McpClient(config);
-      await mcp.connect();
+      await timed("adapter_setup", () => mcp!.connect());
     }
     if (process.env.E2E_VERIFY_ONLY === "1" && !entry.receipt)
       throw new Error("BLOCKED: verification-only mode requires an existing receipt. No submission was sent.");
     if (!entry.receipt) {
-      await assertImageFitEntitlement(api, s, iface);
+      await timed("preparation", () => assertImageFitEntitlement(api, s, iface));
       progress("Preparing and submitting through the customer interface.");
-      const media = await mediaFiles(config, s.media);
+      const media = await timed("preparation", () => mediaFiles(config, s.media));
       const beforeSubmit = async () => {
+        await assertCanSubmit();
         entry.phase = "submitting";
         await journal.save(entry);
       };
       if (iface !== "ui") await beforeSubmit();
       let receipt: Receipt;
       if (iface === "mcp")
-        receipt = await mcpCreate(mcp!, s, account, media, `${runId()}/${entry.key}`, record, prepareSchedule);
-      else if (iface === "ui") receipt = await uiCreate(page, config, s, account, media, beforeSubmit, prepareSchedule);
-      else receipt = await cliCreate(config, s, account, media, iface, journal.dir);
+        receipt = await timed("submission", () =>
+          mcpCreate(mcp!, s, account, media, `${runId()}/${entry.key}`, record, prepareSchedule, assertCanSubmit),
+        );
+      else if (iface === "ui")
+        receipt = await timed("submission", () =>
+          uiCreate(page, config, s, account, media, beforeSubmit, prepareSchedule, assertCanSubmit),
+        );
+      else receipt = await timed("submission", () => cliCreate(config, s, account, media, iface, journal.dir));
       await record(receipt);
       if (s.imageFit) {
         const after = await mediaFiles(config, s.media);
@@ -245,7 +298,7 @@ export async function runScenario(
           "The saved post must use exactly the images reviewed by the customer",
         ).toEqual(entry.receipt!.reviewedMediaUrls);
       if (s.imageFit) {
-        const evidence = await verifyFittedMedia(config, s, post.media ?? []);
+        const evidence = await timed("image_fit", () => verifyFittedMedia(config, s, post.media ?? []));
         const file = path.join(journal.dir, `${s.token}-image-fit.json`);
         await writeFile(file, JSON.stringify(evidence, null, 2), { mode: 0o600 });
         await info.attach("image-fit", { path: file, contentType: "application/json" });
@@ -290,6 +343,10 @@ export async function runScenario(
         return;
       }
       if (s.mode === "draft-edit" && post.status === "draft") {
+        if (entry.pendingMutation)
+          throw new Error(
+            "INCONCLUSIVE: a prior draft scheduling request may still complete; reconcile this saved draft before scheduling it again.",
+          );
         await verifyPublishingProgress(api, receipt, account.id, 0);
         if (process.env.E2E_VERIFY_ONLY === "1")
           throw new Error("BLOCKED: draft has not yet been scheduled; verification-only mode does not edit it.");
@@ -297,6 +354,7 @@ export async function runScenario(
         // Choose a fresh time only when converting the saved draft to a schedule.
         if (iface === "mcp") {
           await prepareSchedule();
+          await assertCanSubmit();
           await mcp!.call("update_scheduled_post", {
             postId: post.id,
             message: s.message,
@@ -305,12 +363,12 @@ export async function runScenario(
             scheduledFor: s.scheduledFor,
           });
           receipt = receiptFrom({ post: await api.post(post.id) }, account.id);
-        } else receipt = await uiEditDraft(page, config, s, account, post.id, prepareSchedule);
+        } else receipt = await uiEditDraft(page, config, s, account, post.id, prepareSchedule, assertCanSubmit);
         await record(receipt);
       }
       if (s.mode === "schedule" || s.mode === "draft-edit") {
         progress(`Waiting for scheduled dispatch at ${s.scheduledFor}.`);
-        receipt = await waitForDispatch(api, post.id, s, account, config, iface);
+        receipt = await timed("scheduled_dispatch", () => waitForDispatch(api, post.id, s, account, config, iface));
         if (s.imageFit) {
           const dispatched = await api.post(post.id);
           // Editing a draft can create a fresh database media row for the
@@ -332,14 +390,18 @@ export async function runScenario(
     expect(result.postId, "A publishing handle must be returned").toBeTruthy();
     if (iface !== "cli-local") {
       progress("Checking durable publishing records.");
-      const publishingRecords = await verifyPublishingProgress(api, receipt, account.id, 1 + (s.thread?.length ?? 0));
+      const publishingRecords = await timed("publishing_records", () =>
+        verifyPublishingProgress(api, receipt, account.id, 1 + (s.thread?.length ?? 0)),
+      );
       const file = path.join(journal.dir, `${s.token}-publishing-progress.json`);
       await writeFile(file, JSON.stringify(publishingRecords, null, 2), { mode: 0o600 });
       await info.attach("publishing-progress", { path: file, contentType: "application/json" });
     }
     progress(`Publishing succeeded (platform ID ${result.postId}). Opening the platform to verify the content.`);
     const verificationWindow = { from: entry.createdAt, to: entry.updatedAt };
-    const evidence = await verifyOnPlatform(browser, config, s, account, result, journal.dir, verificationWindow);
+    const evidence = await timed("platform_verification", () =>
+      verifyOnPlatform(browser, config, s, account, result, journal.dir, verificationWindow),
+    );
     for (let i = 0; i < (s.thread?.length ?? 0); i++) {
       const segments = result.threadResults ?? [];
       // Thread results include the root segment at index 0.
@@ -361,7 +423,9 @@ export async function runScenario(
         thread: undefined,
       };
       evidence.push(
-        ...(await verifyOnPlatform(browser, config, child, account, segment, journal.dir, verificationWindow)),
+        ...(await timed("platform_verification", () =>
+          verifyOnPlatform(browser, config, child, account, segment, journal.dir, verificationWindow),
+        )),
       );
     }
     entry.phase = "verified";
@@ -372,15 +436,25 @@ export async function runScenario(
   } catch (error) {
     if (error instanceof DispatchFailedError) await record(error.receipt);
     entry.error = redact((error as Error).message);
+    if (error instanceof UiSubmissionBlockedError) {
+      // A guarded draft PATCH never escaped. Clear its scheduling intent too,
+      // so the compatibility fallback cannot quarantine this unchanged draft.
+      if (entry.pendingMutation === "schedule") delete s.scheduledFor;
+      delete entry.pendingMutation;
+    }
     entry.phase = entry.receipt
       ? "inconclusive"
-      : entry.phase === "submitting" && !(error instanceof UiSubmissionBlockedError)
+      : entry.phase === "submitting" &&
+          !(error instanceof UiSubmissionBlockedError) &&
+          !(error instanceof PendingWorkError)
         ? "submitting"
         : "blocked";
     await journal.save(entry);
-    throw new Error(entry.error);
+    throw new Error(entry.error, { cause: error });
   } finally {
+    await api.dispose();
     if (mcp) await mcp.close();
+    await journal.save(entry);
     await info.attach("run-journal", {
       body: await readFile(journal.file(entry.key)),
       contentType: "application/json",
@@ -389,16 +463,13 @@ export async function runScenario(
       await page.screenshot({ path: info.outputPath("scheduler.png"), fullPage: true }).catch(() => {});
     // A cleanup ledger remains even after process interruption. External deletion is deliberately
     // not guessed: owners can review exact post URLs and remove only run-owned posts.
-    await writeFile(
-      path.join(journal.dir, "cleanup.json"),
-      JSON.stringify(
+    await withFileLock(path.join(journal.dir, ".cleanup.lock"), async () => {
+      await atomicJson(
+        path.join(journal.dir, "cleanup.json"),
         (await journal.entries())
           .filter((e) => e.cleanup !== "not-created" && e.cleanup !== "discarded")
           .map((e) => ({ scenario: e.key, accountId: e.accountId, status: e.cleanup, post: e.receipt })),
-        null,
-        2,
-      ),
-      { mode: 0o600 },
-    );
+      );
+    });
   }
 }

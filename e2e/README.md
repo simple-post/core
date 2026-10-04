@@ -197,6 +197,30 @@ yarn e2e:live --platform tiktok --profile regression --interface mcp,cli-app,cli
 
 Profiles are `smoke`, `full`, `regression`, `lifecycle`, and `negative`; `--all` is shorthand for `--profile full`. `--scenario` filters by scenario ID substring. `--platform` and `--interface` accept comma-separated names or repeated flags. `--config` selects another test configuration. `yarn e2e:live --help` and `yarn e2e:plan --help` list the options. Existing `E2E_*` variables remain supported; command-line options override matching variables. Missing accounts, expired sessions, permission gaps, and unmet field verifiers fail visibly. Unsupported interface combinations appear separately in the coverage matrix.
 
+### Parallel platform lanes and faster verification
+
+Every selected platform runs concurrently by default, with one Playwright worker per platform. Each platform runs its UI, MCP and CLI cases sequentially, including after a worker restart. There is no CPU-based cap on the number of selected lanes. Omit `--platform` to run all platforms discovered by setup, or select a subset:
+
+```sh
+# Full catalog on every configured platform, all running concurrently:
+yarn e2e:live --all
+
+# Full catalog on just these three platforms, also concurrently:
+yarn e2e:live --platform telegram,instagram,bluesky --all
+```
+
+Project names in the Playwright report are platforms; nested groups and annotations identify interfaces. The full case matrix, customer upload paths, persisted options, image fitting assertions and native platform verification remain intact. Unsupported combinations are skipped before browser fixtures start.
+
+A case failure no longer stops unrelated platforms. A confirmed observer login/challenge problem or exhausted rate-limit allowance pauses its platform immediately. `platformFailureLimit` defaults to three consecutive failures before pausing that platform; a successful case resets that counter. Remaining cases in a paused lane are reported as **blocked**, not passed. Shared scheduler authentication failures, identity/payload inconsistencies and exhausted run budgets stop new work across all lanes. Already submitted work may still finish remotely; receipts are retained and uncertain submissions are never automatically retried. A daily platform budget pauses only that platform.
+
+Resuming with the same run ID performs preflight again, clears the selected lanes' pause markers and reuses verified results and accepted receipts. An uncertain submission still requires reconciliation. The existing invocation lock is supplemented by account leases in `runDir/.accounts`, preventing two runs from using the same platform account concurrently. Unresolved submissions and scheduled work retain an account quarantine after the run ends; the owning run can resume to reconcile existing work, but new cases cannot submit while another case on that account remains unresolved. Use the same `runDir` for configurations that share accounts or daily budgets. Stale invocation/account/credential leases and short transaction locks are not automatically removed: inspect their owner and pending receipts before clearing them. Blocked required coverage makes the command fail even when Playwright's only executed cases passed; unsupported combinations do not.
+
+`cli-app` uses its normal connected configuration. `cli-local` uses a private configuration per platform with only the selected account credential staged. Any refreshed credential is merged back under a short lock after the subprocess exits, without serializing publishing across platforms. Keep other CLI writers out of the dedicated test configuration during the run. Encrypted stores use the CLI's usual password environment variable; the harness never prompts or logs secrets. An interrupted credential refresh keeps private pending state for reconciliation. Completed private snapshots are removed during teardown.
+
+Budget reservation and ledger/report writes are protected against concurrent processes. Shared remote fixtures are staged once before workers start. Immutable fixture metadata is cached with change detection; scenario uploads still exercise their normal customer interface. Ordinary scheduler GET reads use `readTimeoutMs` (default 30 seconds), independently of the longer publishing/upload timeout. Native platform checks poll the current page before controlled reloads, retry eventual visibility and temporary server errors, and honor bounded `Retry-After` waits. Navigation and assertions share the overall verification deadline. Confirmed authentication problems fail promptly instead of consuming a three-minute retry loop.
+
+Each case attaches `stage-timings` to its Playwright report and saves them in its journal. Each run writes `setup-timing.json` and `timing-summary.json`, including wall time, per-platform stage totals and the 20 slowest cases. Upload is nested inside submission; stage totals are inclusive and parallel platform totals should not be added to estimate wall time. The aggregate report links to timing summaries for runs with recorded timings. These measurements show where subsequent optimization is worthwhile without changing the real scheduler's dispatch behavior.
+
 For example, preview just the Telegram mixed-album cases:
 
 ```sh
@@ -213,7 +237,7 @@ Scheduling cases create posts through MCP or UI, retain and inspect saved option
 
 Each `yarn e2e:live` invocation takes a private snapshot of the configuration for all workers and reporters. Configuration edits apply on the next invocation, including when resuming the same run ID.
 
-Each mutation has a durable journal entry before submission. Playwright runs one worker with **zero retries** and stops the batch on its first failure. To resume, repeat the same selection with `--run-id ID` using the ID printed by the original run. This continues verification of accepted receipts or finishes unstarted cases. Starting without that ID creates a new run and can publish additional posts. A changed scenario/account/deployment cannot silently reuse an old receipt. An interrupted submission with no receipt is marked ambiguous and is never automatically resubmitted.
+Each mutation has a durable journal entry before submission. Playwright runs one worker per selected platform with **zero retries**; platform pauses and global submission gates follow the rules above. To resume, repeat the same selection with `--run-id ID` using the ID printed by the original run. This continues verification of accepted receipts or finishes unstarted cases after pending work is reconciled. Starting without that ID creates a new run and can publish additional posts. A changed scenario/account/deployment cannot silently reuse an old receipt. An interrupted submission with no receipt is marked ambiguous and is never automatically resubmitted.
 
 For an interrupted positive submission with no receipt, recovery reads the complete published history in pages of 100, capped at 20 pages. It filters by the journal creation time and exact account, caption, media count, and successful account result, then checks saved options before recording a unique match. Invalid pagination, changing counts, duplicate matches, or an incomplete scan fail without recovering or resubmitting. Expected-error scenarios cannot recover a published receipt this way.
 
@@ -253,7 +277,7 @@ The `image-fit` group adds 30 scenarios / 66 supported interface combinations: 1
 
 Saved derivative bytes are downloaded and checked independently for format, dimensions, byte limits, crop/padding markers and unchanged compatible attachments. CLI source files and UI uploaded originals must survive unchanged. Existing native-platform observers still verify the author, exact post, caption, ordered media and image content; a successful resize API response alone never passes a publishing case. Journals retain receipts and image-fit evidence for verification-only resumption. Historical report signatures distinguish methods and reviewed-content flows.
 
-Hosted UI/MCP fitting requires the test user's `IMAGE_FITTING` feature. Each new hosted fitting case reads `/api/v1/features` before its adapter prepares or submits fitting. Missing access, authentication errors, or invalid responses block that case without submitting it; they are not treated as passes or skips. This check does not affect global preflight or non-fitting cases (the runner's normal stop-on-failure policy still applies). Existing receipts can be verified without another fitting request. CLI-app fits locally before uploading, matching the customer CLI path. Existing platform observer requirements still apply, including TikTok's manual challenges and settings observers.
+Hosted UI/MCP fitting requires the test user's `IMAGE_FITTING` feature. Each new hosted fitting case reads `/api/v1/features` before its adapter prepares or submits fitting. Missing access, authentication errors, or invalid responses block that case without submitting it; they are not treated as passes. This check does not affect global preflight or non-fitting cases; platform pause rules apply. Existing receipts can be verified without another fitting request. CLI-app fits locally before uploading, matching the customer CLI path. Existing platform observer requirements still apply, including TikTok's manual challenges and settings observers.
 
 The two new generated fixtures are checked in; `yarn e2e:fixtures` can reproduce them. The high-entropy compression fixture is about 7.6 MB. No credentials or live account configuration were changed when authoring this group.
 

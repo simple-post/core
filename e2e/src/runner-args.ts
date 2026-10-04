@@ -90,7 +90,8 @@ ${
   --headed            Show the browser
   --list              List tests without accessing accounts or publishing
 
-The live command enables real posting. Existing budgets and stop-on-failure rules apply.
+The live command enables real posting. All selected platforms run concurrently;
+each account runs sequentially across interfaces. Budgets and platform pause rules apply.
 `
     : "\nPlan only: no account access, uploads, or publishing.\n"
 }

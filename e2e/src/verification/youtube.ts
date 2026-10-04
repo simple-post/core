@@ -4,6 +4,32 @@ import { SchedulerApi } from "../http.js";
 import type { Materialized, PostingResult } from "../types.js";
 import { verifyFixtureImage } from "./image.js";
 import { mediaFiles } from "../media.js";
+import {
+  assertVerificationResponse,
+  verificationRead,
+  verificationTimeout,
+  withVerificationBudget,
+  type VerificationBudget,
+} from "./retry.js";
+
+async function readOwnerResponse<T>(
+  url: URL,
+  init: RequestInit,
+  budget: VerificationBudget | undefined,
+  consume: (response: Response) => Promise<T>,
+): Promise<T> {
+  return withVerificationBudget(budget, 30_000, async (active) => {
+    const response = await fetch(url, { ...init, redirect: "error", signal: active.signal });
+    try {
+      verificationTimeout(active);
+      assertVerificationResponse(response.status, response.headers.get("retry-after") ?? undefined);
+      return await consume(response);
+    } finally {
+      // Failure before consumption still releases the response stream/socket.
+      if (response.body && !response.bodyUsed) await response.body.cancel();
+    }
+  });
+}
 
 type YouTubeVideo = {
   id: string;
@@ -45,7 +71,13 @@ export type YouTubeVerification = {
 
 // These are the original generated fixture properties, not transcoded player
 // dimensions. Owner-only fileDetails must describe the uploaded source file.
-async function verifyPrivateMedia(video: YouTubeVideo, s: Materialized, account: Account, config?: LiveConfig) {
+async function verifyPrivateMedia(
+  video: YouTubeVideo,
+  s: Materialized,
+  account: Account,
+  config?: LiveConfig,
+  budget?: VerificationBudget,
+) {
   if (!config) throw new Error("Private YouTube verification requires local fixture configuration");
   expect(account.resources.channelId, "Private video needs the discovered owner channel ID").toMatch(/^UC[\w-]+$/);
   expect(s.expectedTitle, "Private video needs an exact expected title").toBeTruthy();
@@ -55,7 +87,9 @@ async function verifyPrivateMedia(video: YouTubeVideo, s: Materialized, account:
     "private",
   );
   expect(video.status.privacyStatus).toBe("private");
+  verificationTimeout(budget);
   const [fixture] = await mediaFiles(config, s.media);
+  verificationTimeout(budget);
   expect(video.processingDetails?.processingStatus, "YouTube source processing must have succeeded").toBe("succeeded");
   const file = video.fileDetails;
   expect(file, "Owner-only source file details are required").toBeDefined();
@@ -112,19 +146,19 @@ export async function verifyYouTubeMetadata(
   account: Account,
   result: PostingResult,
   config?: LiveConfig,
+  budget?: VerificationBudget,
 ): Promise<YouTubeVerification> {
+  verificationTimeout(budget);
   expect(result.postId, "Exact YouTube receipt ID is required").toMatch(/^[\w-]{11}$/);
   async function getGoogle(route: string, params: Record<string, string>) {
     const url = new URL(`https://www.googleapis.com/youtube/v3/${route}`);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-    const response = await fetch(url, {
-      redirect: "error",
-      signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${secret(account.observer.youtubeAccessTokenEnv!)}` },
-    });
-    if (!response.ok)
-      throw new Error(`YouTube metadata read failed (${response.status}); check owner OAuth scopes/token.`);
-    return response.json();
+    return readOwnerResponse(
+      url,
+      { headers: { Authorization: `Bearer ${secret(account.observer.youtubeAccessTokenEnv!)}` } },
+      budget,
+      (response) => response.json(),
+    );
   }
   let video: YouTubeVideo;
   let playlistItems: { videoId?: string; contentDetails?: { videoId?: string } }[] = [];
@@ -144,8 +178,12 @@ export async function verifyYouTubeMetadata(
     if (!config || !account.observer.youtubeReadback) throw new Error("YouTube owner readback is not configured.");
     const playlistId = s.expectedFields.playlistId;
     const query = playlistId === undefined ? "" : `?playlistId=${encodeURIComponent(String(playlistId))}`;
-    const data = await new SchedulerApi(config).request<YouTubeReadback>(
-      `/api/v1/accounts/${encodeURIComponent(account.id)}/youtube/videos/${encodeURIComponent(result.postId!)}${query}`,
+    const data = await SchedulerApi.scoped(config, (api) =>
+      verificationRead<YouTubeReadback>(
+        api,
+        `/api/v1/accounts/${encodeURIComponent(account.id)}/youtube/videos/${encodeURIComponent(result.postId!)}${query}`,
+        budget,
+      ),
     );
     video = data.video;
     playlistItems = Array.isArray(data.playlistItems) ? data.playlistItems : (data.playlistItems?.items ?? []);
@@ -170,9 +208,9 @@ export async function verifyYouTubeMetadata(
       const imageUrl = new URL(thumbnail.url);
       if (imageUrl.protocol !== "https:" || !["i.ytimg.com", "i9.ytimg.com"].includes(imageUrl.hostname))
         throw new Error("Unexpected YouTube thumbnail URL");
-      const response = await fetch(imageUrl, { redirect: "error", signal: AbortSignal.timeout(30_000) });
-      if (!response.ok) throw new Error(`YouTube thumbnail unavailable (${response.status})`);
-      await verifyFixtureImage(Buffer.from(await response.arrayBuffer()), String(value), "Published YouTube thumbnail");
+      const bytes = await readOwnerResponse(imageUrl, {}, budget, (response) => response.arrayBuffer());
+      await verifyFixtureImage(Buffer.from(bytes), String(value), "Published YouTube thumbnail");
+      verificationTimeout(budget);
       verified.push(key);
     } else if (key === "playlistId") {
       const playlist = account.observer.youtubeAccessTokenEnv
@@ -199,6 +237,9 @@ export async function verifyYouTubeMetadata(
     }
   }
   const privateMediaProof =
-    s.expectedFields.privacyStatus === "private" ? await verifyPrivateMedia(video, s, account, config) : undefined;
+    s.expectedFields.privacyStatus === "private"
+      ? await verifyPrivateMedia(video, s, account, config, budget)
+      : undefined;
+  verificationTimeout(budget);
   return { verifiedFields: verified, ...(privateMediaProof ? { privateMediaProof } : {}) };
 }

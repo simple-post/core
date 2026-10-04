@@ -13,6 +13,11 @@ import { Journal } from "./journal.js";
 import { budgetPlan } from "./budget.js";
 import { assertTelegramObserver } from "./verification/telegram.js";
 import { openComposer } from "./adapters/ui.js";
+import { leaseAccounts, RunControl, pendingExternalWork } from "./execution.js";
+import type { Platform } from "./types.js";
+import { atomicJson } from "./files.js";
+import { TimingRecorder } from "./timing.js";
+import { cleanupCliSnapshots } from "./cli-isolation.js";
 export function assertRequirements(s: Materialized, account: Account) {
   for (const requirement of s.requirements ?? []) {
     if (requirement.startsWith("resource:")) {
@@ -112,6 +117,10 @@ export default async function setup() {
     selected = selection(),
     cases = selectedCases(),
     runnableCases = cases.filter((scenario) => !scenario.unsupportedReason);
+  const timing = new TimingRecorder();
+  const setupStarted = Date.now();
+  let releaseAccounts: ((pending?: readonly Platform[]) => Promise<void>) | undefined;
+  let api: SchedulerApi | undefined;
   const invocationDir = path.join(config.runDir, run);
   await mkdir(invocationDir, { recursive: true, mode: 0o700 });
   const lock = path.join(invocationDir, ".live.lock");
@@ -154,7 +163,8 @@ export default async function setup() {
       console.log(
         `Setup requirements still missing for ${missing.length} selected cases:\n${missing.map((message) => `  ${message}`).join("\n")}`,
       );
-    const api = new SchedulerApi(config);
+    releaseAccounts = await leaseAccounts(config, selected.platforms, run);
+    api = new SchedulerApi(config);
     const { accounts } = await api.request<{ accounts: Record<string, unknown>[] }>("/api/v1/accounts");
     const targeted = [...new Set(runnableCases.map((s) => s.platform))];
     for (const p of targeted) {
@@ -238,7 +248,8 @@ export default async function setup() {
       );
       return needsUrls ? [...s.media, ...(s.options.thumbnailUrl ? ["image" as const] : [])] : [];
     });
-    if (process.env.E2E_VERIFY_ONLY !== "1") await prepareMediaSources(config, remoteKeys, api);
+    if (process.env.E2E_VERIFY_ONLY !== "1")
+      await timing.measure("fixture_staging", () => prepareMediaSources(config, remoteKeys, api!));
     const keys = [...new Set(runnableCases.flatMap((c) => c.media))];
     const files = await mediaFiles(config, keys);
     const dir = path.join(config.runDir, run);
@@ -262,6 +273,7 @@ export default async function setup() {
           selection: selected,
           media: files.map(({ path: _path, ...file }) => file),
           startedAt: new Date().toISOString(),
+          execution: { lanes: selected.platforms, workers: selected.platforms.length, sequentialPerAccount: true },
         },
         null,
         2,
@@ -284,11 +296,35 @@ export default async function setup() {
       }),
     );
     await writeFile(path.join(dir, "coverage.json"), JSON.stringify(matrix, null, 2), { mode: 0o600 });
+    await atomicJson(path.join(dir, "setup-timing.json"), {
+      durationMs: Date.now() - setupStarted,
+      stages: timing.stages,
+    });
+    await new RunControl(config, run).reset(selected.platforms);
+    await api.dispose();
     return async () => {
-      await unlink(lock);
+      try {
+        await cleanupCliSnapshots(invocationDir);
+        const pending = (await journal.entries()).filter(pendingExternalWork).map((entry) => entry.platform);
+        await releaseAccounts?.(pending);
+        if (pending.length)
+          console.log(
+            `Account leases retained for unresolved work on ${[...new Set(pending)].join(", ")}. Resume this run to reconcile existing posts.`,
+          );
+      } finally {
+        await unlink(lock);
+      }
     };
   } catch (error) {
-    await unlink(lock);
+    try {
+      await api?.dispose();
+    } finally {
+      try {
+        await releaseAccounts?.();
+      } finally {
+        await unlink(lock);
+      }
+    }
     throw error;
   }
 }

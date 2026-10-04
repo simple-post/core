@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { loadConfig, selection } from "./src/config.js";
+import { platformProjects } from "./src/execution.js";
 const file = process.env.E2E_CONFIG ?? "config.local.json";
 // --list is useful before accounts are configured. Execution still requires global preflight.
 const cfg = existsSync(file) ? loadConfig(file) : undefined;
@@ -10,10 +11,10 @@ const artifactDir = run ? path.join(cfg?.runDir ?? path.resolve(".local/runs"), 
 export default defineConfig({
   testDir: "./live",
   globalSetup: "./src/preflight.ts",
-  workers: 1,
+  workers: selection().platforms.length,
   fullyParallel: false,
   retries: 0,
-  maxFailures: 1,
+  maxFailures: 0,
   forbidOnly: true,
   timeout: cfg
     ? (cfg.publishTimeoutMs + cfg.verifyTimeoutMs) * 5 + cfg.dispatchAllowanceMs + cfg.scheduleDelayMinutes * 60_000
@@ -33,7 +34,7 @@ export default defineConfig({
   // Each live invocation gets its own Playwright artifacts. Playwright creates a
   // fresh browser context per test; no persistent browser profile is used here.
   outputDir: artifactDir ? path.join(artifactDir, "test-results") : "./test-results",
-  projects: selection().interfaces.map((name) => ({ name })),
+  projects: platformProjects(selection().platforms),
   reporter: [
     ["list"],
     ["./src/reporter.ts"],

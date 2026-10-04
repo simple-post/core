@@ -1,19 +1,27 @@
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/client/validators/ajv";
+import { z } from "zod";
+
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import {
   createPost,
+  createPostOutputSchema,
   createPostSchema,
   previewPost,
+  previewPostOutputSchema,
   previewPostSchema,
   updateScheduledPost,
+  updateScheduledPostOutputSchema,
   updateScheduledPostSchema,
 } from "@/lib/mcp/tools/posts";
-import { validatePost, validatePostSchema } from "@/lib/mcp/tools/validation";
+import { validatePost, validatePostOutputSchema, validatePostSchema } from "@/lib/mcp/tools/validation";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { postToAccounts } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
+
+import type { JsonSchemaType } from "@modelcontextprotocol/client";
 
 jest.mock("@/lib/features", () => ({ hasFeature: jest.fn().mockResolvedValue(true) }));
 jest.mock("@/lib/db", () => ({ PostsModel: jest.fn() }));
@@ -401,6 +409,123 @@ it.each(["crop", "blur"])("persists fitted media when imageFit=%s is explicitly 
     expect.objectContaining({ media: [expect.objectContaining({ url: "https://cdn.example.com/fitted.jpg" })] }),
     "user-1",
     {},
+  );
+});
+
+describe.each([undefined, "crop", "blur"] as const)("MCP media responses with imageFit=%s", (imageFit) => {
+  it.each(["validate", "preview", "create-now", "create-schedule", "create-draft", "update-schedule", "update-draft"])(
+    "%s conforms to its published JSON schema without losing internal media metadata",
+    async (operation) => {
+      const media = [
+        { type: "image" as const, url: "https://example.com/photo.png", filename: "photo.png", size: 2048 },
+        {
+          type: "video" as const,
+          url: "https://example.com/video.mp4",
+          filename: "video.mp4",
+          size: 4096,
+          durationSec: 12,
+          thumbnailUrl: "https://example.com/thumbnail.jpg",
+        },
+      ];
+      // Importing attaches metadata even when fitting is not requested.
+      (ingestPostMedia as jest.Mock).mockImplementation(async (_userId, input) => ({
+        ...input,
+        media: input.media.map((item: (typeof media)[number]) => ({
+          ...item,
+          contentType: item.type === "image" ? "image/png" : "video/mp4",
+        })),
+      }));
+      (validatePostForAccounts as jest.Mock).mockImplementation(async (params) => {
+        if (params.imageFit) {
+          Object.assign(params.media[0], {
+            id: "fitted-image-id",
+            url: "https://cdn.example.com/fitted.jpg",
+            filename: "fitted-image.jpg",
+            contentType: "image/jpeg",
+            size: 1024,
+          });
+        }
+        return {
+          accounts: [{ id: "tiktok-1", platform: "tiktok" }],
+          platforms: ["tiktok"],
+          results: [{ accountId: "tiktok-1", platform: "tiktok", isValid: true, errors: [], warnings: [] }],
+          summary: { isValid: true, errors: [], warnings: [] },
+        };
+      });
+      const currentPost = {
+        id: "post-1",
+        message: "Media",
+        status: "draft",
+        accountIds: ["tiktok-1"],
+        accountOptions: {},
+        media: [],
+        createdAt: new Date("2026-09-05T00:00:00Z"),
+        updatedAt: new Date("2026-09-05T00:00:00Z"),
+        scheduledFor: null,
+      };
+      updatePost.mockImplementation(async (_id, updates) => ({ ...currentPost, ...updates }));
+      const input = { message: "Media", accountIds: ["tiktok-1"], media, imageFit };
+      const { response, validation, schema } = await (async () => {
+        if (operation === "validate") {
+          const response = await validatePost("user-1", validatePostSchema.parse(input));
+          return { response, validation: response, schema: validatePostOutputSchema };
+        }
+        if (operation === "preview") {
+          const response = await previewPost("user-1", previewPostSchema.parse(input));
+          return { response, validation: response.validation, schema: previewPostOutputSchema };
+        }
+        const postingMode = operation.endsWith("schedule") ? "schedule" : operation.endsWith("draft") ? "draft" : "now";
+        const postInput = {
+          ...input,
+          postingMode,
+          ...(postingMode === "schedule" ? { scheduledFor: "2099-01-01T10:00:00Z" } : {}),
+        };
+        if (operation.startsWith("update-")) {
+          loadPost.mockResolvedValue(currentPost);
+          const response = await updateScheduledPost(
+            "user-1",
+            updateScheduledPostSchema.parse({ ...postInput, postId: "post-1" }),
+          );
+          return { response, validation: response.validation, schema: updateScheduledPostOutputSchema };
+        }
+        const response = await createPost("user-1", createPostSchema.parse(postInput));
+        return { response, validation: response.validation, schema: createPostOutputSchema };
+      })();
+
+      // Validate the JSON sent to clients, not a Zod-parsed copy that silently
+      // strips additional properties and would hide this protocol regression.
+      // Zod and the MCP SDK use different TypeScript definitions for JSON Schema.
+      const check = new AjvJsonSchemaValidator().getValidator(z.toJSONSchema(schema) as unknown as JsonSchemaType);
+      // eslint-disable-next-line unicorn/prefer-structured-clone -- Exercise JSON wire serialization, including omitted undefined fields.
+      const checked = check(JSON.parse(JSON.stringify(response)));
+      expect(checked.errorMessage).toBeUndefined();
+      expect(checked.valid).toBe(true);
+      expect(validation?.fittedMedia).toEqual([
+        imageFit
+          ? { type: "image", url: "https://cdn.example.com/fitted.jpg", filename: "fitted-image.jpg", size: 1024 }
+          : media[0],
+        media[1],
+      ]);
+
+      const internalMedia = (validatePostForAccounts as jest.Mock).mock.calls[0][0].media;
+      expect(internalMedia[0]).toEqual(
+        expect.objectContaining({
+          id: imageFit ? "fitted-image-id" : expect.any(String),
+          contentType: imageFit ? "image/jpeg" : "image/png",
+          url: validation?.fittedMedia?.[0].url,
+        }),
+      );
+      expect(internalMedia[1]).toEqual(expect.objectContaining({ id: expect.any(String), contentType: "video/mp4" }));
+      if (operation.startsWith("create-")) {
+        expect(savePost.mock.calls[0][0].media).toEqual(internalMedia);
+        if (operation === "create-now") expect((postToAccounts as jest.Mock).mock.calls[0][2]).toEqual(internalMedia);
+      } else if (operation.startsWith("update-")) {
+        expect(updatePost.mock.calls[0][1].media).toEqual(internalMedia);
+      } else {
+        expect(savePost).not.toHaveBeenCalled();
+        expect(postToAccounts).not.toHaveBeenCalled();
+      }
+    },
   );
 });
 

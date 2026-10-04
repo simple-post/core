@@ -11,9 +11,10 @@ jest.mock("@/lib/logger/request-context", () => ({ rememberRequestUser: jest.fn(
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest
-    .mocked(authenticateMcpToken)
-    .mockResolvedValue({ user: { id: "review" }, session: { scope: "accounts:read posts:read" } } as never);
+  jest.mocked(authenticateMcpToken).mockResolvedValue({
+    user: { id: "review" },
+    session: { scope: "accounts:read posts:read", enforceRestScopes: true },
+  } as never);
   jest.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "browser-user" } } as never);
 });
 
@@ -35,4 +36,26 @@ it("still authenticates an allowed read without changing the browser/API/CLI pat
   });
   await expect(requireAuth(req)).resolves.toMatchObject({ user: { id: "review" } });
   expect(auth.api.getSession).not.toHaveBeenCalled();
+});
+
+it.each([false, undefined])("preserves existing non-Muse REST access (%s)", async (enforceRestScopes) => {
+  jest.mocked(authenticateMcpToken).mockResolvedValue({
+    user: { id: "existing-client" },
+    session: { scope: "accounts:read", enforceRestScopes },
+  } as never);
+  const req = new NextRequest("http://localhost:3000/api/v1/posts", {
+    method: "POST",
+    headers: { authorization: "Bearer sp_mcp_existing" },
+  });
+  await expect(requireAuth(req)).resolves.toMatchObject({ user: { id: "existing-client" } });
+  expect(auth.api.getSession).not.toHaveBeenCalled();
+});
+
+it("keeps Muse enforcement after its client is removed from the deployment allowlist", async () => {
+  delete process.env.MUSE_OAUTH_CLIENT_IDS;
+  const req = new NextRequest("http://localhost:3000/api/v1/posts", {
+    method: "POST",
+    headers: { authorization: "Bearer sp_mcp_review" },
+  });
+  await expect(requireAuth(req)).rejects.toMatchObject({ statusCode: 403 });
 });

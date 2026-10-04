@@ -8,13 +8,24 @@ This is **prepared, not submitted, approved or live-tested in Personal Muse**. P
 
 ## What is implemented
 
-- The SimplePost OAuth consent page offers **Read only** or **Read and write**. Read-only is the default on the MCP consent screen; existing programmatic consent requests remain backward-compatible when `access_mode` is omitted. CLI authorization does not gain this toggle.
+- **Read and write remains the default.** Only deployment-approved Personal Muse OAuth clients see the optional **Read only** choice. Other clients retain the original consent screen and requested-scope behavior; CLI authorization does not gain this toggle.
 - Read-only grants retain only the requested identity/account/post-read scopes. They exclude **both** `posts:write` and `posts:validate`: MCP validation and preview can import media, even without image fitting. Empty or invalid grants fail closed. Choosing access never expands a client's registered/requested scopes.
-- Existing MCP handlers enforce these scopes. REST authentication also enforces narrowed MCP grants, so the token cannot bypass consent through REST mutations or fall back to a broader browser session. API keys, CLI tokens and normal browser sessions are unchanged.
+- Existing MCP handlers enforce these scopes. Newly issued Muse grants also persist an opt-in REST enforcement flag, so a read-only Muse token cannot bypass consent through REST mutations or fall back to a broader browser session. The flag survives later allowlist changes. Existing tokens, other MCP clients, API keys, CLI tokens and normal browser sessions retain their previous behavior.
 - A reproducible review bundle exports actual registered tool descriptions, input/output JSON schemas and MCP hints, plus Muse-specific **read / write / sensitive write** classifications. All four combinations of base vs extension tools and image-fitting entitlement are separate. All 23 tools are covered; 12 are always registered and 11 depend on the workspace/editor entitlement.
 - Offline tests verify catalog completeness, risk labels, exported schemas, rejected write calls, OAuth narrowing and REST enforcement. CI runs these checks; generate the review bundle locally when preparing a submission.
 
 ## Prepare the review bundle
+
+### Enable the Muse-only consent option
+
+1. Apply the additive Prisma migration before deploying the updated Scheduler. Both new `enforceRestScopes` fields default to `false`, preserving all existing authorization codes and tokens.
+2. Obtain/register Muse's actual OAuth client with its verified callback and authentication settings. Confirm the registration belongs to Meta; do not identify Muse from a self-declared client name, callback hostname or `platform=muse` URL parameter.
+3. Set the **server-only** Scheduler environment variable `MUSE_OAUTH_CLIENT_IDS` to the exact registered client ID. Multiple verified review/production clients can be comma-separated. Keep it unset until those IDs are verified; no client sees the extra choice while it is unset. A newly dynamically registered ID must be verified and added before its Muse consent flow.
+4. Start a fresh Muse authorization. Confirm **Read and write** is selected, and explicitly choose **Read only** to test the restricted grant. Existing credentials are not silently downgraded or opted into new REST enforcement; obtain a fresh grant for reviewer testing.
+
+The server checks the approved client ID again when processing consent. Other clients' requests ignore the Muse-only `access_mode` field and retain their original scopes. No public environment variable or arbitrary authorization URL hint can enable the option.
+
+### Generate locally
 
 From the repository root, with the locked dependencies installed:
 

@@ -32,16 +32,22 @@ const requireBrowserSessionMock = jest.mocked(requireBrowserSession);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  process.env.MUSE_OAUTH_CLIENT_IDS = "muse-client";
   requireBrowserSessionMock.mockResolvedValue({ user: { id: "review-user" } } as never);
   assertActiveSubscriptionMock.mockResolvedValue({} as never);
   jest.mocked(ensureTrialStarted).mockResolvedValue(null);
-  validateClientMock.mockResolvedValue({
-    clientId: "chatgpt-client",
-    scope: "openid email accounts:read posts:read posts:validate posts:write",
-  } as never);
+  validateClientMock.mockImplementation(
+    async (clientId) =>
+      ({
+        clientId,
+        scope: "openid email accounts:read posts:read posts:validate posts:write",
+      }) as never,
+  );
   createAuthorizationCodeMock.mockResolvedValue("authorization-code");
   updateClientScopeMock.mockResolvedValue(undefined);
 });
+
+afterEach(() => delete process.env.MUSE_OAUTH_CLIENT_IDS);
 
 it("treats a null OIDC nonce as absent", async () => {
   const response = await POST(
@@ -93,7 +99,7 @@ it("persists read-only consent without granting writes", async () => {
   const response = await POST(consentRequest({ access_mode: "read_only" }));
   expect(response.status).toBe(200);
   expect(createAuthorizationCodeMock).toHaveBeenCalledWith(
-    expect.objectContaining({ scope: "openid email accounts:read posts:read" }),
+    expect.objectContaining({ scope: "openid email accounts:read posts:read", enforceRestScopes: true }),
   );
 });
 
@@ -115,8 +121,50 @@ it.each([
 });
 
 it("still rejects scope escalation even when choosing read-only", async () => {
-  validateClientMock.mockResolvedValue({ scope: "accounts:read" } as never);
+  validateClientMock.mockResolvedValue({ clientId: "muse-client", scope: "accounts:read" } as never);
   const response = await POST(consentRequest({ access_mode: "read_only", scope: "accounts:read posts:write" }));
   expect(response.status).toBe(400);
   expect(createAuthorizationCodeMock).not.toHaveBeenCalled();
+});
+
+it.each([undefined, "read_write"])("keeps read/write as the default for Muse (%s)", async (access_mode) => {
+  const response = await POST(consentRequest({ access_mode }));
+  expect(response.status).toBe(200);
+  expect(createAuthorizationCodeMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      scope: "openid email accounts:read posts:read posts:validate posts:write",
+      enforceRestScopes: true,
+    }),
+  );
+});
+
+it.each([undefined, "read_only", "admin"])(
+  "preserves other clients' original grants regardless of Muse-only fields (%s)",
+  async (access_mode) => {
+    validateClientMock.mockResolvedValue({
+      clientId: "other-client",
+      name: "Muse",
+      scope: "openid email accounts:read posts:read posts:validate posts:write",
+    } as never);
+    const response = await POST(consentRequest({ client_id: "other-client", access_mode, enforceRestScopes: true }));
+    expect(response.status).toBe(200);
+    expect(createAuthorizationCodeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "openid email accounts:read posts:read posts:validate posts:write",
+        enforceRestScopes: false,
+      }),
+    );
+  },
+);
+
+it("does not enable Muse consent when the server allowlist is unset", async () => {
+  delete process.env.MUSE_OAUTH_CLIENT_IDS;
+  const response = await POST(consentRequest({ access_mode: "read_only" }));
+  expect(response.status).toBe(200);
+  expect(createAuthorizationCodeMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      scope: "openid email accounts:read posts:read posts:validate posts:write",
+      enforceRestScopes: false,
+    }),
+  );
 });

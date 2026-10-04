@@ -17,7 +17,7 @@ The scripts are examples, not a new model backend inside the Scheduler. They use
 
 ## Personal Muse AI agent: dedicated connector preparation
 
-The [Personal Muse review kit](../integrations/personal-muse/README.md), updated **2026-10-03**, targets the personal agent, not Muse Code or model examples. [Meta's published guidelines](https://muse.ai/platform/docs) accept API or MCP connectors. It reuses the hosted OAuth MCP server, adds a genuinely read-only connection choice and prepares actual tool schemas, all current tool classifications, data-processing answers, reviewer scenarios and publication steps. Run `yarn muse:personal:check` and `yarn muse:personal:prepare` to verify/build the review bundle. Live Muse-side approvals and portal submission remain maintainer steps.
+The [Personal Muse review kit](../integrations/personal-muse/README.md), updated **2026-10-04**, targets the personal agent, not Muse Code or model examples. [Meta's published guidelines](https://muse.ai/platform/docs) accept API or MCP connectors. It reuses the hosted OAuth MCP server, adds an optional read-only connection choice **only for verified Muse client IDs** configured in server-only `MUSE_OAUTH_CLIENT_IDS`, and prepares actual tool schemas, all current tool classifications, data-processing answers, reviewer scenarios and publication steps. Read/write remains the default; existing and non-Muse grants retain their prior behavior. Apply the additive Prisma migration before deploying and obtain fresh Muse test grants. Run `yarn muse:personal:check` and `yarn muse:personal:prepare` to verify/build the review bundle. Live Muse-side approvals and portal submission remain maintainer steps.
 
 ## Muse Code: reuse our skill and MCP
 

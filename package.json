@@ -29,7 +29,7 @@
     "docs:export": "node scripts/export-docs.mjs",
     "hermes:validate": "node scripts/validate-hermes-submission.mjs",
     "muse:check": "node --test integrations/meta-muse/integration.test.mjs",
-    "muse:personal:check": "yarn workspace @simple-post/scheduler test --runInBand tests/lib/mcp/personal-muse.test.ts tests/lib/mcp/rest-scopes.test.ts tests/lib/middleware/mcp-consent.test.ts tests/app/mcp-oauth-authorize-route.test.ts tests/app/oauth-consent-page.test.ts",
+    "muse:personal:check": "yarn workspace @simple-post/scheduler test --runInBand tests/lib/mcp/personal-muse.test.ts tests/lib/mcp/personal-muse-policy.test.ts tests/lib/mcp/rest-scopes.test.ts tests/lib/middleware/mcp-consent.test.ts tests/app/mcp-oauth-authorize-route.test.ts tests/app/oauth-consent-page.test.ts tests/app/oauth-consent-default.test.ts",
     "muse:personal:prepare": "node scripts/prepare-personal-muse.mjs"
   },
   "resolutions": {

@@ -31,7 +31,7 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billingRequired, setBillingRequired] = useState(false);
-  const [accessMode, setAccessMode] = useState<McpAccessMode>("read_only");
+  const [accessMode, setAccessMode] = useState<McpAccessMode>("read_write");
   const readOnly = config.allowReadOnly && accessMode === "read_only";
 
   const paramsValid = config.validateParams(searchParams);
@@ -139,8 +139,8 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
             <legend className="text-sm font-medium mb-2">Choose access</legend>
             {(
               [
-                ["read_only", "Read only", "View connected accounts, post history, saved post previews and schedules."],
                 ["read_write", "Read and write", "Also upload media, save drafts, schedule and publish posts."],
+                ["read_only", "Read only", "View connected accounts, post history, saved post previews and schedules."],
               ] as const
             ).map(([value, label, detail]) => (
               <label key={value} className="flex items-start gap-2 text-sm cursor-pointer">
@@ -182,7 +182,9 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
           <p className="text-xs text-muted-foreground pt-1">
             {readOnly
               ? "This connection cannot validate new content, save drafts, upload or fit media, schedule, publish, change or discard posts."
-              : "Publishing now creates public content on the selected platforms. Connecting does not approve individual writes. Review the tool-call details before approving."}
+              : config.allowReadOnly
+                ? "Publishing now creates public content on the selected platforms. Connecting does not approve individual writes. Review the tool-call details before approving."
+                : "Publishing now creates public content on the selected platforms. Review the tool-call details before approving."}
           </p>
         </div>
 

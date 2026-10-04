@@ -68,7 +68,7 @@ async function authenticateMcpBearerToken(req: NextRequest) {
   if (!isMcpToken(token)) return null;
 
   const session = await authenticateMcpToken(token);
-  if (session && !(await allowsMcpRestRequest(req, session.session.scope))) {
+  if (session?.session.enforceRestScopes && !(await allowsMcpRestRequest(req, session.session.scope))) {
     // A valid restricted bearer must never fall through to a broader browser session.
     throw new ForbiddenError("The connected app does not have permission for this request");
   }

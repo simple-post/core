@@ -69,7 +69,8 @@ for (const fault of ["none", "wrong-author", "wrong-profile", "wrong-receipt"] a
     try {
       const operation = verifyOnPlatform(
         isolated,
-        config({ baseUrl: server.url, verifyTimeoutMs: 1 }),
+        // Enough for one offline proof, shorter than the minimum 1000ms retry delay.
+        config({ baseUrl: server.url, verifyTimeoutMs: 600 }),
         s,
         owner,
         receipt,

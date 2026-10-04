@@ -1,4 +1,5 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { atomicJson, withFileLock } from "./files.js";
 import path from "node:path";
 import type { LiveConfig } from "./config.js";
 import { interfaces } from "./types.js";
@@ -24,6 +25,7 @@ export interface AggregateAttempt {
   error?: string;
   historicalErrors?: string[];
   receipt?: JournalEntry["receipt"];
+  timings?: JournalEntry["timings"];
 }
 
 function semanticSignature(scenario: JournalEntry["scenario"]): string {
@@ -68,6 +70,9 @@ function semanticSignature(scenario: JournalEntry["scenario"]): string {
 }
 
 export async function aggregateJournal(config: LiveConfig) {
+  return withFileLock(path.join(config.runDir, ".aggregate.lock"), () => aggregateLocked(config));
+}
+async function aggregateLocked(config: LiveConfig) {
   const attempts: AggregateAttempt[] = [];
   const currentDefinitions = new Map<string, string>();
   for (const scenario of catalog)
@@ -108,6 +113,7 @@ export async function aggregateJournal(config: LiveConfig) {
         revision,
         key: entry.key,
         accountId: entry.accountId,
+        timings: entry.timings,
         platform: entry.platform,
         interface: entry.interface,
         scenarioId: entry.scenario.id,
@@ -165,6 +171,6 @@ export async function aggregateJournal(config: LiveConfig) {
     rows,
     attempts,
   };
-  await writeFile(path.join(config.runDir, "aggregate.json"), JSON.stringify(output, null, 2) + "\n", { mode: 0o600 });
+  await atomicJson(path.join(config.runDir, "aggregate.json"), output);
   return output;
 }

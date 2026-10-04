@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
+import { withIsolatedLocalCli } from "../cli-isolation.js";
 import { optionFlags } from "./cli-flags.js";
 import { redact } from "../redact.js";
 import type { Account, LiveConfig } from "../config.js";
@@ -20,34 +21,44 @@ export async function runCli(
     let stdout = "",
       stderr = "",
       settled = false;
-    const timer = setTimeout(() => {
+    let failure: Error | undefined;
+    let killTimer: NodeJS.Timeout | undefined;
+    function stop(error: Error) {
+      if (failure) return;
+      failure = error;
       child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 3000).unref();
-      finish(new Error("INCONCLUSIVE: CLI timed out. Publishing may continue remotely; do not rerun."));
+      killTimer = setTimeout(() => child.kill("SIGKILL"), 3000);
+      killTimer.unref();
+    }
+    const timer = setTimeout(() => {
+      stop(new Error("INCONCLUSIVE: CLI timed out. Publishing may continue remotely; do not rerun."));
     }, config.publishTimeoutMs);
     function finish(error?: Error, code = 1) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
       if (error) reject(error);
       else resolve({ code, stdout, stderr });
     }
     child.stdout.on("data", (chunk) => {
+      if (failure) return;
       stdout += chunk.toString();
       if (stdout.length > 2_000_000) {
-        child.kill();
-        finish(new Error("CLI output exceeded limit"));
+        stop(new Error("CLI output exceeded limit"));
       }
     });
     child.stderr.on("data", (chunk) => {
+      if (failure) return;
       stderr += chunk.toString();
       if (stderr.length > 2_000_000) {
-        child.kill();
-        finish(new Error("CLI output exceeded limit"));
+        stop(new Error("CLI output exceeded limit"));
       }
     });
-    child.on("error", (e) => finish(e));
-    child.on("close", (code) => finish(undefined, code ?? 1));
+    child.on("error", (e) => {
+      failure ??= e;
+    });
+    child.on("close", (code) => finish(failure, code ?? 1));
   });
 }
 export async function checkCliIdentity(config: LiveConfig, iface: Interface, account: Account, platform: string) {
@@ -137,7 +148,10 @@ export async function cliCreate(
       for (const file of media)
         args.push(file.type === "image" ? "--image" : "--video", s.input === "remote" ? file.url : file.path);
   }
-  const result = await runCli(config, args);
+  const result =
+    iface === "cli-local"
+      ? await withIsolatedLocalCli(config, s.platform, account, dir, (isolated) => runCli(isolated, args))
+      : await runCli(config, args);
   // Keep only sanitized process output. Tokens must not be passed in flags or JSON.
   await writeFile(path.join(dir, `${s.token}-cli.txt`), redact(`${result.stdout}\n${result.stderr}`), { mode: 0o600 });
   if (s.expectedError) {

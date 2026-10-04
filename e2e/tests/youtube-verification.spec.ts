@@ -210,7 +210,8 @@ for (const view of ["private", "private-modern", "public", "unlisted"] as const)
     const s = { ...scenario, expectedFields: { privacyStatus: privacy } };
     const server = await serve((_req, res) => json(res, { video }));
     const dir = await mkdtemp(path.join(os.tmpdir(), "youtube-proof-"));
-    const cfg = config({ baseUrl: server.url, verifyTimeoutMs: 1 });
+    // Enough for one offline proof, shorter than the minimum 1000ms retry delay.
+    const cfg = config({ baseUrl: server.url, verifyTimeoutMs: 600 });
     process.env.E2E_API_TOKEN = "offline-test";
     let visits = 0;
     const isolated = {

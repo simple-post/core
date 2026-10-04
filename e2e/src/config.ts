@@ -60,6 +60,8 @@ export const configSchema = z
     maxPosts: z.union([z.literal("auto"), z.number().int().positive()]).default("auto"),
     perPlatformBudget: z.record(z.string(), z.number().int().positive()).default({ tiktok: 8 }),
     publishTimeoutMs: z.number().int().positive().default(600_000),
+    readTimeoutMs: z.number().int().positive().default(30_000),
+    platformFailureLimit: z.number().int().positive().default(3),
     verifyTimeoutMs: z.number().int().positive().default(180_000),
     scheduleDelayMinutes: z.number().int().min(1).max(30).default(1),
     dispatchAllowanceMs: z.number().int().positive().default(300_000),

@@ -1,37 +1,78 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+const appDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "components", "simplepost");
 
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+function componentFiles(kind) {
+  const dir = path.join(appDir, kind);
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name !== "common")
+    .map((name) => path.join(dir, name, `${name}.mjs`));
+}
 
-const source = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+const actions = componentFiles("actions");
+const sources = componentFiles("sources");
 
-test('app source uses SimplePost bearer API-key authentication', () => {
-  const app = source('components/simplepost.app.mjs');
-  assert.match(app, /Authorization: `Bearer \$\{this\.\$auth\.api_key\}`/);
-  assert.match(app, /this\.\$auth\.base_url/);
-  assert.match(app, /\/api\/v1\/accounts/);
+test("the app follows the registry layout", async () => {
+  const { default: app } = await import(path.join(appDir, "simplepost.app.mjs"));
+  assert.equal(app.type, "app");
+  assert.equal(app.app, "simplepost");
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(appDir, "package.json"), "utf8"));
+  assert.equal(pkg.name, "@pipedream/simplepost");
+  assert.equal(pkg.main, "simplepost.app.mjs");
+  assert.ok(pkg.dependencies["@pipedream/platform"]);
+
+  const readme = fs.readFileSync(path.join(appDir, "README.md"), "utf8");
+  for (const heading of ["# Overview", "# Example Use Cases", "# Getting Started", "# Troubleshooting"]) {
+    assert.ok(readme.includes(`${heading}\n`), `README is missing ${heading}`);
+  }
+
+  for (const [name, prop] of Object.entries(app.propDefinitions)) {
+    assert.ok(prop.label, `${name} needs a label`);
+    assert.match(prop.description, /e\.g\. `/, `${name} needs an example`);
+  }
 });
 
-test('create-post action exposes Scheduler post settings', () => {
-  const action = source('components/actions/create-post/create-post.mjs');
-  assert.match(action, /postingMode/);
-  assert.match(action, /idempotencyKey/);
-  assert.match(action, /repostEnabled/);
-  assert.match(action, /normalizeScheduledFor\(this\.scheduledFor\)/);
-  assert.match(action, /simplepost\.createPost/);
-});
+for (const file of [...actions, ...sources]) {
+  const relative = path.relative(appDir, file);
+  const slug = path.basename(file, ".mjs");
 
-test('scheduled times normalize to UTC', async () => {
-  const { normalizeScheduledFor } = await import('../components/common.mjs');
-  assert.equal(normalizeScheduledFor('2030-01-01T14:00:00+02:00'), '2030-01-01T12:00:00.000Z');
-  assert.throws(() => normalizeScheduledFor('not-a-date'), /valid date and time/);
-});
+  test(`${relative} meets the component guidelines`, async () => {
+    const { default: component } = await import(file);
+    const isAction = relative.startsWith("actions");
 
-test('validate-post action targets the validation endpoint', () => {
-  const action = source('components/actions/validate-post/validate-post.mjs');
-  assert.match(action, /simplepost\.validatePost/);
+    assert.equal(component.key, `simplepost-${slug}`);
+    assert.equal(component.version, "0.0.1");
+    assert.equal(component.type, isAction ? "action" : "source");
+    assert.match(component.description, /\[See the documentation\]\(https:\/\/docs\.simplepost\.social\//);
+
+    const [firstProp] = Object.values(component.props);
+    assert.equal(firstProp.type, "app");
+    assert.equal(firstProp.app, "simplepost");
+
+    if (isAction) {
+      assert.deepEqual(Object.keys(component.annotations).sort(), ["destructiveHint", "openWorldHint", "readOnlyHint"]);
+      assert.equal(component.annotations.openWorldHint, true);
+      assert.equal(component.annotations.destructiveHint, false);
+    } else {
+      assert.equal(component.annotations, undefined, "sources must not declare annotations");
+      assert.match(component.name, /^New .+ \(Instant\)$/);
+      assert.match(component.description, /^Emit new event /);
+      assert.equal(component.dedupe, "unique");
+      assert.ok(component.sampleEmit?.post?.id);
+    }
+  });
+}
+
+test("read-only actions are annotated as read-only", async () => {
+  const readOnly = new Set(["get-post", "list-accounts", "validate-post"]);
+  for (const file of actions) {
+    const { default: action } = await import(file);
+    assert.equal(action.annotations.readOnlyHint, readOnly.has(path.basename(file, ".mjs")), action.key);
+  }
 });

@@ -1,17 +1,32 @@
+# Publishes integrations/n8n to npm with a provenance statement, which n8n
+# requires for verified community nodes. See integrations/n8n/PUBLISHING.md.
+#
+# Authentication: npm trusted publishing (OIDC) for this workflow file. Until
+# the package exists on npm and a trusted publisher is configured, set an
+# NPM_TOKEN repository secret (granular, publish access to this package only)
+# for the first release, then delete it.
+
 name: Publish n8n node
 
 on:
   push:
     tags:
-      - "n8n-v*"
+      - "n8n-v*.*.*"
 
 permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: publish-n8n
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/n8n
 
     steps:
       - name: Checkout code
@@ -20,32 +35,36 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: integrations/n8n/package-lock.json
 
-      - name: Update npm for trusted publishing
-        run: npm install -g npm@latest
-
-      - name: Enable Corepack
-        run: corepack enable
+      # Trusted publishing requires npm 11.5.1 or later.
+      - name: Update npm
+        run: npm install -g npm@^11.5.1
 
       - name: Verify tag matches package version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#n8n-v}"
-          PACKAGE_VERSION="$(node -p "require('./integrations/n8n/package.json').version")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           if [[ "$TAG_VERSION" != "$PACKAGE_VERSION" ]]; then
-            echo "Tag version $TAG_VERSION does not match integrations/n8n/package.json version $PACKAGE_VERSION" >&2
+            echo "Tag $GITHUB_REF_NAME does not match integrations/n8n/package.json version $PACKAGE_VERSION" >&2
             exit 1
           fi
 
       - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Run checks
-        run: yarn workspace n8n-nodes-simplepost check
+        run: npm ci
 
       - name: Run tests
-        run: yarn workspace n8n-nodes-simplepost test
+        run: npm test
 
+      # In GitHub Actions, `n8n-node release` lints, builds, and runs
+      # `npm publish` with provenance enabled.
       - name: Publish with provenance
-        working-directory: integrations/n8n
-        run: npm publish --provenance --access public
+        run: |
+          if [[ -n "$NPM_TOKEN" ]]; then
+            npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          fi
+          npm run release
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

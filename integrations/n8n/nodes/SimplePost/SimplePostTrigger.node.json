@@ -1,19 +1,9 @@
 {
-	"node": "n8n-nodes-simplepost.simplePost",
+	"node": "n8n-nodes-simplepost.simplePostTrigger",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Marketing & Content"],
-	"alias": [
-		"social media",
-		"schedule",
-		"publish",
-		"LinkedIn",
-		"Instagram",
-		"TikTok",
-		"YouTube",
-		"Bluesky",
-		"Threads"
-	],
+	"alias": ["social media", "webhook", "post published", "post failed"],
 	"resources": {
 		"credentialDocumentation": [
 			{
@@ -22,7 +12,7 @@
 		],
 		"primaryDocumentation": [
 			{
-				"url": "https://github.com/simple-post/core/tree/main/integrations/n8n#readme"
+				"url": "https://github.com/simple-post/core/tree/main/integrations/n8n#trigger"
 			}
 		]
 	}

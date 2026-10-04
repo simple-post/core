@@ -8,7 +8,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ### Added
 
-- An `n8n-nodes-simplepost` community node (`integrations/n8n`) that publishes, schedules, or saves drafts through the Scheduler API with API-key credentials, plus a provenance-enabled npm release workflow.
+- An `n8n-nodes-simplepost` community node (`integrations/n8n`): create, get, list, and delete posts, list accounts, upload binary media, and trigger workflows on `post.published` and `post.failed` webhooks, with a provenance-enabled npm release workflow.
 
 ## [1.4.0] - 2026-09-24
 

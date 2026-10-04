@@ -26,7 +26,8 @@ export class SimplePostApi implements ICredentialType {
 			typeOptions: { password: true },
 			default: '',
 			required: true,
-			description: 'Create an API key in SimplePost under API Keys',
+			placeholder: 'e.g. sp_api_...',
+			description: 'Create an API key on the API Keys page of the SimplePost app',
 		},
 		{
 			displayName: 'Base URL',
@@ -34,7 +35,8 @@ export class SimplePostApi implements ICredentialType {
 			type: 'string',
 			default: 'https://app.simplepost.social',
 			required: true,
-			description: 'The hosted SimplePost URL or the URL of your self-hosted Scheduler app',
+			description:
+				'Keep the default for hosted SimplePost, or enter the URL of your self-hosted Scheduler app',
 		},
 	];
 

@@ -177,6 +177,20 @@ function observerSurface(platform: Platform, account: Account) {
   // Keep intentional custom roots intact.
   if (platform === "instagram" && cfg.root.replace(/\s/g, "") === "main>div:nth-child(2)>div:first-child")
     cfg.root = surfaces.instagram.root;
+  if (platform === "pinterest") {
+    if (cfg.root === '[data-test-id="pin-closeup"], [data-test-id="CloseupMainPin"]')
+      cfg.root = '[data-test-id="closeup-container"]';
+    if (cfg.text === '[data-test-id="pin-description"], [data-test-id="main-pin-description-text"]')
+      cfg.text = '[data-test-id="structured-description"]';
+    if (cfg.images === '[data-test-id="pin-closeup-image"] img') cfg.images = '[data-test-id="closeup-image-main"] img';
+    cfg.fields = { ...cfg.fields };
+    const altText = cfg.fields.altText;
+    if (altText?.selector === '[data-test-id="pin-closeup-image"] img')
+      cfg.fields.altText = { ...altText, selector: '[data-test-id="closeup-image-main"] img' };
+    const link = cfg.fields.link;
+    if (link?.selector === '[data-test-id="main-pin-section-visit-button"] button')
+      cfg.fields.link = { ...link, selector: '[data-test-id="visit-button"]' };
+  }
   return cfg;
 }
 export function allowedHost(platform: Platform, url: string, account: Account): boolean {
@@ -640,7 +654,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
       ).toEqual([String(value)]);
       continue;
     }
-    const probe = account.observer.fields[key];
+    const probe = cfg.fields[key];
     if (!probe)
       throw new Error(`NEEDS VERIFICATION: ${s.platform}.${key} has no platform-side observation configured.`);
     if (
@@ -663,15 +677,23 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
     }
     if (s.platform === "pinterest" && key === "link") {
       const destination = new URL(String(value));
-      await verificationExpect()(
-        page.getByRole("button", { name: "Visit", exact: true }),
-        "Pinterest Pin must expose its external destination control",
-      ).toBeVisible();
-      await assertText(
-        page.locator("body"),
-        destination.hostname,
-        "Pinterest Pin must display the requested destination host",
-      );
+      const visit = root.locator('[data-test-id="visit-button"]');
+      await verificationExpect()(visit, "Pinterest Pin must expose its external destination control").toBeVisible();
+      const href = await visit.getAttribute("href");
+      let actual: URL;
+      try {
+        actual = new URL(href ?? "");
+      } catch {
+        throw new Error("Pinterest Pin must preserve the requested external destination");
+      }
+      if (
+        actual.protocol !== "https:" ||
+        actual.username ||
+        actual.password ||
+        actual.hostname !== destination.hostname ||
+        actual.pathname !== destination.pathname
+      )
+        throw new Error("Pinterest Pin must preserve the requested external destination");
       continue;
     }
     const locator = (probe.scope === "page" ? page : root).locator(probe.selector);
@@ -683,7 +705,12 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
       await verificationExpect()(locator).toBeVisible();
       await verifyImageElement(locator, String(value), "Published thumbnail");
     } else if (probe.count) await verificationExpect()(locator).toHaveCount(Number(expected));
-    else if (probe.attribute) await verificationExpect()(locator).toHaveAttribute(probe.attribute, expected);
+    else if (probe.attribute && s.platform === "pinterest" && key === "altText") {
+      await verificationPoll(
+        async () => (await locator.getAttribute(probe.attribute!))?.replace(/^This contains:\s*/i, "").trim(),
+        { message: "Pinterest Pin must preserve the requested alt text" },
+      ).toBe(expected);
+    } else if (probe.attribute) await verificationExpect()(locator).toHaveAttribute(probe.attribute, expected);
     else await verificationExpect()(locator).toHaveText(expected);
   }
 }

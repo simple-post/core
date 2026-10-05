@@ -75,6 +75,7 @@ export interface PostingResult {
   postUrl?: string;
   message?: string;
   error?: string;
+  details?: unknown;
   threadResults?: PostingResult[];
 }
 export interface Receipt {

@@ -6,6 +6,7 @@ import { mcpToken, type LiveConfig, type Account } from "../config.js";
 import type { Materialized, MediaFile, Receipt } from "../types.js";
 import { receiptFrom, SchedulerApi } from "../http.js";
 import { timed } from "../timing.js";
+import { redact } from "../redact.js";
 export class McpClient {
   readonly client = new Client({ name: "simplepost-live-acceptance", version: "1.0.0" });
   constructor(readonly config: LiveConfig) {}
@@ -122,7 +123,9 @@ export async function mcpCreate(
               Object.entries(s.expectedIssue!).every(([key, value]) => issue[key] === value),
           )
         )
-          throw new Error("MCP did not return the expected structured validation error for the target account");
+          throw new Error(
+            `MCP did not return the expected structured validation error for the target account: ${redact(JSON.stringify({ expected: s.expectedIssue, received: target }))}`,
+          );
       }
       if (!new RegExp(s.expectedError, "i").test(JSON.stringify(result)))
         throw new Error("MCP rejected invalid content for an unexpected reason");

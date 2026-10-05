@@ -22,6 +22,40 @@ import { timed, TimingRecorder } from "./timing.js";
 import { RunControl, pendingExternalWork, PendingWorkError } from "./execution.js";
 export function publishingFailure(result: PostingResult): string {
   const detail = [...new Set([result.error, result.message].filter((value): value is string => Boolean(value)))];
+  const fields = new Set([
+    "stage",
+    "childIndex",
+    "childContainerIds",
+    "parentContainerId",
+    "creationId",
+    "httpStatus",
+    "status",
+    "code",
+    "error_subcode",
+    "subcode",
+    "type",
+    "fbtrace_id",
+    "error",
+    "provider",
+    "response",
+    "data",
+  ]);
+  const diagnostic = (value: unknown, depth = 0): unknown => {
+    if (depth > 6) return undefined;
+    if (typeof value === "string")
+      return redact(value)
+        .replace(/https?:\/\/\S+/gi, "[redacted URL]")
+        .slice(0, 200);
+    if (value === null || typeof value === "number" || typeof value === "boolean") return value;
+    if (Array.isArray(value)) return value.slice(0, 10).map((item) => diagnostic(item, depth + 1));
+    if (typeof value !== "object") return undefined;
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => fields.has(key))
+        .map(([key, item]) => [key, diagnostic(item, depth + 1)]),
+    );
+  };
+  if (result.details) detail.push(`Provider diagnostics: ${JSON.stringify(diagnostic(result.details))}`);
   return (
     detail.map((value) => redact(value).replace(/\s+/g, " ").slice(0, 800)).join(": ") ||
     "Platform did not report successful publishing"

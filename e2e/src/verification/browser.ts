@@ -23,6 +23,7 @@ import {
 import { redact } from "../redact.js";
 import { SchedulerApi } from "../http.js";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { formerThreadsReplySelector, threadsDirectParentPaths, threadsPostPath, threadsPostRoot } from "./threads.js";
 import {
   VerificationDeadlineError,
   VerificationHttpError,
@@ -280,11 +281,15 @@ async function assertTikTokNotLoginPage(page: Page) {
     );
 }
 
-async function assertObserverReady(page: Page, platform: Platform) {
+export async function assertObserverReady(page: Page, platform: Platform) {
   if (platform === "tiktok") await assertTikTokNotLoginPage(page);
   if (isVerificationLoginUrl(page.url()))
     throw new VerificationSetupError(
       "Platform redirected to login or an authentication challenge; restore the observer session. Receipt retained; do not republish.",
+    );
+  if (platform === "pinterest" && (await page.locator('input[type="password"]:visible').count()))
+    throw new VerificationSetupError(
+      "Pinterest is showing a blocking login form. Save its observer session with yarn e2e:auth --chrome https://www.pinterest.com/ .local/auth/pinterest.json, then resume the saved run. Scheduler account authorization does not sign this browser in. Receipt retained; do not republish.",
     );
   if (platform === "tiktok") {
     if (
@@ -398,6 +403,15 @@ async function verifyImageElement(img: Locator, key: string, label: string) {
   await verifyFixtureImage(await img.screenshot(), key, label);
 }
 export async function verifyPage(page: Page, s: Materialized, account: Account): Promise<void> {
+  await assertObserverReady(page, s.platform);
+  if (
+    s.platform === "threads" &&
+    (await page.getByText("Not all who wander are lost, but this page is", { exact: true }).isVisible())
+  ) {
+    const error = new VerificationHttpError(404);
+    error.message = "Threads reports that the saved post permalink is unavailable; receipt retained, do not republish.";
+    throw error;
+  }
   const cfg = observerSurface(s.platform, account);
   const roots = page.locator(cfg.root);
   // Logged-out Facebook video permalinks currently render the player without
@@ -417,19 +431,23 @@ export async function verifyPage(page: Page, s: Materialized, account: Account):
             `a[href=${JSON.stringify(new URL(page.url()).pathname)}], a[href=${JSON.stringify(page.url())}]`,
           ),
         })
-      : s.thread || !s.expectedText
-        ? roots.first()
-        : roots.filter({ hasText: s.token });
-  if (s.platform === "youtube" || s.platform === "instagram") {
-    await verificationPoll(
-      async () => {
-        await dismissCookieConsent(page);
-        await dismissLoggedOutPrompt(page);
-        return root.count();
-      },
-      { message: "Exactly one platform post must be identified", timeout: 15_000 },
-    ).toBe(1);
-  } else await verificationExpect()(root, "Exactly one platform post must be identified").toHaveCount(1);
+      : s.platform === "threads"
+        ? threadsPostRoot(page, roots)
+        : s.thread || !s.expectedText
+          ? roots.first()
+          : roots.filter({ hasText: s.token });
+  await verificationAssertion("Exactly one platform post must be identified", async () => {
+    if (s.platform === "youtube" || s.platform === "instagram") {
+      await verificationPoll(
+        async () => {
+          await dismissCookieConsent(page);
+          await dismissLoggedOutPrompt(page);
+          return root.count();
+        },
+        { message: "Exactly one platform post must be identified", timeout: 15_000 },
+      ).toBe(1);
+    } else await verificationExpect()(root, "Exactly one platform post must be identified").toHaveCount(1);
+  });
   await verificationExpect()(root).toBeVisible();
   const author = root.locator(cfg.author);
   const identity = account.username.replace(/^@/, "").toLowerCase();
@@ -622,6 +640,24 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
     const probe = account.observer.fields[key];
     if (!probe)
       throw new Error(`NEEDS VERIFICATION: ${s.platform}.${key} has no platform-side observation configured.`);
+    if (
+      s.platform === "threads" &&
+      key === "replyToId" &&
+      probe.selector.replace(/\s/g, "") === formerThreadsReplySelector.replace(/\s/g, "")
+    ) {
+      const expected = threadsPostPath(probe.values?.[JSON.stringify(value)] ?? probe.values?.[String(value)] ?? "");
+      if (!expected)
+        throw new VerificationSetupError(
+          "Threads reply verification requires a mapped parent permalink for replyToId.",
+        );
+      await verificationAssertion("Threads reply must be attached to the requested direct parent", () =>
+        verificationPoll(() => threadsDirectParentPaths(page, root), {
+          message: "Threads reply must be attached to the requested direct parent",
+          timeout: 15_000,
+        }).toEqual([expected]),
+      );
+      continue;
+    }
     if (s.platform === "pinterest" && key === "link") {
       const destination = new URL(String(value));
       await verificationExpect()(
@@ -752,6 +788,7 @@ export async function verifyOnPlatform(
               target = await discover(page, s, account);
             }
             await navigate(target);
+            await assertObserverReady(page, s.platform);
             await dismissCookieConsent(page);
             await dismissLoggedOutPrompt(page);
             if (s.platform === "tiktok") await assertTikTokNotLoginPage(page);

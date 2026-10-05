@@ -1,0 +1,16 @@
+{
+  "name": "@simple-post/pipedream",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Development harness for the SimplePost Pipedream components in components/simplepost.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check": "node --test test/*.test.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@pipedream/platform": "^3.4.0",
+    "form-data": "^4.0.4"
+  }
+}

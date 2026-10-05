@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Ban, Check, Copy, ExternalLink, KeyRound, Plus, RefreshCw } from "lucide-react";
+import { Ban, Check, Copy, ExternalLink, KeyRound, Plus, RefreshCw, Workflow } from "lucide-react";
 import { toast } from "sonner";
 
 import { HelpLink } from "@/components/help-link";
@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { logClientError } from "@/lib/logger/client";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social";
+// Set once the n8n node is published so the card never links to a missing package.
+const N8N_NODE_URL = process.env.NEXT_PUBLIC_N8N_NODE_URL;
 
 interface ApiKeyRecord {
   id: string;
@@ -183,7 +185,7 @@ export default function ApiKeysPage() {
           </div>
           <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-3">Use the Scheduler API</h2>
           <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-            API keys authenticate the same `/api/v1` routes used by the Scheduler app, CLI, and MCP integrations.
+            API keys authenticate the same `/api/v1` routes used by the Scheduler app, CLI, MCP, and n8n integrations.
           </p>
           <Button asChild variant="outline" size="sm" className="mb-5">
             <a href="https://docs.simplepost.social/api-reference" target="_blank" rel="noreferrer">
@@ -196,6 +198,27 @@ export default function ApiKeysPage() {
           </HelpLink>
           <TerminalBlock title="curl">{`curl -H "Authorization: Bearer $SIMPLEPOST_API_KEY" \\
   "${APP_URL}/api/v1/accounts"`}</TerminalBlock>
+          {N8N_NODE_URL && (
+            <div className="mt-5 flex flex-col gap-4 rounded-xl border border-border bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-primary">
+                  <Workflow className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Automate posting with n8n</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    Install the SimplePost community node, then use an API key from this page as its credential.
+                  </p>
+                </div>
+              </div>
+              <Button asChild type="button" variant="outline" size="sm" className="shrink-0 gap-1.5">
+                <a href={N8N_NODE_URL} target="_blank" rel="noopener noreferrer">
+                  View n8n node
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            </div>
+          )}
         </section>
 
         {revealedKey && (

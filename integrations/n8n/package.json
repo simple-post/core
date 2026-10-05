@@ -1,0 +1,61 @@
+{
+	"name": "n8n-nodes-simplepost",
+	"version": "0.1.0",
+	"description": "Publish, schedule, and draft social media posts from n8n with SimplePost.",
+	"license": "MIT",
+	"homepage": "https://github.com/simple-post/core/tree/main/integrations/n8n#readme",
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"simplepost",
+		"social-media",
+		"scheduling",
+		"publishing"
+	],
+	"author": {
+		"name": "Vladimir Haltakov",
+		"email": "vlad@creafexlab.com"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/simple-post/core.git",
+		"directory": "integrations/n8n"
+	},
+	"bugs": {
+		"url": "https://github.com/simple-post/core/issues"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"test": "npm run build && node --test test/*.test.cjs",
+		"release": "n8n-node release",
+		"prepublishOnly": "n8n-node prerelease"
+	},
+	"files": [
+		"dist",
+		"!dist/tsconfig.tsbuildinfo"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/SimplePostApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/SimplePost/SimplePost.node.js",
+			"dist/nodes/SimplePost/SimplePostTrigger.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "^0.50.2",
+		"eslint": "9.32.0",
+		"prettier": "3.6.2",
+		"typescript": "5.9.2"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}

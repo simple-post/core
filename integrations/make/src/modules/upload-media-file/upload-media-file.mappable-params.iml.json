@@ -1,0 +1,17 @@
+[
+	{
+		"name": "fileName",
+		"type": "filename",
+		"label": "File name",
+		"required": true,
+		"semantic": "file:name",
+		"help": "File name with extension, for example `launch.png`. The extension determines the file type."
+	},
+	{
+		"name": "data",
+		"type": "buffer",
+		"label": "Data",
+		"required": true,
+		"semantic": "file:data"
+	}
+]

@@ -1,0 +1,32 @@
+[
+	{
+		"name": "id",
+		"type": "text",
+		"label": "Media ID"
+	},
+	{
+		"name": "url",
+		"type": "url",
+		"label": "File URL"
+	},
+	{
+		"name": "type",
+		"type": "text",
+		"label": "Media type"
+	},
+	{
+		"name": "contentType",
+		"type": "text",
+		"label": "Content type"
+	},
+	{
+		"name": "filename",
+		"type": "filename",
+		"label": "File name"
+	},
+	{
+		"name": "size",
+		"type": "uinteger",
+		"label": "File size"
+	}
+]

@@ -1,0 +1,17 @@
+{
+	"baseUrl": "{{connection.baseUrl}}",
+	"headers": {
+		"Authorization": "Bearer {{connection.apiKey}}"
+	},
+	"timeout": 300000,
+	"response": {
+		"error": {
+			"message": "[{{statusCode}}] {{ifempty(body.error, 'SimplePost returned an unexpected response.')}}{{if(body.details.summary.errors[1].message, ' ' + capitalize(body.details.summary.errors[1].platform) + ': ' + body.details.summary.errors[1].message, '')}}"
+		}
+	},
+	"log": {
+		"sanitize": [
+			"request.headers.authorization"
+		]
+	}
+}

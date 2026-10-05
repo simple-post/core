@@ -1,0 +1,33 @@
+{
+	"summary": {
+		"isValid": false,
+		"errors": [
+			{
+				"platform": "instagram",
+				"severity": "error",
+				"code": "media_required",
+				"message": "Instagram requires at least one image or video.",
+				"field": "media"
+			}
+		],
+		"warnings": []
+	},
+	"results": [
+		{
+			"accountId": "cmabc123account",
+			"platform": "instagram",
+			"isValid": false,
+			"usesCommonContent": true,
+			"errors": [
+				{
+					"platform": "instagram",
+					"severity": "error",
+					"code": "media_required",
+					"message": "Instagram requires at least one image or video.",
+					"field": "media"
+				}
+			],
+			"warnings": []
+		}
+	]
+}

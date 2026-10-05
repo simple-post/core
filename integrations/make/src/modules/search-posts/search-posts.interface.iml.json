@@ -1,0 +1,221 @@
+[
+	{
+		"name": "id",
+		"type": "text",
+		"label": "Post ID"
+	},
+	{
+		"name": "message",
+		"type": "text",
+		"label": "Message"
+	},
+	{
+		"name": "accountIds",
+		"type": "array",
+		"label": "Account IDs",
+		"spec": {
+			"type": "text",
+			"label": "Account ID"
+		}
+	},
+	{
+		"name": "status",
+		"type": "text",
+		"label": "Status"
+	},
+	{
+		"name": "scheduledFor",
+		"type": "date",
+		"label": "Scheduled for"
+	},
+	{
+		"name": "publishedAt",
+		"type": "date",
+		"label": "Published at"
+	},
+	{
+		"name": "createdAt",
+		"type": "date",
+		"label": "Created at"
+	},
+	{
+		"name": "errorMessage",
+		"type": "text",
+		"label": "Error message"
+	},
+	{
+		"name": "errorDetails",
+		"type": "any",
+		"label": "Error details"
+	},
+	{
+		"name": "media",
+		"type": "array",
+		"label": "Media",
+		"spec": {
+			"type": "collection",
+			"spec": [
+				{
+					"name": "id",
+					"type": "text",
+					"label": "Media ID"
+				},
+				{
+					"name": "url",
+					"type": "url",
+					"label": "File URL"
+				},
+				{
+					"name": "type",
+					"type": "text",
+					"label": "Media type"
+				},
+				{
+					"name": "contentType",
+					"type": "text",
+					"label": "Content type"
+				},
+				{
+					"name": "filename",
+					"type": "filename",
+					"label": "File name"
+				},
+				{
+					"name": "size",
+					"type": "uinteger",
+					"label": "File size"
+				},
+				{
+					"name": "thumbnailUrl",
+					"type": "url",
+					"label": "Thumbnail URL"
+				},
+				{
+					"name": "durationSec",
+					"type": "number",
+					"label": "Duration in seconds"
+				}
+			]
+		}
+	},
+	{
+		"name": "thread",
+		"type": "array",
+		"label": "Thread",
+		"spec": {
+			"type": "collection",
+			"spec": [
+				{
+					"name": "message",
+					"type": "text",
+					"label": "Message"
+				},
+				{
+					"name": "media",
+					"type": "array",
+					"label": "Media",
+					"spec": {
+						"type": "collection",
+						"spec": [
+							{
+								"name": "id",
+								"type": "text",
+								"label": "Media ID"
+							},
+							{
+								"name": "url",
+								"type": "url",
+								"label": "File URL"
+							},
+							{
+								"name": "type",
+								"type": "text",
+								"label": "Media type"
+							},
+							{
+								"name": "contentType",
+								"type": "text",
+								"label": "Content type"
+							},
+							{
+								"name": "filename",
+								"type": "filename",
+								"label": "File name"
+							},
+							{
+								"name": "size",
+								"type": "uinteger",
+								"label": "File size"
+							},
+							{
+								"name": "thumbnailUrl",
+								"type": "url",
+								"label": "Thumbnail URL"
+							},
+							{
+								"name": "durationSec",
+								"type": "number",
+								"label": "Duration in seconds"
+							}
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "accountOptions",
+		"type": "any",
+		"label": "Platform settings"
+	},
+	{
+		"name": "accountOverrides",
+		"type": "any",
+		"label": "Account overrides"
+	},
+	{
+		"name": "accountResults",
+		"type": "any",
+		"label": "Account results"
+	},
+	{
+		"name": "threadResults",
+		"type": "any",
+		"label": "Thread results"
+	},
+	{
+		"name": "repostEnabled",
+		"type": "boolean",
+		"label": "Repost enabled"
+	},
+	{
+		"name": "repostDelayHours",
+		"type": "uinteger",
+		"label": "Repost delay in hours"
+	},
+	{
+		"name": "repostStatus",
+		"type": "text",
+		"label": "Repost status"
+	},
+	{
+		"name": "repostDueAt",
+		"type": "date",
+		"label": "Repost due at"
+	},
+	{
+		"name": "repostedAt",
+		"type": "date",
+		"label": "Reposted at"
+	},
+	{
+		"name": "repostErrorMessage",
+		"type": "text",
+		"label": "Repost error message"
+	},
+	{
+		"name": "quotePostId",
+		"type": "text",
+		"label": "Quoted post ID"
+	}
+]

@@ -1,0 +1,8 @@
+{
+	"url": "/api/v1/validation",
+	"method": "POST",
+	"body": "{{parameters}}",
+	"response": {
+		"output": "{{body}}"
+	}
+}

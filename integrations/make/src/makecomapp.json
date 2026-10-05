@@ -1,0 +1,236 @@
+{
+	"fileVersion": 1,
+	"generalCodeFiles": {
+		"base": "general/base.iml.json",
+		"common": null,
+		"readme": "README.md",
+		"groups": "modules/groups.json"
+	},
+	"components": {
+		"connection": {
+			"simplepost": {
+				"label": "SimplePost",
+				"connectionType": "basic",
+				"codeFiles": {
+					"communication": "connections/simplepost/simplepost.communication.iml.json",
+					"params": "connections/simplepost/simplepost.params.iml.json",
+					"common": null
+				}
+			}
+		},
+		"webhook": {
+			"publishedPosts": {
+				"label": "Published posts",
+				"webhookType": "web",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "webhooks/published-posts/published-posts.communication.iml.json",
+					"params": "webhooks/published-posts/published-posts.params.iml.json",
+					"attach": "webhooks/published-posts/published-posts.attach.iml.json",
+					"detach": "webhooks/published-posts/published-posts.detach.iml.json",
+					"update": null,
+					"requiredScope": null
+				}
+			},
+			"failedPosts": {
+				"label": "Failed posts",
+				"webhookType": "web",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "webhooks/failed-posts/failed-posts.communication.iml.json",
+					"params": "webhooks/failed-posts/failed-posts.params.iml.json",
+					"attach": "webhooks/failed-posts/failed-posts.attach.iml.json",
+					"detach": "webhooks/failed-posts/failed-posts.detach.iml.json",
+					"update": null,
+					"requiredScope": null
+				}
+			}
+		},
+		"module": {
+			"watchPublishedPosts": {
+				"label": "Watch published posts",
+				"description": "Triggers when a post is published.",
+				"moduleType": "instant_trigger",
+				"actionCrud": null,
+				"connection": null,
+				"altConnection": null,
+				"webhook": "publishedPosts",
+				"codeFiles": {
+					"communication": "modules/watch-published-posts/watch-published-posts.communication.iml.json",
+					"staticParams": "modules/watch-published-posts/watch-published-posts.static-params.iml.json",
+					"mappableParams": "modules/watch-published-posts/watch-published-posts.mappable-params.iml.json",
+					"interface": "modules/watch-published-posts/watch-published-posts.interface.iml.json",
+					"samples": "modules/watch-published-posts/watch-published-posts.samples.iml.json"
+				}
+			},
+			"watchFailedPosts": {
+				"label": "Watch failed posts",
+				"description": "Triggers when a post fails to publish to one or more accounts.",
+				"moduleType": "instant_trigger",
+				"actionCrud": null,
+				"connection": null,
+				"altConnection": null,
+				"webhook": "failedPosts",
+				"codeFiles": {
+					"communication": "modules/watch-failed-posts/watch-failed-posts.communication.iml.json",
+					"staticParams": "modules/watch-failed-posts/watch-failed-posts.static-params.iml.json",
+					"mappableParams": "modules/watch-failed-posts/watch-failed-posts.mappable-params.iml.json",
+					"interface": "modules/watch-failed-posts/watch-failed-posts.interface.iml.json",
+					"samples": "modules/watch-failed-posts/watch-failed-posts.samples.iml.json"
+				}
+			},
+			"createPost": {
+				"label": "Create a post",
+				"description": "Creates a post and publishes it now, schedules it, or saves it as a draft. Publishing now waits until every selected account has responded.",
+				"moduleType": "action",
+				"actionCrud": "create",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/create-post/create-post.communication.iml.json",
+					"staticParams": "modules/create-post/create-post.static-params.iml.json",
+					"mappableParams": "modules/create-post/create-post.mappable-params.iml.json",
+					"interface": "modules/create-post/create-post.interface.iml.json",
+					"samples": "modules/create-post/create-post.samples.iml.json",
+					"scope": "modules/create-post/create-post.scope.iml.json"
+				}
+			},
+			"getPost": {
+				"label": "Get a post",
+				"description": "Returns information about a specific post by its ID, including its publishing status and results.",
+				"moduleType": "action",
+				"actionCrud": "read",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/get-post/get-post.communication.iml.json",
+					"staticParams": "modules/get-post/get-post.static-params.iml.json",
+					"mappableParams": "modules/get-post/get-post.mappable-params.iml.json",
+					"interface": "modules/get-post/get-post.interface.iml.json",
+					"samples": "modules/get-post/get-post.samples.iml.json",
+					"scope": "modules/get-post/get-post.scope.iml.json"
+				}
+			},
+			"validatePost": {
+				"label": "Validate a post",
+				"description": "Checks a post against the rules of each selected account without creating it. Returns errors and warnings per platform.",
+				"moduleType": "action",
+				"actionCrud": null,
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/validate-post/validate-post.communication.iml.json",
+					"staticParams": "modules/validate-post/validate-post.static-params.iml.json",
+					"mappableParams": "modules/validate-post/validate-post.mappable-params.iml.json",
+					"interface": "modules/validate-post/validate-post.interface.iml.json",
+					"samples": "modules/validate-post/validate-post.samples.iml.json",
+					"scope": "modules/validate-post/validate-post.scope.iml.json"
+				}
+			},
+			"deletePost": {
+				"label": "Delete a post",
+				"description": "Deletes a post and its uploaded media from SimplePost. Published posts are not removed from social networks. This action cannot be undone.",
+				"moduleType": "action",
+				"actionCrud": "delete",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/delete-post/delete-post.communication.iml.json",
+					"staticParams": "modules/delete-post/delete-post.static-params.iml.json",
+					"mappableParams": "modules/delete-post/delete-post.mappable-params.iml.json",
+					"interface": "modules/delete-post/delete-post.interface.iml.json",
+					"samples": "modules/delete-post/delete-post.samples.iml.json",
+					"scope": "modules/delete-post/delete-post.scope.iml.json"
+				}
+			},
+			"searchPosts": {
+				"label": "Search posts",
+				"description": "Returns a list of posts filtered by status.",
+				"moduleType": "search",
+				"actionCrud": null,
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/search-posts/search-posts.communication.iml.json",
+					"staticParams": "modules/search-posts/search-posts.static-params.iml.json",
+					"mappableParams": "modules/search-posts/search-posts.mappable-params.iml.json",
+					"interface": "modules/search-posts/search-posts.interface.iml.json",
+					"samples": "modules/search-posts/search-posts.samples.iml.json",
+					"scope": "modules/search-posts/search-posts.scope.iml.json"
+				}
+			},
+			"uploadMediaFile": {
+				"label": "Upload a media file",
+				"description": "Uploads an image or video to SimplePost storage so you can attach it to a post. Supports JPEG, PNG, GIF, WebP, MP4, MOV, and WebM files up to 500 MB.",
+				"moduleType": "action",
+				"actionCrud": "create",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/upload-media-file/upload-media-file.communication.iml.json",
+					"staticParams": "modules/upload-media-file/upload-media-file.static-params.iml.json",
+					"mappableParams": "modules/upload-media-file/upload-media-file.mappable-params.iml.json",
+					"interface": "modules/upload-media-file/upload-media-file.interface.iml.json",
+					"samples": "modules/upload-media-file/upload-media-file.samples.iml.json",
+					"scope": "modules/upload-media-file/upload-media-file.scope.iml.json"
+				}
+			},
+			"listAccounts": {
+				"label": "List accounts",
+				"description": "Returns a list of social accounts connected to SimplePost.",
+				"moduleType": "search",
+				"actionCrud": null,
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/list-accounts/list-accounts.communication.iml.json",
+					"staticParams": "modules/list-accounts/list-accounts.static-params.iml.json",
+					"mappableParams": "modules/list-accounts/list-accounts.mappable-params.iml.json",
+					"interface": "modules/list-accounts/list-accounts.interface.iml.json",
+					"samples": "modules/list-accounts/list-accounts.samples.iml.json",
+					"scope": "modules/list-accounts/list-accounts.scope.iml.json"
+				}
+			},
+			"makeApiCall": {
+				"label": "Make an API call",
+				"description": "Sends a custom API call to SimplePost. You can use this to call endpoints that aren't covered by existing modules.",
+				"moduleType": "universal",
+				"actionCrud": null,
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "modules/make-api-call/make-api-call.communication.iml.json",
+					"staticParams": "modules/make-api-call/make-api-call.static-params.iml.json",
+					"mappableParams": "modules/make-api-call/make-api-call.mappable-params.iml.json",
+					"interface": "modules/make-api-call/make-api-call.interface.iml.json",
+					"samples": "modules/make-api-call/make-api-call.samples.iml.json",
+					"scope": "modules/make-api-call/make-api-call.scope.iml.json"
+				}
+			}
+		},
+		"rpc": {
+			"listAccounts": {
+				"label": "List accounts",
+				"connection": "simplepost",
+				"altConnection": null,
+				"codeFiles": {
+					"communication": "rpcs/list-accounts/list-accounts.communication.iml.json",
+					"params": "rpcs/list-accounts/list-accounts.params.iml.json"
+				}
+			}
+		},
+		"function": {},
+		"endpoint": {}
+	},
+	"origins": [
+		{
+			"label": "SimplePost production",
+			"baseUrl": "https://eu1.make.com/api",
+			"appId": "simplepost",
+			"appVersion": 1,
+			"apikeyFile": "../.secrets/apikey"
+		}
+	]
+}

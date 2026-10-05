@@ -1,0 +1,191 @@
+[
+	{
+		"name": "accountIds",
+		"type": "select",
+		"label": "Accounts",
+		"multiple": true,
+		"required": true,
+		"options": "rpc://listAccounts",
+		"help": "Social accounts to post to. When mapping, provide an array of SimplePost account IDs, for example from **List accounts**."
+	},
+	{
+		"name": "message",
+		"type": "text",
+		"label": "Message",
+		"multiline": true,
+		"help": "Text of the post."
+	},
+	{
+		"name": "media",
+		"type": "array",
+		"label": "Media",
+		"help": "Images or videos to validate with the post.",
+		"spec": {
+			"type": "collection",
+			"label": "Media item",
+			"spec": [
+				{
+					"name": "url",
+					"type": "url",
+					"label": "File URL",
+					"required": true,
+					"help": "Public URL of the image or video. SimplePost imports the file before publishing. To use a file from a previous module, upload it with **Upload a media file** and map the **File URL** from its output."
+				},
+				{
+					"name": "type",
+					"type": "select",
+					"label": "Media type",
+					"required": true,
+					"options": [
+						{
+							"label": "Image",
+							"value": "image"
+						},
+						{
+							"label": "Video",
+							"value": "video"
+						}
+					]
+				},
+				{
+					"name": "filename",
+					"type": "filename",
+					"label": "File name",
+					"required": true,
+					"help": "File name with extension, for example `launch.png`."
+				},
+				{
+					"name": "id",
+					"type": "text",
+					"label": "Media ID",
+					"required": true,
+					"help": "Any value that identifies this file within the post, for example the file name. Map the **Media ID** from **Upload a media file** when you use it."
+				},
+				{
+					"name": "size",
+					"type": "uinteger",
+					"label": "File size",
+					"required": true,
+					"default": 0,
+					"help": "File size in bytes. Enter `0` if you don't know it. SimplePost measures the file when it imports it."
+				},
+				{
+					"name": "contentType",
+					"type": "text",
+					"label": "Content type",
+					"help": "MIME type of the file, for example `image/jpeg` or `video/mp4`. If left empty, SimplePost detects it."
+				},
+				{
+					"name": "thumbnailUrl",
+					"type": "url",
+					"label": "Thumbnail URL",
+					"help": "Optional cover image URL for a video."
+				}
+			]
+		}
+	},
+	{
+		"name": "thread",
+		"type": "array",
+		"label": "Thread",
+		"help": "Additional posts published as replies after the main post, on platforms that support threads (X, Threads, Bluesky). Up to 24 items.",
+		"validate": {
+			"maxItems": 24
+		},
+		"spec": {
+			"type": "collection",
+			"label": "Thread post",
+			"spec": [
+				{
+					"name": "message",
+					"type": "text",
+					"label": "Message",
+					"multiline": true
+				},
+				{
+					"name": "media",
+					"type": "array",
+					"label": "Media",
+					"help": "Images or videos for this thread post.",
+					"spec": {
+						"type": "collection",
+						"label": "Media item",
+						"spec": [
+							{
+								"name": "url",
+								"type": "url",
+								"label": "File URL",
+								"required": true,
+								"help": "Public URL of the image or video. SimplePost imports the file before publishing. To use a file from a previous module, upload it with **Upload a media file** and map the **File URL** from its output."
+							},
+							{
+								"name": "type",
+								"type": "select",
+								"label": "Media type",
+								"required": true,
+								"options": [
+									{
+										"label": "Image",
+										"value": "image"
+									},
+									{
+										"label": "Video",
+										"value": "video"
+									}
+								]
+							},
+							{
+								"name": "filename",
+								"type": "filename",
+								"label": "File name",
+								"required": true,
+								"help": "File name with extension, for example `launch.png`."
+							},
+							{
+								"name": "id",
+								"type": "text",
+								"label": "Media ID",
+								"required": true,
+								"help": "Any value that identifies this file within the post, for example the file name. Map the **Media ID** from **Upload a media file** when you use it."
+							},
+							{
+								"name": "size",
+								"type": "uinteger",
+								"label": "File size",
+								"required": true,
+								"default": 0,
+								"help": "File size in bytes. Enter `0` if you don't know it. SimplePost measures the file when it imports it."
+							},
+							{
+								"name": "contentType",
+								"type": "text",
+								"label": "Content type",
+								"help": "MIME type of the file, for example `image/jpeg` or `video/mp4`. If left empty, SimplePost detects it."
+							},
+							{
+								"name": "thumbnailUrl",
+								"type": "url",
+								"label": "Thumbnail URL",
+								"help": "Optional cover image URL for a video."
+							}
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "accountOptions",
+		"type": "json",
+		"label": "Platform settings",
+		"advanced": true,
+		"help": "Platform-specific settings keyed by account ID, as JSON. For example `{\"<account ID>\": {\"title\": \"Launch video\", \"privacyStatus\": \"public\"}}` for YouTube. For the available settings, see the [SimplePost API reference](https://docs.simplepost.social/api-reference)."
+	},
+	{
+		"name": "accountOverrides",
+		"type": "json",
+		"label": "Account overrides",
+		"advanced": true,
+		"help": "Different content for specific accounts, keyed by account ID, as JSON. Each value can contain `message`, `media`, and `thread`. For example `{\"<account ID>\": {\"message\": \"Shorter text for X\"}}`."
+	}
+]

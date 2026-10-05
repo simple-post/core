@@ -60,6 +60,9 @@ jobs:
       - name: Check Meta Muse integration examples (offline)
         run: yarn muse:check
 
+      - name: Check Make app definitions (offline)
+        run: yarn make:check
+
       - name: Run checks
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"

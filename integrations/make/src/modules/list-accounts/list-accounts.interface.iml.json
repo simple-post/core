@@ -1,0 +1,84 @@
+[
+	{
+		"name": "id",
+		"type": "text",
+		"label": "Account ID"
+	},
+	{
+		"name": "platform",
+		"type": "text",
+		"label": "Platform"
+	},
+	{
+		"name": "displayName",
+		"type": "text",
+		"label": "Display name"
+	},
+	{
+		"name": "username",
+		"type": "text",
+		"label": "Username"
+	},
+	{
+		"name": "email",
+		"type": "email",
+		"label": "Email"
+	},
+	{
+		"name": "profilePicture",
+		"type": "url",
+		"label": "Profile picture URL"
+	},
+	{
+		"name": "platformAccountId",
+		"type": "text",
+		"label": "Platform account ID"
+	},
+	{
+		"name": "previewOnly",
+		"type": "boolean",
+		"label": "Preview only"
+	},
+	{
+		"name": "credentialStatus",
+		"type": "collection",
+		"label": "Connection status",
+		"spec": [
+			{
+				"name": "state",
+				"type": "text",
+				"label": "State"
+			},
+			{
+				"name": "label",
+				"type": "text",
+				"label": "Label"
+			},
+			{
+				"name": "action",
+				"type": "text",
+				"label": "Required action"
+			},
+			{
+				"name": "canRefresh",
+				"type": "boolean",
+				"label": "Can refresh"
+			},
+			{
+				"name": "expiresAt",
+				"type": "date",
+				"label": "Expires at"
+			}
+		]
+	},
+	{
+		"name": "createdAt",
+		"type": "date",
+		"label": "Created at"
+	},
+	{
+		"name": "updatedAt",
+		"type": "date",
+		"label": "Updated at"
+	}
+]

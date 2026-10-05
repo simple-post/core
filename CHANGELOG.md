@@ -6,6 +6,10 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ## [Unreleased]
 
+### Added
+
+- Make custom app in `integrations/make`, in the Make Apps Editor local-development format. It adds instant triggers for published and failed posts, post search, get, create, validate and delete modules, media upload, an account list and selector, and a universal **Make an API call** module. See the [publishing guide](integrations/make/PUBLISHING.md).
+
 ## [1.4.0] - 2026-09-24
 
 ### Added

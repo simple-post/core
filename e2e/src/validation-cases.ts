@@ -1,7 +1,9 @@
 import type { Scenario, Platform, MediaKey, Options } from "./types.js";
 
-// Shared by live MCP validation and isolated SDK/CLI process tests. Each case
-// names the actual violation, so authentication/network errors cannot pass it.
+// Shared inputs for live MCP validation and isolated SDK/CLI process tests.
+// Expected issues describe the hosted MCP contract; process tests assert the
+// native publishing contract separately where local-file validation differs.
+// Each case names the actual violation, so authentication/network errors cannot pass it.
 function invalid(
   platform: Platform,
   name: string,

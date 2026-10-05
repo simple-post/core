@@ -110,7 +110,111 @@ describe("ThreadsPublisher", () => {
             { type: "image", url: "https://cdn.example.com/two.jpg" },
           ],
         }),
-      ).rejects.toThrow("creation failed");
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("creation failed"),
+        details: { stage: "wait_child", childIndex: 0, childContainerIds: ["failed-child"], status: "ERROR" },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["create_child", 1, ["child-0"], undefined, 1],
+      ["create_parent", 2, ["child-0", "child-1"], undefined, undefined],
+      ["publish", 3, ["child-0", "child-1"], "parent", undefined],
+    ] as const)(
+      "retains safe Meta diagnostics for %s failures without retrying",
+      async (stage, successes, children, parent, childIndex) => {
+        const providerError = {
+          code: 100,
+          error_subcode: 2_207_009,
+          type: "OAuthException",
+          message: "Invalid parameter",
+        };
+        mockAxiosInstance.get.mockResolvedValue({ data: { id: "user_123", status: "FINISHED" } });
+        for (const id of ["child-0", "child-1", "parent"].slice(0, successes)) {
+          mockAxiosInstance.post.mockResolvedValueOnce({ data: { id } });
+        }
+        mockAxiosInstance.post.mockRejectedValueOnce({
+          response: { status: 400, data: { error: providerError, access_token: "SECRET" } },
+          config: { data: { access_token: "SECRET" } },
+          request: { url: "https://example.com/?access_token=SECRET" },
+        });
+        const result = await publisher.post({
+          media: [
+            { type: "image", url: "https://cdn.example.com/one.jpg" },
+            { type: "image", url: "https://cdn.example.com/two.jpg" },
+          ],
+        });
+        expect(result).toMatchObject({
+          error: PostErrorType.API_ERROR,
+          message: "Failed to post to Threads: Invalid parameter",
+          details: { stage, childContainerIds: children, httpStatus: 400, error: providerError },
+        });
+        expect((result.details as any).parentContainerId).toBe(parent);
+        expect((result.details as any).childIndex).toBe(childIndex);
+        expect(JSON.stringify(result)).not.toMatch(/SECRET|config|request/);
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(successes + 1);
+      },
+    );
+
+    it("preserves a thrown PostError's type and useful details while sanitizing context", async () => {
+      mockSuccessfulGetSequence();
+      const original = new PostError(PostErrorType.API_ERROR, "Invalid parameter", {
+        error: {
+          code: 100,
+          error_subcode: 33,
+          message:
+            "Failed https://user:SECRET@example.com/?token=SECRET test_access_token Authorization: Bearer SECRET",
+        },
+        status: "ERROR",
+        config: { headers: { Authorization: "SECRET" } },
+      });
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "parent" } }).mockRejectedValueOnce(original);
+      await expect(publisher.postContent({ text: "No duplicate" })).rejects.toMatchObject({
+        errorType: original.errorType,
+        message: original.message,
+        details: {
+          stage: "publish",
+          parentContainerId: "parent",
+          status: "ERROR",
+          error: {
+            code: 100,
+            error_subcode: 33,
+            message: "Failed [redacted URL] [redacted] Authorization: [redacted]",
+          },
+        },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      expect(original.details).toHaveProperty("config");
+    });
+
+    it("identifies media resolution failures before any containers are created", async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { id: "user_123" } });
+      const resolve = jest
+        .spyOn(publisher as any, "resolveMedia")
+        .mockRejectedValueOnce(
+          new PostError(PostErrorType.PREPARATION_ERROR, "Media resolution failed", "Download failed"),
+        );
+      await expect(
+        publisher.postContent({ media: [{ type: "image", url: "https://cdn.example.com/one.jpg" }] }),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PREPARATION_ERROR,
+        message: "Media resolution failed",
+        details: { stage: "resolve_media", childContainerIds: [], detail: "Download failed" },
+      });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+      resolve.mockRestore();
+    });
+
+    it("identifies parent processing failures with the original processing status", async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { id: "user_123" } })
+        .mockResolvedValueOnce({ data: { status: "ERROR" } });
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "parent" } });
+      await expect(publisher.postContent({ text: "Processing" })).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        details: { stage: "wait_parent", parentContainerId: "parent", status: "ERROR" },
+      });
       expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
     });
 
@@ -183,6 +287,12 @@ describe("ThreadsPublisher", () => {
         const result = expect(publisher.postContent({ text: "Still unavailable" })).rejects.toMatchObject({
           errorType: PostErrorType.PUBLISH_REJECTED,
           message: expect.stringContaining("retry the failed Threads target"),
+          details: {
+            stage: "publish",
+            parentContainerId: "creation_123",
+            httpStatus: 400,
+            provider: { error: { code: 24, error_subcode: 4_279_009 } },
+          },
         });
         await jest.runAllTimersAsync();
         await result;

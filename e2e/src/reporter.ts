@@ -9,6 +9,7 @@ import { aggregateJournal } from "./aggregate.js";
 import { testInterface, pendingExternalWork } from "./execution.js";
 import { atomicJson, readJson } from "./files.js";
 import type { StageTimings } from "./timing.js";
+import { summarizeCoverage } from "./coverage-summary.js";
 export default class CoverageReporter implements Reporter {
   results: {
     title: string;
@@ -78,10 +79,7 @@ export default class CoverageReporter implements Reporter {
       });
       const summary = {
         status: result.status,
-        total: rows.length,
-        verified: rows.filter((r) => r.status === "verified").length,
-        unsupported: rows.filter((r) => r.status === "unsupported").length,
-        remaining: rows.filter((r) => !["verified", "unsupported"].includes(r.status)).length,
+        ...summarizeCoverage(rows),
       };
       if (summary.remaining && summary.status === "passed") summary.status = "failed";
       await writeFile(
@@ -122,6 +120,12 @@ export default class CoverageReporter implements Reporter {
       console.log(
         `Live coverage: ${summary.verified}/${summary.total - summary.unsupported} verified; ${summary.remaining} incomplete; ${summary.unsupported} explicitly unsupported.`,
       );
+      for (const platform of summary.platforms) {
+        if (platform.failedThisInvocation || platform.lanePaused)
+          console.log(
+            `${platform.platform}: ${platform.failedThisInvocation} failed in this invocation; ${platform.lanePaused} later cases skipped because the lane paused.`,
+          );
+      }
       return { status: summary.status };
     } catch (error) {
       console.error("Live report could not be finalized:", redact((error as Error).message));

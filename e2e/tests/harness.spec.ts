@@ -28,6 +28,26 @@ test("publishing failures retain provider reason alongside classification and re
   expect(message).not.toContain("secret-token");
   expect(result.error).toBe("PUBLISH_OUTCOME_UNKNOWN");
 });
+test("publishing failures expose sanitized stage and provider codes without raw request data", () => {
+  const message = publishingFailure({
+    success: false,
+    error: "PUBLISH_OUTCOME_UNKNOWN",
+    message: "Invalid parameter",
+    details: {
+      stage: "publish",
+      parentContainerId: "container-1",
+      childContainerIds: ["child-1", "child-2"],
+      httpStatus: 400,
+      error: { code: 100, error_subcode: 33, message: "SECRET", access_token: "SECRET" },
+      config: { headers: { Authorization: "SECRET" } },
+      request: { url: "https://secret.example" },
+    },
+  });
+  expect(message).toContain('"stage":"publish"');
+  expect(message).toContain('"error_subcode":33');
+  expect(message).toContain("container-1");
+  expect(message).not.toMatch(/SECRET|Authorization|secret.example|access_token/);
+});
 const scenario = catalog.find((x) => x.id === "tiktok.photos-2-music-false-custom")!;
 test("every current SDK platform option has a scenario or an explicit coverage gap", () => {
   expect(optionCoverage().filter((o) => o.status === "unclassified")).toEqual([]);

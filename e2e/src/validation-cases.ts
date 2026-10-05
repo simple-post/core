@@ -1,7 +1,9 @@
 import type { Scenario, Platform, MediaKey, Options } from "./types.js";
 
-// Shared by live MCP validation and isolated SDK/CLI process tests. Each case
-// names the actual violation, so authentication/network errors cannot pass it.
+// Shared inputs for live MCP validation and isolated SDK/CLI process tests.
+// Expected issues describe the hosted MCP contract; process tests assert the
+// native publishing contract separately where local-file validation differs.
+// Each case names the actual violation, so authentication/network errors cannot pass it.
 function invalid(
   platform: Platform,
   name: string,
@@ -34,7 +36,7 @@ export const validationCases: readonly Scenario[] = [
     "aspect_ratio",
     {},
     undefined,
-    { field: "media[0]", actual: 0.5, limit: 0.8 },
+    { field: "text.media[0]", actual: 0.5, limit: 0.8 },
   ),
   invalid(
     "instagram",
@@ -44,7 +46,7 @@ export const validationCases: readonly Scenario[] = [
     "aspect_ratio",
     {},
     undefined,
-    { field: "media[1]" },
+    { field: "text.media[1]" },
   ),
   invalid(
     "instagram",
@@ -54,7 +56,7 @@ export const validationCases: readonly Scenario[] = [
     "duration_seconds",
     {},
     undefined,
-    { field: "media[0]", actual: 1, limit: 3 },
+    { field: "text.media[0]", actual: 1, limit: 3 },
   ),
   invalid(
     "instagram",
@@ -85,7 +87,7 @@ export const validationCases: readonly Scenario[] = [
     actual: 3025,
     limit: 3000,
   }),
-  invalid("bluesky", "disguised-container", ["disguisedVideo"], "video_format_unsupported", "MP4"),
+  invalid("bluesky", "disguised-container", ["disguisedVideo"], "media_type_mismatch", "Content-Type"),
   invalid(
     "telegram",
     "image-dimensions",

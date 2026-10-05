@@ -45,6 +45,39 @@ interface ThreadsAxiosErrorLike {
   message?: string;
 }
 
+interface ThreadsPublishContext {
+  stage: "resolve_user" | "resolve_media" | "create_child" | "wait_child" | "create_parent" | "wait_parent" | "publish";
+  childIndex?: number;
+  childContainerIds: string[];
+  parentContainerId?: string;
+}
+
+// Keep diagnostic fields only, never Axios config/request objects or media URLs.
+const DIAGNOSTIC_FIELDS = new Set([
+  "error",
+  "provider",
+  "response",
+  "data",
+  "status",
+  "code",
+  "error_subcode",
+  "subcode",
+  "message",
+  "type",
+  "error_user_title",
+  "error_user_msg",
+  "fbtrace_id",
+  "traceId",
+  "is_transient",
+  "creationId",
+  "httpStatus",
+  "credentialRejection",
+  "reason",
+  "platform",
+  "field",
+  "severity",
+]);
+
 export class ThreadsPublisher extends Publisher {
   static readonly mediaRequirement = "url" as const;
 
@@ -232,7 +265,7 @@ export class ThreadsPublisher extends Publisher {
           throw new PostError(
             PostErrorType.PUBLISH_REJECTED,
             "Threads could not find the prepared post after waiting for it to become available. Please retry the failed Threads target.",
-            { provider: err.response?.data, creationId },
+            { provider: err.response?.data, creationId, httpStatus: err.response?.status },
           );
         }
         this.logger.warn(`Threads container ${creationId} is not visible to publishing yet; retrying in ${delay}ms.`);
@@ -278,15 +311,37 @@ export class ThreadsPublisher extends Publisher {
 
     if (uploadedKey) {
       this.s3TempFileKeys.push(uploadedKey);
-      this.logger.info(`Media uploaded to S3: ${url}`);
+      this.logger.info("Media uploaded to S3 for Threads");
     } else {
-      this.logger.info(`Using provided URL: ${url}`);
+      this.logger.info("Using provided media URL for Threads");
     }
 
     return {
       type: media.type === "video" ? "VIDEO" : "IMAGE",
       url,
     };
+  }
+
+  private sanitizeDiagnostic(value: unknown, depth = 0): unknown {
+    if (depth > 8) return undefined;
+    if (typeof value === "string") {
+      return value
+        .split(this.accessToken || "\0")
+        .join("[redacted]")
+        .replaceAll(/https?:\/\/[^\s<>"']+/gi, "[redacted URL]")
+        .replaceAll(
+          /((?:access[_-]?token|refresh[_-]?token|authorization|password|secret|api[_-]?key)\s*[=:]\s*)(?:Bearer\s+)?[^\s,;]+/gi,
+          "$1[redacted]",
+        );
+    }
+    if (value === null || typeof value === "number" || typeof value === "boolean") return value;
+    if (Array.isArray(value)) return value.map((item) => this.sanitizeDiagnostic(item, depth + 1));
+    if (typeof value !== "object") return undefined;
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => DIAGNOSTIC_FIELDS.has(key))
+        .map(([key, item]) => [key, this.sanitizeDiagnostic(item, depth + 1)]),
+    );
   }
 
   async postContent(
@@ -306,6 +361,7 @@ export class ThreadsPublisher extends Publisher {
     await this.ensureValidToken();
 
     const media = content.media?.[0];
+    const context: ThreadsPublishContext = { stage: "resolve_user", childContainerIds: [] };
 
     try {
       // Resolve user ID from /me - the stored ID may not match what the publish API expects
@@ -338,9 +394,12 @@ export class ThreadsPublisher extends Publisher {
       }
 
       if ((content.media?.length ?? 0) > 1) {
-        const children: string[] = [];
+        const children = context.childContainerIds;
         for (const item of content.media!) {
+          context.childIndex = children.length;
+          context.stage = "resolve_media";
           const resolved = await this.resolveMedia(item);
+          context.stage = "create_child";
           const child = await this.withTokenRefresh(() =>
             this.client.post(`/${threadsUserId}/threads`, {
               access_token: this.accessToken,
@@ -351,12 +410,15 @@ export class ThreadsPublisher extends Publisher {
           );
           const childId = String(child.data?.id ?? "");
           if (!childId) throw new PostError(PostErrorType.API_ERROR, "Threads API did not return a carousel child id.");
-          await this.waitForMediaReady(childId);
           children.push(childId);
+          context.stage = "wait_child";
+          await this.waitForMediaReady(childId);
         }
+        delete context.childIndex;
         basePayload.media_type = "CAROUSEL";
         basePayload.children = children.join(",");
       } else if (media) {
+        context.stage = "resolve_media";
         const resolvedMedia = await this.resolveMedia(media);
         basePayload.media_type = resolvedMedia.type;
         if (resolvedMedia.type === "IMAGE") {
@@ -369,6 +431,7 @@ export class ThreadsPublisher extends Publisher {
         basePayload.media_type = "TEXT";
       }
 
+      context.stage = "create_parent";
       const createResponse = await this.withTokenRefresh(() =>
         this.client.post(`/${threadsUserId}/threads`, {
           ...basePayload,
@@ -387,8 +450,11 @@ export class ThreadsPublisher extends Publisher {
       // publishing. Skipping this for text/image replies caused intermittent
       // "The requested resource does not exist" errors on threads_publish
       // because the container had not yet propagated server-side.
+      context.parentContainerId = creationId;
+      context.stage = "wait_parent";
       await this.waitForMediaReady(creationId);
 
+      context.stage = "publish";
       const publishResponse = await this.publishContainer(threadsUserId, creationId);
 
       const publishId = String(publishResponse.data?.id || publishResponse.data?.post_id || creationId);
@@ -433,16 +499,41 @@ export class ThreadsPublisher extends Publisher {
         }),
       };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      if (error instanceof PostError) throw error;
-      this.throwIfCredentialRevoked(error);
-
-      this.logger.error(error instanceof Error ? error : String(error));
-      throw new PostError(
-        PostErrorType.API_ERROR,
-        `Failed to post to Threads: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
-        err.response?.data,
+      let failure = error;
+      if (!(failure instanceof PostError)) {
+        try {
+          this.throwIfCredentialRevoked(failure);
+        } catch (credentialError) {
+          failure = credentialError;
+        }
+      }
+      const err = failure as ThreadsAxiosErrorLike;
+      const originalDetails = failure instanceof PostError ? failure.details : err?.response?.data;
+      const safeDetails = this.sanitizeDiagnostic(originalDetails);
+      const diagnostics = {
+        ...context,
+        ...(typeof err?.response?.status === "number" && { httpStatus: err.response.status }),
+      };
+      // Preserve the provider's { error: { code, error_subcode } } shape so
+      // downstream credential detection continues to see the original codes.
+      const addContext = (details: unknown) => ({
+        ...(details && typeof details === "object" ? details : { detail: details }),
+        ...diagnostics,
+      });
+      const details = Array.isArray(safeDetails)
+        ? safeDetails.map((item) => addContext(item))
+        : addContext(safeDetails);
+      const message =
+        failure instanceof PostError
+          ? failure.message
+          : `Failed to post to Threads: ${err?.response?.data?.error?.message || err?.message || "Unknown error"}`;
+      const enriched = new PostError(
+        failure instanceof PostError ? failure.errorType : PostErrorType.API_ERROR,
+        this.sanitizeDiagnostic(message) as string,
+        details,
       );
+      if (!(failure instanceof PostError)) this.logger.error(enriched.message);
+      throw enriched;
     } finally {
       await this.cleanupS3Files();
     }

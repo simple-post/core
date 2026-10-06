@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -20,7 +20,9 @@ export function PreviewImport() {
   const [index, setIndex] = useState(0);
   const [replace, setReplace] = useState(false);
   const [imported, setImported] = useState(false);
+  const importing = useRef(false);
   useEffect(() => {
+    importing.current = false;
     setPreview(null);
     setError("");
     setIndex(0);
@@ -68,6 +70,7 @@ export function PreviewImport() {
                 className="ml-2 rounded border bg-background p-2"
                 value={index}
                 onChange={(event) => {
+                  importing.current = false;
                   setIndex(Number(event.target.value));
                   setReplace(false);
                   setImported(false);
@@ -117,8 +120,10 @@ export function PreviewImport() {
             )}
             <div className="mt-4">
               <Button
-                disabled={!draft.isHydrated || (draft.hasDraftContent && !replace)}
+                disabled={imported || !draft.isHydrated || (draft.hasDraftContent && !replace)}
                 onClick={() => {
+                  if (importing.current) return;
+                  importing.current = true;
                   const variant = preview.variants[index];
                   draft.resetDraft();
                   draft.setMessage(variant.message);
@@ -130,9 +135,10 @@ export function PreviewImport() {
                   trackEvent("Preview Draft Imported", {
                     platform: variant.platform,
                     source: preview.source ?? "post-preview",
+                    draft_origin: preview.draftOrigin ?? "unknown",
                   });
                 }}>
-                Use this draft
+                {imported ? "Draft imported" : "Use this draft"}
               </Button>
             </div>
             {imported && (

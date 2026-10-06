@@ -3,6 +3,8 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import { prepareBlueskyCard } from "./link-card";
+import { blueskyFacets, firstBlueskyLink } from "./richtext";
 import { BLUESKY_MAX_IMAGES, BLUESKY_MAX_IMAGE_SIZE_BYTES, BLUESKY_VALIDATION_RULES } from "./validation";
 import { uploadBlueskyVideo } from "./video";
 
@@ -587,12 +589,16 @@ export class BlueskyPublisher extends Publisher {
         },
       );
     }
+    return this.uploadBlob(fileBuffer, getContentType(resolvedPath));
+  }
+
+  private async uploadBlob(fileBuffer: Buffer, contentType: string): Promise<UploadBlobResponse["blob"]> {
     const path = "/xrpc/com.atproto.repo.uploadBlob";
 
     const makeRequest = async (nonce?: string) => {
       return this.client.post<UploadBlobResponse>(path, fileBuffer, {
         headers: {
-          "Content-Type": getContentType(resolvedPath),
+          "Content-Type": contentType,
           ...this.buildAuthHeaders("POST", path, nonce),
         },
       });
@@ -723,7 +729,7 @@ export class BlueskyPublisher extends Publisher {
             record: { uri: quoteTarget.uri!, cid: quoteTarget.cid! },
           }
         : undefined;
-      const embed =
+      let embed: Record<string, unknown> | undefined =
         quoteEmbed && mediaEmbed
           ? {
               $type: "app.bsky.embed.recordWithMedia",
@@ -732,10 +738,31 @@ export class BlueskyPublisher extends Publisher {
             }
           : (quoteEmbed ?? mediaEmbed);
 
+      const facets = await blueskyFacets(content.text ?? "");
+      const link = firstBlueskyLink(facets);
+      if (!embed && link) {
+        const card = await prepareBlueskyCard(link);
+        if (card) {
+          let thumb: UploadBlobResponse["blob"] | undefined;
+          if (card.thumbnail) {
+            try {
+              thumb = await this.uploadBlob(card.thumbnail, "image/jpeg");
+            } catch {
+              /* Keep the card without an image. */
+            }
+          }
+          embed = {
+            $type: "app.bsky.embed.external",
+            external: { uri: card.uri, title: card.title, description: card.description, ...(thumb ? { thumb } : {}) },
+          };
+        }
+      }
+
       const record = {
         $type: "app.bsky.feed.post",
         text: content.text ?? "",
         createdAt: new Date().toISOString(),
+        ...(facets.length > 0 ? { facets } : {}),
         ...(embed ? { embed } : {}),
         ...(replyTo ? { reply: { root: replyTo.root, parent: replyTo.parent } } : {}),
       };

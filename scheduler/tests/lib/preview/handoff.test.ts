@@ -5,6 +5,11 @@ const payload = {
   hasMedia: true,
 };
 describe("preview transfer boundary", () => {
+  it("keeps only non-content draft-origin labels for analytics", () => {
+    expect(parsePreview({ ...payload, draftOrigin: "example" }).draftOrigin).toBe("example");
+    expect(parsePreview({ ...payload, draftOrigin: "private draft text" }).draftOrigin).toBeUndefined();
+    expect(parsePreview({ ...payload, draftOrigin: { email: "private@example.com" } }).draftOrigin).toBeUndefined();
+  });
   it("preserves unicode, line breaks and threads while discarding unknown fields", () => {
     expect(
       decodePreview(

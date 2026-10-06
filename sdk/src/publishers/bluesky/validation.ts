@@ -17,6 +17,8 @@ export const BLUESKY_VALIDATION_RULES: PlatformValidationRules = {
   video: { maxSizeBytes: BLUESKY_MAX_VIDEO_SIZE_BYTES, maxDurationSec: BLUESKY_MAX_VIDEO_DURATION_SEC },
   notes: [
     "Up to 4 images or 1 MP4 video (300 MB, 10 minutes). Video uploads require a verified Bluesky email and available account quota.",
+    "Links and hashtags are clickable. Resolvable @handle mentions are clickable; unavailable mentions remain plain text.",
+    "Text posts can include a card for the first HTTP(S) link when metadata is available. Explicit images, video and quotes take priority; metadata failure keeps the text link.",
   ],
 };
 

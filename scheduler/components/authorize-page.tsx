@@ -10,6 +10,7 @@ import { Check } from "lucide-react";
 import { LoginForm } from "@/components/login-form";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/auth/auth-client";
+import type { McpAccessMode } from "@/lib/mcp/config";
 
 interface AuthorizePageConfig {
   title: string;
@@ -18,7 +19,8 @@ interface AuthorizePageConfig {
   successMessage: string;
   loginCallbackPath: string;
   validateParams: (searchParams: URLSearchParams) => boolean;
-  authorize: (searchParams: URLSearchParams) => Promise<Response>;
+  authorize: (searchParams: URLSearchParams, accessMode: McpAccessMode) => Promise<Response>;
+  allowReadOnly?: boolean;
   buildCancelUrl: (searchParams: URLSearchParams) => string;
 }
 
@@ -29,6 +31,8 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billingRequired, setBillingRequired] = useState(false);
+  const [accessMode, setAccessMode] = useState<McpAccessMode>("read_write");
+  const readOnly = config.allowReadOnly && accessMode === "read_only";
 
   const paramsValid = config.validateParams(searchParams);
 
@@ -66,7 +70,7 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
     setBillingRequired(false);
 
     try {
-      const res = await config.authorize(searchParams);
+      const res = await config.authorize(searchParams, config.allowReadOnly ? accessMode : "read_write");
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -130,6 +134,33 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
           {session.user.email && <p className="text-xs text-muted-foreground mt-0.5">{session.user.email}</p>}
         </div>
 
+        {config.allowReadOnly && (
+          <fieldset className="space-y-3 mb-6" disabled={isLoading}>
+            <legend className="text-sm font-medium mb-2">Choose access</legend>
+            {(
+              [
+                ["read_write", "Read and write", "Also upload media, save drafts, schedule and publish posts."],
+                ["read_only", "Read only", "View connected accounts, post history, saved post previews and schedules."],
+              ] as const
+            ).map(([value, label, detail]) => (
+              <label key={value} className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="access_mode"
+                  value={value}
+                  checked={accessMode === value}
+                  onChange={() => setAccessMode(value)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium">{label}</span>
+                  <span className="block text-muted-foreground">{detail}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+
         <div className="space-y-3 mb-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             This app will be able to
@@ -137,8 +168,10 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
           <ul className="space-y-2 text-sm text-muted-foreground">
             {[
               "View connected social accounts",
-              "Validate draft post text against platform rules",
-              "Create or schedule posts after you approve the tool call",
+              readOnly ? "Show saved post previews" : "Validate draft post text against platform rules",
+              readOnly
+                ? "Inspect post history and upcoming schedules"
+                : "Create or schedule posts after you approve the tool call",
             ].map((item) => (
               <li key={item} className="flex items-start gap-2.5">
                 <Check className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
@@ -147,8 +180,11 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
             ))}
           </ul>
           <p className="text-xs text-muted-foreground pt-1">
-            Publishing now creates public content on the selected platforms. Review the tool-call details before
-            approving.
+            {readOnly
+              ? "This connection cannot validate new content, save drafts, upload or fit media, schedule, publish, change or discard posts."
+              : config.allowReadOnly
+                ? "Publishing now creates public content on the selected platforms. Connecting does not approve individual writes. Review the tool-call details before approving."
+                : "Publishing now creates public content on the selected platforms. Review the tool-call details before approving."}
           </p>
         </div>
 

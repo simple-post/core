@@ -1,0 +1,131 @@
+{
+  "list_accounts": {
+    "class": "read",
+    "scopes": ["accounts:read"],
+    "effect": "Returns owned connected accounts, readiness and trial allowance; cannot connect or disconnect them."
+  },
+  "get_tiktok_creator_info": {
+    "class": "read",
+    "scopes": ["accounts:read"],
+    "effect": "Reads TikTok posting options for an owned account via its provider; does not publish."
+  },
+  "inspect_posts": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "effect": "Returns paginated drafts, scheduled, posted and failed items and per-account results."
+  },
+  "get_schedule": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "effect": "Returns posting slots and calendar data without modifying schedules."
+  },
+  "show_schedule": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "effect": "Returns the calendar with text/data fallback and an optional MCP Apps view."
+  },
+  "show_post_preview": {
+    "class": "read",
+    "scopes": ["accounts:read"],
+    "conditionalScopes": "posts:read for saved postId; posts:validate for supplied unsaved content",
+    "effect": "Renders saved or supplied content with a text fallback; does not save, import, validate or publish."
+  },
+  "upload_media": {
+    "class": "write",
+    "scopes": ["posts:write"],
+    "effect": "Imports a public image/video URL or supported client attachment into owned storage; no post is published. Muse attachment handling is unverified; use approved public test URLs."
+  },
+  "validate_post": {
+    "class": "write",
+    "scopes": ["posts:validate"],
+    "conditionalScopes": "posts:write when imageFit is supplied",
+    "effect": "Validates exact text and media; can import media into owned storage, and fitting can create derivatives. Does not create a post. Mixed read/write even when a text-only invocation has no media side effect."
+  },
+  "preview_post": {
+    "class": "write",
+    "scopes": ["posts:validate"],
+    "conditionalScopes": "posts:write when imageFit is supplied",
+    "effect": "Resolves timing, accounts, quote source and validation. Uses the same media-importing validation path; never schedules or publishes."
+  },
+  "create_post": {
+    "class": "sensitive_write",
+    "scopes": ["posts:write"],
+    "effect": "Saves a draft, schedules future public publication or publishes now, selected by postingMode. Whole tool must ask every time because it can publish. Retain idempotencyKey across an uncertain retry; inspect returned post and per-account postingResults."
+  },
+  "update_scheduled_post": {
+    "class": "sensitive_write",
+    "scopes": ["posts:write"],
+    "effect": "Changes a draft or future scheduled post, including content, destinations and time. Can affect future public content; cannot edit already-published platform content."
+  },
+  "discard_scheduled_post": {
+    "class": "sensitive_write",
+    "scopes": ["posts:write"],
+    "effect": "Deletes a draft or future scheduled post and may queue owned media for deletion. Cannot retract an already-published post."
+  },
+  "open_simplepost_workspace": {
+    "class": "read",
+    "scopes": ["posts:read", "accounts:read"],
+    "extension": true,
+    "effect": "Returns calendar, accounts and working-copy summaries; optional sidebar view does not create posts."
+  },
+  "get_simplepost_workspace": {
+    "class": "read",
+    "scopes": ["posts:read", "accounts:read"],
+    "extension": true,
+    "effect": "Refreshes workspace data without modifying posts."
+  },
+  "open_post_editor": {
+    "class": "read",
+    "scopes": ["posts:read", "accounts:read"],
+    "extension": true,
+    "effect": "Returns editor launch context and optional UI; opening alone does not create a working copy or publish."
+  },
+  "start_post_editor_session": {
+    "class": "write",
+    "scopes": ["posts:read", "accounts:read", "posts:write"],
+    "extension": true,
+    "effect": "Creates a recoverable working copy; not a saved social post or publication."
+  },
+  "read_post_editor_session": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "extension": true,
+    "effect": "Returns the owned working copy and revision; cannot modify it."
+  },
+  "update_post_editor_session": {
+    "class": "sensitive_write",
+    "scopes": ["posts:write"],
+    "extension": true,
+    "effect": "Replaces working-copy content and clears its pending proposal without retaining undo history. Treat this destructive overwrite conservatively as sensitive even though it does not publish."
+  },
+  "propose_post_edit": {
+    "class": "write",
+    "scopes": ["posts:read", "posts:write"],
+    "extension": true,
+    "effect": "Stores a separate reviewable patch at the current revision; does not apply it or change saved posts."
+  },
+  "commit_post_editor_session": {
+    "class": "sensitive_write",
+    "scopes": ["posts:read", "posts:write", "posts:validate"],
+    "extension": true,
+    "effect": "Saves, schedules or publicly publishes the reviewed working copy. Whole tool requires approval every invocation; expectedRevision protects concurrent edits."
+  },
+  "validate_post_editor_session": {
+    "class": "write",
+    "scopes": ["posts:read", "posts:validate"],
+    "extension": true,
+    "effect": "Validates the owned working copy and may import or fit media. Does not commit or publish; not available under read-only consent."
+  },
+  "read_simplepost_settings": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "extension": true,
+    "effect": "Returns publishing preferences and their settings schema; no changes."
+  },
+  "update_simplepost_settings": {
+    "class": "write",
+    "scopes": ["posts:write"],
+    "extension": true,
+    "effect": "Updates timezone, calendar view or default destinations. Does not move existing scheduled instants or publish."
+  }
+}

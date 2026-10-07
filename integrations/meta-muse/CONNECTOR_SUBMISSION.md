@@ -4,7 +4,9 @@ Prepared 2026-09-29. Nothing here submits data, accepts terms or creates access.
 
 ## 1. Personal Muse agent: connector directory
 
-Open [Muse Connector Platform](https://muse.ai/platform), click **Submit a connector**, and log in or create an account with your **work email**. The public button opens an authentication screen; post-login form fields and exact implementation requirements could not be inspected without signing in. The listing below is ready-to-copy editorial material, **not** an official manifest/upload format. Meta may ask for an API/OpenAPI adapter rather than accept MCP directly; confirm that after login before promising support.
+Updated **2026-10-03**: the dedicated [Personal Muse review kit](../personal-muse/README.md) now includes read-only OAuth consent, generated current tool schemas/risk classifications, data-processing answers and a detailed [review/publication runbook](../personal-muse/REVIEW.md). [Meta's public connector guidelines](https://muse.ai/platform/docs) explicitly accept API or MCP documentation. Use that kit for the personal agent; the model and Muse Code examples are not a substitute.
+
+Open [Muse Connector Platform](https://muse.ai/platform), click **Submit a connector**, and log in with your **work email**. Private portal form fields, actual OAuth callback and live Personal Muse approval/UI behavior still need maintainer verification. The listing below is ready-to-copy editorial material, **not** an official manifest/upload format.
 
 Meta says submitted connectors receive functional, security and legal review with end-to-end testing. Directory publication follows approval, and featured placement is a separate editorial decision.
 
@@ -40,9 +42,9 @@ Avoid claiming all SDK platforms are equally available in hosted accounts. Check
 
 - [ ] Merge this core PR; choose the tested release/commit for review evidence.
 - [ ] Sign into the Muse platform with the intended company/work account.
-- [ ] Confirm the post-login connector protocol, manifest/form schema, OAuth requirements, write-confirmation behavior and review process.
+- [ ] Use the dedicated Personal Muse review kit and confirm private form fields, actual OAuth callback, narrower grant handling and write-confirmation behavior. Public guidelines already accept API/MCP.
 - [ ] Supply company/legal/contact information yourself; confirm public privacy policy, terms and support links. Do not invent these details from repository metadata.
-- [ ] Adapt the integration to Meta's specified protocol if our existing MCP is insufficient; run their required validation.
+- [ ] Run the dedicated review acceptance scenarios using the hosted MCP, including read-only consent and sensitive approval every use; address actual review-harness incompatibilities if found.
 - [ ] Test connection, denied consent, reconnect, revocation and isolation with a dedicated review account.
 - [ ] Record a short demo with test content showing discovery, validation, preview, approved draft and inspection. Include explicit approval before demonstrating publishing.
 - [ ] Provide current icon/logo, screenshots, descriptions and capability/permission disclosures in the required formats.

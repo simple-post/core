@@ -5,9 +5,11 @@ import axios from "axios";
 import FormData from "form-data";
 
 import { FACEBOOK_MAX_MEDIA_COUNT, FACEBOOK_VALIDATION_RULES } from "./validation";
+import { FacebookVideoUpload } from "./video-upload";
 
 import { PostError, PostErrorType } from "../../types";
 import { getContentType, resolveMediaPath, TempFileManager } from "../../utils";
+import { getDownloadedSourceUrl, rememberDownloadedSource } from "../../utils/resolved-media-source";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
@@ -97,54 +99,19 @@ export class FacebookPublisher extends Publisher {
     options?: PostOptionsWithCredentials,
     contentText?: string,
   ): Promise<PostResult> {
-    try {
-      const formData = new FormData();
-
-      formData.append("access_token", this.pageAccessToken);
-
-      const fileBuffer = fs.readFileSync(resolvedPath);
-      formData.append("source", fileBuffer, {
-        filename: path.basename(resolvedPath),
-        contentType: getContentType(resolvedPath),
-      });
-
-      if (video.title) formData.append("title", video.title);
-      const description = video.description ?? contentText;
-      if (description) formData.append("description", description);
-
-      // Add scheduling if specified
-      if (options?.facebook?.publishAt) {
-        const unixTimestamp = Math.floor(new Date(options.facebook.publishAt).getTime() / 1000);
-        formData.append("scheduled_publish_time", unixTimestamp.toString());
-        formData.append("published", "false");
-      }
-
-      // Post the video
-      const response = await this.client.post(`/${this.pageId}/videos`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      return {
-        id: response.data.id,
-        error: PostErrorType.NO_ERROR,
-      };
-    } catch (error: unknown) {
+    const source = { ...video, path: resolvedPath };
+    if (!video.path) rememberDownloadedSource(source);
+    const uploader = new FacebookVideoUpload(this.client, this.pageId, this.pageAccessToken, (error) => {
       this.throwIfCredentialRevoked(error);
-      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      this.logger.error(error instanceof Error ? error : String(error));
-
-      let errorMessage = "An unknown error occurred while posting video.";
-
-      if (err.response?.data?.error?.message) {
-        errorMessage = err.response.data.error.message;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
-    }
+    });
+    const id = await uploader.publish({
+      filePath: resolvedPath,
+      fileUrl: getDownloadedSourceUrl(source),
+      title: video.title,
+      description: video.description ?? contentText,
+      publishAt: options?.facebook?.publishAt,
+    });
+    return { id, error: PostErrorType.NO_ERROR };
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
@@ -211,7 +178,7 @@ export class FacebookPublisher extends Publisher {
       };
     } catch (error: unknown) {
       this.throwIfCredentialRevoked(error);
-      if (error instanceof PostError && error.errorType === PostErrorType.CREDENTIALS_ERROR) throw error;
+      if (error instanceof PostError) throw error;
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       this.logger.error(error instanceof Error ? error : String(error));
 

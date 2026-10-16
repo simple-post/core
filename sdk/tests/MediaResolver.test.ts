@@ -2,7 +2,8 @@ import fs from "node:fs";
 
 import { downloadToTempFile } from "../src/utils/media";
 import { MediaResolver } from "../src/utils/media-resolver";
-import { S3MediaUploader } from "../src/utils/s3";
+import { getDownloadedSourceUrl } from "../src/utils/resolved-media-source";
+import { getKeyFromUrl, S3MediaUploader } from "../src/utils/s3";
 
 jest.mock("node:fs");
 jest.mock("../src/utils/media", () => ({ downloadToTempFile: jest.fn() }));
@@ -59,4 +60,41 @@ it("treats local bytes as authoritative when both a path and an external URL are
     path: "/tmp/source.jpg",
     url: "https://storage.example/temp/source.jpg",
   });
+});
+
+it("preserves provenance through scheduler and publisher spreads for permanent managed videos", async () => {
+  jest.mocked(getKeyFromUrl).mockReturnValue("uploads/user/video.mp4");
+  const [video] = await new MediaResolver().resolve(
+    [{ type: "video", url: "https://storage.example/uploads/user/video.mp4" }],
+    ["facebook", "instagram"],
+  );
+  expect(getDownloadedSourceUrl({ ...video, size: 42 })).toBe(video.url);
+  expect(downloadToTempFile).toHaveBeenCalledTimes(1);
+  expect(uploadFile).not.toHaveBeenCalled();
+  // Deliberately exercise the API's JSON boundary, which drops private symbols.
+  // eslint-disable-next-line unicorn/prefer-structured-clone
+  expect(getDownloadedSourceUrl(JSON.parse(JSON.stringify(video)))).toBeUndefined();
+  expect(getDownloadedSourceUrl({ ...video, path: "/tmp/other.mp4" })).toBeUndefined();
+  expect(getDownloadedSourceUrl({ ...video, url: "https://other.example/video.mp4" })).toBeUndefined();
+  jest.mocked(fs.statSync).mockReturnValue({ size: 43, mtimeMs: 2 } as fs.Stats);
+  expect(getDownloadedSourceUrl(video)).toBeUndefined();
+});
+
+it.each([null, "temp_video.mp4"])("uses chunks for external or temporary videos (%s)", async (key) => {
+  jest.mocked(getKeyFromUrl).mockReturnValue(key);
+  const [video] = await new MediaResolver().resolve(
+    [{ type: "video", url: "https://storage.example/video.mp4" }],
+    ["facebook"],
+  );
+  expect(getDownloadedSourceUrl(video)).toBeUndefined();
+});
+
+it("does not trust a caller-supplied path plus managed URL as the same video", async () => {
+  jest.mocked(getKeyFromUrl).mockReturnValue("uploads/user/video.mp4");
+  const [video] = await new MediaResolver().resolve(
+    [{ type: "video", path: "/tmp/local.mp4", url: "https://storage.example/uploads/user/video.mp4" }],
+    ["facebook"],
+  );
+  expect(getDownloadedSourceUrl(video)).toBeUndefined();
+  expect(downloadToTempFile).not.toHaveBeenCalled();
 });

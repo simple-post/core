@@ -32,6 +32,7 @@ beforeEach(() => {
 });
 it.each([
   ["PREPARATION_ERROR", "failed"],
+  ["PUBLISH_REJECTED", "failed"],
   ["API_ERROR", "unknown"],
 ])("records %s with the correct retry boundary", async (error, state) => {
   const publish = jest
@@ -49,4 +50,27 @@ it("does not resubmit an existing unknown outcome", async () => {
   const result = await runDurablePublish(input, publish);
   expect(result.error).toBe("PUBLISH_OUTCOME_UNKNOWN");
   expect(publish).not.toHaveBeenCalled();
+});
+
+it("allows retry of a definite Facebook rejection and retains accepted IDs on uncertain results", async () => {
+  const facebook = { ...input, platform: "facebook" };
+  db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });
+  const publish = jest.fn().mockResolvedValue({
+    accountId: "account",
+    platform: "facebook",
+    success: false,
+    error: "API_ERROR",
+    details: { stage: "processing", videoId: "accepted_video" },
+  });
+  const result = await runDurablePublish(facebook, publish);
+  expect(publish).toHaveBeenCalledTimes(1);
+  expect(result).toMatchObject({ error: "PUBLISH_OUTCOME_UNKNOWN", details: { videoId: "accepted_video" } });
+  expect(db.publishCheckpoint.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        state: "unknown",
+        result: expect.objectContaining({ details: { stage: "processing", videoId: "accepted_video" } }),
+      }),
+    }),
+  );
 });

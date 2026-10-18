@@ -209,7 +209,7 @@ describe("billing when self-hosted mode is off", () => {
     mockPrisma.post.count.mockResolvedValue(0);
 
     await expect(assertActiveSubscription("user-1", { action: "oauth_authorize" })).rejects.toMatchObject({
-      message: "An active SimplePost subscription is required",
+      message: "Your subscription payment needs attention. Open Billing to update your payment details.",
       logContext: {
         userId: "user-1",
         maskedEmail: "vl***ir@example.com",

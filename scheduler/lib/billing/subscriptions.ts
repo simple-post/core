@@ -340,47 +340,68 @@ async function persistStripeSubscription(subscription: Stripe.Subscription, fall
     return null;
   }
 
-  const { priceId, productId } = getSubscriptionPrice(subscription);
-  const plan = getPlanByStripePriceId(priceId) ?? getPlanByKey(subscription.metadata.planKey);
-  const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(subscription);
+  return prisma.$transaction(
+    async (client) => {
+      // Lock before reading Stripe, not only before writing: concurrent webhook
+      // handlers must not commit customer snapshots fetched in the opposite order.
+      await lockUserForQuota(client, userId);
+      let selected: Stripe.Subscription | null = null;
+      const now = Date.now();
+      const priority = (candidate: Stripe.Subscription) => {
+        const { priceId } = getSubscriptionPrice(candidate);
+        const plan = getPlanByStripePriceId(priceId) ?? getPlanByKey(candidate.metadata.planKey);
+        const { currentPeriodEnd } = getSubscriptionPeriod(candidate);
+        if (!plan || (currentPeriodEnd && currentPeriodEnd.getTime() < now)) return 0;
+        return candidate.status === "active" ? 2 : candidate.status === "trialing" ? 1 : 0;
+      };
 
-  const syncedSubscription = await prisma.userSubscription.upsert({
-    where: { userId },
-    create: {
-      userId,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: priceId,
-      stripeProductId: productId,
-      planKey: plan?.key ?? subscription.metadata.planKey ?? null,
-      status: subscription.status,
-      currentPeriodStart,
-      currentPeriodEnd,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: toDate(subscription.canceled_at),
-      trialEndsAt: toDate(subscription.trial_end),
+      // An invoice retry for an older subscription must not revoke access from
+      // another paid subscription. Include canceled subscriptions and every page
+      // so cancellation and delayed events reconcile the same customer state.
+      for await (const candidate of getStripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 100,
+      })) {
+        if (candidate.metadata.userId && candidate.metadata.userId !== userId) continue;
+        if (
+          !selected ||
+          priority(candidate) > priority(selected) ||
+          (priority(candidate) === priority(selected) &&
+            (candidate.created > selected.created ||
+              (candidate.created === selected.created && candidate.id > selected.id)))
+        ) {
+          selected = candidate;
+        }
+      }
+      if (!selected) throw new Error("No Stripe subscription found for this account");
+
+      const { priceId, productId } = getSubscriptionPrice(selected);
+      const plan = getPlanByStripePriceId(priceId) ?? getPlanByKey(selected.metadata.planKey);
+      const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(selected);
+      const data = {
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: selected.id,
+        stripePriceId: priceId,
+        stripeProductId: productId,
+        planKey: plan?.key ?? selected.metadata.planKey ?? null,
+        status: selected.status,
+        currentPeriodStart,
+        currentPeriodEnd,
+        cancelAtPeriodEnd: selected.cancel_at_period_end,
+        canceledAt: toDate(selected.canceled_at),
+        trialEndsAt: toDate(selected.trial_end),
+      };
+      const syncedSubscription = await client.userSubscription.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
+      });
+      await client.user.update({ where: { id: userId }, data: { stripeCustomerId: customerId } });
+      return syncedSubscription;
     },
-    update: {
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: priceId,
-      stripeProductId: productId,
-      planKey: plan?.key ?? subscription.metadata.planKey ?? null,
-      status: subscription.status,
-      currentPeriodStart,
-      currentPeriodEnd,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: toDate(subscription.canceled_at),
-      trialEndsAt: toDate(subscription.trial_end),
-    },
-  });
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { stripeCustomerId: customerId },
-  });
-
-  return syncedSubscription;
+    { maxWait: 10_000, timeout: 30_000 },
+  );
 }
 
 export async function syncStripeSubscriptionById(subscriptionId: string, fallbackUserId?: string | null) {
@@ -391,9 +412,8 @@ export async function syncStripeSubscriptionById(subscriptionId: string, fallbac
 }
 
 /**
- * Re-fetch the canonical Stripe object before writing local state. Webhook
- * deliveries are not ordered, so persisting event.data.object directly could
- * allow an older event to overwrite a newer subscription state.
+ * Treat webhook objects as notifications. Reconcile canonical customer state,
+ * including other subscriptions, rather than persisting the event payload.
  */
 export async function syncStripeSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
   return syncStripeSubscriptionById(subscription.id, fallbackUserId);
@@ -617,6 +637,11 @@ export async function assertPlanFeature(
  * yesterday stopped working today.
  */
 function paymentRequiredMessage(status: BillingStatus, purpose: string): string {
+  if (status.subscription) {
+    return ["past_due", "unpaid", "incomplete"].includes(status.subscription.status)
+      ? "Your subscription payment needs attention. Open Billing to update your payment details."
+      : `Your SimplePost subscription is not active. Choose a plan ${purpose}.`;
+  }
   return status.trial
     ? `Your free trial has ended. Choose a plan ${purpose}.`
     : "An active SimplePost subscription is required";

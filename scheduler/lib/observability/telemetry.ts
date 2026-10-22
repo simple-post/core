@@ -1,7 +1,5 @@
 import { metrics, SpanStatusCode, trace } from "@opentelemetry/api";
 
-import { isDeferredResult } from "@/lib/posting/recovery";
-
 import type { Attributes, Counter, Histogram, Span } from "@opentelemetry/api";
 
 // The tracer proxy in @opentelemetry/api late-binds to the provider, so it is
@@ -73,7 +71,6 @@ function instruments(): Instruments {
 }
 
 export interface TelemetryPostingResult {
-  error?: string;
   platform: string;
   success: boolean;
 }
@@ -98,7 +95,7 @@ export interface TelemetryDispatchResult {
   };
 }
 
-export type BatchOutcome = "success" | "partial_failure" | "failure" | "processing";
+export type BatchOutcome = "success" | "partial_failure" | "failure";
 
 export function batchOutcome(total: number, failures: number): BatchOutcome {
   if (failures === 0) return "success";
@@ -151,8 +148,7 @@ export async function withPostingBatch<T extends TelemetryPostingResult>(
       const results = await run();
       const { failures, outcome } = recordPostingBatch(operation, Date.now() - startedAt, results);
       span.setAttributes({
-        "simplepost.success_count": results.filter((result) => result.success).length,
-        "simplepost.deferred_count": results.filter((result) => isDeferredResult(result)).length,
+        "simplepost.success_count": results.length - failures,
         "simplepost.failure_count": failures,
         "simplepost.outcome": outcome,
       });
@@ -179,11 +175,8 @@ export async function withAccountPublishSpan<
     { "simplepost.operation": operation, "social.platform": platform.toLowerCase(), ...attributes },
     async (span) => {
       const result = await run();
-      span.setAttribute(
-        "simplepost.outcome",
-        isDeferredResult(result) ? "processing" : result.success ? "success" : "failure",
-      );
-      if (!result.success && !isDeferredResult(result)) {
+      span.setAttribute("simplepost.outcome", result.success ? "success" : "failure");
+      if (!result.success) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: "Publishing target failed" });
         if (result.error) span.setAttribute("error.type", result.error);
         if (result.message) span.setAttribute("error.message", result.message.slice(0, 500));
@@ -238,11 +231,8 @@ export function recordPostingBatch(
   durationMs: number,
   results: TelemetryPostingResult[],
 ): { failures: number; outcome: BatchOutcome } {
-  const failures = results.filter((result) => !result.success && !isDeferredResult(result)).length;
-  const outcome =
-    failures === 0 && results.some((result) => isDeferredResult(result))
-      ? "processing"
-      : batchOutcome(results.length, failures);
+  const failures = results.filter((result) => !result.success).length;
+  const outcome = batchOutcome(results.length, failures);
   instruments().postingBatches.add(1, {
     "simplepost.operation": operation,
     "simplepost.outcome": outcome,
@@ -252,7 +242,7 @@ export function recordPostingBatch(
     instruments().postingTargets.add(1, {
       "simplepost.operation": operation,
       "social.platform": result.platform.toLowerCase(),
-      "simplepost.outcome": isDeferredResult(result) ? "processing" : result.success ? "success" : "failure",
+      "simplepost.outcome": result.success ? "success" : "failure",
     });
   }
   return { failures, outcome };

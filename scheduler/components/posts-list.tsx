@@ -32,7 +32,6 @@ import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
-import { isDeferredResult } from "@/lib/posting/recovery";
 import type { SocialPost, ConnectedAccount } from "@/types";
 
 interface PostsListProps {
@@ -311,8 +310,6 @@ function PostCard({
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
       if (allSucceeded) {
         toast.success("Draft posted.", { id: toastId });
-      } else if (data.postingResults?.some((result) => isDeferredResult(result))) {
-        toast.info("Publishing will continue in the background.", { id: toastId });
       } else {
         toast.error("Draft could not be posted to every account.", { id: toastId });
       }

@@ -33,34 +33,3 @@ yarn preview:unlink    # restores the published npm packages
 ```
 
 While linked, run `yarn dev` in the `preview` repository to rebuild its packages on change; Next.js picks the output up through the portal symlinks.
-
-### TikTok video recovery
-
-TikTok videos use durable upload checkpoints. The scheduler saves the provider's
-`publish_id` before sending video bytes and records upload progress before each
-chunk. An explicit upload-session rejection (including the first-upload HTTP 404) can schedule a fresh attempt. There are at most three publication attempts,
-with approximately one-minute and five-minute delays, jitter, and provider
-`Retry-After` support. Preparation and initialization failures are retried only
-when classified as temporary; invalid content and permanent provider rejections
-stop immediately. An explicit manual retry after a conclusive failure starts a
-new retry budget; it cannot clear an uncertain outcome.
-
-A lost upload response or an interrupted worker with a saved job triggers status
-checks against that job, rather than creating another publication. Status checks
-do not consume the publication-attempt budget. Active jobs remain processing;
-status checks stop after 24 hours with an explicit reconciliation requirement.
-The normal stale-worker timeout still applies before taking over an interrupted
-worker. Each claim has a unique lease so an old worker cannot overwrite a newer
-recovery result. Existing ambiguous records without recovery metadata still
-require explicit reconciliation.
-
-Recovery uses the original post and its successful account/segment results.
-`scheduledFor` remains the original requested time; `nextAttemptAt` controls
-scheduler eligibility. Immediate API and MCP publishing also hand recovery to
-the scheduler. Final published/failed webhooks are emitted after recovery finishes,
-and UI/API messages distinguish retries and processing from final failure.
-
-Apply the `20261022130000_durable_publish_recovery` migration before deploying
-this version. It adds nullable recovery scheduling fields and checkpoint metadata;
-existing rows retain their previous behavior. Other platforms and TikTok photos
-do not opt into automatic retries in this release.

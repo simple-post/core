@@ -14,7 +14,6 @@ export function sanitizePostingResult(result: PostingResult) {
     success: result.success,
     error: result.error,
     message: result.message,
-    nextAttemptAt: result.nextAttemptAt?.toISOString(),
     postId: result.postId,
     postUrl: result.postUrl,
     details: result.details ? (sanitizeForJson(result.details) as Record<string, unknown>) : undefined,

@@ -7,7 +7,6 @@ export interface PostingProgressResult {
   postUrl?: string;
   postId?: string;
   message?: string;
-  nextAttemptAt?: string;
   details?: unknown;
   threadResults?: Array<{
     index: number;

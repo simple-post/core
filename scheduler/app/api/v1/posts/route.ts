@@ -23,7 +23,6 @@ import {
   sanitizePostingResult,
   wantsPostingProgress,
 } from "@/lib/posting/progress-stream";
-import { getPostDeferral } from "@/lib/posting/recovery";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
@@ -392,7 +391,6 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
           log.debug({ postId: post.id }, "Updating post status to published");
           await repository.updatePost(post.id, {
             status: "published",
-            nextAttemptAt: null,
             publishedAt,
             threadResults: hasThreadResults ? threadResultsByAccount : undefined,
             accountResults,
@@ -412,50 +410,38 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         } else {
           log.debug({ postId: post.id }, "Updating post status to failed");
           // Collect error details from failed platforms
-          const deferral = getPostDeferral(results);
-          if (deferral) {
-            await repository.updatePost(post.id, {
-              status: "scheduled",
-              nextAttemptAt: deferral.nextAttemptAt,
-              errorMessage: deferral.errorMessage,
-              errorDetails: null,
-              accountResults,
-              threadResults: hasThreadResults ? threadResultsByAccount : undefined,
-            });
-          } else {
-            const failedResults = results.filter((r) => !r.success);
-            const errorMessage =
-              failedResults.length === 1
-                ? failedResults[0].message || failedResults[0].error || "Unknown error"
-                : `Failed on ${failedResults.length} platform(s)`;
-            const errorDetails = sanitizeForJson({
-              failedPlatforms: failedResults.map((r) => ({
-                accountId: r.accountId,
-                platform: r.platform,
-                error: r.error,
-                message: r.message,
-                details: r.details,
-                threadResults: r.threadResults,
-              })),
-            }) as Record<string, unknown>;
+          const failedResults = results.filter((r) => !r.success);
+          const errorMessage =
+            failedResults.length === 1
+              ? failedResults[0].message || failedResults[0].error || "Unknown error"
+              : `Failed on ${failedResults.length} platform(s)`;
+          const errorDetails = sanitizeForJson({
+            failedPlatforms: failedResults.map((r) => ({
+              accountId: r.accountId,
+              platform: r.platform,
+              error: r.error,
+              message: r.message,
+              details: r.details,
+              threadResults: r.threadResults,
+            })),
+          }) as Record<string, unknown>;
 
-            await repository.updatePost(post.id, {
-              status: "failed",
-              errorMessage,
-              errorDetails,
-              threadResults: hasThreadResults ? threadResultsByAccount : undefined,
-              accountResults,
-              repostDueAt: null,
-              repostStatus: "not_applicable",
-            });
-            await dispatchPostWebhooks(userId, "post.failed", {
-              id: post.id,
-              status: "failed",
-              message: validated.message,
-              errorMessage,
-              accountResults,
-            });
-          }
+          await repository.updatePost(post.id, {
+            status: "failed",
+            errorMessage,
+            errorDetails,
+            threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+            accountResults,
+            repostDueAt: null,
+            repostStatus: "not_applicable",
+          });
+          await dispatchPostWebhooks(userId, "post.failed", {
+            id: post.id,
+            status: "failed",
+            message: validated.message,
+            errorMessage,
+            accountResults,
+          });
         }
 
         const updatedPost = await repository.getPostById(post.id);

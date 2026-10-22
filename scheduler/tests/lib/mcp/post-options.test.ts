@@ -957,37 +957,3 @@ it("leaves a non-fittable failure as a plain stop", async () => {
   });
   expect(error.message).toContain("Caption is too long");
 });
-
-it("keeps an immediate TikTok retry scheduled and emits no terminal failure webhook", async () => {
-  jest.mocked(validatePostForAccounts).mockResolvedValueOnce({
-    accounts: [{ id: "tiktok-1", platform: "tiktok" }],
-    platforms: ["tiktok"],
-    results: [],
-    summary: { isValid: true, errors: [], warnings: [] },
-  } as never);
-  const { getPostingSummary } = await import("@/lib/posting");
-  const { dispatchPostWebhooks } = await import("@/lib/webhooks");
-  jest
-    .mocked(getPostingSummary)
-    .mockReturnValueOnce({ overallSuccess: false, successCount: 0, failureCount: 0, deferredCount: 1 });
-  jest.mocked(postToAccounts).mockResolvedValueOnce([
-    {
-      accountId: "tiktok-1",
-      platform: "tiktok",
-      success: false,
-      error: "PUBLISH_RETRY_SCHEDULED",
-      message: "Retrying — attempt 2 of 3.",
-      nextAttemptAt: new Date(Date.now() + 60_000),
-    },
-  ]);
-  const result = await createPost(
-    "user-1",
-    createPostSchema.parse({ message: "Video caption", accountIds: ["tiktok-1"], postingMode: "now" }),
-  );
-  expect(updatePost).toHaveBeenCalledWith(
-    expect.any(String),
-    expect.objectContaining({ status: "scheduled", nextAttemptAt: expect.any(Date) }),
-  );
-  expect(result.summary.scheduledCount).toBe(1);
-  expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
-});

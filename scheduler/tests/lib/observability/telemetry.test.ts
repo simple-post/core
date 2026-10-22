@@ -109,12 +109,3 @@ describe("observability telemetry", () => {
     ).rejects.toBe(error);
   });
 });
-
-it("reports automatic publishing recovery as processing without counting it as a failure", () => {
-  expect(
-    recordPostingBatch("post", 100, [
-      { platform: "tiktok", success: false, error: "PUBLISH_RETRY_SCHEDULED" },
-      { platform: "youtube", success: true },
-    ]),
-  ).toEqual({ failures: 0, outcome: "processing" });
-});

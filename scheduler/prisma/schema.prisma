@@ -332,7 +332,6 @@ model Post {
   message      String
   scheduledFor DateTime?
   status       String    @default("scheduled") // "draft", "scheduled", "pending", "published", "failed"
-  nextAttemptAt DateTime? // Retry/status-check eligibility; original scheduledFor is preserved.
   errorMessage String? // Human-readable error message when status is "failed"
   errorDetails Json? // Detailed error info (stack trace, API response, etc.)
   publishedAt  DateTime?
@@ -384,7 +383,6 @@ model Post {
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
   @@index([userId, scheduledFor])
-  @@index([status, scheduledFor, nextAttemptAt])
   @@index([quotePostId])
   @@index([repostStatus, repostDueAt])
   @@map("post")
@@ -549,20 +547,14 @@ model PublishAttempt {
   @@map("publish_attempt")
 }
 
-// Intent is committed before external I/O. Recovery-enabled providers persist
-// their job before transferring media; other started/unknown operations require reconciliation.
+// Intent is committed before external I/O. A started/unknown operation must
+// be reconciled, never automatically replayed after a crash.
 model PublishCheckpoint {
   postId      String
   accountId   String
   operation   String
   segment     Int
   fingerprint String
-  leaseId String?
-  recoveryProvider String?
-  attemptCount Int @default(0)
-  progress Json?
-  nextAttemptAt DateTime?
-  recoveryStartedAt DateTime?
   state       String
   result      Json?
   updatedAt   DateTime @updatedAt

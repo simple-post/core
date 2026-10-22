@@ -14,7 +14,6 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { getPlatformById } from "@/lib/config";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
-import { isDeferredResult } from "@/lib/posting/recovery";
 
 import { PlatformIcon } from "./platform-icons";
 
@@ -37,10 +36,9 @@ function getPrimaryPostUrl(result: PostingProgressResult): string | undefined {
 
 export function PostLinksModal({ open, onOpenChange, results, posting = false }: PostLinksModalProps) {
   const successfulPosts = results.filter((result) => result.success === true);
-  const deferredPosts = results.filter((result) => isDeferredResult(result));
-  const failedPosts = results.filter((result) => result.success === false && !isDeferredResult(result));
+  const failedPosts = results.filter((result) => result.success === false);
   const pendingPosts = results.filter((result) => result.success === undefined);
-  const completedPosts = successfulPosts.length + failedPosts.length + deferredPosts.length;
+  const completedPosts = successfulPosts.length + failedPosts.length;
   const isPosting = posting || pendingPosts.length > 0;
   const progress = results.length > 0 ? (completedPosts / results.length) * 100 : 0;
   const hasTikTokTarget = results.some((result) => result.platform.toLowerCase() === "tiktok");
@@ -76,9 +74,7 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                 : `${completedPosts} of ${results.length} platform${results.length === 1 ? "" : "s"} complete.`
               : successfulPosts.length > 0
                 ? `Successfully completed for ${successfulPosts.length} platform${successfulPosts.length > 1 ? "s" : ""}.`
-                : deferredPosts.length > 0
-                  ? "Publishing will continue in the background. You can close this window."
-                  : "Posting completed."}
+                : "Posting completed."}
           </DialogDescription>
         </DialogHeader>
 
@@ -100,7 +96,7 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                 key={result.accountId}
                 className="flex min-h-14 min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-border bg-secondary/40 px-3 py-2">
                 <div className="flex w-5 flex-shrink-0 items-center justify-center">
-                  {result.success === undefined || isDeferredResult(result) ? (
+                  {result.success === undefined ? (
                     <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : result.success ? (
                     <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -125,12 +121,8 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                     </div>
 
                     <div className="flex h-8 w-20 flex-shrink-0 items-center justify-end">
-                      {result.success === undefined || isDeferredResult(result) ? (
+                      {result.success === undefined ? (
                         <span className="text-xs text-muted-foreground">Posting…</span>
-                      ) : isDeferredResult(result) ? (
-                        <span className="text-xs text-muted-foreground">
-                          {result.error === "PUBLISH_RETRY_SCHEDULED" ? "Retrying" : "Processing"}
-                        </span>
                       ) : result.success && postUrl ? (
                         <Button
                           variant="ghost"
@@ -151,7 +143,7 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
                       )}
                     </div>
                   </div>
-                  {(result.success || isDeferredResult(result)) && result.message && (
+                  {result.success && result.message && (
                     <p className="mt-1 text-xs text-muted-foreground">{result.message}</p>
                   )}
                 </div>
@@ -164,9 +156,6 @@ export function PostLinksModal({ open, onOpenChange, results, posting = false }:
             <span className="text-muted-foreground">Total</span>
             <div className="flex items-center gap-3">
               {successfulPosts.length > 0 && <span className="text-primary">{successfulPosts.length} success</span>}
-              {deferredPosts.length > 0 && (
-                <span className="text-muted-foreground">{deferredPosts.length} waiting</span>
-              )}
               {failedPosts.length > 0 && <span className="text-destructive">{failedPosts.length} failed</span>}
               {pendingPosts.length > 0 && <span className="text-muted-foreground">{pendingPosts.length} posting</span>}
             </div>

@@ -39,7 +39,6 @@ import {
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
-import { isDeferredResult } from "@/lib/posting/recovery";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { hasImageContent } from "@/lib/validation/image-content";
@@ -118,7 +117,7 @@ export function CreatePostForm() {
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
-  const [postingAccepted, setPostingAccepted] = useState(false);
+  const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [showImageFit, setShowImageFit] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -495,7 +494,7 @@ export function CreatePostForm() {
           accountName: getAccountDisplayName(account),
         })),
       );
-      setPostingAccepted(false);
+      setPostingSucceeded(false);
       setShowPostLinksModal(true);
     }
 
@@ -591,9 +590,8 @@ export function CreatePostForm() {
         setPostingResults((current) => mergePostingProgressResults(current, completedResults));
 
         const allSucceeded = completedResults.every((result) => result.success);
-        const accepted = allSucceeded || completedResults.some((result) => isDeferredResult(result));
-        setPostingAccepted(accepted);
-        if (accepted) {
+        setPostingSucceeded(allSucceeded);
+        if (allSucceeded) {
           resetDraftToDefaults();
         }
 
@@ -618,7 +616,7 @@ export function CreatePostForm() {
         setTrialSubmissionError(errorMessage);
       }
       if (postingMode === "now") {
-        setPostingAccepted(false);
+        setPostingSucceeded(false);
         setPostingResults((current) => failPendingPostingResults(current, errorMessage));
       }
       logClientError(error, "Failed to create post", { postingMode, accountCount: selectedAccountIds.length });
@@ -954,8 +952,8 @@ export function CreatePostForm() {
         posting={submitPostMutation.isPending}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
-          if (!open && postingAccepted) {
-            router.push(postingResults.some((result) => isDeferredResult(result)) ? "/?tab=scheduled" : "/?tab=past");
+          if (!open && postingSucceeded) {
+            router.push("/?tab=past");
           }
         }}
         results={postingResults}

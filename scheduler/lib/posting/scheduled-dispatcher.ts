@@ -10,7 +10,6 @@ import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health"
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
-import { getPostDeferral, RECOVERY_WINDOW_MS } from "@/lib/posting/recovery";
 import { prisma } from "@/lib/prisma";
 import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/targets";
 import { summarizeRepostOutcome } from "@/lib/repost/results";
@@ -76,7 +75,6 @@ interface DispatchPostResult {
 }
 
 interface DuePost {
-  nextAttemptAt?: Date | null;
   id: string;
   updatedAt: Date;
   userId: string;
@@ -193,30 +191,8 @@ async function recoverStalePendingPosts(): Promise<number> {
     return 0;
   }
 
-  const recoveryCheckpoints =
-    (await prisma.publishCheckpoint.findMany({
-      where: {
-        postId: { in: stalePosts.map((post) => post.id) },
-        recoveryProvider: "tiktok-video",
-        state: { in: ["started", "processing", "retry_wait", "succeeded"] },
-        recoveryStartedAt: { gt: new Date(Date.now() - RECOVERY_WINDOW_MS) },
-      },
-      select: { postId: true },
-    })) ?? [];
-  const recoverable = new Set(recoveryCheckpoints.map((checkpoint) => checkpoint.postId));
   const recovered = await Promise.all(
     stalePosts.map(async (post) => {
-      if (recoverable.has(post.id)) {
-        const { count } = await prisma.post.updateMany({
-          where: { id: post.id, status: "pending", updatedAt: { lt: cutoff } },
-          data: {
-            status: "scheduled",
-            nextAttemptAt: new Date(),
-            errorMessage: "Checking TikTok publishing progress after an interruption.",
-          },
-        });
-        return count;
-      }
       const { count } = await prisma.post.updateMany({
         where: { id: post.id, status: "pending", updatedAt: { lt: cutoff } },
         data: { status: "failed", errorMessage },
@@ -381,17 +357,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
 
   // A retried post (rescheduled after a partial failure) only publishes to
   // the accounts that have no recorded success — never double-post.
-  const accountIds = post.accounts
-    .map((account) => account.id)
-    .filter(
-      (id) =>
-        !succeededAccountIds.has(id) &&
-        (!post.nextAttemptAt ||
-          !previousResults?.[id] ||
-          ["PUBLISH_RETRY_SCHEDULED", "PUBLISH_PROCESSING", "LOCAL_RATE_LIMIT"].includes(
-            previousResults[id].error ?? "",
-          )),
-    );
+  const accountIds = post.accounts.map((account) => account.id).filter((id) => !succeededAccountIds.has(id));
 
   if (succeededAccountIds.size > 0) {
     log.info(
@@ -400,7 +366,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     );
   }
 
-  if (accountIds.length === 0 && post.accounts.every((account) => previousResults?.[account.id]?.success)) {
+  if (accountIds.length === 0) {
     const publishedAt = new Date();
     const repostState = buildPublishedRepostState({
       enabled: post.repostEnabled,
@@ -434,47 +400,34 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   }
 
   try {
+    await assertActiveSubscription(post.userId, {
+      action: "publish_scheduled_post",
+      postId: post.id,
+      socialAccounts: toBillingSocialAccounts(post.accounts),
+    });
+
     // Revalidate at dispatch time as well as creation time. Remote URLs can
     // change while a post is waiting in the queue, and this also protects
     // posts scheduled before trusted size measurement was introduced.
-    const checking = post.nextAttemptAt
-      ? (
-          (await prisma.publishCheckpoint.findMany({
-            where: { postId: post.id, recoveryProvider: "tiktok-video", state: { in: ["started", "processing"] } },
-            select: { accountId: true, progress: true },
-          })) ?? []
-        )
-          .filter((checkpoint) => checkpoint.progress)
-          .map((checkpoint) => checkpoint.accountId)
-      : [];
-    const validationAccountIds = accountIds.filter((id) => !checking.includes(id));
-    if (validationAccountIds.length > 0) {
-      await assertActiveSubscription(post.userId, {
-        action: "publish_scheduled_post",
-        postId: post.id,
-        socialAccounts: toBillingSocialAccounts(
-          post.accounts.filter((account) => validationAccountIds.includes(account.id)),
-        ),
-      });
-      const validation = await validatePostForAccounts({
-        userId: post.userId,
-        message: post.message,
-        media: post.media,
-        accountIds: validationAccountIds,
-        accountOptions: (post.accountOptions as AccountOptionsMap | null) ?? undefined,
-        accountOverrides: (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
-        thread: post.thread ?? undefined,
-      });
-      if (validation.accounts.length !== validationAccountIds.length) {
-        throw new Error("One or more accounts for this scheduled post no longer exist.");
-      }
-      if (!validation.summary.isValid) {
-        throw new ValidationError(
-          validation,
-          `Scheduled post failed validation: ${validation.summary.errors.map((issue) => issue.message).join("; ")}`,
-        );
-      }
+    const validation = await validatePostForAccounts({
+      userId: post.userId,
+      message: post.message,
+      media: post.media,
+      accountIds,
+      accountOptions: (post.accountOptions as AccountOptionsMap | null) ?? undefined,
+      accountOverrides: (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
+      thread: post.thread ?? undefined,
+    });
+    if (validation.accounts.length !== accountIds.length) {
+      throw new Error("One or more accounts for this scheduled post no longer exist.");
     }
+    if (!validation.summary.isValid) {
+      throw new ValidationError(
+        validation,
+        `Scheduled post failed validation: ${validation.summary.errors.map((issue) => issue.message).join("; ")}`,
+      );
+    }
+
     let quoteTargets;
     if (post.quotePostId) {
       const quoteSource = await prisma.post.findFirst({
@@ -500,27 +453,24 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       quoteTargets = buildQuoteTargets(quoteSource, destinationAccounts);
     }
 
-    const postingResults =
-      accountIds.length > 0
-        ? await postToAccounts(
-            post.userId,
-            post.message,
-            post.media,
-            accountIds,
-            (post.accountOptions as AccountOptionsMap | null) ?? undefined,
-            (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
-            post.thread ?? undefined,
-            quoteTargets,
-            undefined,
-            {
-              postId: post.id,
-              source: "scheduler",
-              ...(post.scheduledFor ? { scheduledFor: post.scheduledFor.toISOString() } : {}),
-              ...(post.user?.email ? { userEmail: post.user.email } : {}),
-              ...(post.user?.name ? { userName: post.user.name } : {}),
-            },
-          )
-        : [];
+    const postingResults = await postToAccounts(
+      post.userId,
+      post.message,
+      post.media,
+      accountIds,
+      (post.accountOptions as AccountOptionsMap | null) ?? undefined,
+      (post.accountOverrides as AccountOverridesMap | null) ?? undefined,
+      post.thread ?? undefined,
+      quoteTargets,
+      undefined,
+      {
+        postId: post.id,
+        source: "scheduler",
+        ...(post.scheduledFor ? { scheduledFor: post.scheduledFor.toISOString() } : {}),
+        ...(post.user?.email ? { userEmail: post.user.email } : {}),
+        ...(post.user?.name ? { userName: post.user.name } : {}),
+      },
+    );
 
     const summary = getPostingSummary(postingResults);
     const accountResults = mergeAccountResults(previousResults, postingResults);
@@ -533,7 +483,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     }, {});
     const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
 
-    if (summary.overallSuccess && post.accounts.every((account) => accountResults[account.id]?.success)) {
+    if (summary.overallSuccess) {
       const publishedAt = new Date();
       const repostState = buildPublishedRepostState({
         enabled: post.repostEnabled,
@@ -545,7 +495,6 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         where: { id: post.id },
         data: {
           status: "published",
-          nextAttemptAt: null,
           publishedAt,
           errorMessage: null,
           errorDetails: Prisma.DbNull,
@@ -576,21 +525,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       };
     }
 
-    const deferral = getPostDeferral(postingResults);
-    if (deferral) {
-      await prisma.post.update({
-        where: { id: post.id },
-        data: {
-          status: "scheduled",
-          nextAttemptAt: deferral.nextAttemptAt,
-          errorMessage: deferral.errorMessage,
-          accountResults: sanitizedAccountResults,
-          threadResults: sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue,
-        },
-      });
-      return { postId: post.id, success: false, status: "scheduled" };
-    }
-    const failedResults = Object.values(accountResults).filter((result) => !result.success);
+    const failedResults = postingResults.filter((result) => !result.success);
     if (failedResults.length > 0 && failedResults.every((result) => result.error === "LOCAL_RATE_LIMIT")) {
       await prisma.post.update({
         where: { id: post.id },
@@ -615,8 +550,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         platform: result.platform,
         error: result.error,
         message: result.message,
-        details: postingResults.find((entry) => entry.accountId === result.accountId)?.details,
-        threadResults: postingResults.find((entry) => entry.accountId === result.accountId)?.threadResults,
+        details: result.details,
+        threadResults: result.threadResults,
       })),
     }) as Prisma.InputJsonValue;
 
@@ -624,7 +559,6 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       where: { id: post.id },
       data: {
         status: "failed",
-        nextAttemptAt: null,
         errorMessage,
         errorDetails,
         accountResults: sanitizedAccountResults,
@@ -870,8 +804,9 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
     prisma.post.findMany({
       where: {
         status: "scheduled",
-        scheduledFor: { lte: now },
-        OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+        scheduledFor: {
+          lte: now,
+        },
       },
       include: {
         media: true,

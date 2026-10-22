@@ -6,7 +6,6 @@ import {
   isRepostCapablePlatform,
   isThreadCapable,
   MediaResolver,
-  TikTokPublisher,
   PostErrorType,
   post as sdkPost,
   quote as sdkQuote,
@@ -24,7 +23,6 @@ import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/te
 import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
 import { recordRevokedMetaSession } from "@/lib/posting/credential-rejection";
 import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
-import { isDeferredResult, type DurablePublishContext } from "@/lib/posting/recovery";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -37,7 +35,6 @@ import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
 
 import type {
-  PublishRecovery,
   Post,
   Media,
   QuoteTarget,
@@ -49,8 +46,6 @@ import type {
 import type { Logger } from "pino";
 
 export interface PostingResult {
-  recovery?: PublishRecovery;
-  nextAttemptAt?: Date;
   accountId: string;
   platform: string;
   success: boolean;
@@ -189,16 +184,12 @@ async function postSingleSegment(
   replyOverlay: ReturnType<typeof buildReplyOverlay>,
   log: Logger,
   quoteTarget?: AccountQuoteTarget,
-  recoveryContext?: DurablePublishContext,
 ): Promise<PostingResult> {
   const startTime = Date.now();
   try {
     const platform = mapPlatformName(account.platform);
     const baseOptions = buildPostOptions(account, accountOptions);
     const options = mergeReplyOverlay(baseOptions, replyOverlay);
-    if (recoveryContext && options?.tiktok) {
-      options.tiktok.videoRecovery = { onProgress: recoveryContext.saveProgress };
-    }
     const postData: Post = {
       content: {
         text: message,
@@ -227,11 +218,8 @@ async function postSingleSegment(
       quoteTarget ? "SDK quote() call data" : "SDK post() call data",
     );
 
-    const result = recoveryContext?.job
-      ? await new TikTokPublisher({
-          tiktok: { ...options?.tiktok, credentials: { accessToken: options?.tiktok?.credentials?.accessToken ?? "" } },
-        }).recoverVideo(recoveryContext.job)
-      : (quoteTarget ? await sdkQuote({ ...postData, target: quoteTarget }) : await sdkPost(postData)).get(platform);
+    const results = quoteTarget ? await sdkQuote({ ...postData, target: quoteTarget }) : await sdkPost(postData);
+    const result = results.get(platform);
 
     if (result?.extraData?.refreshedCredentials) {
       applyRefreshedCredentialsToAccount(account, result.extraData.refreshedCredentials);
@@ -294,7 +282,6 @@ async function postSingleSegment(
       success: false,
       error: errorMsg,
       message: errorMessage,
-      recovery: result?.recovery,
       details: sanitizeForJson(result?.details),
       platformData: result?.extraData?.platformData,
       extraData: result?.extraData,
@@ -324,7 +311,6 @@ async function postSegmentsToAccount(
   accountOptions?: AccountOptionsMap,
   quoteTarget?: AccountQuoteTarget,
   postId: string = randomUUID(),
-  manualRetry = false,
 ): Promise<PostingResult> {
   const log = postingLogger.child({
     fn: "postSegmentsToAccount",
@@ -385,10 +371,8 @@ async function postSegmentsToAccount(
           postId,
           accountId: account.id,
           platform,
-          manualRetry,
           operation: "post",
           segment: i,
-          ...(platform === "tiktok" && media[0]?.type === "video" ? { recoveryProvider: "tiktok-video" as const } : {}),
           fingerprint: publishFingerprint({
             segments: effectiveSegments
               .slice(0, i + 1)
@@ -397,7 +381,7 @@ async function postSegmentsToAccount(
             quoteTarget,
           }),
         },
-        async (recoveryContext) => {
+        async () => {
           return postSingleSegment(
             segment.message,
             preparedMedia,
@@ -406,7 +390,6 @@ async function postSegmentsToAccount(
             overlay,
             segmentLog,
             i === 0 ? quoteTarget : undefined,
-            recoveryContext,
           );
         },
         async () => {
@@ -631,7 +614,6 @@ async function postToAccountsInternal(
                 accountOptions,
                 quoteTargetByAccountId.get(account.id),
                 observability?.postId,
-                observability?.source === "api" || observability?.source === "mcp",
               ),
           );
 
@@ -668,16 +650,6 @@ async function postToAccountsInternal(
             credentialsRefreshed: !!result.extraData?.refreshedCredentials,
           },
           "Platform post succeeded",
-        );
-      } else if (isDeferredResult(result)) {
-        log.info(
-          {
-            accountId: result.accountId,
-            platform: result.platform,
-            decision: result.error,
-            nextAttemptAt: result.nextAttemptAt,
-          },
-          "Platform publishing deferred",
         );
       } else {
         const account = accounts.find((candidate) => candidate.id === result.accountId);
@@ -934,17 +906,14 @@ export async function repostToAccounts(...args: Parameters<typeof repostToAccoun
 export function getPostingSummary(results: PostingResult[]): {
   successCount: number;
   failureCount: number;
-  deferredCount?: number;
   overallSuccess: boolean;
 } {
   const successCount = results.filter((r) => r.success).length;
-  const deferredCount = results.filter((result) => isDeferredResult(result)).length;
-  const failureCount = results.filter((r) => !r.success && !isDeferredResult(r)).length;
+  const failureCount = results.filter((r) => !r.success).length;
 
   return {
     successCount,
     failureCount,
-    ...(deferredCount ? { deferredCount } : {}),
-    overallSuccess: successCount > 0 && failureCount === 0 && deferredCount === 0,
+    overallSuccess: successCount > 0 && failureCount === 0,
   };
 }

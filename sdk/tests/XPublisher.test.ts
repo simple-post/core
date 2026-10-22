@@ -53,6 +53,7 @@ describe("XPublisher", () => {
 
     mockV2Client = {
       get: jest.fn(),
+      post: jest.fn(),
       tweet: jest.fn(),
       uploadMedia: jest.fn(),
     };
@@ -149,6 +150,7 @@ describe("XPublisher", () => {
       const result = await publisher.postContent(content, options);
 
       expect(mockV2Client.uploadMedia).toHaveBeenCalledWith(expect.any(Buffer), { media_type: "image/jpeg" });
+      expect(mockV2Client.post).not.toHaveBeenCalled();
       expect(mockV2Client.tweet).toHaveBeenCalledWith("Check out this image!", {
         media: { media_ids: ["media_id_123"] },
         reply: undefined,
@@ -163,7 +165,7 @@ describe("XPublisher", () => {
           text: "Video is ready only after processing",
           media: [{ type: "video", path: "/path/to/video.mp4" }],
         };
-        mockV2Client.uploadMedia.mockResolvedValue("video_media_id");
+        mockV2Client.post.mockResolvedValue({ data: { id: "video_media_id" } });
         mockV2Client.get
           .mockResolvedValueOnce({ data: { processing_info: { state: "in_progress" } } })
           .mockResolvedValueOnce({ data: { processing_info: { state: "succeeded" } } });
@@ -173,6 +175,7 @@ describe("XPublisher", () => {
         await jest.advanceTimersByTimeAsync(1000);
 
         await expect(resultPromise).resolves.toEqual({ id: "video_tweet_id", error: PostErrorType.NO_ERROR });
+        expect(mockV2Client.uploadMedia).not.toHaveBeenCalled();
         expect(mockV2Client.get).toHaveBeenCalledTimes(2);
         expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
       } finally {
@@ -180,21 +183,362 @@ describe("XPublisher", () => {
       }
     });
 
+    describe("bounded media preparation recovery", () => {
+      const video: Content = { text: "Video", media: [{ type: "video", path: "/path/to/video.mp4" }] };
+      const succeeded = { data: { processing_info: { state: "succeeded" } } };
+      const CHUNK = 1024 * 1024;
+      type PostCall = [string, { segment_index?: number; media?: Buffer } | undefined, { timeout?: number }];
+      const postCalls = (suffix: string): PostCall[] =>
+        mockV2Client.post.mock.calls.filter(([url]: PostCall) => url.endsWith(suffix));
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        mockV2Client.post.mockResolvedValue({ data: { id: "video_media_id" } });
+        mockV2Client.get.mockResolvedValue(succeeded);
+        mockV2Client.tweet.mockResolvedValue({ data: { id: "video_tweet_id" } });
+      });
+      afterEach(() => jest.useRealTimers());
+
+      it.each(["", "https://secret.example/token", "x".repeat(201)])(
+        "rejects an invalid media ID before uploading chunks: %s",
+        async (id) => {
+          mockV2Client.post.mockResolvedValueOnce({ data: { id } });
+          const error = await publisher.postContent(video, options).catch((error_: unknown) => error_);
+          expect(error).toMatchObject({ errorType: PostErrorType.PREPARATION_ERROR });
+          expect(mockV2Client.post).toHaveBeenCalledTimes(1);
+          expect(mockV2Client.tweet).not.toHaveBeenCalled();
+          expect(JSON.stringify(error)).not.toContain("secret.example");
+        },
+      );
+
+      it("uploads a video with bounded initialize, append and finalize requests before a single tweet", async () => {
+        const file = Buffer.concat([Buffer.alloc(CHUNK, 1), Buffer.alloc(10, 2)]);
+        mockedFs.readFileSync.mockReturnValue(file);
+
+        await expect(publisher.postContent(video, options)).resolves.toEqual({
+          id: "video_tweet_id",
+          error: PostErrorType.NO_ERROR,
+        });
+
+        expect(mockV2Client.uploadMedia).not.toHaveBeenCalled();
+        expect(mockV2Client.post.mock.calls).toEqual([
+          [
+            "media/upload/initialize",
+            { total_bytes: file.length, media_type: "video/mp4", media_category: "tweet_video" },
+            { timeout: 30_000 },
+          ],
+          [
+            "media/upload/video_media_id/append",
+            { segment_index: 0, media: expect.any(Buffer) },
+            { forceBodyMode: "form-data", timeout: 120_000 },
+          ],
+          [
+            "media/upload/video_media_id/append",
+            { segment_index: 1, media: expect.any(Buffer) },
+            { forceBodyMode: "form-data", timeout: 120_000 },
+          ],
+          ["media/upload/video_media_id/finalize", undefined, { timeout: 30_000 }],
+        ]);
+        const chunks = postCalls("/append").map(([, body]) => body!.media!);
+        expect(chunks.map((chunk) => chunk.length)).toEqual([CHUNK, 10]);
+        expect(Buffer.concat(chunks).equals(file)).toBe(true);
+        expect(mockV2Client.get).toHaveBeenCalledWith(
+          "media/upload",
+          { command: "STATUS", media_id: "video_media_id" },
+          { timeout: 30_000 },
+        );
+        expect(mockV2Client.tweet).toHaveBeenCalledWith("Video", {
+          media: { media_ids: ["video_media_id"] },
+          reply: undefined,
+        });
+      });
+
+      it("uploads an animated GIF through the bounded path with the GIF category", async () => {
+        const gif: Content = { text: "GIF", media: [{ type: "image", path: "/path/to/anim.gif" }] };
+        mockV2Client.post.mockResolvedValue({ data: { id: "gif_media_id" } });
+
+        await expect(publisher.postContent(gif, options)).resolves.toEqual({
+          id: "video_tweet_id",
+          error: PostErrorType.NO_ERROR,
+        });
+
+        expect(mockV2Client.uploadMedia).not.toHaveBeenCalled();
+        expect(postCalls("initialize")[0][1]).toEqual({
+          total_bytes: 17,
+          media_type: "image/gif",
+          media_category: "tweet_gif",
+        });
+        expect(postCalls("/finalize").map(([url]) => url)).toEqual(["media/upload/gif_media_id/finalize"]);
+        expect(mockV2Client.get.mock.calls.map((call: unknown[]) => call[1])).toEqual([
+          { command: "STATUS", media_id: "gif_media_id" },
+        ]);
+        expect(mockV2Client.tweet.mock.calls[0][1].media).toEqual({ media_ids: ["gif_media_id"] });
+      });
+
+      it("retries a transient upload failure and publishes exactly once", async () => {
+        mockV2Client.post.mockRejectedValueOnce({ code: 503, data: { detail: "Service Unavailable" } });
+
+        const result = publisher.postContent(video, options);
+        await jest.advanceTimersByTimeAsync(1000);
+
+        await expect(result).resolves.toEqual({ id: "video_tweet_id", error: PostErrorType.NO_ERROR });
+        expect(postCalls("initialize")).toHaveLength(2);
+        expect(postCalls("/finalize")).toHaveLength(1);
+        expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+      });
+
+      it("restarts the whole upload after a mid-chunk transport failure and publishes once", async () => {
+        mockedFs.readFileSync.mockReturnValue(Buffer.alloc(2 * CHUNK + 1));
+        let failed = false;
+        mockV2Client.post.mockImplementation(async (url: string, body?: { segment_index?: number }) => {
+          if (url === "media/upload/initialize") return { data: { id: failed ? "media_b" : "media_a" } };
+          if (body?.segment_index === 1 && !failed) {
+            failed = true;
+            throw Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+          }
+          return { data: {} };
+        });
+
+        const result = publisher.postContent(video, options);
+        await jest.advanceTimersByTimeAsync(1000);
+
+        await expect(result).resolves.toEqual({ id: "video_tweet_id", error: PostErrorType.NO_ERROR });
+        expect(postCalls("/append").map(([url, body]) => [url, body!.segment_index])).toEqual([
+          ["media/upload/media_a/append", 0],
+          ["media/upload/media_a/append", 1],
+          ["media/upload/media_b/append", 0],
+          ["media/upload/media_b/append", 1],
+          ["media/upload/media_b/append", 2],
+        ]);
+        expect(postCalls("/finalize").map(([url]) => url)).toEqual(["media/upload/media_b/finalize"]);
+        expect(mockV2Client.get.mock.calls.map((call: unknown[]) => call[1])).toEqual([
+          { command: "STATUS", media_id: "media_b" },
+        ]);
+        expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+        expect(mockV2Client.tweet.mock.calls[0][1].media).toEqual({ media_ids: ["media_b"] });
+      });
+
+      it("waits for a short rate-limit reset before repeating the upload", async () => {
+        // Align the clock to a whole second so the reset timestamp maps to exactly five seconds.
+        jest.setSystemTime(Math.ceil(Date.now() / 1000) * 1000);
+        mockV2Client.post.mockRejectedValueOnce({
+          code: 429,
+          headers: { "x-rate-limit-reset": String(Math.floor(Date.now() / 1000) + 5) },
+        });
+
+        const result = publisher.postContent(video, options);
+        await jest.advanceTimersByTimeAsync(4999);
+        expect(mockV2Client.post).toHaveBeenCalledTimes(1);
+        await jest.advanceTimersByTimeAsync(1);
+
+        await expect(result).resolves.toEqual({ id: "video_tweet_id", error: PostErrorType.NO_ERROR });
+        expect(postCalls("initialize")).toHaveLength(2);
+        expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+      });
+
+      it("stops after the bounded attempts without publishing or leaking provider details", async () => {
+        mockV2Client.post.mockRejectedValue({
+          code: 503,
+          data: { detail: "Service Unavailable at https://upload.x.com/?token=test_access_token" },
+        });
+
+        const outcome = publisher.postContent(video, options).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(4000);
+
+        const error = (await outcome) as PostError;
+        expect(error).toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          message: "Failed to upload media to X. Retry the post.",
+          details: expect.objectContaining({ code: "media_upload_failed", httpStatus: 503 }),
+        });
+        const surfaced = `${error.message} ${JSON.stringify(error.details)}`;
+        expect(surfaced).not.toContain("test_access_token");
+        expect(surfaced).not.toContain("https://");
+        expect(surfaced).not.toContain("Service Unavailable");
+        await jest.advanceTimersByTimeAsync(60_000);
+        expect(mockV2Client.post.mock.calls.map(([url]: PostCall) => url)).toEqual([
+          "media/upload/initialize",
+          "media/upload/initialize",
+          "media/upload/initialize",
+        ]);
+        expect(mockV2Client.get).not.toHaveBeenCalled();
+        expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        [
+          "an expired credential",
+          () => ({ code: 401, data: { detail: "Unauthorized" } }),
+          PostErrorType.CREDENTIALS_ERROR,
+          "media_upload_failed",
+        ],
+        [
+          "a rate limit that resets after the retry window",
+          () => ({ code: 429, headers: { "x-rate-limit-reset": String(Math.floor(Date.now() / 1000) + 900) } }),
+          PostErrorType.RATE_LIMIT_ERROR,
+          "media_upload_failed",
+        ],
+        [
+          "a monthly usage cap reported by title",
+          () => ({
+            code: 429,
+            data: {
+              title: "UsageCapExceeded",
+              detail: "Usage cap exceeded: Monthly product cap",
+              type: "https://api.twitter.com/2/problems/usage-capped",
+            },
+          }),
+          PostErrorType.RATE_LIMIT_ERROR,
+          "usage_cap_exceeded",
+        ],
+        [
+          "a monthly usage cap reported by problem type only",
+          () => ({ code: 429, data: { title: "Too Many Requests", type: "about:blank/usage-capped" } }),
+          PostErrorType.RATE_LIMIT_ERROR,
+          "usage_cap_exceeded",
+        ],
+      ])("does not loop on %s", async (_label, rejection, errorType, code) => {
+        const error = rejection();
+        mockV2Client.post.mockRejectedValue(error);
+
+        const outcome = publisher.postContent(video, options).catch((error_: unknown) => error_);
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(await outcome).toMatchObject({
+          errorType,
+          details: expect.objectContaining({ code, httpStatus: error.code }),
+        });
+        expect(mockV2Client.post).toHaveBeenCalledTimes(1);
+        expect(mockV2Client.get).not.toHaveBeenCalled();
+        expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      });
+
+      it("maps the dependency's terminal image processing error without retrying", async () => {
+        const image: Content = { text: "Image", media: [{ type: "image", path: "/path/to/image.png" }] };
+        mockV2Client.uploadMedia.mockRejectedValue(new Error("Media processing failed: Unsupported codec"));
+
+        const outcome = publisher.postContent(image, options).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(4000);
+
+        expect(await outcome).toMatchObject({
+          errorType: PostErrorType.INVALID_CONTENT,
+          details: expect.objectContaining({ code: "media_processing_failed" }),
+        });
+        expect(mockV2Client.uploadMedia).toHaveBeenCalledTimes(1);
+        expect(mockV2Client.post).not.toHaveBeenCalled();
+        expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      });
+
+      it("bounds every upload request by the remaining deadline and stops once it is spent", async () => {
+        mockedFs.readFileSync.mockReturnValue(Buffer.alloc(CHUNK + 1));
+        mockV2Client.post.mockImplementation(async (url: string) => {
+          // Slow responses: the clock moves while each request is in flight.
+          jest.setSystemTime(Date.now() + (url === "media/upload/initialize" ? 599_000 : 2000));
+          return { data: { id: "video_media_id" } };
+        });
+
+        const outcome = publisher.postContent(video, options).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(await outcome).toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          details: expect.objectContaining({ code: "media_upload_timeout" }),
+        });
+        expect(mockV2Client.post.mock.calls.map(([url, , args]: PostCall) => [url, args.timeout])).toEqual([
+          ["media/upload/initialize", 30_000],
+          ["media/upload/video_media_id/append", 1000],
+        ]);
+        expect(mockV2Client.get).not.toHaveBeenCalled();
+        expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      });
+
+      it("retries a transient status read with the same media ID and honors check_after_secs", async () => {
+        mockV2Client.get
+          .mockRejectedValueOnce({ code: 502, data: { detail: "Bad Gateway" } })
+          .mockResolvedValueOnce({ data: { processing_info: { state: "pending", check_after_secs: 5 } } })
+          .mockResolvedValueOnce(succeeded);
+
+        const result = publisher.postContent(video, options);
+        await jest.advanceTimersByTimeAsync(1000);
+        expect(mockV2Client.get).toHaveBeenCalledTimes(2);
+        await jest.advanceTimersByTimeAsync(4999);
+        expect(mockV2Client.get).toHaveBeenCalledTimes(2);
+        await jest.advanceTimersByTimeAsync(1);
+
+        await expect(result).resolves.toEqual({ id: "video_tweet_id", error: PostErrorType.NO_ERROR });
+        expect(mockV2Client.get).toHaveBeenCalledTimes(3);
+        for (const call of mockV2Client.get.mock.calls) {
+          expect(call[1]).toEqual({ command: "STATUS", media_id: "video_media_id" });
+        }
+        expect(postCalls("initialize")).toHaveLength(1);
+        expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+      });
+
+      it("bounds status reads and never publishes or re-uploads when processing stays unconfirmed", async () => {
+        mockV2Client.get.mockRejectedValue({ code: 503, data: { detail: "Service Unavailable" } });
+
+        const outcome = publisher.postContent(video, options).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(4000);
+
+        expect(await outcome).toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          details: expect.objectContaining({ code: "media_status_unavailable", mediaId: "video_media_id" }),
+        });
+        expect(mockV2Client.get).toHaveBeenCalledTimes(3);
+        expect(postCalls("initialize")).toHaveLength(1);
+        expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      });
+
+      it("stops polling at the deadline with no extra request when X asks for a longer wait", async () => {
+        const longWait = { data: { processing_info: { state: "pending", check_after_secs: 3600 } } };
+        mockV2Client.get.mockResolvedValue(longWait);
+
+        const outcome = publisher.postContent(video, options).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(10 * 60_000 - 1);
+        expect(mockV2Client.get).toHaveBeenCalledTimes(1);
+        await jest.advanceTimersByTimeAsync(1);
+
+        expect(await outcome).toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          details: expect.objectContaining({ code: "media_processing_timeout", mediaId: "video_media_id" }),
+        });
+        await jest.advanceTimersByTimeAsync(60 * 60_000);
+        expect(mockV2Client.get).toHaveBeenCalledTimes(1);
+        expect(postCalls("initialize")).toHaveLength(1);
+        expect(mockV2Client.tweet).not.toHaveBeenCalled();
+      });
+
+      it("never resubmits the tweet or the upload after an ambiguous publish timeout", async () => {
+        mockV2Client.tweet.mockRejectedValue(Object.assign(new Error("socket timeout"), { code: "ETIMEDOUT" }));
+
+        const outcome = publisher.postContent(video, options).catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(10 * 60_000);
+
+        expect(await outcome).toMatchObject({ errorType: PostErrorType.API_ERROR });
+        expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+        expect(postCalls("initialize")).toHaveLength(1);
+      });
+    });
+
     it("fails safely before posting when X media processing fails", async () => {
       const content: Content = {
         text: "Broken video",
         media: [{ type: "video", path: "/path/to/video.mp4" }],
       };
-      mockV2Client.uploadMedia.mockResolvedValue("broken_media_id");
+      mockV2Client.post.mockResolvedValue({ data: { id: "broken_media_id" } });
       mockV2Client.get.mockResolvedValue({
         data: { processing_info: { state: "failed", error: { message: "Unsupported codec" } } },
       });
 
       await expect(publisher.postContent(content, options)).rejects.toMatchObject({
         errorType: PostErrorType.INVALID_CONTENT,
-        message: "X could not process the uploaded media: Unsupported codec",
+        message: "X could not process the uploaded media. Check the file before publishing again.",
         details: expect.objectContaining({ code: "media_processing_failed" }),
       });
+      // A terminal processing failure is conclusive: one status read, and the single
+      // initialize/append/finalize sequence is never repeated.
+      expect(mockV2Client.get).toHaveBeenCalledTimes(1);
+      expect(mockV2Client.post).toHaveBeenCalledTimes(3);
       expect(mockV2Client.tweet).not.toHaveBeenCalled();
     });
 

@@ -16,6 +16,7 @@ import {
 
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, TempFileManager } from "../../utils";
+import { httpStatus, isTransientError, withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
@@ -50,6 +51,27 @@ interface XMediaProcessingInfo {
 
 const X_MEDIA_PROCESSING_FALLBACK_DELAY_MS = 1000;
 const X_MEDIA_PROCESSING_TIMEOUT_MS = 10 * 60_000;
+const X_MEDIA_UPLOAD_CHUNK_BYTES = 1024 * 1024;
+const X_MEDIA_REQUEST_TIMEOUT_MS = 30_000;
+const X_MEDIA_CHUNK_TIMEOUT_MS = 120_000;
+
+/** X monthly usage caps are hard product limits; a capped 429 cannot clear within a retry window. */
+function isUsageCapExceeded(error: unknown): boolean {
+  const data = (error as { data?: { title?: unknown; type?: unknown } } | undefined)?.data;
+  if (data?.title === "UsageCapExceeded") return true;
+  return typeof data?.type === "string" && data.type.endsWith("/usage-capped");
+}
+
+/**
+ * Media preparation never publishes, so repeating it is safe. The dependency
+ * reports its own request timeouts without a transport code, so they are
+ * recognized here in addition to the shared transient classification.
+ */
+function shouldRetryMediaRequest(error: unknown): boolean {
+  if (isUsageCapExceeded(error)) return false;
+  const err = error as { type?: unknown; requestError?: { message?: unknown } } | undefined;
+  return isTransientError(error) || (err?.type === "request" && err.requestError?.message === "Request timeout.");
+}
 
 export class XPublisher extends Publisher {
   static readonly mediaRequirement = "path" as const;
@@ -291,19 +313,33 @@ export class XPublisher extends Publisher {
     const deadline = Date.now() + X_MEDIA_PROCESSING_TIMEOUT_MS;
 
     while (true) {
+      if (Date.now() >= deadline) {
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          "X did not finish processing the uploaded media within 10 minutes. Retry the post.",
+          this.accountDetails({ code: "media_processing_timeout", mediaId }),
+        );
+      }
+
       let processingInfo: XMediaProcessingInfo | undefined;
       try {
-        const response = await this.client.v2.get("media/upload", {
-          command: "STATUS",
-          media_id: mediaId,
-        });
+        // Read-only status checks reuse the known media ID and the remaining processing budget.
+        const response = await withTransientRetry(
+          (remainingMs) =>
+            this.client.v2.get(
+              "media/upload",
+              { command: "STATUS", media_id: mediaId },
+              { timeout: Math.min(X_MEDIA_REQUEST_TIMEOUT_MS, remainingMs) },
+            ),
+          { deadline, shouldRetry: shouldRetryMediaRequest },
+        );
         processingInfo = response.data.processing_info as XMediaProcessingInfo | undefined;
       } catch (error: unknown) {
-        const err = error as { data?: unknown };
+        const status = httpStatus(error);
         throw new PostError(
           PostErrorType.PREPARATION_ERROR,
           "Could not confirm that X finished processing the uploaded media. Retry the post.",
-          this.accountDetails({ provider: err.data }),
+          this.accountDetails({ code: "media_status_unavailable", mediaId, ...(status && { httpStatus: status }) }),
         );
       }
 
@@ -313,8 +349,8 @@ export class XPublisher extends Publisher {
       if (processingInfo.state === "failed") {
         throw new PostError(
           PostErrorType.INVALID_CONTENT,
-          `X could not process the uploaded media${processingInfo.error?.message ? `: ${processingInfo.error.message}` : "."}`,
-          this.accountDetails({ code: "media_processing_failed", provider: processingInfo }),
+          "X could not process the uploaded media. Check the file before publishing again.",
+          this.accountDetails({ code: "media_processing_failed", mediaId }),
         );
       }
 
@@ -322,16 +358,7 @@ export class XPublisher extends Publisher {
         throw new PostError(
           PostErrorType.PREPARATION_ERROR,
           "X returned an unrecognized media processing status. Retry the post.",
-          this.accountDetails({ provider: processingInfo }),
-        );
-      }
-
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) {
-        throw new PostError(
-          PostErrorType.PREPARATION_ERROR,
-          "X did not finish processing the uploaded media within 10 minutes. Retry the post.",
-          this.accountDetails({ provider: processingInfo }),
+          this.accountDetails({ code: "media_status_unknown", mediaId }),
         );
       }
 
@@ -339,8 +366,70 @@ export class XPublisher extends Publisher {
         typeof processingInfo.check_after_secs === "number" && processingInfo.check_after_secs > 0
           ? processingInfo.check_after_secs * 1000
           : X_MEDIA_PROCESSING_FALLBACK_DELAY_MS;
-      await new Promise((resolve) => setTimeout(resolve, Math.min(requestedDelayMs, remainingMs)));
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(requestedDelayMs, Math.max(0, deadline - Date.now()))),
+      );
     }
+  }
+
+  /**
+   * Chunked INIT/APPEND/FINALIZE over the authenticated v2 transport. The
+   * dependency's uploadMedia polls processing recursively with no timeout or
+   * abort option, so videos and GIFs use this bounded version and then
+   * waitForMediaProcessing. Every request is capped by the remaining budget,
+   * and once the budget is spent no further request is made.
+   */
+  private async uploadChunkedMedia(
+    buffer: Buffer,
+    mediaType: EUploadMimeType,
+    mediaCategory: "tweet_gif" | "tweet_video",
+    remainingMs: number,
+  ): Promise<string> {
+    const deadline = Date.now() + remainingMs;
+    const boundedTimeout = (maxMs: number): { timeout: number } => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          "X did not accept the media upload within 10 minutes. Retry the post.",
+          this.accountDetails({ code: "media_upload_timeout" }),
+        );
+      }
+      return { timeout: Math.min(maxMs, remaining) };
+    };
+
+    const init = await this.client.v2.post<{ data?: { id?: unknown } }>(
+      "media/upload/initialize",
+      { total_bytes: buffer.length, media_type: mediaType, media_category: mediaCategory },
+      boundedTimeout(X_MEDIA_REQUEST_TIMEOUT_MS),
+    );
+    const mediaId = init?.data?.id;
+    if (typeof mediaId !== "string" || !/^[\w-]{1,200}$/.test(mediaId)) {
+      throw new PostError(
+        PostErrorType.PREPARATION_ERROR,
+        "X did not return a media ID for the upload. Retry the post.",
+        this.accountDetails({ code: "media_upload_failed" }),
+      );
+    }
+    const encodedId = encodeURIComponent(mediaId);
+
+    const chunkCount = Math.ceil(buffer.length / X_MEDIA_UPLOAD_CHUNK_BYTES);
+    for (let segmentIndex = 0; segmentIndex < chunkCount; segmentIndex += 1) {
+      const offset = segmentIndex * X_MEDIA_UPLOAD_CHUNK_BYTES;
+      await this.client.v2.post(
+        `media/upload/${encodedId}/append`,
+        // subarray shares memory with the loaded file instead of copying each chunk.
+        { segment_index: segmentIndex, media: buffer.subarray(offset, offset + X_MEDIA_UPLOAD_CHUNK_BYTES) },
+        { forceBodyMode: "form-data", ...boundedTimeout(X_MEDIA_CHUNK_TIMEOUT_MS) },
+      );
+    }
+
+    await this.client.v2.post(
+      `media/upload/${encodedId}/finalize`,
+      undefined,
+      boundedTimeout(X_MEDIA_REQUEST_TIMEOUT_MS),
+    );
+    return mediaId;
   }
 
   private async uploadMedia(resolvedPath: string): Promise<string> {
@@ -381,11 +470,22 @@ export class XPublisher extends Publisher {
 
     // Upload the media using the X V2 API
     try {
-      const mediaId = await this.client.v2.uploadMedia(buffer, { media_type: mimeType });
+      // Nothing is published before v2.tweet, so a repeated upload only creates
+      // another media ID. A transient failure anywhere in INIT/APPEND/FINALIZE
+      // restarts the whole upload (initial attempt plus two retries) within a
+      // finite deadline. Images keep the dependency upload, which only polls
+      // when X reports asynchronous processing for them.
+      const mediaId = await withTransientRetry(
+        (remainingMs) =>
+          isGif || isVideo
+            ? this.uploadChunkedMedia(buffer, mimeType, isGif ? "tweet_gif" : "tweet_video", remainingMs)
+            : this.client.v2.uploadMedia(buffer, { media_type: mimeType }),
+        { deadline: Date.now() + X_MEDIA_PROCESSING_TIMEOUT_MS, shouldRetry: shouldRetryMediaRequest },
+      );
 
-      // The dependency already polls async uploads, but currently exits early
-      // when X omits check_after_secs or returns zero. Verify the terminal state
-      // ourselves before making the first request that can create a post.
+      // Once FINALIZE succeeded the ID is fixed: only poll it, never re-upload
+      // because a status read failed. Verify the terminal state ourselves
+      // before making the first request that can create a post.
       if (isGif || isVideo) await this.waitForMediaProcessing(mediaId);
 
       this.logger.info(`Media uploaded: ${mediaId}`);
@@ -393,13 +493,31 @@ export class XPublisher extends Publisher {
       return mediaId;
     } catch (error: unknown) {
       if (error instanceof PostError) throw error;
-      const err = error as { data?: unknown };
-      this.logger.error(error instanceof Error ? error : String(error));
-      throw new PostError(
-        PostErrorType.PREPARATION_ERROR,
-        `Failed to upload media to X: ${error}. Retry the post.`,
-        this.accountDetails({ provider: err.data }),
-      );
+      // Never surface the raw dependency message: it can carry request URLs and tokens.
+      const status = httpStatus(error);
+      this.logger.error(`Failed to upload media to X${status ? ` (HTTP ${status})` : ""}.`);
+      if (error instanceof Error && error.message.startsWith("Media processing failed")) {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          "X could not process the uploaded media. Check the file before publishing again.",
+          this.accountDetails({ code: "media_processing_failed" }),
+        );
+      }
+      let errorType = PostErrorType.PREPARATION_ERROR;
+      let message = "Failed to upload media to X. Retry the post.";
+      let code = "media_upload_failed";
+      if (status === 401) {
+        errorType = PostErrorType.CREDENTIALS_ERROR;
+        message = "X rejected the credentials used to upload media.";
+      } else if (isUsageCapExceeded(error)) {
+        errorType = PostErrorType.RATE_LIMIT_ERROR;
+        message = "X reports that this app has reached its API usage cap. The media upload was not retried.";
+        code = "usage_cap_exceeded";
+      } else if (status === 429) {
+        errorType = PostErrorType.RATE_LIMIT_ERROR;
+        message = "X rate limited the media upload.";
+      }
+      throw new PostError(errorType, message, this.accountDetails({ code, ...(status && { httpStatus: status }) }));
     }
   }
 

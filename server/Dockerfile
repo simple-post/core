@@ -1,7 +1,7 @@
 # SimplePost server — Node.js LTS on Alpine.
 # Build context must be the workspace root so the SDK and yarn workspace state are reachable:
 #   docker build -t simple-post-server -f server/Dockerfile .
-FROM node:20-alpine
+FROM node:22.23.4-alpine
 
 RUN apk add --no-cache ffmpeg
 RUN yarn global add pm2

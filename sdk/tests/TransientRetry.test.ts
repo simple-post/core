@@ -54,7 +54,9 @@ it("handles date headers, Telegram flood waits and X reset timestamps", () => {
     5000,
   );
   expect(retryAfterMs({ response: { status: 429, data: { parameters: { retry_after: 7 } } } })).toBe(7000);
-  expect(retryAfterMs({ code: 429, headers: { "x-rate-limit-reset": String(Date.now() / 1000 + 9) } })).toBe(9000);
+  expect(
+    retryAfterMs({ code: 429, headers: { "x-rate-limit-reset": String(Math.floor(Date.now() / 1000) + 9) } }),
+  ).toBe(9000);
   expect(retryAfterMs({ response: { headers: { "retry-after": "nonsense" } } })).toBeUndefined();
   expect(isTransientError(new Error("HTTP 503"))).toBe(false);
   expect(isTransientError({ response: { status: 401 }, code: "ECONNRESET" })).toBe(false);
@@ -65,5 +67,29 @@ it("allows a provider-specific rejection predicate without retrying other failur
   const error = { response: { status: 500 } };
   const operation = jest.fn().mockRejectedValue(error);
   await expect(withTransientRetry(operation, { shouldRetry: () => false })).rejects.toBe(error);
+  expect(operation).toHaveBeenCalledTimes(1);
+});
+
+it("honors the longest provider hint and never shortens oversized hints", async () => {
+  const error = {
+    response: { status: 429, headers: { "retry-after": "1" }, data: { parameters: { retry_after: 7 } } },
+  };
+  expect(retryAfterMs(error)).toBe(7000);
+  error.response.headers["retry-after"] = "9".repeat(400);
+  const operation = jest.fn().mockRejectedValue(error);
+  await expect(withTransientRetry(operation)).rejects.toBe(error);
+  expect(operation).toHaveBeenCalledTimes(1);
+  expect(retryAfterMs({ response: { headers: { "retry-after": "-1" } } })).toBeUndefined();
+  expect(isTransientError({ requestError: { code: "ECONNRESET" } })).toBe(true);
+});
+
+it("preserves the provider error if timer lag exhausts the deadline", async () => {
+  const error = { response: { status: 429 } };
+  const operation = jest.fn().mockRejectedValue(error);
+  const result = withTransientRetry(operation, { deadline: Date.now() + 1001 }).catch((error_) => error_);
+  await jest.advanceTimersByTimeAsync(0);
+  jest.setSystemTime(Date.now() + 2000);
+  await jest.runAllTimersAsync();
+  expect(await result).toBe(error);
   expect(operation).toHaveBeenCalledTimes(1);
 });

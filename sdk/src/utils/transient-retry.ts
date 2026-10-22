@@ -2,7 +2,7 @@
 export function httpStatus(error: unknown): number | undefined {
   const err = error as { response?: { status?: unknown }; code?: unknown; statusCode?: unknown } | undefined;
   const status = err?.response?.status ?? err?.statusCode ?? err?.code;
-  return typeof status === "number" && status >= 100 && status <= 599 ? status : undefined;
+  return typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
 }
 
 export function isTransientError(error: unknown): boolean {
@@ -27,44 +27,47 @@ function header(error: unknown, name: string): unknown {
 }
 
 export function retryAfterMs(error: unknown): number | undefined {
+  const waits: number[] = [];
   const raw = header(error, "retry-after");
   if (typeof raw === "string" || typeof raw === "number") {
     const text = String(raw).trim();
     if (/^\d+(?:\.\d+)?$/.test(text)) {
-      const delay = Number(text) * 1000;
-      if (Number.isFinite(delay)) return delay;
-    } else {
+      // Infinity is intentional: an oversized valid hint must stop retries,
+      // never fall back to an earlier local delay.
+      waits.push(Number(text) * 1000);
+    } else if (/^[A-Za-z]{3},? /.test(text)) {
       const date = Date.parse(text);
-      if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+      if (Number.isFinite(date)) waits.push(Math.max(0, date - Date.now()));
     }
   }
-  // X uses an epoch reset time; Telegram returns a structured flood-control delay.
+  // Honor the longest hint when a provider supplies both header and body hints.
   if (httpStatus(error) === 429) {
     const seconds = (error as { response?: { data?: { parameters?: { retry_after?: unknown } } } })?.response?.data
       ?.parameters?.retry_after;
-    if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+    if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) waits.push(seconds * 1000);
     const reset = header(error, "x-rate-limit-reset");
     if (typeof reset === "string" && /^\d+$/.test(reset)) {
-      const delay = Number(reset) * 1000 - Date.now();
-      if (Number.isFinite(delay)) return Math.max(0, delay);
+      waits.push(Math.max(0, Number(reset) * 1000 - Date.now()));
     }
   }
-  return undefined;
+  return waits.length > 0 ? Math.max(...waits) : undefined;
 }
 
-/** Initial attempt plus two retries. Long provider waits are surfaced instead of shortened. */
+/** Wrap raw client calls before PostError conversion. Initial attempt plus two retries. */
 export async function withTransientRetry<T>(
   operation: (remainingMs: number) => Promise<T>,
   options: { deadline?: number; shouldRetry?: (error: unknown) => boolean; maxDelayMs?: number } = {},
 ): Promise<T> {
   const deadline = options.deadline ?? Date.now() + 10 * 60_000;
   const delays = [1000, 3000];
+  let lastError: unknown;
   for (let attempt = 0; ; attempt += 1) {
     const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error("Operation deadline exceeded.");
+    if (remaining <= 0) throw lastError ?? new Error("Operation deadline exceeded.");
     try {
       return await operation(remaining);
     } catch (error) {
+      lastError = error;
       const backoff = delays[attempt];
       if (backoff === undefined || !(options.shouldRetry ?? isTransientError)(error)) throw error;
       const delay = Math.max(backoff, retryAfterMs(error) ?? 0);

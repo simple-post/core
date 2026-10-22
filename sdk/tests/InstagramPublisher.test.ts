@@ -180,6 +180,30 @@ describe("InstagramPublisher", () => {
       const assertion = expect(pending).rejects.toThrow("timed out");
       await jest.advanceTimersByTimeAsync(600_000);
       await assertion;
+      // Each status read's HTTP timeout is capped at 30 seconds and never outlives the deadline.
+      const reads = mockAxiosInstance.get.mock.calls;
+      expect(reads[0]).toEqual(["/container?fields=status_code,status", { timeout: 30_000 }]);
+      expect(reads.at(-1)[1]).toEqual({ timeout: 3000 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not read status again when token refresh exhausts the processing deadline", async () => {
+    jest.useFakeTimers();
+    try {
+      mockAxiosInstance.defaults = { headers: { common: {} } };
+      mockAxiosInstance.get.mockRejectedValueOnce({ response: { status: 401 } });
+      mockedAxios.get.mockReset().mockImplementationOnce(async () => {
+        jest.setSystemTime(Date.now() + 600_000);
+        return { data: { access_token: "refreshed", expires_in: 3600 } };
+      });
+      const wait = (publisher as unknown as { waitForMediaReady(id: string): Promise<void> }).waitForMediaReady(
+        "container",
+      );
+      await expect(wait).rejects.toMatchObject({ errorType: PostErrorType.PREPARATION_ERROR });
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }
@@ -478,6 +502,8 @@ describe("InstagramPublisher", () => {
     it.each([
       { message: "timeout", code: "ECONNABORTED" },
       { response: { status: 500, data: { error: { code: 9007, error_subcode: 2_207_027 } } } },
+      { response: { status: 503 } },
+      { response: { status: 429, data: { error: { code: 4, is_transient: true } }, headers: { "retry-after": "1" } } },
       { response: { status: 400, data: { error: { code: 9007, error_subcode: 999 } } } },
       { response: { status: 400, data: { error: { code: 999, error_subcode: 2_207_027 } } } },
     ])("does not retry ambiguous or unrelated publish errors: %j", async (error) => {
@@ -587,8 +613,9 @@ describe("InstagramPublisher", () => {
       };
       mockAxiosInstance.post.mockRejectedValue(apiError);
 
+      // A rejected container request happens before media_publish, so it is a safe-to-retry preparation failure.
       await expect(publisher.postContent(content, options)).rejects.toMatchObject({
-        errorType: PostErrorType.PUBLISH_REJECTED,
+        errorType: PostErrorType.PREPARATION_ERROR,
         message: "Failed to create media object: Invalid media URL",
       });
       expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
@@ -613,12 +640,13 @@ describe("InstagramPublisher", () => {
         data: { status_code: "ERROR", status: "Media processing failed" },
       });
 
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(
-          PostErrorType.API_ERROR,
-          "Instagram media container container_id_error creation failed: Media processing failed",
-        ),
-      );
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: PostErrorType.PREPARATION_ERROR,
+        message: "Instagram media container container_id_error creation failed: Media processing failed",
+        details: { phase: "processing", containerId: "container_id_error", statusCode: "ERROR" },
+      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
     });
 
     it("should cleanup S3 files after posting", async () => {
@@ -645,6 +673,286 @@ describe("InstagramPublisher", () => {
 
       // Verify cleanup was called
       expect(mockS3Uploader.deleteFile).toHaveBeenCalled();
+    });
+  });
+
+  describe("video reliability", () => {
+    const options: PostOptionsWithCredentials = {
+      instagram: {
+        credentials: {
+          accessToken: "test_access_token",
+          businessAccountId: "test_business_account_id",
+        },
+      },
+    };
+    const video: Content = {
+      text: "Reel",
+      media: [{ type: "video", url: "https://cdn.example.com/video.mp4" }],
+    };
+    const calls = (suffix: string) =>
+      mockAxiosInstance.post.mock.calls.filter(([url]: [string]) => url.endsWith(suffix));
+
+    it("retries a transient container creation failure and publishes exactly once", async () => {
+      jest.useFakeTimers();
+      mockAxiosInstance.post
+        .mockRejectedValueOnce({ response: { status: 503 } })
+        .mockRejectedValueOnce({ code: "ECONNRESET" })
+        .mockResolvedValueOnce({ data: { id: "container_1" } })
+        .mockResolvedValueOnce({ data: { id: "post_1" } });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/ONE/" } });
+      try {
+        const started = Date.now();
+        const result = publisher.postContent(video, options);
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "post_1", error: PostErrorType.NO_ERROR });
+        expect(Date.now() - started).toBe(4000);
+        expect(calls("/media")).toHaveLength(3);
+        expect(calls("/media_publish")).toHaveLength(1);
+        expect(calls("/media_publish")[0][1]).toEqual({ creation_id: "container_1" });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("re-reads the same container after a transient status failure without re-uploading", async () => {
+      jest.useFakeTimers();
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockResolvedValue("https://s3.example.com/video.mp4");
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_1" } })
+        .mockResolvedValueOnce({ data: { id: "post_1" } });
+      mockAxiosInstance.get
+        .mockRejectedValueOnce({ code: "ECONNRESET" })
+        .mockResolvedValueOnce({ data: { status_code: "IN_PROGRESS" } })
+        .mockRejectedValueOnce({ response: { status: 502 } })
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/ONE/" } });
+      try {
+        const result = publisher.postContent({ text: "Reel", media: [{ type: "video", path: "/video.mp4" }] }, options);
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "post_1", error: PostErrorType.NO_ERROR });
+        expect(mockS3Uploader.uploadFile).toHaveBeenCalledTimes(1);
+        expect(calls("/media")).toHaveLength(1);
+        expect(calls("/media_publish")).toHaveLength(1);
+        const statusReads = mockAxiosInstance.get.mock.calls.filter(([url]: [string]) => url.includes("status_code"));
+        expect(statusReads).toHaveLength(4);
+        for (const [url] of statusReads) expect(url).toBe("/container_1?fields=status_code,status");
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it.each([
+      { status_code: "ERROR", status: "Media processing failed" },
+      { status_code: "EXPIRED", status: "Container expired" },
+    ])("fails fast on terminal processing state %j without publishing", async (data) => {
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container_1" } });
+      mockAxiosInstance.get.mockResolvedValue({ data });
+      await expect(publisher.postContent(video, options)).rejects.toMatchObject({
+        errorType: PostErrorType.PREPARATION_ERROR,
+        details: { phase: "processing", containerId: "container_1", statusCode: data.status_code },
+      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(calls("/media_publish")).toHaveLength(0);
+    });
+
+    it("stops immediately on a permanent status failure with sanitized diagnostics", async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container_1" } });
+      mockAxiosInstance.get.mockRejectedValue({
+        message: "request https://graph.instagram.com/v25.0/container_1?access_token=DO_NOT_STORE",
+        config: { headers: { Authorization: "Bearer DO_NOT_STORE" } },
+        request: { path: "/container_1" },
+        response: {
+          status: 400,
+          data: { error: { code: 100, type: "GraphMethodException", message: "Unsupported get request." } },
+        },
+      });
+      const result = await publisher.post(video, options);
+      expect(result).toEqual({
+        error: PostErrorType.PREPARATION_ERROR,
+        message: "Failed to publish post: Unsupported get request.",
+        details: {
+          phase: "processing",
+          containerId: "container_1",
+          httpStatus: 400,
+          error: { code: 100, type: "GraphMethodException", message: "Unsupported get request." },
+        },
+      });
+      expect(JSON.stringify(result)).not.toMatch(/DO_NOT_STORE|Authorization|"config"|"request"|graph\.instagram/);
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(calls("/media_publish")).toHaveLength(0);
+    });
+
+    it("preserves credential revocation reported while polling", async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container_1" } });
+      mockAxiosInstance.get.mockRejectedValue({
+        response: { status: 401, data: { error: { code: 190, error_subcode: 460, message: "Session invalidated" } } },
+      });
+      await expect(publisher.postContent(video, options)).rejects.toMatchObject({
+        errorType: PostErrorType.CREDENTIALS_ERROR,
+      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+      expect(calls("/media_publish")).toHaveLength(0);
+    });
+
+    it("bounds transient status retries instead of polling forever", async () => {
+      jest.useFakeTimers();
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "container_1" } });
+      mockAxiosInstance.get.mockRejectedValue({ response: { status: 503 } });
+      try {
+        const result = expect(publisher.postContent(video, options)).rejects.toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          details: { phase: "processing", containerId: "container_1", httpStatus: 503 },
+        });
+        await jest.runAllTimersAsync();
+        await result;
+        expect(mockAxiosInstance.get).toHaveBeenCalledTimes(3);
+        expect(calls("/media_publish")).toHaveLength(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("caps the total number of preparation retries for a post", async () => {
+      jest.useFakeTimers();
+      const transient = { response: { status: 503 } };
+      // Four children, each failing twice before succeeding, would need eight retries; the budget allows six.
+      for (let child = 0; child < 4; child += 1) {
+        mockAxiosInstance.post
+          .mockRejectedValueOnce(transient)
+          .mockRejectedValueOnce(transient)
+          .mockResolvedValueOnce({ data: { id: `child_${child}` } });
+      }
+      try {
+        const result = expect(
+          publisher.postContent(
+            {
+              text: "Carousel",
+              media: Array.from({ length: 4 }, (_, index) => ({
+                type: "image" as const,
+                url: `https://cdn.example.com/${index}.jpg`,
+              })),
+            },
+            options,
+          ),
+        ).rejects.toMatchObject({ errorType: PostErrorType.PREPARATION_ERROR, details: { phase: "create_media" } });
+        await jest.runAllTimersAsync();
+        await result;
+        // 3 children × 3 attempts, then the fourth child fails on its first attempt with no budget left.
+        expect(calls("/media")).toHaveLength(10);
+        expect(calls("/media_publish")).toHaveLength(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("classifies a failed S3 staging upload as a retryable preparation error", async () => {
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock).mockRejectedValue(
+        new PostError(PostErrorType.API_ERROR, "Error uploading file to S3: access denied", {
+          name: "AccessDenied",
+          $metadata: { httpStatusCode: 403 },
+        }),
+      );
+      await expect(
+        publisher.postContent({ text: "Reel", media: [{ type: "video", path: "/video.mp4" }] }, options),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PREPARATION_ERROR,
+        message: "Error uploading file to S3: access denied",
+        details: { phase: "stage_media" },
+      });
+      expect(mockS3Uploader.uploadFile).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it("retries a transient S3 staging upload before creating the container", async () => {
+      jest.useFakeTimers();
+      const mockS3Uploader = publisher["s3MediaUploader"];
+      (mockS3Uploader.uploadFile as jest.Mock)
+        .mockRejectedValueOnce(
+          new PostError(PostErrorType.API_ERROR, "Error uploading file to S3: slow down", {
+            name: "SlowDown",
+            $metadata: { httpStatusCode: 503 },
+          }),
+        )
+        .mockResolvedValueOnce("https://s3.example.com/video.mp4");
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_1" } })
+        .mockResolvedValueOnce({ data: { id: "post_1" } });
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+        .mockResolvedValue({ data: { permalink: "https://www.instagram.com/p/ONE/" } });
+      try {
+        const result = publisher.postContent({ text: "Reel", media: [{ type: "video", path: "/video.mp4" }] }, options);
+        await jest.runAllTimersAsync();
+        expect(await result).toMatchObject({ id: "post_1", error: PostErrorType.NO_ERROR });
+        const uploads = (mockS3Uploader.uploadFile as jest.Mock).mock.calls;
+        expect(uploads).toHaveLength(2);
+        expect(uploads[0]).toEqual(uploads[1]);
+        expect(calls("/media")).toHaveLength(1);
+        expect(calls("/media_publish")).toHaveLength(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("sanitizes container creation diagnostics", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        message: "request https://graph.instagram.com/v25.0/media?access_token=DO_NOT_STORE failed",
+        code: "ERR_BAD_REQUEST",
+        config: { headers: { Authorization: "Bearer DO_NOT_STORE" }, data: "video_url=https://cdn.example.com" },
+        request: { path: "/media" },
+        response: {
+          status: 400,
+          data: {
+            error: {
+              code: 352,
+              error_subcode: 2_207_026,
+              type: "OAuthException",
+              message: "Unsupported video format. See https://developers.facebook.com/docs/video for details.",
+              fbtrace_id: "AbC-123",
+              is_transient: false,
+            },
+          },
+        },
+      });
+      const result = await publisher.post(video, options);
+      expect(result).toEqual({
+        error: PostErrorType.PREPARATION_ERROR,
+        message: "Failed to create media object: Unsupported video format. See [redacted URL] for details.",
+        details: {
+          phase: "create_media",
+          httpStatus: 400,
+          networkCode: "ERR_BAD_REQUEST",
+          error: {
+            code: 352,
+            error_subcode: 2_207_026,
+            type: "OAuthException",
+            message: "Unsupported video format. See [redacted URL] for details.",
+            fbtrace_id: "AbC-123",
+            is_transient: false,
+          },
+        },
+      });
+      expect(JSON.stringify(result)).not.toMatch(
+        /DO_NOT_STORE|Authorization|"config"|"request"|cdn\.example|developers\.facebook/,
+      );
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a transient failure of the final publish as an uncertain API error", async () => {
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({ data: { id: "container_1" } })
+        .mockRejectedValueOnce({ message: "timeout of 30000ms exceeded", code: "ECONNABORTED" });
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: { status_code: "FINISHED" } });
+      await expect(publisher.postContent(video, options)).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        details: { phase: "publish", containerId: "container_1", networkCode: "ECONNABORTED" },
+      });
+      expect(calls("/media_publish")).toHaveLength(1);
     });
   });
 

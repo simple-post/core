@@ -90,6 +90,7 @@ export interface AccountPlatformOptions {
 }
 
 export interface SocialPost {
+  nextAttemptAt?: Date | null;
   id: string;
   message: string;
   accountIds: string[];

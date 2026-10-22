@@ -30,6 +30,7 @@ import {
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
+import { isDeferredResult } from "@/lib/posting/recovery";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
@@ -118,7 +119,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   } = usePostDraft();
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
-  const [postingSucceeded, setPostingSucceeded] = useState(false);
+  const [postingAccepted, setPostingAccepted] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
   const [showImageFit, setShowImageFit] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -333,7 +334,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           accountName: getAccountDisplayName(account),
         })),
       );
-      setPostingSucceeded(false);
+      setPostingAccepted(false);
       setShowPostLinksModal(true);
     }
 
@@ -436,7 +437,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
         // Check if all posts succeeded
         const allSucceeded = completedResults.every((result) => result.success);
-        setPostingSucceeded(allSucceeded);
+        setPostingAccepted(allSucceeded || completedResults.some((result) => isDeferredResult(result)));
 
         setShowPostLinksModal(true);
         // Navigation will happen when modal closes (see onOpenChange below)
@@ -450,7 +451,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         setScheduleError(errorMessage);
       }
       if (postingMode === "now") {
-        setPostingSucceeded(false);
+        setPostingAccepted(false);
         setPostingResults((current) => failPendingPostingResults(current, errorMessage));
       }
       logClientError(error, `Failed to ${isRetry ? "retry" : mode} post`, {
@@ -705,8 +706,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           // Navigate when modal is closed
-          if (!open && postingSucceeded) {
-            router.push("/?tab=past");
+          if (!open && postingAccepted) {
+            router.push(postingResults.some((result) => isDeferredResult(result)) ? "/?tab=scheduled" : "/?tab=past");
           }
           // If posting failed, stay on the page to let user retry
         }}

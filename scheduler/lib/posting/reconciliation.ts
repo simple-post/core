@@ -67,6 +67,12 @@ export async function reconcilePublish(
       data: {
         state: input.outcome === "published" ? "succeeded" : "failed",
         result: result ? (sanitizeForJson(result) as Prisma.InputJsonValue) : Prisma.DbNull,
+        ...(checkpoint.recoveryProvider === "tiktok-video"
+          ? {
+              nextAttemptAt: null,
+              ...(input.outcome === "not_published" ? { progress: Prisma.DbNull } : {}),
+            }
+          : {}),
       },
     });
     if (!changed.count) throw new ConflictError("Publishing completed while reconciling. Reload its result.");

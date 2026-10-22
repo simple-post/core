@@ -15,8 +15,9 @@ export interface PaginationInfo {
   hasPreviousPage: boolean;
 }
 
-type RawSocialPost = Omit<SocialPost, "scheduledFor" | "createdAt" | "publishedAt"> & {
+type RawSocialPost = Omit<SocialPost, "scheduledFor" | "createdAt" | "publishedAt" | "nextAttemptAt"> & {
   scheduledFor?: string | null;
+  nextAttemptAt?: string | null;
   createdAt: string;
   publishedAt?: string | null;
 };
@@ -45,6 +46,7 @@ function parsePost(post: RawSocialPost): SocialPost {
   return {
     ...post,
     scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
+    nextAttemptAt: post.nextAttemptAt ? new Date(post.nextAttemptAt) : null,
     createdAt: new Date(post.createdAt),
     publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
   };
@@ -138,5 +140,7 @@ export function usePost(id: string) {
     queryKey: queryKeys.post(id),
     queryFn: () => fetchPost(id),
     enabled: !!id,
+    refetchInterval: (query) =>
+      query.state.data?.nextAttemptAt || query.state.data?.status === "pending" ? 15_000 : false,
   });
 }

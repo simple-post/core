@@ -297,6 +297,7 @@ export class PostsModel {
     }
     const updateData: {
       message?: string;
+      nextAttemptAt?: Date | null;
       scheduledFor?: Date | null;
       status?: string;
       errorMessage?: string | null;
@@ -322,6 +323,7 @@ export class PostsModel {
 
     if (updates.message !== undefined) updateData.message = updates.message;
     if (updates.scheduledFor !== undefined) updateData.scheduledFor = updates.scheduledFor;
+    if (updates.nextAttemptAt !== undefined) updateData.nextAttemptAt = updates.nextAttemptAt;
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.errorMessage !== undefined) updateData.errorMessage = updates.errorMessage || null;
     if (updates.errorDetails !== undefined) updateData.errorDetails = updates.errorDetails || null;
@@ -426,6 +428,7 @@ export class PostsModel {
   }
 
   private mapPostToSocialPost(post: {
+    nextAttemptAt?: Date | null;
     id: string;
     message: string;
     scheduledFor: Date | null;
@@ -474,6 +477,7 @@ export class PostsModel {
         durationSec: m.durationSec ?? undefined,
       })),
       scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
+      nextAttemptAt: post.nextAttemptAt ? new Date(post.nextAttemptAt) : null,
       status: post.status as SocialPost["status"],
       errorMessage: post.errorMessage ?? undefined,
       errorDetails: (post.errorDetails as Record<string, unknown> | null) ?? undefined,

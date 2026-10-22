@@ -12,11 +12,38 @@ export enum PostErrorType {
   OTHER = "OTHER",
 }
 
+export interface PublishRecovery {
+  outcome: "not_published" | "processing" | "unknown";
+  retryable: boolean;
+  phase: string;
+  httpStatus?: number;
+  providerCode?: string;
+  retryAfterMs?: number;
+}
+
+export interface TikTokVideoJob {
+  publishId: string;
+  phase: "initialized" | "uploading" | "uploaded";
+  fileSize: number;
+  uploadedBytes: number;
+  /** Persisted before sending a chunk, including before the final chunk. */
+  attemptedBytes: number;
+}
+
+export interface TikTokVideoRecovery {
+  onProgress: (job: TikTokVideoJob) => Promise<void>;
+}
+
 export class PostError extends Error {
   public errorType: PostErrorType;
   public details?: unknown;
 
-  constructor(errorType: PostErrorType, message: string, details?: unknown) {
+  constructor(
+    errorType: PostErrorType,
+    message: string,
+    details?: unknown,
+    public recovery?: PublishRecovery,
+  ) {
     super(message);
     this.name = "PostError";
     this.errorType = errorType;
@@ -26,6 +53,7 @@ export class PostError extends Error {
 }
 
 export interface PostResult {
+  recovery?: PublishRecovery;
   id?: string;
   /**
    * Canonical public URL of the published post when the platform exposes one

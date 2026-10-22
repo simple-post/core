@@ -22,6 +22,7 @@ import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { getPostDeferral } from "@/lib/posting/recovery";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
@@ -1328,6 +1329,7 @@ export async function createPost(
         });
         await repository.updatePost(post.id, {
           status: "published",
+          nextAttemptAt: null,
           publishedAt,
           threadResults: hasThreadResults ? threadResultsByAccount : undefined,
           accountResults,
@@ -1345,37 +1347,49 @@ export async function createPost(
           accountResults,
         });
       } else {
-        const failedResults = results.filter((r) => !r.success);
-        const errorMessage =
-          failedResults.length === 1
-            ? failedResults[0].message || failedResults[0].error || "Unknown error"
-            : `Failed on ${failedResults.length} platform(s)`;
-        const errorDetails = sanitizeForJson({
-          failedPlatforms: failedResults.map((r) => ({
-            accountId: r.accountId,
-            platform: r.platform,
-            error: r.error,
-            message: r.message,
-            threadResults: r.threadResults,
-          })),
-        }) as Record<string, unknown>;
+        const deferral = getPostDeferral(results);
+        if (deferral) {
+          await repository.updatePost(post.id, {
+            status: "scheduled",
+            nextAttemptAt: deferral.nextAttemptAt,
+            errorMessage: deferral.errorMessage,
+            errorDetails: null,
+            accountResults,
+            threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          });
+        } else {
+          const failedResults = results.filter((r) => !r.success);
+          const errorMessage =
+            failedResults.length === 1
+              ? failedResults[0].message || failedResults[0].error || "Unknown error"
+              : `Failed on ${failedResults.length} platform(s)`;
+          const errorDetails = sanitizeForJson({
+            failedPlatforms: failedResults.map((r) => ({
+              accountId: r.accountId,
+              platform: r.platform,
+              error: r.error,
+              message: r.message,
+              threadResults: r.threadResults,
+            })),
+          }) as Record<string, unknown>;
 
-        await repository.updatePost(post.id, {
-          status: "failed",
-          errorMessage,
-          errorDetails,
-          threadResults: hasThreadResults ? threadResultsByAccount : undefined,
-          accountResults,
-          repostDueAt: null,
-          repostStatus: "not_applicable",
-        });
-        await dispatchPostWebhooks(userId, "post.failed", {
-          id: post.id,
-          status: "failed",
-          message: input.message,
-          errorMessage,
-          accountResults,
-        });
+          await repository.updatePost(post.id, {
+            status: "failed",
+            errorMessage,
+            errorDetails,
+            threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+            accountResults,
+            repostDueAt: null,
+            repostStatus: "not_applicable",
+          });
+          await dispatchPostWebhooks(userId, "post.failed", {
+            id: post.id,
+            status: "failed",
+            message: input.message,
+            errorMessage,
+            accountResults,
+          });
+        }
       }
 
       const updatedPost = await repository.getPostById(post.id);
@@ -1396,7 +1410,7 @@ export async function createPost(
           threadSegmentCount,
           successCount: summary.successCount,
           failureCount: summary.failureCount,
-          scheduledCount: 0,
+          scheduledCount: getPostDeferral(results) ? 1 : 0,
           draftCount: 0,
           overallSuccess: summary.overallSuccess,
         },

@@ -750,7 +750,12 @@ function CalendarPost({
             ))}
           </span>
         ) : null}
-        {post.errorMessage ? <span className="mt-1 block text-xs text-destructive">{post.errorMessage}</span> : null}
+        {post.errorMessage ? (
+          <span
+            className={`mt-1 block text-xs ${post.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
+            {post.errorMessage}
+          </span>
+        ) : null}
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-50 transition-transform group-hover:translate-x-0.5" />
     </Action>

@@ -30,6 +30,7 @@ import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
+import { isDeferredResult } from "@/lib/posting/recovery";
 import type { ConnectedAccount } from "@/types";
 
 type FailedPlatform = {
@@ -89,6 +90,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
       if (allSucceeded) {
         toast.success("Draft posted.", { id: toastId });
+      } else if (data.postingResults?.some((result) => isDeferredResult(result))) {
+        toast.info("Publishing will continue in the background.", { id: toastId });
       } else {
         toast.error("Draft could not be posted to every account.", { id: toastId });
       }
@@ -151,7 +154,15 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
                 <span className="section-kicker-label">
-                  {isDraft ? "Draft" : isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
+                  {isDraft
+                    ? "Draft"
+                    : isScheduled
+                      ? post.nextAttemptAt
+                        ? "Publishing"
+                        : "Scheduled"
+                      : isFailed
+                        ? "Failed"
+                        : "Published"}
                 </span>
               </div>
               <span className="h-3 w-px bg-border" />
@@ -245,6 +256,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             ) : null}
 
             {/* Error Message for Failed Posts */}
+            {isScheduled && post.nextAttemptAt && post.errorMessage && (
+              <div className="rounded-xl border border-border p-4 text-sm text-muted-foreground" role="status">
+                {post.errorMessage}
+              </div>
+            )}
             {isFailed && (post.errorMessage || post.errorDetails) && (
               <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">
                 <div className="flex items-start gap-3">

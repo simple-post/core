@@ -15,6 +15,7 @@ import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
 import { mergeAccountResults } from "@/lib/posting/account-results";
 import { sanitizePostingResult } from "@/lib/posting/progress-stream";
+import { getPostDeferral } from "@/lib/posting/recovery";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
@@ -310,6 +311,7 @@ export async function executePostUpdate(
       });
       await repository.updatePost(post.id, {
         status: "published",
+        nextAttemptAt: null,
         publishedAt,
         threadResults: hasThreadResults ? threadResultsByAccount : undefined,
         accountResults,
@@ -327,40 +329,52 @@ export async function executePostUpdate(
         accountResults,
       });
     } else {
-      const failedResults = results.filter((result) => !result.success);
-      const errorMessage =
-        failedResults.length === 1
-          ? failedResults[0].message || failedResults[0].error || "Unknown error"
-          : failedResults.length > 0
-            ? `Failed on ${failedResults.length} platform(s)`
-            : "Some accounts still need publishing";
-      const errorDetails = sanitizeForJson({
-        failedPlatforms: failedResults.map((result) => ({
-          accountId: result.accountId,
-          platform: result.platform,
-          error: result.error,
-          message: result.message,
-          details: result.details,
-          threadResults: result.threadResults,
-        })),
-      }) as Record<string, unknown>;
+      const deferral = getPostDeferral(results);
+      if (deferral) {
+        await repository.updatePost(post.id, {
+          status: "scheduled",
+          nextAttemptAt: deferral.nextAttemptAt,
+          errorMessage: deferral.errorMessage,
+          errorDetails: null,
+          accountResults,
+          threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+        });
+      } else {
+        const failedResults = results.filter((result) => !result.success);
+        const errorMessage =
+          failedResults.length === 1
+            ? failedResults[0].message || failedResults[0].error || "Unknown error"
+            : failedResults.length > 0
+              ? `Failed on ${failedResults.length} platform(s)`
+              : "Some accounts still need publishing";
+        const errorDetails = sanitizeForJson({
+          failedPlatforms: failedResults.map((result) => ({
+            accountId: result.accountId,
+            platform: result.platform,
+            error: result.error,
+            message: result.message,
+            details: result.details,
+            threadResults: result.threadResults,
+          })),
+        }) as Record<string, unknown>;
 
-      await repository.updatePost(post.id, {
-        status: "failed",
-        errorMessage,
-        errorDetails,
-        threadResults: hasThreadResults ? threadResultsByAccount : undefined,
-        accountResults,
-        repostDueAt: null,
-        repostStatus: "not_applicable",
-      });
-      await dispatchPostWebhooks(userId, "post.failed", {
-        id: post.id,
-        status: "failed",
-        message: validated.message,
-        errorMessage,
-        accountResults,
-      });
+        await repository.updatePost(post.id, {
+          status: "failed",
+          errorMessage,
+          errorDetails,
+          threadResults: hasThreadResults ? threadResultsByAccount : undefined,
+          accountResults,
+          repostDueAt: null,
+          repostStatus: "not_applicable",
+        });
+        await dispatchPostWebhooks(userId, "post.failed", {
+          id: post.id,
+          status: "failed",
+          message: validated.message,
+          errorMessage,
+          accountResults,
+        });
+      }
     }
 
     const updatedPost = await repository.getPostById(post.id);

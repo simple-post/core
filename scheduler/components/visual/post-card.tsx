@@ -7,6 +7,8 @@ import { Badge } from "../ui/badge";
 export type PostCardData = {
   message: string;
   status: string;
+  errorMessage?: string | null;
+  nextAttemptAt?: Date | string | null;
   quotePostId?: string | null;
   media: Array<{ type: string; url: string; thumbnailUrl?: string | null; filename?: string }>;
 };
@@ -127,6 +129,11 @@ export function PostCardView({
                 )}
               </div>
 
+              {post.status === "scheduled" && post.nextAttemptAt && post.errorMessage && (
+                <p className="text-xs text-muted-foreground mb-2" role="status">
+                  {post.errorMessage}
+                </p>
+              )}
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                 <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path

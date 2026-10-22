@@ -158,7 +158,7 @@ export abstract class Publisher {
       this.logger.info(`Post failed: ${message}`);
 
       if (error instanceof PostError) {
-        return { error: error.errorType, message: error.message, details: error.details };
+        return { error: error.errorType, message: error.message, details: error.details, recovery: error.recovery };
       } else {
         this.logger.error(error instanceof Error ? error : message);
         return { error: PostErrorType.OTHER, message: `Error posting: ${message}`, details: data };
@@ -190,7 +190,7 @@ export abstract class Publisher {
       this.logger.info(`Repost failed: ${message}`);
 
       if (error instanceof PostError) {
-        return { error: error.errorType, message: error.message, details: error.details };
+        return { error: error.errorType, message: error.message, details: error.details, recovery: error.recovery };
       } else {
         this.logger.error(error instanceof Error ? error : message);
         return { error: PostErrorType.OTHER, message: `Error reposting: ${message}`, details: data };
@@ -229,7 +229,7 @@ export abstract class Publisher {
       this.logger.info(`Quote failed: ${message}`);
 
       if (error instanceof PostError) {
-        return { error: error.errorType, message: error.message, details: error.details };
+        return { error: error.errorType, message: error.message, details: error.details, recovery: error.recovery };
       } else {
         this.logger.error(error instanceof Error ? error : message);
         return { error: PostErrorType.OTHER, message: `Error quoting: ${message}`, details: data };

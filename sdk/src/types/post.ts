@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { ImageFitSchema } from "../image-fit";
 
+import type { TikTokVideoRecovery } from "./index";
+
 export type LogLevel = "none" | "error" | "warn" | "info";
 
 export const PlatformSchema = z.enum([
@@ -316,7 +318,10 @@ export type TelegramOptions = z.infer<typeof TelegramOptionsSchema>;
 export type YouTubeOptions = z.infer<typeof YouTubeOptionsSchema>;
 export type FacebookOptions = z.infer<typeof FacebookOptionsSchema>;
 export type InstagramOptions = z.infer<typeof InstagramOptionsSchema>;
-export type TikTokOptions = z.infer<typeof TikTokOptionsSchema>;
+export type TikTokOptions = z.infer<typeof TikTokOptionsSchema> & {
+  /** Runtime-only checkpoint hook. Excluded from serialized option schemas. */
+  videoRecovery?: TikTokVideoRecovery;
+};
 export type TikTokPrivacyLevel = z.infer<typeof TikTokPrivacyLevelSchema>;
 export type BlueskyOAuthCredentials = z.infer<typeof BlueskyOAuthCredentialsSchema>;
 export type BlueskyAppPasswordCredentials = z.infer<typeof BlueskyAppPasswordCredentialsSchema>;
@@ -329,13 +334,13 @@ export type LinkedInOptions = z.infer<typeof LinkedInOptionsSchema>;
 export type PinterestOptions = z.infer<typeof PinterestOptionsSchema>;
 export type ForemOptions = z.infer<typeof ForemOptionsSchema>;
 export type Content = z.infer<typeof ContentSchema>;
-export type PostOptions = z.infer<typeof PostOptionsSchema>;
-export type Post = z.infer<typeof PostSchema>;
+export type PostOptions = Omit<z.infer<typeof PostOptionsSchema>, "tiktok"> & { tiktok?: TikTokOptions };
+export type Post = Omit<z.infer<typeof PostSchema>, "options"> & { options?: PostOptions };
 export type RepostTarget = z.infer<typeof RepostTargetSchema>;
 export type Repost = z.infer<typeof RepostSchema>;
 export type QuoteTarget = z.infer<typeof QuoteTargetSchema>;
 export type QuoteTargets = Partial<Record<Platform, QuoteTarget>>;
-export type Quote = z.infer<typeof QuoteSchema>;
+export type Quote = Omit<z.infer<typeof QuoteSchema>, "options"> & { options?: PostOptions };
 
 // Internal types for publishers that require credentials
 export type XOptionsWithCredentials = XOptions & { credentials: NonNullable<XOptions["credentials"]> };

@@ -4,11 +4,13 @@ import { Prisma } from "@prisma/client";
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import type { PostingResult } from "@/lib/posting";
+import { runRecoverablePublish } from "@/lib/posting/durable-recovery";
+import { RATE_WINDOW_MS, platformLimit } from "@/lib/posting/publish-limits";
+import type { DurablePublishContext } from "@/lib/posting/recovery";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
 
-export const RATE_WINDOW_MS = 60_000;
-export const platformLimit = (platform: string) => (mapPlatformName(platform) === "forem" ? 10 : 15);
+export { RATE_WINDOW_MS, platformLimit } from "@/lib/posting/publish-limits";
 
 // Sorting keys makes an equivalent API payload stable across serialization.
 export function publishFingerprint(value: unknown): string {
@@ -27,7 +29,9 @@ export function publishFingerprint(value: unknown): string {
     .digest("hex");
 }
 
-interface PublishIdentity {
+export interface PublishIdentity {
+  manualRetry?: boolean;
+  recoveryProvider?: "tiktok-video";
   postId: string;
   accountId: string;
   platform: string;
@@ -46,9 +50,10 @@ function failure(input: PublishIdentity, error: string, message: string): Postin
 /** Atomic budget reservation + durable intent, shared by every scheduler process. */
 export async function runDurablePublish(
   input: PublishIdentity,
-  publish: () => Promise<PostingResult>,
+  publish: (context?: DurablePublishContext) => Promise<PostingResult>,
   prepare?: () => Promise<void>,
 ): Promise<PostingResult> {
+  if (input.recoveryProvider) return runRecoverablePublish(input, publish, prepare);
   const platform = mapPlatformName(input.platform);
   const key = { postId: input.postId, accountId: input.accountId, operation: input.operation, segment: input.segment };
   const where = { postId_accountId_operation_segment: key };

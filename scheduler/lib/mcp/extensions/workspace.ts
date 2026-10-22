@@ -325,7 +325,10 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
   } catch (error) {
     // A publish attempt that may have reached a platform must never be automatically restarted.
     const post = session.postId ? await new PostsModel(userId).getPostById(session.postId) : null;
-    const terminalPublish = input.mode === "now" && post && ["pending", "published", "failed"].includes(post.status);
+    const terminalPublish =
+      input.mode === "now" &&
+      post &&
+      (["pending", "published", "failed"].includes(post.status) || !!post.nextAttemptAt);
     if (!terminalPublish)
       await prisma.postEditorSession.updateMany({ where: { id: session.id, userId }, data: { committing: false } });
     if (terminalPublish)

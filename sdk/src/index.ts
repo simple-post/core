@@ -23,7 +23,7 @@ async function runForPlatform(publish: () => Promise<PostResult>): Promise<PostR
     return await publish();
   } catch (error) {
     if (error instanceof PostError) {
-      return { error: error.errorType, message: error.message, details: error.details };
+      return { error: error.errorType, message: error.message, details: error.details, recovery: error.recovery };
     }
     return {
       error: PostErrorType.OTHER,
@@ -368,3 +368,5 @@ export { ImageFitSchema, canFitImageIssue, IMAGE_FIT_HELP } from "./image-fit";
 export type { ImageFit } from "./image-fit";
 export { fitImage, fitPostImages, fitRemoteImagesForAccounts, ImageFitError } from "./utils/image-fitting";
 export type { ImageFitContent } from "./utils/image-fitting";
+
+export type { PublishRecovery, TikTokVideoJob, TikTokVideoRecovery } from "./types";

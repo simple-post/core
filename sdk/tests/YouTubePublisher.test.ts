@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { google } from "googleapis";
 
 import { YouTubePublisher } from "../src/publishers/youtube";
+import { uploadYouTubeVideo } from "../src/publishers/youtube/resumable-upload";
 import { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES, YOUTUBE_MAX_VIDEO_SIZE_BYTES } from "../src/publishers/youtube/validation";
 import { PostError, PostErrorType } from "../src/types";
 
@@ -16,6 +17,13 @@ jest.mock("googleapis", () => ({
     },
     youtube: jest.fn(),
   },
+}));
+
+// The resumable transport is covered by YouTubeResumableUpload.test.ts; here it
+// is mocked so these tests verify metadata, scheduling and thumbnail behavior.
+jest.mock("../src/publishers/youtube/resumable-upload", () => ({
+  uploadYouTubeVideo: jest.fn(),
+  YOUTUBE_UPLOAD_ORIGIN: "https://www.googleapis.com",
 }));
 
 jest.mock("fs", () => ({
@@ -33,6 +41,10 @@ jest.mock("../src/utils/s3", () => ({
 
 const mockedGoogle = google as jest.Mocked<typeof google>;
 const mockedFs = fs as jest.Mocked<typeof fs>;
+const mockedUpload = jest.mocked(uploadYouTubeVideo);
+
+const expectedUpload = (filePath: string, size: number, metadata: unknown) =>
+  expect.objectContaining({ filePath, size, metadata, getAuthorization: expect.any(Function) });
 
 describe("YouTubePublisher", () => {
   let publisher: YouTubePublisher;
@@ -53,7 +65,8 @@ describe("YouTubePublisher", () => {
     mockedFs.createReadStream.mockReturnValue("mock-stream" as any);
     mockedFs.statSync.mockReturnValue({ size: 1024 * 1024 } as any); // 1 MB mock file
 
-    // Create mock YouTube client
+    // Create mock YouTube client. videos.insert stays present only to prove the
+    // multipart path is never used anymore.
     mockYouTubeClient = {
       videos: {
         insert: jest.fn(),
@@ -69,6 +82,7 @@ describe("YouTubePublisher", () => {
     // Create mock auth
     mockAuth = {
       setCredentials: jest.fn(),
+      getRequestHeaders: jest.fn().mockResolvedValue(new Headers({ authorization: "Bearer test_access_token" })),
     };
 
     // Mock google.auth.OAuth2 constructor
@@ -92,8 +106,12 @@ describe("YouTubePublisher", () => {
   });
 
   describe("constructor", () => {
-    it("should initialize with valid credentials", () => {
-      expect(mockedGoogle.auth.OAuth2).toHaveBeenCalledWith("test_client_id", "test_client_secret");
+    it("should initialize with valid credentials and a bounded token transport", () => {
+      expect(mockedGoogle.auth.OAuth2).toHaveBeenCalledWith({
+        clientId: "test_client_id",
+        clientSecret: "test_client_secret",
+        transporterOptions: { timeout: 30_000 },
+      });
       expect(mockAuth.setCredentials).toHaveBeenCalledWith({
         refresh_token: "test_refresh_token",
       });
@@ -137,15 +155,13 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_123" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "video_id_123" });
 
       const result = await publisher.postContent(content, options);
 
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
-        part: ["snippet", "status"],
-        requestBody: {
+      expect(mockedUpload).toHaveBeenCalledTimes(1);
+      expect(mockedUpload).toHaveBeenCalledWith(
+        expectedUpload("/path/to/video.mp4", 1024 * 1024, {
           snippet: {
             title: "Test Video",
             description: "Test video description",
@@ -154,14 +170,32 @@ describe("YouTubePublisher", () => {
           },
           status: {
             privacyStatus: undefined,
+            publishAt: undefined,
             selfDeclaredMadeForKids: false,
           },
-        },
-        media: {
-          body: "mock-stream",
-        },
-      });
+        }),
+      );
+      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
+      expect(mockedFs.createReadStream).not.toHaveBeenCalled();
       expect(result).toEqual({ id: "video_id_123", error: PostErrorType.NO_ERROR });
+    });
+
+    it("hands the transport a header-only authorization callback backed by the stored OAuth2 client", async () => {
+      mockedUpload.mockResolvedValue({ videoId: "video_id_auth" });
+      await publisher.postContent(
+        { text: "Auth", media: [{ type: "video", path: "/path/to/video.mp4", title: "Auth" }] },
+        options,
+      );
+      const { getAuthorization, logger } = mockedUpload.mock.calls[0][0];
+      await expect(getAuthorization()).resolves.toBe("Bearer test_access_token");
+      expect(mockAuth.getRequestHeaders).toHaveBeenCalledWith("https://www.googleapis.com");
+      expect(logger).toBe(publisher.logger);
+
+      mockAuth.getRequestHeaders.mockResolvedValueOnce(new Headers());
+      await expect(getAuthorization()).rejects.toThrow("YouTube authorization header unavailable");
+      const revoked = Object.assign(new Error("invalid_grant"), { response: { status: 400 } });
+      mockAuth.getRequestHeaders.mockRejectedValueOnce(revoked);
+      await expect(getAuthorization()).rejects.toBe(revoked);
     });
 
     it("rejects an oversized derived title before uploading and accepts an explicit shorter title", async () => {
@@ -170,15 +204,15 @@ describe("YouTubePublisher", () => {
       await expect(publisher.postContent(content, options)).rejects.toMatchObject({
         errorType: PostErrorType.INVALID_CONTENT,
       });
-      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
-      mockYouTubeClient.videos.insert.mockResolvedValue({ data: { id: "video_id_123" } });
+      expect(mockedUpload).not.toHaveBeenCalled();
+      mockedUpload.mockResolvedValue({ videoId: "video_id_123" });
       await publisher.postContent(content, {
         ...options,
         youtube: { ...options.youtube!, title: "Underwater ambience" },
       });
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith(
+      expect(mockedUpload).toHaveBeenCalledWith(
         expect.objectContaining({
-          requestBody: expect.objectContaining({
+          metadata: expect.objectContaining({
             snippet: expect.objectContaining({ title: "Underwater ambience", description: text.trim() }),
           }),
         }),
@@ -198,14 +232,12 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_456" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "video_id_456" });
       mockYouTubeClient.thumbnails.set.mockResolvedValue({});
 
       const result = await publisher.postContent(content, options);
 
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalled();
+      expect(mockedUpload).toHaveBeenCalled();
       expect(mockYouTubeClient.thumbnails.set).toHaveBeenCalledWith({
         videoId: "video_id_456",
         media: {
@@ -227,7 +259,7 @@ describe("YouTubePublisher", () => {
           options,
         ),
       ).rejects.toThrow("YouTube videos cannot exceed 256 GB.");
-      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
+      expect(mockedUpload).not.toHaveBeenCalled();
     });
 
     it("rejects an oversized custom thumbnail before uploading the video", async () => {
@@ -253,7 +285,7 @@ describe("YouTubePublisher", () => {
           options,
         ),
       ).rejects.toThrow("YouTube custom thumbnails cannot exceed 2 MB.");
-      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
+      expect(mockedUpload).not.toHaveBeenCalled();
     });
 
     it("should use YouTube-specific thumbnail over media thumbnail", async () => {
@@ -280,9 +312,7 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_custom_thumbnail" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "video_id_custom_thumbnail" });
       mockYouTubeClient.thumbnails.set.mockResolvedValue({});
 
       const result = await publisher.postContent(content, optionsWithThumbnail);
@@ -316,6 +346,7 @@ describe("YouTubePublisher", () => {
           privacyStatus: "private",
           tags: ["tag1", "tag2"],
           categoryId: "22",
+          selfDeclaredMadeForKids: true,
           credentials: {
             clientId: "test_client_id",
             clientSecret: "test_client_secret",
@@ -324,15 +355,12 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_789" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "video_id_789" });
 
       const result = await publisher.postContent(content, optionsWithYouTube);
 
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
-        part: ["snippet", "status"],
-        requestBody: {
+      expect(mockedUpload).toHaveBeenCalledWith(
+        expectedUpload("/path/to/video.mp4", 1024 * 1024, {
           snippet: {
             title: "Custom upload title",
             description: "Custom upload description",
@@ -342,13 +370,10 @@ describe("YouTubePublisher", () => {
           status: {
             privacyStatus: "private",
             publishAt: undefined,
-            selfDeclaredMadeForKids: false,
+            selfDeclaredMadeForKids: true,
           },
-        },
-        media: {
-          body: "mock-stream",
-        },
-      });
+        }),
+      );
       expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
       expect(result).toEqual({ id: "video_id_789", error: PostErrorType.NO_ERROR });
     });
@@ -377,67 +402,45 @@ describe("YouTubePublisher", () => {
       await expect(publisher.postContent(content, options)).rejects.toThrow("YouTube content validation failed");
     });
 
-    it("should handle API errors during video upload", async () => {
+    it.each([
+      [PostErrorType.RATE_LIMIT_ERROR, "youtube_upload_limit"],
+      [PostErrorType.PUBLISH_REJECTED, "youtube_init_rejected"],
+      [PostErrorType.CREDENTIALS_ERROR, "youtube_credentials"],
+      [PostErrorType.API_ERROR, "youtube_retry_budget"],
+    ])("propagates a %s transport outcome unchanged without a thumbnail or second upload", async (type, code) => {
       const content: Content = {
         text: "Will fail",
-        media: [
-          {
-            type: "video",
-            path: "/path/to/video.mp4",
-            title: "Test Video",
-          },
-        ],
+        media: [{ type: "video", path: "/path/to/video.mp4", title: "Test Video", thumbnailPath: "/path/to/t.jpg" }],
       };
+      mockedUpload.mockRejectedValue(new PostError(type, "Transport outcome", { code }));
 
-      const apiError = {
-        response: {
-          data: {
-            error: {
-              message: "Video upload failed",
-            },
-          },
-        },
-      };
-      mockYouTubeClient.videos.insert.mockRejectedValue(apiError);
-
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Video upload failed", apiError),
-      );
-    });
-
-    it("should handle generic errors during video upload", async () => {
-      const content: Content = {
-        text: "Will fail generically",
-        media: [
-          {
-            type: "video",
-            path: "/path/to/video.mp4",
-            title: "Test Video",
-          },
-        ],
-      };
-
-      const genericError = new Error("Generic error");
-      mockYouTubeClient.videos.insert.mockRejectedValue(genericError);
-
-      await expect(publisher.postContent(content, options)).rejects.toThrow(
-        new PostError(PostErrorType.API_ERROR, "Generic error", genericError),
-      );
-    });
-
-    it.each([
-      [400, "uploadLimitExceeded", PostErrorType.RATE_LIMIT_ERROR],
-      [500, "uploadLimitExceeded", PostErrorType.API_ERROR],
-      [400, "otherError", PostErrorType.API_ERROR],
-    ])("classifies videos.insert rejection %s/%s as %s", async (status, reason, errorType) => {
-      const content: Content = { text: "Quota test", media: [{ type: "video", path: "/path/to/video.mp4" }] };
-      mockYouTubeClient.videos.insert.mockRejectedValue({
-        response: { status, data: { error: { message: "Upload rejected", errors: [{ reason }] } } },
+      await expect(publisher.postContent(content, options)).rejects.toMatchObject({
+        errorType: type,
+        message: "Transport outcome",
+        details: { code },
       });
-      await expect(publisher.postContent(content, options)).rejects.toMatchObject({ errorType });
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledTimes(1);
+      expect(mockedUpload).toHaveBeenCalledTimes(1);
+      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
       expect(mockYouTubeClient.thumbnails.set).not.toHaveBeenCalled();
       expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
+    });
+
+    it("converts an unexpected transport error into an ambiguous API error without leaking it", async () => {
+      const content: Content = {
+        text: "Will fail generically",
+        media: [{ type: "video", path: "/path/to/video.mp4", title: "Test Video" }],
+      };
+      const leaky = new Error("socket hang up Bearer SECRET");
+      mockedUpload.mockRejectedValue(Object.assign(leaky, { config: { headers: { Authorization: "SECRET" } } }));
+
+      const error = await publisher.postContent(content, options).catch((error: unknown) => error);
+      expect(error).toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        details: { stage: "upload", code: "youtube_upload_unexpected_error" },
+      });
+      expect((error as Error).message).toContain("check YouTube Studio before reposting");
+      expect(`${(error as Error).message} ${JSON.stringify(error)}`).not.toContain("SECRET");
+      expect(mockedUpload).toHaveBeenCalledTimes(1);
     });
 
     it("returns a thumbnail warning with the published video ID without retrying the upload", async () => {
@@ -453,10 +456,11 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_warn" },
-      });
-      mockYouTubeClient.thumbnails.set.mockRejectedValue(new Error("Thumbnail upload failed"));
+      mockedUpload.mockResolvedValue({ videoId: "video_id_warn" });
+      mockYouTubeClient.thumbnails.set.mockRejectedValue(
+        new Error("Thumbnail upload failed: https://www.googleapis.com/upload?upload_id=SECRET"),
+      );
+      const warn = jest.spyOn(publisher.logger, "warn");
 
       const result = await publisher.postContent(content, options);
 
@@ -467,8 +471,42 @@ describe("YouTubePublisher", () => {
         details: { code: "youtube_thumbnail_upload_failed", videoId: "video_id_warn" },
       });
       expect(result.message).toContain("Do not repost this video");
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledTimes(1);
+      expect(result.message).not.toContain("SECRET");
+      expect(warn).toHaveBeenCalledWith("[YouTubePublisher] Failed to upload thumbnail for video video_id_warn");
+      for (const [message] of warn.mock.calls) expect(String(message)).not.toContain("SECRET");
+      expect(mockedUpload).toHaveBeenCalledTimes(1);
       expect(mockYouTubeClient.thumbnails.set).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["failed", "rejected"])(
+      "reports an accepted upload whose status is %s as a warning with the ID, never as a retryable error",
+      async (uploadStatus) => {
+        const content: Content = {
+          text: "Status warning",
+          media: [{ type: "video", path: "/path/to/video.mp4", title: "Test Video" }],
+        };
+        mockedUpload.mockResolvedValue({ videoId: "video_id_status", uploadStatus });
+
+        const result = await publisher.postContent(content, options);
+
+        expect(result).toEqual({
+          id: "video_id_status",
+          error: PostErrorType.NO_ERROR,
+          message: expect.stringContaining(`reported its status as "${uploadStatus}"`),
+          details: { code: "youtube_upload_status_warning", videoId: "video_id_status" },
+        });
+        expect(result.message).toContain("Do not repost this video");
+        expect(mockedUpload).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("treats a processing status as success without any warning", async () => {
+      mockedUpload.mockResolvedValue({ videoId: "video_id_processing", uploadStatus: "processed" });
+      const result = await publisher.postContent(
+        { text: "Processing", media: [{ type: "video", path: "/path/to/video.mp4", title: "Test Video" }] },
+        options,
+      );
+      expect(result).toEqual({ id: "video_id_processing", error: PostErrorType.NO_ERROR });
     });
 
     it("rejects disabled playlist assignment before any upload or media processing", async () => {
@@ -498,7 +536,7 @@ describe("YouTubePublisher", () => {
         errorType: PostErrorType.INVALID_CONTENT,
         message: expect.stringContaining("playlist assignment is temporarily unavailable"),
       });
-      expect(mockYouTubeClient.videos.insert).not.toHaveBeenCalled();
+      expect(mockedUpload).not.toHaveBeenCalled();
       expect(mockYouTubeClient.playlistItems.insert).not.toHaveBeenCalled();
       expect(mockedFs.createReadStream).not.toHaveBeenCalled();
     });
@@ -520,6 +558,7 @@ describe("YouTubePublisher", () => {
       const optionsWithSchedule: PostOptionsWithCredentials = {
         youtube: {
           publishAt: scheduledTime,
+          privacyStatus: "public",
           credentials: {
             clientId: "test_client_id",
             clientSecret: "test_client_secret",
@@ -528,15 +567,12 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "scheduled_video_123" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "scheduled_video_123" });
 
       const result = await publisher.postContent(content, optionsWithSchedule);
 
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
-        part: ["snippet", "status"],
-        requestBody: {
+      expect(mockedUpload).toHaveBeenCalledWith(
+        expectedUpload("/path/to/video.mp4", 1024 * 1024, {
           snippet: {
             title: "Scheduled Video",
             description: "This video is scheduled",
@@ -544,15 +580,13 @@ describe("YouTubePublisher", () => {
             categoryId: undefined,
           },
           status: {
+            // Scheduling forces private until publishAt, regardless of the requested privacy.
             privacyStatus: "private",
             publishAt: "2024-12-25T12:00:00.000Z",
             selfDeclaredMadeForKids: false,
           },
-        },
-        media: {
-          body: "mock-stream",
-        },
-      });
+        }),
+      );
       expect(result).toEqual({ id: "scheduled_video_123", error: PostErrorType.NO_ERROR });
     });
 
@@ -579,15 +613,12 @@ describe("YouTubePublisher", () => {
         },
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "regular_video_123" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "regular_video_123" });
 
       const result = await publisher.postContent(content, optionsWithPrivacy);
 
-      expect(mockYouTubeClient.videos.insert).toHaveBeenCalledWith({
-        part: ["snippet", "status"],
-        requestBody: {
+      expect(mockedUpload).toHaveBeenCalledWith(
+        expectedUpload("/path/to/video.mp4", 1024 * 1024, {
           snippet: {
             title: "Regular Video",
             description: "Regular video",
@@ -599,11 +630,8 @@ describe("YouTubePublisher", () => {
             publishAt: undefined,
             selfDeclaredMadeForKids: false,
           },
-        },
-        media: {
-          body: "mock-stream",
-        },
-      });
+        }),
+      );
       expect(result).toEqual({ id: "regular_video_123", error: PostErrorType.NO_ERROR });
     });
   });
@@ -675,9 +703,7 @@ describe("YouTubePublisher", () => {
         ],
       };
 
-      mockYouTubeClient.videos.insert.mockResolvedValue({
-        data: { id: "video_id_post" },
-      });
+      mockedUpload.mockResolvedValue({ videoId: "video_id_post" });
 
       const result = await publisher.post(content, options);
 

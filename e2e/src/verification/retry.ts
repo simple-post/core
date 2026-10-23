@@ -70,7 +70,8 @@ export function isVerificationLoginUrl(value: string): boolean {
         url.pathname,
       ) ||
       /^\/i\/flow\/login(?:\/|$)/i.test(url.pathname) ||
-      (url.hostname === "accounts.google.com" && /\/ServiceLogin|\/v3\/signin/i.test(url.pathname))
+      (url.hostname === "accounts.google.com" && /\/ServiceLogin|\/v3\/signin/i.test(url.pathname)) ||
+      (url.hostname === "www.google.com" && /^\/sorry(?:\/|$)/i.test(url.pathname))
     );
   } catch {
     return false;

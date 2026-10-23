@@ -61,7 +61,8 @@ export type YouTubeVerification = {
     description: string;
     privacyStatus: "private";
     fileSize: number;
-    durationMs: number;
+    /** Omitted when Google does not return the source duration. */
+    durationMs?: number;
     contentDuration: string;
     widthPixels: number;
     heightPixels: number;
@@ -71,6 +72,8 @@ export type YouTubeVerification = {
 
 // These are the original generated fixture properties, not transcoded player
 // dimensions. Owner-only fileDetails must describe the uploaded source file.
+// Google sometimes omits source duration. Require processed duration in all
+// cases, plus exact source bytes and dimensions; validate source duration when supplied.
 async function verifyPrivateMedia(
   video: YouTubeVideo,
   s: Materialized,
@@ -95,12 +98,18 @@ async function verifyPrivateMedia(
   expect(file, "Owner-only source file details are required").toBeDefined();
   expect(file?.fileSize, "Original uploaded byte count must be present").toMatch(/^[1-9]\d*$/);
   expect(Number(file!.fileSize), "Original uploaded byte count must match fixture").toBe(fixture.size);
-  expect(file?.durationMs, "Original source duration must be present").toMatch(/^[1-9]\d*$/);
-  const durationMs = Number(file!.durationMs);
-  expect(
-    Math.abs(durationMs - fixture.durationSec! * 1000),
-    "Original source duration must match fixture within 100ms",
-  ).toBeLessThanOrEqual(100);
+  expect(fixture.durationSec, "Video fixture must declare its source duration").toBeGreaterThan(0);
+  let durationMs: number | undefined;
+  if (file!.durationMs !== undefined) {
+    expect(file!.durationMs, "Supplied original source duration must be a positive integer string").toMatch(
+      /^[1-9]\d*$/,
+    );
+    durationMs = Number(file!.durationMs);
+    expect(
+      Math.abs(durationMs - fixture.durationSec! * 1000),
+      "Original source duration must match fixture within 100ms",
+    ).toBeLessThanOrEqual(100);
+  }
   expect(file?.videoStreams, "Exactly one original video stream is required").toHaveLength(1);
   const stream = file!.videoStreams![0];
   expect(stream.widthPixels, "Original video width").toBe(720);
@@ -110,7 +119,8 @@ async function verifyPrivateMedia(
   const match = duration!.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(\d+(?:\.\d+)?)S$/)!;
   const seconds = Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3]);
   // Production returns PT5S for our exact 4000ms source. Keep the owner-only
-  // source duration strict above; allow at most one second of processed padding.
+  // source duration strict above when supplied; allow at most one second of
+  // processed padding. This check runs whether or not durationMs was emitted.
   expect(seconds, "Processed duration cannot truncate the source").toBeGreaterThanOrEqual(fixture.durationSec! - 0.1);
   expect(seconds, "Processed duration must stay within one second of the source").toBeLessThanOrEqual(
     fixture.durationSec! + 1,
@@ -125,7 +135,8 @@ async function verifyPrivateMedia(
     description: video.snippet.description,
     privacyStatus: "private" as const,
     fileSize: Number(file!.fileSize),
-    durationMs,
+    // Only record a source duration Google actually returned.
+    ...(durationMs === undefined ? {} : { durationMs }),
     contentDuration: duration!,
     widthPixels: stream.widthPixels!,
     heightPixels: stream.heightPixels!,

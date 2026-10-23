@@ -61,6 +61,7 @@ test("login detection does not classify profile/post readiness as authentication
     "https://tiktok.com/passport/web/login",
     "https://instagram.com/accounts/login/",
     "https://facebook.com/checkpoint/",
+    "https://www.google.com/sorry/index?continue=https://www.youtube.com/watch?v=123",
   ])
     expect(isVerificationLoginUrl(url)).toBe(true);
   for (const url of ["https://x.com/testuser", "https://x.com/testuser/status/123", "https://tiktok.com/@testuser"])

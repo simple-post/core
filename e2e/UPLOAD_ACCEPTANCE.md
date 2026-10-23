@@ -2,8 +2,8 @@
 
 The owner approved production execution after merging and deploying the combined
 branch. See [the current results](UPLOAD_ACCEPTANCE_RESULTS.md) for completed
-offline checks, the deployed revision, and live readiness. No live case has been
-recorded as passed yet.
+offline checks, the deployed revision, and live outcomes. Fourteen of nineteen
+cases have complete verification; the results document records the remaining blocks.
 
 ## Branch and scope
 
@@ -51,11 +51,10 @@ changing the local CLI path alone cannot exercise this feature branch.
 An ignored review configuration is prepared at
 `e2e/.local/uploads/config.local.json`. It preserves the existing test-account
 identities and observer-session paths, points contract checks at this checkout,
-and retains the existing run-history directory. Its target is deliberately the
-reserved `https://upload-acceptance.invalid` origin. Before an approved run, point
-it at a deployment built from this branch, record that deployment's revision,
-and verify the authenticated test user and account identities there. Nothing has
-been deployed or signed into as part of preparation.
+and retains the existing run-history directory. After the owner's approval it was
+pointed at production with the deployed revision recorded. The authenticated test
+user and all ten social identities were checked before the live run. Credentials
+and session files remain ignored.
 
 Existing TikTok challenges, expired sessions, provider quotas, or unavailable
 owner readback must remain reported as blocked/inconclusive; they are not passes.
@@ -69,8 +68,7 @@ yarn e2e:upload-fixtures
 yarn e2e:plan --profile uploads --config .local/uploads/config.local.json
 ```
 
-After review, approval, and feature-deployment configuration, the intended live
-command is:
+The approved live command is:
 
 ```sh
 yarn e2e:live --profile uploads --interface ui --config .local/uploads/config.local.json --headed --run-id uploads-acceptance-YYYYMMDD
@@ -86,7 +84,7 @@ owner API media proof and exact private-video-page visit.
 
 The combined branch retains the existing mocked regressions for retry exhaustion,
 lost acknowledgments, same-session YouTube recovery, credential failures, and
-secret redaction. They have not been rerun during this preparation.
+secret redaction. The SDK suite passed all 916 tests before live execution.
 
 A controlled YouTube lost-response experiment should be reviewed separately
 before execution. It needs a way to discard one transfer acknowledgment within

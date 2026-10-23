@@ -143,15 +143,19 @@ export function selection(config?: LiveConfig, env: NodeJS.ProcessEnv = process.
   const profile = env.E2E_PROFILE ?? "smoke";
   const file = env.E2E_CONFIG ?? "config.local.json";
   config ??= existsSync(file) ? loadConfig(file) : undefined;
-  if (!["smoke", "full", "regression", "lifecycle", "negative", "validation"].includes(profile))
+  if (!["smoke", "full", "regression", "lifecycle", "negative", "validation", "uploads"].includes(profile))
     throw new Error(`Unknown E2E_PROFILE: ${profile}`);
+  // The uploads profile exercises the hosted browser upload path by default;
+  // an explicit E2E_INTERFACES / --interface selection still overrides it.
+  const defaultInterfaces: readonly (typeof interfaces)[number][] =
+    profile === "uploads" ? ["ui"] : (config?.defaultInterfaces ?? ["mcp", "cli-app", "ui"]);
   return {
     platforms: parse(
       env.E2E_PLATFORMS,
       platforms,
       config ? (Object.keys(config.accounts) as (typeof platforms)[number][]) : platforms,
     ),
-    interfaces: parse(env.E2E_INTERFACES, interfaces, config?.defaultInterfaces ?? ["mcp", "cli-app", "ui"]),
+    interfaces: parse(env.E2E_INTERFACES, interfaces, defaultInterfaces),
     profile,
     filter: env.E2E_SCENARIO,
   };

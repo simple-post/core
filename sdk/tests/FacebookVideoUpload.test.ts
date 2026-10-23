@@ -211,6 +211,169 @@ it("bounds processing waits and preserves the accepted ID for reconciliation", a
   expect(post).toHaveBeenCalledTimes(1);
 });
 
+describe("bounded preparation recovery", () => {
+  const finishCalls = (): URLSearchParams[] =>
+    post.mock.calls
+      .map(([, body]: [string, URLSearchParams | FormData]) => body)
+      .filter(
+        (body): body is URLSearchParams => body instanceof URLSearchParams && body.get("upload_phase") === "finish",
+      );
+  let streams: fs.ReadStream[];
+  beforeEach(() => {
+    jest.useFakeTimers();
+    streams = [];
+    const original = fs.createReadStream;
+    jest.spyOn(fs, "createReadStream").mockImplementation((...args) => {
+      const stream = original(...args);
+      streams.push(stream);
+      return stream;
+    });
+  });
+
+  it("resends a chunk Meta explicitly rejected as transient on the same session and offset", async () => {
+    start();
+    post
+      .mockRejectedValueOnce({ response: { status: 400, data: { error: { code: 2, is_transient: true } } } })
+      .mockRejectedValueOnce({ response: { status: 500, data: { error: { code: 1, is_transient: true } } } })
+      .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "10" } })
+      .mockResolvedValueOnce({ data: { success: true } });
+    const result = uploader.publish({ filePath });
+    await jest.runAllTimersAsync();
+    expect(await result).toBe("video");
+    expect(post).toHaveBeenCalledTimes(5);
+    expect(streams).toHaveLength(3);
+    expect(streams.every((stream) => stream.destroyed)).toBe(true);
+    for (const [, options] of jest.mocked(fs.createReadStream).mock.calls) {
+      expect(options).toEqual({ start: 0, end: 9 });
+    }
+    expect(finishCalls()).toHaveLength(1);
+    expect(finishCalls()[0].get("upload_session_id")).toBe("session");
+  });
+
+  it("restarts only the preparation session after an ambiguous later-chunk failure", async () => {
+    fs.writeFileSync(filePath, Buffer.alloc(20));
+    post
+      .mockResolvedValueOnce({
+        data: { video_id: "video", upload_session_id: "session", start_offset: "0", end_offset: "10" },
+      })
+      .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "20" } })
+      .mockRejectedValueOnce({ code: "ECONNRESET", message: "socket hang up" })
+      .mockResolvedValueOnce({
+        data: { video_id: "video-2", upload_session_id: "session-2", start_offset: "0", end_offset: "10" },
+      })
+      .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "20" } })
+      .mockResolvedValueOnce({ data: { start_offset: "20", end_offset: "20" } })
+      .mockResolvedValueOnce({ data: { success: true } });
+    const result = uploader.publish({ filePath });
+    await jest.runAllTimersAsync();
+    expect(await result).toBe("video-2");
+    expect(post).toHaveBeenCalledTimes(7);
+    expect(finishCalls()).toHaveLength(1);
+    expect(finishCalls()[0].get("upload_session_id")).toBe("session-2");
+    expect(streams.every((stream) => stream.destroyed)).toBe(true);
+  });
+
+  it("gives up after bounded chunk attempts without ever finishing", async () => {
+    start();
+    post.mockRejectedValue({ response: { status: 400, data: { error: { code: 2, is_transient: true } } } });
+    const result = uploader.publish({ filePath }).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({
+      errorType: PostErrorType.PUBLISH_REJECTED,
+      details: { stage: "transfer", videoId: "video", httpStatus: 400, code: 2 },
+    });
+    expect(post).toHaveBeenCalledTimes(4);
+    expect(finishCalls()).toHaveLength(0);
+  });
+
+  it("treats a bare proxy 502 after an accepted chunk as ambiguous and starts a fresh session", async () => {
+    fs.writeFileSync(filePath, Buffer.alloc(20));
+    post
+      .mockResolvedValueOnce({
+        data: { video_id: "video", upload_session_id: "session", start_offset: "0", end_offset: "10" },
+      })
+      .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "20" } })
+      .mockRejectedValueOnce({ response: { status: 502, data: "<html>Bad Gateway</html>" } })
+      .mockResolvedValueOnce({
+        data: { video_id: "video-2", upload_session_id: "session-2", start_offset: "0", end_offset: "10" },
+      })
+      .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "20" } })
+      .mockResolvedValueOnce({ data: { start_offset: "20", end_offset: "20" } })
+      .mockResolvedValueOnce({ data: { success: true } });
+    const result = uploader.publish({ filePath });
+    await jest.runAllTimersAsync();
+    expect(await result).toBe("video-2");
+    // The call after the 502 is a new start phase, not a resend of offset 10 on the old session.
+    const afterFailure = post.mock.calls[3][1] as URLSearchParams;
+    expect(afterFailure).toBeInstanceOf(URLSearchParams);
+    expect(afterFailure.get("upload_phase")).toBe("start");
+    expect(post).toHaveBeenCalledTimes(7);
+    expect(finishCalls()).toHaveLength(1);
+    expect(finishCalls()[0].get("upload_session_id")).toBe("session-2");
+  });
+
+  it("stops after three preparation sessions when every later chunk fails ambiguously", async () => {
+    fs.writeFileSync(filePath, Buffer.alloc(20));
+    let sessions = 0;
+    post.mockImplementation(async (_url: string, body: URLSearchParams | FormData) => {
+      if (body instanceof URLSearchParams) {
+        expect(body.get("upload_phase")).toBe("start");
+        sessions++;
+        return {
+          data: {
+            video_id: `video-${sessions}`,
+            upload_session_id: `s${sessions}`,
+            start_offset: "0",
+            end_offset: "10",
+          },
+        };
+      }
+      if (post.mock.calls.length % 3 === 2) return { data: { start_offset: "10", end_offset: "20" } };
+      throw { response: { status: 503, data: "" } };
+    });
+    const result = uploader.publish({ filePath }).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({
+      errorType: PostErrorType.PUBLISH_REJECTED,
+      details: { stage: "transfer", videoId: "video-3", httpStatus: 503 },
+    });
+    expect(sessions).toBe(3);
+    expect(finishCalls()).toHaveLength(0);
+  });
+
+  it.each([400, 413])("does not retry a definite HTTP %i chunk rejection", async (status) => {
+    start();
+    post.mockRejectedValueOnce({ response: { status, data: { error: { code: 100 } } } });
+    const result = uploader.publish({ filePath }).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({ errorType: PostErrorType.PUBLISH_REJECTED, details: { stage: "transfer" } });
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a transient status read for the same accepted video", async () => {
+    post.mockResolvedValueOnce({ data: { id: "video" } });
+    get.mockRejectedValueOnce({ response: { status: 503 } });
+    const result = uploader.publish({ filePath, fileUrl: url });
+    await jest.runAllTimersAsync();
+    expect(await result).toBe("video");
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.map(([route]) => route)).toEqual(["/video", "/video"]);
+  });
+
+  it("keeps exhausted status reads as an uncertain outcome with the video ID", async () => {
+    post.mockResolvedValueOnce({ data: { id: "video" } });
+    get.mockRejectedValue({ response: { status: 503 } });
+    const result = uploader.publish({ filePath, fileUrl: url }).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({
+      errorType: PostErrorType.API_ERROR,
+      details: { stage: "processing", videoId: "video", httpStatus: 503 },
+    });
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});
+
 it("does not turn a status-read credential failure into a safe retry", async () => {
   post.mockResolvedValueOnce({ data: { id: "video" } });
   get.mockRejectedValueOnce({ response: { status: 401, data: { error: { code: 190 } } } });

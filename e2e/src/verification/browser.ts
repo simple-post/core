@@ -1,4 +1,4 @@
-import { isVideoFixture } from "../media.js";
+import { isVideoFixture, fixtureDurationSec } from "../media.js";
 import {
   expect as playwrightExpect,
   type Browser,
@@ -586,6 +586,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
   }
   if (videoCount && !webAlbum) {
     const videos = root.locator(cfg.video);
+    const videoKeys = s.media.filter((key) => isVideoFixture(key));
     await verificationAssertion("Every requested video must be present", () =>
       verificationExpect()(videos, "Every requested video must be present").toHaveCount(videoCount),
     );
@@ -599,10 +600,11 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
           timeout: 30_000,
         },
       ).toBe(true);
+      // Each generated fixture has a known source duration (4 s originals, 30 s upload fixture).
       verificationExpect()(
         await video.evaluate((n) => (n as HTMLVideoElement).duration),
         "Fixture video duration",
-      ).toBeCloseTo(4, 0);
+      ).toBeCloseTo(fixtureDurationSec(videoKeys[index])!, 0);
     }
   }
   const required = {

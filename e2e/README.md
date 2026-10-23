@@ -201,7 +201,7 @@ Setup saves defaults for the interfaces you authenticated. Explicitly select int
 yarn e2e:live --platform tiktok --profile regression --interface mcp,cli-app,cli-local,ui
 ```
 
-Profiles are `smoke`, `full`, `regression`, `lifecycle`, and `negative`; `--all` is shorthand for `--profile full`. `--scenario` filters by scenario ID substring. `--platform` and `--interface` accept comma-separated names or repeated flags. `--config` selects another test configuration. `yarn e2e:live --help` and `yarn e2e:plan --help` list the options. Existing `E2E_*` variables remain supported; command-line options override matching variables. Missing accounts, expired sessions, permission gaps, and unmet field verifiers fail visibly. Unsupported interface combinations appear separately in the coverage matrix.
+Profiles are `smoke`, `full`, `regression`, `lifecycle`, `negative`, `validation`, and `uploads`; `--all` is shorthand for `--profile full`. The `uploads` profile is a separate large-original group described below; it is not part of `smoke` or `full`. `--scenario` filters by scenario ID substring. `--platform` and `--interface` accept comma-separated names or repeated flags. `--config` selects another test configuration. `yarn e2e:live --help` and `yarn e2e:plan --help` list the options. Existing `E2E_*` variables remain supported; command-line options override matching variables. Missing accounts, expired sessions, permission gaps, and unmet field verifiers fail visibly. Unsupported interface combinations appear separately in the coverage matrix.
 
 ### Parallel platform lanes and faster verification
 
@@ -296,3 +296,22 @@ yarn e2e:live --platform instagram --interface ui --all --scenario '=instagram.f
 Use `--scenario fit-` to select this whole group (or combine it with `--platform telegram`, etc.). Do not start the full group just to list coverage. The associated offline tests cover the real CLI subprocess upload bytes, MCP transport arguments, SDK fixture validity and rejection of incorrect fitting evidence; those tests have also **not been run yet**.
 
 This group does not claim live coverage for EXIF rotation, transparent/animated input flattening, account-specific override/thread image fitting, video covers, or UI image replacement. Existing application tests cover portions of those behaviors; they need separate live scenarios before being counted here.
+
+## Upload acceptance profile (prepared; not run)
+
+`--profile uploads` selects one image and one video per native video platform, with YouTube video only and Forem excluded: **19 cases with one interface**. It defaults to the browser UI, independently of the saved default interfaces. Explicit `--interface` overrides still work and increase the posting budget accordingly. This group is separate from `smoke` and `full`.
+
+The cases reuse the normal account checks, posting path, budgets, journals, resumption, screenshots, timings, and platform verifiers. YouTube uses private visibility with the existing owner readback. Video duration checks use each fixture's metadata, preserving the original four-second checks while supporting the new 30-second file. These are prepared scenarios, not verified passes.
+
+Generate the larger originals locally and inspect the plan before running:
+
+```sh
+yarn e2e:upload-fixtures
+yarn e2e:plan --profile uploads
+```
+
+The generator writes an ignored 1080×1080 JPEG (0.75–1.9 MiB), a 30-second 720×1280 H.264/AAC MP4 at approximately 8 Mbps (20–45 MiB), and `fixtures/generated/upload-manifest.json` with byte counts, hashes, and media metadata. The size limits keep the files within the SDK's Bluesky image and Telegram video limits. It uses sharp and ffmpeg/ffprobe locally, checks its output, and makes no network calls. Ordinary fixture generation does not require these optional files. Their offline contract cases report an explicit skip if the files are absent; live preflight still requires the selected files.
+
+**The deployment under test must be built from this feature branch.** UI, MCP, and CLI-app publishing execute the hosted SDK. Pointing `config.cliCommand` at a local checkout alone cannot verify the hosted changes. Existing Edmund accounts are configured as hosted accounts, without CLI-local credentials.
+
+See [the upload acceptance review](UPLOAD_ACCEPTANCE.md) for the exact scope, prepared private configuration, deployment prerequisite, and intended live command. Live execution is held for user review. A successful upload checks acceptance and processing; recovery under an injected failure is a separate experiment.

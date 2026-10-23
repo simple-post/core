@@ -28,7 +28,9 @@ export type MediaKey =
   | "squareVideo"
   | "shortVideo"
   | "slowVideo"
-  | "disguisedVideo";
+  | "disguisedVideo"
+  | "uploadImage"
+  | "uploadVideo";
 export interface Scenario {
   id: string;
   platform: Platform;

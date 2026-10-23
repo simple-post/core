@@ -82,7 +82,7 @@ async function verifyPrivateMedia(
   expect(account.resources.channelId, "Private video needs the discovered owner channel ID").toMatch(/^UC[\w-]+$/);
   expect(s.expectedTitle, "Private video needs an exact expected title").toBeTruthy();
   expect(s.media, "YouTube must contain exactly one source video").toHaveLength(1);
-  expect(["video", "silentVideo"]).toContain(s.media[0]);
+  expect(["video", "silentVideo", "uploadVideo"]).toContain(s.media[0]);
   expect(s.expectedFields.privacyStatus, "Private proof cannot substitute for public/unlisted visibility").toBe(
     "private",
   );

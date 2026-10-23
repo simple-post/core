@@ -1,4 +1,4 @@
-import { isVideoFixture } from "../media.js";
+import { isVideoFixture, fixtureDurationSec } from "../media.js";
 import type { Account } from "../config.js";
 import { expect, type Page, type Locator } from "@playwright/test";
 import { verifyFixtureImage } from "./image.js";
@@ -195,7 +195,7 @@ export async function verifyTelegramWebAlbum(
       verificationExpect(budget)(
         await video.evaluate((n) => (n as HTMLVideoElement).duration),
         `Album video ${index + 1} duration`,
-      ).toBeCloseTo(4, 0);
+      ).toBeCloseTo(fixtureDurationSec(key)!, 0);
       const start = await video.evaluate((n) => (n as HTMLVideoElement).currentTime);
       await pollFor(budget)(
         () => video.evaluate((n, start) => Math.abs((n as HTMLVideoElement).currentTime - start), start),

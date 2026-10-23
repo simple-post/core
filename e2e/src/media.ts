@@ -19,9 +19,22 @@ export const filenames: Record<MediaKey, string> = {
   webp: "image.webp",
   video: "video.mp4",
   silentVideo: "silent-video.mp4",
+  uploadImage: "upload-image.jpg",
+  uploadVideo: "upload-video.mp4",
 };
+// Large upload-acceptance originals are generated locally by
+// scripts/upload-fixtures.ts, never committed, and only required by the
+// `uploads` profile. Ordinary fixture generation and its manifest skip them.
+export const optionalFixtureKeys: readonly MediaKey[] = ["uploadImage", "uploadVideo"];
 export function isVideoFixture(key: MediaKey): boolean {
   return filenames[key].endsWith(".mp4");
+}
+/** Source duration of a generated video fixture; undefined for images. */
+export function fixtureDurationSec(key: MediaKey): number | undefined {
+  if (!isVideoFixture(key)) return undefined;
+  if (key === "shortVideo" || key === "disguisedVideo") return 1;
+  if (key === "uploadVideo") return 30;
+  return 4;
 }
 type LocalMetadata = Readonly<{ size: number; sha256: string }>;
 // One entry per resolved path: no URLs, account data, or mutable MediaFile objects.
@@ -79,7 +92,7 @@ export async function mediaFiles(config: LiveConfig, keys: readonly MediaKey[]):
             }
           : {}),
         sha256: metadata.sha256,
-        ...(filename.endsWith(".mp4") ? { durationSec: key === "shortVideo" || key === "disguisedVideo" ? 1 : 4 } : {}),
+        ...(isVideoFixture(key) ? { durationSec: fixtureDurationSec(key) } : {}),
       };
     }),
   );

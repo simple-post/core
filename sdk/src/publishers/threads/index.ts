@@ -5,6 +5,7 @@ import { THREADS_VALIDATION_RULES } from "./validation";
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
+import { isTransientError, withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
@@ -22,13 +23,15 @@ import type { AxiosInstance } from "axios";
 
 const THREADS_API_VERSION = "v1.0";
 const PROCESSING_POLL_INTERVAL = 2000;
-// Video containers can take over a minute to finish processing. Keep polling
-// long enough for the provider to complete instead of turning a slow success
-// into an ambiguous publish outcome.
-const PROCESSING_MAX_ATTEMPTS = 60;
+// Video containers can take a while to finish processing. Poll for up to two
+// minutes; neither a status read nor a poll sleep outlives this deadline.
+const PROCESSING_DEADLINE_MS = 2 * 60_000;
 const PROACTIVE_REFRESH_DAYS = 7;
 // Retry only an explicit missing-container rejection, always using the same ID.
 const PUBLISH_PROPAGATION_DELAYS = [5000, 10_000, 20_000];
+// Container creation and status reads never publish, so repeating them cannot
+// duplicate a post. The budget caps such retries per post across every stage.
+const PREPARATION_RETRY_BUDGET = 6;
 
 interface ThreadsAxiosErrorLike {
   response?: {
@@ -92,6 +95,7 @@ export class ThreadsPublisher extends Publisher {
   private s3MediaUploader: S3MediaUploader | null = null;
   private s3TempFileKeys: string[] = [];
   private refreshedCredentials?: { accessToken: string; expiresAt: number };
+  private preparationRetriesLeft = PREPARATION_RETRY_BUDGET;
 
   constructor(options?: PostOptionsWithCredentials) {
     super("Threads", options, "threads");
@@ -204,42 +208,108 @@ export class ThreadsPublisher extends Publisher {
     }
   }
 
+  /**
+   * Retry predicate for requests made strictly before threads_publish. Only
+   * known transient transport/HTTP failures and Meta's explicit is_transient
+   * flag qualify; PostErrors (credentials, validation) and ordinary provider
+   * rejections never do. The shared per-post budget caps the total.
+   */
+  private retryPreparation(error: unknown): boolean {
+    if (error instanceof PostError) return false;
+    const providerError = (error as ThreadsAxiosErrorLike | undefined)?.response?.data?.error as
+      | { is_transient?: unknown }
+      | undefined;
+    const transient = isTransientError(error) || providerError?.is_transient === true;
+    if (!transient || this.preparationRetriesLeft <= 0) return false;
+    this.preparationRetriesLeft -= 1;
+    return true;
+  }
+
+  /**
+   * Right after creation a container may not be queryable yet: Threads answers
+   * the status read with its documented "requested resource does not exist"
+   * rejection (code 24, subcode 4279009). That is a propagation delay for an ID
+   * we just received, not a permanent failure, so the same container keeps
+   * being polled until the processing deadline. Only the exact codes qualify;
+   * a message-only 400 is a permanent rejection and is never polled again.
+   */
+  private isContainerNotVisibleYet(error: unknown): boolean {
+    const err = error as ThreadsAxiosErrorLike;
+    const providerError = err?.response?.data?.error;
+    return err?.response?.status === 400 && providerError?.code === 24 && providerError.error_subcode === 4_279_009;
+  }
+
+  /**
+   * Polls one container until Threads reports it FINISHED. Transient status
+   * reads are repeated against the same container within the overall deadline;
+   * permanent failures (auth, quota, invalid requests) propagate immediately,
+   * and terminal processing states fail fast. Nothing is created again here.
+   */
   private async waitForMediaReady(containerId: string): Promise<void> {
-    for (let attempt = 0; attempt < PROCESSING_MAX_ATTEMPTS; attempt += 1) {
+    const deadline = Date.now() + PROCESSING_DEADLINE_MS;
+    const sleep = () =>
+      new Promise((resolve) =>
+        setTimeout(resolve, Math.min(PROCESSING_POLL_INTERVAL, Math.max(0, deadline - Date.now()))),
+      );
+    while (Date.now() < deadline) {
+      let response: { data?: { status?: string } };
       try {
-        const response = await this.withTokenRefresh(() =>
-          this.client.get(`/${containerId}`, {
-            params: {
-              fields: "status",
-              access_token: this.accessToken,
-            },
-          }),
+        response = await withTransientRetry(
+          () =>
+            this.withTokenRefresh(() => {
+              if (Date.now() >= deadline) {
+                throw new PostError(PostErrorType.PREPARATION_ERROR, "Threads media processing timed out.");
+              }
+              return this.client.get(`/${containerId}`, {
+                params: {
+                  fields: "status",
+                  access_token: this.accessToken,
+                },
+                // Recomputed per attempt so the read after a token refresh is bounded too.
+                timeout: Math.min(30_000, deadline - Date.now()),
+              });
+            }),
+          { deadline, shouldRetry: (error) => this.retryPreparation(error) },
         );
-
-        const status = response.data?.status;
-        if (status === "FINISHED" || status === "READY") {
-          return;
-        }
-
-        if (status === "ERROR" || status === "EXPIRED") {
-          throw new PostError(
-            PostErrorType.API_ERROR,
-            `Threads media container ${containerId} creation failed.`,
-            response.data,
-          );
-        }
-        // "IN_PROGRESS", "PUBLISHED", or no status — keep polling.
       } catch (error: unknown) {
-        // Right after creation the container may not yet be queryable
-        // (Threads returns "The requested resource does not exist"). Treat
-        // any non-final error as transient and keep polling.
-        if (error instanceof PostError) throw error;
+        if (!this.isContainerNotVisibleYet(error)) throw error;
+        this.logger.warn(`Threads container ${containerId} is not queryable yet; polling again.`);
+        await sleep();
+        continue;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL));
+      const status = response.data?.status;
+      if (status === "FINISHED" || status === "READY") {
+        return;
+      }
+
+      if (status === "ERROR" || status === "EXPIRED") {
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          `Threads media container ${containerId} creation failed.`,
+          response.data,
+        );
+      }
+      // "IN_PROGRESS", "PUBLISHED", or no status — keep polling.
+
+      await sleep();
     }
 
-    throw new PostError(PostErrorType.API_ERROR, "Threads media processing timed out.");
+    throw new PostError(PostErrorType.PREPARATION_ERROR, "Threads media processing timed out.");
+  }
+
+  /** Container creation is not publication; a lost response leaves at most an orphaned container that expires. */
+  private async createContainer(threadsUserId: string, payload: Record<string, unknown>) {
+    return withTransientRetry(
+      () =>
+        this.withTokenRefresh(() =>
+          this.client.post(`/${threadsUserId}/threads`, {
+            ...payload,
+            access_token: this.accessToken,
+          }),
+        ),
+      { shouldRetry: (error) => this.retryPreparation(error) },
+    );
   }
 
   private async publishContainer(threadsUserId: string, creationId: string) {
@@ -362,6 +432,7 @@ export class ThreadsPublisher extends Publisher {
 
     const media = content.media?.[0];
     const context: ThreadsPublishContext = { stage: "resolve_user", childContainerIds: [] };
+    this.preparationRetriesLeft = PREPARATION_RETRY_BUDGET;
 
     try {
       // Resolve user ID from /me - the stored ID may not match what the publish API expects
@@ -400,16 +471,15 @@ export class ThreadsPublisher extends Publisher {
           context.stage = "resolve_media";
           const resolved = await this.resolveMedia(item);
           context.stage = "create_child";
-          const child = await this.withTokenRefresh(() =>
-            this.client.post(`/${threadsUserId}/threads`, {
-              access_token: this.accessToken,
-              media_type: resolved.type,
-              is_carousel_item: true,
-              ...(resolved.type === "IMAGE" ? { image_url: resolved.url } : { video_url: resolved.url }),
-            }),
-          );
+          const child = await this.createContainer(threadsUserId, {
+            media_type: resolved.type,
+            is_carousel_item: true,
+            ...(resolved.type === "IMAGE" ? { image_url: resolved.url } : { video_url: resolved.url }),
+          });
           const childId = String(child.data?.id ?? "");
-          if (!childId) throw new PostError(PostErrorType.API_ERROR, "Threads API did not return a carousel child id.");
+          if (!childId) {
+            throw new PostError(PostErrorType.PREPARATION_ERROR, "Threads API did not return a carousel child id.");
+          }
           children.push(childId);
           context.stage = "wait_child";
           await this.waitForMediaReady(childId);
@@ -432,16 +502,11 @@ export class ThreadsPublisher extends Publisher {
       }
 
       context.stage = "create_parent";
-      const createResponse = await this.withTokenRefresh(() =>
-        this.client.post(`/${threadsUserId}/threads`, {
-          ...basePayload,
-          access_token: this.accessToken,
-        }),
-      );
+      const createResponse = await this.createContainer(threadsUserId, basePayload);
       const creationId = String(createResponse.data?.id || createResponse.data?.creation_id || "");
 
       if (!creationId) {
-        throw new PostError(PostErrorType.API_ERROR, "Threads API did not return a creation id.");
+        throw new PostError(PostErrorType.PREPARATION_ERROR, "Threads API did not return a creation id.");
       }
 
       this.logger.info(`Threads container created — creationId: ${creationId}, userId: ${threadsUserId}`);
@@ -527,11 +592,16 @@ export class ThreadsPublisher extends Publisher {
         failure instanceof PostError
           ? failure.message
           : `Failed to post to Threads: ${err?.response?.data?.error?.message || err?.message || "Unknown error"}`;
-      const enriched = new PostError(
-        failure instanceof PostError ? failure.errorType : PostErrorType.API_ERROR,
-        this.sanitizeDiagnostic(message) as string,
-        details,
-      );
+      // Until threads_publish has been sent nothing can have been published, so
+      // an unclassified failure (including an API_ERROR wrapped by a helper such
+      // as the S3 uploader) is a safe-to-retry preparation error. Conclusive
+      // types (credentials, validation, rate limit, publish rejection) are kept.
+      // Once the publish request is out, an unknown failure stays an uncertain API_ERROR.
+      let errorType = failure instanceof PostError ? failure.errorType : PostErrorType.API_ERROR;
+      if (errorType === PostErrorType.API_ERROR && context.stage !== "publish") {
+        errorType = PostErrorType.PREPARATION_ERROR;
+      }
+      const enriched = new PostError(errorType, this.sanitizeDiagnostic(message) as string, details);
       if (!(failure instanceof PostError)) this.logger.error(enriched.message);
       throw enriched;
     } finally {

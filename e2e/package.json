@@ -11,6 +11,7 @@
     "plan": "node --import tsx scripts/plan.ts",
     "auth": "node --import tsx scripts/auth.ts",
     "fixtures": "node --import tsx scripts/fixtures.ts",
+    "upload-fixtures": "node --import tsx scripts/upload-fixtures.ts",
     "reliability": "node --import tsx scripts/reliability.ts",
     "mcp-auth": "node --import tsx scripts/mcp-auth.ts",
     "configure": "node --import tsx scripts/setup.ts",

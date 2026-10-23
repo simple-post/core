@@ -3,13 +3,24 @@ import { applicationSdk } from "../src/app-sdk.js";
 import type { Post, PostOptions } from "@simple-post/sdk";
 import { catalog, materialize } from "../src/catalog.js";
 import { account, config } from "./helpers.js";
-import { mediaFiles } from "../src/media.js";
+import { mediaFiles, filenames, optionalFixtureKeys } from "../src/media.js";
+import { existsSync } from "node:fs";
+import path from "node:path";
 const mediaCache = new Map();
 const { validateContentForPlatform, validatePostMedia } = applicationSdk();
 for (const scenario of catalog.filter((c) => c.interfaces.length > 0 && !c.expectedError && !c.unsupportedReason)) {
   test(`SDK accepts live fixture contract: ${scenario.id}`, async () => {
     const cfg = config(),
       s = materialize(scenario, account(), "mcp", "contract", cfg.mediaBaseUrl);
+    // The large upload-acceptance originals are generated locally and never
+    // committed. Their contract is checked only where they exist.
+    const absent = s.media.filter(
+      (key) => optionalFixtureKeys.includes(key) && !existsSync(path.join(cfg.fixtureDir, filenames[key])),
+    );
+    test.skip(
+      absent.length > 0,
+      `Optional upload fixture not generated locally (yarn e2e:upload-fixtures): ${absent.join(", ")}`,
+    );
     const files = await mediaFiles(cfg, s.media);
     if (s.imageFit) {
       // Fitting cases deliberately start invalid. Validate the prepared bytes,

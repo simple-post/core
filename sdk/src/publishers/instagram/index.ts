@@ -5,6 +5,7 @@ import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES } from "./validat
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaUrl } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
+import { isTransientError, withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
@@ -15,23 +16,48 @@ import type { PlatformValidationRules, ValidationResult } from "../../types/vali
 const INSTAGRAM_API_VERSION = "v25.0";
 const FACEBOOK_GRAPH_API_VERSION = "v25.0";
 const PROCESSING_POLL_INTERVAL = 3000;
+const PROCESSING_DEADLINE_MS = 600_000;
 const PROACTIVE_REFRESH_DAYS = 7;
 // Retry only Meta's explicit missing-media rejection, always using the same container ID.
 const PUBLISH_PROPAGATION_DELAYS = [5000, 10_000, 20_000];
+// Staging, container creation and status reads never publish, so repeating them
+// cannot duplicate a post. The budget caps the total number of such retries per
+// post across every child, the carousel container and every status read.
+const PREPARATION_RETRY_BUDGET = 6;
+// Provider text in messages and diagnostics is redacted and then cut to this length.
+const MAX_DIAGNOSTIC_TEXT_LENGTH = 300;
+
+type InstagramPhase = "stage_media" | "create_media" | "create_carousel" | "processing" | "publish";
+
+interface InstagramProviderError {
+  code?: number;
+  error_subcode?: number;
+  message?: string;
+  type?: string;
+  fbtrace_id?: string;
+  is_transient?: boolean;
+}
 
 interface InstagramPublishErrorLike {
   response?: {
     status?: number;
     data?: {
-      error?: {
-        code?: number;
-        error_subcode?: number;
-        message?: string;
-        type?: string;
-      };
+      error?: InstagramProviderError;
     };
   };
+  code?: unknown;
   message?: string;
+}
+
+/** Safe diagnostic fields only: never Axios config/request objects, media URLs or tokens. */
+interface InstagramDiagnostic {
+  phase: InstagramPhase;
+  containerId?: string;
+  httpStatus?: number;
+  networkCode?: string;
+  statusCode?: string;
+  status?: string;
+  error?: InstagramProviderError;
 }
 
 interface InstagramRefreshResponse {
@@ -55,6 +81,7 @@ export class InstagramPublisher extends Publisher {
 
   private s3MediaUploader: S3MediaUploader;
   private s3TempFileKeys: string[] = [];
+  private preparationRetriesLeft = PREPARATION_RETRY_BUDGET;
 
   private refreshedCredentials?: {
     accessToken: string;
@@ -130,11 +157,11 @@ export class InstagramPublisher extends Publisher {
     } catch (error: unknown) {
       this.throwIfCredentialRevoked(error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      this.logger.error(`Failed to refresh Instagram token: ${err.message || error}`);
+      this.logger.error(`Failed to refresh Instagram token: ${this.redact(err.message || String(error))}`);
       throw new PostError(
         PostErrorType.CREDENTIALS_ERROR,
         "Instagram access token has expired. Please reconnect your Instagram account in account settings.",
-        err.response?.data?.error?.message || err.message,
+        this.redact(err.response?.data?.error?.message || err.message || ""),
       );
     }
   }
@@ -153,10 +180,23 @@ export class InstagramPublisher extends Publisher {
     return `${url}${separator}access_token=${encodeURIComponent(this.accessToken)}`;
   }
 
-  private async apiRequest<T>(method: "get" | "post", url: string, data?: unknown): Promise<{ data: T }> {
+  /** `deadline` bounds each attempt's HTTP timeout so a request never outlives it, even after a token refresh. */
+  private async apiRequest<T>(
+    method: "get" | "post",
+    url: string,
+    data?: unknown,
+    deadline?: number,
+  ): Promise<{ data: T }> {
     const doRequest = () => {
       const requestUrl = this.withAccessToken(url);
-      return method === "get" ? this.client.get<T>(requestUrl) : this.client.post<T>(requestUrl, data);
+      if (deadline === undefined) {
+        return method === "get" ? this.client.get<T>(requestUrl) : this.client.post<T>(requestUrl, data);
+      }
+      if (Date.now() >= deadline) {
+        throw new PostError(PostErrorType.PREPARATION_ERROR, "Instagram media processing timed out.");
+      }
+      const config = { timeout: Math.min(30_000, deadline - Date.now()) };
+      return method === "get" ? this.client.get<T>(requestUrl, config) : this.client.post<T>(requestUrl, data, config);
     };
 
     try {
@@ -172,6 +212,80 @@ export class InstagramPublisher extends Publisher {
       }
       throw error;
     }
+  }
+
+  /** Removes the access token and any URL (which can carry tokens or media locations) and bounds the length. */
+  private redact(text: string): string {
+    return text
+      .split(this.accessToken || "\0")
+      .join("[redacted]")
+      .split(this.refreshedCredentials?.accessToken || "\0")
+      .join("[redacted]")
+      .replaceAll(/https?:\/\/[^\s<>"']+/gi, "[redacted URL]")
+      .replaceAll(/((?:access[_-]?token|authorization)\s*[=:]\s*)(?:Bearer\s+)?[^\s,;&]+/gi, "$1[redacted]")
+      .slice(0, MAX_DIAGNOSTIC_TEXT_LENGTH);
+  }
+
+  private providerError(error: unknown): InstagramProviderError | undefined {
+    const raw = (error as InstagramPublishErrorLike | undefined)?.response?.data?.error;
+    if (!raw || typeof raw !== "object") return undefined;
+    return {
+      ...(typeof raw.code === "number" && { code: raw.code }),
+      ...(typeof raw.error_subcode === "number" && { error_subcode: raw.error_subcode }),
+      ...(typeof raw.type === "string" && /^[A-Za-z]{1,64}$/.test(raw.type) && { type: raw.type }),
+      ...(typeof raw.message === "string" && { message: this.redact(raw.message) }),
+      ...(typeof raw.fbtrace_id === "string" &&
+        /^[\w-]{1,200}$/.test(raw.fbtrace_id) && { fbtrace_id: raw.fbtrace_id }),
+      ...(typeof raw.is_transient === "boolean" && { is_transient: raw.is_transient }),
+    };
+  }
+
+  private diagnostic(error: unknown, context: { phase: InstagramPhase; containerId?: string }): InstagramDiagnostic {
+    const err = error as InstagramPublishErrorLike | undefined;
+    const providerError = this.providerError(error);
+    return {
+      ...context,
+      ...(typeof err?.response?.status === "number" && { httpStatus: err.response.status }),
+      ...(typeof err?.code === "string" && /^[A-Z_]{1,40}$/.test(err.code) && { networkCode: err.code }),
+      ...(providerError && { error: providerError }),
+    };
+  }
+
+  private failureMessage(error: unknown): string {
+    const err = error as InstagramPublishErrorLike | undefined;
+    return this.redact(err?.response?.data?.error?.message || err?.message || "Unknown error");
+  }
+
+  /**
+   * Retry predicate for operations that happen strictly before media_publish.
+   * Known transient transport/HTTP failures and Meta's explicit is_transient
+   * flag qualify; credential errors (already converted to PostError) and
+   * ordinary rejections never do. The shared per-post budget caps the total.
+   */
+  private retryPreparation(error: unknown): boolean {
+    const transient =
+      error instanceof PostError
+        ? this.isTransientStagingError(error)
+        : isTransientError(error) || this.providerError(error)?.is_transient === true;
+    if (!transient || this.preparationRetriesLeft <= 0) return false;
+    this.preparationRetriesLeft -= 1;
+    return true;
+  }
+
+  /** S3 upload failures are wrapped by the uploader; inspect the retained SDK error for transient causes. */
+  private isTransientStagingError(error: PostError): boolean {
+    if (error.errorType !== PostErrorType.API_ERROR) return false;
+    const cause = error.details as
+      | { $metadata?: { httpStatusCode?: number }; code?: unknown; name?: unknown; $retryable?: unknown }
+      | undefined;
+    if (!cause || typeof cause !== "object") return /timed out uploading/i.test(error.message);
+    return (
+      isTransientError({ response: { status: cause.$metadata?.httpStatusCode }, code: cause.code }) ||
+      cause.$retryable !== undefined ||
+      cause.name === "TimeoutError" ||
+      cause.name === "NetworkingError" ||
+      /timed out uploading/i.test(error.message)
+    );
   }
 
   /**
@@ -193,9 +307,8 @@ export class InstagramPublisher extends Publisher {
           return permalinkRes.data.permalink;
         }
       } catch (permalinkError) {
-        const err = permalinkError as { message?: string };
         this.logger.warn(
-          `Failed to fetch Instagram permalink (attempt ${attempt + 1}/${maxAttempts}): ${err.message || String(permalinkError)}`,
+          `Failed to fetch Instagram permalink (attempt ${attempt + 1}/${maxAttempts}): ${this.failureMessage(permalinkError)}`,
         );
       }
 
@@ -212,29 +325,50 @@ export class InstagramPublisher extends Publisher {
     await Promise.all(this.s3TempFileKeys.map((key) => this.s3MediaUploader.deleteFile(key)));
   }
 
+  /**
+   * Polls one container until Meta reports it FINISHED. A transient status
+   * read is repeated against the same container within the remaining deadline;
+   * nothing is uploaded or created again. Terminal states fail immediately.
+   * Neither a status read nor a poll sleep outlives the processing deadline.
+   */
   private async waitForMediaReady(containerId: string): Promise<void> {
-    const deadline = Date.now() + 600_000;
+    const deadline = Date.now() + PROCESSING_DEADLINE_MS;
     while (Date.now() < deadline) {
-      const statusRes = await this.apiRequest<{ status_code: string; status: string }>(
-        "get",
-        `/${containerId}?fields=status_code,status`,
+      const statusRes = await withTransientRetry(
+        () =>
+          this.apiRequest<{ status_code?: string; status?: string }>(
+            "get",
+            `/${containerId}?fields=status_code,status`,
+            undefined,
+            deadline,
+          ),
+        { deadline, shouldRetry: (error) => this.retryPreparation(error) },
       );
       const statusCode = statusRes.data.status_code;
       const status = statusRes.data.status;
 
       if (statusCode === "FINISHED") return;
 
-      if (statusCode === "ERROR")
+      if (statusCode === "ERROR" || statusCode === "EXPIRED")
         throw new PostError(
-          PostErrorType.API_ERROR,
-          `Instagram media container ${containerId} creation failed: ${status}`,
+          PostErrorType.PREPARATION_ERROR,
+          `Instagram media container ${containerId} creation failed: ${this.redact(status ?? statusCode)}`,
+          {
+            phase: "processing",
+            containerId,
+            statusCode,
+            ...(typeof status === "string" && { status: this.redact(status) }),
+          } satisfies InstagramDiagnostic,
         );
 
-      await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL));
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(PROCESSING_POLL_INTERVAL, Math.max(0, deadline - Date.now()))),
+      );
     }
     throw new PostError(
-      PostErrorType.API_ERROR,
+      PostErrorType.PREPARATION_ERROR,
       `Instagram media container ${containerId} processing timed out after 10 minutes.`,
+      { phase: "processing", containerId } satisfies InstagramDiagnostic,
     );
   }
 
@@ -260,7 +394,7 @@ export class InstagramPublisher extends Publisher {
           throw new PostError(
             PostErrorType.PUBLISH_REJECTED,
             "Instagram could not find the prepared media after waiting for it to become available. Please retry the failed Instagram target.",
-            { provider: err.response?.data, creationId: containerId },
+            this.diagnostic(error, { phase: "publish", containerId }),
           );
         }
 
@@ -273,42 +407,74 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
+  private async stageMedia(media: Media): Promise<string> {
+    try {
+      // Resolve media to a public URL (uses URL directly or uploads to S3).
+      // A failed upload is repeated with the same key; nothing is published here.
+      const { url: mediaUrl, uploadedKey } = await resolveMediaUrl(media, (filePath, key) =>
+        withTransientRetry(() => this.s3MediaUploader.uploadFile(filePath, key), {
+          shouldRetry: (error) => this.retryPreparation(error),
+        }),
+      );
+
+      // Never log the media URL: it may carry signed query tokens.
+      if (uploadedKey) {
+        this.s3TempFileKeys.push(uploadedKey);
+        this.logger.info("Media uploaded to S3 for Instagram");
+      } else {
+        this.logger.info("Using provided media URL for Instagram");
+      }
+      return mediaUrl;
+    } catch (error: unknown) {
+      if (
+        error instanceof PostError &&
+        [PostErrorType.CREDENTIALS_ERROR, PostErrorType.INVALID_CONTENT].includes(error.errorType)
+      ) {
+        throw error;
+      }
+      const message = this.redact(error instanceof Error ? error.message : String(error));
+      this.logger.error(`Instagram media staging failed: ${message}`);
+      throw new PostError(PostErrorType.PREPARATION_ERROR, message, {
+        phase: "stage_media",
+      } satisfies InstagramDiagnostic);
+    }
+  }
+
   private async createMediaObject(media: Media, isCarousel: boolean, caption?: string): Promise<string> {
     // Get the Instagram media type
     // Standalone videos are Reels, while a video inside a carousel is a
     // carousel video child. Meta rejects a REELS child in a mixed carousel.
     const mediaType = media.type === "video" ? (isCarousel ? "VIDEO" : "REELS") : undefined;
 
-    // Resolve media to a public URL (uses URL directly or uploads to S3)
-    const { url: mediaUrl, uploadedKey } = await resolveMediaUrl(media, (filePath, key) =>
-      this.s3MediaUploader.uploadFile(filePath, key),
-    );
-
-    if (uploadedKey) {
-      this.s3TempFileKeys.push(uploadedKey);
-      this.logger.info(`Media uploaded to S3: ${mediaUrl}`);
-    } else {
-      this.logger.info(`Using provided URL: ${mediaUrl}`);
-    }
+    const mediaUrl = await this.stageMedia(media);
 
     try {
-      // Create media object using the URL
-      const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
-        media_type: mediaType,
-        caption: isCarousel ? undefined : caption,
-        is_carousel_item: isCarousel,
-        ...(media.type === "video" ? { video_url: mediaUrl } : { image_url: mediaUrl }),
-      });
+      // Create media object using the URL. A container is not a post, so a
+      // transient failure here can safely be retried (an orphaned container
+      // created by a lost response simply expires).
+      const response = await withTransientRetry(
+        () =>
+          this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
+            media_type: mediaType,
+            caption: isCarousel ? undefined : caption,
+            is_carousel_item: isCarousel,
+            ...(media.type === "video" ? { video_url: mediaUrl } : { image_url: mediaUrl }),
+          }),
+        { shouldRetry: (error) => this.retryPreparation(error) },
+      );
 
       return response.data.id;
     } catch (error: unknown) {
       this.throwIfCredentialRevoked(error);
       if (error instanceof PostError && error.errorType === PostErrorType.CREDENTIALS_ERROR) throw error;
-      const err = error as { message?: string; response?: { data?: { error?: { message?: string } } } };
-      this.logger.error(error instanceof Error ? error : String(error));
-      const apiMessage = err.response?.data?.error?.message || err.message || "Unknown error";
+      const apiMessage = this.failureMessage(error);
+      this.logger.error(`Failed to create Instagram media object: ${apiMessage}`);
 
-      throw new PostError(PostErrorType.PUBLISH_REJECTED, `Failed to create media object: ${apiMessage}`, err);
+      throw new PostError(
+        PostErrorType.PREPARATION_ERROR,
+        `Failed to create media object: ${apiMessage}`,
+        this.diagnostic(error, { phase: "create_media" }),
+      );
     }
   }
 
@@ -328,11 +494,15 @@ export class InstagramPublisher extends Publisher {
 
       // If there are multiple media objects, create a carousel post
       if (content.media!.length > 1) {
-        const response = await this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
-          media_type: "CAROUSEL",
-          caption: content.text,
-          children: mediaObjectIds.join(","),
-        });
+        const response = await withTransientRetry(
+          () =>
+            this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
+              media_type: "CAROUSEL",
+              caption: content.text,
+              children: mediaObjectIds.join(","),
+            }),
+          { shouldRetry: (error) => this.retryPreparation(error) },
+        );
 
         containerId = response.data.id;
       }
@@ -341,13 +511,13 @@ export class InstagramPublisher extends Publisher {
     } catch (error: unknown) {
       this.throwIfCredentialRevoked(error);
       if (error instanceof PostError && error.errorType === PostErrorType.CREDENTIALS_ERROR) throw error;
-      const err = error as { message?: string };
-      this.logger.error(error instanceof Error ? error : String(error));
+      const apiMessage = this.failureMessage(error);
+      this.logger.error(`Failed to create Instagram carousel container: ${apiMessage}`);
 
       throw new PostError(
-        PostErrorType.API_ERROR,
-        `Failed to create media container: ${err.message || "Unknown error"}`,
-        err,
+        PostErrorType.PREPARATION_ERROR,
+        `Failed to create media container: ${apiMessage}`,
+        this.diagnostic(error, { phase: "create_carousel" }),
       );
     }
   }
@@ -372,14 +542,22 @@ export class InstagramPublisher extends Publisher {
       media: content.media ? content.media.slice(0, INSTAGRAM_MAX_MEDIA_COUNT) : undefined,
     };
 
+    this.preparationRetriesLeft = PREPARATION_RETRY_BUDGET;
+    // Everything before media_publish is preparation: failing there cannot have
+    // published anything. Once media_publish has been sent, an unknown failure
+    // (timeout, dropped connection) must stay an uncertain API_ERROR.
+    let publishSubmitted = false;
+    let containerId: string | undefined;
+
     try {
       // Create media container
-      const containerId = await this.createMediaContainer(normalizedContent);
+      containerId = await this.createMediaContainer(normalizedContent);
 
       // Wait for the container to be ready
       await this.waitForMediaReady(containerId);
 
       // Publish the container
+      publishSubmitted = true;
       const response = await this.publishContainer(containerId);
 
       const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
@@ -402,17 +580,17 @@ export class InstagramPublisher extends Publisher {
       }
       return result;
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       if (error instanceof PostError) throw error;
 
       this.throwIfCredentialRevoked(error);
 
-      this.logger.error(error instanceof Error ? error : String(error));
+      const message = this.failureMessage(error);
+      this.logger.error(`Failed to publish Instagram post: ${message}`);
 
       throw new PostError(
-        PostErrorType.API_ERROR,
-        `Failed to publish post: ${err.response?.data?.error?.message || err.message || "Unknown error"}`,
-        err,
+        publishSubmitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR,
+        `Failed to publish post: ${message}`,
+        this.diagnostic(error, { phase: publishSubmitted ? "publish" : "processing", containerId }),
       );
     } finally {
       await this.cleanupS3Files();

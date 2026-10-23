@@ -51,6 +51,7 @@ export const configSchema = z
     cliCommand: z.string().optional(),
     appRoot: z.string().optional(),
     deploymentRevision: z.string().min(1),
+    browserChannel: z.enum(["chromium", "chrome"]).optional(),
     defaultInterfaces: z.array(z.enum(interfaces)).min(1).optional(),
     mediaBaseUrl: z.url().default("https://fixtures.invalid/"),
     mediaManifestFile: z.string().optional(),

@@ -102,9 +102,19 @@ export async function setOptions(page: Page, account: Account, s: Materialized, 
         label = String(name);
       }
       // Selecting the already displayed default may not invoke onValueChange.
-      // Explicit LinkedIn visibility must still reach the submitted options.
-      if (s.platform === "linkedin" && key === "visibility" && initiallySelected === label) {
-        const alternate = labels[value === "PUBLIC" ? "CONNECTIONS" : "PUBLIC"];
+      // Persist explicit audience choices even when the UI displays an implicit default.
+      const alternateValue =
+        s.platform === "linkedin" && key === "visibility"
+          ? value === "PUBLIC"
+            ? "CONNECTIONS"
+            : "PUBLIC"
+          : s.platform === "youtube" && key === "privacyStatus"
+            ? value === "private"
+              ? "unlisted"
+              : "private"
+            : undefined;
+      if (alternateValue && initiallySelected === label) {
+        const alternate = labels[alternateValue];
         await page.getByRole("option", { name: alternate, exact: true }).click();
         await expect(field).toContainText(alternate);
         await field.click();

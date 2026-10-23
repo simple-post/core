@@ -38,6 +38,71 @@ test("TikTok public access can be observed as a guest; private audiences and mus
   ).toThrow("autoAddMusic");
 });
 
+test("TikTok uploads-image requests music off without demanding observer music evidence; music scenarios still do", () => {
+  const base = catalog.find((s) => s.id === "tiktok.uploads-image")!;
+  for (const iface of ["ui", "mcp"] as const) {
+    const uploads = materialize(base, owner, iface, "public", "https://media.example.com");
+    expect(uploads.tags).toContain("uploads");
+    expect(uploads.options.autoAddMusic, "upload photo posts still request music off").toBe(false);
+    expect(uploads.expectedFields).toEqual({ privacyLevel: "PUBLIC_TO_EVERYONE" });
+    expect(() => assertRequirements(uploads, owner)).not.toThrow();
+    // Privacy evidence is retained for non-public audiences.
+    expect(() =>
+      assertRequirements(
+        { ...uploads, expectedFields: { ...uploads.expectedFields, privacyLevel: "SELF_ONLY" } },
+        owner,
+      ),
+    ).toThrow("BLOCKED before posting");
+  }
+  // Explicit expectedFields on an uploads-tagged photo case are still honoured.
+  const explicit = materialize(
+    { ...base, expectedFields: { autoAddMusic: false } },
+    owner,
+    "ui",
+    "public",
+    "https://media.example.com",
+  );
+  expect(explicit.expectedFields).toEqual({ privacyLevel: "PUBLIC_TO_EVERYONE", autoAddMusic: false });
+  expect(() => assertRequirements(explicit, owner)).toThrow("autoAddMusic");
+  // Existing music scenarios keep requiring platform observer evidence.
+  for (const id of ["tiktok.photos-1-music-false-omitted", "tiktok.photos-2-music-true-custom", "tiktok.smoke"]) {
+    const music = materialize(catalog.find((s) => s.id === id)!, owner, "ui", "public", "https://media.example.com");
+    expect(music.expectedFields.autoAddMusic, `${id} expects music evidence`).toBe(
+      id === "tiktok.photos-2-music-true-custom",
+    );
+    expect(() => assertRequirements(music, owner)).toThrow("autoAddMusic");
+  }
+});
+
+test("an unresolved TikTok handle stops before opening an uncalibrated profile", async () => {
+  let contexts = 0;
+  const browser = {
+    newContext: async () => {
+      contexts++;
+      throw new Error("Must not open the profile");
+    },
+  } as unknown as Browser;
+  const uncalibrated = { ...owner, observer: { ...owner.observer, root: undefined } };
+  const photo = materialize(
+    catalog.find((s) => s.id === "tiktok.uploads-image")!,
+    uncalibrated,
+    "ui",
+    "unresolved",
+    "https://media.example.com",
+  );
+  await expect(
+    verifyOnPlatform(
+      browser,
+      config(),
+      photo,
+      uncalibrated,
+      { success: true, postId: "p_pub_url~v2.123", postUrl: uncalibrated.observer.profileUrl },
+      "/must-not-write",
+    ),
+  ).rejects.toThrow("publish handle without a public post URL");
+  expect(contexts).toBe(0);
+});
+
 for (const fault of ["none", "wrong-author", "wrong-receipt", "login", "missing-video", "challenge"] as const) {
   test(`TikTok public proof requires exact guest-visible content: ${fault}`, async ({ browser }) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "tiktok-public-"));

@@ -548,7 +548,9 @@ export function materialize(
   );
   if (s.platform === "tiktok" && options.publishMode !== "draft") {
     if (options.privacyLevel) expectedFields.privacyLevel = options.privacyLevel;
-    if (s.media.length && s.media.every((x) => !x.toLowerCase().includes("video")))
+    // Upload acceptance covers image/video/media/audience only: photo cases still
+    // request autoAddMusic=false, but only explicit expectedFields demand music evidence.
+    if (s.media.length && s.media.every((x) => !x.toLowerCase().includes("video")) && !s.tags.includes("uploads"))
       expectedFields.autoAddMusic = options.autoAddMusic ?? iface === "mcp";
   }
   if (s.platform === "youtube") expectedFields.privacyStatus = options.privacyStatus;

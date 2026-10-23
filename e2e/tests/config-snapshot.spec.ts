@@ -18,6 +18,7 @@ test("an invocation keeps its config across edits and processes; a restart picks
     await writeFile(path.join(dir, ".local/auth/x.json"), "{}");
     const original = config({
       scheduleDelayMinutes: 4,
+      browserChannel: "chrome",
       schedulerStorageState: ".local/auth/scheduler.json",
       fixtureDir: "fixtures",
       runDir: "runs",
@@ -28,6 +29,7 @@ test("an invocation keeps its config across edits and processes; a restart picks
     first = await snapshotConfig(source);
     expect((await stat(first.file)).mode & 0o777).toBe(0o600);
     const frozen = loadConfig(first.file);
+    expect(frozen.browserChannel).toBe("chrome");
     expect(frozen.schedulerStorageState).toBe(path.join(dir, ".local/auth/scheduler.json"));
     expect(frozen.accounts.x!.observer.storageState).toBe(path.join(dir, ".local/auth/x.json"));
     expect(frozen.fixtureDir).toBe(path.join(dir, "fixtures"));

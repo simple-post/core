@@ -85,6 +85,31 @@ test("UI thumbnail uses the file picker and checks uploaded bytes before accepti
     await server.close();
   }
 });
+for (const privacy of ["private", "unlisted", "public"] as const) {
+  test(`YouTube UI persists an already displayed ${privacy} audience`, async ({ page }) => {
+    const a = account();
+    const s = materialize(
+      catalog.find((s) => s.id === "youtube.uploads-video")!,
+      a,
+      "ui",
+      "offline",
+      "https://media.example.com",
+    );
+    s.options = { privacyStatus: privacy };
+    const labels = { private: "Private", unlisted: "Unlisted", public: "Public" };
+    await page.setContent(`<button role="combobox" id="account-1-privacyStatus">${labels[privacy]}</button>
+      <div id="choices" hidden>${Object.entries(labels)
+        .map(([value, label]) => `<div role="option" data-value="${value}">${label}</div>`)
+        .join("")}</div>
+      <script>window.current='${privacy}';window.changes=[];document.querySelector('button').onclick=()=>document.querySelector('#choices').hidden=false;
+      document.querySelectorAll('[role=option]').forEach(option=>option.onclick=()=>{const value=option.dataset.value;if(window.current!==value){window.saved=value;window.changes.push(value)}window.current=value;document.querySelector('button').textContent=option.textContent;document.querySelector('#choices').hidden=true;});</script>`);
+    await setOptions(page, a, s);
+    expect(await page.evaluate(() => ({ saved: (window as any).saved, changes: (window as any).changes }))).toEqual({
+      saved: privacy,
+      changes: [privacy === "private" ? "unlisted" : "private", privacy],
+    });
+  });
+}
 for (const visibility of ["PUBLIC", "CONNECTIONS"] as const) {
   test(`LinkedIn UI explicitly persists an already selected ${visibility} default`, async ({ page }) => {
     const a = account();

@@ -273,7 +273,12 @@ export default async function setup() {
           selection: selected,
           media: files.map(({ path: _path, ...file }) => file),
           startedAt: new Date().toISOString(),
-          execution: { lanes: selected.platforms, workers: selected.platforms.length, sequentialPerAccount: true },
+          execution: {
+            lanes: selected.platforms,
+            workers: selected.platforms.length,
+            sequentialPerAccount: true,
+            browserChannel: config.browserChannel ?? "bundled-chromium",
+          },
         },
         null,
         2,

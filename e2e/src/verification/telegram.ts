@@ -95,7 +95,9 @@ export async function telegramWebMessage(
         nodes
           .filter((node) => {
             const time = Number(node.getAttribute("data-timestamp"));
-            const caption = [...node.querySelectorAll(".message > .translatable-message")]
+            const caption = [
+              ...node.querySelectorAll(".message > .translatable-message, .message > [data-message-text-source]"),
+            ]
               .map((n) => n.textContent ?? "")
               .join(" ")
               .replace(/\s+/g, " ")

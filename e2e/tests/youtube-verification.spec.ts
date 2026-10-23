@@ -124,6 +124,11 @@ test("private owner media proof rejects absent or wrong source, identity and pro
       widthPixels: 720,
       heightPixels: 1280,
     });
+    delete video.fileDetails.durationMs;
+    const withoutDuration = await verifyYouTubeMetadata(scenario, owner, receipt, cfg);
+    const { durationMs: _sourceDuration, ...expectedProof } = proof.privateMediaProof!;
+    expect(withoutDuration.privateMediaProof).toEqual(expectedProof);
+    expect(withoutDuration.privateMediaProof).not.toHaveProperty("durationMs");
     const faults = [
       (v: any) => {
         v.id = "wrong1234567";
@@ -152,12 +157,9 @@ test("private owner media proof rejects absent or wrong source, identity and pro
       (v: any) => {
         v.fileDetails.fileSize = "NaN";
       },
-      (v: any) => {
-        delete v.fileDetails.durationMs;
-      },
-      (v: any) => {
-        v.fileDetails.durationMs = "8000";
-      },
+      ...["8000", "NaN", "4000ms", null, 4000].map((duration) => (v: any) => {
+        v.fileDetails.durationMs = duration;
+      }),
       (v: any) => {
         v.fileDetails.videoStreams = [];
       },
@@ -173,9 +175,9 @@ test("private owner media proof rejects absent or wrong source, identity and pro
       (v: any) => {
         delete v.contentDetails;
       },
-      (v: any) => {
-        v.contentDetails.duration = "PT8S";
-      },
+      ...["PT8S", "PT3S", "invalid", undefined].map((duration) => (v: any) => {
+        v.contentDetails.duration = duration;
+      }),
       (v: any) => {
         delete v.processingDetails;
       },
@@ -186,10 +188,13 @@ test("private owner media proof rejects absent or wrong source, identity and pro
         v.processingDetails.processingStatus = "failed";
       },
     ];
-    for (const mutate of faults) {
-      video = await fixture();
-      mutate(video);
-      await expect(verifyYouTubeMetadata(scenario, owner, receipt, cfg)).rejects.toThrow();
+    for (const omitSourceDuration of [false, true]) {
+      for (const mutate of faults) {
+        video = await fixture();
+        if (omitSourceDuration) delete video.fileDetails.durationMs;
+        mutate(video);
+        await expect(verifyYouTubeMetadata(scenario, owner, receipt, cfg)).rejects.toThrow();
+      }
     }
     video = await fixture();
     await expect(verifyYouTubeMetadata(scenario, owner, { success: true }, cfg)).rejects.toThrow();
@@ -199,7 +204,6 @@ test("private owner media proof rejects absent or wrong source, identity and pro
     await server.close();
   }
 });
-
 for (const view of ["private", "private-modern", "public", "unlisted"] as const) {
   test(`${view} browser visit records owner proof only for private videos; visible frame still required otherwise`, async ({
     browser,

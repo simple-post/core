@@ -22,6 +22,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     browserName: "chromium",
+    channel: cfg?.browserChannel,
     locale: "en-US",
     timezoneId: "UTC",
     storageState: cfg?.schedulerStorageState,

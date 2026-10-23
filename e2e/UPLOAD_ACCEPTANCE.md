@@ -1,12 +1,16 @@
 # Upload acceptance review
 
-Prepared for review. No live upload or end-to-end test has been run for this profile.
+The owner approved production execution after merging and deploying the combined
+branch. See [the current results](UPLOAD_ACCEPTANCE_RESULTS.md) for completed
+offline checks, the deployed revision, and live readiness. No live case has been
+recorded as passed yet.
 
 ## Branch and scope
 
 PRs #162 through #172 are merged into `codex/upload-acceptance`, including the
-latest Chrome test fix. `main` has not been changed. This branch combines all ten
-platform implementations and the shared retry helper.
+latest Chrome test fix. The aggregate was subsequently merged into `main` and
+`release/prod` under the owner's approval. This branch combines all ten platform
+implementations and the shared retry helper.
 
 The dedicated `uploads` profile uses the existing posting runner, Edmund Clompton
 account configuration, identity checks, budgets, journals, screenshots, and native

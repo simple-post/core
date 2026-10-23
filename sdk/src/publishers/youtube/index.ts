@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 import { google } from "googleapis";
 
+import { uploadYouTubeVideo, YOUTUBE_UPLOAD_ORIGIN } from "./resumable-upload";
 import {
   getYouTubeVideoMetadata,
   validateYouTubeContent,
@@ -21,6 +22,8 @@ import type { PostOptions, Content, PostOptionsWithCredentials } from "../../typ
 import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
 import type { youtube_v3, Auth } from "googleapis";
 
+const TOKEN_TIMEOUT_MS = 30_000;
+
 export class YouTubePublisher extends Publisher {
   static readonly mediaRequirement: MediaRequirement = "path";
 
@@ -29,6 +32,7 @@ export class YouTubePublisher extends Publisher {
   }
 
   private youtube: youtube_v3.Youtube;
+  private readonly authClient: Auth.OAuth2Client;
 
   constructor(options?: PostOptionsWithCredentials) {
     super("YouTube", options, "youtube");
@@ -57,7 +61,12 @@ export class YouTubePublisher extends Publisher {
       // Method 1: Use OAuth2 with refresh token
       this.logger.info(`[YouTubePublisher] Using OAuth2 refresh token authentication`);
       const { clientId, clientSecret, refreshToken } = credentials;
-      authClient = new google.auth.OAuth2(clientId, clientSecret);
+      // Token refreshes share the upload deadline, so they must not hang indefinitely.
+      authClient = new google.auth.OAuth2({
+        clientId,
+        clientSecret,
+        transporterOptions: { timeout: TOKEN_TIMEOUT_MS },
+      });
       authClient.setCredentials({ refresh_token: refreshToken });
     } else {
       throw new PostError(
@@ -66,7 +75,20 @@ export class YouTubePublisher extends Publisher {
       );
     }
 
+    this.authClient = authClient;
     this.youtube = google.youtube({ version: "v3", auth: authClient });
+  }
+
+  /**
+   * Header-only credential access for the resumable upload transport. The
+   * auth library must never own the streamed request itself: it would replay
+   * a consumed body on refresh and hide the retry policy enforced in the helper.
+   */
+  private async getAuthorization(): Promise<string> {
+    const headers = await this.authClient.getRequestHeaders(YOUTUBE_UPLOAD_ORIGIN);
+    const value = headers.get("authorization");
+    if (!value) throw new Error("YouTube authorization header unavailable");
+    return value;
   }
 
   async validateReadiness(content: Content, options?: PostOptions): Promise<ValidationIssue[]> {
@@ -201,12 +223,16 @@ export class YouTubePublisher extends Publisher {
         }
       }
 
-      // Upload the video
+      // Upload the video through one bounded resumable session. The helper
+      // classifies every outcome itself; an ambiguous result is API_ERROR and
+      // is never retried here, because a retry could create a duplicate video.
       let videoId: string;
+      const warnings: { code: string; message: string }[] = [];
       try {
-        const response = await this.youtube.videos.insert({
-          part: ["snippet", "status"],
-          requestBody: {
+        const upload = await uploadYouTubeVideo({
+          filePath: resolvedVideoPath,
+          size: fileStats.size,
+          metadata: {
             snippet: {
               title: safeTitle,
               description: safeDescription,
@@ -219,63 +245,34 @@ export class YouTubePublisher extends Publisher {
               selfDeclaredMadeForKids: youtubeOptions?.selfDeclaredMadeForKids ?? false,
             },
           },
-          media: {
-            body: fs.createReadStream(resolvedVideoPath),
-          },
+          getAuthorization: () => this.getAuthorization(),
+          logger: this.logger,
         });
-
-        videoId = response.data.id!;
+        videoId = upload.videoId;
         this.logger.info(`[YouTubePublisher] Video upload successful! Video ID: ${videoId}`);
         this.logger.info(`[YouTubePublisher] Upload completed in ${Date.now() - startTime}ms`);
-      } catch (error: unknown) {
-        const err = error as {
-          response?: {
-            status?: number;
-            data?: { error?: { message?: string; code?: number; errors?: { reason?: string }[] } };
-          };
-          message?: string;
-        };
-        this.logger.error(
-          `[YouTubePublisher] Video upload failed after ${Date.now() - startTime}ms: ${error instanceof Error ? error.message : String(error)}`,
-        );
-
-        let errorMessage = "Failed to upload video";
-
-        const data = err.response?.data as { error?: string | { message?: string; error?: string } } | undefined;
-        const errorCode = typeof data?.error === "string" ? data.error : data?.error?.error;
-
-        if (errorCode === "invalid_grant") {
-          errorMessage = "Your YouTube connection has expired. Please reconnect your YouTube account in Settings.";
-          this.logger.error(`[YouTubePublisher] invalid_grant - refresh token invalid or revoked`);
-        } else if (typeof data?.error === "object" && data.error?.message) {
-          errorMessage = data.error.message;
-          this.logger.error(`[YouTubePublisher] YouTube API error: ${JSON.stringify(data.error)}`);
-        } else if (err.message) {
-          errorMessage = err.message;
-          this.logger.error(`[YouTubePublisher] Error message: ${err.message}`);
+        // The insert response already carries status.uploadStatus. A failed or
+        // rejected status is reported with the accepted ID so callers reconcile
+        // instead of reposting; it never becomes a retryable publication error.
+        if (upload.uploadStatus === "failed" || upload.uploadStatus === "rejected") {
+          this.logger.warn(`[YouTubePublisher] Upload status "${upload.uploadStatus}" reported for ${videoId}`);
+          warnings.push({
+            code: "youtube_upload_status_warning",
+            message: `YouTube accepted the upload as video ${videoId} but reported its status as "${upload.uploadStatus}". Do not repost this video; review it in YouTube Studio.`,
+          });
         }
-
-        // Pass only the serializable API error object, not the full axios/request object
-        const apiErrorDetails = err.response?.data?.error
-          ? { error: err.response.data.error, status: (err as { response?: { status?: number } }).response?.status }
-          : undefined;
-
-        // This documented videos.insert rejection conclusively creates no video.
-        // Transport failures and all other API responses remain ambiguous.
-        const uploadLimitExceeded =
-          err.response?.status === 400 &&
-          err.response.data?.error?.errors?.some((issue) => issue.reason === "uploadLimitExceeded");
+      } catch (error: unknown) {
+        this.logger.error(`[YouTubePublisher] Video upload failed after ${Date.now() - startTime}ms`);
+        if (error instanceof PostError) throw error;
+        // Never attach the raw error: it may contain request headers or the session URI.
         throw new PostError(
-          uploadLimitExceeded ? PostErrorType.RATE_LIMIT_ERROR : PostErrorType.API_ERROR,
-          uploadLimitExceeded
-            ? "YouTube rejected this upload because the channel's upload limit is exhausted. Try again after YouTube restores the allowance. No video was created by this attempt."
-            : errorMessage,
-          apiErrorDetails,
+          PostErrorType.API_ERROR,
+          "YouTube did not confirm the video upload. The video may exist on the channel; check YouTube Studio before reposting.",
+          { stage: "upload", code: "youtube_upload_unexpected_error" },
         );
       }
 
       // Upload the thumbnail if provided
-      let thumbnailWarning: string | undefined;
       if (resolvedThumbnailPath) {
         try {
           this.logger.info(`[YouTubePublisher] Uploading thumbnail for video ${videoId}`);
@@ -288,14 +285,16 @@ export class YouTubePublisher extends Publisher {
           });
 
           this.logger.info(`[YouTubePublisher] Thumbnail upload successful for video ${videoId}`);
-        } catch (error: unknown) {
-          this.logger.warn(
-            `[YouTubePublisher] Failed to upload thumbnail for video ${videoId}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+        } catch {
+          // The raw error can carry request URLs with credentials, so it is not logged.
+          this.logger.warn(`[YouTubePublisher] Failed to upload thumbnail for video ${videoId}`);
           // The video already exists. Surface the partial failure without making
-          // callers retry videos.insert and create a duplicate upload.
-          thumbnailWarning =
-            "Video published, but YouTube could not apply the custom thumbnail. Do not repost this video; check custom-thumbnail eligibility in YouTube Studio and update the existing video there.";
+          // callers retry the upload and create a duplicate video.
+          warnings.push({
+            code: "youtube_thumbnail_upload_failed",
+            message:
+              "Video published, but YouTube could not apply the custom thumbnail. Do not repost this video; check custom-thumbnail eligibility in YouTube Studio and update the existing video there.",
+          });
         }
       } else {
         this.logger.info(`[YouTubePublisher] No thumbnail provided for video ${videoId}`);
@@ -307,10 +306,10 @@ export class YouTubePublisher extends Publisher {
       return {
         id: videoId,
         error: PostErrorType.NO_ERROR,
-        ...(thumbnailWarning
+        ...(warnings.length > 0
           ? {
-              message: thumbnailWarning,
-              details: { code: "youtube_thumbnail_upload_failed", videoId },
+              message: warnings.map((warning) => warning.message).join(" "),
+              details: { code: warnings[0].code, videoId },
             }
           : {}),
       };

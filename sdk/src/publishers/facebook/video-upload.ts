@@ -4,6 +4,7 @@ import path from "node:path";
 import FormData from "form-data";
 
 import { PostError, PostErrorType } from "../../types";
+import { isTransientError, withTransientRetry } from "../../utils/transient-retry";
 
 import type { AxiosInstance } from "axios";
 
@@ -22,9 +23,26 @@ type UploadResponse = {
   end_offset?: string;
   success?: boolean;
 };
+type Session = { videoId: string; sessionId: string; start: number; end: number };
 
 function identifier(value: unknown): value is string {
   return typeof value === "string" && /^[\w-]{1,200}$/.test(value);
+}
+
+/**
+ * Only Meta's structured transient error proves the chunk was not stored, so it
+ * may be resent on the same session and offset. A bare HTTP 5xx can come from a
+ * proxy after Meta already accepted the bytes.
+ */
+function chunkRejectedTransiently(error: unknown): boolean {
+  const provider = (error as { response?: { data?: { error?: { is_transient?: unknown } } } } | undefined)?.response
+    ?.data?.error;
+  return provider?.is_transient === true;
+}
+
+/** Any other transient failure may have stored the chunk: only a fresh session is safe. */
+function transferAmbiguous(error: unknown): boolean {
+  return isTransientError(error) && !chunkRejectedTransiently(error);
 }
 
 function offsets(data: UploadResponse, size: number, expectedStart: number): [number, number] {
@@ -91,41 +109,20 @@ export class FacebookVideoUpload {
         const size = fs.statSync(input.filePath).size;
         if (!Number.isSafeInteger(size) || size <= 0)
           throw new PostError(PostErrorType.INVALID_CONTENT, "Facebook requires a nonempty video file.");
-        const { data } = await this.client.post<UploadResponse>(
-          endpoint,
-          new URLSearchParams({ access_token: this.accessToken, upload_phase: "start", file_size: String(size) }),
-          { timeout: uploadTimeout() },
+        // Nothing is published before finish. An ambiguous chunk failure abandons
+        // the session and prepares a fresh one; both loops stay inside the deadline.
+        const session = await withTransientRetry(
+          async () => {
+            stage = "start";
+            const started = await this.startSession(endpoint, size, uploadTimeout, uploadDeadline);
+            videoId = started.videoId;
+            stage = "transfer";
+            await this.transfer(endpoint, input.filePath, size, started, uploadTimeout, uploadDeadline);
+            return started;
+          },
+          { deadline: uploadDeadline, shouldRetry: (error) => stage === "transfer" && transferAmbiguous(error) },
         );
-        if (!identifier(data.video_id) || !identifier(data.upload_session_id))
-          throw new Error("Missing upload session");
-        videoId = data.video_id;
-        const sessionId = data.upload_session_id;
-        let [start, end] = offsets(data, size, 0);
-        stage = "transfer";
-        // Meta chooses the chunk boundaries. Never send the full file or load it into memory.
-        while (start < size) {
-          const stream = fs.createReadStream(input.filePath, { start, end: end - 1 });
-          try {
-            const form = new FormData();
-            form.append("access_token", this.accessToken);
-            form.append("upload_phase", "transfer");
-            form.append("upload_session_id", sessionId);
-            form.append("start_offset", String(start));
-            form.append("video_file_chunk", stream, {
-              filename: path.basename(input.filePath),
-              contentType: "application/octet-stream",
-              knownLength: end - start,
-            });
-            const response = await this.client.post<UploadResponse>(endpoint, form, {
-              headers: form.getHeaders(),
-              maxBodyLength: MAX_CHUNK_BYTES + 1024 * 1024,
-              timeout: uploadTimeout(),
-            });
-            [start, end] = offsets(response.data, size, end);
-          } finally {
-            stream.destroy();
-          }
-        }
+        videoId = session.videoId;
         // Check the overall deadline before entering the ambiguous publish phase.
         const finishTimeout = uploadTimeout();
         stage = "finish";
@@ -135,7 +132,7 @@ export class FacebookVideoUpload {
             ...metadata,
             access_token: this.accessToken,
             upload_phase: "finish",
-            upload_session_id: sessionId,
+            upload_session_id: session.sessionId,
           }),
           { timeout: finishTimeout },
         );
@@ -156,7 +153,7 @@ export class FacebookVideoUpload {
       };
       const status = err.response?.status;
       const provider = err.response?.data?.error;
-      const beforePublish = stage === "start" || stage === "transfer";
+      const beforePublish = ["start", "transfer"].includes(stage);
       const rejected = beforePublish || (stage !== "processing" && status === 413);
       let message = "Facebook did not confirm video publication. Check the video before retrying.";
       if (stage === "processing")
@@ -176,14 +173,89 @@ export class FacebookVideoUpload {
     }
   }
 
+  private async startSession(
+    endpoint: string,
+    size: number,
+    timeout: () => number,
+    deadline: number,
+  ): Promise<Session> {
+    const { data } = await withTransientRetry(
+      () =>
+        this.client.post<UploadResponse>(
+          endpoint,
+          new URLSearchParams({ access_token: this.accessToken, upload_phase: "start", file_size: String(size) }),
+          { timeout: timeout() },
+        ),
+      { deadline },
+    );
+    if (!identifier(data.video_id) || !identifier(data.upload_session_id)) throw new Error("Missing upload session");
+    const [start, end] = offsets(data, size, 0);
+    return { videoId: data.video_id, sessionId: data.upload_session_id, start, end };
+  }
+
+  private async transfer(
+    endpoint: string,
+    filePath: string,
+    size: number,
+    session: Session,
+    timeout: () => number,
+    deadline: number,
+  ): Promise<void> {
+    let { start, end } = session;
+    // Meta chooses the chunk boundaries. Never send the full file or load it into memory.
+    while (start < size) {
+      const response = await withTransientRetry(
+        () => this.sendChunk(endpoint, filePath, session.sessionId, start, end, timeout()),
+        { deadline, shouldRetry: chunkRejectedTransiently },
+      );
+      [start, end] = offsets(response.data, size, end);
+    }
+  }
+
+  /** One attempt streams exactly one server-selected range and releases the stream afterwards. */
+  private async sendChunk(
+    endpoint: string,
+    filePath: string,
+    sessionId: string,
+    start: number,
+    end: number,
+    timeout: number,
+  ): Promise<{ data: UploadResponse }> {
+    const stream = fs.createReadStream(filePath, { start, end: end - 1 });
+    try {
+      const form = new FormData();
+      form.append("access_token", this.accessToken);
+      form.append("upload_phase", "transfer");
+      form.append("upload_session_id", sessionId);
+      form.append("start_offset", String(start));
+      form.append("video_file_chunk", stream, {
+        filename: path.basename(filePath),
+        contentType: "application/octet-stream",
+        knownLength: end - start,
+      });
+      return await this.client.post<UploadResponse>(endpoint, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: MAX_CHUNK_BYTES + 1024 * 1024,
+        timeout,
+      });
+    } finally {
+      stream.destroy();
+    }
+  }
+
   private async waitUntilReady(videoId: string): Promise<void> {
     const deadline = Date.now() + PROCESSING_TIMEOUT_MS;
     while (Date.now() < deadline) {
-      const response = await this.client.get<{ status?: { video_status?: string } }>(`/${videoId}`, {
-        params: { fields: "status" },
-        headers: { Authorization: `Bearer ${this.accessToken}` },
-        timeout: Math.min(30_000, deadline - Date.now()),
-      });
+      // Read-only status checks always reuse the accepted video ID.
+      const response = await withTransientRetry(
+        () =>
+          this.client.get<{ status?: { video_status?: string } }>(`/${videoId}`, {
+            params: { fields: "status" },
+            headers: { Authorization: `Bearer ${this.accessToken}` },
+            timeout: Math.min(30_000, Math.max(1, deadline - Date.now())),
+          }),
+        { deadline },
+      );
       const status = response.data.status?.video_status;
       if (status === "ready") return;
       if (status !== "processing" && status !== "uploading") throw new Error("Video did not become ready");

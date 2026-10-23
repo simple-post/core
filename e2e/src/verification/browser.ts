@@ -132,10 +132,10 @@ export const surfaces: Record<Platform, Surface> = {
     title: "h1.ytd-watch-metadata",
   },
   pinterest: {
-    root: '[data-test-id="pin-closeup"], [data-test-id="CloseupMainPin"]',
+    root: '[data-test-id="pin-closeup"], [data-test-id="CloseupMainPin"], [data-test-id="closeup-body"]',
     author: '[data-test-id="creator-profile-link"]',
-    text: '[data-test-id="pin-description"], [data-test-id="main-pin-description-text"]',
-    images: '[data-test-id="pin-closeup-image"] img',
+    text: '[data-test-id="pin-description"], [data-test-id="main-pin-description-text"], [data-test-id="structured-description"]',
+    images: '[data-test-id="pin-closeup-image"] img, [data-test-id="closeup-image-main"] img',
     video: "video",
     title: "h1",
   },

@@ -86,10 +86,11 @@ export interface Surface {
 // No fallback to document.body: navigation chrome or a login screen must never count as a post.
 export const surfaces: Record<Platform, Surface> = {
   x: {
-    root: 'article[data-testid="tweet"], article:has(a[data-timezone][href*="/status/"])',
+    root: 'article[data-testid="tweet"], article:has(a[data-timezone][href*="/status/"]), article:has(a[aria-current="page"][href*="/status/"])',
     author: '[data-testid="User-Name"] a, a:has(img[alt^="@"])',
     text: '[data-testid="tweetText"], :scope:not([data-testid]) div[dir="auto"]',
-    images: '[data-testid="tweetPhoto"] img, a[aria-label="Image"][href*="/photo/"] img',
+    images:
+      '[data-testid="tweetPhoto"] img, a[aria-label="Image"][href*="/photo/"] img, img[src^="https://pbs.twimg.com/media/"]',
     video: "video",
   },
   instagram: {
@@ -698,6 +699,17 @@ export async function verifyOnPlatform(
   if (s.platform === "telegram") assertTelegramObserver(account);
   const linkedinPublic = s.platform === "linkedin" && s.expectedFields.visibility === "PUBLIC";
   const tiktokPublic = s.platform === "tiktok" && s.expectedFields.privacyLevel === "PUBLIC_TO_EVERYONE";
+  if (
+    s.platform === "tiktok" &&
+    s.options.publishMode !== "draft" &&
+    !account.observer.root &&
+    !postUrl(s, account, result)
+  )
+    throw new VerificationSetupError(
+      "TikTok returned a publish handle without a public post URL. Supply the exact post permalink via postUrlTemplate " +
+        "or configure a calibrated profile observer; the default detail-page selectors cannot discover profile posts. " +
+        "Receipt retained; do not republish.",
+    );
   const deadline = Date.now() + config.verifyTimeoutMs;
   let context: BrowserContext | undefined;
   let lastError: unknown;
@@ -942,6 +954,7 @@ export async function verifyOnPlatform(
                 {
                   url: page.url(),
                   observedAt: new Date().toISOString(),
+                  browserVersion: browser.version?.(),
                   fields: s.expectedFields,
                   text: s.expectedText,
                   verificationMode: youtube?.privateMediaProof

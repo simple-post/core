@@ -2,8 +2,8 @@
 
 The owner approved production execution after merging and deploying the combined
 branch. See [the current results](UPLOAD_ACCEPTANCE_RESULTS.md) for completed
-offline checks, the deployed revision, and live outcomes. Fourteen of nineteen
-cases have complete verification; the results document records the remaining blocks.
+offline checks, the deployed revision, and live outcomes. Seventeen cases have complete verification; the owner accepted TikTok with
+its two remaining automated checks waived.
 
 ## Branch and scope
 

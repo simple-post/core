@@ -74,6 +74,35 @@ test("TikTok uploads-image requests music off without demanding observer music e
   }
 });
 
+test("an unresolved TikTok handle stops before opening an uncalibrated profile", async () => {
+  let contexts = 0;
+  const browser = {
+    newContext: async () => {
+      contexts++;
+      throw new Error("Must not open the profile");
+    },
+  } as unknown as Browser;
+  const uncalibrated = { ...owner, observer: { ...owner.observer, root: undefined } };
+  const photo = materialize(
+    catalog.find((s) => s.id === "tiktok.uploads-image")!,
+    uncalibrated,
+    "ui",
+    "unresolved",
+    "https://media.example.com",
+  );
+  await expect(
+    verifyOnPlatform(
+      browser,
+      config(),
+      photo,
+      uncalibrated,
+      { success: true, postId: "p_pub_url~v2.123", postUrl: uncalibrated.observer.profileUrl },
+      "/must-not-write",
+    ),
+  ).rejects.toThrow("publish handle without a public post URL");
+  expect(contexts).toBe(0);
+});
+
 for (const fault of ["none", "wrong-author", "wrong-receipt", "login", "missing-video", "challenge"] as const) {
   test(`TikTok public proof requires exact guest-visible content: ${fault}`, async ({ browser }) => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "tiktok-public-"));

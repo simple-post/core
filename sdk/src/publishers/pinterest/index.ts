@@ -9,6 +9,7 @@ import { PINTEREST_MAX_TITLE_LENGTH, PINTEREST_VALIDATION_RULES, validatePintere
 import { PostError, PostErrorType } from "../../types";
 import { getContentType, resolveMediaPath, resolveMediaUrl, TempFileManager } from "../../utils";
 import { S3MediaUploader } from "../../utils/s3";
+import { isTransientError, withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
@@ -57,7 +58,13 @@ type PinterestCreatePayload = {
 };
 
 const MEDIA_POLL_INTERVAL = 2000;
-const MEDIA_POLL_MAX_ATTEMPTS = 150;
+const MEDIA_PROCESSING_TIMEOUT_MS = 300_000;
+const MEDIA_UPLOAD_TIMEOUT_MS = 600_000;
+const PREPARATION_PHASES = {
+  register: "register the video",
+  upload: "accept the uploaded video",
+  status: "report video status",
+};
 const TRANSIENT_CREATE_ERROR_CODE = 2787;
 // Poll at 2, 5 and 10 seconds after the failed response. The cumulative
 // window gives Pinterest time to expose a Pin created before the error.
@@ -95,6 +102,35 @@ function pinterestErrorDetails(error: PinterestApiError): Record<string, unknown
 
 function isTransientCreateError(error: PinterestApiError): boolean {
   return error.response?.status === 400 && Number(error.response.data?.code) === TRANSIENT_CREATE_ERROR_CODE;
+}
+
+/**
+ * Nothing before /pins creates a Pin, so exhausted preparation stays safely
+ * retryable while conclusive credential, quota and validation rejections from
+ * the Pinterest API keep their fail-fast types. The signed upload host is not
+ * the Pinterest API: its rejections only mean preparation must start over.
+ * Messages and diagnostics omit raw provider text and signed upload URLs.
+ */
+function preparationError(error: unknown, stage: "register" | "upload" | "status", mediaId?: string): PostError {
+  if (error instanceof PostError) return error;
+  const err = error as PinterestApiError;
+  const status = err.response?.status;
+  let errorType = PostErrorType.PREPARATION_ERROR;
+  if (stage !== "upload" && status !== undefined) {
+    if (status === 401 || status === 403) errorType = PostErrorType.CREDENTIALS_ERROR;
+    else if (status === 429) errorType = PostErrorType.RATE_LIMIT_ERROR;
+    else if (status >= 400 && status < 500 && status !== 408) errorType = PostErrorType.INVALID_CONTENT;
+  }
+  const retry = errorType === PostErrorType.PREPARATION_ERROR ? " Retry the post." : "";
+  const requestId = pinterestErrorDetails(err).requestId;
+  return new PostError(errorType, `Pinterest did not ${PREPARATION_PHASES[stage]}. No Pin was created.${retry}`, {
+    provider: "pinterest",
+    status,
+    ...(typeof err.response?.data?.code === "number" && { code: err.response.data.code }),
+    ...(typeof requestId === "string" && /^[\w-]{1,200}$/.test(requestId) && { requestId }),
+    stage,
+    ...(mediaId && { mediaId }),
+  });
 }
 
 function optionalText(value: unknown): string | undefined {
@@ -156,52 +192,100 @@ export class PinterestPublisher extends Publisher {
       throw new PostError(PostErrorType.INVALID_CONTENT, `Media file not found: ${resolvedPath}`);
     }
 
-    const registerResponse = await this.client.post<PinterestMediaResponse>("/media", {
-      media_type: "video",
-    });
+    let registration: PinterestMediaResponse;
+    try {
+      // Registration only reserves a media ID; a repeated call reserves another one.
+      const response = await withTransientRetry(() =>
+        this.client.post<PinterestMediaResponse>("/media", { media_type: "video" }),
+      );
+      registration = response.data;
+    } catch (error: unknown) {
+      throw preparationError(error, "register");
+    }
 
-    const { media_id, upload_url } = registerResponse.data;
-
-    if (!media_id || !upload_url) {
-      throw new PostError(PostErrorType.API_ERROR, "Pinterest did not return media upload information.");
+    const { media_id, upload_url, upload_parameters } = registration;
+    if (typeof media_id !== "string" || !/^[\w-]{1,200}$/.test(media_id) || !upload_url) {
+      throw new PostError(PostErrorType.PREPARATION_ERROR, "Pinterest did not return media upload information.", {
+        provider: "pinterest",
+        stage: "register",
+      });
     }
 
     try {
-      const formData = new FormData();
-      for (const [key, value] of Object.entries(registerResponse.data.upload_parameters ?? {}))
-        formData.append(key, value);
-      formData.append("file", fs.createReadStream(resolvedPath));
-      await axios.post(upload_url, formData, {
-        timeout: 600_000,
-        headers: formData.getHeaders(),
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
+      await withTransientRetry(async (remainingMs) => {
+        // Each attempt streams the file again within the remaining budget; the previous stream is released first.
+        const stream = fs.createReadStream(resolvedPath);
+        try {
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(upload_parameters ?? {})) formData.append(key, value);
+          formData.append("file", stream);
+          await axios.post(upload_url, formData, {
+            timeout: Math.min(MEDIA_UPLOAD_TIMEOUT_MS, remainingMs),
+            headers: formData.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
+        } catch (error: unknown) {
+          // A lost response can follow a complete upload. Reuse bytes Pinterest already has.
+          if (isTransientError(error) && (await this.mediaReceived(media_id))) return;
+          throw error;
+        } finally {
+          stream.destroy();
+        }
       });
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      this.logger.error(error instanceof Error ? error : String(error));
-      throw new PostError(
-        PostErrorType.API_ERROR,
-        `Failed to upload Pinterest video: ${err.response?.data?.message || err.message || "Unknown error"}`,
-        err.response?.data,
+      this.logger.error(`Pinterest video upload failed for media ${media_id}.`);
+      throw preparationError(error, "upload", media_id);
+    }
+
+    return this.waitForVideoMedia(media_id);
+  }
+
+  private async mediaReceived(mediaId: string): Promise<boolean> {
+    try {
+      const response = await this.client.get(`/media/${mediaId}`);
+      const status = String(response.data?.status ?? "").toLowerCase();
+      return status === "processing" || status === "succeeded";
+    } catch {
+      return false;
+    }
+  }
+
+  /** Read-only status checks always reuse the registered media ID within one bounded window. */
+  private async waitForVideoMedia(mediaId: string): Promise<string> {
+    const deadline = Date.now() + MEDIA_PROCESSING_TIMEOUT_MS;
+    let lastStatus = "unknown";
+    while (true) {
+      if (Date.now() >= deadline) {
+        throw new PostError(
+          PostErrorType.PREPARATION_ERROR,
+          `Pinterest video media ${mediaId} processing timed out (last status: ${lastStatus}). No Pin was created.`,
+          { provider: "pinterest", stage: "status", mediaId, status: lastStatus },
+        );
+      }
+      let status: string;
+      try {
+        const response = await withTransientRetry(
+          (remainingMs) => this.client.get(`/media/${mediaId}`, { timeout: Math.min(30_000, remainingMs) }),
+          { deadline },
+        );
+        status = String(response.data?.status ?? "").toLowerCase();
+      } catch (error: unknown) {
+        throw preparationError(error, "status", mediaId);
+      }
+      lastStatus = status || "unknown";
+      if (status === "succeeded") return mediaId;
+      if (["failed", "error", "rejected"].includes(status)) {
+        throw new PostError(
+          PostErrorType.INVALID_CONTENT,
+          `Pinterest could not process video media ${mediaId}. Check the video before publishing again. No Pin was created.`,
+          { provider: "pinterest", code: "video_processing_failed", stage: "status", mediaId, status },
+        );
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(MEDIA_POLL_INTERVAL, Math.max(0, deadline - Date.now()))),
       );
     }
-
-    let lastStatus = "unknown";
-    for (let attempt = 0; attempt < MEDIA_POLL_MAX_ATTEMPTS; attempt += 1) {
-      const statusResponse = await this.client.get(`/media/${media_id}`);
-      const status = String(statusResponse.data?.status ?? "").toLowerCase();
-      lastStatus = status || "unknown";
-      if (status === "succeeded") return media_id;
-      if (["failed", "error", "rejected"].includes(status))
-        throw new PostError(PostErrorType.API_ERROR, `Pinterest video media ${media_id} failed processing.`);
-      await new Promise((resolve) => setTimeout(resolve, MEDIA_POLL_INTERVAL));
-    }
-
-    throw new PostError(
-      PostErrorType.API_ERROR,
-      `Pinterest video media ${media_id} processing timed out (last status: ${lastStatus}). No Pin was created.`,
-    );
   }
 
   static validate(content: Content, options?: PostOptions["pinterest"]): ValidationResult {

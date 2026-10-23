@@ -74,3 +74,22 @@ it("allows retry of a definite Facebook rejection and retains accepted IDs on un
     }),
   );
 });
+
+it("allows retry of a rejected TikTok upload but blocks resubmission after uncertain processing", async () => {
+  db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });
+  const publish = jest.fn().mockResolvedValue({
+    accountId: "account",
+    platform: "tiktok",
+    success: false,
+    error: "API_ERROR",
+    details: { phase: "status", publishId: "accepted_video" },
+  });
+  const result = await runDurablePublish(input, publish);
+  expect(publish).toHaveBeenCalledTimes(1);
+  expect(result).toMatchObject({ error: "PUBLISH_OUTCOME_UNKNOWN", details: { publishId: "accepted_video" } });
+  const { data } = db.publishCheckpoint.update.mock.calls[0][0];
+  expect(data.state).toBe("unknown");
+  db.publishCheckpoint.findUnique.mockResolvedValue({ ...data, fingerprint: input.fingerprint });
+  expect(await runDurablePublish(input, publish)).toMatchObject({ error: "PUBLISH_OUTCOME_UNKNOWN" });
+  expect(publish).toHaveBeenCalledTimes(1);
+});

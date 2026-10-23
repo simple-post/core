@@ -25,6 +25,7 @@
     "e2e:auth": "yarn workspace @simple-post/e2e auth",
     "e2e:setup": "yarn workspace @simple-post/e2e setup",
     "e2e:fixtures": "yarn workspace @simple-post/e2e fixtures",
+    "e2e:upload-fixtures": "yarn workspace @simple-post/e2e upload-fixtures",
     "e2e:report": "yarn workspace @simple-post/e2e report",
     "docs:export": "node scripts/export-docs.mjs",
     "hermes:validate": "node scripts/validate-hermes-submission.mjs",

@@ -2,3 +2,7 @@
 test-results/
 playwright-report/
 config.local.json
+# Large upload-acceptance originals: generated locally by yarn e2e:upload-fixtures, never committed.
+fixtures/generated/upload-image.jpg
+fixtures/generated/upload-video.mp4
+fixtures/generated/upload-manifest.json

@@ -506,6 +506,7 @@ model McpAuthorizationCode {
   codeChallenge       String // PKCE S256
   codeChallengeMethod String         @default("S256")
   scope               String?
+  enforceRestScopes   Boolean        @default(false)
   expiresAt           DateTime
   createdAt           DateTime       @default(now())
 
@@ -515,18 +516,19 @@ model McpAuthorizationCode {
 
 // MCP access tokens issued via OAuth
 model McpAccessToken {
-  id         String         @id @default(cuid())
-  tokenHash  String         @unique
-  clientId   String
-  client     McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
-  userId     String
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scope      String?
-  resource   String?
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  lastUsedAt DateTime?
-  createdAt  DateTime       @default(now())
+  id                String         @id @default(cuid())
+  tokenHash         String         @unique
+  clientId          String
+  client            McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope             String?
+  resource          String?
+  enforceRestScopes Boolean        @default(false)
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  lastUsedAt        DateTime?
+  createdAt         DateTime       @default(now())
 
   @@index([userId])
   @@index([expiresAt])

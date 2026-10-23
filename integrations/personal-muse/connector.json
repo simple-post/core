@@ -1,0 +1,38 @@
+{
+  "format": "simplepost-internal-review-kit-v1",
+  "surface": "Personal Muse AI agent",
+  "name": "SimplePost",
+  "description": "Draft, preview, schedule and publish social posts using your connected SimplePost accounts.",
+  "website": "https://simplepost.social",
+  "developer": "Creafex Lab Vladimir Haltakov",
+  "support": "https://simplepost.social/contact",
+  "privacy": "https://simplepost.social/privacy",
+  "terms": "https://simplepost.social/terms",
+  "documentation": "https://docs.simplepost.social/mcp",
+  "submissionPortal": "https://muse.ai/platform",
+  "guidelines": "https://muse.ai/platform/docs",
+  "mcp": {
+    "endpoint": "https://app.simplepost.social/mcp",
+    "transport": "Streamable HTTP",
+    "oauthMetadata": "https://app.simplepost.social/.well-known/oauth-authorization-server",
+    "protectedResourceMetadata": "https://app.simplepost.social/.well-known/oauth-protected-resource/mcp",
+    "authorizationEndpoint": "https://app.simplepost.social/oauth/authorize",
+    "tokenEndpoint": "https://app.simplepost.social/api/oauth/token",
+    "registrationEndpoint": "https://app.simplepost.social/api/oauth/register",
+    "grantType": "authorization_code",
+    "pkce": "S256",
+    "defaultAccessMode": "read_write",
+    "readOnlyConsentSetup": "Verify Meta's actual registered OAuth client IDs and configure server-only MUSE_OAUTH_CLIENT_IDS. Only these clients see the read-only choice; existing and non-Muse grants are unchanged.",
+    "readOnlyScopes": ["openid", "email", "accounts:read", "posts:read"],
+    "readWriteScopes": ["openid", "email", "accounts:read", "posts:read", "posts:validate", "posts:write"]
+  },
+  "restrictions": [
+    "Requires a SimplePost account with an active trial or subscription and user-connected supported social destinations.",
+    "Read-only connections cannot validate supplied content, import or fit media, save drafts, publish, schedule, edit or discard posts.",
+    "Connecting the account does not approve individual writes. Sensitive writes require approval for every invocation in Muse.",
+    "Connecting or disconnecting social accounts and editing or deleting already-published social content are not MCP capabilities.",
+    "Workspace/editor tools require the PLUGIN_EXTENSIONS entitlement; image fitting requires IMAGE_FITTING. Muse support for MCP Apps UI is unverified; core workflows have text and structured-data outputs.",
+    "No Meta model API key, Muse Code installation, personal-agent skill import or new social provider is required.",
+    "This is an internal review kit, not a Meta manifest. Publication and portal-specific fields remain subject to Meta review."
+  ]
+}

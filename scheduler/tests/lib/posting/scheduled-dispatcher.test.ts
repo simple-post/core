@@ -27,6 +27,7 @@ jest.mock("@/lib/config", () => ({
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     publishAttempt: { count: jest.fn(), deleteMany: jest.fn(), groupBy: jest.fn() },
+    tikTokUploadInitAttempt: { deleteMany: jest.fn() },
     publishCheckpoint: { findMany: jest.fn() },
     post: {
       findMany: jest.fn(),

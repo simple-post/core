@@ -382,6 +382,42 @@ describe("TikTokPublisher", () => {
       expect(mockAxiosInstance.post).toHaveBeenLastCalledWith("/v2/post/publish/inbox/video/init/", expect.any(Object));
     });
 
+    it("gates every initialization, including a replacement session, before making the request", async () => {
+      const beforeUploadInit = jest
+        .fn()
+        .mockImplementationOnce(async () => {})
+        .mockRejectedValueOnce(
+          new PostError(PostErrorType.RATE_LIMIT_ERROR, "Account request budget is full", { localRateLimit: true }),
+        );
+      publisher = new TikTokPublisher({ tiktok: { ...directOptions.tiktok!, beforeUploadInit } });
+      mockedAxios.put.mockRejectedValueOnce({ response: { status: 404 } });
+      const result = publisher.postContent(content, directOptions).catch((error) => error);
+      await jest.runAllTimersAsync();
+      expect(await result).toMatchObject({
+        errorType: PostErrorType.RATE_LIMIT_ERROR,
+        details: { localRateLimit: true },
+      });
+      expect(beforeUploadInit).toHaveBeenCalledTimes(2);
+      expect(sessions).toBe(1);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["public", "draft"] as const)("preserves TikTok's pending-share diagnosis in %s mode", async (mode) => {
+      if (mode === "draft") mockAxiosInstance.post.mockReset();
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: { status: 400, data: { error: { code: "spam_risk_too_many_pending_share", log_id: "safe_log_id" } } },
+        config: { headers: { Authorization: "Bearer secret" } },
+      });
+      await expect(
+        publisher.postContent(content, { tiktok: { ...directOptions.tiktok!, publishMode: mode } }),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        message: expect.stringContaining("pending-upload limit"),
+        details: { phase: "init", code: "spam_risk_too_many_pending_share", logId: "safe_log_id" },
+      });
+      expect(mockedAxios.put).not.toHaveBeenCalled();
+    });
+
     it.each([
       [{ error: { code: "rate_limit_exceeded" } }, PostErrorType.PUBLISH_REJECTED],
       [{ data: { publish_id: "incomplete" } }, PostErrorType.API_ERROR],

@@ -1,13 +1,16 @@
 /* eslint-disable unicorn/no-await-expression-member -- Keep assertions next to their database operations. */
-import { deleteFromStorage, post as sdkPost, PostErrorType } from "@simple-post/sdk";
+import { deleteFromStorage, post as sdkPost, PostError, PostErrorType } from "@simple-post/sdk";
 
 import { assertCanCreatePost, lockUserForQuota } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { postToAccounts } from "@/lib/posting";
 import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
 import { reconcilePublish } from "@/lib/posting/reconciliation";
+import { reserveTikTokUploadInit } from "@/lib/posting/tiktok-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
+
+import type { PostOptionsWithCredentials } from "@simple-post/sdk";
 
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
@@ -48,6 +51,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await prisma.publishCheckpoint.deleteMany();
   await prisma.publishAttempt.deleteMany();
+  await prisma.tikTokUploadInitAttempt.deleteMany();
   await prisma.storageDeletion.deleteMany();
   await prisma.user.deleteMany();
   await prisma.user.create({
@@ -82,6 +86,19 @@ it("serializes concurrent alias/provider reservations and counts each account op
   expect(results.filter((result) => result.error === "LOCAL_RATE_LIMIT")).toHaveLength(9);
   expect(publish).toHaveBeenCalledTimes(15);
   expect(await prisma.publishAttempt.count()).toBe(15);
+});
+
+it("enforces six TikTok initializations under concurrent requests and isolates accounts", async () => {
+  const attempts = await Promise.allSettled(Array.from({ length: 12 }, () => reserveTikTokUploadInit("account")));
+  expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(6);
+  expect(attempts.filter((result) => result.status === "rejected")).toHaveLength(6);
+  expect(await prisma.tikTokUploadInitAttempt.count()).toBe(6);
+  await expect(reserveTikTokUploadInit("other-account")).resolves.toBeUndefined();
+  await prisma.tikTokUploadInitAttempt.updateMany({
+    where: { accountId: "account" },
+    data: { createdAt: new Date(Date.now() - 61_000) },
+  });
+  await expect(reserveTikTokUploadInit("account")).resolves.toBeUndefined();
 });
 
 it("commits intent before I/O, blocks a concurrent duplicate and reuses a saved success", async () => {
@@ -237,6 +254,28 @@ jest.mock("@/lib/security/connected-account-secrets", () => ({
 jest.mock("@/lib/oauth/credential-health", () => ({
   refreshConnectedAccountIfNeeded: async (account: unknown) => ({ account }),
 }));
+
+it("wires the account request gate through posting and leaves a rate-limited post safely retryable", async () => {
+  await prisma.connectedAccount.update({ where: { id: "account" }, data: { platform: "tiktok" } });
+  await prisma.tikTokUploadInitAttempt.createMany({
+    data: Array.from({ length: 6 }, () => ({ accountId: "account" })),
+  });
+  jest.mocked(sdkPost).mockImplementation(async (post) => {
+    const options = post.options as PostOptionsWithCredentials;
+    expect(options.tiktok?.beforeUploadInit).toEqual(expect.any(Function));
+    try {
+      await options.tiktok!.beforeUploadInit!();
+      throw new Error("Request should have been blocked");
+    } catch (error) {
+      if (!(error instanceof PostError)) throw error;
+      return new Map([["tiktok", { error: error.errorType, message: error.message, details: error.details }]]);
+    }
+  });
+  const results = await postToAccounts(userId, "hello", [], ["account"], { account: { publishMode: "draft" } });
+  expect(results[0]).toMatchObject({ success: false, error: "LOCAL_RATE_LIMIT" });
+  expect((await prisma.publishCheckpoint.findFirst())?.state).toBe("failed");
+  expect(await prisma.tikTokUploadInitAttempt.count()).toBe(6);
+});
 
 it.each(["x", "bluesky"] as const)(
   "resumes the actual %s posting pipeline with the saved parent and root",

@@ -547,6 +547,18 @@ model PublishAttempt {
   @@map("publish_attempt")
 }
 
+// Count actual TikTok initialization requests, including SDK session restarts.
+// Separate from publish attempts: one publish can initialize several sessions.
+model TikTokUploadInitAttempt {
+  id        String   @id @default(cuid())
+  accountId String
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([createdAt])
+  @@map("tiktok_upload_init_attempt")
+}
+
 // Intent is committed before external I/O. A started/unknown operation must
 // be reconciled, never automatically replayed after a crash.
 model PublishCheckpoint {

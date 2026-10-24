@@ -120,6 +120,7 @@ export async function runDurablePublish(
     "INVALID_CONTENT",
     "CREDENTIALS_ERROR",
     "RATE_LIMIT_ERROR",
+    "LOCAL_RATE_LIMIT",
     "PUBLISH_REJECTED",
   ].includes(result.error ?? "");
   const state = result.success ? "succeeded" : safeToRetry ? "failed" : "unknown";

@@ -217,6 +217,7 @@ export type {
   Image,
   Video,
   PostOptions,
+  PostOptionsWithCredentials,
   CommonOptions,
   XOptions,
   TelegramOptions,

@@ -788,6 +788,7 @@ async function dispatchDueScheduledPostsInternal(): Promise<DispatchDuePostsResu
   );
   // Rate history is only needed for the sliding window. Keep a day for diagnostics.
   await prisma.publishAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 86_400_000) } } });
+  await prisma.tikTokUploadInitAttempt.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 86_400_000) } } });
   const now = new Date();
 
   // Runs concurrently with the dispatch below so a slow provider can't delay

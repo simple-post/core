@@ -23,6 +23,7 @@ import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/te
 import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
 import { recordRevokedMetaSession } from "@/lib/posting/credential-rejection";
 import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
+import { reserveTikTokUploadInit } from "@/lib/posting/tiktok-rate-limit";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -36,6 +37,7 @@ import { buildPostOptions } from "./credentials";
 
 import type {
   Post,
+  PostOptionsWithCredentials,
   Media,
   QuoteTarget,
   RepostTarget,
@@ -189,7 +191,10 @@ async function postSingleSegment(
   try {
     const platform = mapPlatformName(account.platform);
     const baseOptions = buildPostOptions(account, accountOptions);
-    const options = mergeReplyOverlay(baseOptions, replyOverlay);
+    const options = mergeReplyOverlay(baseOptions, replyOverlay) as PostOptionsWithCredentials;
+    if (platform === "tiktok" && options.tiktok) {
+      options.tiktok.beforeUploadInit = () => reserveTikTokUploadInit(account.id);
+    }
     const postData: Post = {
       content: {
         text: message,
@@ -261,7 +266,10 @@ async function postSingleSegment(
       };
     }
 
-    const errorMsg = result?.error || "Unknown error occurred";
+    const localRateLimit =
+      result?.error === PostErrorType.RATE_LIMIT_ERROR &&
+      (result.details as { localRateLimit?: boolean } | undefined)?.localRateLimit === true;
+    const errorMsg = localRateLimit ? "LOCAL_RATE_LIMIT" : result?.error || "Unknown error occurred";
     await recordRevokedMetaSession(account, result?.details).catch((error: unknown) => {
       log.warn({ err: serializeError(error) }, "Could not record revoked account session");
     });

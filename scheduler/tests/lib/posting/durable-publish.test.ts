@@ -33,6 +33,7 @@ beforeEach(() => {
 it.each([
   ["PREPARATION_ERROR", "failed"],
   ["PUBLISH_REJECTED", "failed"],
+  ["LOCAL_RATE_LIMIT", "failed"],
   ["API_ERROR", "unknown"],
 ])("records %s with the correct retry boundary", async (error, state) => {
   const publish = jest

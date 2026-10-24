@@ -91,6 +91,7 @@ export interface AccountPlatformOptions {
 
 export interface SocialPost {
   id: string;
+  updatedAt?: Date;
   message: string;
   accountIds: string[];
   media: MediaFile[];

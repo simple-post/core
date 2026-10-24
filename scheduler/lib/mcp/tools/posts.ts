@@ -22,7 +22,10 @@ import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { deferTikTokMinuteLimit } from "@/lib/posting/defer-tiktok-minute-limit";
+import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { getTikTokPostRecovery, recoveryForResult } from "@/lib/posting/tiktok-recovery";
 import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -99,6 +102,18 @@ export const createPostSchema = z.object({
 
 export const previewPostSchema = createPostSchema;
 
+const recoverySchema = z.object({
+  code: z.string(),
+  title: z.string(),
+  message: z.string(),
+  state: z.string(),
+  automaticRetry: z.boolean(),
+  canScheduleRetry: z.boolean(),
+  actions: z.array(z.string()),
+  tool: z.string(),
+  instructions: z.string(),
+});
+
 const mcpPostSchema = z.object({
   id: z.string(),
   message: z.string(),
@@ -106,6 +121,7 @@ const mcpPostSchema = z.object({
   accountOptions: AccountOptionsMapSchema,
   scheduledFor: z.string().nullable(),
   status: z.string(),
+  recovery: recoverySchema.optional(),
   publishedAt: z.string().nullable(),
   repostEnabled: z.boolean(),
   repostDelayHours: z.number(),
@@ -132,6 +148,7 @@ const postingResultSchema = z.object({
   postUrl: z.string().optional(),
   postId: z.string().optional(),
   threadResults: z.array(threadSegmentResultSchema).optional(),
+  recovery: recoverySchema.optional(),
 });
 
 const scheduleWarningSchema = z.object({
@@ -217,7 +234,9 @@ export const updateScheduledPostSchema = z.object({
   imageFit: ImageFitSchema.optional(),
   postId: z
     .string()
-    .describe("ID of the draft or future scheduled SimplePost post to edit. Use inspect_posts to find it."),
+    .describe(
+      "ID of a draft, upcoming scheduled post, or recoverable TikTok-limit failure. Use inspect_posts. For a failed TikTok post, change only scheduledFor and postingMode='schedule'; keep content and destinations intact.",
+    ),
   postingMode: z
     .enum(["draft", "schedule"])
     .optional()
@@ -306,6 +325,7 @@ const managedPostSchema = z.object({
   publishedAt: z.string().nullable(),
   status: managedPostStatusSchema,
   errorMessage: z.string().nullable(),
+  recovery: recoverySchema.optional(),
   repostEnabled: z.boolean(),
   repostDelayHours: z.number(),
   repostDueAt: z.string().nullable(),
@@ -345,7 +365,7 @@ export const inspectPostsOutputSchema = z.object({
 export const updateScheduledPostOutputSchema = z.object({
   kind: z.literal("scheduled_post_update"),
   post: managedPostSchema,
-  validation: validatePostOutputSchema,
+  validation: validatePostOutputSchema.optional(),
   warnings: z.array(scheduleWarningSchema).optional(),
   summary: z.object({
     updated: z.boolean(),
@@ -416,6 +436,7 @@ function mapPost(post: {
   accountOptions?: SocialPost["accountOptions"];
   scheduledFor: Date | null;
   status: string;
+  errorDetails?: SocialPost["errorDetails"];
   publishedAt?: Date | null;
   repostEnabled?: boolean;
   repostDelayHours?: number;
@@ -430,6 +451,7 @@ function mapPost(post: {
     accountOptions: post.accountOptions ?? {},
     scheduledFor: post.scheduledFor?.toISOString() ?? null,
     status: post.status,
+    recovery: getTikTokPostRecovery({ status: post.status as SocialPost["status"], errorDetails: post.errorDetails }),
     publishedAt: post.publishedAt?.toISOString() ?? null,
     repostEnabled: post.repostEnabled ?? false,
     repostDelayHours: post.repostDelayHours ?? 12,
@@ -505,6 +527,7 @@ function mapManagedPost(
     publishedAt: post.publishedAt?.toISOString() ?? null,
     status: mapManagedStatus(post.status),
     errorMessage: post.errorMessage ?? null,
+    recovery: getTikTokPostRecovery(post),
     repostEnabled: post.repostEnabled ?? false,
     repostDelayHours: post.repostDelayHours ?? 12,
     repostDueAt: post.repostDueAt?.toISOString() ?? null,
@@ -818,6 +841,44 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (!currentPost) {
     throw new Error(POST_NOT_FOUND_MESSAGE);
   }
+  if (getTikTokPostRecovery(currentPost)) {
+    const contentFields = [
+      "message",
+      "accountIds",
+      "media",
+      "thread",
+      "accountOverrides",
+      "accountOptions",
+      "imageFit",
+      "quotePostId",
+    ] as const;
+    if (
+      input.scheduledFor &&
+      input.postingMode !== "draft" &&
+      contentFields.every((field) => input[field] === undefined)
+    ) {
+      const updated = await scheduleTikTokRetry(userId, input.postId, input.scheduledFor, input.expectedUpdatedAt);
+      return {
+        kind: "scheduled_post_update" as const,
+        post: mapManagedPost(updated, await getAccountMap(userId)),
+        summary: {
+          updated: true,
+          messageChanged: false,
+          accountsChanged: false,
+          mediaChanged: false,
+          threadChanged: false,
+          accountOverridesChanged: false,
+          statusChanged: currentPost.status !== "scheduled",
+          scheduledForChanged: true,
+          quoteChanged: false,
+        },
+      };
+    }
+    if (currentPost.status === "failed")
+      throw new Error(
+        "To recover this TikTok failure, provide only scheduledFor, postingMode='schedule', postId and expectedUpdatedAt. The existing content and successful destinations will be preserved.",
+      );
+  }
   assertEditableManagedPost(currentPost);
   if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentPost.updatedAt.toISOString()) {
     throw new ConflictError("This post changed. Reload it before saving.");
@@ -929,7 +990,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     userId,
   });
 
-  const updates: Partial<SocialPost> = {};
+  const updates: Partial<SocialPost> & { tiktokRetryApproved?: boolean } = {
+    tiktokRetryApproved:
+      targetPostingMode === "schedule" &&
+      input.scheduledFor !== undefined &&
+      Boolean(getTikTokPostRecovery(currentPost)),
+  };
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;
@@ -1043,6 +1109,7 @@ function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof
     success: r.success,
     error: r.error,
     message: r.message,
+    recovery: recoveryForResult(r),
     postUrl: r.postUrl,
     postId: r.postId,
     threadResults: r.threadResults?.map((s) => ({
@@ -1318,7 +1385,10 @@ export async function createPost(
       const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
       const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
-      if (summary.overallSuccess) {
+      const deferred = await deferTikTokMinuteLimit(post.id, results, accountResults, threadResultsByAccount);
+      if (deferred) {
+        // The original record is queued; no failure webhook is emitted.
+      } else if (summary.overallSuccess) {
         const publishedAt = new Date();
         const repostState = buildPublishedRepostState({
           enabled: repostSettings.enabled,
@@ -1357,6 +1427,7 @@ export async function createPost(
             error: r.error,
             message: r.message,
             threadResults: r.threadResults,
+            details: r.details,
           })),
         }) as Record<string, unknown>;
 
@@ -1379,7 +1450,12 @@ export async function createPost(
       }
 
       const updatedPost = await repository.getPostById(post.id);
-      const sanitizedResults = mapPostingResultsForMcp(results);
+      const sanitizedResults = mapPostingResultsForMcp(results).map((result) => ({
+        ...result,
+        ...(deferred && result.recovery
+          ? { recovery: { ...result.recovery, automaticRetry: true, state: "waiting" } }
+          : {}),
+      }));
 
       return {
         kind: "post" as const,
@@ -1396,7 +1472,7 @@ export async function createPost(
           threadSegmentCount,
           successCount: summary.successCount,
           failureCount: summary.failureCount,
-          scheduledCount: 0,
+          scheduledCount: deferred ? 1 : 0,
           draftCount: 0,
           overallSuccess: summary.overallSuccess,
         },

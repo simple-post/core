@@ -14,8 +14,10 @@ import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
 import { mergeAccountResults } from "@/lib/posting/account-results";
+import { deferTikTokMinuteLimit } from "@/lib/posting/defer-tiktok-minute-limit";
 import { sanitizePostingResult } from "@/lib/posting/progress-stream";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -115,6 +117,10 @@ export async function executePostUpdate(
   });
   const currentPostingMode: PostingMode = currentPost.status === "draft" ? "draft" : "schedule";
   const postingMode = validated.postingMode ?? (validated.scheduledFor ? "schedule" : currentPostingMode);
+  const tiktokRetryApproved =
+    postingMode !== "draft" &&
+    (isRetry || validated.scheduledFor !== undefined || postingMode === "now") &&
+    Boolean(getTikTokPostRecovery(currentPost));
   const scheduledFor = resolveScheduledFor(postingMode, validated.scheduledFor, currentPost.scheduledFor);
   const scheduleWarnings = await getScheduleWarnings(userId, postingMode === "schedule" ? scheduledFor : null);
   const quotePostId = validated.quotePostId === undefined ? currentPost.quotePostId : validated.quotePostId;
@@ -231,6 +237,7 @@ export async function executePostUpdate(
         accountIds: isRetry ? currentPost.accountIds : validated.accountIds,
         scheduledFor,
         status: postingMode === "now" ? "pending" : postingMode === "schedule" ? "scheduled" : "draft",
+        tiktokRetryApproved: postingMode === "schedule" && tiktokRetryApproved,
         errorMessage: null,
         errorDetails: null,
         publishedAt: null,
@@ -283,6 +290,7 @@ export async function executePostUpdate(
       quoteTargets,
       onPostingResult,
       { postId: post.id, source: "api" },
+      tiktokRetryApproved,
     );
     const summary = getPostingSummary(results);
 
@@ -297,7 +305,16 @@ export async function executePostUpdate(
       mergeAccountResults(isRetry ? (currentPost.accountResults ?? undefined) : undefined, results),
     ) as AccountResultsMap;
 
-    if (
+    const deferred = await deferTikTokMinuteLimit(
+      post.id,
+      results,
+      accountResults,
+      threadResultsByAccount,
+      tiktokRetryApproved,
+    );
+    if (deferred) {
+      // A conclusive minute limit waits automatically, preserving successful targets.
+    } else if (
       summary.overallSuccess &&
       currentPost.accountIds.every((accountId) => accountResults[accountId]?.success || !isRetry)
     ) {

@@ -15,7 +15,8 @@ export interface PaginationInfo {
   hasPreviousPage: boolean;
 }
 
-type RawSocialPost = Omit<SocialPost, "scheduledFor" | "createdAt" | "publishedAt"> & {
+type RawSocialPost = Omit<SocialPost, "scheduledFor" | "createdAt" | "publishedAt" | "updatedAt"> & {
+  updatedAt?: string;
   scheduledFor?: string | null;
   createdAt: string;
   publishedAt?: string | null;
@@ -44,6 +45,7 @@ export interface PostCountsResult {
 function parsePost(post: RawSocialPost): SocialPost {
   return {
     ...post,
+    updatedAt: post.updatedAt ? new Date(post.updatedAt) : undefined,
     scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
     createdAt: new Date(post.createdAt),
     publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,

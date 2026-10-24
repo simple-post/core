@@ -382,6 +382,42 @@ describe("TikTokPublisher", () => {
       expect(mockAxiosInstance.post).toHaveBeenLastCalledWith("/v2/post/publish/inbox/video/init/", expect.any(Object));
     });
 
+    it("gates every initialization, including a replacement session, before making the request", async () => {
+      const beforeUploadInit = jest
+        .fn()
+        .mockImplementationOnce(async () => {})
+        .mockRejectedValueOnce(
+          new PostError(PostErrorType.RATE_LIMIT_ERROR, "Account request budget is full", { localRateLimit: true }),
+        );
+      publisher = new TikTokPublisher({ tiktok: { ...directOptions.tiktok!, beforeUploadInit } });
+      mockedAxios.put.mockRejectedValueOnce({ response: { status: 404 } });
+      const result = publisher.postContent(content, directOptions).catch((error) => error);
+      await jest.runAllTimersAsync();
+      expect(await result).toMatchObject({
+        errorType: PostErrorType.RATE_LIMIT_ERROR,
+        details: { localRateLimit: true },
+      });
+      expect(beforeUploadInit).toHaveBeenCalledTimes(2);
+      expect(sessions).toBe(1);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["public", "draft"] as const)("preserves TikTok's pending-share diagnosis in %s mode", async (mode) => {
+      if (mode === "draft") mockAxiosInstance.post.mockReset();
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: { status: 400, data: { error: { code: "spam_risk_too_many_pending_share", log_id: "safe_log_id" } } },
+        config: { headers: { Authorization: "Bearer secret" } },
+      });
+      await expect(
+        publisher.postContent(content, { tiktok: { ...directOptions.tiktok!, publishMode: mode } }),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        message: expect.stringContaining("pending-upload limit"),
+        details: { phase: "init", code: "spam_risk_too_many_pending_share", logId: "safe_log_id" },
+      });
+      expect(mockedAxios.put).not.toHaveBeenCalled();
+    });
+
     it.each([
       [{ error: { code: "rate_limit_exceeded" } }, PostErrorType.PUBLISH_REJECTED],
       [{ data: { publish_id: "incomplete" } }, PostErrorType.API_ERROR],
@@ -430,6 +466,42 @@ describe("TikTokPublisher", () => {
   });
 
   describe("constructor", () => {
+    it.each(["timeout", "server-error", "missing-data"])(
+      "keeps a creator-info %s safely retryable without uploading",
+      async (kind) => {
+        if (kind === "missing-data") mockAxiosInstance.post.mockResolvedValueOnce({ data: {} });
+        else
+          mockAxiosInstance.post.mockRejectedValueOnce(
+            kind === "timeout" ? { code: "ETIMEDOUT" } : { response: { status: 503, data: {} } },
+          );
+        await expect(
+          publisher.postContent({ media: [{ type: "video", path: "./test-video.mp4" }] }, directOptions),
+        ).rejects.toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          message: expect.stringContaining("No upload was submitted"),
+          details: { phase: "creator_info" },
+        });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+        expect(mockedAxios.put).not.toHaveBeenCalled();
+      },
+    );
+    it.each([
+      "spam_risk_too_many_posts",
+      "reached_active_user_cap",
+      "rate_limit_exceeded",
+      "scope_not_authorized",
+      "spam_risk_user_banned_from_posting",
+    ])("keeps a %s creator-info rejection safely recoverable before upload", async (code) => {
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { error: { code, log_id: "safe_log_id" } } });
+      await expect(
+        publisher.postContent({ media: [{ type: "video", path: "./test-video.mp4" }] }, directOptions),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        details: { phase: "creator_info", code, logId: "safe_log_id" },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.put).not.toHaveBeenCalled();
+    });
     it("should throw an error if credentials are missing", () => {
       expect(() => {
         new TikTokPublisher({});

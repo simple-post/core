@@ -663,9 +663,9 @@ it("saves a draft update with unfittable images and reports what blocks publishi
   );
 
   expect(updatePost).toHaveBeenCalled();
-  expect(result.validation.isValid).toBe(false);
-  expect(result.validation.accounts[0].errors[0].message).toBe("PNG must be converted");
-  expect(result.validation.imageFitHelp).toMatch(/crop.*blur.*imageFit/);
+  expect(result.validation!.isValid).toBe(false);
+  expect(result.validation!.accounts[0].errors[0].message).toBe("PNG must be converted");
+  expect(result.validation!.imageFitHelp).toMatch(/crop.*blur.*imageFit/);
 });
 
 it("validates persisted account overrides before scheduling a draft through MCP", async () => {

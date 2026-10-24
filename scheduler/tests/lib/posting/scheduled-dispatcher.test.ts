@@ -27,6 +27,8 @@ jest.mock("@/lib/config", () => ({
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     publishAttempt: { count: jest.fn(), deleteMany: jest.fn(), groupBy: jest.fn() },
+    tikTokUploadInitAttempt: { deleteMany: jest.fn() },
+    tikTokUploadPause: { findMany: jest.fn(async () => []) },
     publishCheckpoint: { findMany: jest.fn() },
     post: {
       findMany: jest.fn(),
@@ -101,9 +103,11 @@ interface DuePostFixture {
   accountOverrides?: unknown;
   thread?: unknown;
   accountResults?: unknown;
+  threadResults?: unknown;
   media?: unknown[];
   accounts: Array<{ id: string; platform: string }>;
   quotePostId?: string | null;
+  tiktokRetryApproved?: boolean;
   quotePost?: { status: string } | null;
 }
 
@@ -624,6 +628,7 @@ describe("dispatchDueScheduledPosts", () => {
       [expect.objectContaining({ accountId: "a1", postId: "source-tweet" })],
       undefined,
       expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
+      undefined,
     );
   });
 
@@ -660,6 +665,7 @@ describe("dispatchDueScheduledPosts", () => {
       [expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" })],
       undefined,
       expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
+      undefined,
     );
     expect(result.publishedPosts).toBe(1);
   });
@@ -886,6 +892,44 @@ it("reschedules a partial thread when another process consumes the remaining cap
   expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
 });
 
+it("parks a TikTok inbox backlog without validating, uploading or failing every queued post", async () => {
+  mockFindMany({ due: [duePost({ id: "paused-tiktok", accounts: [{ id: "a1", platform: "tiktok" }] })] });
+  jest
+    .mocked(prisma.tikTokUploadPause.findMany)
+    .mockResolvedValueOnce([{ accountId: "a1", code: "spam_risk_too_many_pending_share", resumeAt: null }] as never);
+  const result = await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).not.toHaveBeenCalled();
+  expect(validatePostForAccounts).not.toHaveBeenCalled();
+  expect(result.failedPosts).toBe(0);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "paused-tiktok" },
+      data: expect.objectContaining({ status: "scheduled", tiktokPaused: true }),
+    }),
+  );
+});
+
+it("dispatches an approved original through the account pause and retains approval on minute deferral", async () => {
+  mockFindMany({
+    due: [duePost({ id: "approved-tiktok", accounts: [{ id: "a1", platform: "tiktok" }], tiktokRetryApproved: true })],
+  });
+  jest
+    .mocked(prisma.tikTokUploadPause.findMany)
+    .mockResolvedValueOnce([{ accountId: "a1", code: "spam_risk_too_many_pending_share", resumeAt: null }] as never);
+  postToAccountsMock.mockResolvedValue([
+    { accountId: "a1", platform: "tiktok", success: false, error: "LOCAL_RATE_LIMIT" },
+  ]);
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a1"]);
+  expect(postToAccountsMock.mock.calls[0][10]).toBe(true);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "approved-tiktok" },
+      data: expect.objectContaining({ status: "scheduled", tiktokRetryApproved: true }),
+    }),
+  );
+});
+
 it("allows a thread larger than one rate window to start making progress", async () => {
   mockFindMany({
     due: [
@@ -895,6 +939,37 @@ it("allows a thread larger than one rate window to start making progress", async
   postToAccountsMock.mockResolvedValue(successFor(["a1"]));
   await dispatchDueScheduledPosts();
   expect(postToAccountsMock).toHaveBeenCalledTimes(1);
+});
+
+it("keeps an already successful thread's results when the remaining TikTok retry completes", async () => {
+  const threadResults = {
+    a1: [
+      { index: 0, success: true, postId: "x-root" },
+      { index: 1, success: true, postId: "x-reply" },
+    ],
+  };
+  mockFindMany({
+    due: [
+      duePost({
+        id: "partial-tiktok",
+        accounts: [
+          { id: "a1", platform: "x" },
+          { id: "a2", platform: "tiktok" },
+        ],
+        accountResults: toAccountResultsMap(successFor(["a1"])),
+        threadResults,
+      }),
+    ],
+  });
+  postToAccountsMock.mockResolvedValue(successFor(["a2"], "tiktok"));
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "partial-tiktok" },
+      data: expect.objectContaining({ status: "published", threadResults }),
+    }),
+  );
 });
 
 it("publishes due posts while storage collection is still waiting for its provider", async () => {

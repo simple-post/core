@@ -278,7 +278,7 @@ export class PostsModel {
 
   async updatePost(
     id: string,
-    updates: Partial<SocialPost>,
+    updates: Partial<SocialPost> & { tiktokRetryApproved?: boolean },
     expected?: Pick<PostSnapshot, "status" | "updatedAt">,
     client: PostWriteClient = prisma,
   ): Promise<PostSnapshot> {
@@ -318,9 +318,18 @@ export class PostsModel {
       quotePostId?: string | null;
       accounts?: { set: Array<{ id: string }> };
       media?: { deleteMany: Record<string, never>; create: Array<Record<string, unknown>> };
-    } = {};
+      tiktokPaused: boolean;
+      tiktokRetryApproved: boolean;
+    } = {
+      // Re-evaluate edited posts at dispatch; an old pause must not strand a
+      // post whose accounts or content changed. Timing-only recovery can set
+      // approval explicitly below.
+      tiktokPaused: false,
+      tiktokRetryApproved: false,
+    };
 
     if (updates.message !== undefined) updateData.message = updates.message;
+    if (updates.tiktokRetryApproved !== undefined) updateData.tiktokRetryApproved = updates.tiktokRetryApproved;
     if (updates.scheduledFor !== undefined) updateData.scheduledFor = updates.scheduledFor;
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.errorMessage !== undefined) updateData.errorMessage = updates.errorMessage || null;

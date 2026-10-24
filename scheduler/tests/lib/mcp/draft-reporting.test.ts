@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 
 import { registerTools } from "@/lib/mcp/server";
 import { createPost } from "@/lib/mcp/tools/posts";
+import { tikTokRecovery } from "@/lib/posting/tiktok-recovery";
 
 jest.mock("@modelcontextprotocol/ext-apps/server", () => ({ registerAppTool: jest.fn() }));
 jest.mock("@/lib/mcp/ui/resources", () => ({ registerMcpUiResources: jest.fn() }));
@@ -82,6 +83,29 @@ function result(overrides: {
 }
 
 const input = { message: "Launch day", accountIds: ["ig-1"], postingMode: "draft" };
+
+it("reports a Post Now minute limit as queued, with no instruction to resubmit", async () => {
+  const base = result({ status: "scheduled", postingMode: "now" });
+  jest.mocked(createPost).mockResolvedValue({
+    ...base,
+    post: { ...base.post, scheduledFor: "2099-01-01T10:01:00Z" },
+    postingResults: [
+      {
+        accountId: "tiktok-1",
+        platform: "tiktok",
+        success: false,
+        error: "LOCAL_RATE_LIMIT",
+        recovery: tikTokRecovery("rate_limit_exceeded", true),
+      },
+    ],
+    summary: { ...base.summary, overallSuccess: false, failureCount: 1, scheduledCount: 1 },
+  });
+  const { content } = await createPostHandler()({ ...input, postingMode: "now" });
+  expect(content[0].text).toContain("Queued for TikTok's request limit");
+  expect(content[0].text).toContain("You do not need to resubmit");
+  expect(content[0].text).toContain("queued for automatic retry");
+  expect(content[0].text).not.toContain("1 account failed");
+});
 
 it("tells the user a saved draft cannot be published, and why", async () => {
   jest.mocked(createPost).mockResolvedValue(

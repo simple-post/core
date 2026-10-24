@@ -466,6 +466,20 @@ describe("TikTokPublisher", () => {
   });
 
   describe("constructor", () => {
+    it.each(["spam_risk_too_many_posts", "reached_active_user_cap"])(
+      "keeps a %s creator-info rejection safely recoverable before upload",
+      async (code) => {
+        mockAxiosInstance.post.mockResolvedValueOnce({ data: { error: { code, log_id: "safe_log_id" } } });
+        await expect(
+          publisher.postContent({ media: [{ type: "video", path: "./test-video.mp4" }] }, directOptions),
+        ).rejects.toMatchObject({
+          errorType: PostErrorType.PUBLISH_REJECTED,
+          details: { phase: "creator_info", code, logId: "safe_log_id" },
+        });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+        expect(mockedAxios.put).not.toHaveBeenCalled();
+      },
+    );
     it("should throw an error if credentials are missing", () => {
       expect(() => {
         new TikTokPublisher({});

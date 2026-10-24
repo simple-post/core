@@ -2,11 +2,14 @@ import type { ReactNode, ReactEventHandler } from "react";
 
 import { AlertCircle, FileText, Quote } from "lucide-react";
 
+import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
+
 import { PlatformIconBadge } from "../platform-icons";
 import { Badge } from "../ui/badge";
 export type PostCardData = {
   message: string;
   status: string;
+  errorDetails?: Record<string, unknown> | null;
   quotePostId?: string | null;
   media: Array<{ type: string; url: string; thumbnailUrl?: string | null; filename?: string }>;
 };
@@ -30,6 +33,7 @@ export function PostCardView({
   const hasMedia = post.media.length > 0;
   const isFailed = post.status === "failed";
   const isDraft = post.status === "draft";
+  const waiting = post.status === "scheduled" && getTikTokPostRecovery({ ...post, status: "scheduled" });
   return (
     <div className="simplepost-visual border border-border rounded-2xl p-4 bg-card card-accent-hover">
       <div className="flex gap-4">
@@ -117,6 +121,11 @@ export function PostCardView({
                   <Badge variant="secondary" className="flex-shrink-0 text-xs">
                     <FileText className="h-3 w-3 mr-1" />
                     Draft
+                  </Badge>
+                )}
+                {waiting && (
+                  <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                    Waiting for TikTok
                   </Badge>
                 )}
                 {post.quotePostId && (

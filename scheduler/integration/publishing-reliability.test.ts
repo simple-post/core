@@ -52,6 +52,7 @@ beforeEach(async () => {
   await prisma.publishCheckpoint.deleteMany();
   await prisma.publishAttempt.deleteMany();
   await prisma.tikTokUploadInitAttempt.deleteMany();
+  await prisma.tikTokUploadPause.deleteMany();
   await prisma.storageDeletion.deleteMany();
   await prisma.user.deleteMany();
   await prisma.user.create({

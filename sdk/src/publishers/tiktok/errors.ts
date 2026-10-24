@@ -1,7 +1,7 @@
 import { PostError, PostErrorType } from "../../types";
 
 /** Keep provider diagnostics, never Axios config, headers, tokens, or signed URLs. */
-export function uploadInitError(body: unknown, status?: number): PostError {
+export function uploadInitError(body: unknown, status?: number, phase = "init"): PostError {
   const error = (body as { error?: { code?: unknown; log_id?: unknown; logid?: unknown } } | undefined)?.error;
   const code = typeof error?.code === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(error.code) ? error.code : undefined;
   const rawLogId = error?.log_id ?? error?.logid;
@@ -74,6 +74,6 @@ export function uploadInitError(body: unknown, status?: number): PostError {
   return new PostError(
     rejected ? PostErrorType.PUBLISH_REJECTED : PostErrorType.API_ERROR,
     code && code !== "ok" ? `${message} (TikTok code: ${code})` : message,
-    { phase: "init", httpStatus: status, code, logId },
+    { phase, httpStatus: status, code, logId },
   );
 }

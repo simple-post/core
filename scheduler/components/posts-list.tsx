@@ -8,6 +8,7 @@ import { Trash2, Edit, CalendarClock, ChevronLeft, ChevronRight, Quote, Send } f
 import { toast } from "sonner";
 
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
+import { TikTokRecoveryNotice } from "@/components/tiktok-recovery-notice";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getAccountDisplayName } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
+import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
 import type { SocialPost, ConnectedAccount } from "@/types";
 
 interface PostsListProps {
@@ -98,6 +100,9 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
 
   return (
     <div className="space-y-4">
+      {type === "failed" && posts.filter((post) => getTikTokPostRecovery(post)).length > 1 && (
+        <TikTokRecoveryNotice posts={posts} />
+      )}
       <div className={`space-y-4 flex flex-col ${isFetching ? "opacity-70" : ""}`}>
         {posts.map((post: SocialPost) => (
           <PostCard key={post.id} post={post} accounts={accounts} onDeleted={onPostDeleted} />
@@ -308,7 +313,9 @@ function PostCard({
       });
 
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
-      if (allSucceeded) {
+      if (data.post?.status === "scheduled") {
+        toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.", { id: toastId });
+      } else if (allSucceeded) {
         toast.success("Draft posted.", { id: toastId });
       } else {
         toast.error("Draft could not be posted to every account.", { id: toastId });
@@ -429,6 +436,8 @@ function PostCard({
           }
         />
       </Link>
+
+      <TikTokRecoveryNotice posts={[post]} />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

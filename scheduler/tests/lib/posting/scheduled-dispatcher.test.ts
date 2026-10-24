@@ -28,6 +28,7 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     publishAttempt: { count: jest.fn(), deleteMany: jest.fn(), groupBy: jest.fn() },
     tikTokUploadInitAttempt: { deleteMany: jest.fn() },
+    tikTokUploadPause: { findMany: jest.fn(async () => []) },
     publishCheckpoint: { findMany: jest.fn() },
     post: {
       findMany: jest.fn(),
@@ -885,6 +886,23 @@ it("reschedules a partial thread when another process consumes the remaining cap
     }),
   );
   expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
+});
+
+it("parks a TikTok inbox backlog without validating, uploading or failing every queued post", async () => {
+  mockFindMany({ due: [duePost({ id: "paused-tiktok", accounts: [{ id: "a1", platform: "tiktok" }] })] });
+  jest
+    .mocked(prisma.tikTokUploadPause.findMany)
+    .mockResolvedValueOnce([{ accountId: "a1", code: "spam_risk_too_many_pending_share", resumeAt: null }] as never);
+  const result = await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).not.toHaveBeenCalled();
+  expect(validatePostForAccounts).not.toHaveBeenCalled();
+  expect(result.failedPosts).toBe(0);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "paused-tiktok" },
+      data: expect.objectContaining({ status: "scheduled", tiktokPaused: true }),
+    }),
+  );
 });
 
 it("allows a thread larger than one rate window to start making progress", async () => {

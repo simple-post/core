@@ -13,6 +13,7 @@ import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
+import { TikTokRecoveryNotice } from "@/components/tiktok-recovery-notice";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,7 +88,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       });
 
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
-      if (allSucceeded) {
+      if (data.post?.status === "scheduled") {
+        toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.", { id: toastId });
+      } else if (allSucceeded) {
         toast.success("Draft posted.", { id: toastId });
       } else {
         toast.error("Draft could not be posted to every account.", { id: toastId });
@@ -244,6 +247,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </Link>
             ) : null}
 
+            <TikTokRecoveryNotice posts={[post]} />
             {/* Error Message for Failed Posts */}
             {isFailed && (post.errorMessage || post.errorDetails) && (
               <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">

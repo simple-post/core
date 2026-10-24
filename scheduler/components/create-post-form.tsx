@@ -585,7 +585,11 @@ export function CreatePostForm() {
             : undefined,
       });
 
-      if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
+      if (postingMode === "now" && data.post?.status === "scheduled") {
+        toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.");
+        resetDraftToDefaults();
+        router.push("/?tab=scheduled");
+      } else if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         const completedResults = data.postingResults;
         setPostingResults((current) => mergePostingProgressResults(current, completedResults));
 

@@ -121,6 +121,7 @@ export async function runDurablePublish(
     "CREDENTIALS_ERROR",
     "RATE_LIMIT_ERROR",
     "LOCAL_RATE_LIMIT",
+    "TIKTOK_ACCOUNT_PAUSED",
     "PUBLISH_REJECTED",
   ].includes(result.error ?? "");
   const state = result.success ? "succeeded" : safeToRetry ? "failed" : "unknown";

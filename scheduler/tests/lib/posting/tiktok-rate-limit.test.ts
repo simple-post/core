@@ -6,6 +6,7 @@ jest.mock("@/lib/prisma", () => ({
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
     tikTokUploadInitAttempt: { count: jest.fn(), create: jest.fn() },
+    tikTokUploadPause: { findUnique: jest.fn(), update: jest.fn() },
   },
 }));
 
@@ -13,6 +14,7 @@ const db = prisma as unknown as {
   $transaction: jest.Mock;
   $queryRaw: jest.Mock;
   tikTokUploadInitAttempt: { count: jest.Mock; create: jest.Mock };
+  tikTokUploadPause: { findUnique: jest.Mock; update: jest.Mock };
 };
 const now = new Date("2026-10-24T09:00:00Z");
 
@@ -20,6 +22,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   db.$transaction.mockImplementation((run) => run(db));
   db.$queryRaw.mockResolvedValue([{ now }]);
+  db.tikTokUploadPause.findUnique.mockReset().mockResolvedValue(null);
 });
 
 it("reserves the sixth initialization using the database clock and an account-specific lock", async () => {
@@ -46,4 +49,16 @@ it("does not use a full account's budget for a different account", async () => {
   await expect(reserveTikTokUploadInit("full")).rejects.toThrow("6 requests per minute");
   await expect(reserveTikTokUploadInit("other")).resolves.toBeUndefined();
   expect(db.tikTokUploadInitAttempt.create).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a short provider cooldown automatically retryable instead of parking the account indefinitely", async () => {
+  db.tikTokUploadPause.findUnique.mockResolvedValue({
+    code: "rate_limit_exceeded",
+    resumeAt: new Date(now.getTime() + 60_000),
+  });
+  await expect(reserveTikTokUploadInit("account-a")).rejects.toMatchObject({
+    errorType: "RATE_LIMIT_ERROR",
+    details: { localRateLimit: true, localAccountPause: false },
+  });
+  expect(db.tikTokUploadInitAttempt.create).not.toHaveBeenCalled();
 });

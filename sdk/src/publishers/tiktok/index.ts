@@ -177,6 +177,9 @@ export class TikTokPublisher extends Publisher {
     try {
       const response = await this.client.post<TikTokCreatorInfoResponse>("/v2/post/publish/creator_info/query/");
       const errorCode = response.data?.error?.code;
+      if (["spam_risk_too_many_posts", "reached_active_user_cap"].includes(errorCode ?? "")) {
+        throw uploadInitError(response.data, 200, "creator_info");
+      }
       if (errorCode && errorCode !== "ok") {
         throw new PostError(
           PostErrorType.API_ERROR,
@@ -192,6 +195,10 @@ export class TikTokPublisher extends Publisher {
       if (error instanceof PostError) throw error;
       const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
       const errorCode = err.response?.data?.error?.code;
+      if (["spam_risk_too_many_posts", "reached_active_user_cap"].includes(errorCode ?? "")) {
+        const status = (err.response as { status?: number } | undefined)?.status;
+        throw uploadInitError(err.response?.data, status, "creator_info");
+      }
       const errorMessage = TikTokPublisher.creatorInfoErrorMessage(
         errorCode,
         err.response?.data?.error?.message || err.message,

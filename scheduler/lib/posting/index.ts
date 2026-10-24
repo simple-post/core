@@ -23,7 +23,9 @@ import { withAccountPublishSpan, withPostingBatch } from "@/lib/observability/te
 import { getPlatformAccountHandle } from "@/lib/posting/account-identity";
 import { recordRevokedMetaSession } from "@/lib/posting/credential-rejection";
 import { publishFingerprint, runDurablePublish } from "@/lib/posting/durable-publish";
+import { pauseTikTokUploads, resumeTikTokUploads, pausedTikTokResults } from "@/lib/posting/tiktok-pause";
 import { reserveTikTokUploadInit } from "@/lib/posting/tiktok-rate-limit";
+import { tikTokCapCode } from "@/lib/posting/tiktok-recovery";
 import { prisma } from "@/lib/prisma";
 import {
   decryptConnectedAccountSecrets,
@@ -190,6 +192,10 @@ async function postSingleSegment(
   const startTime = Date.now();
   try {
     const platform = mapPlatformName(account.platform);
+    if (platform === "tiktok") {
+      const paused = await pausedTikTokResults([account.id]);
+      if (paused.length > 0) return paused[0];
+    }
     const baseOptions = buildPostOptions(account, accountOptions);
     const options = mergeReplyOverlay(baseOptions, replyOverlay) as PostOptionsWithCredentials;
     if (platform === "tiktok" && options.tiktok) {
@@ -232,6 +238,7 @@ async function postSingleSegment(
     }
 
     if (result?.error === PostErrorType.NO_ERROR && result?.id) {
+      if (platform === "tiktok") await resumeTikTokUploads(account.id, new Date(startTime));
       // Prefer the canonical URL returned by the publisher (Instagram and
       // Threads provide a permalink that we can't construct from the id
       // alone). Fall back to building the URL from the post id otherwise.
@@ -266,10 +273,22 @@ async function postSingleSegment(
       };
     }
 
-    const localRateLimit =
-      result?.error === PostErrorType.RATE_LIMIT_ERROR &&
-      (result.details as { localRateLimit?: boolean } | undefined)?.localRateLimit === true;
-    const errorMsg = localRateLimit ? "LOCAL_RATE_LIMIT" : result?.error || "Unknown error occurred";
+    const detail = result?.details as
+      | { localRateLimit?: boolean; localAccountPause?: boolean; code?: unknown; phase?: string }
+      | undefined;
+    const cap =
+      platform === "tiktok" &&
+      result?.error === PostErrorType.PUBLISH_REJECTED &&
+      ["init", "creator_info"].includes(detail?.phase ?? "")
+        ? tikTokCapCode(detail?.code)
+        : undefined;
+    if (cap) await pauseTikTokUploads(account.id, cap);
+    const localRateLimit = result?.error === PostErrorType.RATE_LIMIT_ERROR && detail?.localRateLimit === true;
+    const errorMsg = detail?.localAccountPause
+      ? "TIKTOK_ACCOUNT_PAUSED"
+      : localRateLimit || cap === "rate_limit_exceeded"
+        ? "LOCAL_RATE_LIMIT"
+        : result?.error || "Unknown error occurred";
     await recordRevokedMetaSession(account, result?.details).catch((error: unknown) => {
       log.warn({ err: serializeError(error) }, "Could not record revoked account session");
     });

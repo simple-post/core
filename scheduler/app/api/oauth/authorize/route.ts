@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
+  applyMcpAccessMode,
   canUpgradeLegacyMcpClientScope,
   getAppBaseUrl,
   isMcpScopeSubset,
@@ -10,6 +11,7 @@ import {
   validateMcpScope,
 } from "@/lib/mcp/config";
 import { createAuthorizationCode, updateClientScope, validateClient } from "@/lib/mcp/oauth";
+import { isPersonalMuseClient } from "@/lib/mcp/personal-muse";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 
@@ -23,7 +25,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
-
     if (!client_id || !redirect_uri || !state || !code_challenge) {
       return NextResponse.json(
         { error: "invalid_request", error_description: "Missing required parameters" },
@@ -54,6 +55,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const museClient = isPersonalMuseClient(client.clientId);
+    // Other clients retain the original requested-scope behavior, even if a
+    // caller sends Muse-only form fields. Only a verified client can opt in.
+    const accessMode = museClient ? (body.access_mode ?? "read_write") : "read_write";
+    if (accessMode !== "read_only" && accessMode !== "read_write") {
+      return NextResponse.json(
+        { error: "invalid_request", error_description: "Unsupported access mode" },
+        { status: 400 },
+      );
+    }
+
     let resolvedResource: string;
     try {
       resolvedResource = resolveMcpResource(resource);
@@ -71,6 +83,14 @@ export async function POST(req: NextRequest) {
     if (!scopeResult.ok) {
       return NextResponse.json(
         { error: "invalid_scope", error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}` },
+        { status: 400 },
+      );
+    }
+
+    const grantedScope = museClient ? applyMcpAccessMode(scopeResult.scope, accessMode) : scopeResult.scope;
+    if (!grantedScope) {
+      return NextResponse.json(
+        { error: "invalid_scope", error_description: "The requested scopes do not support read-only access" },
         { status: 400 },
       );
     }
@@ -95,7 +115,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate authorization code
+    // Generate authorization code with the user's narrowed consent, not the original request.
     const code = await createAuthorizationCode({
       clientId: client_id,
       userId: session.user.id,
@@ -104,7 +124,8 @@ export async function POST(req: NextRequest) {
       nonce: typeof nonce === "string" && nonce.length > 0 ? nonce : undefined,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method || "S256",
-      scope: scopeResult.scope,
+      scope: grantedScope,
+      enforceRestScopes: museClient,
     });
 
     // RFC 9207 issuer identification prevents authorization-server mix-up

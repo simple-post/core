@@ -61,6 +61,7 @@ export async function createAuthorizationCode(params: {
   codeChallenge: string;
   codeChallengeMethod: string;
   scope?: string;
+  enforceRestScopes?: boolean;
 }): Promise<string> {
   const code = generateAuthorizationCode();
   const codeHash = hashValue(code);
@@ -77,6 +78,7 @@ export async function createAuthorizationCode(params: {
       codeChallenge: params.codeChallenge,
       codeChallengeMethod: params.codeChallengeMethod,
       scope: params.scope ?? DEFAULT_MCP_SCOPE,
+      enforceRestScopes: params.enforceRestScopes ?? false,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
     },
   });
@@ -141,6 +143,7 @@ export async function exchangeCodeForToken(params: {
       clientId: authCode.clientId,
       userId: authCode.userId,
       scope: authCode.scope ?? DEFAULT_MCP_SCOPE,
+      enforceRestScopes: authCode.enforceRestScopes,
       resource,
       expiresAt: new Date(Date.now() + expiresIn * 1000),
     },
@@ -201,6 +204,7 @@ export async function authenticateMcpToken(token: string, resource = getMcpResou
       token: "mcp",
       clientId: mcpToken.clientId,
       scope: mcpToken.scope ?? DEFAULT_MCP_SCOPE,
+      enforceRestScopes: mcpToken.enforceRestScopes,
       scopes: parseMcpScopes(mcpToken.scope),
       resource: mcpToken.resource ?? getMcpResourceUrl(),
       expiresAt: mcpToken.expiresAt,

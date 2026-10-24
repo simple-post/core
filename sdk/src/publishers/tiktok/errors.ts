@@ -15,7 +15,9 @@ export function uploadInitError(body: unknown, status?: number, phase = "init"):
     }
     case "rate_limit_exceeded": {
       message =
-        "TikTok's upload request limit was reached (6 requests per minute for this account). Wait at least one minute before retrying.";
+        phase === "creator_info"
+          ? "TikTok's creator-info request limit was reached. Wait at least one minute before retrying."
+          : "TikTok's upload request limit was reached (6 requests per minute for this account). Wait at least one minute before retrying.";
       break;
     }
     case "spam_risk_too_many_posts": {
@@ -69,10 +71,13 @@ export function uploadInitError(body: unknown, status?: number, phase = "init"):
     (status === 200 || (status >= 400 && status < 500 && status !== 408));
   if (!rejected) {
     message =
-      "TikTok did not confirm upload initialization. Check TikTok before retrying; the upload may have been accepted.";
+      phase === "creator_info"
+        ? "TikTok did not answer the creator-info request. No upload was submitted. Check the connection and retry."
+        : "TikTok did not confirm upload initialization. Check TikTok before retrying; the upload may have been accepted.";
   }
+  const failureType = phase === "creator_info" ? PostErrorType.PREPARATION_ERROR : PostErrorType.API_ERROR;
   return new PostError(
-    rejected ? PostErrorType.PUBLISH_REJECTED : PostErrorType.API_ERROR,
+    rejected ? PostErrorType.PUBLISH_REJECTED : failureType,
     code && code !== "ok" ? `${message} (TikTok code: ${code})` : message,
     { phase, httpStatus: status, code, logId },
   );

@@ -4,26 +4,15 @@ import { prisma } from "@/lib/prisma";
 
 import { tikTokCapCode, tikTokRecovery, type TikTokCapCode } from "./tiktok-recovery";
 
-/** Each explicitly scheduled recovery may probe at its own approved time,
- * even if an earlier retry in the same batch hit the cap again. */
-export async function approveScheduledTikTokProbe(postId: string, accountIds: string[]) {
-  await prisma.$transaction(async (tx) => {
-    for (const accountId of [...accountIds].sort()) {
-      await tx.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`tiktok-upload-init:${accountId}`}, 0))::text`,
-      );
-      await tx.tikTokUploadPause.updateMany({ where: { accountId }, data: { resumeAt: new Date() } });
-    }
-    await tx.post.update({ where: { id: postId }, data: { tiktokRetryApproved: false } });
-  });
-}
-
 export async function pauseTikTokUploads(accountId: string, code: TikTokCapCode) {
   const resumeAt = code === "rate_limit_exceeded" ? new Date(Date.now() + 60_000) : null;
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw(
       Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`tiktok-upload-init:${accountId}`}, 0))::text`,
     );
+    const existing = await tx.tikTokUploadPause.findUnique({ where: { accountId } });
+    // A late minute-limit response must not release a longer account pause.
+    if (code === "rate_limit_exceeded" && existing && existing.code !== code) return;
     await tx.tikTokUploadPause.upsert({
       where: { accountId },
       create: { accountId, code, resumeAt },
@@ -48,12 +37,14 @@ export async function resumeTikTokUploads(accountId: string, startedAt: Date) {
   });
 }
 
-export async function pausedTikTokResults(accountIds: string[]) {
+export async function pausedTikTokResults(accountIds: string[], retryApproved = false) {
   if (accountIds.length === 0) return [];
   const pauses = await prisma.tikTokUploadPause.findMany({
     where: { accountId: { in: accountIds }, OR: [{ resumeAt: null }, { resumeAt: { gt: new Date() } }] },
   });
   return pauses.flatMap((pause) => {
+    // Approval belongs to the dispatched post, never to another waiting post.
+    if (retryApproved && pause.code !== "rate_limit_exceeded") return [];
     const code = tikTokCapCode(pause.code);
     return code
       ? [

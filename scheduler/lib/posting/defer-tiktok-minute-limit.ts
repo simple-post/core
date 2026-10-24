@@ -10,6 +10,7 @@ export async function deferTikTokMinuteLimit(
   results: PostingResult[],
   accountResults: unknown,
   threadResults: unknown,
+  tiktokRetryApproved = false,
 ) {
   const failures = results.filter((result) => !result.success);
   if (
@@ -21,6 +22,7 @@ export async function deferTikTokMinuteLimit(
     where: { id: postId },
     data: {
       status: "scheduled",
+      tiktokRetryApproved,
       scheduledFor: new Date(Date.now() + 60_000),
       errorMessage: "Queued — waiting for TikTok's request limit. Another attempt is scheduled in one minute.",
       errorDetails: sanitizeForJson({ failedPlatforms: failures }) as Prisma.InputJsonValue,

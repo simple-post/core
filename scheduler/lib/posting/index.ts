@@ -188,18 +188,19 @@ async function postSingleSegment(
   replyOverlay: ReturnType<typeof buildReplyOverlay>,
   log: Logger,
   quoteTarget?: AccountQuoteTarget,
+  tiktokRetryApproved = false,
 ): Promise<PostingResult> {
   const startTime = Date.now();
   try {
     const platform = mapPlatformName(account.platform);
     if (platform === "tiktok") {
-      const paused = await pausedTikTokResults([account.id]);
+      const paused = await pausedTikTokResults([account.id], tiktokRetryApproved);
       if (paused.length > 0) return paused[0];
     }
     const baseOptions = buildPostOptions(account, accountOptions);
     const options = mergeReplyOverlay(baseOptions, replyOverlay) as PostOptionsWithCredentials;
     if (platform === "tiktok" && options.tiktok) {
-      options.tiktok.beforeUploadInit = () => reserveTikTokUploadInit(account.id);
+      options.tiktok.beforeUploadInit = () => reserveTikTokUploadInit(account.id, tiktokRetryApproved);
     }
     const postData: Post = {
       content: {
@@ -338,6 +339,7 @@ async function postSegmentsToAccount(
   accountOptions?: AccountOptionsMap,
   quoteTarget?: AccountQuoteTarget,
   postId: string = randomUUID(),
+  tiktokRetryApproved = false,
 ): Promise<PostingResult> {
   const log = postingLogger.child({
     fn: "postSegmentsToAccount",
@@ -417,6 +419,7 @@ async function postSegmentsToAccount(
             overlay,
             segmentLog,
             i === 0 ? quoteTarget : undefined,
+            tiktokRetryApproved,
           );
         },
         async () => {
@@ -557,6 +560,7 @@ async function postToAccountsInternal(
   quoteTargets?: AccountQuoteTarget[],
   onResult?: PostingResultCallback,
   observability?: PostingObservabilityContext,
+  tiktokRetryApproved = false,
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
   const log = postingLogger.child({
@@ -641,6 +645,7 @@ async function postToAccountsInternal(
                 accountOptions,
                 quoteTargetByAccountId.get(account.id),
                 observability?.postId,
+                tiktokRetryApproved,
               ),
           );
 

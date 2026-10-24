@@ -10,7 +10,7 @@ import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health"
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
-import { pausedTikTokResults, approveScheduledTikTokProbe } from "@/lib/posting/tiktok-pause";
+import { pausedTikTokResults } from "@/lib/posting/tiktok-pause";
 import { prisma } from "@/lib/prisma";
 import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/targets";
 import { summarizeRepostOutcome } from "@/lib/repost/results";
@@ -85,6 +85,7 @@ interface DuePost {
   accountOverrides: unknown;
   thread: ThreadSegment[] | null;
   accountResults: unknown;
+  threadResults?: unknown;
   repostEnabled: boolean;
   repostDelayHours: number;
   quotePostId: string | null;
@@ -360,13 +361,9 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   // A retried post (rescheduled after a partial failure) only publishes to
   // the accounts that have no recorded success — never double-post.
   const pendingAccountIds = post.accounts.map((account) => account.id).filter((id) => !succeededAccountIds.has(id));
-  if (post.tiktokRetryApproved)
-    await approveScheduledTikTokProbe(
-      post.id,
-      post.accounts.filter((a) => a.platform === "tiktok" && pendingAccountIds.includes(a.id)).map((a) => a.id),
-    );
   const pausedResults = await pausedTikTokResults(
     post.accounts.filter((a) => a.platform === "tiktok" && pendingAccountIds.includes(a.id)).map((a) => a.id),
+    post.tiktokRetryApproved,
   );
   const pausedIds = new Set(pausedResults.map((result) => result.accountId));
   const accountIds = pendingAccountIds.filter((id) => !pausedIds.has(id));
@@ -432,6 +429,8 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
   }
 
   try {
+    if (post.tiktokRetryApproved)
+      await prisma.post.update({ where: { id: post.id }, data: { tiktokRetryApproved: false } });
     await assertActiveSubscription(post.userId, {
       action: "publish_scheduled_post",
       postId: post.id,
@@ -502,6 +501,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         ...(post.user?.email ? { userEmail: post.user.email } : {}),
         ...(post.user?.name ? { userName: post.user.name } : {}),
       },
+      post.tiktokRetryApproved,
     );
 
     postingResults.push(...pausedResults);
@@ -510,10 +510,13 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     const sanitizedAccountResults = sanitizeForJson(accountResults) as Prisma.InputJsonValue;
 
     // Build accountId → ThreadSegmentResult[] map for accounts that posted as a thread.
-    const threadResultsByAccount = postingResults.reduce<Record<string, unknown>>((acc, result) => {
-      if (result.threadResults) acc[result.accountId] = result.threadResults;
-      return acc;
-    }, {});
+    const threadResultsByAccount = postingResults.reduce<Record<string, unknown>>(
+      (acc, result) => {
+        if (result.threadResults) acc[result.accountId] = result.threadResults;
+        return acc;
+      },
+      { ...(post.threadResults as Record<string, unknown> | null) },
+    );
     const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
 
     if (summary.overallSuccess) {
@@ -570,6 +573,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           status: "scheduled",
           tiktokPaused: true,
           accountResults: sanitizedAccountResults,
+          threadResults: sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue,
           errorMessage: "TikTok uploads are paused. Schedule another attempt later.",
           errorDetails: sanitizeForJson({ failedPlatforms: failedResults }) as Prisma.InputJsonValue,
         },
@@ -582,6 +586,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         data: {
           status: "scheduled",
           scheduledFor: new Date(Date.now() + 60_000),
+          tiktokRetryApproved: post.tiktokRetryApproved ?? false,
           errorMessage: "Queued — waiting for publishing capacity. Another attempt is scheduled in one minute.",
           errorDetails: sanitizeForJson({ failedPlatforms: failedResults }) as Prisma.InputJsonValue,
           accountResults: sanitizedAccountResults,

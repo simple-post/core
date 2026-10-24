@@ -466,20 +466,42 @@ describe("TikTokPublisher", () => {
   });
 
   describe("constructor", () => {
-    it.each(["spam_risk_too_many_posts", "reached_active_user_cap"])(
-      "keeps a %s creator-info rejection safely recoverable before upload",
-      async (code) => {
-        mockAxiosInstance.post.mockResolvedValueOnce({ data: { error: { code, log_id: "safe_log_id" } } });
+    it.each(["timeout", "server-error", "missing-data"])(
+      "keeps a creator-info %s safely retryable without uploading",
+      async (kind) => {
+        if (kind === "missing-data") mockAxiosInstance.post.mockResolvedValueOnce({ data: {} });
+        else
+          mockAxiosInstance.post.mockRejectedValueOnce(
+            kind === "timeout" ? { code: "ETIMEDOUT" } : { response: { status: 503, data: {} } },
+          );
         await expect(
           publisher.postContent({ media: [{ type: "video", path: "./test-video.mp4" }] }, directOptions),
         ).rejects.toMatchObject({
-          errorType: PostErrorType.PUBLISH_REJECTED,
-          details: { phase: "creator_info", code, logId: "safe_log_id" },
+          errorType: PostErrorType.PREPARATION_ERROR,
+          message: expect.stringContaining("No upload was submitted"),
+          details: { phase: "creator_info" },
         });
         expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
         expect(mockedAxios.put).not.toHaveBeenCalled();
       },
     );
+    it.each([
+      "spam_risk_too_many_posts",
+      "reached_active_user_cap",
+      "rate_limit_exceeded",
+      "scope_not_authorized",
+      "spam_risk_user_banned_from_posting",
+    ])("keeps a %s creator-info rejection safely recoverable before upload", async (code) => {
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { error: { code, log_id: "safe_log_id" } } });
+      await expect(
+        publisher.postContent({ media: [{ type: "video", path: "./test-video.mp4" }] }, directOptions),
+      ).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        details: { phase: "creator_info", code, logId: "safe_log_id" },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.put).not.toHaveBeenCalled();
+    });
     it("should throw an error if credentials are missing", () => {
       expect(() => {
         new TikTokPublisher({});

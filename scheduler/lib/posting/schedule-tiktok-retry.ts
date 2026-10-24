@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-
 import { PostsModel } from "@/lib/db";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
@@ -40,15 +38,6 @@ export async function scheduleTikTokRetry(
     scheduledFor,
   });
   return prisma.$transaction(async (tx) => {
-    const accounts = await tx.connectedAccount.findMany({
-      where: { userId, platform: "tiktok", id: { in: failedIds } },
-      select: { id: true },
-      orderBy: { id: "asc" },
-    });
-    for (const account of accounts)
-      await tx.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`tiktok-upload-init:${account.id}`}, 0))::text`,
-      );
     const checkpoints = await tx.publishCheckpoint.findMany({ where: { postId } });
     for (const id of failedIds) {
       const pending = checkpoints.filter((checkpoint) => checkpoint.accountId === id);
@@ -64,26 +53,13 @@ export async function scheduleTikTokRetry(
       postId,
       {
         status: "scheduled",
+        tiktokRetryApproved: true,
         scheduledFor,
         errorMessage: "Another TikTok attempt is scheduled. Acceptance is not guaranteed.",
       },
       { status: post.status, updatedAt: post.updatedAt },
       tx,
     );
-    await tx.post.update({
-      where: { id: postId },
-      data: { tiktokPaused: false, tiktokRetryApproved: true, updatedAt: updated.updatedAt },
-    });
-    for (const account of accounts) {
-      const pause = await tx.tikTokUploadPause.findUnique({ where: { accountId: account.id } });
-      // Keep an earlier user-approved probe when scheduling a batch.
-      const resumeAt = pause?.resumeAt && pause.resumeAt < scheduledFor ? pause.resumeAt : scheduledFor;
-      await tx.tikTokUploadPause.upsert({
-        where: { accountId: account.id },
-        create: { accountId: account.id, code: recovery.code, resumeAt },
-        update: { resumeAt },
-      });
-    }
     return updated;
   });
 }

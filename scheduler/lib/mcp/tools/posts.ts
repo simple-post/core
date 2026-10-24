@@ -990,7 +990,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     userId,
   });
 
-  const updates: Partial<SocialPost> = {};
+  const updates: Partial<SocialPost> & { tiktokRetryApproved?: boolean } = {
+    tiktokRetryApproved:
+      targetPostingMode === "schedule" &&
+      input.scheduledFor !== undefined &&
+      Boolean(getTikTokPostRecovery(currentPost)),
+  };
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;

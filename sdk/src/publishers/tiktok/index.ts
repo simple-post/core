@@ -147,63 +147,21 @@ export class TikTokPublisher extends Publisher {
     return response;
   }
 
-  private static creatorInfoErrorMessage(code?: string, message?: string): string {
-    switch (code) {
-      case "spam_risk_too_many_posts": {
-        return "TikTok says this creator has reached their daily post cap. Please try again later.";
-      }
-      case "spam_risk_user_banned_from_posting": {
-        return "TikTok says this creator cannot make posts right now.";
-      }
-      case "reached_active_user_cap": {
-        return "TikTok says this app has reached its active creator cap for today. Please try again later.";
-      }
-      case "access_token_invalid": {
-        return "TikTok access token is invalid or expired. Please reconnect the TikTok account.";
-      }
-      case "scope_not_authorized": {
-        return "TikTok did not grant the video.publish scope required for direct posting.";
-      }
-      case "rate_limit_exceeded": {
-        return "TikTok creator info rate limit was exceeded. Please try again later.";
-      }
-      default: {
-        return message || "TikTok creator info request failed.";
-      }
-    }
-  }
-
   private async queryCreatorInfo(): Promise<TikTokCreatorInfo> {
     try {
       const response = await this.client.post<TikTokCreatorInfoResponse>("/v2/post/publish/creator_info/query/");
       const errorCode = response.data?.error?.code;
-      if (["spam_risk_too_many_posts", "reached_active_user_cap"].includes(errorCode ?? "")) {
+      if (errorCode && errorCode !== "ok") {
         throw uploadInitError(response.data, 200, "creator_info");
       }
-      if (errorCode && errorCode !== "ok") {
-        throw new PostError(
-          PostErrorType.API_ERROR,
-          TikTokPublisher.creatorInfoErrorMessage(errorCode, response.data.error?.message),
-          response.data.error,
-        );
-      }
       if (!response.data?.data) {
-        throw new PostError(PostErrorType.API_ERROR, "TikTok creator info response did not include creator data.");
+        throw uploadInitError(response.data, 200, "creator_info");
       }
       return response.data.data;
     } catch (error: unknown) {
       if (error instanceof PostError) throw error;
-      const err = error as { response?: { data?: { error?: { code?: string; message?: string } } }; message?: string };
-      const errorCode = err.response?.data?.error?.code;
-      if (["spam_risk_too_many_posts", "reached_active_user_cap"].includes(errorCode ?? "")) {
-        const status = (err.response as { status?: number } | undefined)?.status;
-        throw uploadInitError(err.response?.data, status, "creator_info");
-      }
-      const errorMessage = TikTokPublisher.creatorInfoErrorMessage(
-        errorCode,
-        err.response?.data?.error?.message || err.message,
-      );
-      throw new PostError(PostErrorType.API_ERROR, errorMessage, err);
+      const response = (error as { response?: { status?: number; data?: unknown } })?.response;
+      throw uploadInitError(response?.data, response?.status, "creator_info");
     }
   }
 

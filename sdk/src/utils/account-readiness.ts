@@ -42,6 +42,9 @@ export function readinessFailure(platform: Platform, error: unknown): Validation
     field: "account",
     message,
     ...(credentialRejection && { credentialRejection }),
+    ...(platform === "tiktok" && error instanceof PostError && error.details
+      ? { meta: { tiktokDiagnostics: error.details } }
+      : {}),
   };
 }
 

@@ -16,7 +16,14 @@ it.each([
   expect(error.errorType).toBe("PUBLISH_REJECTED");
   expect(error.message).toContain(reason);
   expect(error.message).toContain(action);
-  expect(error.details).toEqual({ phase: "init", httpStatus: 403, code, logId: "20261024ABC123" });
+  expect(error.details).toMatchObject({
+    phase: "init",
+    httpStatus: 403,
+    code,
+    logId: "20261024ABC123",
+    providerMessage: "unsafe provider message",
+    providerResponse: { error: { code, message: "unsafe provider message" } },
+  });
 });
 
 it.each([200, 400, 403, 429])("recognizes an explicit rejection at HTTP %s", (status) => {
@@ -27,7 +34,7 @@ it.each([undefined, 408, 500, 503])("preserves uncertainty at HTTP %s", (status)
   expect(uploadInitError({ error: { code: "internal_error" } }, status).errorType).toBe("API_ERROR");
 });
 
-it("never exposes raw messages, credentials, signed URLs or malformed diagnostic fields", () => {
+it("redacts sensitive messages, credentials and signed URLs, including malformed diagnostic fields", () => {
   const secret = "Bearer secret https://upload.tiktok.com/?upload_token=secret";
   const error = uploadInitError(
     { error: { code: secret, log_id: secret, message: secret }, headers: { Authorization: secret } },

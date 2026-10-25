@@ -1,11 +1,23 @@
+import { getTikTokErrorDetails } from "./diagnostics";
+
 import { PostError, PostErrorType } from "../../types";
 
-/** Keep provider diagnostics, never Axios config, headers, tokens, or signed URLs. */
-export function uploadInitError(body: unknown, status?: number, phase = "init"): PostError {
+import type { TikTokDiagnosticContext } from "./diagnostics";
+
+/** Keep provider diagnostics, never Axios config, outgoing headers, tokens, or signed URLs. */
+export function uploadInitError(
+  body: unknown,
+  status?: number,
+  phase = "init",
+  options: {
+    context?: Omit<TikTokDiagnosticContext, "phase">;
+    responseHeaders?: unknown;
+    error?: unknown;
+    secrets?: readonly string[];
+  } = {},
+): PostError {
   const error = (body as { error?: { code?: unknown; log_id?: unknown; logid?: unknown } } | undefined)?.error;
   const code = typeof error?.code === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(error.code) ? error.code : undefined;
-  const rawLogId = error?.log_id ?? error?.logid;
-  const logId = typeof rawLogId === "string" && /^[\w-]{1,128}$/.test(rawLogId) ? rawLogId : undefined;
   let message: string;
   switch (code) {
     case "spam_risk_too_many_pending_share": {
@@ -76,9 +88,14 @@ export function uploadInitError(body: unknown, status?: number, phase = "init"):
         : "TikTok did not confirm upload initialization. Check TikTok before retrying; the upload may have been accepted.";
   }
   const failureType = phase === "creator_info" ? PostErrorType.PREPARATION_ERROR : PostErrorType.API_ERROR;
+  const details = getTikTokErrorDetails(
+    options.error ?? { response: { data: body, status, headers: options.responseHeaders } },
+    { phase, ...options.context },
+    options.secrets,
+  );
   return new PostError(
     rejected ? PostErrorType.PUBLISH_REJECTED : failureType,
-    code && code !== "ok" ? `${message} (TikTok code: ${code})` : message,
-    { phase, httpStatus: status, code, logId },
+    code && code !== "ok" && details.code === code ? `${message} (TikTok code: ${code})` : message,
+    details,
   );
 }

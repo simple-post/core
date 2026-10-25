@@ -10,8 +10,8 @@ import { mergeAccountOptions } from "@/features/platform-options/merge-account-o
 import { useTikTokCreatorInfo } from "@/hooks/use-tiktok-creator-info";
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getAccountDisplayName } from "@/lib/config";
-import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
-import type { TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
+import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info-types";
+import type { TikTokPrivacyLevel } from "@/lib/tiktok/creator-info-types";
 import type { AccountOptionsMap, ConnectedAccount } from "@/types";
 
 import styles from "./tiktok-settings.module.css";

@@ -592,3 +592,45 @@ it("does not permanently block a still-valid LinkedIn access token without a ref
   expect(result.error).toBeUndefined();
   expect(result.account.credentialRefreshBlockedAt).toBeNull();
 });
+
+it("persists TikTok refresh response diagnostics without credentials", async () => {
+  process.env.TIKTOK_CLIENT_KEY = "tiktok-client-key";
+  process.env.TIKTOK_CLIENT_SECRET = "tiktok-client-secret";
+  try {
+    const storedAccount = account({ platform: "tiktok", refreshToken: "tiktok-refresh-token" });
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(storedAccount));
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "invalid_grant",
+          error_description: "Revoked tiktok-refresh-token and old-access",
+          log_id: "oauth_log",
+          custom_detail: "new provider field",
+          refresh_token: "tiktok-refresh-token",
+        }),
+        { status: 400, headers: { "x-tt-logid": "oauth_header" } },
+      ),
+    );
+    const result = await refreshConnectedAccountIfNeeded(storedAccount, {
+      minValidityMs: 5 * 60 * 1000,
+      reason: "post",
+    });
+    expect(result.refreshed).toBe(false);
+    expect(result.account.tokenMetadata).toMatchObject({
+      lastRefreshErrorDetails: {
+        phase: "token_refresh",
+        httpStatus: 400,
+        logId: "oauth_log",
+        code: "invalid_grant",
+        providerResponse: { custom_detail: "new provider field", refresh_token: "[REDACTED]" },
+      },
+    });
+    expect(result.refreshError).not.toContain("tiktok-refresh-token");
+    expect(result.refreshError).not.toContain("old-access");
+    expect(JSON.stringify(result.account.tokenMetadata)).not.toContain("tiktok-refresh-token");
+    expect(JSON.stringify(result.account.tokenMetadata)).not.toContain("old-access");
+  } finally {
+    delete process.env.TIKTOK_CLIENT_KEY;
+    delete process.env.TIKTOK_CLIENT_SECRET;
+  }
+});

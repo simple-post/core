@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 
 import axios from "axios";
 
+import { getTikTokErrorDetails } from "./diagnostics";
 import { uploadInitError } from "./errors";
 import { TIKTOK_MAX_PHOTO_SIZE, TIKTOK_MAX_VIDEO_SIZE, TIKTOK_VALIDATION_RULES, getTikTokPostText } from "./validation";
 
@@ -15,6 +16,7 @@ import { inspectRemoteMedia } from "../../utils/media-inspection";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { TikTokDiagnosticContext } from "./diagnostics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, Media, PostOptionsWithCredentials, TikTokPrivacyLevel } from "../../types/post";
 import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -40,11 +42,9 @@ interface TikTokUploadInitResponse {
 // An explicit rejection of the upload session means that session cannot publish.
 // Keep this local: transport errors must never trigger a fresh publishing intent.
 class TikTokUploadSessionRejected extends PostError {
-  constructor(status: number, chunkIndex: number) {
+  constructor(status: number, details: Record<string, unknown>) {
     super(PostErrorType.PUBLISH_REJECTED, `TikTok upload session rejected (HTTP ${status}).`, {
-      phase: "upload",
-      httpStatus: status,
-      chunkIndex,
+      ...details,
     });
   }
 }
@@ -84,6 +84,9 @@ export class TikTokPublisher extends Publisher {
 
   private client: AxiosInstance;
   private creatorUsername?: string;
+  private readonly diagnosticSecrets: readonly string[];
+  private statusDiagnostics?: Record<string, unknown>;
+  private uploadDiagnostics: Record<string, unknown>[] = [];
   private readonly beforeUploadInit?: () => Promise<void>;
 
   constructor(options?: PostOptionsWithCredentials) {
@@ -98,6 +101,7 @@ export class TikTokPublisher extends Publisher {
     }
 
     const { accessToken } = options.tiktok.credentials;
+    this.diagnosticSecrets = [accessToken];
     this.beforeUploadInit = options.tiktok.beforeUploadInit;
 
     // Create axios client with base configuration
@@ -135,33 +139,63 @@ export class TikTokPublisher extends Publisher {
     return { chunkSize, totalChunks };
   }
 
-  private static validateVideoUploadInit(response: TikTokUploadInitResponse): TikTokUploadInitResponse {
-    if (response?.error?.code && response.error.code !== "ok") {
-      throw uploadInitError(response, 200);
+  private errorDetails(error: unknown, context: TikTokDiagnosticContext): Record<string, unknown> {
+    return getTikTokErrorDetails(error, context, this.diagnosticSecrets);
+  }
+
+  private resetDiagnostics(): void {
+    this.uploadDiagnostics = [];
+    this.statusDiagnostics = undefined;
+  }
+
+  private initError(
+    response: { data?: unknown; status?: number; headers?: unknown } | undefined,
+    context: TikTokDiagnosticContext,
+    error?: unknown,
+  ): PostError {
+    const { phase, ...location } = context;
+    return uploadInitError(response?.data, response?.status, phase, {
+      context: location,
+      responseHeaders: response?.headers,
+      error,
+      secrets: this.diagnosticSecrets,
+    });
+  }
+
+  private validateVideoUploadInit(
+    response: { data: TikTokUploadInitResponse; status?: number; headers?: unknown },
+    context: TikTokDiagnosticContext,
+  ): TikTokUploadInitResponse {
+    const received = { ...response, status: response.status ?? 200 };
+    if (response.data?.error?.code && response.data.error.code !== "ok") {
+      throw this.initError(received, context);
     }
-    if (!response?.data?.publish_id || !response.data.upload_url) {
-      throw new PostError(PostErrorType.API_ERROR, "TikTok video upload initialization returned incomplete data.", {
-        phase: "init",
-      });
+    if (!response.data?.data?.publish_id || !response.data.data.upload_url) {
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        "TikTok video upload initialization returned incomplete data.",
+        this.errorDetails({ response: received }, context),
+      );
     }
-    return response;
+    return response.data;
   }
 
   private async queryCreatorInfo(): Promise<TikTokCreatorInfo> {
+    const context = { phase: "creator_info", endpoint: "/v2/post/publish/creator_info/query/", method: "POST" };
     try {
       const response = await this.client.post<TikTokCreatorInfoResponse>("/v2/post/publish/creator_info/query/");
       const errorCode = response.data?.error?.code;
       if (errorCode && errorCode !== "ok") {
-        throw uploadInitError(response.data, 200, "creator_info");
+        throw this.initError({ ...response, status: response.status ?? 200 }, context);
       }
       if (!response.data?.data) {
-        throw uploadInitError(response.data, 200, "creator_info");
+        throw this.initError({ ...response, status: response.status ?? 200 }, context);
       }
       return response.data.data;
     } catch (error: unknown) {
       if (error instanceof PostError) throw error;
-      const response = (error as { response?: { status?: number; data?: unknown } })?.response;
-      throw uploadInitError(response?.data, response?.status, "creator_info");
+      const response = (error as { response?: { status?: number; data?: unknown; headers?: unknown } })?.response;
+      throw this.initError(response, context, error);
     }
   }
 
@@ -230,9 +264,22 @@ export class TikTokPublisher extends Publisher {
     content: Content,
     privacyLevel: TikTokPrivacyLevel,
     options?: PostOptionsWithCredentials,
+    attempt = 1,
   ): Promise<TikTokUploadInitResponse> {
     const fileSize = TikTokPublisher.getFileSize(resolvedPath);
     const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
+    const context = {
+      phase: "init",
+      endpoint: "/v2/post/publish/video/init/",
+      method: "POST",
+      publishMode: "public",
+      mediaType: "video",
+      attempt,
+      privacyLevel,
+      fileSize,
+      chunkSize,
+      totalChunks,
+    };
 
     try {
       // Use Direct Post API - includes post_info in the init request for immediate publishing
@@ -274,17 +321,28 @@ export class TikTokPublisher extends Publisher {
         },
       });
 
-      return TikTokPublisher.validateVideoUploadInit(response.data);
+      return this.validateVideoUploadInit(response, context);
     } catch (error: unknown) {
       if (error instanceof PostError) throw error;
-      const response = (error as { response?: { status?: number; data?: unknown } })?.response;
-      throw uploadInitError(response?.data, response?.status);
+      const response = (error as { response?: { status?: number; data?: unknown; headers?: unknown } })?.response;
+      throw this.initError(response, context, error);
     }
   }
 
-  private async initVideoUploadDraft(resolvedPath: string): Promise<TikTokUploadInitResponse> {
+  private async initVideoUploadDraft(resolvedPath: string, attempt = 1): Promise<TikTokUploadInitResponse> {
     const fileSize = TikTokPublisher.getFileSize(resolvedPath);
     const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
+    const context = {
+      phase: "init",
+      endpoint: "/v2/post/publish/inbox/video/init/",
+      method: "POST",
+      publishMode: "draft",
+      mediaType: "video",
+      attempt,
+      fileSize,
+      chunkSize,
+      totalChunks,
+    };
 
     try {
       await this.beforeUploadInit?.();
@@ -296,17 +354,25 @@ export class TikTokPublisher extends Publisher {
           total_chunk_count: totalChunks,
         },
       });
-      return TikTokPublisher.validateVideoUploadInit(response.data);
+      return this.validateVideoUploadInit(response, context);
     } catch (error: unknown) {
       if (error instanceof PostError) throw error;
-      const response = (error as { response?: { status?: number; data?: unknown } })?.response;
-      throw uploadInitError(response?.data, response?.status);
+      const response = (error as { response?: { status?: number; data?: unknown; headers?: unknown } })?.response;
+      throw this.initError(response, context, error);
     }
   }
 
   /** Stage all photos on our configured storage until TikTok finishes downloading them. */
   private async postPhotos(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
     const isDraft = options?.tiktok?.publishMode === "draft";
+    const context = {
+      phase: "init",
+      endpoint: "/v2/post/publish/content/init/",
+      method: "POST",
+      publishMode: isDraft ? "draft" : "public",
+      mediaType: "photo",
+      photoCount: content.media?.length,
+    };
     const privacyLevel = isDraft ? undefined : await this.validateDirectPostRequirements(content.media![0], options);
     const photoUrls: string[] = [];
     const stagedKeys: string[] = [];
@@ -386,11 +452,16 @@ export class TikTokPublisher extends Publisher {
       });
       if (response.data.error?.code && response.data.error.code !== "ok") {
         submitted = false;
-        throw uploadInitError(response.data, 200);
+        throw this.initError({ ...response, status: response.status ?? 200 }, context);
       }
       initAccepted = true;
       const publishId = response.data.data?.publish_id;
-      if (!publishId) throw new PostError(PostErrorType.API_ERROR, "TikTok did not return a photo publish_id.");
+      if (!publishId)
+        throw new PostError(
+          PostErrorType.API_ERROR,
+          "TikTok did not return a photo publish_id.",
+          this.errorDetails({ response: { ...response, status: response.status ?? 200 } }, context),
+        );
       const postId = await this.pollPublishStatus(publishId, (status) => {
         terminalStatus = status;
       });
@@ -406,6 +477,7 @@ export class TikTokPublisher extends Publisher {
       return {
         id: postId ?? publishId,
         error: PostErrorType.NO_ERROR,
+        ...(this.statusDiagnostics ? { details: this.statusDiagnostics } : {}),
         url:
           !isDraft && postId && this.creatorUsername
             ? `https://www.tiktok.com/@${this.creatorUsername.replace(/^@/, "")}/photo/${postId}`
@@ -427,15 +499,20 @@ export class TikTokPublisher extends Publisher {
         message?: string;
       };
       if (submitted && !initAccepted) {
-        const initError = uploadInitError(err.response?.data, err.response?.status);
+        const initError = this.initError(err.response, context, error);
         if (initError.errorType === PostErrorType.PUBLISH_REJECTED) submitted = false;
         throw initError;
       }
       const errorType = submitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR;
       throw new PostError(
         errorType,
-        `TikTok photo upload failed: ${err.response?.data?.error?.message || err.message || "Unknown error"}. Use public JPEG/WebP HTTPS URLs without redirects on a TikTok-verified domain or URL prefix.`,
-        error,
+        "TikTok photo upload failed. Use public JPEG/WebP HTTPS URLs without redirects on a TikTok-verified domain or URL prefix.",
+        this.errorDetails(error, {
+          ...context,
+          phase: submitted ? "status" : "preparation",
+          endpoint: submitted ? "/v2/post/publish/status/fetch/" : undefined,
+          method: submitted ? "POST" : undefined,
+        }),
       );
     } finally {
       if (uploader && (!submitted || terminalStatus)) {
@@ -452,7 +529,7 @@ export class TikTokPublisher extends Publisher {
     }
   }
 
-  private async uploadFileChunks(uploadUrl: string, filePath: string): Promise<void> {
+  private async uploadFileChunks(uploadUrl: string, filePath: string, publishId?: string, attempt = 1): Promise<void> {
     const fileSize = TikTokPublisher.getFileSize(filePath);
     const { chunkSize, totalChunks } = TikTokPublisher.calculateChunks(fileSize);
     const fileStream = fs.createReadStream(filePath);
@@ -487,12 +564,21 @@ export class TikTokPublisher extends Publisher {
         const status = (error as { response?: { status?: number } })?.response?.status;
         // TikTok documents 403 (expired) and 404 (missing) upload sessions as
         // discarded. Never restart after a timeout, server error, or lost response.
-        if (status === 403 || status === 404) throw new TikTokUploadSessionRejected(status, chunkIndex);
-        throw new PostError(PostErrorType.API_ERROR, "TikTok chunk upload outcome is uncertain.", {
+        const details = this.errorDetails(error, {
           phase: "upload",
-          httpStatus: status,
+          endpoint: "signed_upload_url",
+          method: "PUT",
           chunkIndex,
+          publishId,
+          attempt,
+          fileSize,
+          chunkSize,
+          totalChunks,
+          contentRange: `bytes ${start}-${end}/${fileSize}`,
         });
+        this.uploadDiagnostics.push(details);
+        if (status === 403 || status === 404) throw new TikTokUploadSessionRejected(status, details);
+        throw new PostError(PostErrorType.API_ERROR, "TikTok chunk upload outcome is uncertain.", details);
       }
     }
   }
@@ -512,22 +598,40 @@ export class TikTokPublisher extends Publisher {
     publishId: string,
     onTerminal?: (status: string) => void,
   ): Promise<string | undefined> {
+    const pollErrors: unknown[] = [];
+    let lastResponse: unknown;
+    let lastStatus: string | undefined;
+    this.statusDiagnostics = undefined;
+    const context = { phase: "status", endpoint: "/v2/post/publish/status/fetch/", method: "POST", publishId };
     for (let attempt = 0; attempt < PUBLISH_STATUS_MAX_ATTEMPTS; attempt += 1) {
       try {
         const response = await this.client.post<TikTokPublishStatusResponse>("/v2/post/publish/status/fetch/", {
           publish_id: publishId,
         });
 
+        lastResponse = this.errorDetails(
+          { response: { ...response, status: response.status ?? 200 } },
+          { ...context, attempt: attempt + 1 },
+        );
         if (response.data?.error?.code && response.data.error.code !== "ok") {
+          pollErrors.push(lastResponse);
           throw new Error("TikTok status request rejected.");
         }
         const data = response.data?.data;
         const status = data?.status;
+        lastStatus = status;
         this.logger.info(
           `TikTok publish status (attempt ${attempt + 1}/${PUBLISH_STATUS_MAX_ATTEMPTS}): ${status ?? "unknown"}`,
         );
 
-        if (status && ["PUBLISH_COMPLETE", "SEND_TO_USER_INBOX", "FAILED"].includes(status)) onTerminal?.(status);
+        if (status && ["PUBLISH_COMPLETE", "SEND_TO_USER_INBOX", "FAILED"].includes(status)) {
+          onTerminal?.(status);
+          if (pollErrors.length > 0)
+            this.statusDiagnostics = this.errorDetails(
+              { response: { ...response, status: response.status ?? 200 } },
+              { ...context, attempt: attempt + 1, lastStatus: status, pollErrors },
+            );
+        }
 
         if (status === "PUBLISH_COMPLETE") {
           // TikTok's API documents the field as `publicaly_available_post_id`
@@ -547,7 +651,14 @@ export class TikTokPublisher extends Publisher {
             reason === "picture_size_check_failed"
               ? " Resize photos to fit within 1080×1920 (portrait) or 1920×1080 (landscape), preserving their aspect ratio."
               : "";
-          throw new PostError(PostErrorType.API_ERROR, `TikTok processing failed: ${reason}.${hint}`);
+          const details = this.errorDetails(
+            { response: { ...response, status: response.status ?? 200 } },
+            { ...context, attempt: attempt + 1, lastStatus: status, pollErrors },
+          );
+          const safeReason =
+            (details.providerResponse as { data?: { fail_reason?: string } } | undefined)?.data?.fail_reason ??
+            "unknown";
+          throw new PostError(PostErrorType.API_ERROR, `TikTok processing failed: ${safeReason}.${hint}`, details);
         }
 
         // Inbox uploads finish when TikTok notifies the creator. There is
@@ -558,12 +669,22 @@ export class TikTokPublisher extends Publisher {
         }
       } catch (error) {
         if (error instanceof PostError) throw error;
+        if (!(error instanceof Error && error.message === "TikTok status request rejected.")) {
+          pollErrors.push(this.errorDetails(error, { ...context, attempt: attempt + 1 }));
+        }
         this.logger.warn(`TikTok publish status poll failed (attempt ${attempt + 1}).`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, PUBLISH_STATUS_POLL_INTERVAL_MS));
     }
 
+    this.statusDiagnostics = this.errorDetails(undefined, {
+      ...context,
+      attempts: PUBLISH_STATUS_MAX_ATTEMPTS,
+      lastStatus,
+      lastResponse,
+      pollErrors,
+    });
     this.logger.warn(
       `TikTok publish status did not reach PUBLISH_COMPLETE within ${PUBLISH_STATUS_MAX_ATTEMPTS} attempts`,
     );
@@ -601,10 +722,15 @@ export class TikTokPublisher extends Publisher {
       // Initialization failures are never retried here. Only an explicit upload
       // session rejection permits a new session, always starting at byte zero.
       const initResponse = isDraft
-        ? await this.initVideoUploadDraft(resolvedPath)
-        : await this.initVideoUploadDirect(media, resolvedPath, content, privacyLevel!, options);
+        ? await this.initVideoUploadDraft(resolvedPath, attempt + 1)
+        : await this.initVideoUploadDirect(media, resolvedPath, content, privacyLevel!, options, attempt + 1);
       try {
-        await this.uploadFileChunks(initResponse.data.upload_url, resolvedPath);
+        await this.uploadFileChunks(
+          initResponse.data.upload_url,
+          resolvedPath,
+          initResponse.data.publish_id,
+          attempt + 1,
+        );
         return initResponse.data.publish_id;
       } catch (error) {
         const delay = UPLOAD_RETRY_DELAYS_MS[attempt];
@@ -632,6 +758,7 @@ export class TikTokPublisher extends Publisher {
   }
 
   async postContent(content: Content, options?: PostOptionsWithCredentials): Promise<PostResult> {
+    this.resetDiagnostics();
     // Validate the content
     const validation = TikTokPublisher.validate(content, options?.tiktok);
     if (!validation.isValid) {
@@ -681,18 +808,37 @@ export class TikTokPublisher extends Publisher {
           throw new PostError(
             PostErrorType.API_ERROR,
             "TikTok publication has not been confirmed. Check its status before retrying.",
-            {
-              phase: "status",
-              publishId,
-            },
+            this.statusDiagnostics ?? { phase: "status", publishId },
           );
         }
-        return { id: publicPostId ?? publishId, error: PostErrorType.NO_ERROR };
+        return {
+          id: publicPostId ?? publishId,
+          error: PostErrorType.NO_ERROR,
+          ...(this.statusDiagnostics || this.uploadDiagnostics.length > 0
+            ? {
+                details: this.errorDetails(undefined, {
+                  phase: "status",
+                  ...this.statusDiagnostics,
+                  publishId,
+                  uploadErrors: this.uploadDiagnostics,
+                }),
+              }
+            : {}),
+        };
       }
 
       return {
         id: publishId,
         error: PostErrorType.NO_ERROR,
+        ...(this.uploadDiagnostics.length > 0
+          ? {
+              details: this.errorDetails(undefined, {
+                phase: "upload",
+                publishId,
+                uploadErrors: this.uploadDiagnostics,
+              }),
+            }
+          : {}),
         ...(isDraft
           ? {
               message: "Uploaded to TikTok inbox. Open the notification to edit and publish manually.",
@@ -701,8 +847,20 @@ export class TikTokPublisher extends Publisher {
           : {}),
       };
     } catch (error: unknown) {
-      if (error instanceof PostError) throw error;
-      throw new PostError(PostErrorType.API_ERROR, "Failed to publish TikTok video.");
+      if (error instanceof PostError) {
+        if (this.uploadDiagnostics.length > 0)
+          error.details = this.errorDetails(undefined, {
+            phase: "upload",
+            ...(error.details as Record<string, unknown>),
+            uploadErrors: this.uploadDiagnostics,
+          });
+        throw error;
+      }
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        "Failed to publish TikTok video.",
+        this.errorDetails(error, { phase: "preparation", mediaType: "video" }),
+      );
     } finally {
       await tempFileManager.cleanup();
     }

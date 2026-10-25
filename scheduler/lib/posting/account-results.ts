@@ -1,3 +1,4 @@
+import { sanitizeForJson } from "@/lib/utils/errors";
 import type { AccountPublishResult, AccountResultsMap } from "@/types";
 
 import type { PostingResult } from "./index";
@@ -23,6 +24,7 @@ export function toAccountResultsMap(results: PostingResult[]): AccountResultsMap
       message: result.message,
       completedAt,
       platformData: result.platformData,
+      ...(result.platform === "tiktok" && result.details ? { details: sanitizeForJson(result.details) } : {}),
     } satisfies AccountPublishResult;
   }
 

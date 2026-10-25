@@ -92,6 +92,109 @@ describe("TikTokPublisher", () => {
     },
   };
 
+  describe("provider diagnostics", () => {
+    it("keeps draft initialization diagnostics without leaking the account token", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          headers: { "x-tt-logid": "draft_header" },
+          data: {
+            error: { code: "invalid_param", message: "Bad video size for test_access_token", log_id: "draft_log" },
+            data: { expected_size: 100 },
+          },
+        },
+        config: { headers: { Authorization: "Bearer test_access_token" } },
+      });
+      let failure: unknown;
+      try {
+        await publisher["initVideoUploadDraft"]("./video.mp4");
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        details: {
+          phase: "init",
+          endpoint: "/v2/post/publish/inbox/video/init/",
+          publishMode: "draft",
+          fileSize: 1024 * 1024,
+          httpStatus: 400,
+          logId: "draft_log",
+          providerMessage: "Bad video size for [REDACTED]",
+          providerResponse: { data: { expected_size: 100 } },
+          responseHeaders: { "x-tt-logid": "draft_header" },
+        },
+      });
+      expect(JSON.stringify(failure)).not.toContain("test_access_token");
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("retains failed status checks even when a later check succeeds", async () => {
+      jest.useFakeTimers();
+      try {
+        mockAxiosInstance.post
+          .mockRejectedValueOnce({
+            response: {
+              status: 429,
+              data: { error: { code: "rate_limit_exceeded", message: "Slow down", log_id: "poll_log" } },
+              headers: { "retry-after": "3" },
+            },
+          })
+          .mockResolvedValueOnce({
+            status: 200,
+            data: { data: { status: "PUBLISH_COMPLETE", publicaly_available_post_id: ["123"] } },
+          });
+        const pending = publisher["pollPublishStatus"]("job_123");
+        await jest.runAllTimersAsync();
+        expect(await pending).toBe("123");
+        expect(publisher["statusDiagnostics"]).toMatchObject({
+          phase: "status",
+          publishId: "job_123",
+          attempt: 2,
+          pollErrors: [{ httpStatus: 429, logId: "poll_log", attempt: 1, responseHeaders: { "retry-after": "3" } }],
+        });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("keeps every failed poll when the existing status budget is exhausted", async () => {
+      jest.useFakeTimers();
+      try {
+        mockAxiosInstance.post.mockResolvedValue({
+          status: 200,
+          data: { error: { code: "invalid_publish_id", message: "Unknown job", log_id: "missing_job" } },
+        });
+        const pending = publisher["pollPublishStatus"]("job_missing");
+        await jest.runAllTimersAsync();
+        expect(await pending).toBeUndefined();
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(60);
+        expect(publisher["statusDiagnostics"]).toMatchObject({
+          phase: "status",
+          publishId: "job_missing",
+          attempts: 60,
+        });
+        expect(publisher["statusDiagnostics"]?.pollErrors).toHaveLength(60);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("preserves the full processing failure including fail_reason and byte counts", async () => {
+      const body = {
+        data: { status: "FAILED", fail_reason: "video_pull_failed", downloaded_bytes: 123 },
+        error: { code: "ok", log_id: "processing_log" },
+      };
+      mockAxiosInstance.post.mockResolvedValueOnce({ status: 200, data: body });
+      await expect(publisher["pollPublishStatus"]("job_failed")).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        details: { phase: "status", publishId: "job_failed", logId: "processing_log", providerResponse: body },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("video upload chunks", () => {
     const mib = 1024 * 1024;
 
@@ -299,7 +402,16 @@ describe("TikTokPublisher", () => {
       await jest.advanceTimersByTimeAsync(2999);
       expect(sessions).toBe(2);
       await jest.advanceTimersByTimeAsync(1);
-      expect(await result).toMatchObject({ id: "public_video", error: PostErrorType.NO_ERROR });
+      expect(await result).toMatchObject({
+        id: "public_video",
+        error: PostErrorType.NO_ERROR,
+        details: {
+          uploadErrors: [
+            { phase: "upload", httpStatus: 403, chunkIndex: 0, contentRange: "bytes 0-1048575/1048576" },
+            { phase: "upload", httpStatus: 404, chunkIndex: 0 },
+          ],
+        },
+      });
       expect(mockedAxios.put.mock.calls.map(([url]) => url)).toEqual([
         "https://upload.tiktok.com/1",
         "https://upload.tiktok.com/2",

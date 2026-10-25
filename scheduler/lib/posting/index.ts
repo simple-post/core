@@ -258,6 +258,7 @@ async function postSingleSegment(
           postUrl: postUrl || null,
           durationMs,
           credentialsRefreshed: !!result.extraData?.refreshedCredentials,
+          ...(platform === "tiktok" && result.details ? { details: sanitizeForJson(result.details) } : {}),
         },
         "Segment post successful",
       );

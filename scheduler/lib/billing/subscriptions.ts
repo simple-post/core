@@ -480,7 +480,17 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
   const subscription = user?.subscription ?? null;
   const complimentaryAccess = user?.complimentaryAccess ?? null;
   const freeTrial = user?.freeTrial ?? null;
-  const subscriptionPlan = resolvePlanForSubscription(subscription);
+  const subscribedPlan = resolvePlanForSubscription(subscription);
+  const subscriptionPlan =
+    subscribedPlan && subscribedPlan.limits.postsPerMonth !== null && subscription?.postsPerMonthOverride != null
+      ? {
+          ...subscribedPlan,
+          limits: {
+            ...subscribedPlan.limits,
+            postsPerMonth: Math.max(subscribedPlan.limits.postsPerMonth, subscription.postsPerMonthOverride),
+          },
+        }
+      : subscribedPlan;
   const complimentaryPlan = resolvePlanForComplimentaryAccess(complimentaryAccess);
   const now = new Date();
   const stripeActive = isSubscriptionRecordActive(subscription) && subscriptionPlan !== null;

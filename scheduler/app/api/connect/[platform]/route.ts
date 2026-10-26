@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
       case "youtube": {
         authUrl.searchParams.set("access_type", "offline");
-        authUrl.searchParams.set("prompt", "consent");
+        authUrl.searchParams.set("prompt", "consent select_account");
         break;
       }
       case "instagram": {

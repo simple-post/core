@@ -11,6 +11,8 @@ export type OAuthErrorCode =
   | "platform_mismatch"
   | "token_exchange_failed"
   | "profile_fetch_failed"
+  | "youtube_no_channel"
+  | "youtube_ambiguous_channel"
   | "no_access_token"
   | "authorization_denied"
   | "unknown_error";
@@ -34,6 +36,10 @@ const ERROR_MESSAGES: Record<OAuthErrorCode, string> = {
   platform_mismatch: "Platform mismatch in authorization request.",
   token_exchange_failed: "Failed to complete authorization. Please try again.",
   profile_fetch_failed: "Failed to fetch account profile. Please try again.",
+  youtube_no_channel:
+    "No YouTube channel was authorized. Connect again and select the Google account or Brand Account that owns your channel. YouTube Studio invitations alone do not grant API access.",
+  youtube_ambiguous_channel:
+    "Could not identify a single YouTube channel. Connect again and select the specific channel or Brand Account you want to use.",
   no_access_token: "No access token received. Please try again.",
   authorization_denied: "Authorization was denied.",
   unknown_error: "An unexpected error occurred. Please try again.",

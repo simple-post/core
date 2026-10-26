@@ -66,15 +66,11 @@ const ACCOUNT_PLATFORM_CONFIGS = {
       developerPortalUrl: "https://console.cloud.google.com/apis/credentials",
       extraAuthorizationParams: {
         access_type: "offline",
-        prompt: "consent",
+        prompt: "consent select_account",
       },
       pkce: true,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      scopes: [
-        "https://www.googleapis.com/auth/youtube.upload",
-        "https://www.googleapis.com/auth/youtube.readonly",
-        "https://www.googleapis.com/auth/userinfo.profile",
-      ],
+      scopes: ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"],
       tokenAuthMethod: "client_secret_post",
       tokenUrl: "https://oauth2.googleapis.com/token",
     },

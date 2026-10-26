@@ -9,6 +9,7 @@ import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
+import { formatConnectAccountsGuidance } from "./connect-guidance";
 import { registerExtensionTools } from "./extensions/register";
 import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
@@ -64,7 +65,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, previe
 
 - Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. If access or an allowance prevents posting, explain the returned restriction without offering a purchase or subscription. Do not retry automatically or repeatedly inspect accounts to bypass the denial.
 
-1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, give the user this direct link: https://app.simplepost.social/accounts?onboarding=connect . Explain that connecting SimplePost to their assistant does not connect a social account. Ask them to connect one destination there, return to this conversation, and say "My account is connected; help me save my first draft." There is no MCP tool to add accounts.
+1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, the result carries \`connectAccountsUrl\`: show it as a clickable "Connect a social account" link. Explain that connecting SimplePost to their assistant does not connect a social account. Ask them to connect one destination there and return to this conversation. There is no MCP tool to add accounts.
 
 2. If the post needs an image or video, attach it via the \`media\` field on \`validate_post\`, \`preview_post\`, and \`create_post\`. See the "Media" section below for how to obtain a URL.
 
@@ -155,6 +156,7 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 # Error handling
 
 - ${MCP_ERROR_INSTRUCTIONS}
+- \`NO_CONNECTED_ACCOUNTS\` means the user has no social account connected at all. Show the "Connect a social account" link from the message and stop; do not retry with other account IDs.
 - \`create_post\` and \`update_scheduled_post\` return \`validation\` alongside the saved post. Warnings never block: surface them (for example, that a non-thread-capable account receives only the root segment) rather than dropping them from your answer.
 - A successful \`create_post\` with \`postingMode: "now"\` may still report per-platform failures inside \`postingResults\`. Always inspect \`summary.overallSuccess\` and the individual results — do not assume success just because the tool didn't throw. For threads, a root post can succeed while a later segment fails; check \`threadResults\` on that account.
 - If \`validate_post\` or \`preview_post\` was explicitly requested and returns \`isValid: false\`, surface the per-account error messages to the user and offer a fix (shorter text, add media, drop a platform) instead of calling \`create_post\` anyway.
@@ -321,11 +323,15 @@ function formatAccount(account: AccountSummary): string {
   return `${name} on ${platformLabel(account.platform)} (account ID: ${account.accountId})`;
 }
 
-function formatAccounts(accounts: AccountSummary[]): string {
-  if (accounts.length === 0)
-    return "Your assistant is connected, but no social account is linked yet. Connect one at https://app.simplepost.social/accounts?onboarding=connect, then return to this conversation and ask me to save your first draft.";
+function formatAccounts(accounts: AccountSummary[], connectAccountsUrl?: string): string {
+  if (accounts.length === 0) return formatConnectAccountsGuidance(connectAccountsUrl);
 
   return `Connected accounts:\n${accounts.map((account) => `- ${formatAccount(account)}`).join("\n")}`;
+}
+
+/** Appended to read-only results that still make sense without a destination. */
+function withConnectGuidance(text: string, connectAccountsUrl: string | undefined): string {
+  return connectAccountsUrl ? `${text}\n\n${formatConnectAccountsGuidance(connectAccountsUrl)}` : text;
 }
 
 function formatValidationIssue(issue: ValidationIssue): string {
@@ -567,7 +573,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "list_accounts",
     {
       title: "List Connected Accounts",
-      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
+      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. Also use this when the user asks how to connect a social account. If none are connected, show the returned connectAccountsUrl as a clickable link. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
       inputSchema: listAccountsSchema,
       outputSchema: listAccountsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
@@ -584,7 +590,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               type: "text",
               text:
                 result.summary.total === 0
-                  ? formatAccounts(result.accounts)
+                  ? formatAccounts(result.accounts, result.connectAccountsUrl)
                   : `You have ${plural(result.summary.total, "connected account")} across ${plural(
                       result.summary.platforms.length,
                       "platform",
@@ -888,11 +894,14 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                   ? result.posts.length > 0
                     ? `Found the post (${result.posts[0].status}).\n\n${formatManagedPostDetails(result.posts[0])}`
                     : "Couldn't find that post — it may have been deleted."
-                  : result.summary.totalReturned === 0
-                    ? formatManagedPosts(result.posts)
-                    : `Found ${plural(result.summary.totalReturned, "post")}${
-                        statusBreakdown ? ` (${statusBreakdown})` : ""
-                      }.\n\n${formatManagedPosts(result.posts)}`,
+                  : withConnectGuidance(
+                      result.summary.totalReturned === 0
+                        ? formatManagedPosts(result.posts)
+                        : `Found ${plural(result.summary.totalReturned, "post")}${
+                            statusBreakdown ? ` (${statusBreakdown})` : ""
+                          }.\n\n${formatManagedPosts(result.posts)}`,
+                      result.connectAccountsUrl,
+                    ),
             },
           ],
         };
@@ -922,7 +931,10 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Loaded ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+              text: withConnectGuidance(
+                `Loaded ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+                result.connectAccountsUrl,
+              ),
             },
           ],
         };
@@ -952,7 +964,10 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Showing ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+              text: withConnectGuidance(
+                `Showing ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+                result.connectAccountsUrl,
+              ),
             },
           ],
         };

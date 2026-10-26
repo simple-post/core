@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
-import { PostConnectAiPrompt } from "@/components/onboarding/post-connect-ai-prompt";
 import { PlatformIcon } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,10 @@ import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hoo
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
 import { logClientError } from "@/lib/logger/client";
+import { queryKeys } from "@/lib/query-client";
 import type { ConnectedAccount } from "@/types";
+
+const CONNECTION_RETURN_KEY = "simplepost:account-connection:return";
 
 function getCredentialBadge(account: ConnectedAccount): {
   className: string;
@@ -48,6 +51,9 @@ function getCredentialBadge(account: ConnectedAccount): {
 export default function AccountsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const handledConnection = useRef(false);
+  const onboardingConnection = useRef(false);
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
@@ -66,16 +72,47 @@ export default function AccountsPage() {
   const [foremApiKey, setForemApiKey] = useState("");
   const [foremError, setForemError] = useState("");
 
-  // Hand-off target from the onboarding welcome modal: land here with the
-  // platform picker already open instead of on an empty page.
+  // OAuth and manual connections share a quiet hand-off to the dashboard.
   useEffect(() => {
-    if (searchParams.get("onboarding") !== "connect") return;
+    if (searchParams.get("success") !== "true") {
+      handledConnection.current = false;
+      return;
+    }
+    if (handledConnection.current) return;
+    handledConnection.current = true;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
+    let destination = "/accounts";
+    try {
+      if (window.sessionStorage.getItem(CONNECTION_RETURN_KEY) === "/") destination = "/";
+      window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
+    } catch {
+      // Storage can be unavailable; connection success must still be usable.
+    }
+    toast.success("Account connected");
+    router.replace(destination, { scroll: false });
+  }, [queryClient, router, searchParams]);
+
+  // Direct hand-off from the checklist or an assistant: open the platform picker.
+  useEffect(() => {
+    if (searchParams.get("onboarding") !== "connect" || searchParams.get("success") === "true") return;
+    onboardingConnection.current = true;
     setShowConnectDialog(true);
     router.replace("/accounts", { scroll: false });
   }, [router, searchParams]);
 
   const handleConnect = (platform: string) => {
     const platformConfig = getPlatformById(platform);
+    // Preserve the return destination through the provider's full-page OAuth navigation.
+    // Reconnects and additional accounts stay on Accounts so their status is visible.
+    try {
+      window.sessionStorage.setItem(
+        CONNECTION_RETURN_KEY,
+        onboardingConnection.current || (!loading && accounts.length === 0) ? "/" : "/accounts",
+      );
+    } catch {
+      // Do not block account connection when storage is disabled.
+    }
 
     if (platformConfig?.connectionType === "manual") {
       setShowConnectDialog(false);
@@ -110,8 +147,7 @@ export default function AccountsPage() {
     try {
       await connectForemMutation.mutateAsync({ instanceUrl: foremInstance.trim(), apiKey: foremApiKey.trim() });
       closeForemDialog();
-      // Same success params the OAuth callbacks redirect with, so manual
-      // connections get the AI prompt too.
+      // Reuse the OAuth success hand-off for manual connections.
       router.replace("/accounts?success=true&platform=forem", { scroll: false });
     } catch (error) {
       logClientError(error, "Forem connection error");
@@ -166,7 +202,6 @@ export default function AccountsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <PostConnectAiPrompt />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <AccountsHeading

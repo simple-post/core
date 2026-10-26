@@ -19,7 +19,6 @@ jest.mock("next/navigation", () => ({ usePathname: () => "/schedule", useSearchP
 jest.mock("@/components/activation-analytics", () => ({ ActivationAnalytics: () => null }));
 jest.mock("@/components/billing/subscription-gate", () => ({ SubscriptionGate: () => null }));
 jest.mock("@/components/create-post-webmcp", () => ({ WebMcpProvider: () => null }));
-jest.mock("@/components/onboarding/welcome-modal", () => ({ WelcomeModal: () => null }));
 jest.mock("@/components/schedule-calendar-context", () => ({ ScheduleCalendarProvider: () => null }));
 jest.mock("@/components/platform-icons", () => ({ PlatformIcon: () => null }));
 jest.mock("@/lib/analytics/first-touch", () => ({ captureFirstTouch: jest.fn() }));

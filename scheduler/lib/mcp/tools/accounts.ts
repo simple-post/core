@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { normalizePlatformId } from "@/lib/config";
+import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -54,6 +55,12 @@ export const listAccountsOutputSchema = z.object({
     total: z.number(),
     platforms: z.array(z.string()),
   }),
+  connectAccountsUrl: z
+    .string()
+    .optional()
+    .describe(
+      "Present only when no account is connected: the SimplePost page where the user connects one. Show it as a clickable link; no tool can connect accounts.",
+    ),
 });
 
 export async function listAccounts(userId: string): Promise<z.infer<typeof listAccountsOutputSchema>> {
@@ -113,5 +120,6 @@ export async function listAccounts(userId: string): Promise<z.infer<typeof listA
       total: mappedAccounts.length,
       platforms: [...new Set(mappedAccounts.map((account) => account.platform))],
     },
+    ...(mappedAccounts.length === 0 && { connectAccountsUrl: getConnectAccountsUrl() }),
   };
 }

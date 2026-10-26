@@ -17,6 +17,7 @@ import {
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
+import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
@@ -360,6 +361,12 @@ export const inspectPostsOutputSchema = z.object({
     postedCount: z.number(),
     failedCount: z.number(),
   }),
+  connectAccountsUrl: z
+    .string()
+    .optional()
+    .describe(
+      "Present only when no account is connected, even if earlier posts remain: the SimplePost page where the user connects one.",
+    ),
 });
 
 export const updateScheduledPostOutputSchema = z.object({
@@ -767,6 +774,8 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
   const accountMap = await getAccountMap(userId);
   const page = input.page ?? 1;
   const limit = input.limit ?? 10;
+  const guidance: { connectAccountsUrl?: string } =
+    accountMap.size === 0 ? { connectAccountsUrl: getConnectAccountsUrl() } : {};
 
   if (input.postId) {
     const post = await repository.getPostById(input.postId);
@@ -781,6 +790,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
       posts,
       pagination: null,
       summary: countStatuses(posts),
+      ...guidance,
     };
   }
 
@@ -795,6 +805,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
       posts,
       pagination: result.pagination,
       summary: countStatuses(posts),
+      ...guidance,
     };
   }
 
@@ -814,6 +825,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
     posts,
     pagination: null,
     summary: countStatuses(posts),
+    ...guidance,
   };
 }
 

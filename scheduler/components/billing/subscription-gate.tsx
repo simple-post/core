@@ -23,7 +23,7 @@ const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans"]);
 
 export function SubscriptionGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  // Shared with the trial banner, compose-form allowance, and welcome modal, so
+  // Shared with the trial banner and compose-form allowance, so
   // the whole app reads one cached copy of the billing status per page load.
   const { data: billing, error, isPending } = useBillingStatus();
 

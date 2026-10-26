@@ -12,17 +12,36 @@ async function main() {
     "Disposable local review database required",
   );
   assert.ok(process.env.ENABLE_OPENAI_TEST_LOGIN === "true");
-  const emails = ["demo@simplepost.social", "openai@simplepost.social"];
+  const emails = ["demo@simplepost.social", "attribution-review@example.invalid"];
+  let sentOtp = "";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    assert.equal(String(input), "https://api.resend.com/emails");
+    sentOtp = JSON.parse(String(init?.body)).subject.match(/^\d{6}/)[0];
+    return Response.json({ id: "local-review-email" });
+  };
   await prisma.user.deleteMany({ where: { email: { in: emails } } });
   async function login(email: string, source?: string) {
     const cookie = source
       ? `${FIRST_TOUCH_COOKIE}=${encodeURIComponent(JSON.stringify(createFirstTouch(`https://simplepost.social/?utm_source=${source}`, "")))}`
       : "";
-    const response = await auth.handler(
-      new Request("http://localhost:3000/api/auth/sign-in/openai-test-user", {
+    const headers = { "content-type": "application/json", origin: "http://localhost:3000", cookie };
+    const start = await auth.handler(
+      new Request("http://localhost:3000/api/auth/email-otp/send-verification-otp", {
         method: "POST",
-        headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie },
-        body: JSON.stringify({ email, password: email.split("@")[0], acquisition: { source: "forged" } }),
+        headers,
+        body: JSON.stringify({ email, type: "sign-in" }),
+      }),
+    );
+    assert.equal(start.status, 200, await start.clone().text());
+    const response = await auth.handler(
+      new Request("http://localhost:3000/api/auth/sign-in/email-otp", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          email,
+          otp: email === emails[0] ? "123456" : sentOtp,
+        }),
       }),
     );
     assert.equal(response.status, 200, await response.clone().text());
@@ -62,6 +81,7 @@ async function main() {
       "PASS actual Better Auth account creation, immutable first touch, unknown fallback, private auth responses and admin self-promotion denial",
     );
   } finally {
+    globalThis.fetch = originalFetch;
     await prisma.user.deleteMany({ where: { email: { in: emails } } });
     await prisma.$disconnect();
   }

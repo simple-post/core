@@ -15,7 +15,10 @@ describe("review MCP logging", () => {
   it("only enables exchange logging for configured review accounts", () => {
     process.env.ENABLE_OPENAI_TEST_LOGIN = "true";
 
-    expect(shouldLogReviewMcpExchange({ userId: "review-user", userEmail: "openai@simplepost.social" })).toBe(true);
+    expect(shouldLogReviewMcpExchange({ userId: "review-user", userEmail: "demo@simplepost.social" })).toBe(true);
+    expect(shouldLogReviewMcpExchange({ userId: "former-review-user", userEmail: "openai@simplepost.social" })).toBe(
+      false,
+    );
     expect(shouldLogReviewMcpExchange({ userId: "regular-user", userEmail: "someone@example.com" })).toBe(false);
 
     process.env.ENABLE_OPENAI_TEST_LOGIN = "false";

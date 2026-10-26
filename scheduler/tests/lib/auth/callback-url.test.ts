@@ -2,13 +2,11 @@ import { loginCallbackUrl } from "@/lib/auth/callback-url";
 
 const origin = "https://app.simplepost.social";
 
-it("preserves an OAuth continuation through magic-link URL encoding", () => {
+it("preserves an OAuth continuation after email code sign-in", () => {
   const callback =
     "/oauth/authorize?response_type=code&redirect_uri=https://chatgpt.com/connector/oauth/test&scope=openid+posts:write&code_challenge=abc-_&state=state%2Bwith%26values";
   const resolved = loginCallbackUrl(callback, origin);
-  const magicLink = new URL("/api/auth/magic-link/verify", origin);
-  magicLink.searchParams.set("callbackURL", resolved);
-  const roundTrip = new URL(magicLink.searchParams.get("callbackURL")!);
+  const roundTrip = new URL(resolved);
   expect(roundTrip.origin).toBe(origin);
   expect(roundTrip.pathname).toBe("/oauth/authorize");
   expect(roundTrip.searchParams.get("redirect_uri")).toBe("https://chatgpt.com/connector/oauth/test");

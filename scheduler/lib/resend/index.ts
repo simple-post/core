@@ -13,11 +13,15 @@ function getResendClient(): Resend {
   return resend;
 }
 
-export function sendEmail(to: string, subject: string, html: string) {
-  return getResendClient().emails.send({
+export async function sendEmail(to: string, subject: string, html: string, text?: string) {
+  const result = await getResendClient().emails.send({
     from: env.RESEND_FROM_ADDRESS,
     to: to,
     subject: subject,
     html: html,
+    text,
   });
+  // Resend reports delivery failures as data; do not tell the user a code was sent.
+  if (result.error) throw new Error("Failed to send sign-in email");
+  return result;
 }

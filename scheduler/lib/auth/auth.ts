@@ -1,32 +1,31 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { APIError, createAuthEndpoint } from "better-auth/api";
-import { setSessionCookie } from "better-auth/cookies";
-import { magicLink } from "better-auth/plugins";
-import * as z from "zod";
+import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
+import { emailOTP } from "better-auth/plugins";
 
 import { readFirstTouch } from "../analytics/first-touch";
 import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
+import { otpEmail, OTP_EXPIRY_SECONDS } from "../resend/otp-email";
 
-import { authenticateTestUser } from "./test-users";
+import { isTestUserEmail } from "./test-users";
 
-function openAITestUserLogin() {
+function demoLoginConfig() {
   return {
-    id: "openai-test-user-login",
+    id: "demo-login-config",
     endpoints: {
-      getOpenAITestUserLoginConfig: createAuthEndpoint(
-        "/sign-in/openai-test-user",
+      getDemoLoginConfig: createAuthEndpoint(
+        "/demo-login",
         {
           method: "GET",
           metadata: {
             openapi: {
-              description: "Return whether the test user password login is enabled.",
+              description: "Return whether the demo password login is enabled.",
               responses: {
                 200: {
-                  description: "Test user sign-in configuration.",
+                  description: "Demo sign-in configuration.",
                   content: {
                     "application/json": {
                       schema: {
@@ -47,85 +46,7 @@ function openAITestUserLogin() {
           return ctx.json({ enabled: env.ENABLE_OPENAI_TEST_LOGIN });
         },
       ),
-      signInOpenAITestUser: createAuthEndpoint(
-        "/sign-in/openai-test-user",
-        {
-          method: "POST",
-          requireHeaders: true,
-          body: z.object({
-            email: z.string().email(),
-            password: z.string(),
-          }),
-          metadata: {
-            openapi: {
-              description:
-                "Sign in a configured test user with its hard-coded password when the server-side feature flag is enabled.",
-              responses: {
-                200: {
-                  description: "Test user sign-in result.",
-                  content: {
-                    "application/json": {
-                      schema: {
-                        type: "object",
-                        properties: {
-                          authenticated: { type: "boolean" },
-                        },
-                        required: ["authenticated"],
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        async (ctx) => {
-          const email = ctx.body.email.trim().toLowerCase();
-          const testUser = authenticateTestUser(email, ctx.body.password);
-          if (!env.ENABLE_OPENAI_TEST_LOGIN || !testUser) {
-            return ctx.json({ authenticated: false });
-          }
-
-          let user = await ctx.context.internalAdapter.findUserByEmail(email).then((result) => result?.user);
-          if (!user) {
-            user = await ctx.context.internalAdapter.createUser({
-              email,
-              emailVerified: true,
-              name: testUser.name,
-            });
-          } else if (!user.emailVerified) {
-            user = await ctx.context.internalAdapter.updateUser(user.id, { emailVerified: true });
-          }
-
-          if (!user) {
-            throw APIError.from("INTERNAL_SERVER_ERROR", {
-              code: "failed_to_create_test_user",
-              message: "Failed to create test user",
-            });
-          }
-
-          const session = await ctx.context.internalAdapter.createSession(user.id);
-          if (!session) {
-            throw APIError.from("INTERNAL_SERVER_ERROR", {
-              code: "failed_to_create_session",
-              message: "Failed to create test user session",
-            });
-          }
-
-          await setSessionCookie(ctx, { session, user });
-          return ctx.json({ authenticated: true });
-        },
-      ),
     },
-    rateLimit: [
-      {
-        pathMatcher(path: string) {
-          return path.startsWith("/sign-in/openai-test-user");
-        },
-        window: 60,
-        max: 60,
-      },
-    ],
   };
 }
 
@@ -159,6 +80,16 @@ export const auth = betterAuth({
   },
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.NEXT_PUBLIC_APP_URL,
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      // Better Auth catches sendVerificationOTP errors as background-task failures.
+      // Carry the failure on this request's context so the form receives an error.
+      const delivery = ctx.context as typeof ctx.context & { otpDeliveryFailed?: boolean };
+      if (delivery.otpDeliveryFailed) {
+        throw new APIError("SERVICE_UNAVAILABLE", { message: "Failed to send verification code. Please try again." });
+      }
+    }),
+  },
   emailAndPassword: {
     enabled: false,
   },
@@ -171,15 +102,25 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    openAITestUserLogin(),
-    magicLink({
-      sendMagicLink: async ({ email, url }) => {
-        const safeUrl = url
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;");
-        await sendEmail(email, "Sign in to SimplePost", `Click here to sign in: <a href="${safeUrl}">${safeUrl}</a>`);
+    demoLoginConfig(),
+    emailOTP({
+      otpLength: 6,
+      expiresIn: OTP_EXPIRY_SECONDS,
+      allowedAttempts: 5,
+      storeOTP: "hashed",
+      generateOTP({ email, type }) {
+        if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return "123456";
+        return undefined;
+      },
+      async sendVerificationOTP({ email, otp, type }, ctx) {
+        if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return;
+        const message = otpEmail(otp, type);
+        try {
+          await sendEmail(email, message.subject, message.html, message.text);
+        } catch (error) {
+          if (!ctx) throw error;
+          Object.assign(ctx.context, { otpDeliveryFailed: true });
+        }
       },
     }),
   ],

@@ -350,8 +350,6 @@ export { validatePostMedia } from "./utils/post-media-validation";
 export { getMetaCredentialRejection, isMetaCredentialPlatform } from "./utils/meta-credential-rejection";
 export type { MetaCredentialPlatform } from "./utils/meta-credential-rejection";
 export type { CredentialRejection } from "./types/validation";
-export { getTikTokErrorDetails } from "./publishers/tiktok/diagnostics";
-export type { TikTokDiagnosticContext } from "./publishers/tiktok/diagnostics";
 
 /** Check current account capabilities without uploading media or creating a post. */
 export async function validatePostReadiness(

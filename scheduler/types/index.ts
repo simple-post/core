@@ -131,8 +131,6 @@ export interface AccountPublishResult {
   message?: string;
   completedAt: string;
   platformData?: Record<string, unknown>;
-  /** Sanitized TikTok diagnostics, including recovered upload/status errors. */
-  details?: unknown;
 }
 
 export type AccountResultsMap = Record<string, AccountPublishResult>;

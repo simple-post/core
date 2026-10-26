@@ -1,10 +1,26 @@
-import { getTikTokErrorDetails } from "@simple-post/sdk";
+export type TikTokPrivacyLevel = "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
 
-import { createLogger } from "@/lib/logger";
+export const TIKTOK_PRIVACY_LABELS: Record<TikTokPrivacyLevel, string> = {
+  PUBLIC_TO_EVERYONE: "Everyone",
+  MUTUAL_FOLLOW_FRIENDS: "Friends",
+  FOLLOWER_OF_CREATOR: "Followers",
+  SELF_ONLY: "Only me",
+};
 
-const log = createLogger("tiktok-creator-info");
-
-import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "./creator-info-types";
+export interface TikTokCreatorInfo {
+  creatorAvatarUrl: string | null;
+  creatorUsername: string | null;
+  creatorNickname: string | null;
+  privacyLevelOptions: TikTokPrivacyLevel[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSec: number | null;
+  canPost: boolean;
+  blockReason: string | null;
+  errorCode: string | null;
+  fetchedAt: string;
+}
 
 interface TikTokCreatorInfoResponse {
   data?: {
@@ -56,60 +72,18 @@ function creatorInfoBlockReason(code: string | null, message: string | null): st
 }
 
 export async function fetchTikTokCreatorInfo(accessToken: string): Promise<TikTokCreatorInfo> {
-  const context = { phase: "creator_info", endpoint: "/v2/post/publish/creator_info/query/", method: "POST" };
-  let response: Response;
-  try {
-    response = await fetch("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json; charset=UTF-8",
-      },
-    });
-  } catch (error) {
-    log.warn({ details: getTikTokErrorDetails(error, context, [accessToken]) }, "TikTok creator info request failed");
-    throw error;
-  }
-
-  let raw: string;
-  try {
-    raw = await response.text();
-  } catch (error) {
-    const failure = Object.assign(new Error("TikTok creator info response could not be read", { cause: error }), {
-      response: { status: response.status, headers: Object.fromEntries(response.headers) },
-    });
-    log.warn(
-      { details: getTikTokErrorDetails(failure, context, [accessToken]) },
-      "TikTok creator info response failed",
-    );
-    throw new Error("TikTok creator info response could not be read");
-  }
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    body = raw;
-  }
-  const data = (body && typeof body === "object" ? body : {}) as TikTokCreatorInfoResponse;
-  const details = getTikTokErrorDetails(
-    {
-      response: {
-        status: response.status,
-        statusText: response.statusText,
-        data: body,
-        headers: Object.fromEntries(response.headers),
-      },
+  const response = await fetch("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
     },
-    context,
-    [accessToken],
-  );
+  });
+
+  const data = (await response.json().catch(() => ({}))) as TikTokCreatorInfoResponse;
   const errorCode = data.error?.code ?? (response.ok ? "ok" : "request_failed");
-  const errorMessage =
-    typeof details.providerMessage === "string" ? details.providerMessage : response.ok ? null : response.statusText;
+  const errorMessage = data.error?.message ?? (response.ok ? null : response.statusText);
   const blockReason = creatorInfoBlockReason(errorCode, errorMessage);
-  if (!response.ok || errorCode !== "ok" || !data.data) {
-    log.warn({ details }, "TikTok creator info request rejected or incomplete");
-  }
 
   if (!response.ok && errorCode === "request_failed") {
     return {

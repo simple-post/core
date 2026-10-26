@@ -16,8 +16,8 @@ import { mergeAccountOptions } from "@/features/platform-options/merge-account-o
 import { useAccounts } from "@/hooks/use-accounts";
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
-import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info-types";
-import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "@/lib/tiktok/creator-info-types";
+import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
+import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
 import type { AccountOptionsMap, ConnectedAccount, MediaFile } from "@/types";
 
 interface AccountOptionsProps {

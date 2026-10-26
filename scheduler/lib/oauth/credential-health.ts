@@ -1,11 +1,6 @@
 import crypto from "node:crypto";
 
-import {
-  derToRaw,
-  getMetaCredentialRejection,
-  getTikTokErrorDetails,
-  isMetaCredentialPlatform,
-} from "@simple-post/sdk";
+import { derToRaw, getMetaCredentialRejection, isMetaCredentialPlatform } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { addBlueskyClientAuthentication, getBlueskyClientId, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
@@ -70,7 +65,6 @@ class TokenRefreshError extends Error {
     readonly providerCode: string | null,
     readonly providerSubtype: string | null,
     readonly permanent: boolean,
-    readonly diagnostics?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "TokenRefreshError";
@@ -517,64 +511,10 @@ function isPermanentRefreshRejection(status: number, code: string | null, messag
   ].some((fragment) => normalizedMessage.includes(fragment));
 }
 
-async function expectTokenResponse(
-  platform: string,
-  response: Response,
-  secrets: readonly string[] = [],
-): Promise<Record<string, unknown>> {
-  let body: unknown;
-  let data: Record<string, unknown>;
-  if (platform === "tiktok") {
-    let raw: string;
-    try {
-      raw = await response.text();
-    } catch (error) {
-      const failure = Object.assign(new Error("TikTok token refresh response could not be read", { cause: error }), {
-        response: { status: response.status, headers: Object.fromEntries(response.headers) },
-      });
-      throw new TokenRefreshError(
-        failure.message,
-        response.status,
-        null,
-        null,
-        false,
-        getTikTokErrorDetails(
-          failure,
-          { phase: "token_refresh", endpoint: "/v2/oauth/token/", method: "POST" },
-          secrets,
-        ),
-      );
-    }
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      body = raw;
-    }
-    data = isPlainObject(body) ? body : {};
-  } else data = await parseJsonObject(response);
-  const diagnostics =
-    platform === "tiktok"
-      ? getTikTokErrorDetails(
-          {
-            response: {
-              data: body,
-              status: response.status,
-              statusText: response.statusText,
-              headers: Object.fromEntries(response.headers),
-            },
-          },
-          { phase: "token_refresh", endpoint: "/v2/oauth/token/", method: "POST" },
-          secrets,
-        )
-      : undefined;
+async function expectTokenResponse(platform: string, response: Response): Promise<Record<string, unknown>> {
+  const data = await parseJsonObject(response);
   if (!response.ok) {
     const details = providerErrorDetails(data);
-    if (diagnostics) {
-      details.code = typeof diagnostics.code === "string" ? diagnostics.code : null;
-      details.message = typeof diagnostics.providerMessage === "string" ? diagnostics.providerMessage : null;
-      const safeBody = diagnostics.providerResponse as Record<string, unknown> | undefined;
-      details.subtype = typeof safeBody?.error_subtype === "string" ? safeBody.error_subtype : null;
-    }
     const providerMessage = details.message || response.statusText || "unknown error";
     const combinedMessage =
       details.code && details.code.toLowerCase() !== providerMessage.toLowerCase()
@@ -588,18 +528,8 @@ async function expectTokenResponse(
       (isMetaCredentialPlatform(platform) &&
         Boolean(getMetaCredentialRejection({ response: { status: response.status, data } }))) ||
         isPermanentRefreshRejection(response.status, details.code, combinedMessage),
-      diagnostics,
     );
   }
-  if (diagnostics && !data.access_token)
-    throw new TokenRefreshError(
-      "TikTok token refresh returned no access token.",
-      response.status,
-      null,
-      null,
-      false,
-      diagnostics,
-    );
   return data;
 }
 
@@ -714,17 +644,7 @@ async function refreshTikTok(account: ConnectedAccount, now: Date): Promise<Toke
     method: "POST",
     signal: AbortSignal.timeout(REFRESH_REQUEST_TIMEOUT_MS),
   });
-  return buildRefreshResult(
-    account,
-    await expectTokenResponse("tiktok", response, [
-      account.accessToken,
-      account.refreshToken,
-      process.env.TIKTOK_CLIENT_SECRET,
-      process.env.TIKTOK_CLIENT_KEY,
-    ]),
-    now,
-    { keepRefreshToken: true },
-  );
+  return buildRefreshResult(account, await expectTokenResponse("tiktok", response), now, { keepRefreshToken: true });
 }
 
 function base64UrlEncode(input: string | Buffer): string {
@@ -910,7 +830,6 @@ interface RefreshFailureDetails {
   providerCode?: string | null;
   providerStatus?: number | null;
   providerSubtype?: string | null;
-  diagnostics?: Record<string, unknown>;
 }
 
 async function persistRefreshError(
@@ -927,7 +846,6 @@ async function persistRefreshError(
     lastRefreshErrorStatus: details.providerStatus ?? null,
     lastRefreshErrorSubtype: details.providerSubtype ?? null,
     lastRefreshFailurePermanent: details.permanent,
-    ...(details.diagnostics ? { lastRefreshErrorDetails: details.diagnostics } : {}),
   });
 
   const updatedAt = new Date();
@@ -966,7 +884,6 @@ async function persistRefreshSuccess(
   const tokenMetadata = withRefreshMetadata(account, now, {
     ...refreshed.tokenMetadataPatch,
     lastRefreshError: null,
-    ...(account.platform === "tiktok" ? { lastRefreshErrorDetails: null } : {}),
     lastRefreshErrorAt: null,
     lastRefreshErrorCode: null,
     lastRefreshErrorStatus: null,
@@ -1118,40 +1035,19 @@ async function refreshConnectedAccountWhileLocked(
     refreshed = await refreshPlatformToken(account, now);
   } catch (error) {
     const tokenError = error instanceof TokenRefreshError ? error : null;
-    const diagnostics =
-      account.platform === "tiktok"
-        ? (tokenError?.diagnostics ??
-          getTikTokErrorDetails(error, { phase: "token_refresh", endpoint: "/v2/oauth/token/", method: "POST" }, [
-            account.accessToken,
-            account.refreshToken ?? "",
-            process.env.TIKTOK_CLIENT_SECRET ?? "",
-            process.env.TIKTOK_CLIENT_KEY ?? "",
-          ]))
-        : undefined;
-    const diagnosticMessage = (diagnostics?.transport as { message?: unknown } | undefined)?.message;
-    const safeMessage =
-      diagnostics && !(error instanceof TokenRefreshError)
-        ? typeof diagnosticMessage === "string"
-          ? diagnosticMessage
-          : "TikTok token refresh failed"
-        : error instanceof Error
-          ? error.message
-          : undefined;
-    const errorMessage = safeMessage
-      ? `${safeMessage}. Reconnect the ${platformLabel(account.platform)} account if this persists.`
-      : `${platformLabel(account.platform)} token refresh failed. Reconnect this account.`;
+    const errorMessage =
+      error instanceof Error
+        ? `${error.message}. Reconnect the ${platformLabel(account.platform)} account if this persists.`
+        : `${platformLabel(account.platform)} token refresh failed. Reconnect this account.`;
     log.warn(
       {
         accountId: account.id,
-        err: diagnostics
-          ? { name: error instanceof Error ? error.name : "Error", message: safeMessage }
-          : serializeError(error),
+        err: serializeError(error),
         permanent: tokenError?.permanent ?? false,
         platform: account.platform,
         providerCode: tokenError?.providerCode,
         providerStatus: tokenError?.status,
         providerSubtype: tokenError?.providerSubtype,
-        ...(diagnostics ? { details: diagnostics } : {}),
         reason,
       },
       "Connected account credential refresh failed",
@@ -1162,7 +1058,6 @@ async function refreshConnectedAccountWhileLocked(
       providerCode: tokenError?.providerCode,
       providerStatus: tokenError?.status,
       providerSubtype: tokenError?.providerSubtype,
-      diagnostics,
     });
     const failedAccount = persisted ?? (await loadConnectedAccount(client, account.id)) ?? account;
     const failedStatus = getConnectedAccountCredentialStatus(failedAccount, { now, warningWindowMs: minValidityMs });

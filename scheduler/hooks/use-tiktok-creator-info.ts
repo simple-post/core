@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-client";
-import type { TikTokCreatorInfo } from "@/lib/tiktok/creator-info-types";
+import type { TikTokCreatorInfo } from "@/lib/tiktok/creator-info";
 
 async function fetchCreatorInfo(accountId: string): Promise<TikTokCreatorInfo> {
   const response = await fetch(`/api/v1/accounts/${accountId}/tiktok/creator-info`);

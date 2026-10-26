@@ -57,26 +57,3 @@ describe("account-results", () => {
     expect(getSucceededAccountIds(null).size).toBe(0);
   });
 });
-
-it("retains sanitized TikTok diagnostics on failed and recovered account outcomes", () => {
-  const details = {
-    phase: "init",
-    httpStatus: 400,
-    providerResponse: { error: { code: "invalid_param", message: "Wrong video size" } },
-    responseHeaders: { "x-tt-logid": "log_123" },
-  };
-  const failed = toAccountResultsMap([
-    result({ platform: "tiktok", accountId: "tiktok-1", success: false, error: "PUBLISH_REJECTED", details }),
-  ]);
-  expect(failed["tiktok-1"].details).toEqual(details);
-  const recoveredDetails = { phase: "status", pollErrors: [details] };
-  const recovered = mergeAccountResults(failed, [
-    result({ platform: "tiktok", accountId: "tiktok-1", success: true, postId: "123", details: recoveredDetails }),
-  ]);
-  expect(recovered["tiktok-1"].details).toEqual(recoveredDetails);
-  expect(
-    mergeAccountResults(recovered, [result({ platform: "tiktok", accountId: "tiktok-1", success: false, details })])[
-      "tiktok-1"
-    ],
-  ).toEqual(recovered["tiktok-1"]);
-});

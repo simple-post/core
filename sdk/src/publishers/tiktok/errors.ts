@@ -1,5 +1,58 @@
 import { PostError, PostErrorType } from "../../types";
 
+/** Bounded JSON response data only; never pass an Axios error/config here. */
+function sanitizeResponse(body: unknown): unknown {
+  let remaining = 32_768;
+  let nodes = 0;
+  const seen = new WeakSet<object>();
+  const visit = (value: unknown, depth = 0): unknown => {
+    if (++nodes > 1000 || depth > 8 || remaining <= 0) return "[TRUNCATED]";
+    remaining -= 1;
+    if (typeof value === "string") {
+      const safe = value
+        .replaceAll(/\b(Bearer|Basic)\s+[^\s"'<>]+/gi, "$1 [REDACTED]")
+        .replaceAll(/\b((?:authorization|set-cookie|cookie)\s*:\s*)[^\r\n]+/gi, "$1[REDACTED]")
+        .replaceAll(/https?:\/\/[^\s"'<>]+/gi, (url) => {
+          try {
+            const parsed = new URL(url);
+            return `${parsed.origin}${parsed.pathname}${parsed.search || parsed.hash ? "?[REDACTED]" : ""}`;
+          } catch {
+            return "[REDACTED URL]";
+          }
+        })
+        .replaceAll(
+          /((?:access[_-]?token|refresh[_-]?token|client[_-]?secret|upload[_-]?token|api[_-]?key|password)\s*[:=]\s*)[^\s,;&]+/gi,
+          "$1[REDACTED]",
+        );
+      const result = safe.length > remaining ? `${safe.slice(0, remaining)}[TRUNCATED]` : safe;
+      remaining = Math.max(0, remaining - safe.length);
+      return result;
+    }
+    if (value === null || typeof value === "number" || typeof value === "boolean") return value;
+    if (typeof value !== "object") return undefined;
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+    const entries: [string, unknown][] = [];
+    for (const [key, item] of Object.entries(value)) {
+      if (remaining <= key.length || nodes >= 1000) {
+        entries.push(["_truncated", true]);
+        break;
+      }
+      remaining -= key.length;
+      const sensitive = /token|secret|password|authorization|cookie|signature|credential|uploadurl|apikey/i.test(
+        key.replaceAll(/[_-]/g, ""),
+      );
+      if (sensitive) {
+        remaining -= 10;
+        nodes += 1;
+      }
+      entries.push([key, sensitive ? "[REDACTED]" : visit(item, depth + 1)]);
+    }
+    return Array.isArray(value) ? entries.map(([, item]) => item) : Object.fromEntries(entries);
+  };
+  return visit(body);
+}
+
 /** Keep provider diagnostics, never Axios config, headers, tokens, or signed URLs. */
 export function uploadInitError(body: unknown, status?: number, phase = "init"): PostError {
   const error = (body as { error?: { code?: unknown; log_id?: unknown; logid?: unknown } } | undefined)?.error;
@@ -76,9 +129,11 @@ export function uploadInitError(body: unknown, status?: number, phase = "init"):
         : "TikTok did not confirm upload initialization. Check TikTok before retrying; the upload may have been accepted.";
   }
   const failureType = phase === "creator_info" ? PostErrorType.PREPARATION_ERROR : PostErrorType.API_ERROR;
+  const providerResponse = sanitizeResponse(body);
+  const providerMessage = (providerResponse as { error?: { message?: unknown } } | undefined)?.error?.message;
   return new PostError(
     rejected ? PostErrorType.PUBLISH_REJECTED : failureType,
     code && code !== "ok" ? `${message} (TikTok code: ${code})` : message,
-    { phase, httpStatus: status, code, logId },
+    { phase, httpStatus: status, code, logId, providerMessage, providerResponse },
   );
 }

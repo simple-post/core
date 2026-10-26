@@ -104,7 +104,7 @@ jobs:
           yarn workspace @simple-post/scheduler prisma migrate deploy
           yarn workspace @simple-post/scheduler jest -c jest.integration.config.cjs --runInBand
 
-      - name: Verify homepage experiment authentication and shared activation milestones
+      - name: Verify email OTP, Google login and signup attribution
         working-directory: scheduler
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/simplepost_review
@@ -115,7 +115,11 @@ jobs:
           GOOGLE_CLIENT_SECRET: local-review-google-secret
           RESEND_API_KEY: re_local_review
           HOMEPAGE_EXPERIMENT_SECRET: local-review-experiment-secret-at-least-32
-        run: node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/experiments.ts
+          ENABLE_OPENAI_TEST_LOGIN: "true"
+        run: |
+          node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/email-otp.ts
+          node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/auth-attribution.ts
+          node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/experiments.ts
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4

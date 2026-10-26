@@ -66,9 +66,8 @@ export const env = {
     return getBoolean("SELF_HOSTED");
   },
   /**
-   * Enables the hard-coded demo account password logins
-   * (openai@simplepost.social and demo@simplepost.social). Should only be set in
-   * review/staging environments.
+   * Enables the fixed 123456 demo password for demo@simplepost.social.
+   * Should only be set in review/staging environments.
    */
   get ENABLE_OPENAI_TEST_LOGIN() {
     return getBoolean("ENABLE_OPENAI_TEST_LOGIN");

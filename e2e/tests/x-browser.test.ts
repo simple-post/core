@@ -140,6 +140,20 @@ test("current guest X markup keeps exact permalink scoping and excludes avatar a
   }
 });
 
+test("current X permalink DOM does not require the retired data-timezone attribute", async ({ page }) => {
+  const pathname = "/testuser/status/current-guest-456";
+  await verifyDocument(
+    page,
+    pathname,
+    `<article class="flex flex-col gap-1">
+      <a href="${pathname}">9:58 · 22 Sept 2026</a>
+      <a href="https://x.com/testuser"><img alt="@testuser" src="${imageSources.image}"></a>
+      <div dir="auto">${smoke.expectedText}</div>
+      <a aria-label="Image" href="${pathname}/photo/1"><img alt="post photo" src="${imageSources.image}"></a>
+    </article>`,
+  );
+});
+
 test("captionless guest X post selects the exact article among media-only cards", async ({ page }) => {
   const pathname = "/testuser/status/captionless-789";
   await verifyDocument(

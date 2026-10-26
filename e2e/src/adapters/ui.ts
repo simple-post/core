@@ -355,7 +355,20 @@ export async function uiEditDraft(
   await page.reload();
   await expect(page.getByLabel("Message", { exact: true })).toHaveValue(`${s.message} before edit`);
   await page.getByLabel("Message", { exact: true }).fill(s.message);
-  const submittedOptions = await setOptions(page, account, s, config);
+  let submittedOptions: Options;
+  if (s.platform === "pinterest" && s.options.boardId !== undefined) {
+    // Pinterest's board picker is on the per-account advanced settings route
+    // in the edit composer, not on its main form.
+    await page.getByRole("link", { name: /^Settings for Pinterest:/ }).click();
+    await setOptions(page, account, { ...s, options: { boardId: s.options.boardId } }, config);
+    await page.getByRole("link", { name: "Back to edit post", exact: true }).click();
+    const remainingOptions = { ...s.options };
+    delete remainingOptions.boardId;
+    submittedOptions = {
+      ...s.options,
+      ...(await setOptions(page, account, { ...s, options: remainingOptions }, config)),
+    };
+  } else submittedOptions = await setOptions(page, account, s, config);
   await page.locator("#post-schedule").click();
   await prepareSchedule?.();
   await pickSchedule(page, s.scheduledFor!);

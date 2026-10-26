@@ -114,7 +114,7 @@ export const auth = betterAuth({
       },
       async sendVerificationOTP({ email, otp, type }, ctx) {
         if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return;
-        const message = otpEmail(otp, type);
+        const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL);
         try {
           await sendEmail(email, message.subject, message.html, message.text);
         } catch (error) {

@@ -308,11 +308,11 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
                     autoComplete={isDemoLogin ? "current-password" : "one-time-code"}
                     pattern="[0-9]{6}"
                     maxLength={6}
-                    placeholder={isDemoLogin ? "Password" : "6-digit code"}
+                    placeholder={isDemoLogin ? "Password" : "Enter code"}
                     value={code}
                     onChange={(event) => setCode(event.target.value.replaceAll(/\D/g, ""))}
                     disabled={isLoading}
-                    className={isDemoLogin ? "h-11" : "h-11 font-mono text-center text-xl tracking-[0.3em]"}
+                    className="h-11 tabular-nums"
                     autoFocus
                     required
                     aria-describedby={isDemoLogin ? undefined : "code-help"}

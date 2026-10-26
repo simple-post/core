@@ -13,7 +13,7 @@ import { WebMcpProvider } from "@/components/create-post-webmcp";
 import { LoginForm } from "@/components/login-form";
 import { WelcomeModal } from "@/components/onboarding/welcome-modal";
 import { ScheduleCalendarProvider } from "@/components/schedule-calendar-context";
-import { useSession } from "@/lib/auth/auth-client";
+import { useLoginSession } from "@/lib/auth/use-login-session";
 import { COMPLIMENTARY_INVITE_STORAGE_KEY } from "@/lib/invites/constants";
 
 async function parseApiError(response: Response): Promise<string> {
@@ -87,7 +87,7 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
 }
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = useLoginSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();

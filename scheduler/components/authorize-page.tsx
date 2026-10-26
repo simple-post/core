@@ -9,7 +9,7 @@ import { Check } from "lucide-react";
 
 import { LoginForm } from "@/components/login-form";
 import { Button } from "@/components/ui/button";
-import { useSession } from "@/lib/auth/auth-client";
+import { useLoginSession } from "@/lib/auth/use-login-session";
 
 interface AuthorizePageConfig {
   title: string;
@@ -23,7 +23,7 @@ interface AuthorizePageConfig {
 }
 
 function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = useLoginSession();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [authorized, setAuthorized] = useState(false);

@@ -46,7 +46,7 @@ export function TrialBanner() {
 
   return (
     <section className="mb-6 space-y-3 animate-reveal">
-      <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:p-5">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -58,12 +58,14 @@ export function TrialBanner() {
               </h2>
             </div>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Every feature is unlocked, with {trial.postsPerPlatform} posts per platform. No credit card needed.
+              Every feature is unlocked, with {trial.postsPerPlatform} posts per platform. No credit card needed.{" "}
+              <HelpLink path="/billing#free-trial" className="align-baseline">
+                Trial details
+              </HelpLink>
             </p>
           </div>
 
-          <HelpLink path="/billing#free-trial">Trial limits and expiry</HelpLink>
-          <Button asChild className="shrink-0">
+          <Button asChild size="sm" variant="outline" className="shrink-0">
             <Link href="/billing/plans">Choose a plan</Link>
           </Button>
         </div>

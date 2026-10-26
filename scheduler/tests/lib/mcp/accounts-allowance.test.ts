@@ -55,3 +55,18 @@ it("does not show an old trial cap after upgrading", async () => {
   const result = await listAccounts("user");
   expect(result.accounts.every((account) => account.trialAllowance === undefined)).toBe(true);
 });
+
+it("returns a connection URL only when the authenticated user has no social accounts", async () => {
+  jest.mocked(getBillingStatus).mockResolvedValue({ accessType: "trial", trial: null } as never);
+  const connected = await listAccounts("user");
+  expect(connected.connectAccountsUrl).toBeUndefined();
+
+  jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([]);
+  const empty = await listAccounts("user");
+  expect(listAccountsOutputSchema.safeParse(empty).success).toBe(true);
+  expect(empty.connectAccountsUrl).toMatch(/\/accounts\?onboarding=connect$/);
+  expect(prisma.connectedAccount.findMany).toHaveBeenLastCalledWith({
+    where: { userId: "user" },
+    orderBy: { createdAt: "desc" },
+  });
+});

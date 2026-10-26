@@ -2,13 +2,11 @@
 
 import { useState, type ComponentType } from "react";
 
-import { Check, Copy, Cpu, ExternalLink, Plug, Terminal } from "lucide-react";
+import { Check, Copy, Cpu, ExternalLink, MoreHorizontal, Plug, Terminal } from "lucide-react";
 
 import { ClaudeIcon, OpenAIIcon } from "@/components/brand-icons";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
-import { trackEvent } from "@/lib/analytics/plausible";
-import { STARTER_PROMPTS } from "@/lib/distribution/starter-prompts";
 import { cn } from "@/lib/utils";
 
 type IconComponent = ComponentType<{ className?: string }>;
@@ -39,7 +37,7 @@ const options: AssistantOption[] = [
     id: "chatgpt",
     label: "ChatGPT",
     Icon: OpenAIIcon,
-    description: "Open the SimplePost plugin, select + to install it, then start a new chat.",
+    description: "Open ChatGPT, install SimplePost, and approve the connection.",
     action: { href: CHATGPT_PLUGIN_URL, label: "Install SimplePost in ChatGPT" },
   },
   {
@@ -60,7 +58,7 @@ const options: AssistantOption[] = [
     id: "openclaw",
     label: "OpenClaw",
     Icon: Cpu,
-    description: "OpenClaw needs the server added first, then a separate OAuth login command.",
+    description: "Run these commands, then follow the login instructions.",
     commands: [
       {
         code: `openclaw mcp add simplepost --url ${MCP_URL} --transport streamable-http --auth oauth --no-probe`,
@@ -92,14 +90,13 @@ const options: AssistantOption[] = [
   },
 ];
 
-function CopyButton({ text, promptId }: { text: string; promptId?: string }) {
+function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      if (promptId) trackEvent("Assistant Starter Copied", { prompt: promptId });
       setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard access can be blocked by the browser.
@@ -149,114 +146,87 @@ function CopyField({ command }: { command: CodeBlock }) {
   );
 }
 
-export function AssistantSelector() {
-  const [activeId, setActiveId] = useState(options[0].id);
-  const activeOption = options.find((option) => option.id === activeId) ?? options[0];
-  const ActiveIcon = activeOption.Icon;
+const primaryOptions = [
+  { id: "chatgpt", label: "ChatGPT", Icon: OpenAIIcon },
+  { id: "claude-code", label: "Claude Code", Icon: ClaudeIcon },
+  { id: "openclaw", label: "OpenClaw", Icon: Cpu },
+  { id: "others", label: "Others", Icon: MoreHorizontal },
+];
+const otherOptions = options.filter((option) => ["claude-desktop", "mcp", "cli"].includes(option.id));
+
+export function AssistantSelector({ onInstall }: { onInstall?: () => void }) {
+  const [activeId, setActiveId] = useState("chatgpt");
+  const [otherId, setOtherId] = useState("claude-desktop");
+  const selectedId = activeId === "others" ? otherId : activeId;
+  const activeOption = options.find((option) => option.id === selectedId) ?? options[0];
 
   return (
-    <div className="grid min-w-0 gap-4">
-      <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground">
-        Using ChatGPT?{" "}
-        <a
-          href={CHATGPT_PLUGIN_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
-          Install SimplePost
-        </a>
-        . For other assistants, choose an option below.
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="AI assistants">
+        {primaryOptions.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={activeId === id}
+            onClick={() => setActiveId(id)}
+            className={cn(
+              "flex min-h-24 min-w-0 flex-col items-center justify-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              activeId === id
+                ? "border-primary/45 bg-primary/10 text-foreground"
+                : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+            )}>
+            <Icon className="h-6 w-6" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
-        <div className="grid min-w-0 grid-cols-2 gap-2 self-start sm:grid-cols-3 lg:grid-cols-1">
-          {options.map((option) => {
-            const isActive = option.id === activeId;
-            const Icon = option.Icon;
-
-            return (
-              <button
+      <section
+        aria-label={`${activeOption.label} setup`}
+        className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border p-4 sm:p-5">
+        {activeId === "others" && (
+          <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Other integrations">
+            {otherOptions.map((option) => (
+              <Button
                 key={option.id}
                 type="button"
-                aria-pressed={isActive}
-                onClick={() => setActiveId(option.id)}
-                className={cn(
-                  "flex h-10 min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-sm font-medium transition-colors",
-                  isActive
-                    ? "border-primary/45 bg-primary/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                )}>
-                <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                <span className="truncate">{option.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-primary">
-              <ActiveIcon className="h-4 w-4" />
-            </span>
-            <h2 className="text-base font-semibold text-foreground">{activeOption.label}</h2>
+                size="sm"
+                variant={otherId === option.id ? "secondary" : "ghost"}
+                aria-pressed={otherId === option.id}
+                onClick={() => setOtherId(option.id)}>
+                {option.label}
+              </Button>
+            ))}
           </div>
-          <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
-
+        )}
+        <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
+        {activeOption.action ? (
+          <Button asChild className="h-auto min-h-9 whitespace-normal text-center">
+            <a href={activeOption.action.href} target="_blank" rel="noopener noreferrer" onClick={onInstall}>
+              {activeOption.action.label}
+              <ExternalLink className="shrink-0" />
+            </a>
+          </Button>
+        ) : null}
+        {activeOption.commands?.length ? (
+          <div className="grid gap-4">
+            {activeOption.commands.map((command) => (
+              <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
+            ))}
+          </div>
+        ) : null}
+        {selectedId !== "chatgpt" && (
           <HelpLink
+            className="mt-5"
             path={
-              activeId === "cli"
+              selectedId === "cli"
                 ? "/cli#scheduler-connected-accounts"
-                : `/mcp#${activeId === "claude-desktop" ? "claude" : activeId === "mcp" ? "other-clients" : activeId}`
-            }
-            className="mb-4">
-            Full setup guide and troubleshooting
+                : `/mcp#${selectedId === "claude-desktop" ? "claude" : selectedId === "mcp" ? "other-clients" : selectedId}`
+            }>
+            Setup guide
           </HelpLink>
-          {activeOption.action ? (
-            <Button asChild>
-              <a href={activeOption.action.href} target="_blank" rel="noopener noreferrer">
-                {activeOption.action.label}
-                <ExternalLink />
-              </a>
-            </Button>
-          ) : null}
-
-          {activeOption.commands?.length ? (
-            <div className="grid gap-4">
-              {activeOption.commands.map((command) => (
-                <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
-              ))}
-            </div>
-          ) : null}
-          {activeId !== "cli" && (
-            <div className="mt-6 border-t border-border pt-5">
-              <h3 className="text-sm font-semibold">Start with a draft</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Connect a social account in{" "}
-                <a href="/accounts?onboarding=connect" className="underline underline-offset-4">
-                  Accounts
-                </a>
-                , then paste a prompt into your assistant with SimplePost enabled. Connecting the assistant alone does
-                not connect a social account.
-              </p>
-              <div className="mt-4 grid gap-3">
-                {STARTER_PROMPTS.map((starter) => (
-                  <details key={starter.id} className="rounded-lg border border-border bg-background p-3">
-                    <summary className="cursor-pointer text-sm font-medium">{starter.title}</summary>
-                    <div className="mt-3 flex items-start gap-2">
-                      <p className="select-all text-sm leading-6 text-muted-foreground">{starter.prompt}</p>
-                      <CopyButton text={starter.prompt} promptId={starter.id} />
-                    </div>
-                  </details>
-                ))}
-              </div>
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                Replace bracketed details with your own. You can select and copy the text if clipboard access is
-                blocked.
-              </p>
-            </div>
-          )}
-        </section>
-      </div>
+        )}
+      </section>
     </div>
   );
 }

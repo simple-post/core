@@ -10,7 +10,7 @@ import { queryKeys } from "@/lib/query-client";
 
 const DISMISSAL_STORAGE_PREFIX = "simplepost:onboarding:dismissed:v1";
 
-export type OnboardingDismissal = "checklist" | "ai-modal" | "welcome";
+export type OnboardingDismissal = "checklist";
 
 async function fetchOnboardingState(): Promise<OnboardingState> {
   const response = await fetch("/api/v1/onboarding", { cache: "no-store" });
@@ -32,6 +32,8 @@ export function useOnboardingState({ watch = false }: { watch?: boolean } = {}) 
     queryKey: queryKeys.onboarding,
     queryFn: fetchOnboardingState,
     staleTime: watch ? 0 : 30 * 1000,
+    // Installation finishes in another tab after the dialog has closed.
+    refetchOnWindowFocus: "always",
     refetchInterval: watch ? 4000 : false,
   });
 }

@@ -1,8 +1,12 @@
 # First-post onboarding and preview import
 
-Assistant-first signups still need a social publishing destination. The welcome dialog now recognizes a connected assistant and directs users to `/accounts?onboarding=connect`. MCP empty-account responses give the same direct route and tell the user to return to their conversation. After a successful account callback, users with an assistant get a copyable starter prompt; others get the assistant installation selector. Callback parameters are consumed only after onboarding state and local dismissal state are ready, preserving unrelated query parameters.
+New users start on the dashboard with a free-trial banner and three short checklist rows: connect a social account, install SimplePost in an assistant, and schedule a first post. There is no welcome dialog. Trial details sit inline with the banner copy.
 
-The dashboard distinguishes scheduling from successful publishing. Drafts, pending posts and failed posts do not complete the preparation milestone. A `published` post completes the publishing milestone. A partial failure remains incomplete until a post finishes successfully. No new database columns or migrations are needed, and this change does not retroactively emit conversion events.
+The install dialog opens only when requested. It offers ChatGPT, Claude Code, OpenClaw, and Others; Claude, generic MCP, and CLI setup live under Others. Its dimensions stay fixed while setup details scroll. Opening the ChatGPT installation link closes the dialog. The scheduler does not show starter prompts or example posts. Onboarding refreshes when the user returns from the assistant's tab so a completed authorization is reflected immediately.
+
+Assistant-first signups still need a social publishing destination. MCP responses provide a clickable account-connection link built from the deployment's app URL, including when reading a schedule with no accounts or attempting to prepare a post. They ask the user to connect an account and return to the conversation. No plugin package changes are required. The link opens the account picker at `/accounts?onboarding=connect`. Successful first-account and onboarding connections return to the dashboard with a brief confirmation, without an installation dialog or starter prompt. Reconnecting or adding further accounts from Accounts keeps the user on that page.
+
+The checklist completes after a connected account, an assistant credential, and a scheduled or published post exist. Drafts, pending posts, and failed posts do not complete the scheduling step. Users do not have to wait for publication or confirm its success. Existing publishing analytics remain separate. No database columns or migrations are needed.
 
 ## Preview import contract
 
@@ -13,7 +17,7 @@ Deploy this app change before the companion website preview CTA. The receiver is
 3. On the composer, the user chooses one preserved platform version and explicitly imports it. A nonempty unsaved draft requires a replacement checkbox. Import resets accounts, overrides, schedule, media and repost settings, restores text and thread, and chooses draft mode. The user still selects accounts, uploads media and submits the form.
 4. Browser copies expire after 24 hours. Dismissal removes the copy; opening another transfer cleans expired copies. Different browsers/devices cannot access it. Invalid links, expiry and unavailable storage show recovery guidance. Forem preview text can be imported, but hosted publishing availability is unchanged.
 
-`Preview Draft Imported` fires on explicit import with a platform property, and `Activation Prompt Copied` fires on a successful clipboard write. No draft text is sent. Configure named goals in Plausible if needed; no live analytics settings are changed by this PR.
+`Preview Draft Imported` fires on explicit import with a platform property. No draft text is sent. The removed onboarding prompt no longer emits `Activation Prompt Copied`. Configure named goals in Plausible if needed; no live analytics settings are changed by this PR.
 
 ## Validation
 

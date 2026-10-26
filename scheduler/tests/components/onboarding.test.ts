@@ -5,6 +5,7 @@ import { createElement } from "react";
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
+import { AssistantSelector } from "@/components/assistant-selector";
 import { AiConnectModal } from "@/components/onboarding/ai-connect-modal";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 
@@ -49,34 +50,57 @@ it("finishes on scheduling without waiting for publication", () => {
   expect(screen.queryByRole("region", { name: "Getting started" })).toBeNull();
 });
 
-it("opens installation only on request and closes when ChatGPT installation launches", () => {
+it.each([
+  ["ChatGPT plugin", "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795"],
+  ["Claude connector", "https://claude.ai/directory/simplepost"],
+])("opens %s directly and closes the dialog", (name, href) => {
   render(createElement(OnboardingChecklist));
   fireEvent.click(screen.getByRole("button", { name: "Install" }));
   const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getByRole("button", { name: "ChatGPT" })).toBeTruthy();
-  expect(within(dialog).getByRole("button", { name: "Claude Code" })).toBeTruthy();
-  expect(within(dialog).getByRole("button", { name: "OpenClaw" })).toBeTruthy();
-  expect(within(dialog).getByRole("button", { name: "Others" })).toBeTruthy();
-  expect(within(dialog).queryByText(/Start with a draft|Product update|Waiting for/)).toBeNull();
-  const install = within(dialog).getByRole("link", { name: /Install SimplePost in ChatGPT/ });
-  expect(install.getAttribute("href")).toMatch(/^https:\/\/chatgpt.com\/plugins\//);
-  expect(install.getAttribute("target")).toBe("_blank");
-  fireEvent.click(install);
+  expect(within(dialog).getAllByRole("link")).toHaveLength(2);
+  expect(within(dialog).queryByRole("button", { name: "Install" })).toBeNull();
+  expect(within(dialog).queryByRole("button", { name: "Claude Code" })).toBeNull();
+  expect(within(dialog).queryByText(/claude mcp add|Start with a draft|Waiting for/)).toBeNull();
+  const link = within(dialog).getByRole("link", { name: `${name} (opens in a new tab)` });
+  expect(link.getAttribute("href")).toBe(href);
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  fireEvent.click(link);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-it("keeps technical setup under Others and preserves each setup path", () => {
-  render(createElement(AiConnectModal, { open: true, onClose: jest.fn() }));
-  expect(screen.queryByRole("button", { name: "MCP" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+it("keeps commands under Others and preserves keyboard focus and selection when navigating back", () => {
+  const onClose = jest.fn();
+  render(createElement(AiConnectModal, { open: true, onClose }));
+  fireEvent.click(screen.getByRole("button", { name: /^Others/ }));
+  const back = screen.getByRole("button", { name: "All integrations" });
+  expect(document.activeElement).toBe(back);
+  const choices = screen.getByRole("group", { name: "Other integrations" });
+  expect(within(choices).getAllByRole("button")).toHaveLength(4);
+  expect(screen.queryByRole("link", { name: /ChatGPT plugin|Claude connector/ })).toBeNull();
   expect(screen.getByText(/claude mcp add/)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "OpenClaw" }));
+  fireEvent.click(within(choices).getByRole("button", { name: "OpenClaw" }));
   expect(screen.getByText("openclaw mcp login simplepost")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Others" }));
-  expect(screen.getByRole("link", { name: /Connect SimplePost in Claude/ })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "MCP" }));
+  fireEvent.click(within(choices).getByRole("button", { name: "MCP" }));
   expect(screen.getByText(/https:\/\/.*\/mcp/)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "CLI" }));
+  fireEvent.click(within(choices).getByRole("button", { name: "CLI" }));
   expect(screen.getByText("npm install -g @simple-post/cli")).toBeTruthy();
   expect(screen.getByText("simplepost setup --backend keychain")).toBeTruthy();
+  fireEvent.click(back);
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Others/ }));
+  expect(screen.queryByText("npm install -g @simple-post/cli")).toBeNull();
+  expect(screen.getAllByRole("link")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: /^Others/ }));
+  expect(screen.getByRole("button", { name: "CLI" }).getAttribute("aria-pressed")).toBe("true");
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it("offers the same direct installation links outside the dialog", () => {
+  render(createElement(AssistantSelector));
+  expect(screen.getByRole("link", { name: "Claude connector (opens in a new tab)" }).getAttribute("href")).toBe(
+    "https://claude.ai/directory/simplepost",
+  );
+  fireEvent.click(screen.getByRole("button", { name: /^Others/ }));
+  fireEvent.click(screen.getByRole("button", { name: "All integrations" }));
+  expect(screen.getAllByRole("link")).toHaveLength(2);
 });

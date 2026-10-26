@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 
-import { Check, Copy, Cpu, ExternalLink, MoreHorizontal, Plug, Terminal } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Copy, Cpu, ExternalLink, MoreHorizontal, Plug, Terminal } from "lucide-react";
 
 import { ClaudeIcon, OpenAIIcon } from "@/components/brand-icons";
 import { HelpLink } from "@/components/help-link";
@@ -14,7 +14,6 @@ type IconComponent = ComponentType<{ className?: string }>;
 type CodeBlock = {
   code: string;
   label: string;
-  href?: string;
   shell?: boolean;
 };
 
@@ -23,7 +22,6 @@ type AssistantOption = {
   label: string;
   Icon: IconComponent;
   description: string;
-  action?: { href: string; label: string };
   commands?: CodeBlock[];
 };
 
@@ -32,21 +30,12 @@ const MCP_URL = `${APP_URL}/mcp`;
 const CLAUDE_DIRECTORY_URL = "https://claude.ai/directory/simplepost";
 const CHATGPT_PLUGIN_URL = "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795";
 
+const connectors = [
+  { id: "chatgpt", label: "ChatGPT plugin", Icon: OpenAIIcon, href: CHATGPT_PLUGIN_URL },
+  { id: "claude", label: "Claude connector", Icon: ClaudeIcon, href: CLAUDE_DIRECTORY_URL },
+];
+
 const options: AssistantOption[] = [
-  {
-    id: "chatgpt",
-    label: "ChatGPT",
-    Icon: OpenAIIcon,
-    description: "Open ChatGPT, install SimplePost, and approve the connection.",
-    action: { href: CHATGPT_PLUGIN_URL, label: "Install SimplePost in ChatGPT" },
-  },
-  {
-    id: "claude-desktop",
-    label: "Claude",
-    Icon: ClaudeIcon,
-    description: "Open SimplePost in Claude, click Connect, then approve access.",
-    action: { href: CLAUDE_DIRECTORY_URL, label: "Connect SimplePost in Claude" },
-  },
   {
     id: "claude-code",
     label: "Claude Code",
@@ -74,7 +63,7 @@ const options: AssistantOption[] = [
     label: "MCP",
     Icon: Plug,
     description: "Use this for any MCP-compatible client that asks for a remote server URL.",
-    commands: [{ code: MCP_URL, href: MCP_URL, label: "Remote MCP URL" }],
+    commands: [{ code: MCP_URL, label: "Remote MCP URL" }],
   },
   {
     id: "cli",
@@ -122,16 +111,6 @@ function CopyField({ command }: { command: CodeBlock }) {
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{command.label}</p>
-        {command.href ? (
-          <a
-            href={command.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-            Open
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : null}
       </div>
       <div className="flex min-w-0 items-start gap-2 rounded-xl border border-border bg-background px-3 py-2.5">
         <pre className="min-w-0 flex-1 overflow-x-auto font-mono text-[13px] leading-6 text-foreground">
@@ -146,86 +125,110 @@ function CopyField({ command }: { command: CodeBlock }) {
   );
 }
 
-const primaryOptions = [
-  { id: "chatgpt", label: "ChatGPT", Icon: OpenAIIcon },
-  { id: "claude-code", label: "Claude Code", Icon: ClaudeIcon },
-  { id: "openclaw", label: "OpenClaw", Icon: Cpu },
-  { id: "others", label: "Others", Icon: MoreHorizontal },
-];
-const otherOptions = options.filter((option) => ["claude-desktop", "mcp", "cli"].includes(option.id));
-
 export function AssistantSelector({ onInstall }: { onInstall?: () => void }) {
-  const [activeId, setActiveId] = useState("chatgpt");
-  const [otherId, setOtherId] = useState("claude-desktop");
-  const selectedId = activeId === "others" ? otherId : activeId;
-  const activeOption = options.find((option) => option.id === selectedId) ?? options[0];
+  const [showOthers, setShowOthers] = useState(false);
+  const [activeId, setActiveId] = useState(options[0].id);
+  const activeOption = options.find((option) => option.id === activeId) ?? options[0];
+  const othersRef = useRef<HTMLButtonElement>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+  const navigated = useRef(false);
+
+  useEffect(() => {
+    if (navigated.current) (showOthers ? backRef : othersRef).current?.focus();
+  }, [showOthers]);
+
+  if (!showOthers) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="grid gap-3" role="group" aria-label="AI integrations">
+          {connectors.map(({ id, label, Icon, href }) => (
+            <a
+              key={id}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onInstall}
+              className="flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-left text-base font-medium transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Icon className="h-7 w-7 shrink-0" />
+              <span className="flex-1">
+                {label}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </span>
+              <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </a>
+          ))}
+          <button
+            ref={othersRef}
+            type="button"
+            onClick={() => {
+              navigated.current = true;
+              setShowOthers(true);
+            }}
+            className="flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <MoreHorizontal className="h-7 w-7 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-medium">Others</span>
+              <span className="mt-1 block text-xs text-muted-foreground">Claude Code, OpenClaw, MCP, CLI</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5">
-      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="AI assistants">
-        {primaryOptions.map(({ id, label, Icon }) => (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
+      <Button
+        ref={backRef}
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="shrink-0 self-start"
+        onClick={() => {
+          navigated.current = true;
+          setShowOthers(false);
+        }}>
+        <ArrowLeft className="h-4 w-4" /> All integrations
+      </Button>
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Other integrations">
+        {options.map(({ id, label, Icon }) => (
           <button
             key={id}
             type="button"
             aria-pressed={activeId === id}
             onClick={() => setActiveId(id)}
             className={cn(
-              "flex min-h-24 min-w-0 flex-col items-center justify-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "flex min-h-10 items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               activeId === id
                 ? "border-primary/45 bg-primary/10 text-foreground"
-                : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                : "border-border text-muted-foreground hover:text-foreground",
             )}>
-            <Icon className="h-6 w-6" />
+            <Icon className="h-4 w-4 shrink-0" />
             {label}
           </button>
         ))}
       </div>
-
       <section
+        key={activeId}
         aria-label={`${activeOption.label} setup`}
-        className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border p-4 sm:p-5">
-        {activeId === "others" && (
-          <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Other integrations">
-            {otherOptions.map((option) => (
-              <Button
-                key={option.id}
-                type="button"
-                size="sm"
-                variant={otherId === option.id ? "secondary" : "ghost"}
-                aria-pressed={otherId === option.id}
-                onClick={() => setOtherId(option.id)}>
-                {option.label}
-              </Button>
-            ))}
-          </div>
-        )}
-        <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
-        {activeOption.action ? (
-          <Button asChild className="h-auto min-h-9 whitespace-normal text-center">
-            <a href={activeOption.action.href} target="_blank" rel="noopener noreferrer" onClick={onInstall}>
-              {activeOption.action.label}
-              <ExternalLink className="shrink-0" />
-            </a>
-          </Button>
-        ) : null}
-        {activeOption.commands?.length ? (
-          <div className="grid gap-4">
-            {activeOption.commands.map((command) => (
-              <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
-            ))}
-          </div>
-        ) : null}
-        {selectedId !== "chatgpt" && (
-          <HelpLink
-            className="mt-5"
-            path={
-              selectedId === "cli"
-                ? "/cli#scheduler-connected-accounts"
-                : `/mcp#${selectedId === "claude-desktop" ? "claude" : selectedId === "mcp" ? "other-clients" : selectedId}`
-            }>
-            Setup guide
-          </HelpLink>
-        )}
+        tabIndex={0}
+        className="min-h-32 flex-1 overflow-y-auto rounded-xl border border-border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <p className="mb-4 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
+        <div className="grid gap-4">
+          {activeOption.commands?.map((command) => (
+            <CopyField key={command.label} command={command} />
+          ))}
+        </div>
+        <HelpLink
+          className="mt-4"
+          path={
+            activeId === "cli"
+              ? "/cli#scheduler-connected-accounts"
+              : `/mcp#${activeId === "mcp" ? "other-clients" : activeId}`
+          }>
+          Setup guide
+        </HelpLink>
       </section>
     </div>
   );

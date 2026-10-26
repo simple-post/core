@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 export function AiConnectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex h-[min(600px,90dvh)] flex-col gap-5 overflow-hidden sm:h-[min(500px,90dvh)] sm:max-w-2xl">
+      <DialogContent className="flex h-[min(480px,90dvh)] flex-col gap-5 overflow-hidden sm:max-w-xl">
         <DialogHeader className="shrink-0 pr-6 text-left">
           <DialogTitle>Install SimplePost in your AI</DialogTitle>
           <DialogDescription>Choose your assistant.</DialogDescription>

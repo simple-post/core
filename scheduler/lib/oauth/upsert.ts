@@ -5,6 +5,7 @@ import {
   acquireConnectedAccountCredentialLock,
   CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS,
 } from "@/lib/oauth/connected-account-lock";
+import { OAuthCallbackError } from "@/lib/oauth/errors";
 import { prisma } from "@/lib/prisma";
 import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
@@ -21,6 +22,8 @@ export interface UpsertAccountData {
   email: string | null;
   profilePicture: string | null;
   tokenMetadata?: Prisma.InputJsonValue;
+  /** Only supply after verifying the old credentials authorize the same platform identity. */
+  previousIdentity?: { platformAccountId: string; updatedAt: Date };
 }
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
@@ -39,6 +42,48 @@ export async function upsertConnectedAccount(data: UpsertAccountData, tx?: Trans
   // Multi-account picker callbacks run these upserts in one transaction; a
   // consistent lock order prevents two reconnect requests from deadlocking.
   await lockUserForQuota(client, data.userId);
+
+  if (data.previousIdentity) {
+    const canonicalAccount = await client.connectedAccount.findUnique({
+      where: {
+        userId_platform_platformAccountId: {
+          userId: data.userId,
+          platform: data.platform,
+          platformAccountId: data.platformAccountId,
+        },
+      },
+      select: { id: true },
+    });
+    if (!canonicalAccount) {
+      const legacyAccount = await client.connectedAccount.findUnique({
+        where: {
+          userId_platform_platformAccountId: {
+            userId: data.userId,
+            platform: data.platform,
+            platformAccountId: data.previousIdentity.platformAccountId,
+          },
+        },
+        select: { id: true },
+      });
+      if (!legacyAccount) {
+        throw new OAuthCallbackError("profile_fetch_failed", "Legacy account changed. Please connect again.");
+      }
+      await acquireConnectedAccountCredentialLock(client, legacyAccount.id);
+      const migrated = await client.connectedAccount.updateMany({
+        where: {
+          id: legacyAccount.id,
+          userId: data.userId,
+          platform: data.platform,
+          platformAccountId: data.previousIdentity.platformAccountId,
+          updatedAt: data.previousIdentity.updatedAt,
+        },
+        data: { platformAccountId: data.platformAccountId },
+      });
+      if (migrated.count !== 1) {
+        throw new OAuthCallbackError("profile_fetch_failed", "Legacy account changed. Please connect again.");
+      }
+    }
+  }
 
   await assertCanConnectAccount(
     {

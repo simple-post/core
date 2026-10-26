@@ -86,7 +86,7 @@ export interface Surface {
 // No fallback to document.body: navigation chrome or a login screen must never count as a post.
 export const surfaces: Record<Platform, Surface> = {
   x: {
-    root: 'article[data-testid="tweet"], article:has(a[data-timezone][href*="/status/"]), article:has(a[aria-current="page"][href*="/status/"])',
+    root: 'article[data-testid="tweet"], article:has(a[href*="/status/"])',
     author: '[data-testid="User-Name"] a, a:has(img[alt^="@"])',
     text: '[data-testid="tweetText"], :scope:not([data-testid]) div[dir="auto"]',
     images:
@@ -191,6 +191,7 @@ function observerSurface(platform: Platform, account: Account) {
     if (link?.selector === '[data-test-id="main-pin-section-visit-button"] button')
       cfg.fields.link = { ...link, selector: '[data-test-id="visit-button"]' };
   }
+  if (platform === "linkedin" && cfg.text === "p") cfg.text = surfaces.linkedin.text;
   return cfg;
 }
 export function allowedHost(platform: Platform, url: string, account: Account): boolean {

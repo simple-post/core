@@ -133,6 +133,8 @@ model UserSubscription {
   stripePriceId        String?
   stripeProductId      String?
   planKey              String?
+  // Support-managed monthly allowance; null retains the subscribed plan's limit.
+  postsPerMonthOverride Int?
   status               String    @default("incomplete")
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?

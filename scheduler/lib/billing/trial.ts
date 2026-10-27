@@ -75,6 +75,7 @@ export async function ensureTrialStarted(userId: string, now: Date = new Date())
       freeTrial: true,
       subscription: { select: { id: true } },
       complimentaryAccess: { select: { id: true } },
+      acquisition: true,
     },
   });
 
@@ -83,8 +84,19 @@ export async function ensureTrialStarted(userId: string, now: Date = new Date())
   if (user.subscription || user.complimentaryAccess) return null;
 
   try {
+    let previewOffer = false;
+    try {
+      const acquisition: unknown = user.acquisition ? JSON.parse(user.acquisition) : null;
+      previewOffer =
+        !!acquisition &&
+        typeof acquisition === "object" &&
+        "trialOffer" in acquisition &&
+        acquisition.trialOffer === "preview_30d_v1";
+    } catch {
+      // Invalid attribution must never prevent a standard trial.
+    }
     const trial = await prisma.freeTrial.create({
-      data: { userId, startsAt: now, expiresAt: calculateTrialEnd(now) },
+      data: { userId, startsAt: now, expiresAt: calculateTrialEnd(now, previewOffer ? 30 : TRIAL_DURATION_DAYS) },
     });
     billingLogger.info({ userId, expiresAt: trial.expiresAt.toISOString() }, "Free trial started");
     return trial;

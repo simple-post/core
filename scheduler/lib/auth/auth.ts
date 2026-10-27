@@ -67,10 +67,16 @@ export const auth = betterAuth({
           if (env.SELF_HOSTED) return { data: user };
           // Written atomically with account creation. Never updated on later sign-ins.
           const touch = readFirstTouch(ctx?.headers?.get("cookie") || "");
+          const previewOffer = (ctx?.headers?.get("cookie") || "")
+            .split(";")
+            .some((cookie) => cookie.trim() === "sp_preview_trial=30d_v1");
           return {
             data: {
               ...user,
-              acquisition: touch || { version: 1, source: "unknown", reason: "no_valid_first_touch" },
+              acquisition: {
+                ...(touch || { version: 1, source: "unknown", reason: "no_valid_first_touch" }),
+                ...(previewOffer ? { trialOffer: "preview_30d_v1" } : {}),
+              },
               experimentAttribution: signupExperiment(ctx?.headers),
             },
           };

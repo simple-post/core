@@ -10,7 +10,7 @@ const entries = execFileSync("unzip", ["-Z1", archive], { encoding: "utf8" }).tr
 assert.equal(new Set(entries).size, entries.length, "Duplicate ZIP entries");
 for (const entry of entries) {
   assert(entry.startsWith(`${packageName}/`) && !entry.split("/").includes(".."), `Unexpected path: ${entry}`);
-  assert(!/(^|\/)(\.app\.json|\.env[^/]*|\.git|node_modules|\.codex-plugin)(\/|$)/.test(entry), `Private file: ${entry}`);
+  assert(!/(^|\/)(\.app\.json|\.env[^/]*|\.git|node_modules)(\/|$)/.test(entry), `Private file: ${entry}`);
 }
 const read = (path) => {
   assert(entries.includes(`${packageName}/${path}`), `Missing archive file: ${path}`);
@@ -25,13 +25,28 @@ const url = (value, label) => {
   const parsed = new URL(value);
   assert(parsed.protocol === "https:" && !parsed.username && !parsed.password, `Invalid ${label}`);
 };
-const plugin = json("plugin.json");
+const plugin = json(".codex-plugin/plugin.json");
 assert.equal(plugin.name, packageName);
 assert(/^\d+\.\d+\.\d+$/.test(plugin.version), "Invalid version");
-const extension = plugin.extensions["com.openai"];
-for (const key of ["apps", "skills", "mcpServers", "interface"]) assert(plugin[key] == null, `Nonportable ${key}`);
-assert(extension.apps == null, "Private app binding");
-const listing = extension.interface;
+assert(plugin.$schema == null, "Codex manifest must not declare the portable schema");
+assert(plugin.apps == null && plugin.extensions?.["com.openai"]?.apps == null, "Private app binding");
+const extension = plugin.extensions?.["com.openai"];
+assert(extension && typeof extension === "object", "Missing OpenAI review metadata");
+for (const key of ["onboardingSkill", "review", "publication"]) assert(plugin[key] == null, `Misplaced OpenAI ${key}`);
+assert(!entries.includes(`${packageName}/plugin.json`) && !entries.includes(`${packageName}/mcp.json`), "Unexpected portable manifest/configuration");
+const localPath = (value, label) => {
+  assert(typeof value === "string" && value.startsWith("./"), `Invalid ${label} path`);
+  assert(!value.includes("\\") && !value.slice(2).split("/").some((part) => part === ".." || part === "."), `Unsafe ${label} path`);
+  const target = `${packageName}/${value.slice(2)}`;
+  assert(entries.includes(target), `Missing ${label} target: ${value}`);
+};
+assert.equal(plugin.skills, "./skills/");
+assert.equal(plugin.mcpServers, "./.mcp.json");
+localPath(plugin.skills, "skills");
+localPath(plugin.mcpServers, "mcpServers");
+localPath(extension.onboardingSkill, "onboardingSkill");
+const listing = plugin.interface;
+assert(Array.isArray(listing.capabilities) && listing.capabilities.every((capability) => typeof capability === "string" && capability.trim()), "Invalid interface capabilities");
 // ZIP categories differ from the legacy form importer enum (e.g. BUSINESS).
 // https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors
 const categories = new Set([
@@ -50,6 +65,7 @@ const prompts = listing.defaultPrompt.map((prompt) => {
 });
 assert.equal(new Set(prompts).size, prompts.length, "Duplicate starter prompts");
 for (const key of ["logo", "composerIcon"]) {
+  localPath(listing[key], key);
   assert(listing[key].startsWith("./assets/"), `Invalid ${key} reference`);
   const image = read(listing[key].slice(2));
   assert(image.length <= 5 * 1024 * 1024, "Icon exceeds 5 MiB");
@@ -62,9 +78,9 @@ for (const name of ["setup", "simplepost"]) {
   const skill = read(`skills/${name}/SKILL.md`).toString("utf8");
   assert(skill.startsWith("---\n") && skill.includes(`\nname: ${name}\n`) && /\ndescription: .+/.test(skill), `Invalid skill: ${name}`);
 }
-const servers = json("mcp.json").mcpServers;
+const servers = json(plugin.mcpServers.slice(2)).mcpServers;
 assert.deepEqual(Object.keys(servers), ["simplepost"], "Expected one MCP server");
-assert.equal(servers.simplepost.type, "streamable-http");
+assert.equal(servers.simplepost.type, "http");
 assert.equal(servers.simplepost.url, "https://app.simplepost.social/mcp");
 const review = extension.review;
 assert(review.test_credentials == null && review.reviewer_instructions == null, "Reviewer access belongs in the portal");

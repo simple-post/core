@@ -62,7 +62,6 @@ if (listing.demo_recording_url) review.demo_recording_url = listing.demo_recordi
 if (typeof listing.commerce === "boolean") review.commerce = listing.commerce;
 if (listing.commerce_description) review.commerce_description = listing.commerce_description;
 const plugin = {
-  $schema: source.$schema,
   name: packageName,
   version: listing.version,
   description: source.description,
@@ -71,35 +70,38 @@ const plugin = {
   repository: source.repository,
   license: source.license,
   keywords: source.keywords,
+  skills: "./skills/",
+  mcpServers: "./.mcp.json",
+  interface: {
+    displayName: info.display_name,
+    shortDescription: info.subtitle,
+    longDescription: info.description,
+    developerName: listing.developerName,
+    category: listing.category,
+    capabilities: [],
+    defaultPrompt: listing.defaultPrompt,
+    websiteURL: listing.websiteURL,
+    supportURL: listing.supportURL,
+    privacyPolicyURL: listing.privacyPolicyURL,
+    termsOfServiceURL: listing.termsOfServiceURL,
+    logo: "./assets/icon.png",
+    composerIcon: "./assets/icon.png",
+  },
   extensions: {
     "com.openai": {
       onboardingSkill: "./skills/setup/SKILL.md",
-      interface: {
-        displayName: info.display_name,
-        shortDescription: info.subtitle,
-        longDescription: info.description,
-        developerName: listing.developerName,
-        category: listing.category,
-        defaultPrompt: listing.defaultPrompt,
-        websiteURL: listing.websiteURL,
-        supportURL: listing.supportURL,
-        privacyPolicyURL: listing.privacyPolicyURL,
-        termsOfServiceURL: listing.termsOfServiceURL,
-        logo: "./assets/icon.png",
-        composerIcon: "./assets/icon.png",
-      },
       review,
       publication: { release_notes: listing.release_notes, countries: listing.countries },
     },
   },
 };
-writeFileSync(join(packagePath, "plugin.json"), JSON.stringify(plugin, null, 2) + "\n");
+mkdirSync(join(packagePath, ".codex-plugin"), { recursive: true });
+writeFileSync(join(packagePath, ".codex-plugin", "plugin.json"), JSON.stringify(plugin, null, 2) + "\n");
 writeFileSync(
-  join(packagePath, "mcp.json"),
+  join(packagePath, ".mcp.json"),
   JSON.stringify(
     {
-      $schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
-      mcpServers: { simplepost: { type: "streamable-http", url: "https://app.simplepost.social/mcp" } },
+      mcpServers: { simplepost: { type: "http", url: "https://app.simplepost.social/mcp" } },
     },
     null,
     2,
@@ -124,11 +126,11 @@ function walk(path) {
   }
 }
 walk(packagePath);
-if (files.some((file) => /(^|\/)\.app\.json$|(^|\/)\.env|node_modules|\.codex-plugin/.test(file)))
-  fail("Unexpected private or compatibility files in public upload.");
-const parsed = JSON.parse(execFileSync("unzip", ["-p", archive, `${packageName}/plugin.json`], { encoding: "utf8" }));
-if (parsed.apps != null || parsed.extensions["com.openai"].apps != null || parsed.skills != null)
-  fail("Public manifest contains private app bindings or non-portable skill discovery.");
+if (files.some((file) => /(^|\/)\.app\.json$|(^|\/)\.env|node_modules/.test(file)))
+  fail("Unexpected private files in public upload.");
+const parsed = JSON.parse(execFileSync("unzip", ["-p", archive, `${packageName}/.codex-plugin/plugin.json`], { encoding: "utf8" }));
+if (parsed.apps != null || parsed.extensions?.["com.openai"]?.apps != null)
+  fail("Public manifest contains private app bindings.");
 const inventory = execFileSync("unzip", ["-Z1", archive], { encoding: "utf8" });
 execFileSync(process.execPath, [join(root, "scripts", "validate-plugin-submission.mjs"), archive], { stdio: "inherit" });
 const missing = [];

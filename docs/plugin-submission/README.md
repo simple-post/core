@@ -12,12 +12,12 @@ node scripts/prepare-plugin-submission.mjs
 
 Outputs under `dist/plugin-submission/`:
 
-- `simplepost-3.0.0-review-draft.zip`: portable public upload copy with production MCP endpoint, two skills, onboarding reference, existing branding, listing, release notes, worldwide targeting, and five positive/three negative review cases.
+- `simplepost-3.0.0-review-draft.zip`: Codex-format public upload copy with production MCP endpoint, two skills, onboarding reference, existing branding, listing, release notes, worldwide targeting, and five positive/three negative review cases.
 - `PACKAGE-STATUS.md`: archive checksum, inventory, and outstanding preparation items.
 
-The single ZIP contains both skills, `plugin.json`, `mcp.json`, and the icon. Listing, onboarding, five positive/three negative review cases, commerce declaration, release notes, and country targeting live under `extensions.com.openai` in the packaged manifest. Do not upload skills separately in the current ZIP-based flow. The builder validates the actual archive. For old tooling only, `--legacy-exports` additionally emits the form importer and separate skill ZIPs; those files are not needed for the new flow.
+The single ZIP contains one enclosing plugin folder with `.codex-plugin/plugin.json`, `.mcp.json`, both skills, and the icon. The manifest explicitly declares `"skills": "./skills/"` and `"mcpServers": "./.mcp.json"` at the top level. The MCP server uses `"type": "http"` and the existing production HTTPS URL. Listing fields live in the top-level `interface`; onboarding, five positive/three negative review cases, commerce declaration, release notes, and country targeting remain under `extensions.com.openai`, as required by the Codex submission format. Paths resolve from the plugin root, begin with `./`, and remain inside that folder. Root portable `plugin.json` and `mcp.json` files are omitted to avoid format precedence. Do not upload skills separately in the current ZIP-based flow. The builder validates the actual archive. For old tooling only, `--legacy-exports` additionally emits the form importer and separate skill ZIPs; those files are not needed for the new flow.
 
-The public upload excludes private app bindings, credentials, development URLs, compatibility manifests, dependencies, and backend source. Reviewer credentials stay only in the portal's secure Testing field. The original source and saved portal MCP binding are preserved.
+The public upload excludes private app bindings, credentials, development URLs, unused manifests, dependencies, and backend source. Reviewer credentials stay only in the portal's secure Testing field. The original source and saved portal MCP binding are preserved.
 
 ## ZIP-based submission flow
 
@@ -26,6 +26,14 @@ Follow the [current OpenAI submission guide](https://developers.openai.com/plugi
 In **MCPs**, preserve the production endpoint and existing connection. Verify domain ownership, OAuth, and discovered tools; reconnect only if needed, and rescan deployed changes. Run the review cases against the saved version. Reviewer access goes only in secure portal fields. Reupload replaces the bundle and resets attestations; inspect the saved state again. The developer completes legal attestations. **Submit for review** and **Publish** after approval are separate authorized actions. Neither has been performed by this preparation.
 
 Local validation does not verify portal identity, domain ownership, authentication, skill/tool scans, live behavior, or approval.
+
+## Current v3 draft (2026-10-27)
+
+The public package uses the Codex format described in the [OpenAI submission examples](https://developers.openai.com/plugins/deploy/submission#complete-metadata-examples). The top-level `interface` includes an explicit `capabilities: []`; onboarding, review, and publication remain under `extensions.com.openai`. Archive validation checks the MCP link, contained paths, required capabilities, metadata placement, and preservation of the five positive/three negative test cases. The format change does not by itself establish that the earlier reviewer-connection issue is resolved.
+
+The saved 3.0.0 draft uses the display name **SimplePost for Social Media** (27 characters) and subtitle **Schedule & publish your posts** (29 characters). The full description begins **Schedule, publish and manage your social media posts.** The requested 52-character sentence exceeds the 30-character subtitle limit, so it appears in the full description. Package identity, production MCP URL, review cases, publication settings, skills, and assets are preserved. Metadata and both skill scans passed; the existing MCP connection is authorized and domain-verified, with all 23 tools published and no findings in its latest scan. The draft remains **Not submitted**, and version 2.0.0 remains published.
+
+Reviewer access is not ready for handoff. The updated demo login was verified without email codes or MFA, but the portal exposes no secure **Review information / Review details** editor, even on the replacement draft. Its submission dialog offers only attestations and additional context, and the MCP connection drawer offers OAuth settings only. Credentials were not put in the ZIP, source, or unrelated portal fields. The demo account's X destination also requires reconnection before the scheduling case can run. The eight cases have not been executed end-to-end against this saved draft, and the previously saved demo recording remains unverified. Resolve these items before an authorized submission; passing package and scan checks does not establish review readiness.
 
 ## Discovery preparation
 

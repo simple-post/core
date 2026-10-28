@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
 import { recordFirstPayment } from "@/lib/analytics/first-payment";
+import { reportOpenAiSubscription } from "@/lib/analytics/openai-ads";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
 import {
   syncCheckoutSession,
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
         const subscription = await syncStripeInvoiceSubscription(invoice);
         if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
           await recordFirstPayment(invoice, subscription);
+          await reportOpenAiSubscription(invoice, subscription);
         }
         break;
       }

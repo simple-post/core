@@ -145,6 +145,19 @@ export default function PrivacyPage() {
               as hosting, data storage, security, and analytics.
             </p>
 
+            <h3 id="advertising-measurement" className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">
+              Optional advertising measurement
+            </h3>
+            <p className="text-muted-foreground leading-relaxed">
+              If you explicitly agree at checkout, we share your first settled subscription payment with OpenAI to
+              measure our advertising. This includes the payment time, plan, amount, currency, a payment event
+              reference, and a SHA-256 hash of your billing email for matching. Hashing does not make this data
+              anonymous. The choice is optional, is off by default, and applies only to that purchase, not renewals. You
+              can change the choice before opening checkout or abandon checkout without paying. Once the payment event
+              has been shared, contact support@simplepost.social for privacy requests. This integration does not install
+              an advertising pixel or collect advertising cookies, post content, social credentials, or chat history.
+            </p>
+
             <h3 className="text-base font-semibold tracking-[-0.02em] mb-2 mt-5">4.3 With Authorized MCP Clients</h3>
             <p className="text-muted-foreground leading-relaxed">
               When you authorize an MCP client such as ChatGPT, we share tool responses with that client so it can show

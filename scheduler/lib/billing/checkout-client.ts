@@ -11,11 +11,11 @@ async function parseApiError(response: Response): Promise<string> {
  * need to handle the throw. Shared by every upgrade entry point (plan grid,
  * trial-expired dialog) so they cannot drift apart.
  */
-export async function startPlanCheckout(planKey: PlanKey): Promise<never> {
+export async function startPlanCheckout(planKey: PlanKey, adsMeasurementConsent = false): Promise<never> {
   const response = await fetch("/api/billing/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ planKey }),
+    body: JSON.stringify({ planKey, adsMeasurementConsent }),
   });
 
   if (!response.ok) {

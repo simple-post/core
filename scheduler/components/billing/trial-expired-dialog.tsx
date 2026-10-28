@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Check, Loader2 } from "lucide-react";
 
+import { AdsMeasurementConsent } from "@/components/billing/ads-measurement-consent";
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
@@ -52,12 +53,13 @@ export function TrialExpiredDialog({
 }) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [adsMeasurementConsent, setAdsMeasurementConsent] = useState(false);
 
   const choosePlan = async (planKey: PlanKey) => {
     setLoadingPlan(planKey);
     setCheckoutError(null);
     try {
-      await startPlanCheckout(planKey);
+      await startPlanCheckout(planKey, adsMeasurementConsent);
     } catch (error) {
       console.error("Failed to start checkout:", error);
       setCheckoutError(error instanceof Error ? error.message : "Could not open checkout. Please try again.");
@@ -91,6 +93,11 @@ export function TrialExpiredDialog({
               {checkoutError}
             </p>
           ) : null}
+          <AdsMeasurementConsent
+            checked={adsMeasurementConsent}
+            disabled={loadingPlan !== null}
+            onChange={setAdsMeasurementConsent}
+          />
           <div className="grid gap-3 sm:grid-cols-3">
             {BILLING_PLANS.map((plan) => (
               <article

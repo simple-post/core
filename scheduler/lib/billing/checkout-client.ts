@@ -15,7 +15,8 @@ export async function startPlanCheckout(planKey: PlanKey, adsMeasurementConsent 
   const response = await fetch("/api/billing/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ planKey, adsMeasurementConsent }),
+    // Preserve the existing checkout contract unless the customer explicitly opts in.
+    body: JSON.stringify({ planKey, ...(adsMeasurementConsent ? { adsMeasurementConsent: true } : {}) }),
   });
 
   if (!response.ok) {

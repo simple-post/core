@@ -15,7 +15,9 @@ let mockState = {
   hasPost: false,
   hasPublishedPost: false,
 };
+let mockReadOnly = false;
 const mockDismiss = jest.fn();
+jest.mock("@/hooks/use-billing", () => ({ useWorkspaceReadOnly: () => mockReadOnly }));
 jest.mock("@/components/onboarding/use-onboarding", () => ({
   useOnboardingState: () => ({ data: mockState }),
   useOnboardingDismissal: () => ({ dismissed: false, ready: true, dismiss: mockDismiss }),
@@ -23,6 +25,7 @@ jest.mock("@/components/onboarding/use-onboarding", () => ({
 
 beforeEach(() => {
   mockState = { hasConnectedAccount: false, hasAiConnection: false, hasPost: false, hasPublishedPost: false };
+  mockReadOnly = false;
   jest.clearAllMocks();
 });
 afterEach(cleanup);
@@ -42,6 +45,23 @@ it("recognizes an assistant-first signup and still offers account connection", (
   expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
   expect(screen.getByRole("link", { name: "Connect" })).toBeTruthy();
   expect(screen.getAllByLabelText("Complete")).toHaveLength(1);
+});
+
+it("puts optional AI installation last and keeps it visible after the first published post", () => {
+  mockState = { hasConnectedAccount: true, hasAiConnection: false, hasPost: true, hasPublishedPost: true };
+  render(createElement(OnboardingChecklist));
+  const steps = screen.getAllByRole("listitem");
+  expect(steps[1].textContent).toContain("Schedule your first post");
+  expect(steps[2].textContent).toContain("Install SimplePost in your AIOptional");
+  expect(screen.getByRole("button", { name: "Install" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss getting started" }));
+  expect(mockDismiss).toHaveBeenCalledTimes(1);
+});
+
+it("does not offer onboarding actions in an expired read-only workspace", () => {
+  mockReadOnly = true;
+  render(createElement(OnboardingChecklist));
+  expect(screen.queryByRole("region", { name: "Getting started" })).toBeNull();
 });
 
 it("finishes on scheduling without waiting for publication", () => {

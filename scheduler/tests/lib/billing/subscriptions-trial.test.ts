@@ -1,4 +1,4 @@
-import { assertCanCreatePost, getBillingStatus } from "@/lib/billing/subscriptions";
+import { assertActiveSubscription, assertCanCreatePost, getBillingStatus } from "@/lib/billing/subscriptions";
 import { prisma } from "@/lib/prisma";
 
 jest.mock("@/lib/prisma", () => ({
@@ -89,6 +89,46 @@ describe("free trial billing status", () => {
     expect(status.plan).toBeNull();
     expect(status.trial).toMatchObject({ status: "expired", daysRemaining: 0 });
   });
+
+  it("allows expired-trial reads explicitly, while default and all post writes stay gated", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "expired@example.com",
+      subscription: null,
+      complimentaryAccess: null,
+      freeTrial: EXPIRED_TRIAL,
+    });
+    const readAccess = await assertActiveSubscription("user-1", {}, { allowExpiredTrialRead: true });
+    expect(readAccess.active).toBe(false);
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
+    await expect(assertActiveSubscription("user-1")).rejects.toMatchObject({ statusCode: 402 });
+    await expect(assertCanCreatePost("user-1")).rejects.toMatchObject({ statusCode: 402 });
+  });
+
+  it.each(["past_due", "canceled", "unpaid"])(
+    "keeps %s paying accounts on the existing billing recovery path",
+    async (status) => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        email: "payer@example.com",
+        subscription: {
+          status,
+          planKey: "basic",
+          stripeCustomerId: "cus_1",
+          stripeSubscriptionId: "sub_1",
+          stripePriceId: null,
+          currentPeriodStart: NOW,
+          currentPeriodEnd: NOW,
+          cancelAtPeriodEnd: false,
+          canceledAt: null,
+          trialEndsAt: null,
+        },
+        complimentaryAccess: null,
+        freeTrial: EXPIRED_TRIAL,
+      });
+      await expect(assertActiveSubscription("user-1", {}, { allowExpiredTrialRead: true })).rejects.toMatchObject({
+        statusCode: 402,
+      });
+    },
+  );
 
   it("prefers a paid subscription over an active trial", async () => {
     mockPrisma.user.findUnique.mockResolvedValue({

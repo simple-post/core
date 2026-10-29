@@ -61,6 +61,8 @@ interface PostDraftContextValue extends PostDraftState {
   updateThreadSegmentMessage: (index: number, message: string) => void;
   updateThreadSegmentMedia: (index: number, media: MediaFile[]) => void;
   resetDraft: () => void;
+  saveRecoveryDraft: (returnTo: string, accountIds: string[]) => boolean;
+  clearRecoveryDraft: () => void;
 }
 
 const DEFAULT_DRAFT: PostDraftState = {
@@ -270,6 +272,7 @@ export function PostDraftProvider({
   const draftRef = useRef<PostDraftState>(initial);
   const [isHydrated, setIsHydrated] = useState(initialDraft !== undefined);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const recoveryStorageKey = session?.user?.id ? `simplepost:recovery-draft:v1:${session.user.id}` : null;
   const [message, setMessageState] = useState(initial.message);
   const [media, setMediaState] = useState<MediaFile[]>(initial.media);
   const [selectedAccountIds, setSelectedAccountIdsState] = useState<string[]>(initial.selectedAccountIds);
@@ -381,6 +384,36 @@ export function PostDraftProvider({
 
   const hasDraftContent = useMemo(() => hasPersistableDraft(draft), [draft]);
 
+  const clearRecoveryDraft = useCallback(() => {
+    if (!recoveryStorageKey) return;
+    try {
+      window.sessionStorage.removeItem(recoveryStorageKey);
+    } catch {
+      /* Saved server data remains authoritative. */
+    }
+  }, [recoveryStorageKey]);
+
+  const saveRecoveryDraft = useCallback(
+    (returnTo: string, accountIds: string[]) => {
+      if (!recoveryStorageKey) return false;
+      try {
+        window.sessionStorage.setItem(
+          recoveryStorageKey,
+          JSON.stringify({
+            path: returnTo,
+            savedAt: Date.now(),
+            draft: { ...draftRef.current, selectedAccountIds: accountIds },
+          }),
+        );
+        return true;
+      } catch (error) {
+        setStorageError(getStorageErrorMessage(error));
+        return false;
+      }
+    },
+    [recoveryStorageKey],
+  );
+
   useEffect(() => {
     if (!storageKey) {
       return;
@@ -415,6 +448,46 @@ export function PostDraftProvider({
       setIsHydrated(true);
     }
   }, [setDraftState, storageKey]);
+
+  // One tab-scoped snapshot survives full-page provider authorization. Consume
+  // it only on the intended editor, after the normal draft has hydrated.
+  useEffect(() => {
+    if (!recoveryStorageKey || !isHydrated) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("resumeDraft") !== "1") return;
+    const clearMarker = () => {
+      params.delete("resumeDraft");
+      const search = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`,
+      );
+    };
+    try {
+      const value = window.sessionStorage.getItem(recoveryStorageKey);
+      if (!value) {
+        clearMarker();
+        return;
+      }
+      const recovery = JSON.parse(value);
+      if (!Number.isFinite(recovery.savedAt) || Date.now() - recovery.savedAt > 3_600_000) {
+        window.sessionStorage.removeItem(recoveryStorageKey);
+        clearMarker();
+        return;
+      }
+      if (recovery.path !== window.location.pathname) return;
+      const recoveredDraft = normalizeStoredDraft(recovery.draft);
+      if (recoveredDraft) {
+        setDraftState(recoveredDraft);
+        persistDraft(recoveredDraft);
+      }
+      window.sessionStorage.removeItem(recoveryStorageKey);
+      clearMarker();
+    } catch {
+      setStorageError("Draft could not be restored from this browser.");
+    }
+  }, [isHydrated, persistDraft, recoveryStorageKey, setDraftState]);
 
   const updateAccountOverride = useCallback(
     (accountId: string, updates: Partial<DraftAccountOverride>) => {
@@ -541,6 +614,8 @@ export function PostDraftProvider({
       updateThreadSegmentMessage,
       updateThreadSegmentMedia,
       resetDraft,
+      saveRecoveryDraft,
+      clearRecoveryDraft,
     }),
     [
       accountOptions,
@@ -574,6 +649,8 @@ export function PostDraftProvider({
       setAccountOverrideMessage,
       setAccountOverrideThread,
       resetDraft,
+      saveRecoveryDraft,
+      clearRecoveryDraft,
       addThreadSegment,
       removeThreadSegment,
       updateThreadSegmentMessage,

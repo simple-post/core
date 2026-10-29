@@ -27,13 +27,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
+import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
 
 type FailedPlatform = {
+  accountId?: string;
   platform?: string;
   message?: string;
   error?: string;
@@ -41,6 +44,7 @@ type FailedPlatform = {
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const { data: post, isLoading: postLoading } = usePost(id);
   const { data: quotePost } = usePost(post?.quotePostId ?? "");
@@ -178,57 +182,59 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <div className="flex items-center gap-2" aria-label="Post actions">
-              {isDraft && (
-                <Button size="sm" onClick={handlePostNow} disabled={submitPostMutation.isPending}>
-                  <Send className="h-4 w-4" />
-                  {submitPostMutation.isPending ? "Posting..." : "Post Now"}
-                </Button>
-              )}
-              {(isScheduled || isDraft) && (
+            {!readOnly && (
+              <div className="flex items-center gap-2" aria-label="Post actions">
+                {isDraft && (
+                  <Button size="sm" onClick={handlePostNow} disabled={submitPostMutation.isPending}>
+                    <Send className="h-4 w-4" />
+                    {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                  </Button>
+                )}
+                {(isScheduled || isDraft) && (
+                  <Button
+                    size="sm"
+                    variant={isDraft ? "outline" : "default"}
+                    onClick={() => setShowScheduleDialog(true)}
+                    disabled={submitPostMutation.isPending}>
+                    <CalendarClock className="h-4 w-4" />
+                    {isScheduled ? "Reschedule" : "Schedule"}
+                  </Button>
+                )}
+                {(isScheduled || isDraft || isFailed) && (
+                  <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
+                    <Link href={`/posts/${id}/edit`}>
+                      <Edit className="h-4 w-4" />
+                      {isFailed ? "Edit and Retry" : "Edit"}
+                    </Link>
+                  </Button>
+                )}
+                {isPublished && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/posts/${id}/duplicate`}>
+                      <Copy className="h-4 w-4" />
+                      Duplicate
+                    </Link>
+                  </Button>
+                )}
+                {canQuote && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/schedule?quotePostId=${id}`}>
+                      <Quote className="h-4 w-4" />
+                      Quote
+                    </Link>
+                  </Button>
+                )}
+                <span className="mx-1 h-4 w-px bg-border" />
                 <Button
+                  variant="ghost"
                   size="sm"
-                  variant={isDraft ? "outline" : "default"}
-                  onClick={() => setShowScheduleDialog(true)}
-                  disabled={submitPostMutation.isPending}>
-                  <CalendarClock className="h-4 w-4" />
-                  {isScheduled ? "Reschedule" : "Schedule"}
+                  className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setShowDeleteDialog(true)}>
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete post</span>
                 </Button>
-              )}
-              {(isScheduled || isDraft || isFailed) && (
-                <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
-                  <Link href={`/posts/${id}/edit`}>
-                    <Edit className="h-4 w-4" />
-                    {isFailed ? "Edit and Retry" : "Edit"}
-                  </Link>
-                </Button>
-              )}
-              {isPublished && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/posts/${id}/duplicate`}>
-                    <Copy className="h-4 w-4" />
-                    Duplicate
-                  </Link>
-                </Button>
-              )}
-              {canQuote && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/schedule?quotePostId=${id}`}>
-                    <Quote className="h-4 w-4" />
-                    Quote
-                  </Link>
-                </Button>
-              )}
-              <span className="mx-1 h-4 w-px bg-border" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete post</span>
-              </Button>
-            </div>
+              </div>
+            )}
           </div>
           <div className="space-y-4 mt-5 animate-reveal animate-reveal-delay-1">
             {post.quotePostId ? (
@@ -275,6 +281,29 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                           );
                         })}
                       </ul>
+                    )}
+                    {!readOnly && (
+                      <div className="flex flex-wrap gap-2">
+                        {postAccounts
+                          .filter(
+                            (account) =>
+                              (account.credentialStatus?.action === "reconnect" ||
+                                post.accountResults?.[account.id]?.error === "CREDENTIALS_ERROR" ||
+                                failedPlatforms.some(
+                                  (failure) =>
+                                    failure.accountId === account.id && failure.error === "CREDENTIALS_ERROR",
+                                )) &&
+                              (post.accountResults?.[account.id]?.success === false ||
+                                failedPlatforms.some((failure) => failure.accountId === account.id)),
+                          )
+                          .map((account) => (
+                            <Button key={account.id} asChild variant="outline" size="sm">
+                              <Link href={reconnectHref(account.id, `/posts/${id}/edit`)}>
+                                Reconnect {getPlatformById(account.platform)?.name ?? account.platform}
+                              </Link>
+                            </Button>
+                          ))}
+                      </div>
                     )}
                   </div>
                 </div>

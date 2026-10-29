@@ -33,6 +33,6 @@ describe("posting progress stream", () => {
       .split("\n")
       .map((line) => JSON.parse(line) as { type: string; error?: string });
 
-    expect(events).toEqual([{ type: "error", error: "Not allowed" }]);
+    expect(events).toEqual([{ type: "error", error: "Not allowed", status: 403 }]);
   });
 });

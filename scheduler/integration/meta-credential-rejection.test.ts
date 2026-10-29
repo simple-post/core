@@ -20,7 +20,10 @@ import type { ConnectedAccount } from "@/types";
 // Exercise the real SDK, encrypted persistence, refresh logic and PostgreSQL locks.
 // Provider I/O is the only substituted boundary; no Instagram content is published.
 jest.mock("axios");
-jest.mock("@/lib/middleware/auth", () => ({ requireAuth: jest.fn() }));
+jest.mock("@/lib/middleware/auth", () => {
+  const authenticate = jest.fn();
+  return { requireAuth: authenticate, requireReadAuth: authenticate };
+});
 const userId = "instagram-rejection-review";
 const rejection = { reason: "session_revoked" as const, code: 190, status: 401, subcode: 0 };
 const providerError = {

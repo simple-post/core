@@ -14,7 +14,7 @@ import {
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { ingestPostMedia } from "@/lib/media-ingestion";
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireAuth, requireReadAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
@@ -96,7 +96,7 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
 // GET /api/v1/posts - Get all posts (drafts, scheduled, past, and failed) with pagination
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireReadAuth(req);
     const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";

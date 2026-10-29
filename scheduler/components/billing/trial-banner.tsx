@@ -58,7 +58,15 @@ export function TrialBanner() {
               </h2>
             </div>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Every feature is unlocked, with {trial.postsPerPlatform} posts per platform. No credit card needed.{" "}
+              Ends on{" "}
+              <time dateTime={trial.expiresAt}>
+                {new Date(trial.expiresAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </time>
+              . Every feature is unlocked, with {trial.postsPerPlatform} posts per platform. No credit card needed.{" "}
               <HelpLink path="/billing#free-trial" className="align-baseline">
                 Trial details
               </HelpLink>

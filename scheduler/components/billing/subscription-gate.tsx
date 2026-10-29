@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useBillingStatus } from "@/hooks/use-billing";
 import { trackOnce } from "@/lib/analytics/plausible";
 import { useSession } from "@/lib/auth/auth-client";
+import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 
 const SelfHostedContext = createContext(false);
 
@@ -68,8 +69,15 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
     );
   }
 
-  // A finished trial gets a blocking dialog over an inert impression of the
-  // workspace, rather than the plan wall a never-subscribed user would see.
+  // Only saved-data views are available after expiry. Composer and settings
+  // routes keep the existing upgrade screen; API writes are gated separately.
+  if (
+    isExpiredTrialReadOnly(billing) &&
+    (pathname === "/" || pathname === "/accounts" || /^\/posts\/[^/]+$/.test(pathname))
+  ) {
+    return children;
+  }
+
   if (!billing?.active && billing?.trial) {
     return <TrialExpiredDialog displayCurrency={billing.displayCurrency} />;
   }

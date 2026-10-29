@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,10 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AccountCardView, AccountsHeading, ConnectAccountsEmpty } from "@/components/visual/account-card";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
 import { logClientError } from "@/lib/logger/client";
+import { knownOAuthErrorMessage } from "@/lib/oauth/error-messages";
 import { queryKeys } from "@/lib/query-client";
 import type { ConnectedAccount } from "@/types";
 
@@ -49,11 +53,15 @@ function getCredentialBadge(account: ConnectedAccount): {
 }
 
 export default function AccountsPage() {
+  const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const handledConnection = useRef(false);
   const onboardingConnection = useRef(false);
+  const handledReconnect = useRef(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [recoveryReturnTo, setRecoveryReturnTo] = useState<string | null>(null);
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
   const connectTelegramMutation = useConnectTelegram();
@@ -84,50 +92,81 @@ export default function AccountsPage() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
     let destination = "/accounts";
     try {
-      if (window.sessionStorage.getItem(CONNECTION_RETURN_KEY) === "/") destination = "/";
+      destination = recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)) ?? "/accounts";
       window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
     } catch {
       // Storage can be unavailable; connection success must still be usable.
     }
     toast.success("Account connected");
-    router.replace(destination, { scroll: false });
+    router.replace(resumeRecoveryHref(destination), { scroll: false });
   }, [queryClient, router, searchParams]);
+
+  useEffect(() => {
+    if (!searchParams.get("error")) return;
+    setConnectionError(
+      knownOAuthErrorMessage(searchParams.get("error")) ??
+        "Your account connection did not finish. Try reconnecting again. Your saved work is still here.",
+    );
+    try {
+      setRecoveryReturnTo(recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)));
+    } catch {
+      /* The account list remains usable without storage. */
+    }
+  }, [searchParams]);
 
   // Direct hand-off from the checklist or an assistant: open the platform picker.
   useEffect(() => {
-    if (searchParams.get("onboarding") !== "connect" || searchParams.get("success") === "true") return;
+    if (readOnly || searchParams.get("onboarding") !== "connect" || searchParams.get("success") === "true") return;
     onboardingConnection.current = true;
     setShowConnectDialog(true);
     router.replace("/accounts", { scroll: false });
-  }, [router, searchParams]);
+  }, [readOnly, router, searchParams]);
 
-  const handleConnect = (platform: string) => {
-    const platformConfig = getPlatformById(platform);
-    // Preserve the return destination through the provider's full-page OAuth navigation.
-    // Reconnects and additional accounts stay on Accounts so their status is visible.
-    try {
-      window.sessionStorage.setItem(
-        CONNECTION_RETURN_KEY,
-        onboardingConnection.current || (!loading && accounts.length === 0) ? "/" : "/accounts",
-      );
-    } catch {
-      // Do not block account connection when storage is disabled.
-    }
-
-    if (platformConfig?.connectionType === "manual") {
-      setShowConnectDialog(false);
-      if (platform === "forem") {
-        setShowForemDialog(true);
-        setForemError("");
-      } else {
-        setShowTelegramDialog(true);
-        setTelegramError("");
+  const handleConnect = useCallback(
+    (platform: string, returnTo?: string) => {
+      if (readOnly) return;
+      const platformConfig = getPlatformById(platform);
+      // Preserve the return destination through the provider's full-page OAuth navigation.
+      // Reconnects and additional accounts stay on Accounts so their status is visible.
+      try {
+        window.sessionStorage.setItem(
+          CONNECTION_RETURN_KEY,
+          recoveryReturnPath(returnTo) ??
+            recoveryReturnTo ??
+            (onboardingConnection.current || (!loading && accounts.length === 0) ? "/" : "/accounts"),
+        );
+      } catch {
+        // Do not block account connection when storage is disabled.
       }
-    } else {
-      setShowConnectDialog(false);
-      window.location.href = `/api/connect/${platform}`;
+
+      if (platformConfig?.connectionType === "manual") {
+        setShowConnectDialog(false);
+        if (platform === "forem") {
+          setShowForemDialog(true);
+          setForemError("");
+        } else {
+          setShowTelegramDialog(true);
+          setTelegramError("");
+        }
+      } else {
+        setShowConnectDialog(false);
+        window.location.href = `/api/connect/${platform}`;
+      }
+    },
+    [readOnly, loading, accounts.length, recoveryReturnTo],
+  );
+
+  useEffect(() => {
+    const accountId = searchParams.get("reconnect");
+    if (readOnly || loading || !accountId || handledReconnect.current) return;
+    const account = accounts.find((entry) => entry.id === accountId);
+    handledReconnect.current = true;
+    if (account) handleConnect(account.platform, recoveryReturnPath(searchParams.get("returnTo")) ?? "/accounts");
+    else {
+      setConnectionError("This account is no longer connected. Your post is still saved.");
+      setRecoveryReturnTo(recoveryReturnPath(searchParams.get("returnTo")));
     }
-  };
+  }, [accounts, handleConnect, loading, readOnly, searchParams]);
   const closeForemDialog = () => {
     setShowForemDialog(false);
     setForemApiKey("");
@@ -204,12 +243,36 @@ export default function AccountsPage() {
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
+        {connectionError && (
+          <Alert variant="destructive" className="mb-4" role="alert">
+            <AlertDescription className="space-y-3">
+              <p>{connectionError}</p>
+              {recoveryReturnTo && recoveryReturnTo !== "/accounts" && (
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    href={resumeRecoveryHref(recoveryReturnTo)}
+                    onClick={() => {
+                      try {
+                        window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
+                      } catch {
+                        /* No storage means no retained return destination. */
+                      }
+                    }}>
+                    {recoveryReturnTo === "/" ? "Back to dashboard" : "Back to your post"}
+                  </Link>
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         <AccountsHeading
           action={
-            <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              <span>Connect account</span>
-            </Button>
+            readOnly ? undefined : (
+              <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                <span>Connect account</span>
+              </Button>
+            )
           }
         />
         <HelpLink path="/accounts" className="mb-4">
@@ -232,10 +295,12 @@ export default function AccountsPage() {
         ) : accounts.length === 0 ? (
           <ConnectAccountsEmpty
             action={
-              <Button onClick={() => setShowConnectDialog(true)}>
-                <Plus className="h-4 w-4" />
-                Connect your first account
-              </Button>
+              readOnly ? undefined : (
+                <Button onClick={() => setShowConnectDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                  Connect your first account
+                </Button>
+              )
             }
           />
         ) : (
@@ -292,25 +357,27 @@ export default function AccountsPage() {
                     </>
                   }
                   actions={
-                    <>
-                      {" "}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleConnect(account.platform)}
-                        className="gap-1.5">
-                        <RefreshCw className="h-3 w-3" />
-                        <span className="hidden sm:inline">Reconnect</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDisconnectClick(account)}
-                        className="gap-1.5 text-destructive hover:text-destructive hover:border-destructive/40">
-                        <X className="h-3 w-3" />
-                        <span className="hidden sm:inline">Disconnect</span>
-                      </Button>
-                    </>
+                    readOnly ? undefined : (
+                      <>
+                        {" "}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleConnect(account.platform)}
+                          className="gap-1.5">
+                          <RefreshCw className="h-3 w-3" />
+                          <span className="hidden sm:inline">Reconnect</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDisconnectClick(account)}
+                          className="gap-1.5 text-destructive hover:text-destructive hover:border-destructive/40">
+                          <X className="h-3 w-3" />
+                          <span className="hidden sm:inline">Disconnect</span>
+                        </Button>
+                      </>
+                    )
                   }
                 />
               );

@@ -29,6 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PostCardView } from "@/components/visual/post-card";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getAccountDisplayName } from "@/lib/config";
@@ -259,6 +260,7 @@ function PostCard({
   accounts: ConnectedAccount[];
   onDeleted?: () => void;
 }) {
+  const readOnly = useWorkspaceReadOnly();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const deletePostMutation = useDeletePost();
@@ -351,88 +353,90 @@ function PostCard({
             ...(postAccounts.length > 2 ? [`+${postAccounts.length - 2}`] : []),
           ]}
           actions={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-shrink-0 h-8 w-8 p-0"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}>
-                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                    />
-                  </svg>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isDraft && (
+            readOnly ? undefined : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-shrink-0 h-8 w-8 p-0"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}>
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                      />
+                    </svg>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {isDraft && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void handlePostNow();
+                      }}
+                      disabled={submitPostMutation.isPending}
+                      className="cursor-pointer">
+                      <Send className="h-4 w-4 mr-2" />
+                      {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                    </DropdownMenuItem>
+                  )}
+                  {(isScheduled || isDraft) && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowScheduleDialog(true);
+                      }}
+                      className="cursor-pointer">
+                      <CalendarClock className="h-4 w-4 mr-2" />
+                      {isScheduled ? "Reschedule" : "Schedule"}
+                    </DropdownMenuItem>
+                  )}
+                  {(isScheduled || isDraft || isFailed) && (
+                    <Link href={`/posts/${post.id}/edit`}>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="cursor-pointer">
+                        <Edit className="h-4 w-4 mr-2" />
+                        {isFailed ? "Edit and Retry" : "Edit"}
+                      </DropdownMenuItem>
+                    </Link>
+                  )}
+                  {canQuote && (
+                    <Link href={`/schedule?quotePostId=${post.id}`}>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="cursor-pointer">
+                        <Quote className="h-4 w-4 mr-2" />
+                        Quote
+                      </DropdownMenuItem>
+                    </Link>
+                  )}
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      void handlePostNow();
+                      setShowDeleteDialog(true);
                     }}
-                    disabled={submitPostMutation.isPending}
-                    className="cursor-pointer">
-                    <Send className="h-4 w-4 mr-2" />
-                    {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                    className="text-destructive focus:text-destructive cursor-pointer">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
                   </DropdownMenuItem>
-                )}
-                {(isScheduled || isDraft) && (
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowScheduleDialog(true);
-                    }}
-                    className="cursor-pointer">
-                    <CalendarClock className="h-4 w-4 mr-2" />
-                    {isScheduled ? "Reschedule" : "Schedule"}
-                  </DropdownMenuItem>
-                )}
-                {(isScheduled || isDraft || isFailed) && (
-                  <Link href={`/posts/${post.id}/edit`}>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className="cursor-pointer">
-                      <Edit className="h-4 w-4 mr-2" />
-                      {isFailed ? "Edit and Retry" : "Edit"}
-                    </DropdownMenuItem>
-                  </Link>
-                )}
-                {canQuote && (
-                  <Link href={`/schedule?quotePostId=${post.id}`}>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className="cursor-pointer">
-                      <Quote className="h-4 w-4 mr-2" />
-                      Quote
-                    </DropdownMenuItem>
-                  </Link>
-                )}
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShowDeleteDialog(true);
-                  }}
-                  className="text-destructive focus:text-destructive cursor-pointer">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
           }
         />
       </Link>

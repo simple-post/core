@@ -1,12 +1,12 @@
 # First-post onboarding and preview import
 
-New users start on the dashboard with a free-trial banner and three short checklist rows: connect a social account, install SimplePost in an assistant, and schedule a first post. There is no welcome dialog. Trial details sit inline with the banner copy.
+New users start on the dashboard with a free-trial banner and three short checklist rows: connect a social account, schedule a first post, and optionally install SimplePost in an assistant. There is no welcome dialog. Trial details and the expiry date sit inline with the banner copy.
 
 The install dialog opens only when requested. It offers direct ChatGPT plugin and Claude connector links, plus Others for Claude Code, OpenClaw, generic MCP, and CLI setup. Clicking either connector card opens its installation page immediately and closes the dialog. Others has a back button, and the dialog stays the same size while setup details scroll. The scheduler does not show starter prompts or example posts. Onboarding refreshes when the user returns from the assistant's tab so a completed authorization is reflected immediately.
 
 Assistant-first signups still need a social publishing destination. MCP responses provide a clickable account-connection link built from the deployment's app URL, including when reading a schedule with no accounts or attempting to prepare a post. They ask the user to connect an account and return to the conversation. No plugin package changes are required. The link opens the account picker at `/accounts?onboarding=connect`. Successful first-account and onboarding connections return to the dashboard with a brief confirmation, without an installation dialog or starter prompt. Reconnecting or adding further accounts from Accounts keeps the user on that page.
 
-The checklist completes after a connected account, an assistant credential, and a scheduled or published post exist. Drafts, pending posts, and failed posts do not complete the scheduling step. Users do not have to wait for publication or confirm its success. Existing publishing analytics remain separate. No database columns or migrations are needed.
+The checklist completes after a connected account, an assistant credential, and a scheduled or published post exist. Connecting and posting alone leave the optional AI integration visible; users can dismiss the checklist at any time. Drafts, pending posts, and failed posts do not complete the scheduling step. Users do not have to wait for publication or confirm its success. Existing publishing analytics remain separate. No database columns or migrations are needed.
 
 ## Preview import contract
 

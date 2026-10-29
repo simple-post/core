@@ -5,6 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CreatePostWebMcp, WebMcpProvider } from "@/components/create-post-webmcp";
 import type { ModelContext, WebMcpTool } from "@/lib/webmcp/create-post-tools";
 
+jest.mock("@/hooks/use-billing", () => ({ useWorkspaceReadOnly: () => false }));
+
 const invalidateQueries = jest.fn().mockResolvedValue(undefined);
 jest.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries }),
@@ -118,7 +120,9 @@ describe("App-wide WebMCP provider and instructions", () => {
 
   it("reveals the instructions when expanded without mounting another provider", () => {
     function ExpandedInstructions() {
-      return React.cloneElement(CreatePostWebMcp(), { open: true });
+      const element = CreatePostWebMcp();
+      if (!element) throw new Error("Expected instructions in an active workspace");
+      return React.cloneElement(element, { open: true });
     }
     const html = renderToStaticMarkup(React.createElement(ExpandedInstructions));
     expect(html).toContain('aria-expanded="true"');

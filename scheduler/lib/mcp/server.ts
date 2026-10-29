@@ -167,6 +167,7 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 - It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
+  readOnly?: boolean;
   imageFittingEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
   clientId?: string;

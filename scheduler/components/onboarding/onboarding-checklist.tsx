@@ -9,11 +9,13 @@ import { Check, X } from "lucide-react";
 import { AiConnectModal } from "@/components/onboarding/ai-connect-modal";
 import { useOnboardingDismissal, useOnboardingState } from "@/components/onboarding/use-onboarding";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { cn } from "@/lib/utils";
 
 interface ChecklistStep {
   id: string;
   title: string;
+  optional?: boolean;
   done: boolean;
   action: { label: string; href: string } | { label: string; onClick: () => void };
 }
@@ -28,7 +30,10 @@ function StepRow({ step, index }: { step: ChecklistStep; index: number }) {
         )}>
         {step.done ? <Check className="h-3.5 w-3.5" role="img" aria-label="Complete" /> : index + 1}
       </span>
-      <span className={cn("min-w-0 flex-1 text-sm", step.done && "text-muted-foreground")}>{step.title}</span>
+      <span className={cn("min-w-0 flex-1 text-sm", step.done && "text-muted-foreground")}>
+        {step.title}
+        {step.optional && <span className="mt-0.5 block text-xs text-muted-foreground">Optional</span>}
+      </span>
       {step.done ? null : "href" in step.action ? (
         <Button asChild size="sm" variant="outline" className="shrink-0">
           <Link href={step.action.href}>{step.action.label}</Link>
@@ -43,12 +48,13 @@ function StepRow({ step, index }: { step: ChecklistStep; index: number }) {
 }
 
 export function OnboardingChecklist() {
+  const readOnly = useWorkspaceReadOnly();
   const { data: state } = useOnboardingState();
   const { dismissed, dismiss, ready } = useOnboardingDismissal("checklist");
   const [aiModalOpen, setAiModalOpen] = useState(false);
 
   const complete = state?.hasConnectedAccount && state.hasAiConnection && state.hasPost;
-  if (!state || complete || !ready || dismissed) return null;
+  if (readOnly || !state || complete || !ready || dismissed) return null;
 
   const steps: ChecklistStep[] = [
     {
@@ -58,16 +64,17 @@ export function OnboardingChecklist() {
       action: { label: "Connect", href: "/accounts?onboarding=connect" },
     },
     {
-      id: "ai",
-      title: "Install SimplePost in your AI",
-      done: state.hasAiConnection,
-      action: { label: "Install", onClick: () => setAiModalOpen(true) },
-    },
-    {
       id: "post",
       title: "Schedule your first post",
       done: state.hasPost,
       action: { label: "Compose", href: "/schedule" },
+    },
+    {
+      id: "ai",
+      title: "Install SimplePost in your AI",
+      optional: true,
+      done: state.hasAiConnection,
+      action: { label: "Install", onClick: () => setAiModalOpen(true) },
     },
   ];
 

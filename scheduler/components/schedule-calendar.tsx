@@ -8,6 +8,7 @@ import { format } from "date-fns";
 
 import { HelpLink } from "@/components/help-link";
 import { useScheduleCalendarState, type CalendarView } from "@/components/schedule-calendar-context";
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { usePostingSlots } from "@/hooks/use-posting-slots";
 import { useCalendarPosts } from "@/hooks/use-posts";
 import { getSlotOccurrencesInRange, slotOccurrenceKey } from "@/lib/posting-slots/occurrences";
@@ -112,6 +113,7 @@ function dayKey(date: Date): string {
  * touch-friendly agendas on mobile.
  */
 export function ScheduleCalendar() {
+  const readOnly = useWorkspaceReadOnly();
   const { view, setView, anchorDate, setAnchorDate } = useScheduleCalendarState();
   const [now, setNow] = useState(() => new Date());
 
@@ -195,7 +197,8 @@ export function ScheduleCalendar() {
       entriesByDay={entriesByDay}
       summary={summary}
       isLoading={isLoading}
-      showEmptySlots={!slotsLoading && slots.length === 0}
+      showEmptySlots={!readOnly && !slotsLoading && slots.length === 0}
+      slotHint={readOnly ? "Saved posts appear here" : undefined}
       help={
         <HelpLink path="/scheduling" className="mb-3">
           Calendar, timezones, and posting slots
@@ -210,6 +213,8 @@ export function ScheduleCalendar() {
   );
 }
 function CalendarLink({ target, ...props }: CalendarActionProps) {
+  const readOnly = useWorkspaceReadOnly();
+  if (readOnly && target.kind !== "post") return null;
   const href =
     target.kind === "post"
       ? `/posts/${target.id}`

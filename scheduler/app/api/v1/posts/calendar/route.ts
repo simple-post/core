@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { PostsModel } from "@/lib/db";
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireReadAuth } from "@/lib/middleware/auth";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ function parseRangeValue(value: string | null, name: string): Date {
 // unpaginated, for the dashboard calendar.
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireReadAuth(req);
     const { searchParams } = new URL(req.url);
     const from = parseRangeValue(searchParams.get("from"), "from");
     const to = parseRangeValue(searchParams.get("to"), "to");

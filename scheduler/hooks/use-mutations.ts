@@ -179,7 +179,7 @@ interface PostMutationResult {
 type PostingProgressEvent =
   | { type: "result"; result: PostingResult }
   | { type: "complete"; data: PostMutationResult }
-  | { type: "error"; error: string };
+  | { type: "error"; error: string; status?: number };
 
 async function readPostingProgress(
   response: Response,
@@ -208,7 +208,7 @@ async function readPostingProgress(
         break;
       }
       case "error": {
-        throw new Error(event.error);
+        throw new ApiResponseError({ error: event.error }, "Posting request failed", event.status ?? 500);
       }
     }
   };
@@ -273,6 +273,7 @@ export function useSubmitPost() {
       // Posting consumes trial allowance, so the banner and compose-form
       // counters need the fresh usage numbers.
       queryClient.invalidateQueries({ queryKey: queryKeys.billing });
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
       if (variables.postId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.post(variables.postId) });

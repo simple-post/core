@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireReadAuth } from "@/lib/middleware/auth";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireReadAuth(req);
 
     // Fetch user's connected social media accounts (for posting)
     const storedAccounts = await prisma.connectedAccount.findMany({

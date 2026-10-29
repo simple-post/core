@@ -18,6 +18,8 @@ function row(): MeasurementRow {
     userId: "user_1",
     permissionGrantedAt: at(-3600),
     permissionRevokedAt: null,
+    clickReference: null,
+    clickCapturedAt: null,
     reportedKinds: [],
     skippedKinds: [],
     nextAttemptAt: at(-60),
@@ -94,6 +96,23 @@ describe("four OpenAI acquisition milestones", () => {
     expect(openAiMilestoneEvents(value, at(10)).events.map((item) => item.event.id)).toEqual(
       first.map((item) => item.event.id),
     );
+  });
+
+  it("includes only a permitted click that predates the event and is within 30 days", () => {
+    const value = row();
+    value.clickReference = "Opaque+/unchanged==";
+    value.clickCapturedAt = at(-1500);
+    const events = openAiMilestoneEvents(value, now).events;
+    expect(events.map(({ event }) => event.oppref)).toEqual([
+      undefined,
+      undefined,
+      value.clickReference,
+      value.clickReference,
+    ]);
+    value.clickCapturedAt = at(-31 * 86_400);
+    expect(openAiMilestoneEvents(value, now).events.every(({ event }) => !event.oppref)).toBe(true);
+    value.clickCapturedAt = null;
+    expect(openAiMilestoneEvents(value, now).events.every(({ event }) => !event.oppref)).toBe(true);
   });
 
   it("does not infer milestones from signup, a draft or a subscription access grant", () => {

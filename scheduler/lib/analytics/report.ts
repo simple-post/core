@@ -23,6 +23,7 @@ export function acquisitionLabels(value: unknown) {
     source: typeof data.source === "string" ? data.source : "unknown",
     medium: typeof data.medium === "string" ? data.medium : "—",
     campaign: typeof data.campaign === "string" ? data.campaign : "—",
+    content: typeof data.content === "string" ? data.content : "—",
     landingPage: typeof data.landingPage === "string" ? data.landingPage : "—",
     firstSeenAt: typeof data.firstSeenAt === "string" ? data.firstSeenAt : null,
   };
@@ -35,6 +36,7 @@ export function buildAcquisitionReport(accounts: AcquisitionAccount[], now = new
       source: string;
       medium: string;
       campaign: string;
+      content: string;
       signups: number;
       trials: number;
       paid: number;
@@ -46,11 +48,12 @@ export function buildAcquisitionReport(accounts: AcquisitionAccount[], now = new
   >();
   for (const account of accounts) {
     const labels = acquisitionLabels(account.acquisition);
-    const key = JSON.stringify([labels.source, labels.medium, labels.campaign]);
+    const key = JSON.stringify([labels.source, labels.medium, labels.campaign, labels.content]);
     const group = groups.get(key) || {
       source: labels.source,
       medium: labels.medium,
       campaign: labels.campaign,
+      content: labels.content,
       signups: 0,
       trials: 0,
       paid: 0,

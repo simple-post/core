@@ -69,6 +69,7 @@ COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/docker-entryp
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/prisma ./scheduler/prisma
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/prune-experiments.mjs ./scheduler/scripts/prune-experiments.mjs
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/verify-openai-ads.mjs ./scheduler/scripts/verify-openai-ads.mjs
+COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/relay-openai-ads.mjs ./scheduler/scripts/relay-openai-ads.mjs
 USER nonroot:nonroot
 WORKDIR /app/scheduler
 EXPOSE 3000
@@ -107,6 +108,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/docker-entrypoi
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/prisma ./scheduler/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/prune-experiments.mjs ./scheduler/scripts/prune-experiments.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/verify-openai-ads.mjs ./scheduler/scripts/verify-openai-ads.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/relay-openai-ads.mjs ./scheduler/scripts/relay-openai-ads.mjs
 USER nextjs
 WORKDIR /app/scheduler
 EXPOSE 3000

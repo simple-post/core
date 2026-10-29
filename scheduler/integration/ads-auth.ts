@@ -8,7 +8,7 @@ async function main() {
   process.env.OPENAI_ADS_MEASUREMENT_ENABLED = "true";
   process.env.OPENAI_ADS_PIXEL_ID = "test-only-pixel";
   process.env.OPENAI_CONVERSIONS_API_KEY = "test-only-key";
-  Object.defineProperty(process.env, "NODE_ENV", { value: "production", writable: true });
+  Object.assign(process.env, { NODE_ENV: "production" });
   const { auth } = await import("../lib/auth/auth");
   const { prisma } = await import("../lib/prisma");
   const { syncAdsPermission } = await import("../lib/analytics/ads-permission");

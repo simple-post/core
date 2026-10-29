@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getAppUrl, getOrCreateStripeCustomer, getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
@@ -25,12 +26,14 @@ async function readJsonBody(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  let measurementUserId: string | null = null;
   try {
     if (env.SELF_HOSTED) {
       throw new NotFoundError("Billing is disabled on this self-hosted instance");
     }
 
     const session = await requireBrowserSession(req);
+    measurementUserId = session.user.id;
     const body = checkoutSchema.parse(await readJsonBody(req));
     const plan = getPlanByKey(body.planKey);
     if (!plan) {
@@ -94,8 +97,18 @@ export async function POST(req: NextRequest) {
       throw new BadRequestError("Stripe did not return a Checkout URL");
     }
 
+    await recordFunnelEvent(session.user.id, "checkout_created", {
+      key: checkoutSession.id,
+      channel: "billing",
+      properties: { plan: plan.key },
+    });
     return NextResponse.json({ url: checkoutSession.url, checkoutStarted: true });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "checkout_failed", {
+        channel: "billing",
+        properties: { reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

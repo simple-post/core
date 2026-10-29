@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import { recordFunnelEvent } from "@/lib/analytics/events";
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   getPlanByKey,
@@ -602,6 +603,13 @@ async function assertActiveBillingEvaluation(
 
   if (!status.active || !status.plan) {
     const resolvedContext = await resolveSocialAccountLogContext(userId, context);
+    await recordFunnelEvent(userId, "billing_denied", {
+      key: `${userId}:${context.action ?? "billing_gate"}:${new Date().toISOString().slice(0, 10)}`,
+      properties: {
+        reason: status.trial?.status === "expired" ? "trial_expired" : "no_access",
+        method: context.action ?? "billing_gate",
+      },
+    });
     throw new PaymentRequiredError(
       paymentRequiredMessage(status, "to keep using SimplePost"),
       buildBillingLogContext(userId, email, status, resolvedContext),

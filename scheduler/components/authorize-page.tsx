@@ -9,6 +9,7 @@ import { Check } from "lucide-react";
 
 import { LoginForm } from "@/components/login-form";
 import { Button } from "@/components/ui/button";
+import { trackBrowserFunnelEvent } from "@/lib/analytics/browser-events";
 import { useLoginSession } from "@/lib/auth/use-login-session";
 
 interface AuthorizePageConfig {
@@ -84,6 +85,7 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   };
 
   const handleCancel = () => {
+    if (config.loginCallbackPath === "/oauth/authorize") trackBrowserFunnelEvent("assistant_authorization_cancelled");
     window.location.href = config.buildCancelUrl(searchParams);
   };
 

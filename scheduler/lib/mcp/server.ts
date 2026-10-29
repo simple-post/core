@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/server";
 
+import { measureMcpTool } from "@/lib/analytics/tool-measurement";
 import { createLogger, serializeError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
@@ -580,27 +581,29 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Checking your connected accounts", "Found your accounts"),
     },
     async () => {
-      try {
-        requireScope(context, "accounts:read");
-        const result = await listAccounts(context.userId);
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text:
-                result.summary.total === 0
-                  ? formatAccounts(result.accounts, result.connectAccountsUrl)
-                  : `You have ${plural(result.summary.total, "connected account")} across ${plural(
-                      result.summary.platforms.length,
-                      "platform",
-                    )}.\n\n${formatAccounts(result.accounts)}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "list_accounts", async () => {
+        try {
+          requireScope(context, "accounts:read");
+          const result = await listAccounts(context.userId);
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text:
+                  result.summary.total === 0
+                    ? formatAccounts(result.accounts, result.connectAccountsUrl)
+                    : `You have ${plural(result.summary.total, "connected account")} across ${plural(
+                        result.summary.platforms.length,
+                        "platform",
+                      )}.\n\n${formatAccounts(result.accounts)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -617,16 +620,18 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Checking TikTok posting settings", "TikTok settings loaded"),
     },
     async (input) => {
-      try {
-        requireScope(context, "accounts:read");
-        const result = await getTikTokCreatorInfo(context.userId, input);
-        return {
-          structuredContent: result,
-          content: [{ type: "text", text: JSON.stringify(result) }],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "get_tiktok_creator_info", async () => {
+        try {
+          requireScope(context, "accounts:read");
+          const result = await getTikTokCreatorInfo(context.userId, input);
+          return {
+            structuredContent: result,
+            content: [{ type: "text", text: JSON.stringify(result) }],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -645,29 +650,31 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       },
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:write");
-        const result = await uploadMedia(context.userId, input);
-        // Registered for the same 24-hour collection as an imported source, so
-        // an upload that never reaches a post does not linger in storage. A
-        // post that references it is spared by the collector.
-        await prisma.$transaction((tx) => queueStorageDeletion(tx, context.userId, result.url));
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: [
-                `Uploaded the ${result.type} ${result.filename} (${formatBytes(result.size)}, ${result.mimeType}).`,
-                `URL: ${result.url}`,
-                `Media item to attach to a post: {"type":"${result.type}","url":"${result.url}"}`,
-              ].join("\n"),
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "upload_media", async () => {
+        try {
+          requireScope(context, "posts:write");
+          const result = await uploadMedia(context.userId, input);
+          // Registered for the same 24-hour collection as an imported source, so
+          // an upload that never reaches a post does not linger in storage. A
+          // post that references it is spared by the collector.
+          await prisma.$transaction((tx) => queueStorageDeletion(tx, context.userId, result.url));
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: [
+                  `Uploaded the ${result.type} ${result.filename} (${formatBytes(result.size)}, ${result.mimeType}).`,
+                  `URL: ${result.url}`,
+                  `Media item to attach to a post: {"type":"${result.type}","url":"${result.url}"}`,
+                ].join("\n"),
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -683,35 +690,37 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Checking your post", "Check complete"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:validate");
-        if (input.imageFit) requireScope(context, "posts:write");
-        const result = await validatePost(context.userId, input);
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: result.isValid
-                ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
-                    input.message,
-                    input.thread,
-                    input.accountOverrides,
-                  )}\n\n${formatValidationDetails(result)}`
-                : `The post has ${plural(
-                    result.summary.errorCount,
-                    "problem",
-                  )} that would block publishing.\n\n${formatPostContent(
-                    input.message,
-                    input.thread,
-                    input.accountOverrides,
-                  )}\n\n${formatValidationDetails(result)}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "validate_post", async () => {
+        try {
+          requireScope(context, "posts:validate");
+          if (input.imageFit) requireScope(context, "posts:write");
+          const result = await validatePost(context.userId, input);
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: result.isValid
+                  ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
+                      input.message,
+                      input.thread,
+                      input.accountOverrides,
+                    )}\n\n${formatValidationDetails(result)}`
+                  : `The post has ${plural(
+                      result.summary.errorCount,
+                      "problem",
+                    )} that would block publishing.\n\n${formatPostContent(
+                      input.message,
+                      input.thread,
+                      input.accountOverrides,
+                    )}\n\n${formatValidationDetails(result)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -727,35 +736,37 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Preparing a preview", "Preview ready"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:validate");
-        if (input.imageFit) requireScope(context, "posts:write");
-        const result = await previewPost(context.userId, input);
-        const summaryText = result.validation.isValid
-          ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
-              result.summary.mediaCount > 0 ? ` with ${plural(result.summary.mediaCount, "media item")}` : ""
-            }${
-              result.summary.threadSegmentCount > 0
-                ? ` and ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
-                : ""
-            }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-          : `The preview found ${plural(
-              result.summary.errorCount,
-              "problem",
-            )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
+      return measureMcpTool(context, "preview_post", async () => {
+        try {
+          requireScope(context, "posts:validate");
+          if (input.imageFit) requireScope(context, "posts:write");
+          const result = await previewPost(context.userId, input);
+          const summaryText = result.validation.isValid
+            ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
+                result.summary.mediaCount > 0 ? ` with ${plural(result.summary.mediaCount, "media item")}` : ""
+              }${
+                result.summary.threadSegmentCount > 0
+                  ? ` and ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+                  : ""
+              }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+            : `The preview found ${plural(
+                result.summary.errorCount,
+                "problem",
+              )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
 
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: `${summaryText}\n\n${formatPreviewDetails(result)}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: `${summaryText}\n\n${formatPreviewDetails(result)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -771,25 +782,27 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: widgetToolMeta("Building platform previews", "Platform previews ready", POST_PREVIEW_WIDGET_URI),
     },
     async (input) => {
-      try {
-        requireScope(context, "accounts:read");
-        requireScope(context, input.postId ? "posts:read" : "posts:validate");
-        const result = await showPostPreview(context.userId, input);
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: `Showing a visual preview across ${plural(
-                result.summary.platformCount,
-                "platform",
-              )}.\n\n${formatPostContent(result.message, result.previews[0]?.data.thread)}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "show_post_preview", async () => {
+        try {
+          requireScope(context, "accounts:read");
+          requireScope(context, input.postId ? "posts:read" : "posts:validate");
+          const result = await showPostPreview(context.userId, input);
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: `Showing a visual preview across ${plural(
+                  result.summary.platformCount,
+                  "platform",
+                )}.\n\n${formatPostContent(result.message, result.previews[0]?.data.thread)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -805,59 +818,62 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Working on your post", "Finished working on your post"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:write");
-        const result = await createPost(context.userId, input);
-        const threadSuffix =
-          result.summary.threadSegmentCount > 0
-            ? ` with ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
-            : "";
-        // A draft is always saved, so the blockers have to be said out loud
-        // here — over MCP this text is the only thing the user ever sees.
-        const blockerCount = result.validation && !result.validation.isValid ? result.validation.summary.errorCount : 0;
-        const summaryText =
-          result.post.status === "draft"
-            ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}${
-                blockerCount > 0
-                  ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
-                  : ""
-              }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-            : result.post.status === "scheduled"
-              ? result.postingMode === "now"
-                ? `Queued for TikTok's request limit. Another attempt is scheduled automatically for ${formatDateTime(result.post.scheduledFor ?? "")}. You do not need to resubmit the post.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-                : `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
-                    result.summary.scheduledCount,
-                    "account",
-                  )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-              : result.summary.overallSuccess
-                ? `Published the post to ${plural(
-                    result.summary.successCount,
-                    "account",
-                  )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-                : `Published to ${result.summary.successCount} of ${plural(
-                    result.summary.accountCount,
-                    "account",
-                  )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
-        const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
+      return measureMcpTool(context, "create_post", async () => {
+        try {
+          requireScope(context, "posts:write");
+          const result = await createPost(context.userId, input);
+          const threadSuffix =
+            result.summary.threadSegmentCount > 0
+              ? ` with ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+              : "";
+          // A draft is always saved, so the blockers have to be said out loud
+          // here — over MCP this text is the only thing the user ever sees.
+          const blockerCount =
+            result.validation && !result.validation.isValid ? result.validation.summary.errorCount : 0;
+          const summaryText =
+            result.post.status === "draft"
+              ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}${
+                  blockerCount > 0
+                    ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
+                    : ""
+                }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+              : result.post.status === "scheduled"
+                ? result.postingMode === "now"
+                  ? `Queued for TikTok's request limit. Another attempt is scheduled automatically for ${formatDateTime(result.post.scheduledFor ?? "")}. You do not need to resubmit the post.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+                  : `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
+                      result.summary.scheduledCount,
+                      "account",
+                    )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+                : result.summary.overallSuccess
+                  ? `Published the post to ${plural(
+                      result.summary.successCount,
+                      "account",
+                    )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+                  : `Published to ${result.summary.successCount} of ${plural(
+                      result.summary.accountCount,
+                      "account",
+                    )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
+          const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
 
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: `${summaryText}${warningText ? `\n\n${warningText}` : ""}\n\n${formatCreatedPostDetails(result)}${
-                result.validation &&
-                (result.validation.summary.errorCount > 0 || result.validation.summary.warningCount > 0)
-                  ? // imageFitHelp is appended below in its richer per-issue form.
-                    "\n\n" + formatValidationDetails({ ...result.validation, imageFitHelp: undefined })
-                  : ""
-              }${result.imageFitHelp ? "\n\n" + result.imageFitHelp : ""}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: `${summaryText}${warningText ? `\n\n${warningText}` : ""}\n\n${formatCreatedPostDetails(result)}${
+                  result.validation &&
+                  (result.validation.summary.errorCount > 0 || result.validation.summary.warningCount > 0)
+                    ? // imageFitHelp is appended below in its richer per-issue form.
+                      "\n\n" + formatValidationDetails({ ...result.validation, imageFitHelp: undefined })
+                    : ""
+                }${result.imageFitHelp ? "\n\n" + result.imageFitHelp : ""}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -873,41 +889,43 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Looking up your posts", "Found your posts"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:read");
-        const result = await inspectPosts(context.userId, input);
-        const statusBreakdown = [
-          result.summary.draftCount > 0 ? plural(result.summary.draftCount, "draft") : "",
-          result.summary.scheduledCount > 0 ? `${result.summary.scheduledCount} scheduled` : "",
-          result.summary.postedCount > 0 ? `${result.summary.postedCount} posted` : "",
-          result.summary.failedCount > 0 ? `${result.summary.failedCount} failed` : "",
-        ]
-          .filter(Boolean)
-          .join(", ");
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text:
-                result.status === "single"
-                  ? result.posts.length > 0
-                    ? `Found the post (${result.posts[0].status}).\n\n${formatManagedPostDetails(result.posts[0])}`
-                    : "Couldn't find that post — it may have been deleted."
-                  : withConnectGuidance(
-                      result.summary.totalReturned === 0
-                        ? formatManagedPosts(result.posts)
-                        : `Found ${plural(result.summary.totalReturned, "post")}${
-                            statusBreakdown ? ` (${statusBreakdown})` : ""
-                          }.\n\n${formatManagedPosts(result.posts)}`,
-                      result.connectAccountsUrl,
-                    ),
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "inspect_posts", async () => {
+        try {
+          requireScope(context, "posts:read");
+          const result = await inspectPosts(context.userId, input);
+          const statusBreakdown = [
+            result.summary.draftCount > 0 ? plural(result.summary.draftCount, "draft") : "",
+            result.summary.scheduledCount > 0 ? `${result.summary.scheduledCount} scheduled` : "",
+            result.summary.postedCount > 0 ? `${result.summary.postedCount} posted` : "",
+            result.summary.failedCount > 0 ? `${result.summary.failedCount} failed` : "",
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text:
+                  result.status === "single"
+                    ? result.posts.length > 0
+                      ? `Found the post (${result.posts[0].status}).\n\n${formatManagedPostDetails(result.posts[0])}`
+                      : "Couldn't find that post — it may have been deleted."
+                    : withConnectGuidance(
+                        result.summary.totalReturned === 0
+                          ? formatManagedPosts(result.posts)
+                          : `Found ${plural(result.summary.totalReturned, "post")}${
+                              statusBreakdown ? ` (${statusBreakdown})` : ""
+                            }.\n\n${formatManagedPosts(result.posts)}`,
+                        result.connectAccountsUrl,
+                      ),
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -923,24 +941,26 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Reading your schedule", "Schedule ready"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:read");
-        const result = await getSchedule(context.userId, input);
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: withConnectGuidance(
-                `Loaded ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
-                result.connectAccountsUrl,
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "get_schedule", async () => {
+        try {
+          requireScope(context, "posts:read");
+          const result = await getSchedule(context.userId, input);
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: withConnectGuidance(
+                  `Loaded ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+                  result.connectAccountsUrl,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -956,24 +976,26 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: widgetToolMeta("Opening your schedule", "Schedule ready", SCHEDULE_WIDGET_URI),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:read");
-        const result = await getSchedule(context.userId, input);
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: withConnectGuidance(
-                `Showing ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
-                result.connectAccountsUrl,
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "show_schedule", async () => {
+        try {
+          requireScope(context, "posts:read");
+          const result = await getSchedule(context.userId, input);
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: withConnectGuidance(
+                  `Showing ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+                  result.connectAccountsUrl,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -989,35 +1011,37 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Updating your post", "Post updated"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:write");
-        const result = await updateScheduledPost(context.userId, input);
-        const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: result.validation
-                ? result.post.status === "draft"
-                  ? `Updated the draft${
-                      result.validation.isValid
-                        ? ""
-                        : ` — it can't be published as it stands (${plural(
-                            result.validation.summary.errorCount,
-                            "problem",
-                          )} to fix first)`
-                    }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
-                  : `Updated the post — it's now scheduled for ${formatDateTime(
-                      result.post.scheduledFor ?? "",
-                    )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
-                : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "update_scheduled_post", async () => {
+        try {
+          requireScope(context, "posts:write");
+          const result = await updateScheduledPost(context.userId, input);
+          const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: result.validation
+                  ? result.post.status === "draft"
+                    ? `Updated the draft${
+                        result.validation.isValid
+                          ? ""
+                          : ` — it can't be published as it stands (${plural(
+                              result.validation.summary.errorCount,
+                              "problem",
+                            )} to fix first)`
+                      }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
+                    : `Updated the post — it's now scheduled for ${formatDateTime(
+                        result.post.scheduledFor ?? "",
+                      )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
+                  : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 
@@ -1033,25 +1057,27 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       _meta: toolMeta("Deleting your post", "Post deleted"),
     },
     async (input) => {
-      try {
-        requireScope(context, "posts:write");
-        const result = await discardScheduledPost(context.userId, input);
-        return {
-          structuredContent: result,
-          content: [
-            {
-              type: "text",
-              text: `Deleted the ${
-                result.post.status === "draft" ? "draft" : "scheduled post"
-              } — it will not be published.\n\n${formatManagedPostDetails(
-                result.post,
-              )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return errorResult(error, context);
-      }
+      return measureMcpTool(context, "discard_scheduled_post", async () => {
+        try {
+          requireScope(context, "posts:write");
+          const result = await discardScheduledPost(context.userId, input);
+          return {
+            structuredContent: result,
+            content: [
+              {
+                type: "text",
+                text: `Deleted the ${
+                  result.post.status === "draft" ? "draft" : "scheduled post"
+                } — it will not be published.\n\n${formatManagedPostDetails(
+                  result.post,
+                )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`,
+              },
+            ],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      });
     },
   );
 }

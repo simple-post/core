@@ -7,6 +7,7 @@ import { buildLandingReport, rate, type LandingRow } from "@/lib/analytics/landi
 import { openAiAdsConfigured, OPENAI_ADS_KINDS } from "@/lib/analytics/openai-ads";
 import { acquisitionLabels, buildAcquisitionReport, cohortRange } from "@/lib/analytics/report";
 import { auth } from "@/lib/auth/auth";
+import { DEMO_LOGIN_EMAIL } from "@/lib/auth/test-users";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
@@ -40,7 +41,13 @@ export default async function AcquisitionReport({
     );
   }
   const accounts = await prisma.user.findMany({
-    where: { createdAt: { gte: range.start, lt: range.end }, acquisition: { not: null } },
+    where: {
+      createdAt: { gte: range.start, lt: range.end },
+      acquisition: { not: null },
+      isAdmin: false,
+      analyticsExcluded: false,
+      email: { not: DEMO_LOGIN_EMAIL },
+    },
     select: {
       id: true,
       name: true,

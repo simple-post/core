@@ -1,4 +1,4 @@
-type EventResult = { status?: number; error?: unknown } | undefined;
+type EventResult = { status?: number; error?: unknown; dropped?: boolean } | undefined;
 
 /** Hosted production only. Never send self-hosted, local or preview traffic. */
 export function analyticsEnabled(): boolean {
@@ -67,6 +67,7 @@ export function trackEvent(
       credentials: "omit",
       referrerPolicy: "no-referrer",
       keepalive: true,
+      signal: AbortSignal.timeout(8000),
       body: JSON.stringify({
         name,
         domain: "simplepost.social",
@@ -76,7 +77,9 @@ export function trackEvent(
         interactive: !["App Opened", "Authenticated Visit"].includes(name),
       }),
     })
-      .then((response) => callback?.({ status: response.status }))
+      .then((response) =>
+        callback?.({ status: response.status, dropped: response.headers?.get?.("x-plausible-dropped") === "1" }),
+      )
       .catch((error: unknown) => callback?.({ error }));
   } catch {
     // Analytics must never prevent authentication, checkout or app rendering.
@@ -100,7 +103,7 @@ export function trackOnce(key: string, name: string, props?: Record<string, stri
   pending.add(key);
   trackEvent(name, props, (result) => {
     pending.delete(key);
-    if (!result?.status || result.status < 200 || result.status >= 300) return;
+    if (!result?.status || result.status < 200 || result.status >= 300 || result.dropped) return;
     delivered.add(key);
     try {
       storage?.setItem(storageKey, "1");

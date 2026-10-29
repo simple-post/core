@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
 import { authLogger } from "@/lib/logger";
@@ -8,9 +9,14 @@ import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie }
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
+  let measurementUserId: string | null = null;
+  let measurementPlatform = "unknown";
   try {
     const { platform } = await params;
+    measurementPlatform = platform;
     const session = await requireAuth(request, { action: "connect_social_account", platform });
+    measurementUserId = session.user.id;
+    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform: platform } });
 
     if (!isSocialPlatformEnabled(platform)) {
       throw new BadRequestError("Social platform is not enabled in this environment");
@@ -68,6 +74,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     return response;
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "social_connection_failed", {
+        properties: { platform: measurementPlatform, reason: measurementFailure(error) },
+      });
     return handleApiError(error, request);
   }
 }

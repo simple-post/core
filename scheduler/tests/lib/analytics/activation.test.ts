@@ -6,6 +6,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 import {
   claimMilestoneEvents,
+  acknowledgeMilestones,
   landingProps,
   normalizeAiClient,
   normalizePlatform,
@@ -73,16 +74,19 @@ describe("activation milestones", () => {
       {
         kind: "ai_connected",
         name: "AI Integration Connected",
+        occurredAt: at.toISOString(),
         props: { landing_page: "/platforms/linkedin", landing_category: "platform", client: "claude" },
       },
       {
         kind: "social_connected",
         name: "Social Account Connected",
+        occurredAt: at.toISOString(),
         props: { landing_page: "/platforms/linkedin", landing_category: "platform", platform: "linkedin" },
       },
       {
         kind: "post_created",
         name: "First Post Created",
+        occurredAt: at.toISOString(),
         props: { landing_page: "/platforms/linkedin", landing_category: "platform" },
       },
     ]);
@@ -93,25 +97,72 @@ describe("activation milestones", () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ acquisition });
     (prisma.activationMilestone.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
     const events = await claimMilestoneEvents("user_1");
-    expect(events.map((event) => event.name)).toEqual(["Signup Completed"]);
-    expect(prisma.activationMilestone.updateMany).toHaveBeenCalledWith({
-      where: { userId: "user_1", reportedKinds: { equals: [] } },
-      data: { reportedKinds: ["signup_completed"] },
-    });
+    expect(events.events.map((event) => event.name)).toEqual(["Signup Completed"]);
+    expect(events.claimToken).toEqual(expect.any(String));
+    expect(events.events[0].eventId).toMatch(/^[a-f0-9]{32}$/);
+    expect(prisma.activationMilestone.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ relayLeaseToken: events.claimToken, relayAttempts: { increment: 1 } }),
+      }),
+    );
+    expect((prisma.activationMilestone.updateMany as jest.Mock).mock.calls[0][0].data.reportedKinds).toBeUndefined();
     (prisma.activationMilestone.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
-    expect(await claimMilestoneEvents("user_1")).toEqual([]);
+    const observation1 = await claimMilestoneEvents("user_1");
+    expect(observation1.events).toEqual([]);
   });
 
   it("does nothing for untracked accounts or when everything is reported", async () => {
     (prisma.activationMilestone.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ acquisition: null });
-    expect(await claimMilestoneEvents("legacy")).toEqual([]);
+    const observation2 = await claimMilestoneEvents("legacy");
+    expect(observation2.events).toEqual([]);
     (prisma.activationMilestone.findUnique as jest.Mock).mockResolvedValue({
       ...empty,
       signupCompletedAt: at,
       reportedKinds: ["signup_completed"],
     });
-    expect(await claimMilestoneEvents("done")).toEqual([]);
+    const observation3 = await claimMilestoneEvents("done");
+    expect(observation3.events).toEqual([]);
     expect(prisma.activationMilestone.updateMany).not.toHaveBeenCalled();
   });
+});
+
+it("does not steal active leases and permits recovery after expiry", async () => {
+  (prisma.user.findUnique as jest.Mock).mockResolvedValue({ acquisition });
+  (prisma.activationMilestone.findUnique as jest.Mock).mockResolvedValue({
+    ...empty,
+    signupCompletedAt: at,
+    relayLeaseExpiresAt: new Date("2026-10-29T12:02:00Z"),
+  });
+  const observation4 = await claimMilestoneEvents("u", new Date("2026-10-29T12:01:00Z"));
+  expect(observation4.events).toEqual([]);
+  (prisma.activationMilestone.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+  const observation5 = await claimMilestoneEvents("u", new Date("2026-10-29T12:03:00Z"));
+  expect(observation5.events).toHaveLength(1);
+});
+it("acknowledges only reached kinds for the same user lease and preserves failed deliveries", async () => {
+  (prisma.activationMilestone.findUnique as jest.Mock).mockResolvedValue({
+    ...empty,
+    signupCompletedAt: at,
+    aiConnectedAt: at,
+    relayLeaseToken: "lease",
+  });
+  await acknowledgeMilestones("u", "wrong", ["signup_completed"]);
+  expect(prisma.activationMilestone.updateMany).not.toHaveBeenCalled();
+  await acknowledgeMilestones("u", "lease", ["signup_completed", "post_published", "not-a-kind"]);
+  expect(prisma.activationMilestone.updateMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        reportedKinds: ["signup_completed"],
+        relayLastError: "delivery_incomplete",
+        relayLeaseToken: null,
+      }),
+    }),
+  );
+});
+it("never relays internal accounts", async () => {
+  (prisma.activationMilestone.findUnique as jest.Mock).mockResolvedValue({ ...empty, signupCompletedAt: at });
+  (prisma.user.findUnique as jest.Mock).mockResolvedValue({ acquisition, isAdmin: true });
+  const observation6 = await claimMilestoneEvents("internal");
+  expect(observation6.events).toEqual([]);
 });

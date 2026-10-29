@@ -45,21 +45,52 @@ export async function recordFirstPayment(
     payment.customerId !== subscription.stripeCustomerId
   )
     return;
-  const user = await prisma.user.findUnique({ where: { id: subscription.userId }, select: { acquisition: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: subscription.userId },
+    select: { acquisition: true, lastNonDirectAcquisition: true },
+  });
   // Legacy accounts have unknown payment history. A renewal must not be labelled their first payment.
   if (!user?.acquisition) return;
+  // A delayed webhook must not attribute an earlier payment to a later visit.
+  const candidates: unknown[] = [user.lastNonDirectAcquisition];
+  try {
+    candidates.push(JSON.parse(user.acquisition).lastNonDirect);
+  } catch {
+    /* Legacy metadata. */
+  }
+  let lastNonDirect: unknown = null;
+  for (let candidate of candidates) {
+    try {
+      if (typeof candidate === "string") candidate = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    if (!candidate || typeof candidate !== "object" || !("firstSeenAt" in candidate)) continue;
+    const at = Date.parse(String(candidate.firstSeenAt));
+    if (Number.isFinite(at) && at <= payment.paidAt.getTime()) {
+      lastNonDirect = candidate;
+      break;
+    }
+  }
+  const attributionSnapshot = JSON.stringify({
+    first: user.acquisition,
+    lastNonDirect,
+    capturedAt: payment.paidAt.toISOString(),
+    history: "latest_known_touch_at_processing; older overwritten touches may be unavailable",
+  });
   // Native UPSERT is atomic even when two different webhook events race to insert.
   // An older invoice delivered later can only move the first-payment date earlier.
   await prisma.$executeRaw`
-    INSERT INTO "first_payment" ("userId", "stripeInvoiceId", "stripeSubscriptionId", "paidAt", "amountPaid", "currency", "planKey", "createdAt")
-    VALUES (${subscription.userId}, ${payment.stripeInvoiceId}, ${payment.stripeSubscriptionId}, ${payment.paidAt.toISOString()}::timestamp, ${payment.amountPaid}, ${payment.currency}, ${payment.planKey}, CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+    INSERT INTO "first_payment" ("userId", "stripeInvoiceId", "stripeSubscriptionId", "paidAt", "amountPaid", "currency", "planKey", "attributionSnapshot", "createdAt")
+    VALUES (${subscription.userId}, ${payment.stripeInvoiceId}, ${payment.stripeSubscriptionId}, ${payment.paidAt.toISOString()}::timestamp, ${payment.amountPaid}, ${payment.currency}, ${payment.planKey}, ${attributionSnapshot}, CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
     ON CONFLICT ("userId") DO UPDATE SET
       "stripeInvoiceId" = EXCLUDED."stripeInvoiceId",
       "stripeSubscriptionId" = EXCLUDED."stripeSubscriptionId",
       "paidAt" = EXCLUDED."paidAt",
       "amountPaid" = EXCLUDED."amountPaid",
       "currency" = EXCLUDED."currency",
-      "planKey" = EXCLUDED."planKey"
+      "planKey" = EXCLUDED."planKey",
+      "attributionSnapshot" = EXCLUDED."attributionSnapshot"
     WHERE EXCLUDED."paidAt" < "first_payment"."paidAt"
   `;
 }

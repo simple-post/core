@@ -1,3 +1,5 @@
+import { normalizeSource } from "./first-touch";
+
 export interface AcquisitionAccount {
   id: string;
   name: string;
@@ -9,7 +11,7 @@ export interface AcquisitionAccount {
   subscription: { status: string; planKey: string | null } | null;
 }
 
-export function acquisitionLabels(value: unknown) {
+export function acquisitionLabels(value: unknown, model: "first" | "last_non_direct" = "first", latest?: unknown) {
   // Better Auth's Prisma adapter stores JSON additional fields as serialized text.
   if (typeof value === "string") {
     try {
@@ -18,9 +20,21 @@ export function acquisitionLabels(value: unknown) {
       value = null;
     }
   }
-  const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const original = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  if (typeof latest === "string") {
+    try {
+      latest = JSON.parse(latest);
+    } catch {
+      latest = null;
+    }
+  }
+  const candidate = latest || original.lastNonDirect;
+  const data =
+    model === "last_non_direct" && candidate && typeof candidate === "object" && !Array.isArray(candidate)
+      ? (candidate as Record<string, unknown>)
+      : original;
   return {
-    source: typeof data.source === "string" ? data.source : "unknown",
+    source: typeof data.source === "string" ? normalizeSource(data.source) : "unknown",
     medium: typeof data.medium === "string" ? data.medium : "—",
     campaign: typeof data.campaign === "string" ? data.campaign : "—",
     content: typeof data.content === "string" ? data.content : "—",

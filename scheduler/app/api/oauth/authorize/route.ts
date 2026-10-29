@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
@@ -18,13 +19,19 @@ import { handleApiError } from "@/lib/utils/errors";
  * Called by the authorize page when the user approves access.
  */
 export async function POST(req: NextRequest) {
+  let measurementUserId: string | null = null;
   try {
     const session = await requireBrowserSession(req);
+    measurementUserId = session.user.id;
+    await recordFunnelEvent(measurementUserId, "assistant_authorization_started");
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
 
     if (!client_id || !redirect_uri || !state || !code_challenge) {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
       return NextResponse.json(
         { error: "invalid_request", error_description: "Missing required parameters" },
         { status: 400 },
@@ -32,6 +39,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (code_challenge_method && code_challenge_method !== "S256") {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
       return NextResponse.json(
         { error: "invalid_request", error_description: "Only S256 code_challenge_method is supported" },
         { status: 400 },
@@ -39,6 +49,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (nonce != null && (typeof nonce !== "string" || nonce.length > 512)) {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
       return NextResponse.json(
         { error: "invalid_request", error_description: "nonce must be a string of at most 512 characters" },
         { status: 400 },
@@ -48,6 +61,9 @@ export async function POST(req: NextRequest) {
     // Validate client and redirect URI
     const client = await validateClient(client_id, redirect_uri);
     if (!client) {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
       return NextResponse.json(
         { error: "invalid_client", error_description: "Unknown client or invalid redirect URI" },
         { status: 400 },
@@ -69,6 +85,9 @@ export async function POST(req: NextRequest) {
 
     const scopeResult = validateMcpScope(typeof scope === "string" ? scope : client.scope);
     if (!scopeResult.ok) {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
       return NextResponse.json(
         { error: "invalid_scope", error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}` },
         { status: 400 },
@@ -116,6 +135,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ redirectUrl: redirect.toString() });
   } catch (error) {
+    await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+      properties: { reason: measurementFailure(error) },
+    });
     return handleApiError(error, req);
   }
 }

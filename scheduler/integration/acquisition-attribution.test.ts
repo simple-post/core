@@ -101,3 +101,33 @@ it("defaults to non-admin and honors database grants and revocations immediately
   expect(await hasAnalyticsAdminAccess(userId)).toBe(false);
   expect(await hasAnalyticsAdminAccess("missing-admin-user")).toBe(false);
 });
+
+it("freezes payment attribution and rejects a touch newer than a delayed payment", async () => {
+  const signupTouch = createFirstTouch("https://simplepost.social/?utm_source=chatgpt", "", new Date("2026-09-01"));
+  const laterTouch = createFirstTouch("https://simplepost.social/?utm_source=google", "", new Date("2026-09-20"));
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      acquisition: JSON.stringify({ ...signupTouch, lastNonDirect: signupTouch }),
+      lastNonDirectAcquisition: JSON.stringify(laterTouch),
+    },
+  });
+  await recordFirstPayment(invoice("in_delayed", "2026-09-15"), subscription);
+  const first = await prisma.firstPayment.findUniqueOrThrow({ where: { userId } });
+  expect(JSON.parse(first.attributionSnapshot!).lastNonDirect.source).toBe("chatgpt");
+  await prisma.user.update({
+    where: { id: userId },
+    data: { lastNonDirectAcquisition: JSON.stringify({ ...laterTouch, source: "x" }) },
+  });
+  await recordFirstPayment(invoice("in_delayed", "2026-09-15"), subscription);
+  const observation1 = await prisma.firstPayment.findUniqueOrThrow({ where: { userId } });
+  expect(observation1.attributionSnapshot).toBe(first.attributionSnapshot);
+});
+
+it("keeps ledger payment details consistent when an older invoice arrives later", async () => {
+  await recordFirstPayment(invoice("in_latest", "2026-09-20", { amount_paid: 1900 }), subscription);
+  await recordFirstPayment(invoice("in_earliest", "2026-09-10", { amount_paid: 900 }), subscription);
+  const event = await prisma.funnelEvent.findFirstOrThrow({ where: { userId, kind: "first_payment" } });
+  expect(event.occurredAt).toEqual(new Date("2026-09-10"));
+  expect(event.properties).toMatchObject({ amountPaid: 900, currency: "usd" });
+});

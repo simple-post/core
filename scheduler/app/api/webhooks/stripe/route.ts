@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 
+import { recordBillingWebhook } from "@/lib/analytics/billing-events";
 import { recordFirstPayment } from "@/lib/analytics/first-payment";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
 import {
@@ -109,8 +110,21 @@ export async function POST(req: NextRequest) {
     }
 
     switch (event.type) {
+      case "checkout.session.expired": {
+        const checkout = event.data.object as Stripe.Checkout.Session;
+        const userId = checkout.metadata?.userId || checkout.client_reference_id;
+        if (userId && typeof checkout.customer === "string") {
+          const owner = await prisma.user.findFirst({
+            where: { id: userId, stripeCustomerId: checkout.customer },
+            select: { id: true },
+          });
+          await recordBillingWebhook(event, owner?.id);
+        }
+        break;
+      }
       case "checkout.session.completed": {
-        await syncCheckoutSession(event.data.object as Stripe.Checkout.Session);
+        const synced = await syncCheckoutSession(event.data.object as Stripe.Checkout.Session);
+        await recordBillingWebhook(event, synced?.userId, synced?.status);
         break;
       }
       case "customer.subscription.created":
@@ -120,7 +134,8 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.pending_update_expired":
       case "customer.subscription.resumed":
       case "customer.subscription.updated": {
-        await syncStripeSubscription(event.data.object as Stripe.Subscription);
+        const synced = await syncStripeSubscription(event.data.object as Stripe.Subscription);
+        await recordBillingWebhook(event, synced?.userId, synced?.status);
         break;
       }
       case "invoice.paid":
@@ -133,6 +148,7 @@ export async function POST(req: NextRequest) {
         if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
           await recordFirstPayment(invoice, subscription);
         }
+        await recordBillingWebhook(event, subscription?.userId, subscription?.status);
         break;
       }
     }

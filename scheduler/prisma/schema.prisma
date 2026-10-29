@@ -34,7 +34,10 @@ model User {
   image                        String?
   stripeCustomerId             String?                     @unique
   isAdmin                      Boolean                     @default(false)
+  analyticsExcluded            Boolean                     @default(false)
+  funnelEvents                 FunnelEvent[]
   acquisition                  String?
+  lastNonDirectAcquisition     String?
   experimentAttribution        String?
   firstPayment                 FirstPayment?
   createdAt                    DateTime                    @default(now())
@@ -608,6 +611,7 @@ model FirstPayment {
   stripeInvoiceId      String   @unique
   stripeSubscriptionId String
   paidAt               DateTime
+  attributionSnapshot  String?
   amountPaid           Int
   currency             String
   planKey              String?
@@ -633,7 +637,16 @@ model ActivationMilestone {
   firstPostScheduledAt  DateTime?
   firstPostPublishedAt  DateTime?
   subscriptionStartedAt DateTime?
+  firstToolCalledAt     DateTime?
+  firstToolSucceededAt  DateTime?
+  firstPostAttemptedAt  DateTime?
+  secondPublishingDayAt DateTime?
   reportedKinds         String[]  @default([])
+  relayLeaseToken       String?
+  relayLeaseExpiresAt   DateTime?
+  relayAttempts         Int       @default(0)
+  relayLastAttemptAt    DateTime?
+  relayLastError        String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now())
 
@@ -709,4 +722,22 @@ model OpenAiAdsMeasurement {
 
   @@index([nextAttemptAt])
   @@map("openai_ads_measurement")
+}
+
+// Internal measurement ledger. No post content, credentials, URLs or email values.
+// Anonymous authentication delivery events have no user or cross-visit identifier.
+model FunnelEvent {
+  id         String   @id
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String
+  channel    String
+  occurredAt DateTime @default(now())
+  properties Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, kind, occurredAt])
+  @@index([kind, occurredAt])
+  @@index([occurredAt])
+  @@map("funnel_event")
 }

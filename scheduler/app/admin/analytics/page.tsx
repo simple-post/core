@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { hasAnalyticsAdminAccess } from "@/lib/analytics/admin";
 import { buildLandingReport, rate, type LandingRow } from "@/lib/analytics/landing-report";
+import { openAiAdsConfigured, OPENAI_ADS_KINDS } from "@/lib/analytics/openai-ads";
 import { acquisitionLabels, buildAcquisitionReport, cohortRange } from "@/lib/analytics/report";
 import { auth } from "@/lib/auth/auth";
 import { env } from "@/lib/env";
@@ -49,6 +50,9 @@ export default async function AcquisitionReport({
       freeTrial: { select: { startsAt: true, expiresAt: true } },
       firstPayment: { select: { paidAt: true, planKey: true } },
       subscription: { select: { status: true, planKey: true } },
+      openAiAdsMeasurement: {
+        select: { permissionRevokedAt: true, reportedKinds: true, skippedKinds: true, lastError: true },
+      },
       activationMilestone: {
         select: {
           socialConnectedAt: true,
@@ -92,6 +96,29 @@ export default async function AcquisitionReport({
           Stripe, even if the customer never returns to the app.
         </p>
       </header>
+      <section className="space-y-3 rounded-xl border border-border p-5">
+        <h2 className="text-xl font-semibold">OpenAI ad measurement</h2>
+        <p>Server configuration: {openAiAdsConfigured() ? "enabled" : "incomplete or disabled"}.</p>
+        <p className="text-sm text-muted-foreground">
+          Delivery counts below use this signup cohort. Accepted events are not necessarily attributed ad conversions;
+          Ads Manager matches eligible clicks and views separately. Your source reports below retain each account’s
+          original first touch.
+        </p>
+        <p>
+          Accounts with permission:{" "}
+          {accounts.filter((a) => a.openAiAdsMeasurement && !a.openAiAdsMeasurement.permissionRevokedAt).length}.
+          Accounts with delivery errors: {accounts.filter((a) => a.openAiAdsMeasurement?.lastError).length}.
+        </p>
+        <ul className="text-sm space-y-1">
+          {OPENAI_ADS_KINDS.map((kind) => (
+            <li key={kind}>
+              {kind}: {accounts.filter((a) => a.openAiAdsMeasurement?.reportedKinds.includes(kind)).length} accepted;{" "}
+              {accounts.filter((a) => a.openAiAdsMeasurement?.skippedKinds.includes(kind)).length} skipped (outside
+              permission or delivery window, or invalid).
+            </li>
+          ))}
+        </ul>
+      </section>
       <form className="flex flex-wrap items-end gap-4" method="get">
         <label className="space-y-2">
           Signup from (UTC)
@@ -143,6 +170,7 @@ export default async function AcquisitionReport({
                   "Source",
                   "Medium",
                   "Campaign",
+                  "Ad / content",
                   "Signups",
                   "Trials",
                   "Ever paid",
@@ -159,11 +187,12 @@ export default async function AcquisitionReport({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={JSON.stringify([row.source, row.medium, row.campaign])}>
+                <tr key={JSON.stringify([row.source, row.medium, row.campaign, row.content])}>
                   {[
                     row.source,
                     row.medium,
                     row.campaign,
+                    row.content,
                     row.signups,
                     row.trials,
                     row.paid,
@@ -215,6 +244,7 @@ export default async function AcquisitionReport({
                   "Email",
                   "Original source",
                   "Campaign",
+                  "Ad / content",
                   "Landing page",
                   "First visit",
                   "Signup",
@@ -239,6 +269,7 @@ export default async function AcquisitionReport({
                       account.email,
                       acquisition.source,
                       acquisition.campaign,
+                      acquisition.content,
                       acquisition.landingPage,
                       date(acquisition.firstSeenAt),
                       date(account.createdAt),

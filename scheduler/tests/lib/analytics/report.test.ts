@@ -40,6 +40,24 @@ it("keeps unknown attribution visible", () =>
     source: "unknown",
     matureConversionRate: null,
   }));
+it("separates creative variants and other channels through the confirmed first payment", () => {
+  const payment = { paidAt: new Date("2026-09-20"), planKey: "basic" };
+  const rows = buildAcquisitionReport(
+    [
+      account({
+        acquisition: { source: "chatgpt", medium: "paid", campaign: "launch", content: "post-from-chatgpt" },
+        firstPayment: payment,
+      }),
+      account({ acquisition: { source: "chatgpt", medium: "paid", campaign: "launch", content: "skip-copy-paste" } }),
+      account({ acquisition: { source: "newsletter", medium: "email", campaign: "launch" }, firstPayment: payment }),
+    ],
+    now,
+  );
+  expect(rows).toHaveLength(3);
+  expect(rows.find((row) => row.content === "post-from-chatgpt")).toMatchObject({ paid: 1, source: "chatgpt" });
+  expect(rows.find((row) => row.content === "skip-copy-paste")).toMatchObject({ paid: 0 });
+  expect(rows.find((row) => row.source === "newsletter")).toMatchObject({ paid: 1, medium: "email" });
+});
 it("requires the database admin flag and verified email", () => {
   expect(isAnalyticsAdmin({ isAdmin: false, emailVerified: true })).toBe(false);
   expect(isAnalyticsAdmin({ isAdmin: true, emailVerified: false })).toBe(false);

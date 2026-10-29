@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Privacy <span className="text-primary">policy</span>
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            Last updated: August 27, 2026
+            Last updated: October 29, 2026
           </p>
         </div>
 
@@ -235,6 +235,20 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">8. Cookies and Tracking Technologies</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              With your permission, we send OpenAI trial starts, social account connections, first publications and
+              first paid subscription events to measure our ChatGPT ads. Events include a SHA-256 hashed email, the
+              event time, an available ad click reference and, for payments, the plan, amount and currency. We do not
+              send post text, social account credentials or payment card details. We opt events out of future user-level
+              personalization. The ad privacy control lets you allow, decline or withdraw permission. Withdrawing stops
+              future event delivery; it does not recall events already delivered. Your browser preference is remembered
+              for 180 days and permitted click references for up to 30 days, shared between simplepost.social and this
+              app. Your account permission remains until withdrawn. See{" "}
+              <a className="underline" href="https://openai.com/policies/privacy-policy/">
+                OpenAI’s privacy policy
+              </a>
+              .
+            </p>
             <p className="text-muted-foreground leading-relaxed">
               We use cookies and similar tracking technologies to track activity on our Service and hold certain
               information. Cookies are files with a small amount of data that may include an anonymous unique

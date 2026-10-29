@@ -38,6 +38,7 @@ export interface OpenAiAdsEvent {
   action_source: "web";
   source_url: string;
   opt_out: true;
+  oppref?: string;
   user: { emails_sha256: string[] };
   data: { type: "plan_enrollment" | "custom"; plan_id?: string; amount?: number; currency?: string };
 }
@@ -127,6 +128,12 @@ export function openAiMilestoneEvents(row: MeasurementRow, now = new Date()) {
         action_source: "web",
         source_url: `https://app.simplepost.social${path}`,
         opt_out: true,
+        ...(row.clickReference &&
+        row.clickCapturedAt &&
+        row.clickCapturedAt.getTime() <= timestamp &&
+        timestamp - row.clickCapturedAt.getTime() < 30 * 86_400_000
+          ? { oppref: row.clickReference }
+          : {}),
         user: { emails_sha256: [emailHash] },
         data,
       },

@@ -687,7 +687,7 @@ model ExperimentExposure {
   @@map("experiment_exposure")
 }
 
-// Server-owned permission and delivery state. No automatic grants or public setters.
+// Server-owned permission and delivery state. Explicit browser choices only.
 // Grant before trial start to report that milestone. Re-grants advance the window,
 // preserving reported/skipped kinds; the database rejects a stale re-grant.
 model OpenAiAdsMeasurement {
@@ -695,6 +695,8 @@ model OpenAiAdsMeasurement {
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   permissionGrantedAt DateTime  @db.Timestamptz(3)
   permissionRevokedAt DateTime? @db.Timestamptz(3)
+  clickReference      String?
+  clickCapturedAt     DateTime? @db.Timestamptz(3)
   reportedKinds       String[]  @default([])
   skippedKinds        String[]  @default([])
   nextAttemptAt       DateTime  @default(now()) @db.Timestamptz(3)

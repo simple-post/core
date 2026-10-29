@@ -119,6 +119,7 @@ jobs:
         run: |
           node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/email-otp.ts
           node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/auth-attribution.ts
+          node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/ads-auth.ts
           node --import ../e2e/node_modules/tsx/dist/loader.mjs integration/experiments.ts
 
       - name: Upload coverage reports

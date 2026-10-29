@@ -5,7 +5,6 @@ import { useCallback, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { AdsMeasurementConsent } from "@/components/billing/ads-measurement-consent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { startPlanCheckout } from "@/lib/billing/checkout-client";
@@ -38,21 +37,17 @@ export function PlanSelection({
   embedded = false,
 }: PlanSelectionProps) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
-  const [adsMeasurementConsent, setAdsMeasurementConsent] = useState(false);
 
-  const startCheckout = useCallback(
-    async (planKey: PlanKey) => {
-      setLoadingPlan(planKey);
-      try {
-        await startPlanCheckout(planKey, adsMeasurementConsent);
-      } catch (error) {
-        console.error("Failed to start checkout:", error);
-        toast.error(error instanceof Error ? error.message : "Failed to start checkout");
-        setLoadingPlan(null);
-      }
-    },
-    [adsMeasurementConsent],
-  );
+  const startCheckout = useCallback(async (planKey: PlanKey) => {
+    setLoadingPlan(planKey);
+    try {
+      await startPlanCheckout(planKey);
+    } catch (error) {
+      console.error("Failed to start checkout:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to start checkout");
+      setLoadingPlan(null);
+    }
+  }, []);
 
   return (
     <section className={embedded ? "w-full" : "mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12"}>
@@ -69,11 +64,6 @@ export function PlanSelection({
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
 
-      <AdsMeasurementConsent
-        checked={adsMeasurementConsent}
-        disabled={loadingPlan !== null}
-        onChange={setAdsMeasurementConsent}
-      />
       <div className="grid gap-4 lg:grid-cols-3">
         {BILLING_PLANS.map((plan) => {
           const loading = loadingPlan === plan.key;

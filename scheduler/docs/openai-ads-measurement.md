@@ -1,74 +1,67 @@
-# OpenAI Ads paid-subscription measurement
+# OpenAI Ads paid-subscription reporting draft
 
-This optional, server-only integration reports `subscription_created` when a signed
-Stripe invoice event matches the customer's canonical subscription and the existing
-`first_payment` ledger. The invoice must be live, settled and positive value, with
-an event timestamp less than seven days old. Trials, free invoices, checkout opens,
-renewals, historical accounts without acquisition records and test payments
-do not create acquisition conversions. Existing internal and Plausible analytics
-keep their existing behavior.
+This PR prepares server-side `subscription_created` reporting from confirmed
+Stripe payments. It makes no changes to checkout, plan selection, checkout request
+payloads, or the app privacy page. There is no new checkbox or consent prompt.
 
-## Enable after review
+## Not ready to enable
 
-1. In Creafex Lab's Ads Manager **Conversions**, create a website data source and
-   a standard **Paid Subscription** (`subscription_created`) conversion event.
-   The campaign must select that event from that source. The account had no
-   conversion event settings when inspected on October 28, 2026.
-2. Generate a Conversions API credential for this source in Ads Manager. Store
-   `OPENAI_CONVERSIONS_API_KEY` in the scheduler's server secret manager and set
-   `OPENAI_ADS_PIXEL_ID` to the source's Pixel ID. This is not a model API key.
-   Never use a `NEXT_PUBLIC_` name for the credential or commit the value.
-3. Set `NEXT_PUBLIC_OPENAI_ADS_MEASUREMENT_ENABLED=true` at build and runtime,
-   then rebuild and deploy the scheduler. Delivery additionally requires production,
-   the hosted application origin, both credentials, and `SELF_HOSTED` disabled.
-4. Review the optional checkout checkbox and linked app privacy disclosure. It is
-   unchecked on every new checkout page. No persisted blanket consent is created.
-5. Validate a representative event with the CAPI `validate_only: true` mode in a
-   controlled operator check, then inspect a real, consenting first payment in
-   Ads Manager. Local tests mock delivery and do not send customer data.
-6. Keep the campaign paused until the event appears under the intended source,
-   geographic eligibility is checked, and spend is explicitly authorized.
+Reporting is disabled by default. Removing a checkbox does not grant permission to
+share customer data. The event builder still requires a versioned measurement
+permission and timestamp in signed subscription metadata; this PR does not create
+that metadata anywhere. Normal SimplePost checkouts therefore do not send events,
+even if an operator supplies API credentials and enables the deployment flag.
 
-The existing deployment is not changed by this PR. Disable the flag and rebuild
-to remove the checkbox and stop delivery, including pending webhook retries.
+Before this can be enabled, agree on a separate measurement-permission mechanism
+and implement it with withdrawal handling and appropriate disclosure. Do not set
+permission metadata globally or treat signup, accepting product terms, subscribing,
+or the deployment flag as customer permission to share a purchase and hashed email.
+Keep this PR in draft until that design is resolved and tested end to end.
 
-## Consent, matching and limits
+The required external setup is also pending: the owner must review OpenAI's
+Conversion Terms and create a SimplePost data source and the standard
+`subscription_created` event in Ads Manager. A conversions campaign must select
+that event from that source. The existing Clicks pilot remains a separate campaign.
 
-The customer explicitly opts in to sharing this purchase, its value and their
-hashed billing email. Checkout writes a versioned consent statement and server
-timestamp to its Stripe metadata and subscription metadata. The webhook requires
-that signed metadata and consent predating payment. Missing consent fails closed.
-Consent is per purchase, does not cover renewals, and can be changed before opening
-Stripe or avoided by abandoning checkout. The app privacy page explains privacy
-requests after transmission. No automatic or advanced matching from forms is used.
+## Server configuration
 
-Only the normalized SHA-256 email, fixed billing page URL, stable hashed customer-based
-event ID, event time, plan, amount and currency are sent. Raw email, names, IP,
-user agent, site paths, auth/session tokens, acquisition cookies and content are
-not sent. `opt_out: true` opts out of future user-level personalization.
+- `OPENAI_ADS_MEASUREMENT_ENABLED=true`: explicit server-only deployment switch.
+- `OPENAI_ADS_PIXEL_ID`: Pixel ID identifying the conversion source.
+- `OPENAI_CONVERSIONS_API_KEY`: server-only Conversions API credential, not a model
+  API key. Store it in the secret manager, never in source control or a public env.
 
-This first implementation uses email matching only. It does not capture or forward
-`oppref` or `obref`, install a browser Pixel, or add marketing cookies. Attribution
-can therefore undercount where the billing email cannot be matched or the customer
-does not consent. It does not establish end-to-end measurement readiness. A future
-consent-managed browser integration can improve matching without changing the
-business event. If added, use the same hashed customer-based event ID and Pixel ID to
-deduplicate browser/server events.
+Delivery also requires production, the hosted application origin, and self-hosting
+disabled. These configuration checks do not replace the per-event permission gate.
+No credential provisioning, deployment, migration, or live validation is performed.
+
+## Event selection and data
+
+A signed Stripe invoice webhook synchronizes billing and records the first payment
+before attempting measurement. The invoice must match the canonical customer and
+subscription, be live and settled with positive value, and match the existing
+`first_payment` ledger. Events seven days old or older are excluded. Trials, free
+payments, renewals, test payments and unknown historical payment records are skipped.
+
+When an approved permission source is implemented, eligible events contain the
+payment time, plan, amount in minor units, currency, fixed billing page URL, stable
+hashed customer event ID, and SHA-256 normalized billing email. The hash is still
+customer matching data, not anonymous data. Raw email, names, IP, user agent, social
+credentials and content are not sent. `opt_out: true` opts out of future user-level
+personalization. There is no browser Pixel or `oppref`/`obref` collection, so matching
+may undercount. Internal and Plausible analytics keep their existing behavior.
 
 ## Delivery and retries
 
-Billing synchronization and the first-payment ledger finish before sending to
-OpenAI, so a measurement outage does not remove access already granted. Network
-errors and non-2xx responses fail the webhook after a three-second timeout and
-use its existing Stripe retry mechanism. Both successful invoice event types and
-all retries use the same hashed customer-based CAPI ID. OpenAI deduplicates this key;
-the existing Stripe event claim handles same-event replays. Events older than
-seven days are skipped, so an extended outage can lose measurement.
+Billing access is synchronized before measurement. A three-second timeout or
+non-2xx response fails the webhook and uses Stripe's existing retry mechanism.
+Both successful invoice event types, retries and late first-payment corrections
+share one hashed customer-based CAPI ID for deduplication. An outage longer than
+the seven-day event limit can lose measurement. Use failed-webhook monitoring;
+never log credentials, matching hashes, request payloads or upstream response bodies.
 
-Errors contain only a fixed message or HTTP status. Never log request bodies,
-matching hashes, credentials or upstream response bodies. Use Stripe failed-webhook
-monitoring to detect delivery failures; resolve invalid source/key configuration
-before retrying. No historical backfill or deployment/migration is performed.
+After the permission mechanism and source are configured, validate a representative
+payload using CAPI `validate_only: true`, then verify an eligible real payment under
+the intended source before activating any conversion campaign.
 
 Sources:
 

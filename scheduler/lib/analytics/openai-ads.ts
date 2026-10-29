@@ -13,17 +13,12 @@ const MAX_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** Opt-in deployment: never send development, preview or self-hosted traffic. */
 export function openAiAdsConfigured(): boolean {
   return (
-    process.env.NEXT_PUBLIC_OPENAI_ADS_MEASUREMENT_ENABLED === "true" &&
+    process.env.OPENAI_ADS_MEASUREMENT_ENABLED === "true" &&
     process.env.NODE_ENV === "production" &&
     env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "") === "https://app.simplepost.social" &&
     !env.SELF_HOSTED &&
     Boolean(process.env.OPENAI_ADS_PIXEL_ID && process.env.OPENAI_CONVERSIONS_API_KEY)
   );
-}
-
-/** Consent is for this checkout's first payment only, not future renewals. */
-export function openAiAdsConsentMetadata(consent: boolean, now = Date.now()): Record<string, string> {
-  return consent && openAiAdsConfigured() ? { openaiAdsConsent: CONSENT_VERSION, openaiAdsConsentAt: String(now) } : {};
 }
 
 export function openAiSubscriptionEvent(invoice: Stripe.Invoice, now = Date.now()) {

@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
-import { openAiAdsConsentMetadata } from "@/lib/analytics/openai-ads";
 import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getAppUrl, getOrCreateStripeCustomer, getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
@@ -15,7 +14,6 @@ export const dynamic = "force-dynamic";
 
 const checkoutSchema = z.object({
   planKey: z.enum(["basic", "advanced", "pro"]),
-  adsMeasurementConsent: z.boolean().optional().default(false),
 });
 
 async function readJsonBody(req: NextRequest) {
@@ -61,7 +59,6 @@ export async function POST(req: NextRequest) {
 
     const stripe = getStripe();
     const customerId = await getOrCreateStripeCustomer(user);
-    const adsMetadata = openAiAdsConsentMetadata(body.adsMeasurementConsent);
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -82,13 +79,11 @@ export async function POST(req: NextRequest) {
       metadata: {
         userId: user.id,
         planKey: plan.key,
-        ...adsMetadata,
       },
       subscription_data: {
         metadata: {
           userId: user.id,
           planKey: plan.key,
-          ...adsMetadata,
         },
       },
       success_url: `${appUrl}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,

@@ -1,11 +1,6 @@
 import { createHash } from "node:crypto";
 
-import {
-  openAiAdsConfigured,
-  openAiAdsConsentMetadata,
-  openAiSubscriptionEvent,
-  reportOpenAiSubscription,
-} from "@/lib/analytics/openai-ads";
+import { openAiAdsConfigured, openAiSubscriptionEvent, reportOpenAiSubscription } from "@/lib/analytics/openai-ads";
 import { prisma } from "@/lib/prisma";
 
 import type Stripe from "stripe";
@@ -41,7 +36,7 @@ describe("OpenAI subscription measurement", () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(now);
     process.env.NEXT_PUBLIC_APP_URL = "https://app.simplepost.social";
-    process.env.NEXT_PUBLIC_OPENAI_ADS_MEASUREMENT_ENABLED = "true";
+    process.env.OPENAI_ADS_MEASUREMENT_ENABLED = "true";
     process.env.OPENAI_ADS_PIXEL_ID = "pixel_test";
     process.env.OPENAI_CONVERSIONS_API_KEY = "test-only-conversion-credential";
     process.env.SELF_HOSTED = "false";
@@ -97,7 +92,7 @@ describe("OpenAI subscription measurement", () => {
   });
 
   it.each([
-    ["NEXT_PUBLIC_OPENAI_ADS_MEASUREMENT_ENABLED", "false"],
+    ["OPENAI_ADS_MEASUREMENT_ENABLED", "false"],
     ["OPENAI_ADS_PIXEL_ID", ""],
     ["OPENAI_CONVERSIONS_API_KEY", ""],
     ["NEXT_PUBLIC_APP_URL", "http://localhost:3000"],
@@ -107,17 +102,8 @@ describe("OpenAI subscription measurement", () => {
   ])("fails closed when %s=%s", async (name, value) => {
     process.env[name] = value;
     expect(openAiAdsConfigured()).toBe(false);
-    expect(openAiAdsConsentMetadata(true, now)).toEqual({});
     await reportOpenAiSubscription(invoice(), subscription);
     expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it("records consent only on explicit opt-in with configured delivery", () => {
-    expect(openAiAdsConsentMetadata(false, now)).toEqual({});
-    expect(openAiAdsConsentMetadata(true, now)).toEqual({
-      openaiAdsConsent: "purchase-v1",
-      openaiAdsConsentAt: String(now),
-    });
   });
 
   it("sends to the fixed endpoint with a server-only credential and bounded timeout", async () => {
@@ -139,6 +125,14 @@ describe("OpenAI subscription measurement", () => {
         }),
       }),
     );
+  });
+
+  it("does not share an ordinary checkout payment just because deployment is enabled", async () => {
+    const value = invoice();
+    value.parent!.subscription_details!.metadata = { planKey: "advanced" };
+    await reportOpenAiSubscription(value, subscription);
+    expect(prisma.firstPayment.findUnique).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it.each([null, { stripeInvoiceId: "in_first_payment" }])(

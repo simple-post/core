@@ -58,6 +58,7 @@ model User {
   publishingPreferences        UserPublishingPreferences?
   editorSessions               PostEditorSession[]
   activationMilestone          ActivationMilestone?
+  openAiAdsMeasurement         OpenAiAdsMeasurement?
 
   @@unique([email])
   @@map("user")
@@ -684,4 +685,24 @@ model ExperimentExposure {
 
   @@index([experimentId, exposedAt])
   @@map("experiment_exposure")
+}
+
+// Server-owned permission and delivery state. No automatic grants or public setters.
+model OpenAiAdsMeasurement {
+  userId              String   @id
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionGrantedAt DateTime
+  permissionRevokedAt DateTime?
+  reportedKinds       String[] @default([])
+  skippedKinds        String[] @default([])
+  nextAttemptAt       DateTime @default(now())
+  leaseToken          String?
+  leaseExpiresAt      DateTime?
+  attempts            Int      @default(0)
+  lastError           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([nextAttemptAt])
+  @@map("openai_ads_measurement")
 }

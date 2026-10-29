@@ -23,7 +23,7 @@ import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
-import { deferTikTokMinuteLimit } from "@/lib/posting/defer-tiktok-minute-limit";
+import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
 import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { getTikTokPostRecovery, recoveryForResult } from "@/lib/posting/tiktok-recovery";
@@ -236,7 +236,7 @@ export const updateScheduledPostSchema = z.object({
   postId: z
     .string()
     .describe(
-      "ID of a draft, upcoming scheduled post, or recoverable TikTok-limit failure. Use inspect_posts. For a failed TikTok post, change only scheduledFor and postingMode='schedule'; keep content and destinations intact.",
+      "ID of a draft, upcoming scheduled post, or recoverable TikTok failure. Use inspect_posts. For a failed TikTok post, change only scheduledFor and postingMode='schedule'; keep content and destinations intact.",
     ),
   postingMode: z
     .enum(["draft", "schedule"])
@@ -1397,7 +1397,7 @@ export async function createPost(
       const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
       const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
-      const deferred = await deferTikTokMinuteLimit(post.id, results, accountResults, threadResultsByAccount);
+      const deferred = await deferTikTokRetry(post.id, results, accountResults, threadResultsByAccount);
       if (deferred) {
         // The original record is queued; no failure webhook is emitted.
       } else if (summary.overallSuccess) {

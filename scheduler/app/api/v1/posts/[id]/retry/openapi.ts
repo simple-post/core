@@ -14,7 +14,7 @@ export default defineRoute({
     post: {
       operationId: "scheduleTikTokPostRetry",
       tags: ["Posts"],
-      summary: "Schedule another attempt for a recoverable TikTok limit",
+      summary: "Schedule another attempt for a recoverable TikTok failure",
       description:
         "Changes only the retry time on the original post. Preserves successful destinations and durable publishing progress. Uncertain outcomes require reconciliation. Inbox mode schedules delivery to TikTok, where the user still finishes publishing; acceptance is not guaranteed.",
       security: userAuthSecurity,

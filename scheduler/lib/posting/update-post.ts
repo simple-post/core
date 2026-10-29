@@ -14,7 +14,7 @@ import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
 import { mergeAccountResults } from "@/lib/posting/account-results";
-import { deferTikTokMinuteLimit } from "@/lib/posting/defer-tiktok-minute-limit";
+import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
 import { sanitizePostingResult } from "@/lib/posting/progress-stream";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
@@ -305,7 +305,7 @@ export async function executePostUpdate(
       mergeAccountResults(isRetry ? (currentPost.accountResults ?? undefined) : undefined, results),
     ) as AccountResultsMap;
 
-    const deferred = await deferTikTokMinuteLimit(
+    const deferred = await deferTikTokRetry(
       post.id,
       results,
       accountResults,

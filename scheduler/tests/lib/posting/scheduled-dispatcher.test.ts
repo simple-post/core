@@ -108,6 +108,7 @@ interface DuePostFixture {
   accounts: Array<{ id: string; platform: string }>;
   quotePostId?: string | null;
   tiktokRetryApproved?: boolean;
+  errorDetails?: unknown;
   quotePost?: { status: string } | null;
 }
 
@@ -929,6 +930,53 @@ it("dispatches an approved original through the account pause and retains approv
     }),
   );
 });
+
+it.each([0, 2, 3])(
+  "uses the shared processing retry budget at attempt %i without replaying successful accounts",
+  async (count) => {
+    mockFindMany({
+      due: [
+        duePost({
+          id: "processing-retry",
+          accounts: [
+            { id: "a1", platform: "instagram" },
+            { id: "a2", platform: "tiktok" },
+          ],
+          accountResults: {
+            a1: { accountId: "a1", platform: "instagram", success: true, postId: "already-published" },
+          },
+          errorDetails: { tiktokProcessingRetryCount: count },
+        }),
+      ],
+    });
+    postToAccountsMock.mockResolvedValue([
+      {
+        accountId: "a2",
+        platform: "tiktok",
+        success: false,
+        error: "PUBLISH_REJECTED",
+        details: { phase: "status", status: "FAILED", code: "photo_pull_failed", publishId: "failed-job" },
+      },
+    ]);
+    const result = await dispatchDueScheduledPosts();
+    expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
+    expect(result.failedPosts).toBe(count === 3 ? 1 : 0);
+    expect(prismaMock.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "processing-retry" },
+        data: expect.objectContaining({
+          status: count === 3 ? "failed" : "scheduled",
+          accountResults: expect.objectContaining({
+            a1: expect.objectContaining({ success: true, postId: "already-published" }),
+          }),
+          ...(count < 3 ? { errorDetails: expect.objectContaining({ tiktokProcessingRetryCount: count + 1 }) } : {}),
+        }),
+      }),
+    );
+    if (count < 3)
+      expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
+  },
+);
 
 it("allows a thread larger than one rate window to start making progress", async () => {
   mockFindMany({

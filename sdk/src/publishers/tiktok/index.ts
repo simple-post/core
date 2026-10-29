@@ -542,12 +542,21 @@ export class TikTokPublisher extends Publisher {
         }
 
         if (status === "FAILED") {
-          const reason = data?.fail_reason || "unknown";
+          const rawReason = data?.fail_reason;
+          const reason =
+            typeof rawReason === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(rawReason) ? rawReason : "unknown";
           const hint =
             reason === "picture_size_check_failed"
               ? " Resize photos to fit within 1080×1920 (portrait) or 1920×1080 (landscape), preserving their aspect ratio."
               : "";
-          throw new PostError(PostErrorType.API_ERROR, `TikTok processing failed: ${reason}.${hint}`);
+          // FAILED is terminal: TikTok confirms that this publishing operation
+          // did not complete. Transport/status-query errors remain uncertain.
+          throw new PostError(PostErrorType.PUBLISH_REJECTED, `TikTok processing failed: ${reason}.${hint}`, {
+            phase: "status",
+            status,
+            code: reason,
+            publishId,
+          });
         }
 
         // Inbox uploads finish when TikTok notifies the creator. There is

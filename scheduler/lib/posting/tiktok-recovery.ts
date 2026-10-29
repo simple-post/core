@@ -9,6 +9,14 @@ export const TIKTOK_CAP_CODES = [
 
 export type TikTokCapCode = (typeof TIKTOK_CAP_CODES)[number];
 
+/** Only terminal processing failures documented as transient by TikTok. */
+export function tikTokProcessingFailureCode(result: { platform?: string; error?: string; details?: unknown }) {
+  if (result.platform !== "tiktok" || result.error !== "PUBLISH_REJECTED") return undefined;
+  const details = result.details as { phase?: unknown; status?: unknown; code?: unknown } | undefined;
+  if (details?.phase !== "status" || details.status !== "FAILED") return undefined;
+  return ["photo_pull_failed", "video_pull_failed", "internal"].find((code) => code === details.code);
+}
+
 export function tikTokCapCode(value: unknown): TikTokCapCode | undefined {
   return TIKTOK_CAP_CODES.find((code) => code === value);
 }
@@ -43,6 +51,22 @@ export function recoveryForResult(
   automatic = false,
 ) {
   if (result.platform !== "tiktok") return undefined;
+  const processingCode = tikTokProcessingFailureCode(result);
+  if (processingCode)
+    return {
+      code: processingCode,
+      title: "TikTok could not process the media",
+      message: automatic
+        ? "Your post is saved. TikTok confirmed the attempt failed. Another attempt is scheduled automatically."
+        : "TikTok confirmed the attempt failed. Check the media URLs and schedule another attempt.",
+      state: automatic ? "waiting" : "needs_action",
+      automaticRetry: automatic,
+      canScheduleRetry: true,
+      actions: ["choose_time"],
+      tool: "update_scheduled_post",
+      instructions:
+        "Ask the user to choose or approve an exact retry time with a timezone. Call update_scheduled_post with this postId, postingMode='schedule', scheduledFor and expectedUpdatedAt. Preserve the original post; do not create a duplicate. A scheduled retry is not a guarantee of acceptance.",
+    };
   if (!["PUBLISH_REJECTED", "LOCAL_RATE_LIMIT", "TIKTOK_ACCOUNT_PAUSED"].includes(result.error ?? "")) return undefined;
   const details = result.details as { code?: unknown; pauseCode?: unknown } | undefined;
   const code =

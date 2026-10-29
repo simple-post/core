@@ -99,6 +99,13 @@ Recommended first alerts:
 
 ## Error classification
 
+TikTok's terminal `FAILED` status is recorded as `PUBLISH_REJECTED`, with its
+failure code and publish ID retained for diagnosis. Confirmed `photo_pull_failed`,
+`video_pull_failed`, and `internal` processing failures use the existing scheduled
+retry flow at one-minute intervals, with up to three automatic retries on the
+original post. API, MCP, and scheduled publishing share this policy and preserve
+successful destinations. Uncertain transport outcomes still require reconciliation.
+
 Trace export sanitizes span names, attributes, events, links and resources before
 OTLP/HTTP delivery. URL queries/fragments, Telegram bot-token paths, credential
 fields and SQL statements are redacted; timing, status and trace correlation are

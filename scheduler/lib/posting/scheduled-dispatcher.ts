@@ -10,6 +10,7 @@ import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health"
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
+import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
 import { pausedTikTokResults } from "@/lib/posting/tiktok-pause";
 import { prisma } from "@/lib/prisma";
 import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/targets";
@@ -85,6 +86,7 @@ interface DuePost {
   accountOverrides: unknown;
   thread: ThreadSegment[] | null;
   accountResults: unknown;
+  errorDetails?: unknown;
   threadResults?: unknown;
   repostEnabled: boolean;
   repostDelayHours: number;
@@ -377,7 +379,10 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         tiktokPaused: !minuteOnly,
         ...(minuteOnly ? { scheduledFor: new Date(Date.now() + 60_000) } : {}),
         errorMessage: pausedResults[0].message,
-        errorDetails: sanitizeForJson({ failedPlatforms: pausedResults }) as Prisma.InputJsonValue,
+        errorDetails: sanitizeForJson({
+          ...(post.errorDetails as Record<string, unknown> | null),
+          failedPlatforms: pausedResults,
+        }) as Prisma.InputJsonValue,
       },
     });
     return {
@@ -575,11 +580,25 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           accountResults: sanitizedAccountResults,
           threadResults: sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue,
           errorMessage: "TikTok uploads are paused. Schedule another attempt later.",
-          errorDetails: sanitizeForJson({ failedPlatforms: failedResults }) as Prisma.InputJsonValue,
+          errorDetails: sanitizeForJson({
+            ...(post.errorDetails as Record<string, unknown> | null),
+            failedPlatforms: failedResults,
+          }) as Prisma.InputJsonValue,
         },
       });
       return { postId: post.id, success: false, status: "blocked" };
     }
+    if (
+      await deferTikTokRetry(
+        post.id,
+        postingResults,
+        accountResults,
+        threadResultsByAccount,
+        post.tiktokRetryApproved ?? false,
+        post.errorDetails,
+      )
+    )
+      return { postId: post.id, success: false, status: "scheduled" };
     if (failedResults.length > 0 && failedResults.every((result) => result.error === "LOCAL_RATE_LIMIT")) {
       await prisma.post.update({
         where: { id: post.id },
@@ -588,7 +607,10 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
           scheduledFor: new Date(Date.now() + 60_000),
           tiktokRetryApproved: post.tiktokRetryApproved ?? false,
           errorMessage: "Queued — waiting for publishing capacity. Another attempt is scheduled in one minute.",
-          errorDetails: sanitizeForJson({ failedPlatforms: failedResults }) as Prisma.InputJsonValue,
+          errorDetails: sanitizeForJson({
+            ...(post.errorDetails as Record<string, unknown> | null),
+            failedPlatforms: failedResults,
+          }) as Prisma.InputJsonValue,
           accountResults: sanitizedAccountResults,
           threadResults: sanitizeForJson(threadResultsByAccount) as Prisma.InputJsonValue,
         },

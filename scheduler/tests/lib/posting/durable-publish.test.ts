@@ -53,6 +53,24 @@ it("does not resubmit an existing unknown outcome", async () => {
   expect(publish).not.toHaveBeenCalled();
 });
 
+it("allows a fresh attempt after TikTok confirms a terminal photo-download failure", async () => {
+  const publish = jest
+    .fn()
+    .mockResolvedValueOnce({
+      accountId: "account",
+      platform: "tiktok",
+      success: false,
+      error: "PUBLISH_REJECTED",
+      details: { phase: "status", status: "FAILED", code: "photo_pull_failed", publishId: "failed-job" },
+    })
+    .mockResolvedValueOnce({ accountId: "account", platform: "tiktok", success: true, postId: "published" });
+  expect(await runDurablePublish(input, publish)).toMatchObject({ error: "PUBLISH_REJECTED" });
+  expect(db.publishCheckpoint.update.mock.calls[0][0].data.state).toBe("failed");
+  db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });
+  expect(await runDurablePublish(input, publish)).toMatchObject({ success: true, postId: "published" });
+  expect(publish).toHaveBeenCalledTimes(2);
+});
+
 it("allows retry of a definite Facebook rejection and retains accepted IDs on uncertain results", async () => {
   const facebook = { ...input, platform: "facebook" };
   db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });

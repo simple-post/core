@@ -83,7 +83,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, previe
 
 6. When the user asks to quote an earlier post in natural language (for example, "quote my last post about the gym"), call \`inspect_posts\` to find the matching published or scheduled SimplePost record, then pass its exact \`id\` as \`quotePostId\` to \`preview_post\` or \`create_post\`. Never infer or invent a post ID. Native quotes are used on X, Bluesky, Threads, and LinkedIn; other selected platforms publish the new content as an ordinary post. If the source is scheduled, schedule the quote after it so SimplePost can resolve the platform IDs at dispatch time.
 
-7. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, quote source, scheduled time, or move between draft and scheduled. A TikTok failure with \`recovery.canScheduleRetry\` also supports a timing-only retry using the same postId, postingMode='schedule', scheduledFor and expectedUpdatedAt. Offer tomorrow or a user-chosen time; for several posts, offer a spaced schedule and confirm exact times with timezone before updating each original. Never create duplicates to recover a limit. Minute limits wait automatically for scheduled posts. Daily/inbox caps pause the account; explain any TikTok inbox action and never guarantee a reset or successful retry. The timing-only recovery response may omit validation because content is unchanged; normal dispatch validation still runs. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
+7. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, quote source, scheduled time, or move between draft and scheduled. A TikTok failure with \`recovery.canScheduleRetry\` also supports a timing-only retry using the same postId, postingMode='schedule', scheduledFor and expectedUpdatedAt. Offer tomorrow or a user-chosen time; for several posts, offer a spaced schedule and confirm exact times with timezone before updating each original. Never create duplicates to recover a limit. Minute limits wait automatically; confirmed transient processing failures retry up to three times at one-minute intervals. Daily/inbox caps pause the account; explain any TikTok inbox action and never guarantee a reset or successful retry. The timing-only recovery response may omit validation because content is unchanged; normal dispatch validation still runs. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
 
 8. Use \`get_schedule\` when the user wants a text or structured-data schedule for a day, week, or month. Use \`show_schedule\` when they ask to show or open the interactive calendar. Include the user's IANA timezone. Both include open slots as well as scheduled, pending, published, failed, and past activity. Use \`inspect_posts\` for a post search or one exact post.
 
@@ -491,7 +491,7 @@ function formatCreatedPostDetails(result: {
       : result.postingMode === "schedule"
         ? `Scheduled for ${plural(summary.accountCount, "account")}.`
         : post.status === "scheduled"
-          ? "Queued for automatic retry after TikTok's short request limit. Successful destinations will be skipped."
+          ? "Queued for automatic retry after a temporary TikTok failure. Successful destinations will be skipped."
           : summary.failureCount === 0
             ? `Published to ${summary.accountCount === 1 ? "the account" : `all ${summary.accountCount} accounts`}.`
             : `Published to ${summary.successCount} of ${plural(summary.accountCount, "account")}; ${plural(
@@ -982,7 +982,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "update_scheduled_post",
     {
       title: "Update Scheduled Post",
-      description: `Change a draft or future scheduled SimplePost post. Also reschedule a TikTok-limit failure when inspect_posts returns recovery.canScheduleRetry: pass the original postId, postingMode='schedule', scheduledFor and expectedUpdatedAt only. Preserve content and successful account results. Ask for or honor the user's exact retry time and timezone; never promise TikTok will accept it. Other failed, posted, pending and due posts cannot be edited here.`,
+      description: `Change a draft or future scheduled SimplePost post. Also reschedule a recoverable TikTok failure when inspect_posts returns recovery.canScheduleRetry: pass the original postId, postingMode='schedule', scheduledFor and expectedUpdatedAt only. Preserve content and successful account results. Ask for or honor the user's exact retry time and timezone; never promise TikTok will accept it. Other failed, posted, pending and due posts cannot be edited here.`,
       inputSchema: fittingSchema(updateScheduledPostSchema, context.imageFittingEnabled),
       outputSchema: updateScheduledPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,

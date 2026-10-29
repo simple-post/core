@@ -9,7 +9,7 @@ import {
   updateScheduledPostSchema,
   updateScheduledPostOutputSchema,
 } from "@/lib/mcp/tools/posts";
-import { deferTikTokMinuteLimit } from "@/lib/posting/defer-tiktok-minute-limit";
+import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
 import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { pauseTikTokUploads, resumeTikTokUploads, pausedTikTokResults } from "@/lib/posting/tiktok-pause";
 import { reserveTikTokUploadInit } from "@/lib/posting/tiktok-rate-limit";
@@ -245,13 +245,65 @@ it("queues a Post Now minute limit on the original record and preserves successf
   ];
   const progress = { another: { success: true, postId: "already-published" } };
   const before = Date.now();
-  expect(await deferTikTokMinuteLimit("recovery-post", results, progress, {})).toBe(true);
+  expect(await deferTikTokRetry("recovery-post", results, progress, {})).toBe(true);
   const saved = await prisma.post.findFirstOrThrow();
   expect(saved.status).toBe("scheduled");
   expect(saved.scheduledFor!.getTime()).toBeGreaterThanOrEqual(before + 60_000);
   expect(saved.accountResults).toEqual(progress);
   expect(await prisma.post.count()).toBe(1);
-  expect(
-    await deferTikTokMinuteLimit("recovery-post", [{ ...results[0], error: "PUBLISH_OUTCOME_UNKNOWN" }], {}, {}),
-  ).toBe(false);
+  expect(await deferTikTokRetry("recovery-post", [{ ...results[0], error: "PUBLISH_OUTCOME_UNKNOWN" }], {}, {})).toBe(
+    false,
+  );
+});
+
+it("persists a bounded processing-retry budget through minute limits without changing durable progress", async () => {
+  const processingFailure = {
+    accountId: "tiktok-recovery-account",
+    platform: "tiktok",
+    success: false,
+    error: "PUBLISH_REJECTED",
+    details: { phase: "status", status: "FAILED", code: "photo_pull_failed", publishId: "failed-job" },
+  };
+  const progress = { another: { success: true, postId: "already-published" } };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const before = await prisma.post.findFirstOrThrow();
+    expect(await deferTikTokRetry(before.id, [processingFailure], progress, {}, false, before.errorDetails)).toBe(true);
+    const saved = await prisma.post.findFirstOrThrow();
+    expect(saved.errorDetails).toMatchObject({ tiktokProcessingRetryCount: attempt + 1 });
+    expect(saved.accountResults).toEqual(progress);
+    expect(
+      await deferTikTokRetry(
+        saved.id,
+        [{ ...processingFailure, error: "LOCAL_RATE_LIMIT" }],
+        progress,
+        {},
+        false,
+        saved.errorDetails,
+      ),
+    ).toBe(true);
+  }
+  const saved = await prisma.post.findFirstOrThrow();
+  expect(await deferTikTokRetry(saved.id, [processingFailure], progress, {}, false, saved.errorDetails)).toBe(false);
+  expect(await prisma.post.count()).toBe(1);
+  expect(await prisma.publishCheckpoint.findFirst()).toMatchObject({ state: "failed", fingerprint: "original" });
+});
+
+it("uses the same timing-only manual recovery after a confirmed processing failure", async () => {
+  await prisma.post.update({
+    where: { id: "recovery-post" },
+    data: {
+      errorDetails: {
+        failedPlatforms: [
+          {
+            platform: "tiktok",
+            error: "PUBLISH_REJECTED",
+            details: { phase: "status", status: "FAILED", code: "photo_pull_failed" },
+          },
+        ],
+      },
+    },
+  });
+  expect((await scheduleTikTokRetry(userId, "recovery-post", retryAt)).status).toBe("scheduled");
+  expect(await prisma.post.count()).toBe(1);
+  expect((await prisma.publishCheckpoint.findFirst())?.state).toBe("failed");
 });

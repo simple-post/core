@@ -36,7 +36,11 @@ const photos = (count = 7): Content => ({
   })),
 });
 const publisher = () => new TikTokPublisher(options());
-function mockPublish(draft = false, status = draft ? "SEND_TO_USER_INBOX" : "PUBLISH_COMPLETE") {
+function mockPublish(
+  draft = false,
+  status = draft ? "SEND_TO_USER_INBOX" : "PUBLISH_COMPLETE",
+  reason = "photo_pull_failed",
+) {
   if (!draft)
     api.post.mockResolvedValueOnce({
       data: { data: { creator_username: "creator", privacy_level_options: ["SELF_ONLY"] }, error: { code: "ok" } },
@@ -47,7 +51,7 @@ function mockPublish(draft = false, status = draft ? "SEND_TO_USER_INBOX" : "PUB
       data: {
         status,
         publicaly_available_post_id: status === "PUBLISH_COMPLETE" ? ["123"] : undefined,
-        fail_reason: "photo_pull_failed",
+        fail_reason: reason,
       },
     },
   });
@@ -177,14 +181,19 @@ it("retains staged media after an ambiguous init timeout", async () => {
   expect(uploadFile).toHaveBeenCalledTimes(1);
   expect(deleteFile).not.toHaveBeenCalled();
 });
-it("reports TikTok processing failures as failures", async () => {
-  mockPublish(true, "FAILED");
-  const result = await publisher().post(photos(), options({ publishMode: "draft" }));
-  expect(result).toMatchObject({
-    error: PostErrorType.API_ERROR,
-    message: expect.stringContaining("photo_pull_failed"),
-  });
-});
+it.each(["photo_pull_failed", "video_pull_failed", "internal", "picture_size_check_failed", "spam_risk"])(
+  "reports terminal %s processing failures as confirmed rejections",
+  async (code) => {
+    mockPublish(true, "FAILED", code);
+    const result = await publisher().post(photos(), options({ publishMode: "draft" }));
+    expect(result).toMatchObject({
+      error: PostErrorType.PUBLISH_REJECTED,
+      message: expect.stringContaining(code),
+      details: { phase: "status", status: "FAILED", code, publishId: "p_pub_url~123" },
+    });
+    expect(deleteFile).toHaveBeenCalledTimes(7);
+  },
+);
 it("rejects API errors returned with HTTP 200", async () => {
   api.post.mockResolvedValue({ data: { error: { code: "url_ownership_unverified", message: "Unverified domain" } } });
   await expect(publisher().postContent(photos(), options({ publishMode: "draft" }))).rejects.toThrow(

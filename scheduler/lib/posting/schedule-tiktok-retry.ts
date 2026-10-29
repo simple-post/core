@@ -25,7 +25,7 @@ export async function scheduleTikTokRetry(
   const recovery = getTikTokPostRecovery(post);
   if (!recovery)
     throw new BadRequestError(
-      "This post does not have a recoverable TikTok limit. Inspect its results before retrying.",
+      "This post does not have a recoverable TikTok failure. Inspect its results before retrying.",
     );
   const failedIds = post.accountIds.filter((id) => !post.accountResults?.[id]?.success);
   const issues = await getCredentialIssuesForPublishTime({ userId, accountIds: failedIds, publishAt: scheduledFor });

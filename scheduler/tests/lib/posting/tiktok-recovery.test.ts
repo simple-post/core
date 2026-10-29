@@ -24,6 +24,16 @@ it("shows the scheduled minute-limit recovery as automatic", () => {
   });
 });
 
+it("explains automatic processing retries and permits manual recovery after exhaustion", () => {
+  const failure = {
+    platform: "tiktok",
+    error: "PUBLISH_REJECTED",
+    details: { phase: "status", status: "FAILED", code: "photo_pull_failed" },
+  };
+  expect(recoveryForResult(failure, true)).toMatchObject({ automaticRetry: true, code: "photo_pull_failed" });
+  expect(recoveryForResult(failure, false)).toMatchObject({ automaticRetry: false, canScheduleRetry: true });
+});
+
 it("does not offer a retry for uncertain, mixed, banned or already completed posts", () => {
   const cap = { platform: "tiktok", error: "PUBLISH_REJECTED", details: { code: "spam_risk_too_many_pending_share" } };
   for (const error of ["API_ERROR", "PUBLISH_OUTCOME_UNKNOWN"])

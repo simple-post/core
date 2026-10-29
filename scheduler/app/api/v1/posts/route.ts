@@ -18,7 +18,7 @@ import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
-import { deferTikTokMinuteLimit } from "@/lib/posting/defer-tiktok-minute-limit";
+import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
 import {
   createPostingProgressStream,
   sanitizePostingResult,
@@ -381,7 +381,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
         // Update post status based on results
-        const deferred = await deferTikTokMinuteLimit(post.id, results, accountResults, threadResultsByAccount);
+        const deferred = await deferTikTokRetry(post.id, results, accountResults, threadResultsByAccount);
         if (deferred) {
           // Keep the original queued for the request window to clear.
         } else if (summary.overallSuccess) {

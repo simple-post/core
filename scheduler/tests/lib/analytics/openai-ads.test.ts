@@ -56,6 +56,7 @@ describe("four OpenAI acquisition milestones", () => {
     process.env = { ...savedEnv };
     global.fetch = originalFetch;
     jest.useRealTimers();
+    jest.restoreAllMocks();
   });
 
   it("maps actual trial, connection, publication and payment timestamps to the right shapes", () => {
@@ -135,6 +136,15 @@ describe("four OpenAI acquisition milestones", () => {
     value.user.activationMilestone!.firstPostPublishedAt = at(1);
     value.user.firstPayment!.paidAt = at(-7 * 86_400);
     expect(openAiMilestoneEvents(value, now)).toEqual({ events: [], skipped: ["subscription_created"] });
+  });
+
+  it("leaves a safety margin before the upstream seven-day ingestion limit", () => {
+    const value = row();
+    value.createdAt = value.permissionGrantedAt = at(-8 * 86_400);
+    value.user.freeTrial!.startsAt = at(-7 * 86_400 + 5 * 60);
+    expect(openAiMilestoneEvents(value, now).skipped).toEqual(["trial_started"]);
+    value.user.freeTrial!.startsAt = at(-7 * 86_400 + 15 * 60);
+    expect(openAiMilestoneEvents(value, now).events.map(({ kind }) => kind)).toContain("trial_started");
   });
 
   it.each([{ amountPaid: 0 }, { amountPaid: -1 }, { amountPaid: 1.1 }, { planKey: "trial" }, { currency: "invalid" }])(
@@ -218,11 +228,131 @@ describe("four OpenAI acquisition milestones", () => {
       queue();
       if (failure === "network") jest.mocked(global.fetch).mockRejectedValue(new Error("secret upstream payload"));
       else jest.mocked(global.fetch).mockResolvedValue({ ok: false, status: 503 } as never);
-      expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: true });
+      expect(await relayOpenAiMilestones(now)).toEqual({
+        sent: 0,
+        failed: true,
+        error: failure === "network" ? "OpenAI measurement request failed" : "OpenAI measurement HTTP 503",
+      });
       const data = jest.mocked(prisma.openAiAdsMeasurement.updateMany).mock.calls[1][0].data;
-      expect(data).not.toHaveProperty("reportedKinds");
+      expect(data.reportedKinds).toEqual({ push: [] });
       expect(data.nextAttemptAt).toEqual(at(60));
       expect(JSON.stringify(data)).not.toMatch(/secret|test-only-key|buyer@example/);
     },
   );
+
+  it("isolates a rejected event while acknowledging the other milestones", async () => {
+    queue();
+    jest.mocked(global.fetch).mockImplementation(async (_url, init) => {
+      const events = JSON.parse(init!.body as string).events as { custom_event_name?: string }[];
+      const rejected = events.some((event) => event.custom_event_name === "social_account_connected");
+      return { ok: !rejected, status: rejected ? 400 : 200 } as Response;
+    });
+    expect(await relayOpenAiMilestones(now)).toEqual({ sent: 3, failed: true, error: "OpenAI measurement HTTP 400" });
+    expect(prisma.openAiAdsMeasurement.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          reportedKinds: { push: ["trial_started", "first_post_published", "subscription_created"] },
+          skippedKinds: { push: ["social_account_connected"] },
+          nextAttemptAt: new Date("9999-01-01T00:00:00Z"),
+          lastError: "OpenAI measurement HTTP 400",
+        }),
+      }),
+    );
+    const signals = jest.mocked(global.fetch).mock.calls.map(([, init]) => init!.signal);
+    expect(new Set(signals).size).toBe(1);
+  });
+
+  it.each([401, 403, 429, 503])("does not multiply requests for HTTP %s failures", async (status) => {
+    queue();
+    jest.mocked(global.fetch).mockResolvedValue({ ok: false, status } as Response);
+    expect(await relayOpenAiMilestones(now)).toEqual({
+      sent: 0,
+      failed: true,
+      error: `OpenAI measurement HTTP ${status}`,
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([200, 400, 503])("releases the unread response body for HTTP %s", async (status) => {
+    const value = row();
+    value.user.activationMilestone = null;
+    value.user.firstPayment = null;
+    queue(value);
+    const response = new Response("ignored upstream details", { status });
+    const cancel = jest.spyOn(response.body!, "cancel").mockResolvedValue();
+    jest.mocked(global.fetch).mockResolvedValue(response);
+    await relayOpenAiMilestones(now);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds validation isolation to seventeen requests", async () => {
+    const rows = Array.from({ length: 50 }, (_, i) => {
+      const value = row();
+      value.userId = value.user.id = `user_${i}`;
+      return value;
+    });
+    jest
+      .mocked(prisma.openAiAdsMeasurement.findMany)
+      .mockResolvedValueOnce(rows.map(({ userId }) => ({ userId })) as never)
+      .mockResolvedValueOnce(rows as never);
+    jest.mocked(global.fetch).mockResolvedValue({ ok: false, status: 400 } as Response);
+    expect(await relayOpenAiMilestones(now)).toEqual(expect.objectContaining({ sent: 0, failed: true }));
+    expect(global.fetch).toHaveBeenCalledTimes(17);
+    for (const call of jest.mocked(prisma.openAiAdsMeasurement.updateMany).mock.calls.slice(1))
+      expect(call[0].data.skippedKinds).toEqual({ push: [] });
+  });
+
+  it("does not start split requests after the shared time budget expires", async () => {
+    queue();
+    const controller = new AbortController();
+    jest.spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
+    jest.mocked(global.fetch).mockImplementation(async () => {
+      controller.abort();
+      return { ok: false, status: 400 } as Response;
+    });
+    expect(await relayOpenAiMilestones(now)).toEqual({
+      sent: 0,
+      failed: true,
+      error: "OpenAI measurement delivery deferred",
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves successful delivery and retries untried events when slow isolation exhausts the shared budget", async () => {
+    queue();
+    const controller = new AbortController();
+    jest.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      setTimeout(() => controller.abort(), 3000);
+      return controller.signal;
+    });
+    jest.mocked(global.fetch).mockImplementation(
+      (_url, init) =>
+        new Promise((resolve, reject) => {
+          const events = JSON.parse(init!.body as string).events as { custom_event_name?: string }[];
+          const bad = events.some((event) => event.custom_event_name === "social_account_connected");
+          const timer = setTimeout(
+            () => resolve({ ok: !bad, status: bad ? 400 : 200 } as Response),
+            bad && events.length === 1 ? 3000 : 500,
+          );
+          init!.signal!.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              reject(new Error("aborted"));
+            },
+            { once: true },
+          );
+        }),
+    );
+    const result = relayOpenAiMilestones(now);
+    await jest.advanceTimersByTimeAsync(3100);
+    expect(await result).toEqual({ sent: 1, failed: true, error: "OpenAI measurement request failed" });
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+    expect(prisma.openAiAdsMeasurement.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reportedKinds: { push: ["trial_started"] }, skippedKinds: { push: [] } }),
+      }),
+    );
+  });
 });

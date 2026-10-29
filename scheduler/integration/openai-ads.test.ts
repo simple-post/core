@@ -8,7 +8,7 @@ const savedEnv = { ...process.env };
 const originalFetch = global.fetch;
 
 beforeEach(async () => {
-  await prisma.user.deleteMany({ where: { id: userId } });
+  await prisma.user.deleteMany({ where: { id: { startsWith: "openai-ads-review-" } } });
   process.env.NEXT_PUBLIC_APP_URL = "https://app.simplepost.social";
   process.env.OPENAI_ADS_MEASUREMENT_ENABLED = "true";
   process.env.OPENAI_ADS_PIXEL_ID = "pixel_test";
@@ -34,7 +34,7 @@ afterEach(() => {
   global.fetch = originalFetch;
 });
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { id: userId } });
+  await prisma.user.deleteMany({ where: { id: { startsWith: "openai-ads-review-" } } });
   await prisma.$disconnect();
 });
 
@@ -110,7 +110,7 @@ it("uses a database lease so concurrent dispatchers send one batch", async () =>
 it("retries failed delivery with the same event IDs and original timestamps", async () => {
   await reachMilestones();
   jest.mocked(global.fetch).mockResolvedValueOnce({ ok: false, status: 503 } as Response);
-  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: true });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: true, error: "OpenAI measurement HTTP 503" });
   const first = sentEvents();
   const delivery = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
   expect(delivery.reportedKinds).toEqual([]);
@@ -143,4 +143,149 @@ it("does not auto-create permission rows for trial users", async () => {
   await reachMilestones();
   expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: false });
   expect(global.fetch).not.toHaveBeenCalled();
+});
+
+it("does not let idle users consume the fifty-row candidate limit", async () => {
+  const ids = Array.from({ length: 51 }, (_, i) => `openai-ads-review-idle-${i}`);
+  await prisma.user.createMany({
+    data: ids.map((id) => ({ id, name: "Idle Test", email: `${id}@example.com`, acquisition: '{"source":"direct"}' })),
+  });
+  await prisma.openAiAdsMeasurement.createMany({
+    data: ids.map((id) => ({
+      userId: id,
+      permissionGrantedAt: at(-3500),
+      createdAt: at(-3500),
+      nextAttemptAt: at(-300),
+      reportedKinds: ["trial_started"],
+    })),
+  });
+  await prisma.freeTrial.createMany({
+    data: ids.map((id) => ({ userId: id, startsAt: at(-3000), expiresAt: at(86_400) })),
+  });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 1, failed: false });
+  expect(sentEvents().map((event) => event.type)).toEqual(["trial_started"]);
+  expect(await prisma.openAiAdsMeasurement.count({ where: { userId: { in: ids }, leaseToken: { not: null } } })).toBe(
+    0,
+  );
+});
+
+it("picks up a payment immediately when an idle trial user reaches that milestone", async () => {
+  await prisma.openAiAdsMeasurement.update({ where: { userId }, data: { reportedKinds: ["trial_started"] } });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: false });
+  await prisma.firstPayment.create({
+    data: {
+      userId,
+      stripeInvoiceId: "in_late",
+      stripeSubscriptionId: "sub_late",
+      paidAt: at(-1),
+      amountPaid: 1900,
+      currency: "eur",
+      planKey: "advanced",
+    },
+  });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 1, failed: false });
+  expect(sentEvents()[0].type).toBe("subscription_created");
+});
+
+it("records valid events from other users and permanently isolates a proven invalid event", async () => {
+  await reachMilestones();
+  const otherId = "openai-ads-review-other";
+  await prisma.user.create({
+    data: {
+      id: otherId,
+      name: "Other Test",
+      email: "other@example.com",
+      acquisition: '{"source":"direct"}',
+      openAiAdsMeasurement: {
+        create: { permissionGrantedAt: at(-3500), createdAt: at(-3500), nextAttemptAt: at(-60) },
+      },
+      freeTrial: { create: { startsAt: at(-3000), expiresAt: at(86_400) } },
+    },
+  });
+  jest.mocked(global.fetch).mockImplementation(async (_url, init) => {
+    const events = JSON.parse(init!.body as string).events as { custom_event_name?: string }[];
+    const invalid = events.some((event) => event.custom_event_name === "social_account_connected");
+    return { ok: !invalid, status: invalid ? 400 : 200 } as Response;
+  });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 4, failed: true, error: "OpenAI measurement HTTP 400" });
+  const delivery = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  const other = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId: otherId } });
+  expect(delivery.reportedKinds).toEqual(["trial_started", "first_post_published", "subscription_created"]);
+  expect(delivery.skippedKinds).toEqual(["social_account_connected"]);
+  expect(other.reportedKinds).toEqual(["trial_started"]);
+  jest
+    .mocked(global.fetch)
+    .mockClear()
+    .mockResolvedValue({ ok: true, status: 200 } as Response);
+  expect(await relayOpenAiMilestones(at(61))).toEqual({ sent: 0, failed: false });
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+it.each(["Pacific/Auckland", "America/Los_Angeles"])(
+  "keeps permission instants correct in a %s session",
+  async (timezone) => {
+    await prisma.openAiAdsMeasurement.delete({ where: { userId } });
+    const [value] = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT set_config('TimeZone', ${timezone}, true)`;
+      return tx.$queryRaw<
+        { permissionGrantedAt: Date; createdAt: Date; nextAttemptAt: Date; updatedAt: Date; reference: Date }[]
+      >`
+      INSERT INTO "openai_ads_measurement" ("userId", "permissionGrantedAt")
+      VALUES (${userId}, CURRENT_TIMESTAMP)
+      RETURNING "permissionGrantedAt", "createdAt", "nextAttemptAt", "updatedAt", CURRENT_TIMESTAMP AS reference
+    `;
+    });
+    for (const time of [value.permissionGrantedAt, value.createdAt, value.nextAttemptAt, value.updatedAt])
+      expect(Math.abs(time.getTime() - value.reference.getTime())).toBeLessThanOrEqual(1);
+  },
+);
+
+it("permanently skips an invalid first-payment record rather than polling it indefinitely", async () => {
+  await prisma.openAiAdsMeasurement.update({ where: { userId }, data: { reportedKinds: ["trial_started"] } });
+  await prisma.firstPayment.create({
+    data: {
+      userId,
+      stripeInvoiceId: "in_unknown",
+      stripeSubscriptionId: "sub_unknown",
+      paidAt: at(-100),
+      amountPaid: 1900,
+      currency: "eur",
+      planKey: null,
+    },
+  });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: false });
+  const delivery = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  expect(delivery.skippedKinds).toEqual(["subscription_created"]);
+  expect(await relayOpenAiMilestones(at(61))).toEqual({ sent: 0, failed: false });
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
+it("requires a new grant after revocation and excludes milestones reached during revocation", async () => {
+  await prisma.openAiAdsMeasurement.update({
+    where: { userId },
+    data: { permissionRevokedAt: at(-2000), reportedKinds: ["trial_started"] },
+  });
+  await expect(
+    prisma.openAiAdsMeasurement.update({ where: { userId }, data: { permissionRevokedAt: null } }),
+  ).rejects.toThrow();
+  await prisma.firstPayment.create({
+    data: {
+      userId,
+      stripeInvoiceId: "in_revoked",
+      stripeSubscriptionId: "sub_revoked",
+      paidAt: at(-100),
+      amountPaid: 1900,
+      currency: "eur",
+      planKey: "advanced",
+    },
+  });
+  await prisma.openAiAdsMeasurement.update({
+    where: { userId },
+    data: { permissionRevokedAt: null, permissionGrantedAt: now },
+  });
+  expect(await relayOpenAiMilestones(now)).toEqual({ sent: 0, failed: false });
+  expect(global.fetch).not.toHaveBeenCalled();
+  const delivery = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  expect(delivery.reportedKinds).toEqual(["trial_started"]);
+  expect(delivery.skippedKinds).toEqual(["subscription_created"]);
 });

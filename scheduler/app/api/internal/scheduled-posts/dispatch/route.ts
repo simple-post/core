@@ -38,9 +38,13 @@ export async function POST(req: NextRequest) {
     // Measurement runs after publishing and cannot turn a successful dispatch into a failure.
     try {
       const measurement = await relayOpenAiMilestones();
-      if (measurement.failed) log.warn("OpenAI measurement delivery will retry on the next dispatch");
+      if (measurement.failed)
+        log.warn({ errorCode: measurement.error }, "OpenAI measurement delivery did not accept all events");
     } catch {
-      log.warn("OpenAI measurement relay failed; publishing results are preserved");
+      log.warn(
+        { errorCode: "measurement_database_failure" },
+        "OpenAI measurement relay failed; publishing results are preserved",
+      );
     }
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

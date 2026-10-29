@@ -1,6 +1,6 @@
-import { acknowledgeMilestones, claimMilestoneEvents } from "@/lib/analytics/activation";
-import { createFirstTouch } from "@/lib/analytics/first-touch";
+import { claimMilestoneEvents } from "@/lib/analytics/activation";
 import { buildLandingReport } from "@/lib/analytics/landing-report";
+import { createFirstTouch } from "@/lib/analytics/first-touch";
 import { prisma } from "@/lib/prisma";
 
 const tracked = "activation-review-user";
@@ -82,42 +82,28 @@ it("records first milestones from every write path and keeps the earliest time",
   expect(row.firstPostScheduledAt).not.toBeNull();
 
   const events = await claimMilestoneEvents(tracked);
-  expect(events.events.map((event) => event.name)).toEqual([
+  expect(events.map((event) => event.name)).toEqual([
     "Signup Completed",
     "AI Integration Connected",
     "Social Account Connected",
-    "Second Publishing Day",
     "First Post Created",
     "First Post Scheduled",
     "First Post Published",
   ]);
-  expect(events.events[1].props).toEqual({
-    landing_page: "/ai/claude",
-    landing_category: "ai_client",
-    client: "claude",
-  });
-  const observation1 = await claimMilestoneEvents(tracked);
-  expect(observation1.events).toEqual([]);
-  await acknowledgeMilestones(
-    tracked,
-    events.claimToken!,
-    events.events.map((x) => x.kind),
-  );
-  const observation2 = await claimMilestoneEvents(tracked);
-  expect(observation2.events).toEqual([]);
+  expect(events[1].props).toEqual({ landing_page: "/ai/claude", landing_category: "ai_client", client: "claude" });
+  expect(await claimMilestoneEvents(tracked)).toEqual([]);
 });
 
 it("hands each milestone to only one of several concurrent claims", async () => {
   const results = await Promise.all(Array.from({ length: 8 }, () => claimMilestoneEvents(tracked)));
-  expect(results.flatMap((x) => x.events).map((event) => event.name)).toEqual(["Signup Completed"]);
+  expect(results.flat().map((event) => event.name)).toEqual(["Signup Completed"]);
 });
 
 it("ignores legacy accounts without acquisition data", async () => {
   await account(legacy, "bluesky", new Date());
   await prisma.post.create({ data: { userId: legacy, message: "Old customer", status: "published" } });
   expect(await prisma.activationMilestone.findUnique({ where: { userId: legacy } })).toBeNull();
-  const observation3 = await claimMilestoneEvents(legacy);
-  expect(observation3.events).toEqual([]);
+  expect(await claimMilestoneEvents(legacy)).toEqual([]);
 });
 
 it("records the first payment and removes milestones with the account", async () => {
@@ -134,7 +120,7 @@ it("records the first payment and removes milestones with the account", async ()
   const row = await prisma.activationMilestone.findUniqueOrThrow({ where: { userId: tracked } });
   expect(row.subscriptionStartedAt).toEqual(new Date("2026-10-04T10:00:00Z"));
   const claimed = await claimMilestoneEvents(tracked);
-  expect(claimed.events.map((event) => event.kind)).not.toContain("subscription_started");
+  expect(claimed.map((event) => event.kind)).not.toContain("subscription_started");
   await prisma.user.delete({ where: { id: tracked } });
   expect(await prisma.activationMilestone.count({ where: { userId: tracked } })).toBe(0);
 });

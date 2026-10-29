@@ -114,11 +114,18 @@ export async function POST(req: NextRequest) {
         const checkout = event.data.object as Stripe.Checkout.Session;
         const userId = checkout.metadata?.userId || checkout.client_reference_id;
         if (userId && typeof checkout.customer === "string") {
-          const owner = await prisma.user.findFirst({
-            where: { id: userId, stripeCustomerId: checkout.customer },
-            select: { id: true },
-          });
-          await recordBillingWebhook(event, owner?.id);
+          try {
+            const owner = await prisma.user.findFirst({
+              where: { id: userId, stripeCustomerId: checkout.customer },
+              select: { id: true },
+            });
+            await recordBillingWebhook(event, owner?.id);
+          } catch {
+            log.warn(
+              { errorCode: "funnel_capture_failed", kind: "checkout_expired" },
+              "Optional checkout observation failed",
+            );
+          }
         }
         break;
       }

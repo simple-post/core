@@ -2,8 +2,6 @@ import { NextRequest } from "next/server";
 
 import { GET as report } from "@/app/api/admin/analytics/funnel/route";
 import { POST as observation } from "@/app/api/v1/analytics/events/route";
-import { POST as relay } from "@/app/api/v1/analytics/milestones/route";
-import { claimMilestoneEvents, acknowledgeMilestones } from "@/lib/analytics/activation";
 import { hasAnalyticsAdminAccess } from "@/lib/analytics/admin";
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { requireBrowserSession } from "@/lib/middleware/auth";
@@ -12,8 +10,6 @@ import { UnauthorizedError } from "@/lib/utils/errors";
 
 jest.mock("@/lib/middleware/auth", () => ({ requireBrowserSession: jest.fn() }));
 jest.mock("@/lib/analytics/admin", () => ({ hasAnalyticsAdminAccess: jest.fn() }));
-jest.mock("@/lib/analytics/activation", () => ({ claimMilestoneEvents: jest.fn(), acknowledgeMilestones: jest.fn() }));
-jest.mock("@/lib/analytics/sync-touch", () => ({ syncLastNonDirectTouch: jest.fn() }));
 jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({
   prisma: { user: { findMany: jest.fn() }, funnelEvent: { groupBy: jest.fn() }, $queryRaw: jest.fn() },
@@ -30,9 +26,7 @@ beforeEach(() => {
   jest.mocked(requireBrowserSession).mockResolvedValue({ user: { id: "current-user" } } as never);
   jest.mocked(hasAnalyticsAdminAccess).mockResolvedValue(true);
   jest.mocked(prisma.user.findMany).mockResolvedValue([]);
-  jest.mocked(prisma.funnelEvent.groupBy).mockResolvedValue([]);
   jest.mocked(prisma.$queryRaw).mockResolvedValue([]);
-  jest.mocked(claimMilestoneEvents).mockResolvedValue({ claimToken: null, events: [] });
 });
 it("requires current admin access and never queries reports for ordinary users", async () => {
   jest.mocked(hasAnalyticsAdminAccess).mockResolvedValue(false);
@@ -80,22 +74,15 @@ it("uses only the session identity and bounded properties for browser observatio
     expect.objectContaining({ properties: { plan: "basic" } }),
   );
 });
-it("rejects foreign-origin observations and receipts", async () => {
-  const observed = await observation(request({ kind: "plan_viewed" }, "https://foreign.example"));
-  const receipt = await relay(request({ protocol: 2, claimToken: "guess" }, "https://foreign.example"));
-  expect(observed.status).toBe(403);
-  expect(receipt.status).toBe(403);
+it("rejects foreign-origin observations", async () => {
+  const response = await observation(request({ kind: "plan_viewed" }, "https://foreign.example"));
+  expect(response.status).toBe(403);
   expect(recordFunnelEvent).not.toHaveBeenCalled();
-  expect(acknowledgeMilestones).not.toHaveBeenCalled();
 });
-it("does not lease to old or malformed clients and bounds receipt kinds", async () => {
-  for (const body of [{}, null]) {
-    const response = await relay(request(body));
-    expect(response.status).toBe(200);
-  }
-  expect(claimMilestoneEvents).not.toHaveBeenCalled();
-  await relay(
-    request({ protocol: 2, claimToken: "lease", delivered: ["signup_completed", 123, null], userId: "forged" }),
-  );
-  expect(acknowledgeMilestones).toHaveBeenCalledWith("current-user", "lease", ["signup_completed"]);
+it("distinguishes database failure from bad dates", async () => {
+  jest.mocked(prisma.user.findMany).mockRejectedValue(new Error("unavailable"));
+  const failed = await report(new NextRequest("http://localhost:3000/api/admin/analytics/funnel"));
+  expect(failed.status).toBe(500);
+  const invalid = await report(new NextRequest("http://localhost:3000/api/admin/analytics/funnel?from=bad"));
+  expect(invalid.status).toBe(400);
 });

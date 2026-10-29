@@ -4,8 +4,6 @@ import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/
 import { emailOTP } from "better-auth/plugins";
 
 import { syncAdsPermission } from "../analytics/ads-permission";
-import { authObservation } from "../analytics/auth-observation";
-import { recordFunnelEvent } from "../analytics/events";
 import { acquisitionContext } from "../analytics/first-touch";
 import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
@@ -69,7 +67,6 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       analyticsExcluded: { type: "boolean", required: false, input: false, returned: false },
-      lastNonDirectAcquisition: { type: "json", required: false, input: false, returned: false },
       acquisition: { type: "json", required: false, input: false, returned: false },
       experimentAttribution: { type: "json", required: false, input: false, returned: false },
     },
@@ -91,7 +88,6 @@ export const auth = betterAuth({
             data: {
               ...user,
               analyticsExcluded: isTestUserEmail(user.email),
-              ...(touch.lastNonDirect ? { lastNonDirectAcquisition: touch.lastNonDirect } : {}),
               acquisition: {
                 ...touch,
                 ...(previewOffer ? { trialOffer: "preview_30d_v1" } : {}),
@@ -106,13 +102,6 @@ export const auth = betterAuth({
       create: {
         after: async (session, ctx) => {
           await syncAdsPermission(session.userId, ctx?.headers?.get("cookie") || "").catch(reportMeasurementFailure);
-          await recordFunnelEvent(session.userId, "authentication_completed", {
-            key: session.id,
-            channel: "auth",
-            properties: {
-              method: ctx?.path?.includes("email-otp") ? "email" : ctx?.path?.includes("callback") ? "google" : "other",
-            },
-          });
         },
       },
     },
@@ -123,12 +112,6 @@ export const auth = betterAuth({
     after: createAuthMiddleware(async (ctx) => {
       // Better Auth catches sendVerificationOTP errors as background-task failures.
       // Carry the failure on this request's context so the form receives an error.
-      const observation = authObservation(ctx.path, ctx.context.returned);
-      if (observation)
-        await recordFunnelEvent(null, observation.kind, {
-          channel: "auth",
-          properties: { method: observation.method, reason: observation.reason },
-        });
       const delivery = ctx.context as typeof ctx.context & { otpDeliveryFailed?: boolean };
       if (delivery.otpDeliveryFailed) {
         throw new APIError("SERVICE_UNAVAILABLE", { message: "Failed to send verification code. Please try again." });
@@ -162,20 +145,7 @@ export const auth = betterAuth({
         const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL);
         try {
           await sendEmail(email, message.subject, message.html, message.text);
-          if (type === "sign-in")
-            await recordFunnelEvent(null, "signup_code_sent", {
-              channel: "auth",
-              properties: {
-                method: "email",
-                entrypoint: acquisitionContext(ctx?.headers?.get("cookie") || "").signupEntryPoint,
-              },
-            });
         } catch (error) {
-          if (type === "sign-in")
-            await recordFunnelEvent(null, "signup_code_failed", {
-              channel: "auth",
-              properties: { method: "email", reason: "delivery_failed" },
-            });
           if (!ctx) throw error;
           Object.assign(ctx.context, { otpDeliveryFailed: true });
         }

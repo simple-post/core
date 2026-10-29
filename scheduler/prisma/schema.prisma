@@ -37,7 +37,6 @@ model User {
   analyticsExcluded            Boolean                     @default(false)
   funnelEvents                 FunnelEvent[]
   acquisition                  String?
-  lastNonDirectAcquisition     String?
   experimentAttribution        String?
   firstPayment                 FirstPayment?
   createdAt                    DateTime                    @default(now())
@@ -611,7 +610,6 @@ model FirstPayment {
   stripeInvoiceId      String   @unique
   stripeSubscriptionId String
   paidAt               DateTime
-  attributionSnapshot  String?
   amountPaid           Int
   currency             String
   planKey              String?
@@ -642,11 +640,6 @@ model ActivationMilestone {
   firstPostAttemptedAt  DateTime?
   secondPublishingDayAt DateTime?
   reportedKinds         String[]  @default([])
-  relayLeaseToken       String?
-  relayLeaseExpiresAt   DateTime?
-  relayAttempts         Int       @default(0)
-  relayLastAttemptAt    DateTime?
-  relayLastError        String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now())
 
@@ -725,11 +718,11 @@ model OpenAiAdsMeasurement {
 }
 
 // Internal measurement ledger. No post content, credentials, URLs or email values.
-// Anonymous authentication delivery events have no user or cross-visit identifier.
+// Each observation belongs to an account and is removed with it.
 model FunnelEvent {
   id         String   @id
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind       String
   channel    String
   occurredAt DateTime @default(now())

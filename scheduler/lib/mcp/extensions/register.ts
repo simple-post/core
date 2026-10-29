@@ -1,11 +1,10 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/server";
 import { Feature } from "@prisma/client";
 import { z } from "zod";
 
-import { measureMcpTool } from "@/lib/analytics/tool-measurement";
 import { hasFeature } from "@/lib/features";
 import { getAppBaseUrl, hasMcpScope, type McpScope } from "@/lib/mcp/config";
+import { registerMeasuredTool } from "@/lib/mcp/registration";
 import type { McpToolAuthContext } from "@/lib/mcp/server";
 import { WORKSPACE_WIDGET_URI, EDITOR_WIDGET_URI } from "@/lib/mcp/ui/resources";
 import {
@@ -61,7 +60,8 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
     extraMeta: Record<string, unknown> = {},
     outputSchema?: z.ZodObject,
   ) {
-    registerAppTool(
+    registerMeasuredTool(
+      context,
       server,
       name,
       {
@@ -74,20 +74,18 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
         _meta: { ...meta, securitySchemes: [{ type: "oauth2", scopes }], ...extraMeta },
       },
       async (input) => {
-        return measureMcpTool(context, name, async () => {
-          try {
-            await guard(scopes);
-            const result = await handler(schema.parse(input));
+        try {
+          await guard(scopes);
+          const result = await handler(schema.parse(input));
 
-            return {
-              // eslint-disable-next-line unicorn/prefer-structured-clone -- Normalize Dates and undefined for MCP JSON.
-              structuredContent: JSON.parse(JSON.stringify(result)) as Record<string, unknown>,
-              content: [{ type: "text" as const, text: `${title}: ${JSON.stringify(result)}` }],
-            };
-          } catch (error) {
-            return errorResult(error, context);
-          }
-        });
+          return {
+            // eslint-disable-next-line unicorn/prefer-structured-clone -- Normalize Dates and undefined for MCP JSON.
+            structuredContent: JSON.parse(JSON.stringify(result)) as Record<string, unknown>,
+            content: [{ type: "text" as const, text: `${title}: ${JSON.stringify(result)}` }],
+          };
+        } catch (error) {
+          return errorResult(error, context);
+        }
       },
     );
   }

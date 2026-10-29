@@ -4,9 +4,6 @@ import { seoRoute } from "./landing-category";
 export const FIRST_TOUCH_COOKIE = "sp_first_touch_v1";
 export const LAST_NON_DIRECT_COOKIE = "sp_last_non_direct_v1";
 export const SIGNUP_ENTRY_COOKIE = "sp_signup_entry_v1";
-export const ATTRIBUTION_VERSION = "first-and-last-v2";
-export const SIGNUP_VERSION = "email-otp-v1";
-export const ONBOARDING_VERSION = "assistant-first-v2";
 export const MEASUREMENT_VERSION = "funnel-v2";
 export type SignupEntryPoint = "web" | "assistant_authorize" | "cli_authorize";
 const observedDocuments = new WeakSet<object>();
@@ -164,9 +161,6 @@ export function acquisitionContext(cookieHeader: string) {
     ...(first || { version: 1, source: "unknown", reason: "no_valid_first_touch" }),
     ...(last && !["direct", "unknown"].includes(last.source) ? { lastNonDirect: last } : {}),
     signupEntryPoint: entry === "assistant_authorize" || entry === "cli_authorize" ? entry : "web",
-    attributionVersion: ATTRIBUTION_VERSION,
-    signupVersion: SIGNUP_VERSION,
-    onboardingVersion: ONBOARDING_VERSION,
     measurementVersion: MEASUREMENT_VERSION,
   };
 }
@@ -193,7 +187,8 @@ export function captureFirstTouch(): void {
     // Do not re-use document.referrer on SPA navigation or repeat click captures.
     const callbackReturn =
       url.hostname === "app.simplepost.social" &&
-      (url.pathname.startsWith("/api/") ||
+      (["/oauth/authorize", "/cli/authorize"].includes(url.pathname) ||
+        url.pathname.startsWith("/api/") ||
         url.searchParams.has("checkout") ||
         ((url.pathname === "/accounts" || url.pathname === "/accounts/") &&
           (url.searchParams.has("success") || url.searchParams.has("error"))));

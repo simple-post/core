@@ -61,7 +61,6 @@ async function main() {
     assert.equal(JSON.parse(user.acquisition!).source, "chatgpt");
     assert.equal(JSON.parse(user.acquisition!).signupEntryPoint, "assistant_authorize");
     assert.equal(JSON.parse(user.acquisition!).measurementVersion, "funnel-v2");
-    assert.equal(JSON.parse(user.lastNonDirectAcquisition!).source, "chatgpt");
     assert.equal(user.analyticsExcluded, true, "Demo accounts are excluded");
     await login(emails[0], "overwritten");
     const returningUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
@@ -76,7 +75,6 @@ async function main() {
     const payload = await session.json();
     assert.equal(payload.user.id, user.id);
     assert.ok(!Object.hasOwn(payload.user, "acquisition"), "Auth responses must not expose acquisition");
-    assert.ok(!Object.hasOwn(payload.user, "lastNonDirectAcquisition"));
     assert.ok(!Object.hasOwn(payload.user, "analyticsExcluded"));
     await auth.handler(
       new Request("http://localhost:3000/api/auth/update-user", {
@@ -86,31 +84,16 @@ async function main() {
           name: "Demo User",
           isAdmin: true,
           analyticsExcluded: false,
-          lastNonDirectAcquisition: { source: "forged" },
         }),
       }),
     );
     const attemptedAdmin = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     assert.equal(attemptedAdmin.isAdmin, false, "Auth profile updates must not grant admin access");
     assert.equal(attemptedAdmin.analyticsExcluded, true);
-    assert.deepEqual(attemptedAdmin.lastNonDirectAcquisition, returningUser.lastNonDirectAcquisition);
     await login(emails[1]);
     const unknown = await prisma.user.findUniqueOrThrow({ where: { email: emails[1] } });
     assert.equal(JSON.parse(unknown.acquisition!).source, "unknown");
     assert.equal(unknown.analyticsExcluded, false);
-    assert.equal(
-      await prisma.funnelEvent.count({ where: { userId: unknown.id, kind: "authentication_completed" } }),
-      1,
-    );
-    const failed = await auth.handler(
-      new Request("http://localhost:3000/api/auth/sign-in/email-otp", {
-        method: "POST",
-        headers: { "content-type": "application/json", origin: "http://localhost:3000" },
-        body: JSON.stringify({ email: "missing-funnel@example.invalid", otp: "000000" }),
-      }),
-    );
-    assert.ok(failed.status >= 400);
-    assert.ok((await prisma.funnelEvent.count({ where: { userId: null, kind: "authentication_failed" } })) > 0);
     // eslint-disable-next-line no-console
     console.log(
       "PASS actual Better Auth account creation, immutable first touch, unknown fallback, private auth responses and admin self-promotion denial",

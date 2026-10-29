@@ -8,22 +8,7 @@ export async function recordBillingWebhook(event: Stripe.Event, userId: string |
   const at = new Date(event.created * 1000);
   if (event.type.startsWith("invoice.")) {
     const invoice = event.data.object as Stripe.Invoice;
-    if (
-      (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") &&
-      invoice.status === "paid" &&
-      invoice.amount_paid > 0
-    ) {
-      await recordFunnelEvent(userId, "invoice_paid", {
-        key: invoice.id,
-        channel: "billing",
-        at: new Date((invoice.status_transitions.paid_at ?? event.created) * 1000),
-        properties: {
-          amountPaid: invoice.amount_paid,
-          currency: invoice.currency,
-          billingReason: invoice.billing_reason ?? "unknown",
-        },
-      });
-    } else if (event.type === "invoice.payment_failed" || event.type === "invoice.payment_action_required") {
+    if (event.type === "invoice.payment_failed" || event.type === "invoice.payment_action_required") {
       await recordFunnelEvent(userId, "invoice_payment_failed", {
         key: `${invoice.id}:${invoice.attempt_count}:${event.type}`,
         channel: "billing",
@@ -48,7 +33,6 @@ export async function recordBillingWebhook(event: Stripe.Event, userId: string |
         properties: {
           status: checkout.payment_status,
           plan: checkout.metadata?.planKey ?? "unknown",
-          amountPaid: checkout.amount_total ?? 0,
         },
       },
     );

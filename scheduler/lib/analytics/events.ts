@@ -5,19 +5,13 @@ import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 export const FUNNEL_KINDS = [
-  "authentication_failed",
-  "authentication_completed",
-  "signup_code_sent",
-  "signup_code_failed",
   "social_connection_started",
   "social_connection_failed",
   "social_connection_cancelled",
   "assistant_authorization_started",
   "assistant_authorization_failed",
   "assistant_authorization_cancelled",
-  "tool_called",
-  "tool_succeeded",
-  "tool_failed",
+  "tool_call",
   "post_create_attempted",
   "post_create_rejected",
   "plan_viewed",
@@ -25,7 +19,6 @@ export const FUNNEL_KINDS = [
   "checkout_failed",
   "checkout_completed",
   "checkout_expired",
-  "invoice_paid",
   "invoice_payment_failed",
   "subscription_cancel_requested",
   "subscription_ended",
@@ -35,10 +28,10 @@ export type FunnelKind = (typeof FUNNEL_KINDS)[number];
 type Scalar = string | number | boolean;
 const log = createLogger("analytics:funnel");
 const KEYS = new Set([
+  "outcome",
   "method",
   "platform",
   "tool",
-  "client",
   "reason",
   "plan",
   "status",
@@ -49,8 +42,6 @@ const KEYS = new Set([
   "billingReason",
   "attempt",
   "source",
-  "signupVersion",
-  "onboardingVersion",
   "measurementVersion",
 ]);
 
@@ -69,7 +60,7 @@ export function funnelProperties(values: Record<string, unknown> = {}): Record<s
 
 /** Operational measurement is internal and best effort. Nothing is sent to an external service. */
 export async function recordFunnelEvent(
-  userId: string | null,
+  userId: string,
   kind: FunnelKind,
   options: {
     key?: string;
@@ -84,13 +75,36 @@ export async function recordFunnelEvent(
       .update(`funnel:${kind}:${options.key ?? randomUUID()}`)
       .digest("hex");
     const properties = JSON.stringify(funnelProperties({ measurementVersion: "funnel-v2", ...options.properties }));
+    const at = options.at ?? new Date();
+    const tool = kind === "tool_call";
+    const calledAt = tool ? at.toISOString() : null;
+    const succeededAt =
+      tool && options.properties?.outcome === "succeeded"
+        ? new Date(at.getTime() + Number(options.properties?.durationMs ?? 0)).toISOString()
+        : null;
+    const attemptedAt =
+      kind === "post_create_attempted" ||
+      (tool && ["create_post", "commit_post_editor_session"].includes(String(options.properties?.tool)))
+        ? at.toISOString()
+        : null;
     await prisma.$executeRaw`
+      WITH captured AS (
       INSERT INTO "funnel_event" ("id", "userId", "kind", "channel", "occurredAt", "properties")
-      SELECT ${id}, ${userId}::text, ${kind}, ${options.channel ?? "web"}, ${(options.at ?? new Date()).toISOString()}::timestamp, ${properties}::jsonb
-      WHERE ${userId}::text IS NULL OR EXISTS (
+      SELECT ${id}, ${userId}::text, ${kind}, ${options.channel ?? "web"}, ${at.toISOString()}::timestamp, ${properties}::jsonb
+      WHERE EXISTS (
         SELECT 1 FROM "user" WHERE id=${userId}::text AND NOT "isAdmin" AND NOT "analyticsExcluded"
       )
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT (id) DO NOTHING RETURNING "userId"
+      )
+      UPDATE activation_milestone a SET
+        "firstToolCalledAt"=LEAST(a."firstToolCalledAt",${calledAt}::timestamp),
+        "firstToolSucceededAt"=LEAST(a."firstToolSucceededAt",${succeededAt}::timestamp),
+        "firstPostAttemptedAt"=LEAST(a."firstPostAttemptedAt",${attemptedAt}::timestamp)
+      FROM captured c WHERE a."userId"=c."userId" AND (
+        (${calledAt}::timestamp IS NOT NULL AND (a."firstToolCalledAt" IS NULL OR a."firstToolCalledAt">${calledAt}::timestamp)) OR
+        (${succeededAt}::timestamp IS NOT NULL AND (a."firstToolSucceededAt" IS NULL OR a."firstToolSucceededAt">${succeededAt}::timestamp)) OR
+        (${attemptedAt}::timestamp IS NOT NULL AND (a."firstPostAttemptedAt" IS NULL OR a."firstPostAttemptedAt">${attemptedAt}::timestamp))
+      )
     `;
   } catch {
     log.warn({ errorCode: "funnel_capture_failed", kind }, "Optional funnel measurement failed");

@@ -74,6 +74,8 @@ test("does not reuse an initial document referrer during SPA navigation", () =>
     navigate("https://simplepost.social/", "https://www.google.com/search?q=private");
     const last = cookies.get(LAST_NON_DIRECT_COOKIE);
     navigate("https://simplepost.social/pricing", "", false);
+    navigate("https://app.simplepost.social/oauth/authorize", "https://chatgpt.com/");
+    navigate("https://app.simplepost.social/cli/authorize", "https://claude.ai/");
     assert.equal(cookies.get(LAST_NON_DIRECT_COOKIE), last);
   }));
 

@@ -135,9 +135,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ redirectUrl: redirect.toString() });
   } catch (error) {
-    await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
-      properties: { reason: measurementFailure(error) },
-    });
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

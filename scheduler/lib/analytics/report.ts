@@ -11,7 +11,7 @@ export interface AcquisitionAccount {
   subscription: { status: string; planKey: string | null } | null;
 }
 
-export function acquisitionLabels(value: unknown, model: "first" | "last_non_direct" = "first", latest?: unknown) {
+export function acquisitionLabels(value: unknown, model: "first" | "last_non_direct" = "first") {
   // Better Auth's Prisma adapter stores JSON additional fields as serialized text.
   if (typeof value === "string") {
     try {
@@ -21,14 +21,7 @@ export function acquisitionLabels(value: unknown, model: "first" | "last_non_dir
     }
   }
   const original = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-  if (typeof latest === "string") {
-    try {
-      latest = JSON.parse(latest);
-    } catch {
-      latest = null;
-    }
-  }
-  const candidate = latest || original.lastNonDirect;
+  const candidate = original.lastNonDirect;
   const data =
     model === "last_non_direct" && candidate && typeof candidate === "object" && !Array.isArray(candidate)
       ? (candidate as Record<string, unknown>)

@@ -1,45 +1,38 @@
-import { prisma } from "@/lib/prisma";
-
-import { normalizeAiClient } from "./activation";
 import { measurementFailure, recordFunnelEvent } from "./events";
 
-import type { CallToolResult } from "@modelcontextprotocol/server";
+import type { CallToolResult, InputRequiredResult } from "@modelcontextprotocol/server";
 
-/** Only registered tool invocations reach this wrapper; discovery and pings do not. Retries are attempts, not additional people. */
+/** One observation per completed invocation; inputs and results are never retained. */
 export async function measureMcpTool(
-  context: { userId: string; clientId?: string },
+  context: { userId: string },
   tool: string,
-  run: () => Promise<CallToolResult>,
-): Promise<CallToolResult> {
-  let client = "other-mcp";
-  try {
-    const row = context.clientId
-      ? await prisma.mcpOAuthClient.findUnique({ where: { clientId: context.clientId }, select: { name: true } })
-      : null;
-    client = normalizeAiClient(row?.name);
-  } catch {
-    /* Optional client metadata never blocks a tool. */
-  }
-  const properties = { tool, client };
-  const started = Date.now();
-  await recordFunnelEvent(context.userId, "tool_called", { channel: "mcp", properties });
-  if (["create_post", "commit_post_editor_session"].includes(tool))
-    await recordFunnelEvent(context.userId, "post_create_attempted", { channel: "mcp", properties });
+  run: () => Promise<CallToolResult | InputRequiredResult>,
+): Promise<CallToolResult | InputRequiredResult> {
+  const started = new Date();
   try {
     const result = await run();
-    await recordFunnelEvent(context.userId, result.isError ? "tool_failed" : "tool_succeeded", {
+    const failed = "isError" in result && result.isError;
+    await recordFunnelEvent(context.userId, "tool_call", {
       channel: "mcp",
+      at: started,
       properties: {
-        ...properties,
-        ...(result.isError ? { reason: measurementFailure(result._meta?.["simplepost/error"]) } : {}),
-        durationMs: Date.now() - started,
+        tool,
+        outcome: failed ? "failed" : "succeeded",
+        durationMs: Date.now() - started.getTime(),
+        ...(failed ? { reason: measurementFailure(result._meta?.["simplepost/error"]) } : {}),
       },
     });
     return result;
   } catch (error) {
-    await recordFunnelEvent(context.userId, "tool_failed", {
+    await recordFunnelEvent(context.userId, "tool_call", {
       channel: "mcp",
-      properties: { ...properties, reason: measurementFailure(error), durationMs: Date.now() - started },
+      at: started,
+      properties: {
+        tool,
+        outcome: "failed",
+        reason: measurementFailure(error),
+        durationMs: Date.now() - started.getTime(),
+      },
     });
     throw error;
   }

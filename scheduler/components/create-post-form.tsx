@@ -119,6 +119,7 @@ export function CreatePostForm() {
   const defaultRepostAppliedRef = useRef(false);
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
   const [submittedPostId, setSubmittedPostId] = useState<string | undefined>();
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
@@ -472,6 +473,7 @@ export function CreatePostForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittedPostId(undefined);
+    setOutcomeUncertain(false);
     setSubmitAttempted(true);
 
     if (selectedAccountIds.length === 0) {
@@ -628,6 +630,7 @@ export function CreatePostForm() {
         setTrialSubmissionError(errorMessage);
       }
       if (postingMode === "now") {
+        setOutcomeUncertain(postingOutcomeUncertain(error));
         setPostingSucceeded(false);
         setPostingResults((current) =>
           failPendingPostingResults(current, errorMessage, postingOutcomeUncertain(error)),
@@ -964,6 +967,7 @@ export function CreatePostForm() {
       <PostLinksModal
         open={showPostLinksModal}
         posting={submitPostMutation.isPending}
+        outcomeUncertain={outcomeUncertain}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           if (!open && postingSucceeded) router.push("/?tab=past");

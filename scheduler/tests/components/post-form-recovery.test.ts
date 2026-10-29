@@ -1,11 +1,12 @@
 /** @jest-environment jsdom */
 Object.defineProperty(process.env, "NODE_ENV", { value: "test", writable: true });
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
 
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 
 import { CreatePostForm } from "@/components/create-post-form";
 import { PostForm } from "@/components/post-form";
+import type { PostLinksModal } from "@/components/post-links-modal";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { SocialPost } from "@/types";
 
@@ -19,7 +20,7 @@ const mockValidation = {
   results: [],
   accounts: [],
 };
-let mockModal: Record<string, any>;
+let mockModal: ComponentProps<typeof PostLinksModal>;
 const mockAccounts = ["sent", "failed"].map((id) => ({ id, platform: "linkedin", username: id }));
 const mockDraft = {
   message: "My post",
@@ -77,7 +78,7 @@ jest.mock("@/components/account-selector", () => ({ AccountSelector: () => null 
 jest.mock("@/components/post-content-editor", () => ({ PostContentEditor: () => null }));
 jest.mock("@/components/tiktok-settings", () => ({ TikTokSettings: () => null }));
 jest.mock("@/components/post-links-modal", () => ({
-  PostLinksModal: (props: Record<string, any>) => {
+  PostLinksModal: (props: ComponentProps<typeof PostLinksModal>) => {
     mockModal = props;
     return null;
   },
@@ -129,6 +130,31 @@ it.each(["create", "duplicate"])(
   },
 );
 
+it.each(["create", "duplicate"])(
+  "%s retains request uncertainty even after every platform reported success",
+  async (mode) => {
+    mockSubmit.mockImplementationOnce(async ({ onPostingResult }) => {
+      for (const accountId of ["sent", "failed"]) onPostingResult({ accountId, platform: "linkedin", success: true });
+      throw new Error("Final response lost after platform acceptance");
+    });
+    const existingPost = {
+      id: "original",
+      status: "published",
+      message: "Original",
+      media: [],
+      accountIds: ["sent", "failed"],
+    } as unknown as SocialPost;
+    const view =
+      mode === "create"
+        ? mountForm(createElement(CreatePostForm))
+        : mountForm(createElement(PostForm, { mode: "duplicate", existingPost }));
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => expect(mockModal.outcomeUncertain).toBe(true));
+    expect(mockModal.results.every((result) => result.success)).toBe(true);
+    expect(mockModal.postId).toBeUndefined();
+  },
+);
+
 it("keeps an existing failed post's retry in its editor and selects only the failed account", async () => {
   const existingPost = {
     id: "saved-post",
@@ -141,7 +167,7 @@ it("keeps an existing failed post's retry in its editor and selects only the fai
   fireEvent.submit(view.container.querySelector("form")!);
   await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
   expect(mockModal.onEditFailed).toBe(mockSelect);
-  mockModal.onEditFailed(["failed"]);
+  mockModal.onEditFailed?.(["failed"]);
   expect(mockSelect).toHaveBeenCalledWith(["failed"]);
 });
 

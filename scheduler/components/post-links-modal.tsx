@@ -28,6 +28,7 @@ interface PostLinksModalProps {
   onOpenChange: (open: boolean) => void;
   results: PostingProgressResult[];
   posting?: boolean;
+  outcomeUncertain?: boolean;
   /** The saved SimplePost post, rather than a provider's post ID. */
   postId?: string;
   onRecover?: (returnTo: string, accountIds: string[]) => boolean;
@@ -49,6 +50,7 @@ export function PostLinksModal({
   onOpenChange,
   results,
   posting = false,
+  outcomeUncertain = false,
   postId,
   onRecover,
   onEditFailed,
@@ -57,6 +59,7 @@ export function PostLinksModal({
   const { data: accounts = [] } = useAccounts();
   const successfulPosts = results.filter((result) => result.success === true);
   const uncertainPosts = results.filter((result) => result.uncertain);
+  const hasUncertainOutcome = outcomeUncertain || uncertainPosts.length > 0;
   const failedPosts = results.filter((result) => result.success === false && !result.uncertain);
   const pendingPosts = results.filter((result) => result.success === undefined);
   const completedPosts = successfulPosts.length + failedPosts.length + uncertainPosts.length;
@@ -93,8 +96,8 @@ export function PostLinksModal({
               ? completedPosts === results.length
                 ? "Posting complete. Finishing up…"
                 : `${completedPosts} of ${results.length} platform${results.length === 1 ? "" : "s"} complete.`
-              : uncertainPosts.length > 0
-                ? "Publishing status is unknown. Check Posts before retrying."
+              : hasUncertainOutcome
+                ? "Final posting status could not be confirmed. Check Posts before retrying."
                 : failedPosts.length > 0 && successfulPosts.length > 0
                   ? `${successfulPosts.length} completed. ${failedPosts.length} ${failedPosts.length === 1 ? "destination needs" : "destinations need"} attention.`
                   : successfulPosts.length > 0
@@ -198,7 +201,7 @@ export function PostLinksModal({
                                 ? "Reconnect this account before trying again."
                                 : "Publishing failed. Review this post before trying again.")}
                       </p>
-                      {!isPosting && uncertainPosts.length === 0 && (
+                      {!isPosting && !hasUncertainOutcome && (
                         <div className="flex flex-wrap gap-2">
                           {needsReconnect && (
                             <Button asChild size="sm">
@@ -229,7 +232,7 @@ export function PostLinksModal({
           })}
 
           {/* Summary */}
-          {failedPosts.length > 0 && successfulPosts.length > 0 && uncertainPosts.length === 0 && !isPosting && (
+          {failedPosts.length > 0 && successfulPosts.length > 0 && !hasUncertainOutcome && !isPosting && (
             <p className="pt-1 text-xs text-muted-foreground">Only failed destinations will be selected for retry.</p>
           )}
           {recoveryError && (
@@ -256,20 +259,20 @@ export function PostLinksModal({
 
         <DialogFooter className="min-h-9 flex-row flex-wrap justify-end sm:justify-end">
           <Button
-            variant={failedPosts.length > 0 || uncertainPosts.length > 0 ? "outline" : "default"}
+            variant={failedPosts.length > 0 || hasUncertainOutcome ? "outline" : "default"}
             className={isPosting ? "invisible" : undefined}
             aria-hidden={isPosting}
             tabIndex={isPosting ? -1 : 0}
             onClick={() => onOpenChange(false)}>
             Done
           </Button>
-          {!isPosting && uncertainPosts.length > 0 && (
+          {!isPosting && hasUncertainOutcome && (
             <Button asChild>
               <Link href={postId ? `/posts/${encodeURIComponent(postId)}` : "/?tab=past"}>Check Posts</Link>
             </Button>
           )}
           {!isPosting &&
-            uncertainPosts.length === 0 &&
+            !hasUncertainOutcome &&
             failedPosts.length > 0 &&
             (onEditFailed ? (
               <Button

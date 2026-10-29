@@ -65,3 +65,18 @@ it("offers inspection instead of a retry when the publishing outcome is unknown"
   expect(screen.queryByRole("link", { name: "Reconnect account" })).toBeNull();
   expect(screen.queryByRole("progressbar")).toBeNull();
 });
+
+it("still asks users to inspect Posts if the final response is lost after all platform successes", () => {
+  render(
+    createElement(PostLinksModal, {
+      open: true,
+      onOpenChange: jest.fn(),
+      outcomeUncertain: true,
+      results: [{ accountId: "sent", platform: "linkedin", success: true }],
+      onEditFailed: jest.fn(),
+    }),
+  );
+  expect(screen.getByRole("link", { name: "Check Posts" })).toBeTruthy();
+  expect(screen.getByText(/Final posting status could not be confirmed/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Edit and retry" })).toBeNull();
+});

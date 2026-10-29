@@ -121,6 +121,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     resetDraft,
   } = usePostDraft();
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
   const [submittedPostId, setSubmittedPostId] = useState<string | undefined>();
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
@@ -312,6 +313,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittedPostId(undefined);
+    setOutcomeUncertain(false);
 
     // Validate based on posting mode
     if (selectedAccountIds.length === 0) {
@@ -465,6 +467,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         setScheduleError(errorMessage);
       }
       if (postingMode === "now") {
+        setOutcomeUncertain(postingOutcomeUncertain(error));
         setPostingSucceeded(false);
         setPostingResults((current) =>
           failPendingPostingResults(current, errorMessage, postingOutcomeUncertain(error)),
@@ -719,6 +722,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       <PostLinksModal
         open={showPostLinksModal}
         posting={submitPostMutation.isPending}
+        outcomeUncertain={outcomeUncertain}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           // Navigate when modal is closed

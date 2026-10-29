@@ -30,7 +30,7 @@ import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
-import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
+import { handleApiError, BadRequestError, ApiError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -492,7 +492,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
         const durationMs = Date.now() - startTime;
         log.error({ durationMs }, "Failed to post to platforms");
-        throw new BadRequestError("Failed to post to platforms");
+        throw new ApiError("Publishing could not be confirmed. Check Posts before retrying.", 500);
       }
     }
 

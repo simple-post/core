@@ -58,6 +58,7 @@ model User {
   publishingPreferences        UserPublishingPreferences?
   editorSessions               PostEditorSession[]
   activationMilestone          ActivationMilestone?
+  openAiAdsMeasurement         OpenAiAdsMeasurement?
 
   @@unique([email])
   @@map("user")
@@ -684,4 +685,26 @@ model ExperimentExposure {
 
   @@index([experimentId, exposedAt])
   @@map("experiment_exposure")
+}
+
+// Server-owned permission and delivery state. No automatic grants or public setters.
+// Grant before trial start to report that milestone. Re-grants advance the window,
+// preserving reported/skipped kinds; the database rejects a stale re-grant.
+model OpenAiAdsMeasurement {
+  userId              String    @id
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionGrantedAt DateTime  @db.Timestamptz(3)
+  permissionRevokedAt DateTime? @db.Timestamptz(3)
+  reportedKinds       String[]  @default([])
+  skippedKinds        String[]  @default([])
+  nextAttemptAt       DateTime  @default(now()) @db.Timestamptz(3)
+  leaseToken          String?
+  leaseExpiresAt      DateTime? @db.Timestamptz(3)
+  attempts            Int       @default(0)
+  lastError           String?
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([nextAttemptAt])
+  @@map("openai_ads_measurement")
 }

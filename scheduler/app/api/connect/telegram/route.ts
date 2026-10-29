@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -9,8 +10,11 @@ import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 const log = createLogger("api:connect:telegram");
 
 export async function POST(req: NextRequest) {
+  let measurementUserId: string | null = null;
   try {
     const session = await requireAuth(req, { action: "connect_social_account", platform: "telegram" });
+    measurementUserId = session.user.id;
+    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform: "telegram" } });
     if (!isSocialPlatformEnabled("telegram")) {
       throw new BadRequestError("Telegram is not enabled in this environment");
     }
@@ -93,6 +97,10 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "social_connection_failed", {
+        properties: { platform: "telegram", reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

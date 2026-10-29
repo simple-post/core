@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/server";
 
 import { createLogger, serializeError } from "@/lib/logger";
+import { registerMeasuredTool } from "@/lib/mcp/registration";
 import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
@@ -568,7 +568,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
   registerMcpUiResources(server, context.pluginExtensionsEnabled);
   if (context.pluginExtensionsEnabled) registerExtensionTools(server, context, errorResult);
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "list_accounts",
     {
@@ -604,7 +605,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "get_tiktok_creator_info",
     {
@@ -630,7 +632,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "upload_media",
     {
@@ -671,7 +674,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "validate_post",
     {
@@ -715,7 +719,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "preview_post",
     {
@@ -759,7 +764,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "show_post_preview",
     {
@@ -793,7 +799,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "create_post",
     {
@@ -861,7 +868,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "inspect_posts",
     {
@@ -911,7 +919,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "get_schedule",
     {
@@ -944,7 +953,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "show_schedule",
     {
@@ -977,7 +987,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "update_scheduled_post",
     {
@@ -1021,7 +1032,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "discard_scheduled_post",
     {

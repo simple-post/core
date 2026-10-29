@@ -1,10 +1,10 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/server";
 import { Feature } from "@prisma/client";
 import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
 import { getAppBaseUrl, hasMcpScope, type McpScope } from "@/lib/mcp/config";
+import { registerMeasuredTool } from "@/lib/mcp/registration";
 import type { McpToolAuthContext } from "@/lib/mcp/server";
 import { WORKSPACE_WIDGET_URI, EDITOR_WIDGET_URI } from "@/lib/mcp/ui/resources";
 import {
@@ -60,7 +60,8 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
     extraMeta: Record<string, unknown> = {},
     outputSchema?: z.ZodObject,
   ) {
-    registerAppTool(
+    registerMeasuredTool(
+      context,
       server,
       name,
       {

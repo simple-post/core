@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { trackBrowserFunnelEvent } from "@/lib/analytics/browser-events";
 import { startPlanCheckout } from "@/lib/billing/checkout-client";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import {
@@ -36,6 +37,9 @@ export function PlanSelection({
   selectedPlanKey = null,
   embedded = false,
 }: PlanSelectionProps) {
+  useEffect(() => {
+    trackBrowserFunnelEvent("plan_viewed", selectedPlanKey ?? undefined);
+  }, [selectedPlanKey]);
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
 
   const startCheckout = useCallback(async (planKey: PlanKey) => {

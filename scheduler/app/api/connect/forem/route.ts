@@ -1,13 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { fetchForem, normalizeForemInstanceUrl } from "@/lib/security/forem";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function POST(request: NextRequest) {
+  let measurementUserId: string | null = null;
   try {
     const session = await requireAuth(request, { action: "connect_social_account", platform: "forem" });
+    measurementUserId = session.user.id;
+    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform: "forem" } });
     if (!isSocialPlatformEnabled("forem")) {
       throw new BadRequestError("DEV/Forem is not enabled in this environment");
     }
@@ -49,6 +53,10 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "social_connection_failed", {
+        properties: { platform: "forem", reason: measurementFailure(error) },
+      });
     return handleApiError(error, request);
   }
 }

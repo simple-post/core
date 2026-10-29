@@ -75,6 +75,10 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     return () => clearTimeout(timer);
   }, [resendSeconds]);
 
+  useEffect(() => {
+    trackEvent("Sign In Viewed");
+  }, []);
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setError(null);
@@ -89,6 +93,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       });
       if (result.error) throw new Error("Google sign-in failed");
     } catch (error_) {
+      trackEvent("Sign In Failed", { method: "google", reason: "provider_start_failed" });
       logClientError(error_, "Google sign-in error");
       setError("Failed to sign in with Google. Please ensure your credentials are configured correctly.");
     } finally {
@@ -107,6 +112,11 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       if (!codeSent) trackEvent("Sign In Started", { method: "email" });
       const result = await authClient.emailOtp.sendVerificationOtp({ email: normalizedEmail, type: "sign-in" });
       if (result.error) {
+        trackEvent("Sign In Failed", {
+          method: "email",
+          reason:
+            result.error.status === 429 ? "rate_limited" : codeSent ? "verification_failed" : "code_request_failed",
+        });
         setError(
           result.error.status === 429
             ? "Too many requests. Please wait a minute before trying again."
@@ -116,11 +126,13 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
         );
         return;
       }
+      trackEvent(codeSent ? "Sign In Code Resent" : "Sign In Code Sent", { method: "email" });
       setCodeSent(true);
       setCode("");
       setResendSeconds(30);
       if (!isDemoLogin) setSuccess(`A verification code was sent to ${normalizedEmail}.`);
     } catch (error_) {
+      trackEvent("Sign In Failed", { method: "email", reason: "code_request_failed" });
       logClientError(error_, "Email code request error");
       setError("Could not continue sign-in. Please try again.");
     } finally {
@@ -146,6 +158,11 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
     try {
       const result = await authClient.signIn.emailOtp({ email: normalizedEmail, otp: code });
       if (result.error) {
+        trackEvent("Sign In Failed", {
+          method: "email",
+          reason:
+            result.error.status === 429 ? "rate_limited" : codeSent ? "verification_failed" : "code_request_failed",
+        });
         setError(
           result.error.status === 429
             ? "Too many attempts. Please wait a minute before trying again."
@@ -157,6 +174,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       }
       window.location.assign(loginCallbackUrl(callbackURL, process.env.NEXT_PUBLIC_APP_URL || window.location.origin));
     } catch (error_) {
+      trackEvent("Sign In Failed", { method: "email", reason: "verification_failed" });
       logClientError(error_, "Email code sign-in error");
       setError("Failed to sign in. Please try again.");
     } finally {

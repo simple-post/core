@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
 import {
   assertCanCreatePost,
@@ -149,10 +150,20 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
   const startTime = Date.now();
   log.info("Received post creation request");
 
+  let measurementUserId: string | null = null;
   try {
     log.debug("Authenticating user");
     const session = await requireAuth(req);
     const userId = session.user.id;
+    measurementUserId = userId;
+    await recordFunnelEvent(userId, "post_create_attempted", {
+      channel:
+        session.session?.token === "mcp"
+          ? "mcp"
+          : session.session?.token === "cli" || session.session?.token === "api_key"
+            ? "api"
+            : "web",
+    });
     log.debug({ userId }, "User authenticated");
 
     const repository = new PostsModel(userId);
@@ -489,6 +500,10 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     log.info({ postId: post.id, durationMs, postingMode }, "Post created successfully");
     return NextResponse.json({ post, warnings: scheduleWarnings }, { status: 201 });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "post_create_rejected", {
+        properties: { reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

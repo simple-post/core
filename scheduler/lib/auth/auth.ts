@@ -4,7 +4,7 @@ import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/
 import { emailOTP } from "better-auth/plugins";
 
 import { syncAdsPermission } from "../analytics/ads-permission";
-import { readFirstTouch } from "../analytics/first-touch";
+import { acquisitionContext } from "../analytics/first-touch";
 import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
 import { createLogger } from "../logger";
@@ -66,6 +66,7 @@ export const auth = betterAuth({
   }),
   user: {
     additionalFields: {
+      analyticsExcluded: { type: "boolean", required: false, input: false, returned: false },
       acquisition: { type: "json", required: false, input: false, returned: false },
       experimentAttribution: { type: "json", required: false, input: false, returned: false },
     },
@@ -79,15 +80,16 @@ export const auth = betterAuth({
         before: async (user, ctx) => {
           if (env.SELF_HOSTED) return { data: user };
           // Written atomically with account creation. Never updated on later sign-ins.
-          const touch = readFirstTouch(ctx?.headers?.get("cookie") || "");
+          const touch = acquisitionContext(ctx?.headers?.get("cookie") || "");
           const previewOffer = (ctx?.headers?.get("cookie") || "")
             .split(";")
             .some((cookie) => cookie.trim() === "sp_preview_trial=30d_v1");
           return {
             data: {
               ...user,
+              analyticsExcluded: isTestUserEmail(user.email),
               acquisition: {
-                ...(touch || { version: 1, source: "unknown", reason: "no_valid_first_touch" }),
+                ...touch,
                 ...(previewOffer ? { trialOffer: "preview_30d_v1" } : {}),
               },
               experimentAttribution: signupExperiment(ctx?.headers),

@@ -3,12 +3,10 @@ import { NextRequest } from "next/server";
 
 import { GET, POST, OPTIONS } from "@/app/api/analytics/ads-measurement/route";
 import { syncAdsPermission } from "@/lib/analytics/ads-permission";
-import { openAiAdsConfigured } from "@/lib/analytics/openai-ads";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 jest.mock("@/lib/auth/auth", () => ({ auth: { api: { getSession: jest.fn() } } }));
 jest.mock("@/lib/analytics/ads-permission", () => ({ syncAdsPermission: jest.fn() }));
-jest.mock("@/lib/analytics/openai-ads", () => ({ openAiAdsConfigured: jest.fn(() => true) }));
 jest.mock("@/lib/prisma", () => ({ prisma: { openAiAdsMeasurement: { findUnique: jest.fn() } } }));
 function request(body: unknown, origin = "https://simplepost.social") {
   return new NextRequest("https://app.simplepost.social/api/analytics/ads-measurement", {
@@ -19,7 +17,6 @@ function request(body: unknown, origin = "https://simplepost.social") {
 }
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(openAiAdsConfigured).mockReturnValue(true);
   jest.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "current-user" } } as never);
 });
 it.each(["https://evil.example", "https://simplepost.social.evil.example", "null", ""])(
@@ -29,14 +26,14 @@ it.each(["https://evil.example", "https://simplepost.social.evil.example", "null
     expect(syncAdsPermission).not.toHaveBeenCalled();
   },
 );
-it("grants only for the authenticated user, ignoring supplied IDs and permission dates", async () => {
+it("rejects enrollment from stale clients without mutating any permission", async () => {
   const response = await POST(request({ allowed: true, userId: "other-user", permissionGrantedAt: "2000-01-01" }));
-  expect(response.status).toBe(200);
-  expect(syncAdsPermission).toHaveBeenCalledWith("current-user", "sp_ads_permission_v1=allowed", true);
+  expect(response.status).toBe(410);
+  expect(syncAdsPermission).not.toHaveBeenCalled();
   expect(response.headers.get("access-control-allow-origin")).toBe("https://simplepost.social");
   expect(response.headers.get("access-control-allow-credentials")).toBe("true");
 });
-it("browser synchronization cannot regrant revoked permission", async () => {
+it("browser synchronization only invokes withdrawal-only handling", async () => {
   expect((await POST(request({ sync: true }))).status).toBe(200);
   expect(syncAdsPermission).toHaveBeenCalledWith("current-user", "sp_ads_permission_v1=allowed", undefined);
 });
@@ -46,10 +43,10 @@ it.each([{}, null, { allowed: "yes" }])("rejects malformed bodies", async (body)
 });
 it("does not enroll anonymous visitors or disclose any account data", async () => {
   jest.mocked(auth.api.getSession).mockResolvedValue(null);
-  expect((await POST(request({ allowed: true }))).status).toBe(200);
+  expect((await POST(request({ sync: true }))).status).toBe(200);
   expect(syncAdsPermission).not.toHaveBeenCalled();
   const response = await GET(new NextRequest("https://app.simplepost.social/api/analytics/ads-measurement"));
-  expect(await response.json()).toEqual({ enabled: true, preference: null });
+  expect(await response.json()).toEqual({ enabled: false, preference: null });
 });
 it("reports only preference, never click identifiers, email or delivery metadata", async () => {
   jest.mocked(prisma.openAiAdsMeasurement.findUnique).mockResolvedValue({
@@ -58,7 +55,7 @@ it("reports only preference, never click identifiers, email or delivery metadata
     userId: "current-user",
   } as never);
   const response = await GET(request({}));
-  expect(await response.json()).toEqual({ enabled: true, preference: "declined" });
+  expect(await response.json()).toEqual({ enabled: false, preference: "declined" });
   expect(response.headers.get("cache-control")).toBe("no-store");
 });
 it("allows credentialed preflight only for the owned website", async () => {
@@ -67,9 +64,17 @@ it("allows credentialed preflight only for the owned website", async () => {
   expect(response.status).toBe(403);
   expect(response.headers.get("access-control-allow-origin")).toBeNull();
 });
-it("does not offer measurement when production settings are incomplete", async () => {
-  jest.mocked(openAiAdsConfigured).mockReturnValue(false);
-  expect(await (await GET(request({}))).json()).toEqual({ enabled: false });
-  expect((await POST(request({ allowed: true }))).status).toBe(404);
+it("withdraws only the authenticated account even when another user ID is supplied", async () => {
+  const response = await POST(request({ allowed: false, userId: "other-user" }));
+  expect(response.status).toBe(200);
+  expect(syncAdsPermission).toHaveBeenCalledWith("current-user", "sp_ads_permission_v1=allowed", false);
+});
+it("does not report a successful account withdrawal after sign-out", async () => {
+  jest.mocked(auth.api.getSession).mockResolvedValue(null);
+  expect((await POST(request({ allowed: false }))).status).toBe(401);
   expect(syncAdsPermission).not.toHaveBeenCalled();
+});
+it("hides enrollment while keeping existing permission available for withdrawal", async () => {
+  jest.mocked(prisma.openAiAdsMeasurement.findUnique).mockResolvedValue({ permissionRevokedAt: null } as never);
+  expect(await (await GET(request({}))).json()).toEqual({ enabled: false, preference: "allowed" });
 });

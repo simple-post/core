@@ -49,9 +49,18 @@ async function main() {
   try {
     await login();
     const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { openAiAdsMeasurement: true } });
-    assert.equal(user.openAiAdsMeasurement?.clickReference, "Opaque+/unchanged==");
-    assert.equal(user.openAiAdsMeasurement.permissionRevokedAt, null);
-    assert.ok(user.openAiAdsMeasurement.createdAt.getTime() <= Date.now());
+    assert.equal(user.openAiAdsMeasurement, null, "Signup must not enroll from stale allow cookies");
+    await login();
+    assert.equal(await prisma.openAiAdsMeasurement.findUnique({ where: { userId: user.id } }), null);
+    // Fixture models an existing participant who opted in before enrollment closed.
+    await prisma.openAiAdsMeasurement.create({
+      data: {
+        userId: user.id,
+        permissionGrantedAt: new Date(),
+        clickReference: "Opaque+/unchanged==",
+        clickCapturedAt: new Date(),
+      },
+    });
     await ensureTrialStarted(user.id);
     const row = await prisma.openAiAdsMeasurement.findUniqueOrThrow({
       where: { userId: user.id },
@@ -65,7 +74,7 @@ async function main() {
     assert.equal(revoked.clickReference, null);
     // eslint-disable-next-line no-console
     console.log(
-      "PASS actual signup permission enrollment, unchanged click reference and returning-login revocation protection",
+      "PASS actual signup and login do not enroll; existing consent remains deliverable and withdrawn permission stays revoked",
     );
   } finally {
     globalThis.fetch = originalFetch;

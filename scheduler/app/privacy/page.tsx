@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AdsMeasurementWithdrawal } from "@/components/ads-measurement-withdrawal";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
@@ -233,22 +234,24 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <section>
+          <section id="ad-measurement">
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">8. Cookies and Tracking Technologies</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              With your permission, we send OpenAI trial starts, social account connections, first publications and
-              first paid subscription events to measure our ChatGPT ads. Events include a SHA-256 hashed email, the
-              event time, an available ad click reference and, for payments, the plan, amount and currency. We do not
-              send post text, social account credentials or payment card details. We opt events out of future user-level
-              personalization. The ad privacy control lets you allow, decline or withdraw permission. Withdrawing stops
-              future event delivery; it does not recall events already delivered. Your browser preference is remembered
-              for 180 days and permitted click references for up to 30 days, shared between simplepost.social and this
-              app. Your account permission remains until withdrawn. See{" "}
+              New enrollment in OpenAI ad measurement is closed. If you previously allowed it, we continue to send trial
+              starts, social account connections, first publications and first paid subscription events under your saved
+              permission until you withdraw it. Events include a SHA-256 hashed email, event time, a previously saved ad
+              click reference when available and, for payments, the plan, amount and currency. We do not send post text,
+              social credentials or card details. Events are opted out of future user-level personalization. No new
+              advertising click references are collected. Previously saved browser preferences expire after 180 days and
+              click references after up to 30 days. Sign in to your SimplePost account and use the button below to stop
+              future sharing; this does not recall events already delivered. Internal campaign, signup and payment
+              reporting continues separately. See{" "}
               <a className="underline" href="https://openai.com/policies/privacy-policy/">
                 OpenAI’s privacy policy
               </a>
               .
             </p>
+            <AdsMeasurementWithdrawal />
             <p className="text-muted-foreground leading-relaxed">
               We use cookies and similar tracking technologies to track activity on our Service and hold certain
               information. Cookies are files with a small amount of data that may include an anonymous unique

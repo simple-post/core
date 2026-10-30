@@ -13,7 +13,7 @@ test.beforeAll(async () => {
     stdin: {
       resolveDir: schedulerRoot,
       loader: "tsx",
-      contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import {AdsPrivacyControl} from './components/ads-privacy-control'; createRoot(document.getElementById('root')).render(<AdsPrivacyControl/>);`,
+      contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import {AdsMeasurementWithdrawal} from './components/ads-measurement-withdrawal'; createRoot(document.getElementById('root')).render(<AdsMeasurementWithdrawal/>);`,
     },
     bundle: true,
     write: false,
@@ -55,54 +55,38 @@ async function open(
   await page.goto("https://app.simplepost.social" + (options.path ?? "/?oppref=Opaque%2B%2Funchanged%3D%3D"));
   return posts;
 }
-test("permission captures the opaque click and shares it with the marketing domain", async ({ page, context }) => {
-  const posts = await open(page);
-  await expect(page.getByRole("button", { name: "Allow measurement", exact: true })).toBeVisible();
-  expect((await context.cookies()).some((c) => c.name === "sp_ads_click_v1")).toBe(false);
-  await page.getByRole("button", { name: "Allow measurement", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Ad privacy preferences", exact: true })).toBeVisible();
-  expect(posts).toContainEqual({ allowed: true });
-  const cookies = await context.cookies("https://simplepost.social/");
-  const click = cookies.find((c) => c.name === "sp_ads_click_v1");
-  expect(JSON.parse(decodeURIComponent(click!.value)).reference).toBe("Opaque+/unchanged==");
-  expect(click).toMatchObject({ domain: ".simplepost.social", secure: true, sameSite: "Lax" });
-  await page.getByRole("button", { name: "Ad privacy preferences", exact: true }).click();
-  await page.getByRole("button", { name: "Decline", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Ad privacy preferences", exact: true })).toBeVisible();
-  expect(posts).toContainEqual({ allowed: false });
-  expect((await context.cookies()).some((c) => c.name === "sp_ads_click_v1")).toBe(false);
-});
-test("failed preference requests stay visible and retryable", async ({ page }) => {
-  await open(page, { fail: true });
-  await page.getByRole("button", { name: "Decline", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Could not save your preference. Please try again.");
-  await expect(page.getByRole("button", { name: "Decline", exact: true })).toBeEnabled();
-});
-for (const route of ["/subscribe", "/billing", "/billing/plans", "/admin/analytics"]) {
-  test(`leaves ${route} unchanged`, async ({ page }) => {
-    await open(page, { path: route });
-    await expect(page.getByRole("heading", { name: "SimplePost" })).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Advertising privacy" })).toHaveCount(0);
-  });
-}
-test("stored account withdrawal wins over stale browser permission", async ({ page, context }) => {
-  await context.addCookies([
-    {
-      name: "sp_ads_permission_v1",
-      value: "allowed",
-      domain: ".simplepost.social",
-      path: "/",
-      secure: true,
-      sameSite: "Lax",
-    },
-  ]);
-  const posts = await open(page, { preference: "declined" });
-  await expect(page.getByRole("button", { name: "Ad privacy preferences", exact: true })).toBeVisible();
-  expect((await context.cookies()).find((c) => c.name === "sp_ads_permission_v1")?.value).toBe("declined");
-  expect(posts).toContainEqual({ sync: true });
-});
-test("incomplete configuration does not offer a nonfunctional control", async ({ page }) => {
-  await open(page, { enabled: false });
+test("offers no enrollment or click capture for a new visitor", async ({ page, context }) => {
+  const posts = await open(page, { path: "/privacy?oppref=uncollected", enabled: false });
   await expect(page.getByRole("heading", { name: "SimplePost" })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Advertising privacy" })).toHaveCount(0);
+  await expect(page.getByRole("button")).toHaveCount(0);
+  expect(posts).toEqual([]);
+  expect((await context.cookies()).some((cookie) => cookie.name.startsWith("sp_ads_"))).toBe(false);
+});
+test("existing participants can withdraw on the privacy page without an enrollment prompt", async ({
+  page,
+  context,
+}) => {
+  await context.addCookies([
+    { name: "sp_ads_permission_v1", value: "allowed", domain: ".simplepost.social", path: "/", secure: true },
+    { name: "sp_ads_click_v1", value: "previous-click", domain: ".simplepost.social", path: "/", secure: true },
+  ]);
+  const posts = await open(page, { path: "/privacy", enabled: false, preference: "allowed" });
+  await page.getByRole("button", { name: "Stop sharing conversion events", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Ad measurement is off for your account.");
+  expect(posts).toEqual([{ allowed: false }]);
+  const cookies = await context.cookies();
+  expect(cookies.some((cookie) => cookie.name === "sp_ads_click_v1")).toBe(false);
+  expect(cookies.find((cookie) => cookie.name === "sp_ads_permission_v1")?.value).toBe("declined");
+});
+test("failed withdrawal stays visible and retryable", async ({ page }) => {
+  await open(page, { path: "/privacy", preference: "allowed", fail: true });
+  await page.getByRole("button", { name: "Stop sharing conversion events", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Could not save your preference. Please try again.");
+  await expect(page.getByRole("button", { name: "Stop sharing conversion events", exact: true })).toBeEnabled();
+});
+test("withdrawn accounts never receive an enrollment option", async ({ page }) => {
+  const posts = await open(page, { path: "/privacy", enabled: false, preference: "declined" });
+  await expect(page.getByRole("status")).toHaveText("Ad measurement is off for your account.");
+  await expect(page.getByRole("button")).toHaveCount(0);
+  expect(posts).toEqual([]);
 });

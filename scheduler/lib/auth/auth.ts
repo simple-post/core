@@ -3,24 +3,14 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins";
 
-import { syncAdsPermission } from "../analytics/ads-permission";
 import { acquisitionContext } from "../analytics/first-touch";
 import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
-import { createLogger } from "../logger";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
 import { otpEmail, OTP_EXPIRY_SECONDS } from "../resend/otp-email";
 
 import { isTestUserEmail } from "./test-users";
-
-const measurementLog = createLogger("auth:ads-measurement");
-function reportMeasurementFailure() {
-  measurementLog.warn(
-    { errorCode: "measurement_permission_sync_failed" },
-    "Could not synchronize ad measurement preference",
-  );
-}
 
 function demoLoginConfig() {
   return {
@@ -74,9 +64,6 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        after: async (user, ctx) => {
-          await syncAdsPermission(user.id, ctx?.headers?.get("cookie") || "").catch(reportMeasurementFailure);
-        },
         before: async (user, ctx) => {
           if (env.SELF_HOSTED) return { data: user };
           // Written atomically with account creation. Never updated on later sign-ins.
@@ -95,13 +82,6 @@ export const auth = betterAuth({
               experimentAttribution: signupExperiment(ctx?.headers),
             },
           };
-        },
-      },
-    },
-    session: {
-      create: {
-        after: async (session, ctx) => {
-          await syncAdsPermission(session.userId, ctx?.headers?.get("cookie") || "").catch(reportMeasurementFailure);
         },
       },
     },

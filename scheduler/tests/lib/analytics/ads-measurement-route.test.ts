@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 import { GET, POST, OPTIONS } from "@/app/api/analytics/ads-measurement/route";
 import { syncAdsPermission } from "@/lib/analytics/ads-permission";
+jest.mock("@/lib/analytics/openai-ads", () => ({ openAiAdsConfigured: jest.fn(() => true) }));
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 jest.mock("@/lib/auth/auth", () => ({ auth: { api: { getSession: jest.fn() } } }));
@@ -46,7 +47,12 @@ it("does not enroll anonymous visitors or disclose any account data", async () =
   expect((await POST(request({ sync: true }))).status).toBe(200);
   expect(syncAdsPermission).not.toHaveBeenCalled();
   const response = await GET(new NextRequest("https://app.simplepost.social/api/analytics/ads-measurement"));
-  expect(await response.json()).toEqual({ enabled: false, preference: null });
+  expect(await response.json()).toEqual({
+    enabled: false,
+    automaticEnrollment: true,
+    sharingEnabled: false,
+    preference: null,
+  });
 });
 it("reports only preference, never click identifiers, email or delivery metadata", async () => {
   jest.mocked(prisma.openAiAdsMeasurement.findUnique).mockResolvedValue({
@@ -55,7 +61,12 @@ it("reports only preference, never click identifiers, email or delivery metadata
     userId: "current-user",
   } as never);
   const response = await GET(request({}));
-  expect(await response.json()).toEqual({ enabled: false, preference: "declined" });
+  expect(await response.json()).toEqual({
+    enabled: false,
+    automaticEnrollment: true,
+    sharingEnabled: false,
+    preference: "declined",
+  });
   expect(response.headers.get("cache-control")).toBe("no-store");
 });
 it("allows credentialed preflight only for the owned website", async () => {
@@ -74,7 +85,12 @@ it("does not report a successful account withdrawal after sign-out", async () =>
   expect((await POST(request({ allowed: false }))).status).toBe(401);
   expect(syncAdsPermission).not.toHaveBeenCalled();
 });
-it("hides enrollment while keeping existing permission available for withdrawal", async () => {
+it("keeps the popup hidden while reporting automatic measurement and account withdrawal status", async () => {
   jest.mocked(prisma.openAiAdsMeasurement.findUnique).mockResolvedValue({ permissionRevokedAt: null } as never);
-  expect(await (await GET(request({}))).json()).toEqual({ enabled: false, preference: "allowed" });
+  expect(await (await GET(request({}))).json()).toEqual({
+    enabled: false,
+    automaticEnrollment: true,
+    sharingEnabled: true,
+    preference: "allowed",
+  });
 });

@@ -1,4 +1,4 @@
-import { syncAdsPermission } from "@/lib/analytics/ads-permission";
+import { enrollOpenAiMeasurement, syncAdsPermission } from "@/lib/analytics/ads-permission";
 import { OPENAI_ADS_KINDS, relayOpenAiMilestones } from "@/lib/analytics/openai-ads";
 import { prisma } from "@/lib/prisma";
 
@@ -64,6 +64,23 @@ it("does not create enrollment rows for new declines either", async () => {
   await syncAdsPermission(userId, "", false);
   await syncAdsPermission(userId, "sp_ads_permission_v1=allowed");
   expect(await prisma.openAiAdsMeasurement.findUnique({ where: { userId } })).toBeNull();
+});
+
+it("automatically enrolls and delivers a missed trial without inventing consent", async () => {
+  await prisma.openAiAdsMeasurement.delete({ where: { userId } });
+  await prisma.freeTrial.update({ where: { userId }, data: { startsAt: new Date() } });
+  await enrollOpenAiMeasurement(userId, "");
+  const row = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  expect(row.enrollmentMode).toBe("automatic");
+  expect(row.permissionGrantedAt).toBeNull();
+  expect(await relayOpenAiMilestones()).toEqual({ sent: 1, failed: false });
+  await syncAdsPermission(userId, "", false);
+  await enrollOpenAiMeasurement(userId, "");
+  const optedOut = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  expect(optedOut.permissionRevokedAt).not.toBeNull();
+  await expect(
+    prisma.openAiAdsMeasurement.update({ where: { userId }, data: { permissionRevokedAt: null } }),
+  ).rejects.toThrow();
 });
 
 async function reachMilestones() {

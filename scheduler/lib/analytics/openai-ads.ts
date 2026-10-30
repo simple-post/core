@@ -22,6 +22,7 @@ const MAX_DELIVERY_REQUESTS = 17;
 const userSelect = {
   id: true,
   email: true,
+  createdAt: true,
   acquisition: true,
   freeTrial: { select: { startsAt: true } },
   activationMilestone: { select: { socialConnectedAt: true, firstPostPublishedAt: true } },
@@ -43,7 +44,7 @@ export interface OpenAiAdsEvent {
   data: { type: "plan_enrollment" | "custom"; plan_id?: string; amount?: number; currency?: string };
 }
 
-/** Configuration is not customer permission. Both gates must pass independently. */
+/** Production configuration enables delivery; saved account opt-outs still win. */
 export function openAiAdsConfigured(): boolean {
   return (
     process.env.OPENAI_ADS_MEASUREMENT_ENABLED === "true" &&
@@ -58,9 +59,19 @@ export function openAiAdsConfigured(): boolean {
 export function openAiMilestoneEvents(row: MeasurementRow, now = new Date()) {
   const events: { kind: Kind; event: OpenAiAdsEvent }[] = [];
   const skipped: Kind[] = [];
-  const grant = Math.max(row.permissionGrantedAt.getTime(), row.createdAt.getTime());
+  const automatic = row.enrollmentMode === "automatic";
+  const grant = automatic
+    ? row.user.createdAt.getTime()
+    : Math.max(row.permissionGrantedAt?.getTime() ?? Number.NaN, row.createdAt.getTime());
   const email = row.user.email.trim().toLowerCase();
-  if (row.permissionRevokedAt || !Number.isFinite(grant) || grant > now.getTime() || !email || !row.user.acquisition)
+  if (
+    row.permissionRevokedAt ||
+    row.createdAt > now ||
+    !Number.isFinite(grant) ||
+    grant > now.getTime() ||
+    !email ||
+    !row.user.acquisition
+  )
     return { events, skipped };
   const done = new Set([...row.reportedKinds, ...row.skippedKinds]);
   const payment = row.user.firstPayment;
@@ -211,12 +222,12 @@ export async function relayOpenAiMilestones(
   const candidates = await prisma.openAiAdsMeasurement.findMany({
     where: {
       permissionRevokedAt: null,
-      permissionGrantedAt: { lte: now },
       createdAt: { lte: now },
       nextAttemptAt: { lte: now },
       ...leaseAvailable,
       user: { is: { acquisition: { not: null }, email: { not: "" } } },
       AND: [
+        { OR: [{ enrollmentMode: "automatic" }, { permissionGrantedAt: { lte: now } }] },
         {
           OR: [
             pendingMilestone("trial_started", { freeTrial: { is: { startsAt: { lte: now } } } }),
@@ -247,7 +258,11 @@ export async function relayOpenAiMilestones(
   });
   // Re-read permission after claiming; never send a stale pre-claim snapshot.
   const rows = await prisma.openAiAdsMeasurement.findMany({
-    where: { leaseToken, permissionRevokedAt: null, permissionGrantedAt: { lte: now } },
+    where: {
+      leaseToken,
+      permissionRevokedAt: null,
+      OR: [{ enrollmentMode: "automatic" }, { permissionGrantedAt: { lte: now } }],
+    },
     include: measurementInclude,
   });
   const batches = rows.map((row) => ({ row, ...openAiMilestoneEvents(row, now) }));

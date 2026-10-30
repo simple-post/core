@@ -14,20 +14,20 @@ async function main() {
   const { syncAdsPermission } = await import("../lib/analytics/ads-permission");
   const { ensureTrialStarted } = await import("../lib/billing/trial");
   const { openAiMilestoneEvents } = await import("../lib/analytics/openai-ads");
-  const email = "demo@simplepost.social";
+  const email = "ads-enrollment-review@example.invalid";
+  let sentOtp = "";
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => {
-    throw new Error("No outbound requests expected in auth permission test");
+  globalThis.fetch = async (input, init) => {
+    assert.equal(String(input), "https://api.resend.com/emails");
+    sentOtp = JSON.parse(String(init?.body)).subject.match(/^\d{6}/)[0];
+    return Response.json({ id: "local-review-email" });
   };
   await prisma.user.deleteMany({ where: { email } });
-  const click = encodeURIComponent(
-    JSON.stringify({ reference: "Opaque+/unchanged==", capturedAt: new Date().toISOString() }),
-  );
   async function login() {
     const headers = {
       "content-type": "application/json",
       origin: "https://app.simplepost.social",
-      cookie: `sp_ads_permission_v1=allowed; sp_ads_click_v1=${click}`,
+      cookie: "",
     };
     const start = await auth.handler(
       new Request("https://app.simplepost.social/api/auth/email-otp/send-verification-otp", {
@@ -41,7 +41,7 @@ async function main() {
       new Request("https://app.simplepost.social/api/auth/sign-in/email-otp", {
         method: "POST",
         headers,
-        body: JSON.stringify({ email, otp: "123456" }),
+        body: JSON.stringify({ email, otp: sentOtp }),
       }),
     );
     assert.equal(response.status, 200, await response.clone().text());
@@ -49,18 +49,9 @@ async function main() {
   try {
     await login();
     const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { openAiAdsMeasurement: true } });
-    assert.equal(user.openAiAdsMeasurement, null, "Signup must not enroll from stale allow cookies");
-    await login();
-    assert.equal(await prisma.openAiAdsMeasurement.findUnique({ where: { userId: user.id } }), null);
-    // Fixture models an existing participant who opted in before enrollment closed.
-    await prisma.openAiAdsMeasurement.create({
-      data: {
-        userId: user.id,
-        permissionGrantedAt: new Date(),
-        clickReference: "Opaque+/unchanged==",
-        clickCapturedAt: new Date(),
-      },
-    });
+    assert.equal(user.openAiAdsMeasurement?.enrollmentMode, "automatic");
+    assert.equal(user.openAiAdsMeasurement.permissionGrantedAt, null);
+    assert.equal(user.openAiAdsMeasurement.permissionRevokedAt, null);
     await ensureTrialStarted(user.id);
     const row = await prisma.openAiAdsMeasurement.findUniqueOrThrow({
       where: { userId: user.id },
@@ -74,7 +65,7 @@ async function main() {
     assert.equal(revoked.clickReference, null);
     // eslint-disable-next-line no-console
     console.log(
-      "PASS actual signup and login do not enroll; existing consent remains deliverable and withdrawn permission stays revoked",
+      "PASS actual signup automatically enrolls without a consent cookie; milestones are deliverable; opt-outs survive returning login",
     );
   } finally {
     globalThis.fetch = originalFetch;

@@ -16,6 +16,7 @@ const at = (seconds: number) => new Date(now.getTime() + seconds * 1000);
 function row(): MeasurementRow {
   return {
     userId: "user_1",
+    enrollmentMode: "consent",
     permissionGrantedAt: at(-3600),
     permissionRevokedAt: null,
     clickReference: null,
@@ -32,6 +33,7 @@ function row(): MeasurementRow {
     user: {
       id: "user_1",
       email: " Buyer@Example.com ",
+      createdAt: at(-4000),
       acquisition: '{"source":"chatgpt"}',
       freeTrial: { startsAt: at(-3000) },
       activationMilestone: { socialConnectedAt: at(-2000), firstPostPublishedAt: at(-1000) },
@@ -87,6 +89,16 @@ describe("four OpenAI acquisition milestones", () => {
     }
     expect(JSON.stringify(result)).not.toMatch(/Buyer@Example|buyer@example|user_1/);
     expect(new Set(result.events.map((item) => item.event.id)).size).toBe(4);
+  });
+
+  it("reports automatic enrollment without fabricating customer consent, including missed recent milestones", () => {
+    const value = row();
+    value.enrollmentMode = "automatic";
+    value.permissionGrantedAt = null;
+    value.createdAt = at(-10);
+    expect(openAiMilestoneEvents(value, now).events.map(({ kind }) => kind)).toEqual(OPENAI_ADS_KINDS);
+    value.permissionRevokedAt = at(-1);
+    expect(openAiMilestoneEvents(value, now).events).toEqual([]);
   });
 
   it("uses stable per-customer per-kind IDs across retries and older payment corrections", () => {

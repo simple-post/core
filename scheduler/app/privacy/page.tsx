@@ -237,15 +237,14 @@ export default function PrivacyPage() {
           <section id="ad-measurement">
             <h2 className="text-xl font-semibold tracking-[-0.025em] mb-3">8. Cookies and Tracking Technologies</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              New enrollment in OpenAI ad measurement is closed. If you previously allowed it, we continue to send trial
-              starts, social account connections, first publications and first paid subscription events under your saved
-              permission until you withdraw it. Events include a SHA-256 hashed email, event time, a previously saved ad
-              click reference when available and, for payments, the plan, amount and currency. We do not send post text,
-              social credentials or card details. Events are opted out of future user-level personalization. No new
-              advertising click references are collected. Previously saved browser preferences expire after 180 days and
-              click references after up to 30 days. Sign in to your SimplePost account and use the button below to stop
-              future sharing; this does not recall events already delivered. Internal campaign, signup and payment
-              reporting continues separately. See{" "}
+              We use server-side conversion measurement to measure our ChatGPT ads. For new accounts, measurement is
+              enabled automatically unless you have opted out. We send actual trial starts, social account connections,
+              first publications and first paid subscription events, along with a SHA-256 hashed email and event time.
+              Payments include the plan, amount and currency. Previously saved ad click references may also be used; we
+              do not collect new advertising click cookies. We do not send post text, social credentials or card
+              details. Events are opted out of future user-level personalization. Existing opt-outs remain respected.
+              Sign in and use the button below to stop future sharing; this does not recall events already delivered.
+              Internal campaign, signup and payment reporting continues separately. See{" "}
               <a className="underline" href="https://openai.com/policies/privacy-policy/">
                 OpenAI’s privacy policy
               </a>

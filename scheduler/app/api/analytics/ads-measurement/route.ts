@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { syncAdsPermission } from "@/lib/analytics/ads-permission";
+import { openAiAdsConfigured } from "@/lib/analytics/openai-ads";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -37,7 +38,13 @@ export async function GET(req: NextRequest) {
   const row = session?.user.id
     ? await prisma.openAiAdsMeasurement.findUnique({ where: { userId: session.user.id } })
     : null;
-  return respond(req, { enabled: false, preference: row ? (row.permissionRevokedAt ? "declined" : "allowed") : null });
+  return respond(req, {
+    // Legacy clients use enabled to show the retired popup; keep it off.
+    enabled: false,
+    automaticEnrollment: openAiAdsConfigured(),
+    sharingEnabled: Boolean(row && !row.permissionRevokedAt),
+    preference: row ? (row.permissionRevokedAt ? "declined" : "allowed") : null,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -51,7 +58,8 @@ export async function POST(req: NextRequest) {
   }
   if (!body || (typeof body.allowed !== "boolean" && body.sync !== true))
     return respond(req, { error: "Choose a preference" }, 400);
-  if (body.allowed === true) return respond(req, { error: "New ad measurement enrollment is closed" }, 410);
+  if (body.allowed === true)
+    return respond(req, { error: "Measurement is managed automatically; this endpoint supports opting out" }, 410);
   const session = await auth.api.getSession({ headers: req.headers });
   if (body.allowed === false && !session?.user.id)
     return respond(req, { error: "Sign in to withdraw permission" }, 401);

@@ -8,9 +8,15 @@ export async function syncAdsPermission(userId: string, cookie: string, explicit
   const declined =
     explicitChoice === false || (explicitChoice === undefined && readAdsPreference(cookie) === "declined");
   if (!declined) return;
+  const now = new Date();
+  // Persist opt-out even if it races signup enrollment or a recovery pass.
+  await prisma.openAiAdsMeasurement.createMany({
+    data: [{ userId, enrollmentMode: "automatic", permissionGrantedAt: null, permissionRevokedAt: now }],
+    skipDuplicates: true,
+  });
   await prisma.openAiAdsMeasurement.updateMany({
     where: { userId, permissionRevokedAt: null },
-    data: { permissionRevokedAt: new Date(), clickReference: null, clickCapturedAt: null },
+    data: { permissionRevokedAt: now, clickReference: null, clickCapturedAt: null },
   });
 }
 

@@ -35,7 +35,10 @@ it.each([undefined, false])("only revokes existing permission and clears matchin
     where: { userId: "user", permissionRevokedAt: null },
     data: { permissionRevokedAt: now, clickReference: null, clickCapturedAt: null },
   });
-  expect(prisma.openAiAdsMeasurement.createMany).not.toHaveBeenCalled();
+  expect(prisma.openAiAdsMeasurement.createMany).toHaveBeenCalledWith({
+    data: [{ userId: "user", enrollmentMode: "automatic", permissionGrantedAt: null, permissionRevokedAt: now }],
+    skipDuplicates: true,
+  });
 });
 
 it("automatically enrolls a new account without an Allow cookie or consent timestamp", async () => {

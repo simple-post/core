@@ -59,11 +59,13 @@ it("preserves prior consent and delivery history, then prevents regrant after wi
   expect(permission.reportedKinds).toEqual(["trial_started"]);
 });
 
-it("does not create enrollment rows for new declines either", async () => {
+it("persists an opt-out before automatic enrollment or recovery can run", async () => {
   await prisma.openAiAdsMeasurement.delete({ where: { userId } });
   await syncAdsPermission(userId, "", false);
-  await syncAdsPermission(userId, "sp_ads_permission_v1=allowed");
-  expect(await prisma.openAiAdsMeasurement.findUnique({ where: { userId } })).toBeNull();
+  await enrollOpenAiMeasurement(userId, "");
+  const optedOut = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  expect(optedOut.permissionRevokedAt).not.toBeNull();
+  expect(optedOut.enrollmentMode).toBe("automatic");
 });
 
 it("automatically enrolls and delivers a missed trial without inventing consent", async () => {

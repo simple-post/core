@@ -39,38 +39,31 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-it("atomically enrolls a permitted signup before its trial and preserves delivery IDs on withdrawal", async () => {
+it("never enrolls new accounts from concurrent stale allowed cookies or explicit grants", async () => {
   await prisma.openAiAdsMeasurement.delete({ where: { userId } });
-  await prisma.freeTrial.delete({ where: { userId } });
-  const reference = "Opaque+/unchanged==";
-  const header = `sp_ads_permission_v1=allowed; sp_ads_click_v1=${encodeURIComponent(JSON.stringify({ reference, capturedAt: new Date().toISOString() }))}`;
-  await Promise.all([syncAdsPermission(userId, header), syncAdsPermission(userId, header)]);
-  let permission = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
-  expect(permission.clickReference).toBe(reference);
-  expect(permission.permissionRevokedAt).toBeNull();
-  await prisma.freeTrial.create({
-    data: { userId, startsAt: new Date(), expiresAt: new Date(Date.now() + 7 * 86_400_000) },
-  });
-  const delivery = await relayOpenAiMilestones();
+  const header = "sp_ads_permission_v1=allowed; sp_ads_click_v1=stale";
+  await Promise.all([syncAdsPermission(userId, header), syncAdsPermission(userId, header, true)]);
+  expect(await prisma.openAiAdsMeasurement.findUnique({ where: { userId } })).toBeNull();
+  expect(await relayOpenAiMilestones()).toEqual({ sent: 0, failed: false });
+});
+
+it("preserves prior consent and delivery history, then prevents regrant after withdrawal", async () => {
+  await prisma.openAiAdsMeasurement.update({ where: { userId }, data: { clickReference: "prior-click" } });
+  const delivery = await relayOpenAiMilestones(now);
   expect(delivery.sent).toBe(1);
-  await syncAdsPermission(userId, header, false);
-  permission = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
+  await syncAdsPermission(userId, "", false);
+  await syncAdsPermission(userId, "sp_ads_permission_v1=allowed", true);
+  const permission = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
   expect(permission.permissionRevokedAt).not.toBeNull();
   expect(permission.clickReference).toBeNull();
   expect(permission.reportedKinds).toEqual(["trial_started"]);
-  await syncAdsPermission(userId, header);
-  const afterSync = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
-  expect(afterSync.permissionRevokedAt).not.toBeNull();
 });
 
-it("persists an initial decline so another stale allowed browser cannot enroll the account", async () => {
+it("does not create enrollment rows for new declines either", async () => {
   await prisma.openAiAdsMeasurement.delete({ where: { userId } });
   await syncAdsPermission(userId, "", false);
   await syncAdsPermission(userId, "sp_ads_permission_v1=allowed");
-  const permission = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
-  expect(permission.permissionRevokedAt).not.toBeNull();
-  const delivery = await relayOpenAiMilestones();
-  expect(delivery.sent).toBe(0);
+  expect(await prisma.openAiAdsMeasurement.findUnique({ where: { userId } })).toBeNull();
 });
 
 async function reachMilestones() {

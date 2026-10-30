@@ -3,7 +3,6 @@ import { Suspense } from "react";
 
 import { Inter, JetBrains_Mono } from "next/font/google";
 
-import { AdsPrivacyControl } from "@/components/ads-privacy-control";
 import { AppAnalytics } from "@/components/app-analytics";
 import { ClientErrorLogger } from "@/components/client-error-logger";
 import { Toaster } from "@/components/ui/sonner";
@@ -69,7 +68,6 @@ export default function RootLayout({
           {!env.SELF_HOSTED && process.env.NODE_ENV === "production" && (
             <Suspense fallback={null}>
               <AppAnalytics />
-              <AdsPrivacyControl />
             </Suspense>
           )}
           <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>

@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { syncAdsPermission } from "@/lib/analytics/ads-permission";
-import { openAiAdsConfigured } from "@/lib/analytics/openai-ads";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -34,16 +33,14 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!openAiAdsConfigured()) return respond(req, { enabled: false });
   const session = await auth.api.getSession({ headers: req.headers });
   const row = session?.user.id
     ? await prisma.openAiAdsMeasurement.findUnique({ where: { userId: session.user.id } })
     : null;
-  return respond(req, { enabled: true, preference: row ? (row.permissionRevokedAt ? "declined" : "allowed") : null });
+  return respond(req, { enabled: false, preference: row ? (row.permissionRevokedAt ? "declined" : "allowed") : null });
 }
 
 export async function POST(req: NextRequest) {
-  if (!openAiAdsConfigured()) return respond(req, { error: "Measurement unavailable" }, 404);
   // Browser-only preference: no cross-origin requests, CLI tokens or arbitrary user IDs.
   if (!origins.has(req.headers.get("origin") || "")) return respond(req, { error: "Invalid origin" }, 403);
   let body: { allowed?: unknown; sync?: unknown } = {};
@@ -54,7 +51,10 @@ export async function POST(req: NextRequest) {
   }
   if (!body || (typeof body.allowed !== "boolean" && body.sync !== true))
     return respond(req, { error: "Choose a preference" }, 400);
+  if (body.allowed === true) return respond(req, { error: "New ad measurement enrollment is closed" }, 410);
   const session = await auth.api.getSession({ headers: req.headers });
+  if (body.allowed === false && !session?.user.id)
+    return respond(req, { error: "Sign in to withdraw permission" }, 401);
   if (session?.user.id)
     await syncAdsPermission(
       session.user.id,

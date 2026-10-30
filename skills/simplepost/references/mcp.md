@@ -48,7 +48,7 @@ Clients with OAuth support should open the Scheduler authorization flow. If the 
 11. Use `get_schedule` for a text or structured-data schedule and `show_schedule` for MCP Apps calendar UI. Use `inspect_posts` for post searches or exact post lookup.
 12. When quoting an earlier post, find the exact record with `inspect_posts` and pass its `id` as `quotePostId`. If the source is scheduled, schedule the quote after it.
 
-Do not call tools for actions SimplePost cannot perform. Social-account connection, disconnection, and reauthorization happen in the web app. Already-published social posts must be edited or deleted on the destination platform.
+Do not call tools for actions SimplePost cannot perform. For adding a social account, use `list_accounts` or the workspace to return its `connectionLinks` URL unchanged, then refresh accounts when the user returns from browser authorization. Disconnection and reauthorization of existing accounts happen in the web app. Already-published social posts must be edited or deleted on the destination platform.
 
 ## Naming contract
 

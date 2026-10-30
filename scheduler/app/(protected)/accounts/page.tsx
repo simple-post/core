@@ -10,6 +10,7 @@ import { Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
+import { AssistantConnectionHandoff } from "@/components/accounts/assistant-connection-handoff";
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon } from "@/components/platform-icons";
@@ -60,6 +61,7 @@ export default function AccountsPage() {
   const handledConnection = useRef(false);
   const onboardingConnection = useRef(false);
   const handledReconnect = useRef(false);
+  const [manualHandoff, setManualHandoff] = useState<{ platform: string; token: string } | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [recoveryReturnTo, setRecoveryReturnTo] = useState<string | null>(null);
   const { data: accounts = [], isLoading: loading } = useAccounts();
@@ -98,6 +100,7 @@ export default function AccountsPage() {
       // Storage can be unavailable; connection success must still be usable.
     }
     toast.success("Account connected");
+    if (searchParams.get("source") === "assistant_handoff") return;
     router.replace(resumeRecoveryHref(destination), { scroll: false });
   }, [queryClient, router, searchParams]);
 
@@ -116,7 +119,13 @@ export default function AccountsPage() {
 
   // Direct hand-off from the checklist or an assistant: open the platform picker.
   useEffect(() => {
-    if (readOnly || searchParams.get("onboarding") !== "connect" || searchParams.get("success") === "true") return;
+    if (
+      readOnly ||
+      searchParams.has("handoffToken") ||
+      searchParams.get("onboarding") !== "connect" ||
+      searchParams.get("success") === "true"
+    )
+      return;
     onboardingConnection.current = true;
     setShowConnectDialog(true);
     router.replace("/accounts", { scroll: false });
@@ -125,6 +134,7 @@ export default function AccountsPage() {
   const handleConnect = useCallback(
     (platform: string, returnTo?: string) => {
       if (readOnly) return;
+      setManualHandoff(null);
       const platformConfig = getPlatformById(platform);
       // Preserve the return destination through the provider's full-page OAuth navigation.
       // Reconnects and additional accounts stay on Accounts so their status is visible.
@@ -167,6 +177,13 @@ export default function AccountsPage() {
       setRecoveryReturnTo(recoveryReturnPath(searchParams.get("returnTo")));
     }
   }, [accounts, handleConnect, loading, readOnly, searchParams]);
+  const openManualHandoff = useCallback((platform: string, token: string) => {
+    setManualHandoff({ platform, token });
+    if (platform === "forem") setShowForemDialog(true);
+    else if (platform === "telegram") setShowTelegramDialog(true);
+  }, []);
+  const manualSuccessUrl = (platform: string) =>
+    `/accounts?success=true&platform=${platform}${manualHandoff?.platform === platform ? "&source=assistant_handoff" : ""}`;
   const closeForemDialog = () => {
     setShowForemDialog(false);
     setForemApiKey("");
@@ -184,10 +201,14 @@ export default function AccountsPage() {
     }
     setForemError("");
     try {
-      await connectForemMutation.mutateAsync({ instanceUrl: foremInstance.trim(), apiKey: foremApiKey.trim() });
+      await connectForemMutation.mutateAsync({
+        instanceUrl: foremInstance.trim(),
+        apiKey: foremApiKey.trim(),
+        ...(manualHandoff?.platform === "forem" && { handoffToken: manualHandoff.token }),
+      });
       closeForemDialog();
       // Reuse the OAuth success hand-off for manual connections.
-      router.replace("/accounts?success=true&platform=forem", { scroll: false });
+      router.replace(manualSuccessUrl("forem"), { scroll: false });
     } catch (error) {
       logClientError(error, "Forem connection error");
       setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
@@ -204,6 +225,7 @@ export default function AccountsPage() {
 
     try {
       await connectTelegramMutation.mutateAsync({
+        ...(manualHandoff?.platform === "telegram" && { handoffToken: manualHandoff.token }),
         botToken: telegramBotToken.trim(),
         chatId: telegramChatId.trim(),
         channelName: telegramChannelName.trim() || undefined,
@@ -213,7 +235,7 @@ export default function AccountsPage() {
       setTelegramBotToken("");
       setTelegramChatId("");
       setTelegramChannelName("");
-      router.replace("/accounts?success=true&platform=telegram", { scroll: false });
+      router.replace(manualSuccessUrl("telegram"), { scroll: false });
     } catch (error) {
       logClientError(error, "Telegram connection error");
       setTelegramError(error instanceof Error ? error.message : "Failed to connect Telegram account");
@@ -247,6 +269,9 @@ export default function AccountsPage() {
           <Alert variant="destructive" className="mb-4" role="alert">
             <AlertDescription className="space-y-3">
               <p>{connectionError}</p>
+              {searchParams.get("source") === "assistant_handoff" && (
+                <p>Return to your AI conversation and ask for a fresh connection link to try again.</p>
+              )}
               {recoveryReturnTo && recoveryReturnTo !== "/accounts" && (
                 <Button asChild size="sm" variant="outline">
                   <Link
@@ -265,6 +290,7 @@ export default function AccountsPage() {
             </AlertDescription>
           </Alert>
         )}
+        {!readOnly && <AssistantConnectionHandoff onManual={openManualHandoff} />}
         <AccountsHeading
           action={
             readOnly ? undefined : (

@@ -22,3 +22,16 @@ Deploy this app change before the companion website preview CTA. The receiver is
 ## Validation
 
 Automated coverage validates the transfer boundary, Unicode and threads, rejected shapes and size limits, expiration, and milestone query semantics. Local browser review uses synthetic content: website preview → app sign-in with opaque ID, then the actual import component under a temporary provider fixture to verify replacement protection, restored content and safe composer defaults. The fixture is removed before commit. Real Google and email delivery are not exercised locally; the existing same-origin callback helper and query-preserving protected layout are unchanged.
+
+
+## Connecting from an AI assistant
+
+The setup skill reads the workspace or `list_accounts`, uses the platform already named by the user (or asks once), and shows that platform's `connectionLinks` URL unchanged. Links are available even when accounts already exist. They expire after one hour and contain an HMAC binding the intended SimplePost user and platform; they do not sign in or grant access.
+
+The link opens `/accounts`, where the existing protected layout retains the full continuation through email or Google sign-in. The page validates the handoff with `/api/connect/handoff`. OAuth platforms continue automatically to the existing provider authorization endpoint, retaining signed OAuth state and PKCE. Manual providers open their existing web form. A different SimplePost browser account is stopped with an action to sign out and retry using the account linked to the assistant. Billing and connection limits still apply.
+
+AI-origin success stays on an Accounts confirmation explaining how to return to the original conversation and say “connected”. Facebook page selection carries this origin through its pending connection. Ordinary website connections keep their existing return behavior. The assistant refreshes accounts and verifies the requested destination before preparing a draft; authorization never automatically publishes or schedules a post.
+
+Internal measurement records `social_connection_link_opened`, `social_connection_started`, `social_connection_completed`, and failure/cancellation events, with `source: assistant_handoff` and the platform. OAuth source travels in signed state; pending selections store it with the pending connection; manual requests verify the same handoff token. Completed events are recorded only after credentials have been saved, not when provider authorization merely opens or a picker is shown. No tokens or URLs are analytics properties. Link-open and OAuth/pending-completion events use stable keys to avoid repeated capture for the same attempt. Existing activation milestones and first-payment records remain the source of first-post and paid-conversion outcomes.
+
+Compare distinct users who opened the link with those who started and completed the same platform connection, then join their activation milestone and first-payment timestamps after the handoff. Report OAuth vs manual platforms and new users vs additional-account users separately. Compare assistant-origin starts against ordinary web starts over the same dates; this is an observational comparison, not a randomized experiment. Allow equal time for users to reach first post and payment before judging conversion.

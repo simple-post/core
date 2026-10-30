@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { handoffSource } from "@/lib/accounts/assistant-handoff";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
@@ -9,6 +10,7 @@ import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie }
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
+  let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   let measurementPlatform = "unknown";
   try {
@@ -16,7 +18,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     measurementPlatform = platform;
     const session = await requireAuth(request, { action: "connect_social_account", platform });
     measurementUserId = session.user.id;
-    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform: platform } });
+    source = handoffSource(request.nextUrl.searchParams.get("handoffToken"), session.user.id, platform);
+    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform, source } });
 
     if (!isSocialPlatformEnabled(platform)) {
       throw new BadRequestError("Social platform is not enabled in this environment");
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const baseURL = env.NEXT_PUBLIC_APP_URL;
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
-    const state = createOAuthState(session.user.id, platform);
+    const state = createOAuthState(session.user.id, platform, source);
 
     // Build authorization URL
     const authUrl = new URL(config.authUrl);
@@ -76,7 +79,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     if (measurementUserId)
       await recordFunnelEvent(measurementUserId, "social_connection_failed", {
-        properties: { platform: measurementPlatform, reason: measurementFailure(error) },
+        properties: { platform: measurementPlatform, source, reason: measurementFailure(error) },
       });
     return handleApiError(error, request);
   }

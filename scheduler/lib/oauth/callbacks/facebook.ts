@@ -43,7 +43,7 @@ export async function handleFacebookCallback(ctx: CallbackContext): Promise<Next
     data: {
       userId: ctx.userId,
       platform: ctx.platform,
-      data: { accounts, scope: ctx.scope },
+      data: { accounts, scope: ctx.scope, ...(ctx.source && { source: ctx.source }) },
       expiresAt: new Date(Date.now() + PENDING_OAUTH_TTL_MS),
     },
   });

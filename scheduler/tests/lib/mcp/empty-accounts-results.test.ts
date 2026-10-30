@@ -77,6 +77,7 @@ it("no longer hardcodes the hosted app in the server instructions", () => {
 it("answers an empty account list with the connect link and no starter prompt", async () => {
   jest.mocked(listAccounts).mockResolvedValue({
     kind: "accounts",
+    connectionLinks: [],
     accounts: [],
     summary: { total: 0, platforms: [] },
     connectAccountsUrl: CONNECT_URL,

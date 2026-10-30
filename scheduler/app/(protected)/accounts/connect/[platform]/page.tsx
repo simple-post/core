@@ -113,7 +113,9 @@ export default function ConnectAccountPickerPage() {
       }
 
       const data = await response.json();
-      router.push(`/accounts?success=true&platform=${platformId}&count=${data.count || 0}`);
+      router.push(
+        `/accounts?success=true&platform=${platformId}&count=${data.count || 0}${data.source === "assistant_handoff" ? "&source=assistant_handoff" : ""}`,
+      );
     } catch (error_) {
       setError(error_ instanceof Error ? error_.message : "Failed to connect accounts");
     } finally {

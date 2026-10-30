@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.1.0",
   "developerName": "Creafex Lab Vladimir Haltakov",
   "websiteURL": "https://simplepost.social",
   "supportURL": "https://simplepost.social/contact",
@@ -11,7 +11,7 @@
     "Show my scheduled TikTok and YouTube posts for next week."
   ],
   "countries": [],
-  "release_notes": "Adds an interactive sidebar calendar workspace and a persistent post editor with live platform previews, recoverable working copies, per-account variants, and separate AI edit proposals. Calendar and editor selections can be shared with chat. Publishing preferences now include timezone, calendar view, and default destinations. Onboarding guides users to connect a social account and save their first draft. Existing MCP preview, calendar, and posting tools remain available. Clarifies publishing use cases, tool selection boundaries, and starter prompts, with a separate discovery evaluation set.",
+  "release_notes": "Adds platform-specific connection links during AI onboarding. Users can authorize a chosen social platform directly after any required SimplePost sign-in, then return to their AI conversation to verify the connection and prepare a draft. Connection links check that the browser and AI use the same SimplePost account. Includes clearer posting-failure recovery and exact trial expiry dates; expired trials retain read-only access to saved posts, calendar and accounts.",
   "commerce": false,
   "commerce_description": "The plugin does not support purchases or direct subscriptions. Hosted publishing requires an existing active SimplePost trial or paid plan; no purchase or checkout is performed through the plugin.",
   "packageName": "app-69f882652190819192ab1c88f1218795",

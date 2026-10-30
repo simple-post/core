@@ -8,6 +8,7 @@ export interface OAuthStatePayload {
   userId: string;
   platform: string;
   timestamp: number;
+  source?: "assistant_handoff";
 }
 
 function getSigningKey(): Buffer {
@@ -18,11 +19,12 @@ function hmacSign(data: string): string {
   return crypto.createHmac("sha256", getSigningKey()).update(data).digest("base64url");
 }
 
-export function createOAuthState(userId: string, platform: string): string {
+export function createOAuthState(userId: string, platform: string, source?: "assistant_handoff"): string {
   const payload: OAuthStatePayload = {
     userId,
     platform,
     timestamp: Date.now(),
+    ...(source && { source }),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = hmacSign(encoded);
@@ -60,7 +62,7 @@ export function verifyOAuthState(state: string): OAuthStatePayload {
   }
 
   const age = Date.now() - payload.timestamp;
-  if (age > STATE_MAX_AGE_MS) {
+  if (age < 0 || age > STATE_MAX_AGE_MS) {
     throw new OAuthStateError("state_expired", "OAuth state has expired");
   }
 

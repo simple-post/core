@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { handoffSource } from "@/lib/accounts/assistant-handoff";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -7,15 +8,19 @@ import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { fetchForem, normalizeForemInstanceUrl } from "@/lib/security/forem";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function POST(request: NextRequest) {
+  let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   try {
     const session = await requireAuth(request, { action: "connect_social_account", platform: "forem" });
     measurementUserId = session.user.id;
-    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform: "forem" } });
+    const body = await request.json();
+    source = handoffSource(body.handoffToken, session.user.id, "forem");
+    await recordFunnelEvent(measurementUserId, "social_connection_started", {
+      properties: { platform: "forem", source },
+    });
     if (!isSocialPlatformEnabled("forem")) {
       throw new BadRequestError("DEV/Forem is not enabled in this environment");
     }
-    const body = await request.json();
     const rawInstanceUrl = (typeof body.instanceUrl === "string" ? body.instanceUrl.trim() : "") || "https://dev.to";
     const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
     if (!apiKey) throw new BadRequestError("Forem API key is required");
@@ -51,11 +56,14 @@ export async function POST(request: NextRequest) {
       profilePicture: user.profile_image || null,
       tokenMetadata: { instanceUrl },
     });
+    await recordFunnelEvent(session.user.id, "social_connection_completed", {
+      properties: { platform: "forem", source },
+    });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (measurementUserId)
       await recordFunnelEvent(measurementUserId, "social_connection_failed", {
-        properties: { platform: "forem", reason: measurementFailure(error) },
+        properties: { platform: "forem", source, reason: measurementFailure(error) },
       });
     return handleApiError(error, request);
   }

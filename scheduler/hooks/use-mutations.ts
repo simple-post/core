@@ -57,6 +57,7 @@ export function useDisconnectAccount() {
 
 // Connect Telegram account mutation
 interface ConnectTelegramParams {
+  handoffToken?: string;
   botToken: string;
   chatId: string;
   channelName?: string;
@@ -93,7 +94,7 @@ export function useConnectTelegram() {
 export function useConnectForem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { instanceUrl: string; apiKey: string }) => {
+    mutationFn: async (params: { instanceUrl: string; apiKey: string; handoffToken?: string }) => {
       const response = await fetch("/api/connect/forem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

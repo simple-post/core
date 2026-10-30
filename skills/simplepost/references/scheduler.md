@@ -46,6 +46,6 @@ The OpenAPI document at `/api/openapi.json` includes the `apiBearerAuth` securit
 
 ## Agent Guidance
 
-- MCP cannot connect, disconnect, or re-authenticate social accounts. Direct users to the Scheduler app Accounts page.
+- MCP returns user-bound `connectionLinks` for adding a social account. The link continues through SimplePost sign-in to provider authorization, or opens the manual setup form. The user approves access in the browser and returns to chat; refresh accounts to verify. Disconnecting or reconnecting an existing account remains in the Scheduler app Accounts page.
 - Use Scheduler-connected accounts for OAuth-backed user workflows.
 - Use the self-hosted HTTP server instead when no UI, OAuth, user model, or scheduling is needed.

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { normalizePlatformId } from "@/lib/config";
-import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
+import { getAccountConnectionLinks, getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -55,6 +55,18 @@ export const listAccountsOutputSchema = z.object({
     total: z.number(),
     platforms: z.array(z.string()),
   }),
+  connectionLinks: z
+    .array(
+      z.object({
+        platform: z.string(),
+        name: z.string(),
+        connectionType: z.enum(["oauth", "manual"]),
+        url: z.string(),
+      }),
+    )
+    .describe(
+      "User-bound links valid for one hour. Show the requested platform's URL unchanged. OAuth platforms open provider authorization after SimplePost sign-in; manual platforms open their setup form. Never request provider passwords, tokens or keys in chat. Refresh this tool if a link expires.",
+    ),
   connectAccountsUrl: z
     .string()
     .optional()
@@ -115,6 +127,7 @@ export async function listAccounts(userId: string): Promise<z.infer<typeof listA
 
   return {
     kind: "accounts" as const,
+    connectionLinks: getAccountConnectionLinks(userId),
     accounts: mappedAccounts,
     summary: {
       total: mappedAccounts.length,

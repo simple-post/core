@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
 import { getAppBaseUrl, hasMcpScope, type McpScope } from "@/lib/mcp/config";
+import { getAccountConnectionLinks } from "@/lib/mcp/connect-guidance";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
 import type { McpToolAuthContext } from "@/lib/mcp/server";
 import { WORKSPACE_WIDGET_URI, EDITOR_WIDGET_URI } from "@/lib/mcp/ui/resources";
@@ -92,6 +93,7 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
   const workspace = async (input: z.infer<typeof workspaceInputSchema>) => ({
     ...(await loadWorkspace(context.userId, input)),
     accountsUrl: `${getAppBaseUrl()}/accounts?onboarding=connect`,
+    connectionLinks: getAccountConnectionLinks(context.userId),
     canWrite: hasMcpScope(context.scope, "posts:write"),
     canValidate: hasMcpScope(context.scope, "posts:validate"),
     imageFittingEnabled: await hasFeature(context.userId, Feature.IMAGE_FITTING),

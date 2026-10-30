@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { handoffSource } from "@/lib/accounts/assistant-handoff";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { createLogger, serializeError } from "@/lib/logger";
@@ -10,15 +11,19 @@ import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 const log = createLogger("api:connect:telegram");
 
 export async function POST(req: NextRequest) {
+  let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   try {
     const session = await requireAuth(req, { action: "connect_social_account", platform: "telegram" });
     measurementUserId = session.user.id;
-    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform: "telegram" } });
+    const body = await req.json();
+    source = handoffSource(body.handoffToken, session.user.id, "telegram");
+    await recordFunnelEvent(measurementUserId, "social_connection_started", {
+      properties: { platform: "telegram", source },
+    });
     if (!isSocialPlatformEnabled("telegram")) {
       throw new BadRequestError("Telegram is not enabled in this environment");
     }
-    const body = await req.json();
     const { botToken, chatId, channelName } = body;
     const trimmedToken = typeof botToken === "string" ? botToken.trim() : "";
     const trimmedChatId = typeof chatId === "string" ? chatId.trim() : "";
@@ -79,6 +84,9 @@ export async function POST(req: NextRequest) {
         profilePicture: null,
       });
 
+      await recordFunnelEvent(session.user.id, "social_connection_completed", {
+        properties: { platform: "telegram", source },
+      });
       return NextResponse.json({
         success: true,
         account: {
@@ -99,7 +107,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (measurementUserId)
       await recordFunnelEvent(measurementUserId, "social_connection_failed", {
-        properties: { platform: "telegram", reason: measurementFailure(error) },
+        properties: { platform: "telegram", source, reason: measurementFailure(error) },
       });
     return handleApiError(error, req);
   }

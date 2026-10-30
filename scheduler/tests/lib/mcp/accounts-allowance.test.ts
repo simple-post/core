@@ -60,6 +60,7 @@ it("returns a connection URL only when the authenticated user has no social acco
   jest.mocked(getBillingStatus).mockResolvedValue({ accessType: "trial", trial: null } as never);
   const connected = await listAccounts("user");
   expect(connected.connectAccountsUrl).toBeUndefined();
+  expect(connected.connectionLinks.some((link) => link.platform === "x")).toBe(true);
 
   jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([]);
   const empty = await listAccounts("user");

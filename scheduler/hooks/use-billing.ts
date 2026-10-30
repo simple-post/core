@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { BillingDisplayCurrency } from "@/lib/billing/display-currency";
+import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import type { BillingStatus } from "@/lib/billing/subscriptions";
 import { queryKeys } from "@/lib/query-client";
 
@@ -37,4 +38,8 @@ export function useBillingStatus() {
     refetchInterval: (query) => (query.state.data?.selfHosted ? false : 60_000),
     refetchOnWindowFocus: "always",
   });
+}
+
+export function useWorkspaceReadOnly(): boolean {
+  return isExpiredTrialReadOnly(useBillingStatus().data);
 }

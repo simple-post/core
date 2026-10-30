@@ -5,6 +5,8 @@ import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 export const FUNNEL_KINDS = [
+  "social_connection_link_opened",
+  "social_connection_completed",
   "social_connection_started",
   "social_connection_failed",
   "social_connection_cancelled",

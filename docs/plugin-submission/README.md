@@ -1,6 +1,8 @@
-# SimplePost 3.0.0 submission preparation
+# SimplePost 3.1.0 submission preparation
 
-This prepares the existing SimplePost draft in Creafex Lab's OpenAI organization. It does not submit or publish the plugin. Public version `3.0.0` matches the existing portal draft; the source plugin version is separate and remains unchanged.
+This prepares version `3.1.0` for the existing SimplePost plugin in Creafex Lab's OpenAI organization. The public version comes from `listing.json`; the portable development manifest has its own version. Building or publishing the ZIP as a GitHub release does not submit or publish it in the OpenAI directory.
+
+Version 3.1.0 adds user-bound platform connection links to AI onboarding, automatic continuation after browser sign-in, a return-to-conversation confirmation, and connection-source measurement. The hosted changes also improve posting-failure recovery and allow expired trials to browse saved data. Keep the existing package identity, MCP connection, listing identity, and countries. The historical portal observations below describe earlier drafts; recheck the current saved version before uploading or submitting.
 
 ## Prepared artifacts
 
@@ -12,7 +14,7 @@ node scripts/prepare-plugin-submission.mjs
 
 Outputs under `dist/plugin-submission/`:
 
-- `simplepost-3.0.0-review-draft.zip`: Codex-format public upload copy with production MCP endpoint, two skills, onboarding reference, existing branding, listing, release notes, worldwide targeting, and five positive/three negative review cases.
+- `simplepost-3.1.0-review-draft.zip`: Codex-format public upload copy with production MCP endpoint, two skills, onboarding reference, existing branding, listing, release notes, worldwide targeting, and five positive/three negative review cases.
 - `PACKAGE-STATUS.md`: archive checksum, inventory, and outstanding preparation items.
 
 The single ZIP contains one enclosing plugin folder with `.codex-plugin/plugin.json`, `.mcp.json`, both skills, and the icon. The manifest explicitly declares `"skills": "./skills/"` and `"mcpServers": "./.mcp.json"` at the top level. The MCP server uses `"type": "http"` and the existing production HTTPS URL. Listing fields live in the top-level `interface`; onboarding, five positive/three negative review cases, commerce declaration, release notes, and country targeting remain under `extensions.com.openai`, as required by the Codex submission format. Paths resolve from the plugin root, begin with `./`, and remain inside that folder. Root portable `plugin.json` and `mcp.json` files are omitted to avoid format precedence. Do not upload skills separately in the current ZIP-based flow. The builder validates the actual archive. For old tooling only, `--legacy-exports` additionally emits the form importer and separate skill ZIPs; those files are not needed for the new flow.
@@ -21,7 +23,7 @@ The public upload excludes private app bindings, credentials, development URLs, 
 
 ## ZIP-based submission flow
 
-Follow the [current OpenAI submission guide](https://developers.openai.com/plugins/deploy/submission). Finish the replacement recording first, add its verified URL to `listing.json`, and rebuild. When upload is authorized, open the existing SimplePost plugin draft and use its package update/upload action; do not create a duplicate plugin. Choose the existing verified publisher identity. Upload `simplepost-3.0.0-review-draft.zip`, inspect **Metadata & Skills**, and resolve all scan findings by editing source and rebuilding the complete ZIP. Imported review cases are read-only: update them in source, not the portal.
+Follow the [current OpenAI submission guide](https://developers.openai.com/plugins/deploy/submission). Finish the replacement recording first, add its verified URL to `listing.json`, and rebuild. When upload is authorized, open the existing SimplePost plugin draft and use its package update/upload action; do not create a duplicate plugin. Choose the existing verified publisher identity. Upload `simplepost-3.1.0-review-draft.zip`, inspect **Metadata & Skills**, and resolve all scan findings by editing source and rebuilding the complete ZIP. Imported review cases are read-only: update them in source, not the portal.
 
 In **MCPs**, preserve the production endpoint and existing connection. Verify domain ownership, OAuth, and discovered tools; reconnect only if needed, and rescan deployed changes. Run the review cases against the saved version. Reviewer access goes only in secure portal fields. Reupload replaces the bundle and resets attestations; inspect the saved state again. The developer completes legal attestations. **Submit for review** and **Publish** after approval are separate authorized actions. Neither has been performed by this preparation.
 

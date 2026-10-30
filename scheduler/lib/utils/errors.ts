@@ -32,7 +32,10 @@ export function sanitizeForJson<T>(value: T): unknown {
     if (typeof item === "string") {
       return item
         .replaceAll(/Bearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
-        .replaceAll(/([?&](?:access_token|refresh_token|client_secret|api_key|token)=)[^&\s"'<>]*/gi, "$1[REDACTED]")
+        .replaceAll(
+          /([?&](?:handoffToken|access_token|refresh_token|client_secret|api_key|token)=)[^&\s"'<>]*/gi,
+          "$1[REDACTED]",
+        )
         .replaceAll(/(api\.telegram\.org\/bot)[^/\s]+/gi, "$1[REDACTED]");
     }
     if (typeof item !== "object") return item;

@@ -21,17 +21,18 @@ test.beforeAll(async () => {
         import {createRoot} from 'react-dom/client';
         import {QueryClientProvider} from './lib/query-client';
         import {SubscriptionGate} from './components/billing/subscription-gate';
+        import {Navbar} from './components/navbar';
         import {usePostCounts} from './hooks/use-posts';
         import {useAccounts} from './hooks/use-accounts';
         import {usePostingSlots} from './hooks/use-posting-slots';
         import {useRepostSettings} from './hooks/use-repost-settings';
         function Dashboard() {
           const {data, error} = usePostCounts();
-          return <main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Counts loaded' : 'Loading counts')}</p></main>;
+          return <><Navbar/><main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Counts loaded' : 'Loading counts')}</p></main></>;
         }
         function Accounts() {
           const {data, error} = useAccounts();
-          return <main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Accounts loaded' : 'Loading accounts')}</p></main>;
+          return <><Navbar/><main><h1>Workspace</h1><p>{error?.message ?? (data ? 'Accounts loaded' : 'Loading accounts')}</p></main></>;
         }
         function PostingSlots() {
           const {data, error} = usePostingSlots();
@@ -61,7 +62,9 @@ test.beforeAll(async () => {
         setup(builder) {
           const mocks: Record<string, string> = {
             "next/navigation": "export const usePathname = () => location.pathname;",
-            "@/components/navbar": "export const Navbar = () => null;",
+            "next/link":
+              "import React from 'react'; export default function Link(props) { return React.createElement('a', props); }",
+            "@/components/user-menu": "export const UserMenu = () => null;",
             "@/components/help-link": "export const HelpLink = () => null;",
           };
           builder.onResolve({ filter: /^(next\/|@\/)/ }, (args) =>
@@ -87,6 +90,7 @@ const active = {
   trial: { status: "active", expiresAt: "2026-09-12T00:00:00Z", daysRemaining: 1, postsPerPlatform: 10 },
 };
 const expired = { ...active, active: false, accessType: null, trial: { ...active.trial, status: "expired" } };
+const lapsedPaid = { ...expired, subscription: { status: "past_due" } };
 const counts = { counts: { drafts: 2, scheduled: 0, past: 1, failed: 0 }, latestFailedAt: null };
 const denial = {
   error: "Your free trial has ended. Choose a plan to keep using SimplePost.",
@@ -133,7 +137,9 @@ for (const { pathname, endpoint } of workspaceQueries) {
     let postRequests = 0;
     let clientErrors = 0;
     await page.route("**/api/billing/subscription", (route) =>
-      route.fulfill({ json: ++billingRequests === 1 ? active : expired }),
+      route.fulfill({
+        json: ++billingRequests === 1 ? active : ["/", "/accounts"].includes(pathname) ? lapsedPaid : expired,
+      }),
     );
     await page.route(`**${endpoint}`, (route) => {
       postRequests++;
@@ -167,11 +173,32 @@ test("billing polling notices expiry even without a rejected workspace request",
   await expectExpired(page);
 });
 
+for (const pathname of ["/", "/accounts"]) {
+  test(`${pathname}: expiry keeps saved work readable and hides write actions`, async ({ page }) => {
+    const errors = await mount(page, pathname);
+    let billingRequests = 0;
+    await page.route("**/api/billing/subscription", (route) =>
+      route.fulfill({ json: ++billingRequests === 1 ? active : expired }),
+    );
+    await page.route("**/api/v1/posts?type=counts", (route) => route.fulfill({ json: counts }));
+    await page.route("**/api/v1/accounts", (route) => route.fulfill({ json: { accounts: [] } }));
+    await page.addScriptTag({ content: bundle });
+    await expect(page.getByText(pathname === "/" ? "Counts loaded" : "Accounts loaded")).toBeVisible();
+    await page.clock.runFor(61_000);
+    await expect(page.getByRole("heading", { name: "Workspace" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("complementary", { name: "Trial expired" })).toContainText("view your saved work");
+    await expect(page.getByRole("link", { name: "Create post", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Choose a plan", exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
 test("an expired user can recover from a checkout error and subscribe to the selected plan", async ({ page }) => {
-  const errors = await mount(page);
+  const errors = await mount(page, "/schedule");
   let postRequests = 0;
   await page.route("**/api/billing/subscription", (route) => route.fulfill({ json: expired }));
-  await page.route("**/api/v1/posts?type=counts", (route) => {
+  await page.route("**/api/v1/posting-slots", (route) => {
     postRequests++;
     return route.fulfill({ json: counts });
   });
@@ -195,21 +222,21 @@ test("an expired user can recover from a checkout error and subscribe to the sel
 });
 
 test("confirmed paid access after returning from checkout restores the workspace", async ({ page }) => {
-  await mount(page);
+  await mount(page, "/schedule");
   let billingRequests = 0;
   await page.route("**/api/billing/subscription", (route) =>
     route.fulfill({
       json: ++billingRequests === 1 ? expired : { ...active, accessType: "stripe", trial: expired.trial },
     }),
   );
-  await page.route("**/api/v1/posts?type=counts", (route) => route.fulfill({ json: counts }));
+  await page.route("**/api/v1/posting-slots", (route) => route.fulfill({ json: { slots: [] } }));
   await page.addScriptTag({ content: bundle });
   await expectExpired(page);
   await page.evaluate(() => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     window.dispatchEvent(new Event("visibilitychange"));
   });
-  await expect(page.getByText("Counts loaded")).toBeVisible();
+  await expect(page.getByText("Slots loaded")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -256,13 +283,13 @@ for (const { pathname, endpoint } of workspaceQueries) {
   });
 }
 
-test("accounts billing denial with a non-JSON response still refreshes billing without retries", async ({ page }) => {
+test("lapsed paid accounts still refresh billing after a non-JSON denial without retries", async ({ page }) => {
   const errors = await mount(page, "/accounts");
   let billingRequests = 0;
   let accountRequests = 0;
   let clientErrors = 0;
   await page.route("**/api/billing/subscription", (route) =>
-    route.fulfill({ json: ++billingRequests === 1 ? active : expired }),
+    route.fulfill({ json: ++billingRequests === 1 ? active : lapsedPaid }),
   );
   await page.route("**/api/v1/accounts", (route) => {
     accountRequests++;
@@ -303,7 +330,7 @@ for (const viewport of [
       from: stylesheet,
     });
     await page.setViewportSize(viewport);
-    const errors = await mount(page);
+    const errors = await mount(page, "/schedule");
     await page.route("**/api/billing/subscription", (route) => route.fulfill({ json: expired }));
     await page.addStyleTag({ content: css.css + "body { font-family: Arial, sans-serif; }" });
     await page.addScriptTag({ content: bundle });

@@ -10,6 +10,7 @@ import {
 } from "@modelcontextprotocol/server";
 import { Feature } from "@prisma/client";
 
+import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { hasFeature } from "@/lib/features";
 import { createLogger, serializeError } from "@/lib/logger";
@@ -58,9 +59,15 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
     return null;
   }
 
-  await assertActiveSubscription(session.user.id, { action: "mcp_request" });
+  const billing = await assertActiveSubscription(
+    session.user.id,
+    { action: "mcp_request" },
+    { allowExpiredTrialRead: true },
+  );
+  const readOnly = isExpiredTrialReadOnly(billing);
 
   return {
+    readOnly,
     userId: session.user.id,
     userEmail: session.user.email,
     scope: session.session.scope,

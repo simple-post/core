@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth";
@@ -16,6 +17,7 @@ type PendingAccount = {
 };
 
 type PendingData = {
+  source?: "assistant_handoff";
   accounts: PendingAccount[];
   scope?: string | null;
 };
@@ -70,6 +72,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let measurementUserId: string | null = null;
+  let measurementPlatform = "unknown";
+  let source: "assistant_handoff" | undefined;
   try {
     const { id } = await params;
     const session = await requireAuth(req, { action: "connect_pending_social_accounts" });
@@ -101,6 +106,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const data = pending.data as PendingData;
+    measurementUserId = session.user.id;
+    measurementPlatform = pending.platform;
+    source = data?.source;
     if (!data || !Array.isArray(data.accounts)) {
       throw new BadRequestError("Invalid pending connection data");
     }
@@ -138,8 +146,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await tx.pendingOAuthConnection.delete({ where: { id: pending.id } });
     }, CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS);
 
-    return NextResponse.json({ success: true, count: selectedAccounts.length });
+    await recordFunnelEvent(session.user.id, "social_connection_completed", {
+      key: `pending:${pending.id}`,
+      properties: { platform: pending.platform, source: data.source },
+    });
+    return NextResponse.json({ success: true, count: selectedAccounts.length, source: data.source });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "social_connection_failed", {
+        properties: { platform: measurementPlatform, source, reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

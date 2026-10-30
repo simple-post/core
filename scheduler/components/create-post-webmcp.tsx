@@ -9,6 +9,7 @@ import { Bot, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { queryKeys } from "@/lib/query-client";
 import {
   createPostTools,
@@ -69,8 +70,10 @@ export function WebMcpProvider({ children }: { children: ReactNode }) {
 }
 
 export function CreatePostWebMcp() {
+  const readOnly = useWorkspaceReadOnly();
   const { status, created } = useContext(WebMcpContext);
 
+  if (readOnly) return null;
   return (
     <Collapsible className="mb-6">
       <CollapsibleTrigger asChild>

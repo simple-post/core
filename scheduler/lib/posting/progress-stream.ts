@@ -64,7 +64,7 @@ export function createPostingProgressStream(run: (onResult: PostingResultCallbac
           if (response.ok) {
             send({ type: "complete", data });
           } else {
-            send({ type: "error", error: getResponseError(data, response.status) });
+            send({ type: "error", error: getResponseError(data, response.status), status: response.status });
           }
         })
         .catch((error: unknown) => {

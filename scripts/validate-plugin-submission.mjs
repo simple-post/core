@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 // Inspect the actual upload, not just its source tree. This is local structural
 // validation; portal scans, live tests and policy attestations remain separate.
-const archive = resolve(process.argv[2] ?? "dist/plugin-submission/simplepost-3.0.0-review-draft.zip");
+const archive = resolve(process.argv[2] ?? "dist/plugin-submission/simplepost-3.1.0-review-draft.zip");
 const packageName = "app-69f882652190819192ab1c88f1218795";
 const entries = execFileSync("unzip", ["-Z1", archive], { encoding: "utf8" }).trim().split("\n");
 assert.equal(new Set(entries).size, entries.length, "Duplicate ZIP entries");

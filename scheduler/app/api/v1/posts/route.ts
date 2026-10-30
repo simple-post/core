@@ -14,7 +14,7 @@ import {
 import { PostsModel } from "@/lib/db";
 import { createLogger, serializeError } from "@/lib/logger";
 import { ingestPostMedia } from "@/lib/media-ingestion";
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireAuth, requireReadAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
@@ -30,7 +30,7 @@ import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
-import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
+import { handleApiError, BadRequestError, ApiError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -96,7 +96,7 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
 // GET /api/v1/posts - Get all posts (drafts, scheduled, past, and failed) with pagination
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireReadAuth(req);
     const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";
@@ -492,7 +492,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
         const durationMs = Date.now() - startTime;
         log.error({ durationMs }, "Failed to post to platforms");
-        throw new BadRequestError("Failed to post to platforms");
+        throw new ApiError("Publishing could not be confirmed. Check Posts before retrying.", 500);
       }
     }
 

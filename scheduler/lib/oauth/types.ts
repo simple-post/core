@@ -14,6 +14,7 @@ export type OAuthTokenResponse = Record<string, unknown> & {
 };
 
 export interface CallbackContext {
+  source?: "assistant_handoff";
   userId: string;
   platform: string;
   baseURL: string;

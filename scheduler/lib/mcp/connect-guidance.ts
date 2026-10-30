@@ -1,3 +1,5 @@
+import { createConnectionHandoff } from "@/lib/accounts/assistant-handoff";
+import { SOCIAL_PLATFORMS } from "@/lib/config";
 import { getAppBaseUrl } from "@/lib/mcp/config";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +16,23 @@ export const NO_CONNECTED_ACCOUNTS_CODE = "NO_CONNECTED_ACCOUNTS";
 
 export function getConnectAccountsUrl(): string {
   return `${getAppBaseUrl()}/accounts?onboarding=connect`;
+}
+
+/** Links are computed without writes and bind a browser connection to the requesting MCP user. */
+export function getAccountConnectionLinks(userId: string) {
+  return SOCIAL_PLATFORMS.map((platform) => {
+    const query = new URLSearchParams({
+      onboarding: "connect",
+      platform: platform.id,
+      handoffToken: createConnectionHandoff(userId, platform.id),
+    });
+    return {
+      platform: platform.id,
+      name: platform.name,
+      connectionType: platform.connectionType,
+      url: `${getAppBaseUrl()}/accounts?${query}`,
+    };
+  });
 }
 
 /** Markdown with the link in its own brackets, so chat clients render it clickable. */

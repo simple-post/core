@@ -10,6 +10,7 @@ import { Plus } from "lucide-react";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
+import { useBillingStatus, useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { cn } from "@/lib/utils";
 
 import { SimplePostBrand, WorkspaceNavigation } from "./visual/navigation";
@@ -20,6 +21,8 @@ interface NavbarProps {
 }
 
 export function Navbar({ actions }: NavbarProps) {
+  const readOnly = useWorkspaceReadOnly();
+  const { data: billing } = useBillingStatus();
   const pathname = usePathname() ?? "/";
   const [scrolled, setScrolled] = useState(false);
 
@@ -31,63 +34,83 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
-  const showCreateCta = !pathname.startsWith("/schedule");
+  const showCreateCta = !readOnly && !pathname.startsWith("/schedule");
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-50 bg-background/80 backdrop-blur-[10px] transition-all duration-200",
-        scrolled && "border-b border-border",
-      )}>
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-6 sm:gap-3">
-        <Link
-          href="/"
-          className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
-          aria-label="SimplePost home">
-          <SimplePostBrand logoSrc="/simplepost-logo.png" />
-        </Link>
+    <>
+      <header
+        className={cn(
+          "sticky top-0 z-50 bg-background/80 backdrop-blur-[10px] transition-all duration-200",
+          scrolled && "border-b border-border",
+        )}>
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-6 sm:gap-3">
+          <Link
+            href="/"
+            className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
+            aria-label="SimplePost home">
+            <SimplePostBrand logoSrc="/simplepost-logo.png" />
+          </Link>
 
-        <WorkspaceNavigation
-          active={
-            pathname.startsWith("/accounts")
-              ? "accounts"
-              : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
-                ? "posts"
-                : null
-          }
-          renderItem={({ id, label, className, children }) => (
-            <Link
-              href={id === "posts" ? "/" : "/accounts"}
-              aria-label={label}
-              aria-current={
-                (
-                  id === "accounts"
-                    ? pathname.startsWith("/accounts")
-                    : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
-                )
-                  ? "page"
-                  : undefined
-              }
-              className={className}>
-              {children}
-            </Link>
-          )}
-        />
-
-        <div className="ml-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
-          {actions}
-          {showCreateCta && (
-            <Button asChild size="sm" className="gap-2">
-              <Link href="/schedule" aria-label="Create post">
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create post</span>
+          <WorkspaceNavigation
+            active={
+              pathname.startsWith("/accounts")
+                ? "accounts"
+                : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
+                  ? "posts"
+                  : null
+            }
+            renderItem={({ id, label, className, children }) => (
+              <Link
+                href={id === "posts" ? "/" : "/accounts"}
+                aria-label={label}
+                aria-current={
+                  (
+                    id === "accounts"
+                      ? pathname.startsWith("/accounts")
+                      : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
+                  )
+                    ? "page"
+                    : undefined
+                }
+                className={className}>
+                {children}
               </Link>
-            </Button>
-          )}
-          <HelpLink className="shrink-0 py-2" />
-          <UserMenu />
+            )}
+          />
+
+          <div className="ml-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
+            {!readOnly && actions}
+            {showCreateCta && (
+              <Button asChild size="sm" className="gap-2">
+                <Link href="/schedule" aria-label="Create post">
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create post</span>
+                </Link>
+              </Button>
+            )}
+            <HelpLink className="shrink-0 py-2" />
+            <UserMenu />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      {readOnly && billing?.trial && !pathname.startsWith("/billing") && pathname !== "/subscribe" && (
+        <aside
+          aria-label="Trial expired"
+          className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-[clamp(18px,4vw,48px)] sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Your trial ended on{" "}
+            {new Date(billing.trial.expiresAt).toLocaleDateString(undefined, {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+            . You can view your saved work. Choose a plan to create, edit or publish posts.
+          </p>
+          <Button asChild size="sm" variant="outline" className="shrink-0 self-start">
+            <Link href="/billing/plans">Choose a plan</Link>
+          </Button>
+        </aside>
+      )}
+    </>
   );
 }

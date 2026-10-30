@@ -46,11 +46,11 @@ const log = createLogger("mcp:tools");
 export const IMAGE_FITTING_INSTRUCTIONS =
   "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post, update_scheduled_post, or validate_post. A call that fails with recovery retry_with_image_fit means exactly this: repeat it once with imageFit set. Drafts are saved either way — when a saved draft reports fixable image errors, say so and offer to fit rather than re-saving it. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
 
-export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Account connection and edits or deletions of already-published social content are unsupported by these tools; explain that limitation and direct the user to the SimplePost web app or social platform.
+export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Tools can provide links for user-controlled social account authorization in the browser. Edits or deletions of already-published social content must happen on the social platform.
 
-# No-tool routing rules
+# Connection handoff and unsupported actions
 
-- If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call a SimplePost tool for that action. Tell them SimplePost account management must happen in the SimplePost web app.
+- To connect or add a social account, read \`list_accounts\` or the workspace and show the requested platform’s \`connectionLinks\` URL unchanged. Ask which platform only if unclear. OAuth links go to provider authorization after any required SimplePost sign-in; manual providers open a web setup form. The user approves access in the browser. Never ask for provider passwords, keys, or tokens in chat. When they return, refresh accounts and verify the requested platform before continuing. Reconnection of an existing account, disconnection, and other account management remain in the SimplePost web app.
 - If the user asks to delete, edit, undo, remove, or take down a post already published on a social platform such as X, Instagram, Facebook, YouTube, Threads, Telegram, or Bluesky, do not call a SimplePost tool for that action. Explain that SimplePost tools can only manage drafts and future scheduled posts, and direct them to the social platform.
 - Do not inspect accounts or posts merely to confirm that an unsupported action is unsupported.
 - If the user asks for generic writing, brainstorming, translation, arithmetic, meeting calendars, reminders, or SEO research without a social publishing action or selected SimplePost editor, do not call any SimplePost tool. Writing changes to a selected SimplePost working copy are supported through the editor tools when available.
@@ -65,7 +65,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, previe
 
 - Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. If access or an allowance prevents posting, explain the returned restriction without offering a purchase or subscription. Do not retry automatically or repeatedly inspect accounts to bypass the denial.
 
-1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, the result carries \`connectAccountsUrl\`: show it as a clickable "Connect a social account" link. Explain that connecting SimplePost to their assistant does not connect a social account. Ask them to connect one destination there and return to this conversation. There is no MCP tool to add accounts.
+1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. Use the requested platform’s \`connectionLinks\` URL to help connect a destination, including additional accounts. If the platform is unclear, ask once. Use \`connectAccountsUrl\` as a fallback when platform links are unavailable. When no suitable destination is connected, explain that assistant authorization does not connect a social account. Ask them to approve the selected destination in the browser and return to this conversation. There is no MCP tool to add accounts.
 
 2. If the post needs an image or video, attach it via the \`media\` field on \`validate_post\`, \`preview_post\`, and \`create_post\`. See the "Media" section below for how to obtain a URL.
 
@@ -156,17 +156,18 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 # Error handling
 
 - ${MCP_ERROR_INSTRUCTIONS}
-- \`NO_CONNECTED_ACCOUNTS\` means the user has no social account connected at all. Show the "Connect a social account" link from the message and stop; do not retry with other account IDs.
+- \`NO_CONNECTED_ACCOUNTS\` means the user has no social account connected at all. Call \`list_accounts\` and show the requested platform’s \`connectionLinks\` URL; ask which platform only if unclear. Use the message’s generic link only if platform links are unavailable. Stop posting until the user returns and accounts have been refreshed; do not retry with other account IDs.
 - \`create_post\` and \`update_scheduled_post\` return \`validation\` alongside the saved post. Warnings never block: surface them (for example, that a non-thread-capable account receives only the root segment) rather than dropping them from your answer.
 - A successful \`create_post\` with \`postingMode: "now"\` may still report per-platform failures inside \`postingResults\`. Always inspect \`summary.overallSuccess\` and the individual results — do not assume success just because the tool didn't throw. For threads, a root post can succeed while a later segment fails; check \`threadResults\` on that account.
 - If \`validate_post\` or \`preview_post\` was explicitly requested and returns \`isValid: false\`, surface the per-account error messages to the user and offer a fix (shorter text, add media, drop a platform) instead of calling \`create_post\` anyway.
 
 # What this server does NOT do
 
-- It cannot connect, disconnect, or re-auth social accounts — direct the user to the SimplePost web app for that.
+- Tools return connection links; the user authorizes social accounts in the browser. Disconnecting or reconnecting an existing account still happens in the SimplePost web app.
 - It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
+  readOnly?: boolean;
   imageFittingEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
   clientId?: string;
@@ -574,7 +575,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "list_accounts",
     {
       title: "List Connected Accounts",
-      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. Also use this when the user asks how to connect a social account. If none are connected, show the returned connectAccountsUrl as a clickable link. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
+      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. Also use this when the user asks how to connect a social account. To add a destination, show the requested platform’s connectionLinks URL unchanged, even if accounts already exist. Ask which platform only if unclear; fall back to connectAccountsUrl if platform links are unavailable. After the user returns, call this tool again to verify the connection. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
       inputSchema: listAccountsSchema,
       outputSchema: listAccountsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
@@ -591,7 +592,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               type: "text",
               text:
                 result.summary.total === 0
-                  ? formatAccounts(result.accounts, result.connectAccountsUrl)
+                  ? `${formatAccounts(result.accounts, result.connectAccountsUrl)}\nTo add a destination, show the requested platform’s connectionLinks URL from structuredContent unchanged.`
                   : `You have ${plural(result.summary.total, "connected account")} across ${plural(
                       result.summary.platforms.length,
                       "platform",

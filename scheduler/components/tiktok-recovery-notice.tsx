@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { getTikTokPostRecovery, tomorrowRetryTime } from "@/lib/posting/tiktok-recovery";
 import { parseLocalScheduledDateTime, getLocalScheduledDateTimeError } from "@/lib/validations/scheduled-time";
 import type { SocialPost } from "@/types";
@@ -24,6 +25,7 @@ export function retryScheduleTimes(start: Date, count: number, spacingHours: num
 }
 
 export function TikTokRecoveryNotice({ posts }: { posts: SocialPost[] }) {
+  const readOnly = useWorkspaceReadOnly();
   const eligible = posts.filter((post) => getTikTokPostRecovery(post));
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
@@ -31,7 +33,7 @@ export function TikTokRecoveryNotice({ posts }: { posts: SocialPost[] }) {
   const [spacing, setSpacing] = useState(24);
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
-  if (eligible.length === 0) return null;
+  if (readOnly || eligible.length === 0) return null;
   const recovery = getTikTokPostRecovery(eligible[0])!;
   const automatic = eligible.length === 1 && eligible[0].status === "scheduled" && recovery.automaticRetry;
   const showDialog = (tomorrow: boolean) => {

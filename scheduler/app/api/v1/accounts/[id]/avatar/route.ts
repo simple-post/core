@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireReadAuth } from "@/lib/middleware/auth";
 import { fetchFreshProfilePicture } from "@/lib/oauth/profile-picture";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -72,7 +72,7 @@ async function fetchAvatar(url: URL | null): Promise<Response | null> {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(request, { action: "load_social_account_avatar", connectedAccountId: id });
+    const session = await requireReadAuth(request, { action: "load_social_account_avatar", connectedAccountId: id });
 
     const account = await prisma.connectedAccount.findUnique({
       where: { id },

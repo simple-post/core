@@ -35,6 +35,7 @@ import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
+  postingOutcomeUncertain,
   mergePostingProgressResult,
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
@@ -110,12 +111,16 @@ export function CreatePostForm() {
     updateThreadSegmentMessage,
     updateThreadSegmentMedia,
     resetDraft,
+    saveRecoveryDraft,
+    clearRecoveryDraft,
   } = usePostDraft();
   const { data: quotePost, isLoading: quotePostLoading, isError: quotePostError } = usePost(quotePostId ?? "");
 
   const defaultRepostAppliedRef = useRef(false);
   const quoteAccountsAppliedRef = useRef<string | null>(null);
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
+  const [submittedPostId, setSubmittedPostId] = useState<string | undefined>();
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
@@ -467,6 +472,8 @@ export function CreatePostForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmittedPostId(undefined);
+    setOutcomeUncertain(false);
     setSubmitAttempted(true);
 
     if (selectedAccountIds.length === 0) {
@@ -585,6 +592,9 @@ export function CreatePostForm() {
             : undefined,
       });
 
+      setSubmittedPostId(data.post?.id);
+      if (data.post?.id) clearRecoveryDraft();
+
       if (postingMode === "now" && data.post?.status === "scheduled") {
         toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.");
         resetDraftToDefaults();
@@ -595,7 +605,7 @@ export function CreatePostForm() {
 
         const allSucceeded = completedResults.every((result) => result.success);
         setPostingSucceeded(allSucceeded);
-        if (allSucceeded) {
+        if (allSucceeded || data.post?.id) {
           resetDraftToDefaults();
         }
 
@@ -620,8 +630,11 @@ export function CreatePostForm() {
         setTrialSubmissionError(errorMessage);
       }
       if (postingMode === "now") {
+        setOutcomeUncertain(postingOutcomeUncertain(error));
         setPostingSucceeded(false);
-        setPostingResults((current) => failPendingPostingResults(current, errorMessage));
+        setPostingResults((current) =>
+          failPendingPostingResults(current, errorMessage, postingOutcomeUncertain(error)),
+        );
       }
       logClientError(error, "Failed to create post", { postingMode, accountCount: selectedAccountIds.length });
       toast.error(errorMessage);
@@ -954,12 +967,15 @@ export function CreatePostForm() {
       <PostLinksModal
         open={showPostLinksModal}
         posting={submitPostMutation.isPending}
+        outcomeUncertain={outcomeUncertain}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
-          if (!open && postingSucceeded) {
-            router.push("/?tab=past");
-          }
+          if (!open && postingSucceeded) router.push("/?tab=past");
+          else if (!open && submittedPostId) router.push(`/posts/${submittedPostId}`);
         }}
+        postId={submittedPostId}
+        onEditFailed={submittedPostId ? undefined : setSelectedAccountIds}
+        onRecover={(returnTo, accountIds) => (submittedPostId ? true : saveRecoveryDraft(returnTo, accountIds))}
         results={postingResults}
       />
     </div>

@@ -34,7 +34,7 @@ Do not mix payload shapes between interfaces. MCP, the hosted API, and connected
 
 ## Boundaries
 
-- Account connection, disconnection, and reauthorization happen in the SimplePost web app. Do not search accounts or posts when the requested account action is unsupported.
+- For connecting or adding a social destination, use `list_accounts` or the workspace to get its platform-specific `connectionLinks` URL. Copy it unchanged; ask which platform only if unclear. The user authorizes in the browser, then returns to chat. Refresh accounts and verify the requested destination before continuing. Never collect provider passwords, keys, or tokens in chat. Disconnection and reauthorization of existing accounts remain in the SimplePost web app. Do not inspect posts merely to confirm an unsupported account action.
 - SimplePost can edit or discard drafts and future scheduled posts. It cannot edit, delete, or undo a post already published to a social platform; direct the user to that platform.
 - SimplePost records posting state, but it does not currently expose social-network engagement analytics through its MCP tools. Do not claim reach, click, impression, or engagement analysis from post records.
 - Keep credentials out of prompts, source files, logs, and visible responses. Use OAuth, environment variables, the CLI secret store, or server-side account storage.

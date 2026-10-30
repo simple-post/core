@@ -26,6 +26,7 @@ import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
+  postingOutcomeUncertain,
   mergePostingProgressResult,
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
@@ -115,8 +116,13 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     removeThreadSegment,
     updateThreadSegmentMessage,
     updateThreadSegmentMedia,
+    saveRecoveryDraft,
+    clearRecoveryDraft,
+    resetDraft,
   } = usePostDraft();
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
+  const [submittedPostId, setSubmittedPostId] = useState<string | undefined>();
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
@@ -306,6 +312,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmittedPostId(undefined);
+    setOutcomeUncertain(false);
 
     // Validate based on posting mode
     if (selectedAccountIds.length === 0) {
@@ -430,6 +438,12 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       });
 
       // If posting now and we have posting results, show the modal
+      setSubmittedPostId(data.post?.id);
+      if (data.post?.id) {
+        clearRecoveryDraft();
+        if (isDuplicate) resetDraft();
+      }
+
       if (postingMode === "now" && data.post?.status === "scheduled") {
         toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.");
         router.push("/?tab=scheduled");
@@ -453,8 +467,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         setScheduleError(errorMessage);
       }
       if (postingMode === "now") {
+        setOutcomeUncertain(postingOutcomeUncertain(error));
         setPostingSucceeded(false);
-        setPostingResults((current) => failPendingPostingResults(current, errorMessage));
+        setPostingResults((current) =>
+          failPendingPostingResults(current, errorMessage, postingOutcomeUncertain(error)),
+        );
       }
       logClientError(error, `Failed to ${isRetry ? "retry" : mode} post`, {
         postId: existingPost.id,
@@ -705,14 +722,18 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       <PostLinksModal
         open={showPostLinksModal}
         posting={submitPostMutation.isPending}
+        outcomeUncertain={outcomeUncertain}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           // Navigate when modal is closed
           if (!open && postingSucceeded) {
             router.push("/?tab=past");
-          }
-          // If posting failed, stay on the page to let user retry
+          } else if (!open && isDuplicate && submittedPostId) router.push(`/posts/${submittedPostId}`);
+          // Existing post edits keep their current content for a deliberate retry.
         }}
+        postId={submittedPostId ?? (isDuplicate ? undefined : existingPost.id)}
+        onEditFailed={isDuplicate && submittedPostId ? undefined : setSelectedAccountIds}
+        onRecover={(returnTo, accountIds) => (submittedPostId ? true : saveRecoveryDraft(returnTo, accountIds))}
         results={postingResults}
       />
     </div>

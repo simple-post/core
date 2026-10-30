@@ -8,6 +8,8 @@ import { usePostingSlots } from "@/hooks/use-posting-slots";
 import { useCalendarPosts } from "@/hooks/use-posts";
 import type { SocialPost } from "@/types";
 
+jest.mock("@/hooks/use-billing", () => ({ useWorkspaceReadOnly: () => false }));
+
 jest.mock("@/hooks/use-posting-slots", () => ({ usePostingSlots: jest.fn() }));
 jest.mock("@/hooks/use-posts", () => ({ useCalendarPosts: jest.fn() }));
 

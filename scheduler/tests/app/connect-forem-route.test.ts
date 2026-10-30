@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { POST } from "@/app/api/connect/forem/route";
+import { createConnectionHandoff } from "@/lib/accounts/assistant-handoff";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
@@ -85,4 +86,14 @@ it("returns a clear error when the instance cannot be reached", async () => {
   await expect(response.json()).resolves.toEqual(
     expect.objectContaining({ error: "Could not reach the Forem instance" }),
   );
+});
+
+it("rejects a manual connection link for another SimplePost user before validating provider credentials", async () => {
+  const response = await POST(
+    request({ apiKey: "secret", handoffToken: createConnectionHandoff("other-user", "forem") }),
+  );
+  expect(response.status).toBe(403);
+  expect(await response.json()).toMatchObject({ code: "HANDOFF_ACCOUNT_MISMATCH" });
+  expect(fetchForemMock).not.toHaveBeenCalled();
+  expect(upsertMock).not.toHaveBeenCalled();
 });

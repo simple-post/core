@@ -22,7 +22,14 @@ import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, normalizeRepostSettings } from "@/lib/repost/settings";
-import { NotFoundError, ConflictError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
+import {
+  NotFoundError,
+  ConflictError,
+  BadRequestError,
+  ApiError,
+  ValidationError,
+  sanitizeForJson,
+} from "@/lib/utils/errors";
 import { deleteMediaFiles, deleteStorageUrls, getRemovedAccountOptionThumbnailUrls } from "@/lib/utils/media-cleanup";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
@@ -403,6 +410,6 @@ export async function executePostUpdate(
       repostStatus: "not_applicable",
     });
 
-    throw new BadRequestError("Failed to post to platforms");
+    throw new ApiError("Publishing could not be confirmed. Check Posts before retrying.", 500);
   }
 }

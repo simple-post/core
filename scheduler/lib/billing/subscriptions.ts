@@ -9,6 +9,7 @@ import {
   type AccessPlan,
   type BillingPlan,
 } from "@/lib/billing/plans";
+import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import { getStripe } from "@/lib/billing/stripe";
 import { getTrialDaysRemaining, getTrialPlatformUsage, isTrialActive } from "@/lib/billing/trial";
 import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
@@ -593,6 +594,7 @@ export async function getBillingErrorLogContext(
 async function assertActiveBillingEvaluation(
   userId: string,
   context: BillingGateContext = {},
+  allowExpiredTrialRead = false,
 ): Promise<BillingEvaluation> {
   const evaluation = await getBillingEvaluation(userId);
   const { status, email } = evaluation;
@@ -600,6 +602,8 @@ async function assertActiveBillingEvaluation(
   if (env.SELF_HOSTED) {
     return evaluation;
   }
+
+  if (allowExpiredTrialRead && isExpiredTrialReadOnly(status)) return evaluation;
 
   if (!status.active || !status.plan) {
     const resolvedContext = await resolveSocialAccountLogContext(userId, context);
@@ -622,8 +626,9 @@ async function assertActiveBillingEvaluation(
 export async function assertActiveSubscription(
   userId: string,
   context: BillingGateContext = {},
+  options: { allowExpiredTrialRead?: boolean } = {},
 ): Promise<BillingStatus> {
-  const evaluation = await assertActiveBillingEvaluation(userId, context);
+  const evaluation = await assertActiveBillingEvaluation(userId, context, options.allowExpiredTrialRead);
   return evaluation.status;
 }
 

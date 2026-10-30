@@ -47,12 +47,13 @@ it("recognizes an assistant-first signup and still offers account connection", (
   expect(screen.getAllByLabelText("Complete")).toHaveLength(1);
 });
 
-it("puts optional AI installation last and keeps it visible after the first published post", () => {
+it("puts AI installation third without an optional label and keeps it visible after the first published post", () => {
   mockState = { hasConnectedAccount: true, hasAiConnection: false, hasPost: true, hasPublishedPost: true };
   render(createElement(OnboardingChecklist));
   const steps = screen.getAllByRole("listitem");
   expect(steps[1].textContent).toContain("Schedule your first post");
-  expect(steps[2].textContent).toContain("Install SimplePost in your AIOptional");
+  expect(steps[2].textContent).toContain("3Install SimplePost in your AI");
+  expect(screen.queryByText("Optional")).toBeNull();
   expect(screen.getByRole("button", { name: "Install" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Dismiss getting started" }));
   expect(mockDismiss).toHaveBeenCalledTimes(1);

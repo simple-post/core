@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 interface ChecklistStep {
   id: string;
   title: string;
-  optional?: boolean;
   done: boolean;
   action: { label: string; href: string } | { label: string; onClick: () => void };
 }
@@ -30,10 +29,7 @@ function StepRow({ step, index }: { step: ChecklistStep; index: number }) {
         )}>
         {step.done ? <Check className="h-3.5 w-3.5" role="img" aria-label="Complete" /> : index + 1}
       </span>
-      <span className={cn("min-w-0 flex-1 text-sm", step.done && "text-muted-foreground")}>
-        {step.title}
-        {step.optional && <span className="mt-0.5 block text-xs text-muted-foreground">Optional</span>}
-      </span>
+      <span className={cn("min-w-0 flex-1 text-sm", step.done && "text-muted-foreground")}>{step.title}</span>
       {step.done ? null : "href" in step.action ? (
         <Button asChild size="sm" variant="outline" className="shrink-0">
           <Link href={step.action.href}>{step.action.label}</Link>
@@ -72,7 +68,6 @@ export function OnboardingChecklist() {
     {
       id: "ai",
       title: "Install SimplePost in your AI",
-      optional: true,
       done: state.hasAiConnection,
       action: { label: "Install", onClick: () => setAiModalOpen(true) },
     },

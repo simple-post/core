@@ -55,7 +55,7 @@ jobs:
     - name: Cache media runtime packages
       uses: actions/cache@v4
       with:
-        path: ${{ runner.temp }}/media-packages
+        path: ${{ runner.temp }}/media-packages/*.deb
         key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.media-image.outputs.version }}-media-packages-v1
     - name: Install media inspection runtime
       run: |
@@ -100,7 +100,7 @@ jobs:
     - name: Cache media runtime packages
       uses: actions/cache@v4
       with:
-        path: ${{ runner.temp }}/media-packages
+        path: ${{ runner.temp }}/media-packages/*.deb
         key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.media-image.outputs.version }}-media-packages-v1
     - name: Install media inspection runtime
       run: |

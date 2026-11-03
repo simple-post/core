@@ -19,15 +19,6 @@ jobs:
         cache: yarn
     - name: Enable Corepack
       run: corepack enable
-    - name: Install media inspection runtime
-      run: |
-        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
-          ffmpeg -version
-          ffprobe -version
-        else
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
-        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Export documentation references
@@ -58,21 +49,30 @@ jobs:
         cache: yarn
     - name: Enable Corepack
       run: corepack enable
+    - name: Identify runner image
+      id: media-image
+      run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+    - name: Cache media runtime packages
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/media-packages
+        key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.media-image.outputs.version }}-media-packages-v1
     - name: Install media inspection runtime
       run: |
         if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
           ffmpeg -version
           ffprobe -version
         else
+          mkdir -p "$RUNNER_TEMP/media-packages/partial"
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dir::Cache::archives="$RUNNER_TEMP/media-packages" -o Binary::apt-get::APT::Keep-Downloaded-Packages=true install -y --no-install-recommends ffmpeg
         fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Run SDK tests with coverage
       env:
         NODE_OPTIONS: --max_old_space_size=4096
-      run: yarn test:coverage
+      run: yarn test:coverage --maxWorkers=2
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
       if: success()
@@ -94,35 +94,45 @@ jobs:
         cache: yarn
     - name: Enable Corepack
       run: corepack enable
+    - name: Identify runner image
+      id: media-image
+      run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+    - name: Cache media runtime packages
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/media-packages
+        key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.media-image.outputs.version }}-media-packages-v1
     - name: Install media inspection runtime
       run: |
         if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
           ffmpeg -version
           ffprobe -version
         else
+          mkdir -p "$RUNNER_TEMP/media-packages/partial"
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dir::Cache::archives="$RUNNER_TEMP/media-packages" -o Binary::apt-get::APT::Keep-Downloaded-Packages=true install -y --no-install-recommends ffmpeg
         fi
     - name: Install dependencies
       run: yarn install --immutable
-    - name: Build SDK and CLI for end-to-end checks
-      run: |
-        yarn workspace @simple-post/sdk build
-        yarn workspace @simple-post/cli build
+    - name: Build CLI and SDK for end-to-end checks
+      run: yarn workspace @simple-post/cli build
     - name: Install end-to-end browser
       run: yarn workspace @simple-post/e2e exec playwright install --with-deps chromium
     - name: Run offline end-to-end checks
-      run: xvfb-run --auto-servernum yarn e2e:test --shard=${{ matrix.shard }}/2
+      run: xvfb-run --auto-servernum yarn e2e:test --shard=${{ matrix.shard }}/4
     - name: Build and smoke-test plugin extensions
       run: |
         yarn workspace @simple-post/scheduler build:mcp-widgets
         yarn workspace @simple-post/e2e extensions:smoke
+      if: matrix.shard == 1
     strategy:
       fail-fast: false
       matrix:
         shard:
         - 1
         - 2
+        - 3
+        - 4
   cli:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -136,21 +146,8 @@ jobs:
         cache: yarn
     - name: Enable Corepack
       run: corepack enable
-    - name: Install media inspection runtime
-      run: |
-        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
-          ffmpeg -version
-          ffprobe -version
-        else
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
-        fi
     - name: Install dependencies
       run: yarn install --immutable
-    - name: Build SDK and CLI for end-to-end checks
-      run: |
-        yarn workspace @simple-post/sdk build
-        yarn workspace @simple-post/cli build
     - name: Run CLI tests
       env:
         NODE_OPTIONS: --max_old_space_size=4096
@@ -168,15 +165,6 @@ jobs:
         cache: yarn
     - name: Enable Corepack
       run: corepack enable
-    - name: Install media inspection runtime
-      run: |
-        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
-          ffmpeg -version
-          ffprobe -version
-        else
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
-        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Run Scheduler tests
@@ -216,7 +204,7 @@ jobs:
           POSTGRES_DB: simplepost_review
         ports:
         - 5432:5432
-        options: --health-cmd "pg_isready -U postgres -d simplepost_review" --health-interval 10s --health-timeout
+        options: --health-cmd "pg_isready -U postgres -d simplepost_review" --health-interval 1s --health-timeout
           5s --health-retries 5
   test:
     name: test (22.23.4)

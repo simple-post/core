@@ -20,7 +20,14 @@ jobs:
     - name: Enable Corepack
       run: corepack enable
     - name: Install media inspection runtime
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      run: |
+        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+          ffmpeg -version
+          ffprobe -version
+        else
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Export documentation references
@@ -52,7 +59,14 @@ jobs:
     - name: Enable Corepack
       run: corepack enable
     - name: Install media inspection runtime
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      run: |
+        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+          ffmpeg -version
+          ffprobe -version
+        else
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Run SDK tests with coverage
@@ -81,7 +95,14 @@ jobs:
     - name: Enable Corepack
       run: corepack enable
     - name: Install media inspection runtime
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      run: |
+        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+          ffmpeg -version
+          ffprobe -version
+        else
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Build SDK and CLI for end-to-end checks
@@ -116,7 +137,14 @@ jobs:
     - name: Enable Corepack
       run: corepack enable
     - name: Install media inspection runtime
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      run: |
+        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+          ffmpeg -version
+          ffprobe -version
+        else
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Build SDK and CLI for end-to-end checks
@@ -141,7 +169,14 @@ jobs:
     - name: Enable Corepack
       run: corepack enable
     - name: Install media inspection runtime
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      run: |
+        if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+          ffmpeg -version
+          ffprobe -version
+        else
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+        fi
     - name: Install dependencies
       run: yarn install --immutable
     - name: Run Scheduler tests

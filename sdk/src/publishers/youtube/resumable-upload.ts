@@ -10,7 +10,8 @@ import { PostError, PostErrorType } from "../../types";
  * YouTube videos.insert over the resumable upload protocol:
  * https://developers.google.com/youtube/data/guides/using_resumable_upload_protocol
  *
- * One session per call, never replaced. Once media bytes may have reached
+ * Metadata-only initialization may retry transport failures. Once a session
+ * is accepted it is never replaced. Once media bytes may have reached
  * YouTube, every unresolved outcome is API_ERROR so the caller reconciles
  * instead of reposting; nothing here can create a second video. Errors carry
  * fixed messages and bounded codes only: never provider text, request headers
@@ -23,6 +24,17 @@ const INIT_URL = `${YOUTUBE_UPLOAD_ORIGIN}${UPLOAD_PATH}?uploadType=resumable&pa
 
 /** Local backoff before each recovery of the same session; the length is the recovery budget. */
 const RECOVERY_DELAYS_MS = [1000, 3000];
+/** Metadata-only requests can be repeated before any session is accepted. */
+const INIT_RETRY_DELAYS_MS = [1000, 3000];
+const INIT_NETWORK_CODES = new Set([
+  "ECONNABORTED",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "ERR_NETWORK",
+]);
 const CONTROL_TIMEOUT_MS = 30_000;
 const ASSUMED_RATE_BYTES_PER_SEC = 512 * 1024;
 const RESPONSE_LIMIT_BYTES = 1024 * 1024;
@@ -51,6 +63,9 @@ const KNOWN_REASONS = new Set([
 ]);
 
 const SAFE_TO_RETRY = "YouTube rejected the video upload before any video was created. It is safe to retry.";
+const INIT_UNAVAILABLE = "The YouTube video upload could not be started. No video was created. It is safe to retry.";
+const INIT_TIMEOUT =
+  "The connection to YouTube timed out before the video upload started. No video was created. It is safe to retry.";
 const AMBIGUOUS =
   "YouTube did not confirm the video upload. The video may exist on the channel; check YouTube Studio before reposting.";
 const CREDENTIALS = "Your YouTube connection has expired. Please reconnect your YouTube account in Settings.";
@@ -148,6 +163,17 @@ const isRevoked = (error: unknown): boolean => {
   return failure?.response?.status === 401 || code === "invalid_grant" || code === "invalid_client";
 };
 
+/** Only known transport codes may be logged or retried; HTTP responses keep their existing classification. */
+const initNetworkCode = (error: unknown): string | undefined => {
+  const failure = error as
+    | { code?: unknown; requestError?: { code?: unknown }; response?: { status?: unknown } }
+    | null
+    | undefined;
+  if (typeof failure?.response?.status === "number") return;
+  const code = failure?.code ?? failure?.requestError?.code;
+  return typeof code === "string" && INIT_NETWORK_CODES.has(code) ? code : undefined;
+};
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 /** Axios bounds the whole request, so a PUT gets time for its bytes at a modest sustained rate. */
 const putTimeoutMs = (bytes: number) => clamp(Math.ceil(bytes / ASSUMED_RATE_BYTES_PER_SEC) * 1000, 120_000, 7_200_000);
@@ -223,29 +249,45 @@ export async function uploadYouTubeVideo(input: YouTubeUploadInput): Promise<You
 
   // Init: metadata only. Only a 200 carries a session URI; redirects are never followed.
   let session: string;
-  try {
-    const response = await send({
-      method: "POST",
-      url: INIT_URL,
-      headers: {
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Length": String(size),
-        "X-Upload-Content-Type": "application/octet-stream",
-      },
-      data: JSON.stringify(metadata),
-      timeout: CONTROL_TIMEOUT_MS,
-    });
-    if (response.status !== 200) throw rejection(response);
-    const location = header(response, "location");
-    if (!isTrustedSessionUrl(location))
-      throw fail(PostErrorType.API_ERROR, UNTRUSTED_SESSION, { code: "youtube_session_url_untrusted" });
-    session = location;
-  } catch (error) {
-    if (error instanceof PostError) throw error;
-    // Credential or transport failure before any session or media: no video can exist.
-    throw isRevoked(error)
-      ? fail(PostErrorType.CREDENTIALS_ERROR, CREDENTIALS, { code: "youtube_credentials_revoked" })
-      : fail(PostErrorType.PUBLISH_REJECTED, SAFE_TO_RETRY, { code: "youtube_init_unreachable" });
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await send({
+        method: "POST",
+        url: INIT_URL,
+        headers: {
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Length": String(size),
+          "X-Upload-Content-Type": "application/octet-stream",
+        },
+        data: JSON.stringify(metadata),
+        timeout: CONTROL_TIMEOUT_MS,
+      });
+      if (response.status !== 200) throw rejection(response);
+      const location = header(response, "location");
+      if (!isTrustedSessionUrl(location))
+        throw fail(PostErrorType.API_ERROR, UNTRUSTED_SESSION, { code: "youtube_session_url_untrusted" });
+      session = location;
+      break;
+    } catch (error) {
+      if (error instanceof PostError) throw error;
+      if (isRevoked(error))
+        throw fail(PostErrorType.CREDENTIALS_ERROR, CREDENTIALS, { code: "youtube_credentials_revoked" });
+      // No media was sent. Preserve bounded diagnostics without raw client errors or credentials.
+      const networkCode = initNetworkCode(error);
+      const message = networkCode === "ECONNABORTED" || networkCode === "ETIMEDOUT" ? INIT_TIMEOUT : INIT_UNAVAILABLE;
+      const failure = fail(PostErrorType.PUBLISH_REJECTED, message, {
+        code: "youtube_init_unreachable",
+        ...(networkCode && { networkCode }),
+        attempts: attempt + 1,
+      });
+      const backoff = INIT_RETRY_DELAYS_MS[attempt];
+      if (!networkCode || backoff === undefined || backoff >= remaining()) throw failure;
+      log.warn(
+        `[YouTubeUpload] Initialization attempt ${attempt + 1} failed (${networkCode}); retrying in ${backoff} ms`,
+      );
+      await delay(backoff);
+      if (remaining() <= 0) throw failure;
+    }
   }
   log.info(`[YouTubeUpload] Resumable session created for ${size} bytes`);
 

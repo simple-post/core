@@ -490,16 +490,134 @@ describe("init", () => {
     expect(JSON.stringify(error)).not.toContain("script");
   });
 
-  it("classifies a transport failure as safely retryable", async () => {
-    script(() => Promise.reject(transportFailure()));
+  it.each(["ECONNABORTED", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND", "ERR_NETWORK"])(
+    "retries initialization after %s before uploading any media",
+    async (code) => {
+      script(
+        () => Promise.reject(Object.assign(transportFailure(), { code })),
+        () => {
+          expect(streams).toHaveLength(0);
+          return initOk();
+        },
+        async (config) => {
+          expect(await drain(config.data)).toEqual(FILE);
+          return accepted();
+        },
+      );
+      await expect(upload()).resolves.toMatchObject({ videoId: "vid-123" });
+      expect(inits()).toBe(2);
+      expect(streams).toHaveLength(1);
+      expect(getAuthorization).toHaveBeenCalledTimes(3);
+      expect(wait.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(code));
+      expectNoLeak();
+    },
+  );
+
+  it("stops after three transport failures with safe diagnostics and accurate wording", async () => {
+    request.mockRejectedValue(transportFailure());
     const error = await failure();
     expect(error).toMatchObject({
       errorType: PostErrorType.PUBLISH_REJECTED,
-      details: { stage: "init", code: "youtube_init_unreachable" },
+      details: { stage: "init", code: "youtube_init_unreachable", networkCode: "ECONNABORTED", attempts: 3 },
     });
+    expect((error as Error).message).toContain("connection to YouTube timed out");
+    expect((error as Error).message).not.toContain("YouTube rejected");
     expect((error as Error).message).toContain("safe to retry");
     expectNoLeak(error);
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(inits()).toBe(3);
+    expect(streams).toHaveLength(0);
+    expect(wait.mock.calls.map(([ms]) => ms)).toEqual([1000, 3000]);
+  });
+
+  it("keeps using the accepted session for media recovery after initialization retries", async () => {
+    script(
+      () => Promise.reject(transportFailure()),
+      () => Promise.reject(transportFailure()),
+      initOk,
+      () => Promise.reject(transportFailure()),
+      (config) => {
+        expect(isProbe(config)).toBe(true);
+        expect(config.url).toBe(SESSION);
+        return accepted("vid-already-uploaded");
+      },
+    );
+    await expect(upload()).resolves.toMatchObject({ videoId: "vid-already-uploaded" });
+    expect(inits()).toBe(3);
+    expect(streams).toHaveLength(1);
+    expect(wait.mock.calls.map(([ms]) => ms)).toEqual([1000, 3000, 1000]);
+    expectNoLeak();
+  });
+
+  it.each([
+    Object.assign(new Error("SECRET"), { code: "SECRET" }),
+    Object.assign(new Error("SECRET"), { code: "ERR_CANCELED" }),
+    { code: "ECONNRESET", response: { status: 403, data: "SECRET" } },
+    null,
+  ])("does not retry unknown, cancelled, or HTTP failures or expose raw diagnostics (%#)", async (cause) => {
+    request.mockRejectedValue(cause);
+    const error = await failure();
+    expect(error).toMatchObject({
+      errorType: PostErrorType.PUBLISH_REJECTED,
+      details: { stage: "init", code: "youtube_init_unreachable", attempts: 1 },
+    });
+    expect((error as { details: object }).details).not.toHaveProperty("networkCode");
+    expect((error as Error).message).toContain("video upload could not be started");
+    expect((error as Error).message).not.toContain("timed out");
+    expect(inits()).toBe(1);
+    expect(streams).toHaveLength(0);
+    expect(wait).not.toHaveBeenCalled();
+    expectNoLeak(error);
+  });
+
+  it("does not wait or retry when the backoff would exhaust the deadline", async () => {
+    const now = Date.now();
+    const clock = jest.spyOn(Date, "now").mockReturnValue(now);
+    script(() => {
+      clock.mockReturnValue(now + DEADLINE_MS - 1000);
+      throw transportFailure();
+    });
+    const error = await failure();
+    expect(error).toMatchObject({ details: { code: "youtube_init_unreachable", attempts: 1 } });
+    expect(inits()).toBe(1);
+    expect(wait).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the deadline after initialization backoff without another credential request", async () => {
+    const now = Date.now();
+    const clock = jest.spyOn(Date, "now").mockReturnValue(now);
+    request.mockRejectedValue(transportFailure());
+    wait.mockImplementation(async () => {
+      clock.mockReturnValue(now + DEADLINE_MS);
+    });
+    const error = await failure();
+    expect(error).toMatchObject({ details: { code: "youtube_init_unreachable", attempts: 1 } });
+    expect(getAuthorization).toHaveBeenCalledTimes(1);
+    expect(inits()).toBe(1);
+    expect(streams).toHaveLength(0);
+  });
+
+  it("bounds a retried initialization request by the remaining deadline", async () => {
+    const now = Date.now();
+    const clock = jest.spyOn(Date, "now").mockReturnValue(now);
+    script(
+      () => {
+        clock.mockReturnValue(now + DEADLINE_MS - 2000);
+        throw transportFailure();
+      },
+      (config) => {
+        expect(config.timeout).toBe(1000);
+        clock.mockReturnValue(now + DEADLINE_MS);
+        throw transportFailure();
+      },
+    );
+    wait.mockImplementation(async () => {
+      clock.mockReturnValue(now + DEADLINE_MS - 1000);
+    });
+    const error = await failure();
+    expect(error).toMatchObject({ details: { code: "youtube_init_unreachable", attempts: 2 } });
+    expect(inits()).toBe(2);
+    expect(wait.mock.calls.map(([ms]) => ms)).toEqual([1000]);
   });
 
   it("reports revoked credentials from the token provider as a credentials error", async () => {
@@ -512,17 +630,30 @@ describe("init", () => {
     expect((error as Error).message).toContain("reconnect your YouTube account");
     expectNoLeak(error);
     expect(request).not.toHaveBeenCalled();
+    expect(wait).not.toHaveBeenCalled();
   });
 
-  it("reports a transient token provider failure as safely retryable", async () => {
-    getAuthorization.mockRejectedValueOnce(Object.assign(new Error("ETIMEDOUT SECRET"), { code: "ETIMEDOUT" }));
+  it("retries a transient token provider failure with fresh credentials", async () => {
+    getAuthorization.mockRejectedValueOnce({ requestError: { code: "ETIMEDOUT", message: "SECRET" } });
+    script(initOk, () => accepted());
+    await expect(upload()).resolves.toMatchObject({ videoId: "vid-123" });
+    expect(getAuthorization).toHaveBeenCalledTimes(3);
+    expect(inits()).toBe(1);
+    expect(wait.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+    expectNoLeak();
+  });
+
+  it("bounds retries for persistent token provider transport failures", async () => {
+    getAuthorization.mockRejectedValue(Object.assign(new Error("ETIMEDOUT SECRET"), { code: "ETIMEDOUT" }));
     const error = await failure();
     expect(error).toMatchObject({
       errorType: PostErrorType.PUBLISH_REJECTED,
-      details: { stage: "init", code: "youtube_init_unreachable" },
+      details: { stage: "init", code: "youtube_init_unreachable", networkCode: "ETIMEDOUT", attempts: 3 },
     });
     expectNoLeak(error);
+    expect(getAuthorization).toHaveBeenCalledTimes(3);
     expect(request).not.toHaveBeenCalled();
+    expect(wait.mock.calls.map(([ms]) => ms)).toEqual([1000, 3000]);
   });
 
   it.each([

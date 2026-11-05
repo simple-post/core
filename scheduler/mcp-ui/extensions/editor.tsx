@@ -1,3 +1,4 @@
+import { useUiTranslation } from "../../lib/i18n/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizePreviewPlatform } from "@simple-post/preview";
@@ -80,6 +81,7 @@ export function Editor({
   onClose: () => void;
   onCommitted: (editor: EditorData) => void;
 }) {
+  const { t, locale } = useUiTranslation();
   const hint = restoreEditorHint();
   const recoverLocal = hint?.sessionId === initial.sessionId && hint.content;
   const [content, setContent] = useState<EditorContent>(() => {
@@ -339,18 +341,18 @@ export function Editor({
       });
   }
   return (
-    <section className="sp-editor" aria-label="Post editor">
+    <section className="sp-editor" aria-label={t("postEditor")}>
       <header className="sp-editor-header">
         <div>
-          <h1 className="sp-kicker">{session.postId ? "Edit post" : "New draft"}</h1>
+          <h1 className="sp-kicker">{session.postId ? t("editPost") : t("newDraft")}</h1>
           <span aria-live="polite">
             {syncing
-              ? "Keeping working copy…"
+              ? t("keepingCopy")
               : dirty
-                ? "Unsaved changes"
+                ? t("unsavedChanges")
                 : session.status === "new"
-                  ? "Working copy saved · draft not saved yet"
-                  : "Working copy saved"}
+                  ? t("copySavedDraftNot")
+                  : t("workingCopySaved")}
           </span>
         </div>
         <Button
@@ -365,7 +367,7 @@ export function Editor({
               onClose();
             })
           }>
-          <ArrowLeft size={14} /> Back to workspace
+          <ArrowLeft size={14} /> {t("backWorkspace")}
         </Button>
       </header>
       {notice ? (
@@ -386,7 +388,7 @@ export function Editor({
             link.click();
             URL.revokeObjectURL(url);
           }}>
-          Download preserved local edits
+          {t("downloadLocalEdits")}
         </Button>
       ) : null}
       {canValidate ? null : (
@@ -408,19 +410,19 @@ export function Editor({
       ) : null}
       {proposal ? (
         <section className="sp-proposal">
-          <h2>Proposed writing changes</h2>
+          <h2>{t("proposedChanges")}</h2>
           <p>{proposal.explanation}</p>
           <details open>
-            <summary>Review changes</summary>
+            <summary>{t("reviewChanges")}</summary>
             {proposal.patch.message === undefined ? null : (
               <div className="sp-diff">
                 <div>
-                  <strong>Current shared text</strong>
-                  <pre>{content.message}</pre>
+                  <strong>{t("currentShared")}</strong>
+                  <pre dir="auto">{content.message}</pre>
                 </div>
                 <div>
-                  <strong>Proposed shared text</strong>
-                  <pre>{proposal.patch.message}</pre>
+                  <strong>{t("proposedShared")}</strong>
+                  <pre dir="auto">{proposal.patch.message}</pre>
                 </div>
               </div>
             )}
@@ -428,7 +430,7 @@ export function Editor({
               <div className="sp-diff" key={id}>
                 <div>
                   <strong>{accounts.find((a) => a.accountId === id)?.platform ?? "Destination"} · current</strong>
-                  <pre>
+                  <pre dir="auto">
                     {content.accountOverrides[id]?.message ?? content.message}
                     {(content.accountOverrides[id]?.thread ?? content.thread)
                       .map((part) => `\n\n${part.message}`)
@@ -436,8 +438,8 @@ export function Editor({
                   </pre>
                 </div>
                 <div>
-                  <strong>Proposed</strong>
-                  <pre>
+                  <strong>{t("proposed")}</strong>
+                  <pre dir="auto">
                     {proposed.message ?? content.accountOverrides[id]?.message ?? content.message}
                     {(proposed.thread ?? content.accountOverrides[id]?.thread ?? content.thread)
                       .map((part) => `\n\n${part.message}`)
@@ -462,9 +464,9 @@ export function Editor({
             disabled={working || !statusEditable || dirty || proposal.revision !== session.revision}
             variant="default"
             onClick={() => change(mergeProposal(content, proposal.patch))}>
-            Apply to working copy
+            {t("applyToCopy")}
           </Button>
-          <span>Applying does not save or publish the post.</span>
+          <span>{t("applyDoesNotPublish")}</span>
         </section>
       ) : null}
       <footer className="sp-editor-footer">
@@ -485,14 +487,14 @@ export function Editor({
                 );
               })
             }>
-            Check platform rules
+            {t("checkRules")}
           </Button>
           <Button
             size="sm"
             variant="default"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => void act(() => commit("draft"))}>
-            <Save size={14} /> {session.status === "scheduled" ? "Move to drafts" : "Save draft"}
+            <Save size={14} /> {session.status === "scheduled" ? t("moveToDrafts") : t("saveDraft")}
           </Button>
         </div>
         <div className="sp-actions">
@@ -501,14 +503,14 @@ export function Editor({
             size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("schedule")}>
-            <CalendarClock size={14} /> Schedule
+            <CalendarClock size={14} /> {t("scheduleAction")}
           </Button>
           <Button
             variant="outline"
             size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("now")}>
-            <Send size={14} /> Post now
+            <Send size={14} /> {t("postNow")}
           </Button>
         </div>
         <div className="sp-actions">
@@ -518,14 +520,14 @@ export function Editor({
             aria-expanded={manual}
             aria-controls="sp-manual-editor"
             onClick={() => setManual(!manual)}>
-            <Pencil size={14} /> {manual ? "Hide manual editor" : "Edit manually"}
+            <Pencil size={14} /> {manual ? t("manualEditorHide") : t("editManually")}
           </Button>
         </div>
       </footer>
       <div className={manual ? "sp-editor-grid is-manual" : "sp-editor-grid"}>
         {manual ? (
           <div className="sp-compose" id="sp-manual-editor">
-            <div className="sp-variant-tabs" aria-label="Edit destination variant">
+            <div className="sp-variant-tabs" aria-label={t("editVariant")}>
               <Button
                 variant="outline"
                 size="sm"
@@ -584,7 +586,7 @@ export function Editor({
                 onFocus={() => setContextActive(true)}
               />
               <div className="sp-thread">
-                <h3>Thread replies</h3>
+                <h3>{t("threadReplies")}</h3>
                 {displayedThread.map((part, index) => (
                   <div key={index}>
                     <label>
@@ -619,7 +621,7 @@ export function Editor({
                 </Button>
               </div>
               <div className="sp-media">
-                <h3>Media</h3>
+                <h3>{t("media")}</h3>
                 {displayedMedia.map((file) => (
                   <div key={file.id}>
                     <span>
@@ -829,7 +831,7 @@ export function Editor({
         ) : null}
         <aside className="sp-live-previews">
           <div className="sp-preview-heading">
-            <h2 className="sp-kicker">Platform preview</h2>
+            <h2 className="sp-kicker">{t("platformPreview")}</h2>
             <span>
               {platformName((variants.find((a) => a.accountId === activeAccount) ?? variants[0])?.platform ?? "")}
             </span>
@@ -921,7 +923,7 @@ export function Editor({
       </div>
       {validation ? (
         <section className="sp-validation" aria-live="polite">
-          <h2>{validation.summary.isValid ? "Ready for publishing" : "Changes needed before publishing"}</h2>
+          <h2>{validation.summary.isValid ? t("readyToPublish") : t("changesBeforePublish")}</h2>
           {validation.accounts.flatMap((account) =>
             [
               ...account.errors.map((item) => ({ ...item, tone: "error" })),
@@ -936,7 +938,7 @@ export function Editor({
       ) : null}
       {results && Array.isArray(results.postingResults) ? (
         <section className="sp-validation">
-          <h2>Publishing results</h2>
+          <h2>{t("publishingResults")}</h2>
           {results.postingResults.map(
             (result: {
               accountId: string;
@@ -947,10 +949,11 @@ export function Editor({
               postUrl?: string;
             }) => (
               <p key={result.accountId}>
-                {result.platform}: {result.success ? "Published" : (result.message ?? result.error ?? "Failed")}
+                {result.platform}:{" "}
+                {result.success ? t("postPublished") : (result.message ?? result.error ?? t("postFailed"))}
                 {result.postUrl ? (
                   <Button variant="outline" size="sm" onClick={() => void app.openLink({ url: result.postUrl! })}>
-                    Open published post
+                    {t("openPublished")}
                   </Button>
                 ) : null}
               </p>
@@ -977,12 +980,13 @@ export function Editor({
       ) : null}
 
       {review ? (
-        <section className="sp-publish-review" role="region" aria-label="Review publishing action">
+        <section className="sp-publish-review" role="region" aria-label={t("reviewPublishing")}>
           {review === "schedule" ? (
             <label>
-              Publishing time · {timeZone}
+              {t("publishingTime", { zone: timeZone })}
               <Input
                 type="datetime-local"
+                dir="ltr"
                 value={localTime}
                 disabled={working || !statusEditable}
                 onChange={(event) => {
@@ -993,23 +997,40 @@ export function Editor({
               />
             </label>
           ) : null}
-          <h2>{review === "schedule" ? `Schedule for ${localTime.replace("T", " ")} · ${timeZone}` : "Publish now"}</h2>
+          <h2>
+            {review === "schedule"
+              ? t("scheduleReview", {
+                  date:
+                    locale === "en" || !localTime
+                      ? localTime.replace("T", " ")
+                      : new Date(`${localTime}Z`).toLocaleString(locale, {
+                          timeZone: "UTC",
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }),
+                  zone: timeZone,
+                })
+              : t("postNow")}
+          </h2>
           <p>
-            Send this single post to{" "}
-            {variants
-              .map((account) => `${account.platform} (${account.displayName ?? account.username ?? "account"})`)
-              .join(", ")}
-            . Review every preview above before continuing.
+            {t("publishReviewIntro", {
+              destinations: new Intl.ListFormat(locale).format(
+                variants.map(
+                  (account) =>
+                    `${platformName(account.platform)} (${account.displayName ?? account.username ?? t("user")})`,
+                ),
+              ),
+            })}
           </p>
           <Button
             size="sm"
             variant="default"
             disabled={working || (review === "schedule" && !localTime)}
             onClick={() => void act(() => commit(review))}>
-            {review === "schedule" ? "Confirm schedule" : "Confirm publish now"}
+            {review === "schedule" ? t("confirmSchedule") : t("confirmPublishNow")}
           </Button>
           <Button variant="outline" size="sm" disabled={working} onClick={() => setReview(null)}>
-            Keep editing
+            {t("keepEditing")}
           </Button>
         </section>
       ) : null}

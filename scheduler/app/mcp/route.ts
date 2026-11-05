@@ -13,9 +13,11 @@ import { Feature } from "@prisma/client";
 import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { hasFeature } from "@/lib/features";
+import { negotiateLocale, type Locale } from "@/lib/i18n/locales";
 import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { EXTENSION_INSTRUCTIONS } from "@/lib/mcp/extensions/instructions";
+import { withMcpLocale } from "@/lib/mcp/locale";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { logReviewMcpExchange, shouldLogReviewMcpExchange } from "@/lib/mcp/review-logging";
 import {
@@ -123,7 +125,7 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
   }
 }
 
-async function createMcpServer(authContext: McpToolAuthContext): Promise<McpServer> {
+async function createMcpServer(authContext: McpToolAuthContext, locale: Locale): Promise<McpServer> {
   const [imageFittingEnabled, pluginExtensionsEnabled] = await Promise.all([
     hasFeature(authContext.userId, Feature.IMAGE_FITTING),
     hasFeature(authContext.userId, Feature.PLUGIN_EXTENSIONS),
@@ -141,19 +143,22 @@ async function createMcpServer(authContext: McpToolAuthContext): Promise<McpServ
         (authContext.imageFittingEnabled ? "\n\n" + IMAGE_FITTING_INSTRUCTIONS : ""),
     },
   );
-  registerTools(server, authContext);
+  await withMcpLocale(locale, () => registerTools(server, authContext));
   return server;
 }
 
 const SIMPLEPOST_AUTH_CONTEXT_KEY = "simplepostAuthContext";
 
 const mcpHandler = createMcpHandler(
-  async ({ authInfo }) => {
+  async ({ authInfo, requestInfo }) => {
     const authContext = authInfo?.extra?.[SIMPLEPOST_AUTH_CONTEXT_KEY] as McpToolAuthContext | undefined;
     if (!authContext) {
       throw new Error("Authenticated SimplePost context is missing");
     }
-    return createMcpServer(authContext);
+    return createMcpServer(
+      authContext,
+      negotiateLocale(undefined, requestInfo?.headers.get("accept-language") ?? undefined),
+    );
   },
   {
     legacy: "reject",
@@ -174,7 +179,10 @@ function toSdkAuthInfo(authContext: McpToolAuthContext): AuthInfo {
 }
 
 async function handleLegacyMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
-  const server = await createMcpServer(authContext);
+  const server = await createMcpServer(
+    authContext,
+    negotiateLocale(undefined, req.headers.get("accept-language") ?? undefined),
+  );
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

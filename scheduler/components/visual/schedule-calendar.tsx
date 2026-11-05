@@ -1,4 +1,7 @@
 "use client";
+
+import { useUiTranslation } from "@/lib/i18n/client";
+import { localizedSchedulePeriod } from "@/lib/i18n/presentation";
 import { createContext, useContext, type ReactNode } from "react";
 
 import { format } from "date-fns";
@@ -41,11 +44,27 @@ function Action(props: CalendarActionProps) {
   return Render(props);
 }
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, day) => ({ label, day }));
-const CALENDAR_VIEWS = [
-  { value: "month", label: "Month" },
-  { value: "week", label: "Week" },
-  { value: "day", label: "Day" },
-] as const;
+const CALENDAR_VIEWS = ["month", "week", "day"] as const;
+const DISPLAY_DATE_FORMATS = {
+  "EEEE, MMMM d, yyyy": { weekday: "long", year: "numeric", month: "long", day: "numeric" },
+  "EEEE, MMMM d": { weekday: "long", month: "long", day: "numeric" },
+  "MMMM d": { month: "long", day: "numeric" },
+  "MMMM d, yyyy": { year: "numeric", month: "long", day: "numeric" },
+  EEE: { weekday: "short" },
+  EEEE: { weekday: "long" },
+  "h:mm a": { hour: "numeric", minute: "2-digit" },
+  "EEEE, MMMM d 'at' h:mm a": { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" },
+} satisfies Record<string, Intl.DateTimeFormatOptions>;
+
+function useCalendarCopy() {
+  const { locale, t } = useUiTranslation();
+  const date = (value: Date, pattern: keyof typeof DISPLAY_DATE_FORMATS) =>
+    locale === "en"
+      ? format(value, pattern)
+      : new Intl.DateTimeFormat(locale, DISPLAY_DATE_FORMATS[pattern]).format(value);
+  return { t, locale, date, number: (value: number) => new Intl.NumberFormat(locale).format(value) };
+}
+
 function isCalendarView(value: string): value is CalendarView {
   return ["month", "week", "day"].includes(value);
 }
@@ -75,9 +94,9 @@ export interface ScheduleCalendarViewProps {
   onOpenDay?: (date: Date) => void;
 }
 export function ScheduleCalendarView(props: ScheduleCalendarViewProps) {
+  const { t } = useUiTranslation();
   return (
-    <Actions.Provider
-      value={{ renderAction: props.renderAction, slotHint: props.slotHint ?? "Tap to create and schedule a post" }}>
+    <Actions.Provider value={{ renderAction: props.renderAction, slotHint: props.slotHint ?? t("createAndSchedule") }}>
       <div className="simplepost-visual">
         <CalendarBody {...props} />
       </div>
@@ -101,6 +120,18 @@ function CalendarBody({
   onToday,
   onOpenDay,
 }: ScheduleCalendarViewProps) {
+  const { t, locale } = useCalendarCopy();
+  const displayPeriod = localizedSchedulePeriod(
+    {
+      view,
+      periodLabel,
+      days: range.days.map((day) => ({
+        date: dayKey(day),
+        inPeriod: view !== "month" || day.getMonth() === range.periodStart.getMonth(),
+      })),
+    },
+    locale,
+  );
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_55px_rgba(0,0,0,0.16)]">
       <div className="p-3 sm:p-4">
@@ -110,26 +141,26 @@ function CalendarBody({
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`Previous ${view}`}
+              aria-label={locale === "en" ? `Previous ${view}` : t("previousPeriod")}
               className="h-10 w-10 shrink-0 p-0 sm:h-9 sm:w-9"
               onClick={() => move(-1)}>
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`Next ${view}`}
+              aria-label={locale === "en" ? `Next ${view}` : t("nextPeriod")}
               className="h-10 w-10 shrink-0 p-0 sm:h-9 sm:w-9"
               onClick={() => move(1)}>
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 rtl:rotate-180" />
             </Button>
 
             <h3 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold tracking-[-0.01em] text-foreground sm:text-base">
-              {periodLabel}
+              {displayPeriod}
             </h3>
 
-            <Button variant="outline" size="sm" className="ml-1 h-9 shrink-0 px-3 text-xs sm:text-sm" onClick={onToday}>
-              Today
+            <Button variant="outline" size="sm" className="ms-1 h-9 shrink-0 px-3 text-xs sm:text-sm" onClick={onToday}>
+              {t("today")}
             </Button>
           </div>
 
@@ -139,42 +170,55 @@ function CalendarBody({
             onValueChange={(value) => {
               if (isCalendarView(value)) setView(value);
             }}
-            aria-label="Calendar view"
+            aria-label={t("calendarView")}
             className="grid w-full grid-cols-3 rounded-xl border border-border bg-background/50 p-1 lg:w-auto">
             {CALENDAR_VIEWS.map((option) => (
               <ToggleGroupItem
-                key={option.value}
-                value={option.value}
-                aria-label={`${option.label} view`}
+                key={option}
+                value={option}
+                aria-label={locale === "en" ? `${t(option)} view` : t(option)}
                 className={cn(
                   "h-9 rounded-lg border-0 px-4 text-xs font-medium transition-all first:rounded-lg last:rounded-lg sm:text-sm",
-                  view === option.value
+                  view === option
                     ? "border border-border bg-secondary text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}>
-                {option.label}
+                {t(option)}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-muted-foreground sm:text-xs">
-          <SummaryItem tone="open" count={summary.open} label="open" />
-          <SummaryItem tone="scheduled" count={summary.scheduled} label="scheduled" />
-          <SummaryItem tone="posted" count={summary.posted} label="posted" />
-          {summary.failed ? <SummaryItem tone="failed" count={summary.failed} label="failed" /> : null}
+          <SummaryItem tone="open" count={summary.open} label={locale === "en" ? "open" : t("openSlots")} />
+          <SummaryItem
+            tone="scheduled"
+            count={summary.scheduled}
+            label={locale === "en" ? "scheduled" : t("postScheduled")}
+          />
+          <SummaryItem tone="posted" count={summary.posted} label={locale === "en" ? "posted" : t("postPublished")} />
+          {summary.failed ? (
+            <SummaryItem tone="failed" count={summary.failed} label={locale === "en" ? "failed" : t("postFailed")} />
+          ) : null}
         </div>
       </div>
 
       {showEmptySlots ? (
         <div className="border-t border-border bg-background/20 px-4 py-2.5 text-xs text-muted-foreground">
-          No posting slots yet. Add your preferred times in{" "}
-          <Action
-            target={{ kind: "settings" }}
-            className="font-medium text-foreground underline underline-offset-2 hover:text-primary">
-            Settings
-          </Action>
-          .
+          {t("noSlots", { settings: "⟦settings⟧" })
+            .split(/(⟦settings⟧)/)
+            .map((part, index) =>
+              part === "⟦settings⟧" ? (
+                <Action
+                  key={index}
+                  target={{ kind: "settings" }}
+                  className="font-medium text-foreground underline underline-offset-2 hover:text-primary">
+                  {t("settings")}
+                </Action>
+              ) : (
+                <span key={index}>{part}</span>
+              ),
+            )}
         </div>
       ) : null}
 
@@ -233,6 +277,7 @@ function SummaryItem({
   count: number;
   label: string;
 }) {
+  const { number } = useCalendarCopy();
   return (
     <span className="flex items-center gap-1.5">
       <span
@@ -244,7 +289,7 @@ function SummaryItem({
           tone === "failed" && "bg-destructive",
         )}
       />
-      <span className="tabular-nums text-foreground">{count}</span> {label}
+      <span className="tabular-nums text-foreground">{number(count)}</span> {label}
     </span>
   );
 }
@@ -286,6 +331,7 @@ function MonthView({
   onSelectDay: (date: Date) => void;
   onOpenDay: (date: Date) => void;
 }) {
+  const { date, number, t } = useCalendarCopy();
   const selectedEntries = entriesByDay.get(dayKey(selectedDate)) ?? [];
 
   return (
@@ -303,7 +349,7 @@ function MonthView({
               <button
                 key={dayKey(day)}
                 type="button"
-                aria-label={format(day, "EEEE, MMMM d, yyyy")}
+                aria-label={date(day, "EEEE, MMMM d, yyyy")}
                 aria-pressed={isSelected}
                 onClick={() => onSelectDay(day)}
                 className={cn(
@@ -316,7 +362,7 @@ function MonthView({
                     "flex h-5 w-5 items-center justify-center rounded-full",
                     isToday && "bg-primary font-semibold text-primary-foreground",
                   )}>
-                  {day.getDate()}
+                  {number(day.getDate())}
                 </span>
                 <EntryMarkers entries={entries} now={now} />
               </button>
@@ -349,7 +395,7 @@ function MonthView({
                 key={dayKey(day)}
                 className={cn(
                   "min-h-28 space-y-1.5 border-border p-2 lg:min-h-32",
-                  index % 7 !== 0 && "border-l",
+                  index % 7 !== 0 && "border-s",
                   index >= 7 && "border-t",
                   !inMonth && "bg-background/30",
                   isToday && "bg-primary/[0.025]",
@@ -357,7 +403,7 @@ function MonthView({
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
-                    aria-label={`Open ${format(day, "MMMM d")} in day view`}
+                    aria-label={t("openDay", { date: date(day, "MMMM d") })}
                     onClick={() => onOpenDay(day)}
                     className={cn(
                       "flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs tabular-nums transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -366,7 +412,7 @@ function MonthView({
                         : "text-muted-foreground",
                       !inMonth && !isToday && "opacity-50",
                     )}>
-                    {day.getDate()}
+                    {number(day.getDate())}
                   </button>
                 </div>
 
@@ -377,8 +423,8 @@ function MonthView({
                   <button
                     type="button"
                     onClick={() => onOpenDay(day)}
-                    className="w-full rounded-md px-1.5 py-1 text-left text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-                    +{hiddenCount} more
+                    className="w-full rounded-md px-1.5 py-1 text-start text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                    {t("calendarMore", { count: hiddenCount })}
                   </button>
                 ) : null}
               </div>
@@ -391,6 +437,7 @@ function MonthView({
 }
 
 function WeekdayHeader({ compact = false }: { compact?: boolean }) {
+  const { locale } = useCalendarCopy();
   return (
     <div className={cn("grid grid-cols-7 border-b border-border bg-background/25", compact && "border-b-0 px-2 pt-2")}>
       {WEEKDAYS.map(({ day, label }) => (
@@ -400,7 +447,13 @@ function WeekdayHeader({ compact = false }: { compact?: boolean }) {
             "py-2 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground",
             !compact && "px-2",
           )}>
-          {compact ? label.slice(0, 1) : label}
+          {locale === "en"
+            ? compact
+              ? label.slice(0, 1)
+              : label
+            : new Intl.DateTimeFormat(locale, { weekday: compact ? "narrow" : "short", timeZone: "UTC" }).format(
+                new Date(Date.UTC(2026, 0, 5 + day)),
+              )}
         </div>
       ))}
     </div>
@@ -445,6 +498,7 @@ function WeekView({
   now: Date;
   onOpenDay: (date: Date) => void;
 }) {
+  const { date, number, t } = useCalendarCopy();
   return (
     <>
       <div className="divide-y divide-border md:hidden">
@@ -467,21 +521,21 @@ function WeekView({
           return (
             <div
               key={dayKey(day)}
-              className={cn("min-h-72 border-border", index !== 0 && "border-l", isToday && "bg-primary/[0.025]")}>
+              className={cn("min-h-72 border-border", index !== 0 && "border-s", isToday && "bg-primary/[0.025]")}>
               <button
                 type="button"
-                aria-label={`Open ${format(day, "EEEE, MMMM d")} in day view`}
+                aria-label={t("openDay", { date: date(day, "EEEE, MMMM d") })}
                 onClick={() => onOpenDay(day)}
                 className="w-full border-b border-border bg-background/25 px-2 py-3 text-center transition-colors hover:bg-secondary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                 <div className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                  {format(day, "EEE")}
+                  {date(day, "EEE")}
                 </div>
                 <div
                   className={cn(
                     "mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
                     isToday ? "bg-primary text-primary-foreground" : "text-foreground",
                   )}>
-                  {day.getDate()}
+                  {number(day.getDate())}
                 </div>
               </button>
 
@@ -489,7 +543,7 @@ function WeekView({
                 {entries.length > 0 ? (
                   entries.map((entry) => <CalendarEntry key={entry.key} entry={entry} now={now} variant="compact" />)
                 ) : (
-                  <p className="px-1 py-3 text-center text-[11px] text-muted-foreground/60">No activity</p>
+                  <p className="px-1 py-3 text-center text-[11px] text-muted-foreground/60">{t("noActivity")}</p>
                 )}
               </div>
             </div>
@@ -515,17 +569,18 @@ function DayAgenda({
   emptyAction?: boolean;
   onOpenDay?: (date: Date) => void;
 }) {
+  const { date, number, t } = useCalendarCopy();
   const isToday = isSameDay(day, now);
   const itemCount = entries.reduce((count, entry) => count + Math.max(1, entry.posts.length), 0);
 
   return (
-    <section className="p-3 sm:p-4" aria-label={format(day, "EEEE, MMMM d")}>
+    <section className="p-3 sm:p-4" aria-label={date(day, "EEEE, MMMM d")}>
       {showHeader ? (
         <div className="mb-3 flex items-center gap-3">
           <button
             type="button"
             disabled={!onOpenDay}
-            aria-label={onOpenDay ? `Open ${format(day, "EEEE, MMMM d")} in day view` : undefined}
+            aria-label={onOpenDay ? t("openDay", { date: date(day, "EEEE, MMMM d") }) : undefined}
             onClick={() => onOpenDay?.(day)}
             className={cn(
               "flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl border border-border bg-background/40 transition-colors",
@@ -534,21 +589,21 @@ function DayAgenda({
               isToday && "border-primary/30 bg-primary/10",
             )}>
             <span className="text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-muted-foreground">
-              {format(day, "EEE")}
+              {date(day, "EEE")}
             </span>
             <span className={cn("mt-1 text-sm font-semibold leading-none tabular-nums", isToday && "text-primary")}>
-              {day.getDate()}
+              {number(day.getDate())}
             </span>
           </button>
           <div className="min-w-0">
             <h4 className="truncate text-sm font-semibold text-foreground">
-              {isToday ? "Today" : format(day, "EEEE")}
+              {isToday ? t("today") : date(day, "EEEE")}
             </h4>
-            <p className="text-xs text-muted-foreground">{format(day, "MMMM d, yyyy")}</p>
+            <p className="text-xs text-muted-foreground">{date(day, "MMMM d, yyyy")}</p>
           </div>
           {entries.length > 0 ? (
-            <span className="ml-auto rounded-full bg-secondary px-2 py-1 text-[10px] tabular-nums text-muted-foreground">
-              {itemCount} {itemCount === 1 ? "item" : "items"}
+            <span className="ms-auto rounded-full bg-secondary px-2 py-1 text-[10px] tabular-nums text-muted-foreground">
+              {t("calendarItemCount", { count: itemCount })}
             </span>
           ) : null}
         </div>
@@ -567,10 +622,8 @@ function DayAgenda({
             !emptyAction && "min-h-0 border-0 px-1 py-1",
           )}>
           <div>
-            <p className="text-sm font-medium text-foreground/80">Nothing planned</p>
-            {emptyAction ? (
-              <p className="mt-0.5 text-xs text-muted-foreground">This day is ready for a new post.</p>
-            ) : null}
+            <p className="text-sm font-medium text-foreground/80">{t("nothingPlanned")}</p>
+            {emptyAction ? <p className="mt-0.5 text-xs text-muted-foreground">{t("readyForNewPost")}</p> : null}
           </div>
           {emptyAction ? (
             <Button asChild variant="outline" size="sm" className="h-9 shrink-0 px-3 text-xs">
@@ -587,8 +640,11 @@ function DayAgenda({
 }
 
 function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; variant: "compact" | "agenda" }) {
+  const { date, locale, t } = useCalendarCopy();
   const { slotHint } = useCalendarActions();
-  const timeLabel = entry.timeLabel ?? format(entry.time, "h:mm a");
+  const timeLabel =
+    (locale === "en" ? entry.timeLabel : undefined) ??
+    (Number.isFinite(entry.time.getTime()) ? date(entry.time, "h:mm a") : (entry.timeLabel ?? ""));
 
   if (entry.posts.length === 0) {
     const isPast = entry.isPast ?? entry.time <= now;
@@ -605,10 +661,10 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
       return (
         <Action
           target={{ kind: "slot", id: entry.key }}
-          title={`Schedule a post for ${format(entry.time, "EEEE, MMMM d 'at' h:mm a")}`}
+          title={t("scheduleForDate", { date: date(entry.time, "EEEE, MMMM d 'at' h:mm a") })}
           className="group flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary">
           <span className="truncate tabular-nums">{timeLabel}</span>
-          <Plus className="ml-auto h-3 w-3 shrink-0 opacity-60 transition-opacity group-hover:opacity-100" />
+          <Plus className="ms-auto h-3 w-3 shrink-0 opacity-60 transition-opacity group-hover:opacity-100" />
         </Action>
       );
     }
@@ -618,7 +674,7 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
         <div className="flex items-center gap-3 rounded-xl border border-dashed border-border px-3 py-3 opacity-45">
           <time className="w-16 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">{timeLabel}</time>
           <Clock3 className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Unused posting slot</span>
+          <span className="text-sm text-muted-foreground">{t("unusedSlot")}</span>
         </div>
       );
     }
@@ -632,7 +688,7 @@ function CalendarEntry({ entry, now, variant }: { entry: DayEntry; now: Date; va
           <Plus className="h-4 w-4" />
         </span>
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-foreground">Open posting slot</span>
+          <span className="block text-sm font-medium text-foreground">{t("openSlot")}</span>
           <span className="block truncate text-xs text-muted-foreground">{slotHint}</span>
         </span>
       </Action>
@@ -663,18 +719,19 @@ function CalendarPost({
   timeLabel: string;
   variant: "compact" | "agenda";
 }) {
+  const { t } = useCalendarCopy();
   const isFailed = post.status === "failed" || post.status === "past_due";
   const isPublished = post.status === "published";
-  const message = post.message.trim() || "Untitled post";
+  const message = post.message.trim() || t("untitledPost");
   const statusLabel = isFailed
     ? post.status === "past_due"
-      ? "Past due"
-      : "Failed"
+      ? t("pastDue")
+      : t("postFailed")
     : isPublished
-      ? "Posted"
+      ? t("postPublished")
       : post.status === "pending"
-        ? "Publishing"
-        : "Scheduled";
+        ? t("publishing")
+        : t("postScheduled");
 
   if (variant === "compact") {
     return (
@@ -700,7 +757,9 @@ function CalendarPost({
             <PlatformIconBadge key={platform} platform={platform} className="size-4" />
           ))}
         </span>
-        <span className="mt-1 block truncate text-[10px] opacity-75">{message}</span>
+        <span className="mt-1 block truncate text-[10px] opacity-75" dir="auto">
+          {message}
+        </span>
       </Action>
     );
   }
@@ -739,12 +798,14 @@ function CalendarPost({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-foreground">{message}</span>
+        <span className="block truncate text-sm font-medium text-foreground" dir="auto">
+          {message}
+        </span>
         <span className={cn("mt-0.5 block text-[11px]", isFailed ? "text-destructive" : "text-muted-foreground")}>
           {statusLabel}
         </span>
         {post.platforms?.length ? (
-          <span className="mt-1 flex gap-1" aria-label="Platforms">
+          <span className="mt-1 flex gap-1" aria-label={t("platforms")}>
             {post.platforms.map((platform) => (
               <PlatformIconBadge key={platform} platform={platform} />
             ))}

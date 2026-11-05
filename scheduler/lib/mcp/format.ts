@@ -1,3 +1,4 @@
+import type { Locale } from "@/lib/i18n/locales";
 import { getPlatformById } from "@/lib/config";
 
 export function plural(count: number, singular: string, pluralForm?: string): string {
@@ -16,10 +17,19 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
 });
 
 /** Format an ISO datetime as a readable UTC date, e.g. "May 1, 2026 at 14:30 UTC". */
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string, locale: Locale = "en"): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${DATE_FORMAT.format(date)} UTC`;
+  const formatter =
+    locale === "en"
+      ? DATE_FORMAT
+      : new Intl.DateTimeFormat(locale, {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: "UTC",
+          hour12: false,
+        });
+  return `${formatter.format(date)} UTC`;
 }
 
 export function formatBytes(bytes: number): string {

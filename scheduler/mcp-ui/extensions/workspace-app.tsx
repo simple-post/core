@@ -28,7 +28,6 @@ import { UiLocaleProvider } from "../../lib/i18n/client";
 import { Calendar } from "./calendar";
 import { Editor } from "./editor";
 import { askChat, attachSelection, callTool, isWorkspaceLaunch, restoreEditorHint, useExtensionHost } from "./host";
-import { localDateTime } from "./timezone";
 
 import type { ScheduleEntry } from "../schedule";
 import type { EditorData, WorkspaceData } from "./types";
@@ -38,7 +37,7 @@ import "./workspace.css";
 export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const [workspaceOpened, setWorkspaceOpened] = useState(false);
   const chooserOnly = editorOnly && !workspaceOpened;
-  const { app, launch, setLaunch, incoming, error, toolError, setToolError, locale, messages } =
+  const { app, launch, setLaunch, incoming, error, toolError, setToolError, locale, messages, t } =
     useExtensionHost<WorkspaceData>();
   const [editor, setEditor] = useState<EditorData | null>(null);
   const [selected, setSelected] = useState<ScheduleEntry | null>(null);
@@ -154,14 +153,14 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
             <p>{launchError}</p>
             {app ? (
               <Button variant="outline" disabled={busy} onClick={() => void loadLaunch()}>
-                Retry
+                {locale === "en" ? "Retry" : t("retry")}
               </Button>
             ) : (
-              <p>Close SimplePost and open it again to reconnect.</p>
+              <p>{t("workspaceReconnect")}</p>
             )}
           </div>
         ) : (
-          <p role="status">Opening your publishing workspace…</p>
+          <p role="status">{t("openWorkspace")}</p>
         )}
       </main>
     );
@@ -221,7 +220,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               variant="outline"
               size="sm"
               className="sp-icon-button"
-              aria-label="Refresh"
+              aria-label={t("refresh")}
               disabled={busy}
               onClick={() => void act(() => refresh())}>
               <RefreshCw size={16} />
@@ -230,7 +229,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               variant="outline"
               size="sm"
               className="sp-icon-button"
-              aria-label="Preferences"
+              aria-label={t("preferences")}
               onClick={() => {
                 setZone(
                   launch.preferences.timeZoneConfirmed
@@ -242,7 +241,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               <Settings2 size={16} />
             </Button>
             <Button className="sp-primary" disabled={!canCompose || busy} onClick={() => void act(() => openEditor())}>
-              <Plus size={16} /> New draft
+              <Plus size={16} /> {t("newDraft")}
             </Button>
           </div>
         )}
@@ -254,24 +253,25 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
       ) : null}
       {launch.accounts.length === 0 ? (
         <ConnectAccountsEmpty
-          title="Connect your first destination"
-          description="Choose at least one social platform in SimplePost, then return here to write and preview your first draft."
+          title={t("connectFirst")}
+          description={t("connectFirstDetails")}
           action={
             <>
-              <Button onClick={() => void app?.openLink({ url: launch.accountsUrl })}>Connect a platform</Button>
+              <Button onClick={() => void app?.openLink({ url: launch.accountsUrl })}>{t("connectPlatform")}</Button>
               <Button variant="outline" disabled={busy} onClick={() => void act(() => refresh())}>
-                I’ve connected a platform — refresh
+                {t("refreshAfterConnect")}
               </Button>
             </>
           }
         />
       ) : null}
       {settings ? (
-        <section className="sp-settings" aria-label="Publishing preferences">
-          <h2>Publishing preferences</h2>
+        <section className="sp-settings" aria-label={t("publishingPreferences")}>
+          <h2>{t("publishingPreferences")}</h2>
           <label>
-            Timezone
+            {t("timezone")}
             <Input
+              dir="ltr"
               value={zone}
               onChange={(event) => setZone(event.target.value)}
               placeholder="Europe/Berlin"
@@ -291,9 +291,9 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
               <option key={value} value={value} />
             ))}
           </datalist>
-          <p>Existing scheduled posts keep their exact publishing time. New selections use this timezone.</p>
+          <p>{t("timezoneEffect")}</p>
           <label>
-            Default calendar view
+            {t("defaultCalendarView")}
             <select
               disabled={busy || !launch.canWrite}
               value={launch.preferences.calendarView}
@@ -305,13 +305,15 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                   }
                 })
               }>
-              {["day", "week", "month"].map((view) => (
-                <option key={view}>{view}</option>
+              {(["day", "week", "month"] as const).map((view) => (
+                <option key={view} value={view}>
+                  {t(view)}
+                </option>
               ))}
             </select>
           </label>
           <fieldset disabled={busy || !launch.canWrite}>
-            <legend>Default destinations for new drafts</legend>
+            <legend>{t("defaultDestinations")}</legend>
             {launch.accounts.map((account) => (
               <label key={account.accountId}>
                 <input
@@ -329,7 +331,8 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     })
                   }
                 />
-                {account.displayName ?? account.username ?? account.platform} · {account.platform}
+                <bdi>{account.displayName ?? account.username ?? account.platform}</bdi> ·{" "}
+                {getPlatformName(account.platform)}
               </label>
             ))}
           </fieldset>
@@ -347,7 +350,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                 }
               })
             }>
-            Save timezone
+            {t("saveTimezone")}
           </Button>
         </section>
       ) : null}
@@ -378,17 +381,17 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           {chooserOnly ? (
             <div className="sp-page-heading">
               <Button variant="outline" size="sm" onClick={() => setWorkspaceOpened(true)}>
-                <ArrowLeft size={14} /> Back to workspace
+                <ArrowLeft size={14} /> {t("backWorkspace")}
               </Button>
-              <h1>Choose a draft to edit</h1>
+              <h1>{t("chooseDraft")}</h1>
             </div>
           ) : (
             <>
               {tab === "accounts" ? null : (
                 <>
                   <div className="sp-page-heading">
-                    <span>DASHBOARD</span>
-                    <h1>Your posts</h1>
+                    <span>{t("dashboard")}</span>
+                    <h1>{t("yourPosts")}</h1>
                   </div>
                   <Calendar
                     data={launch.schedule}
@@ -411,10 +414,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     <PostStatusTabs
                       disabled={busy}
                       items={[
-                        { name: "drafts", label: "Drafts", icon: FileText },
-                        { name: "scheduled", label: "Scheduled", icon: Clock3 },
-                        { name: "posted", label: "Published", icon: CheckCircle2 },
-                        { name: "failed", label: "Failed", icon: AlertCircle },
+                        { name: "drafts", label: t("drafts"), icon: FileText },
+                        { name: "scheduled", label: t("postScheduled"), icon: Clock3 },
+                        { name: "posted", label: t("postPublished"), icon: CheckCircle2 },
+                        { name: "failed", label: t("postFailed"), icon: AlertCircle },
                       ].map(({ name, label, icon: Icon }) => ({
                         id: name,
                         label,
@@ -430,7 +433,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     action={
                       <Button onClick={() => void app?.openLink({ url: launch.accountsUrl })}>
                         <Plus size={16} />
-                        Connect account
+                        {t("connectAccount")}
                       </Button>
                     }
                   />
@@ -440,7 +443,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     className="sp-help-link"
                     onClick={() => void app?.openLink({ url: "https://docs.simplepost.social/accounts" })}>
                     <CircleHelp size={13} />
-                    Connection and account requirements
+                    {t("connectionRequirements")}
                   </Button>
                   <div className="space-y-3">
                     {launch.accounts.map((account) => (
@@ -465,7 +468,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                               void app?.openLink({ url: `https://docs.simplepost.social/accounts#${account.platform}` })
                             }>
                             <CircleHelp size={12} />
-                            Connection help
+                            {t("connectionHelp")}
                           </Button>
                         }
                         details={
@@ -476,7 +479,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                               </p>
                             )}
                             {account.trialAllowance && (
-                              <small>{account.trialAllowance.remaining} trial posts remaining</small>
+                              <small>{t("trialPostsRemaining", { count: account.trialAllowance.remaining })}</small>
                             )}
                           </>
                         }
@@ -484,10 +487,12 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                           <Button
                             variant="outline"
                             size="sm"
-                            aria-label={`Manage ${account.displayName ?? account.username ?? account.platform}`}
+                            aria-label={t("manageNamedAccount", {
+                              name: account.displayName ?? account.username ?? account.platform,
+                            })}
                             onClick={() => void app?.openLink({ url: launch.accountsUrl.split("?")[0] })}>
                             <ExternalLink size={14} />
-                            Manage account
+                            {t("manageAccount")}
                           </Button>
                         }
                       />
@@ -498,18 +503,22 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
             </>
           )}
           {tab !== "accounts" || chooserOnly ? (
-            <section className="sp-post-list" aria-label="Saved posts">
+            <section className="sp-post-list" aria-label={t("savedPosts")}>
               <h2 className="sp-sr-only">
-                {chooserOnly || tab === "calendar"
-                  ? "Drafts and working copies"
-                  : tab === "posted"
-                    ? "Published posts"
-                    : `${tab.charAt(0).toUpperCase() + tab.slice(1)} posts`}
+                {t(
+                  chooserOnly || tab === "calendar" || tab === "drafts"
+                    ? "draftsAndCopies"
+                    : tab === "posted"
+                      ? "postPublished"
+                      : tab === "failed"
+                        ? "postFailed"
+                        : "postScheduled",
+                )}
               </h2>
               {launch.posts.posts.length === 0 ? (
                 <div className="sp-empty-posts">
                   <FileText size={24} />
-                  <p>No posts here yet. Start a new draft when you’re ready.</p>
+                  <p>{t("emptyPosts")}</p>
                 </div>
               ) : (
                 launch.posts.posts.map((post) => (
@@ -519,10 +528,14 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     platforms={[...new Set(post.accounts.map((a) => a.platform))]}
                     dateLabel={
                       post.scheduledFor
-                        ? localDateTime(new Date(post.scheduledFor), launch.schedule.timeZone).replace("T", " ")
+                        ? new Date(post.scheduledFor).toLocaleString(locale, {
+                            timeZone: launch.schedule.timeZone,
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })
                         : post.createdAt
-                          ? `Saved ${new Date(post.createdAt).toLocaleDateString()}`
-                          : "Draft"
+                          ? t("savedDate", { date: new Date(post.createdAt).toLocaleDateString(locale) })
+                          : t("postDraft")
                     }
                     accountLabels={[
                       ...post.accounts
@@ -535,7 +548,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     selection={
                       <input
                         type="checkbox"
-                        aria-label={`Select ${post.message.slice(0, 60) || "untitled post"}`}
+                        aria-label={t("selectPost", { post: post.message.slice(0, 60) || t("untitledPost") })}
                         checked={chosenPosts.includes(post.id)}
                         onChange={(event) => {
                           const ids = event.target.checked
@@ -561,7 +574,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                               : app?.openLink({ url: `${launch.accountsUrl.split("/accounts")[0]}/posts/${post.id}` }));
                           })
                         }>
-                        {post.status === "draft" || post.status === "scheduled" ? "Edit" : "View results"}
+                        {post.status === "draft" || post.status === "scheduled" ? t("edit") : t("viewResults")}
                       </Button>
                     }
                   />
@@ -574,23 +587,26 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     size="sm"
                     disabled={busy || !launch.posts.pagination.hasPreviousPage}
                     onClick={() => void act(() => refresh({ page: launch.posts.pagination!.page - 1 }))}>
-                    Previous page
+                    {t("previousPage")}
                   </Button>
                   <span>
-                    Page {launch.posts.pagination.page} of {launch.posts.pagination.totalPages || 1}
+                    {t("pageCount", {
+                      page: launch.posts.pagination.page,
+                      pages: launch.posts.pagination.totalPages || 1,
+                    })}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={busy || !launch.posts.pagination.hasNextPage}
                     onClick={() => void act(() => refresh({ page: launch.posts.pagination!.page + 1 }))}>
-                    Next page
+                    {t("nextPage")}
                   </Button>
                 </div>
               ) : null}
               {launch.recovery.length > 0 ? (
                 <details>
-                  <summary>Recover a working copy</summary>
+                  <summary>{t("recoverCopy")}</summary>
                   {launch.recovery.map((session) => (
                     <Button
                       variant="outline"
@@ -605,7 +621,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                             );
                         })
                       }>
-                      {session.message || "Untitled working copy"} · {new Date(session.updatedAt).toLocaleString()}
+                      {session.message || t("untitledCopy")} · {new Date(session.updatedAt).toLocaleString(locale)}
                     </Button>
                   ))}
                 </details>
@@ -618,8 +634,18 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         <aside className="sp-selection">
           <strong>
             {selected?.kind === "slot"
-              ? `Selected slot: ${selected.localTime} · ${launch.schedule.timeZone}`
-              : `${chosenPosts.length || 1} post(s) selected`}
+              ? t("selectedSlot", {
+                  time:
+                    locale === "en"
+                      ? selected.localTime
+                      : new Date(selected.at).toLocaleTimeString(locale, {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          timeZone: launch.schedule.timeZone,
+                        }),
+                  zone: launch.schedule.timeZone,
+                })
+              : t("selectedPosts", { count: chosenPosts.length || 1 })}
           </strong>
           <div className="sp-actions">
             {selected?.postId ? (
@@ -628,7 +654,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                 size="sm"
                 disabled={!canCompose || busy}
                 onClick={() => void act(() => openEditor(selected.postId!))}>
-                Edit selected post
+                {t("editSelectedPost")}
               </Button>
             ) : null}
             {selected?.kind === "slot" && !selected.isPast ? (
@@ -643,7 +669,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     await openEditor();
                   })
                 }>
-                Draft for this slot
+                {t("draftForSlot")}
               </Button>
             ) : null}
             <Button
@@ -662,7 +688,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     );
                 })
               }>
-              Ask ChatGPT
+              {t("askChatGpt")}
             </Button>
             <Button
               variant="outline"
@@ -675,7 +701,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     await attachSelection(app, null);
                   });
               }}>
-              Clear selection
+              {t("clearSelection")}
             </Button>
           </div>
         </aside>

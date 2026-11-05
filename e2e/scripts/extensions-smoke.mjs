@@ -123,7 +123,7 @@ if(location.search.includes('review')) {
 window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
  const send=(result)=>event.source.postMessage({jsonrpc:'2.0',id:req.id,result},'*');
- if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
+ if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',locale:new URLSearchParams(location.search).get('locale') || 'en',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
  else if(req.method==='ui/notifications/initialized') {
    if(location.search.includes('launch-error')) event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{isError:true,content:[{type:'text',text:'The workspace could not be opened. Reconnect SimplePost and try again.'}]}},'*');
    else if(location.search.includes('missing-result')) { /* Sidebar host did not deliver the opening result. */ }
@@ -501,6 +501,28 @@ try {
   await ui.getByRole("radio", { name: "Month view", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.calls.at(-1)?.args.view)).toBe("month");
   await expect(ui.getByRole("button", { name: "Expand", exact: true })).toBeVisible();
+  await page.goto(`${base}/?legacy-schedule&week&locale=ar-EG`);
+  await expect(ui.locator("html")).toHaveAttribute("lang", "ar");
+  await expect(ui.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(ui.getByRole("button", { name: "اليوم", exact: true })).toBeVisible();
+  await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
+  await expect(
+    ui.getByText("A little behind the scenes from today’s launch.", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
+  await page.evaluate(() =>
+    document.querySelector("iframe").contentWindow.postMessage(
+      {
+        jsonrpc: "2.0",
+        method: "ui/notifications/host-context-changed",
+        params: { locale: "ja-JP" },
+      },
+      "*",
+    ),
+  );
+  await expect(ui.locator("html")).toHaveAttribute("lang", "ja");
+  await expect(ui.locator("html")).toHaveAttribute("dir", "ltr");
+  await expect(ui.getByRole("button", { name: "今日", exact: true })).toBeVisible();
+  await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
   console.log(
     "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",

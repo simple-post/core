@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { Button } from "../components/ui/button";
 
 import { Calendar } from "./extensions/calendar";
+import { UiLocaleProvider } from "../lib/i18n/client";
 import { useMcpToolData } from "./use-mcp-tool-data";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
@@ -79,7 +80,7 @@ async function loadSchedule(
 }
 
 function ScheduleApp() {
-  const { app, data, setData, isConnected, error, toolError, setToolError, t } =
+  const { app, data, setData, isConnected, error, toolError, setToolError, t, locale, messages } =
     useMcpToolData<ScheduleData>("SimplePost Schedule");
   const [loading, setLoading] = useState(false);
 
@@ -104,27 +105,29 @@ function ScheduleApp() {
   }
 
   return (
-    <main className="sp-workspace" aria-busy={loading}>
-      <header className="sp-header">
-        <div>
-          <span className="sp-mark">SP</span>
-          <strong>SimplePost</strong>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void app?.requestDisplayMode({ mode: "fullscreen" })}>
-          Expand
-        </Button>
-      </header>
-      <Calendar
-        data={data}
-        busy={loading}
-        onNavigate={(input) =>
-          void navigate((input.view as ScheduleView) ?? data.view, (input.date as string) ?? data.anchorDate)
-        }
-      />
-      {data.summary.pastCount > 0 ? (
-        <p className="text-xs text-muted-foreground mt-3">{data.summary.pastCount} past items shown</p>
-      ) : null}
-    </main>
+    <UiLocaleProvider locale={locale} messages={messages}>
+      <main className="sp-workspace" aria-busy={loading}>
+        <header className="sp-header">
+          <div>
+            <span className="sp-mark">SP</span>
+            <strong>SimplePost</strong>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void app?.requestDisplayMode({ mode: "fullscreen" })}>
+            {t("expand")}
+          </Button>
+        </header>
+        <Calendar
+          data={data}
+          busy={loading}
+          onNavigate={(input) =>
+            void navigate((input.view as ScheduleView) ?? data.view, (input.date as string) ?? data.anchorDate)
+          }
+        />
+        {data.summary.pastCount > 0 ? (
+          <p className="text-xs text-muted-foreground mt-3">{t("pastItems", { count: data.summary.pastCount })}</p>
+        ) : null}
+      </main>
+    </UiLocaleProvider>
   );
 }
 

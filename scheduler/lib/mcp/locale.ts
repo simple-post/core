@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { negotiateLocale, normalizeLocale, type Locale } from "@/lib/i18n/locales";
 import { loadMessages } from "@/lib/i18n/resources";
-import { createTranslator } from "@/lib/i18n/translate";
+import { createTranslator, type MessageKey, type MessageValues } from "@/lib/i18n/translate";
 
 import type { ServerContext } from "@modelcontextprotocol/server";
 
@@ -13,6 +13,10 @@ export function mcpUiTranslation() {
   return translations.getStore() ?? english;
 }
 
+export function mcpText(key: MessageKey, values?: MessageValues) {
+  return mcpUiTranslation().t(key, values);
+}
+
 export function mcpUiLocale(ctx?: Pick<ServerContext, "mcpReq" | "http">): Locale {
   return (
     normalizeLocale(ctx?.mcpReq?._meta?.["openai/locale"]) ??
@@ -20,8 +24,11 @@ export function mcpUiLocale(ctx?: Pick<ServerContext, "mcpReq" | "http">): Local
   );
 }
 
-export async function withMcpUiTranslation<T>(ctx: ServerContext, fn: () => Promise<T>): Promise<T> {
-  const locale = mcpUiLocale(ctx);
+export function withMcpUiTranslation<T>(ctx: ServerContext, fn: () => Promise<T>): Promise<T> {
+  return withMcpLocale(mcpUiLocale(ctx), fn);
+}
+
+export async function withMcpLocale<T>(locale: Locale, fn: () => T | Promise<T>): Promise<T> {
   const messages = await loadMessages(locale);
   return translations.run({ locale, t: createTranslator(locale, messages) }, fn);
 }

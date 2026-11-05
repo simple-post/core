@@ -1,6 +1,7 @@
 "use client";
 
-import { UiLanguageSelect, useUiTranslation } from "@/lib/i18n/client";
+import { useUiTranslation } from "@/lib/i18n/client";
+import { UiLanguageSelect } from "@/lib/i18n/language-select";
 
 import { useState } from "react";
 

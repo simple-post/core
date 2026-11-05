@@ -14,7 +14,8 @@ import { trackEvent } from "@/lib/analytics/plausible";
 import { authClient } from "@/lib/auth/auth-client";
 import { loginCallbackUrl } from "@/lib/auth/callback-url";
 import { isTestUserEmail } from "@/lib/auth/test-users";
-import { UiLanguageSelect, useUiTranslation } from "@/lib/i18n/client";
+import { useUiTranslation } from "@/lib/i18n/client";
+import { UiLanguageSelect } from "@/lib/i18n/language-select";
 import { logClientError } from "@/lib/logger/client";
 
 interface LoginFormProps {

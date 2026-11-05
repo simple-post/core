@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { type PostPreviewData, type PreviewPlatform } from "@simple-post/preview-react";
 import { createRoot } from "react-dom/client";
 
+import { UiLocaleProvider } from "../lib/i18n/client";
 import { PreviewSwitcher } from "./preview-switcher";
 import { useMcpToolData } from "./use-mcp-tool-data";
 import "./post-preview.css";
@@ -31,7 +32,8 @@ type PostPreviewToolData = {
 };
 
 function PostPreviewApp() {
-  const { data, error, toolError } = useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
+  const { data, error, toolError, locale, messages, t } =
+    useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform | null>(null);
   const appBaseUrl = document.querySelector<HTMLMetaElement>('meta[name="simplepost-base-url"]')?.content;
   const logoUrl = appBaseUrl ? new URL("/simplepost-logo.png", appBaseUrl).toString() : null;
@@ -46,33 +48,35 @@ function PostPreviewApp() {
     return <div className="preview-state error-card">{error?.message ?? toolError}</div>;
   }
   if (!data) {
-    return <div className="preview-state">Building platform previews…</div>;
+    return <div className="preview-state">{t("buildPreviews")}</div>;
   }
 
   return (
-    <main className="preview-app">
-      <header className="preview-brand">
-        {logoUrl ? <img src={logoUrl} alt="" /> : <span className="brand-fallback">SP</span>}
-        <strong>SimplePost</strong>
-        <span>Preview</span>
-      </header>
+    <UiLocaleProvider locale={locale} messages={messages}>
+      <main className="preview-app">
+        <header className="preview-brand">
+          {logoUrl ? <img src={logoUrl} alt="" /> : <span className="brand-fallback">SP</span>}
+          <strong>SimplePost</strong>
+          <span>{t("preview")}</span>
+        </header>
 
-      <section className="preview-content" aria-label="Post preview">
-        <PreviewSwitcher
-          items={data.previews.map((preview) => ({
-            id: preview.accountId,
-            platform: preview.platform,
-            platformLabel: preview.platformLabel,
-            accountLabel: preview.accountLabel,
-            data: { ...preview.data, threadLayout: "scroll", previewDate: new Date(preview.data.previewDate) },
-          }))}
-          selectedId={data.previews.find((preview) => preview.platform === selectedPlatform)?.accountId ?? null}
-          onSelect={(id) =>
-            setSelectedPlatform(data.previews.find((preview) => preview.accountId === id)?.platform ?? null)
-          }
-        />
-      </section>
-    </main>
+        <section className="preview-content" aria-label={t("postPreview")}>
+          <PreviewSwitcher
+            items={data.previews.map((preview) => ({
+              id: preview.accountId,
+              platform: preview.platform,
+              platformLabel: preview.platformLabel,
+              accountLabel: preview.accountLabel,
+              data: { ...preview.data, threadLayout: "scroll", previewDate: new Date(preview.data.previewDate) },
+            }))}
+            selectedId={data.previews.find((preview) => preview.platform === selectedPlatform)?.accountId ?? null}
+            onSelect={(id) =>
+              setSelectedPlatform(data.previews.find((preview) => preview.accountId === id)?.platform ?? null)
+            }
+          />
+        </section>
+      </main>
+    </UiLocaleProvider>
   );
 }
 

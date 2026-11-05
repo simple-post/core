@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiTranslation } from "@/lib/i18n/client";
+
 import { useEffect, useState, type ReactNode } from "react";
 
 import Link from "next/link";
@@ -21,6 +23,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ actions }: NavbarProps) {
+  const { locale, t } = useUiTranslation();
   const readOnly = useWorkspaceReadOnly();
   const { data: billing } = useBillingStatus();
   const pathname = usePathname() ?? "/";
@@ -47,7 +50,7 @@ export function Navbar({ actions }: NavbarProps) {
           <Link
             href="/"
             className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
-            aria-label="SimplePost home">
+            aria-label={t("simplePostHome")}>
             <SimplePostBrand logoSrc="/simplepost-logo.png" />
           </Link>
 
@@ -78,36 +81,36 @@ export function Navbar({ actions }: NavbarProps) {
             )}
           />
 
-          <div className="ml-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
+          <div className="ms-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
             {!readOnly && actions}
             {showCreateCta && (
               <Button asChild size="sm" className="gap-2">
-                <Link href="/schedule" aria-label="Create post">
+                <Link href="/schedule" aria-label={t("createPost")}>
                   <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Create post</span>
+                  <span className="hidden sm:inline">{t("createPost")}</span>
                 </Link>
               </Button>
             )}
-            <HelpLink className="shrink-0 py-2" />
+            <HelpLink className="shrink-0 py-2">{t("help")}</HelpLink>
             <UserMenu />
           </div>
         </div>
       </header>
       {readOnly && billing?.trial && !pathname.startsWith("/billing") && pathname !== "/subscribe" && (
         <aside
-          aria-label="Trial expired"
+          aria-label={t("trialExpired")}
           className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-[clamp(18px,4vw,48px)] sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Your trial ended on{" "}
-            {new Date(billing.trial.expiresAt).toLocaleDateString(undefined, {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
+            {t("trialMessage", {
+              date: new Date(billing.trial.expiresAt).toLocaleDateString(locale, {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }),
             })}
-            . You can view your saved work. Choose a plan to create, edit or publish posts.
           </p>
           <Button asChild size="sm" variant="outline" className="shrink-0 self-start">
-            <Link href="/billing/plans">Choose a plan</Link>
+            <Link href="/billing/plans">{t("choosePlan")}</Link>
           </Button>
         </aside>
       )}

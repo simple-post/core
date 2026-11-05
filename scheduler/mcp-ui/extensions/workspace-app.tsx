@@ -24,6 +24,7 @@ import { getAccountDisplayName, getPlatformName } from "../../components/visual/
 import { PostCardView } from "../../components/visual/post-card";
 import { PostStatusTabs } from "../../components/visual/post-status-tabs";
 
+import { UiLocaleProvider } from "../../lib/i18n/client";
 import { Calendar } from "./calendar";
 import { Editor } from "./editor";
 import { askChat, attachSelection, callTool, isWorkspaceLaunch, restoreEditorHint, useExtensionHost } from "./host";
@@ -37,7 +38,8 @@ import "./workspace.css";
 export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const [workspaceOpened, setWorkspaceOpened] = useState(false);
   const chooserOnly = editorOnly && !workspaceOpened;
-  const { app, launch, setLaunch, incoming, error, toolError, setToolError } = useExtensionHost<WorkspaceData>();
+  const { app, launch, setLaunch, incoming, error, toolError, setToolError, locale, messages } =
+    useExtensionHost<WorkspaceData>();
   const [editor, setEditor] = useState<EditorData | null>(null);
   const [selected, setSelected] = useState<ScheduleEntry | null>(null);
   const [chosenPosts, setChosenPosts] = useState<string[]>([]);
@@ -184,7 +186,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
       });
   }
   const canCompose = launch.canWrite && launch.accounts.length > 0;
-  return (
+  const content = (
     <main className="sp-workspace">
       <header className="sp-header">
         <div>
@@ -679,5 +681,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
         </aside>
       ) : null}
     </main>
+  );
+  return (
+    <UiLocaleProvider locale={locale} messages={messages}>
+      {content}
+    </UiLocaleProvider>
   );
 }

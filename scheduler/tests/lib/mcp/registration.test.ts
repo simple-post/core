@@ -83,3 +83,25 @@ it.each(["list_accounts", "inspect_posts", "get_schedule", "show_schedule", "sho
     expect(handler).toHaveBeenCalledWith({ postId: "saved" }, {});
   },
 );
+
+it("localizes only the user-facing billing message from request metadata", async () => {
+  registerMeasuredTool(
+    { userId: "u", readOnly: true },
+    { registerTool: jest.fn() },
+    "create_post",
+    { inputSchema: z.object({}), _meta: {} },
+    jest.fn(),
+  );
+  const callback = jest.mocked(registerAppTool).mock.calls[0][3] as (
+    input: object,
+    ctx: object,
+  ) => Promise<CallToolResult>;
+  const [japanese, arabic] = await Promise.all([
+    callback({}, { mcpReq: { _meta: { "openai/locale": "ja-JP" } } }),
+    callback({}, { mcpReq: { _meta: { "openai/locale": "ar" } } }),
+  ]);
+  expect(japanese.content[0]).toMatchObject({ type: "text", text: expect.stringContaining("試用期間") });
+  expect(arabic.content[0]).toMatchObject({ type: "text", text: expect.stringContaining("انتهت فترتك التجريبية") });
+  expect(japanese._meta?.["simplepost/error"]).toMatchObject({ message: expect.stringContaining("Your trial") });
+  expect(arabic._meta?.["simplepost/retryable"]).toBe(false);
+});

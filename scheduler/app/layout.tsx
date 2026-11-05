@@ -1,3 +1,6 @@
+import { UiLocaleProvider } from "@/lib/i18n/client";
+import { direction } from "@/lib/i18n/locales";
+import { getUiTranslation } from "@/lib/i18n/request";
 import type React from "react";
 import { Suspense } from "react";
 
@@ -55,24 +58,27 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { locale, messages, t } = await getUiTranslation();
   return (
-    <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang={locale} dir={direction(locale)} className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased">
-        <QueryClientProvider>
-          <ClientErrorLogger />
-          {!env.SELF_HOSTED && process.env.NODE_ENV === "production" && (
-            <Suspense fallback={null}>
-              <AppAnalytics />
-            </Suspense>
-          )}
-          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-          <Toaster />
-        </QueryClientProvider>
+        <UiLocaleProvider locale={locale} messages={messages}>
+          <QueryClientProvider>
+            <ClientErrorLogger />
+            {!env.SELF_HOSTED && process.env.NODE_ENV === "production" && (
+              <Suspense fallback={null}>
+                <AppAnalytics />
+              </Suspense>
+            )}
+            <Suspense fallback={<div>{t("loading")}</div>}>{children}</Suspense>
+            <Toaster />
+          </QueryClientProvider>
+        </UiLocaleProvider>
       </body>
     </html>
   );

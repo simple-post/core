@@ -79,7 +79,7 @@ async function loadSchedule(
 }
 
 function ScheduleApp() {
-  const { app, data, setData, isConnected, error, toolError, setToolError } =
+  const { app, data, setData, isConnected, error, toolError, setToolError, t } =
     useMcpToolData<ScheduleData>("SimplePost Schedule");
   const [loading, setLoading] = useState(false);
 
@@ -100,7 +100,7 @@ function ScheduleApp() {
     return <div className="state-card error-card">{error?.message ?? toolError}</div>;
   }
   if (!isConnected || !data) {
-    return <div className="state-card">Loading your schedule…</div>;
+    return <div className="state-card">{t("loadingSchedule")}</div>;
   }
 
   return (

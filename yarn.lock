@@ -753,6 +753,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@babel/runtime@npm:^7.27.6":
+  version: 7.29.13
+  resolution: "@babel/runtime@npm:7.29.13"
+  checksum: 10c0/6e589f63a3f9192bc8de99a5bc02ff14daf14590e8de77c0f3487f4b7c3784181c60dfad927986d232fbf5581723bb577aae704b42ec14c8c44ad05b590b96d6
+  languageName: node
+  linkType: hard
+
 "@babel/template@npm:^7.27.2":
   version: 7.27.2
   resolution: "@babel/template@npm:7.27.2"
@@ -5138,21 +5145,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@simple-post/preview-react@npm:0.3.0":
-  version: 0.3.0
-  resolution: "@simple-post/preview-react@npm:0.3.0"
+"@simple-post/preview-react@file:../vendor/simple-post-preview-react-0.4.0-i18n.0.tgz::locator=%40simple-post%2Fscheduler%40workspace%3Ascheduler":
+  version: 0.4.0-i18n.0
+  resolution: "@simple-post/preview-react@file:../vendor/simple-post-preview-react-0.4.0-i18n.0.tgz#../vendor/simple-post-preview-react-0.4.0-i18n.0.tgz::hash=352746&locator=%40simple-post%2Fscheduler%40workspace%3Ascheduler"
   dependencies:
-    "@simple-post/preview": "npm:0.3.0"
+    "@simple-post/preview": "npm:0.4.0-i18n.0"
   peerDependencies:
     react: ">=18"
-  checksum: 10c0/ef6d8b0de1543d9217b426513a963fa3b700d44fec689405e71c616bdc7c59e9ee6d9f1076c3e2e90522fec40e7133471444d2a7e9275a12f00a2f83923967b0
+  checksum: 10c0/5c0718235ce822c9d46e64280ac3823a84f7fd9f5f729c8f12802dcb6c5a262f5779a781e3eeddb056af223eaef48eec17748d93099f33af856435812657bb8f
   languageName: node
   linkType: hard
 
-"@simple-post/preview@npm:0.3.0":
-  version: 0.3.0
-  resolution: "@simple-post/preview@npm:0.3.0"
-  checksum: 10c0/0d54edcc39164abdc72d1d113ab883a3b4f7a409ea9d3d2ad904f4489a6359f695a0c91471ea89af9c2dff602dd7708bca55883552b179bf1cd037e233ecf2dd
+"@simple-post/preview@file:./vendor/simple-post-preview-0.4.0-i18n.0.tgz::locator=%40simple-post%2Fcore%40workspace%3A.":
+  version: 0.4.0-i18n.0
+  resolution: "@simple-post/preview@file:./vendor/simple-post-preview-0.4.0-i18n.0.tgz#./vendor/simple-post-preview-0.4.0-i18n.0.tgz::hash=f0765d&locator=%40simple-post%2Fcore%40workspace%3A."
+  checksum: 10c0/da8a7dc71e55e19c3559a2b402d7efe3b64ac8296077b46acf3cc626e4d39bae897a693bb98b325228360a9b8aa5b1ecf95f47c36e1f138bc3daa24c3f7f6015
   languageName: node
   linkType: hard
 
@@ -5211,7 +5218,7 @@ __metadata:
     "@radix-ui/react-toggle-group": "npm:1.1.1"
     "@radix-ui/react-tooltip": "npm:1.1.6"
     "@react-email/render": "npm:^2.0.4"
-    "@simple-post/preview-react": "npm:0.3.0"
+    "@simple-post/preview-react": "file:../vendor/simple-post-preview-react-0.4.0-i18n.0.tgz"
     "@simple-post/sdk": "workspace:*"
     "@tailwindcss/postcss": "npm:^4.1.9"
     "@tanstack/react-query": "npm:^5.90.19"
@@ -5246,6 +5253,7 @@ __metadata:
     eslint-plugin-unicorn: "npm:^59.0.1"
     geist: "npm:^1.3.1"
     globals: "npm:^16.2.0"
+    i18next: "npm:25.3.2"
     input-otp: "npm:1.4.1"
     jest: "npm:^30.0.0"
     jest-environment-jsdom: "npm:^30.5.2"
@@ -11016,6 +11024,20 @@ __metadata:
   version: 2.1.0
   resolution: "human-signals@npm:2.1.0"
   checksum: 10c0/695edb3edfcfe9c8b52a76926cd31b36978782062c0ed9b1192b36bebc75c4c87c82e178dfcb0ed0fc27ca59d434198aac0bd0be18f5781ded775604db22304a
+  languageName: node
+  linkType: hard
+
+"i18next@npm:25.3.2":
+  version: 25.3.2
+  resolution: "i18next@npm:25.3.2"
+  dependencies:
+    "@babel/runtime": "npm:^7.27.6"
+  peerDependencies:
+    typescript: ^5
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 10c0/2ac3eaaf7eb0f713094265733f2371fd2631e8a0247049f2c5608d5f5b0a33720d90179de8bd4fb23e00e9b037fd548aa36e2f234bea9753061c51d87a0895bc
   languageName: node
   linkType: hard
 

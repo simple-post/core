@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { type McpServer } from "@modelcontextprotocol/server";
 
 import { createLogger, serializeError } from "@/lib/logger";
+import { mcpUiTranslation } from "@/lib/mcp/locale";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
 import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
@@ -593,10 +594,10 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               text:
                 result.summary.total === 0
                   ? `${formatAccounts(result.accounts, result.connectAccountsUrl)}\nTo add a destination, show the requested platform’s connectionLinks URL from structuredContent unchanged.`
-                  : `You have ${plural(result.summary.total, "connected account")} across ${plural(
-                      result.summary.platforms.length,
-                      "platform",
-                    )}.\n\n${formatAccounts(result.accounts)}`,
+                  : `${mcpUiTranslation().t("mcpAccountSummary", {
+                      accounts: result.summary.total,
+                      platforms: result.summary.platforms.length,
+                    })}\n\n${formatAccounts(result.accounts)}`,
             },
           ],
         };

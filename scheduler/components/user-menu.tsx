@@ -1,5 +1,7 @@
 "use client";
 
+import { UiLanguageSelect, useUiTranslation } from "@/lib/i18n/client";
+
 import { useState } from "react";
 
 import Link from "next/link";
@@ -20,6 +22,7 @@ import { useSession, authClient } from "@/lib/auth/auth-client";
 import { logClientError } from "@/lib/logger/client";
 
 export function UserMenu() {
+  const { t } = useUiTranslation();
   const { data: session } = useSession();
   const selfHosted = useSelfHosted();
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +53,7 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label="Account menu"
+        aria-label={t("accountMenu")}
         className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <Avatar className="size-8 cursor-pointer">
           <AvatarImage src={session.user.image ?? undefined} alt="" />
@@ -60,29 +63,35 @@ export function UserMenu() {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium">{session.user.name || "User"}</p>
-            {session.user.email && <p className="text-xs text-muted-foreground">{session.user.email}</p>}
+            <p className="text-sm font-medium">
+              <bdi>{session.user.name || t("user")}</bdi>
+            </p>
+            {session.user.email && (
+              <p className="text-xs text-muted-foreground">
+                <bdi>{session.user.email}</bdi>
+              </p>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/settings" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
-            Settings
+            {t("settings")}
           </Link>
         </DropdownMenuItem>
         {!selfHosted && (
           <DropdownMenuItem asChild>
             <Link href="/billing" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
-              Subscription
+              {t("subscription")}
             </Link>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem asChild>
           <Link href="/api-keys" className="flex items-center gap-2">
             <KeyRound className="h-4 w-4" />
-            API Keys
+            {t("apiKeys")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
@@ -91,9 +100,12 @@ export function UserMenu() {
             AI Integrations
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuLabel>
+          <UiLanguageSelect className="w-full rounded-md border border-border bg-background px-2 py-1" />
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={isLoading}>
-          {isLoading ? "Signing out..." : "Sign out"}
+          {isLoading ? t("signingOut") : t("signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

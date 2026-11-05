@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 
+import { useHostLocale } from "../use-host-locale";
+
 import type { App } from "@modelcontextprotocol/ext-apps";
 
 export type WidgetState = { sessionId?: string; content?: unknown; revision?: number };
@@ -91,7 +93,8 @@ export function useExtensionHost<T>() {
     onAppCreated,
   });
   useHostStyles(host.app, host.app?.getHostContext());
-  return { ...host, launch, setLaunch, incoming, toolError, setToolError };
+  const locale = useHostLocale(host.app);
+  return { ...host, ...locale, launch, setLaunch, incoming, toolError, setToolError };
 }
 
 export async function attachSelection(app: App, selected: Record<string, unknown> | null) {

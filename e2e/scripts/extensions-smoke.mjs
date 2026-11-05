@@ -361,6 +361,36 @@ try {
   await ui.getByLabel("Post text", { exact: true }).fill("LinkedIn version");
   await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
+  const setWidgetLocale = (locale) =>
+    page.evaluate(
+      (locale) =>
+        document.querySelector("iframe").contentWindow.postMessage(
+          {
+            jsonrpc: "2.0",
+            method: "ui/notifications/host-context-changed",
+            params: { locale },
+          },
+          "*",
+        ),
+      locale,
+    );
+  await setWidgetLocale("ja-JP");
+  await expect(ui.getByLabel("投稿本文", { exact: true })).toHaveValue("LinkedIn version");
+  await ui.getByText("LinkedIn の公開オプション", { exact: true }).click();
+  const audience = ui.locator(".sp-options").getByRole("combobox");
+  await expect(audience).toHaveAccessibleName(/公開範囲/);
+  await audience.selectOption({ label: "つながり" });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.calls.filter((c) => c.name === "update_post_editor_session").at(-1)?.args.content.accountOptions
+            .linkedin?.visibility,
+      ),
+    )
+    .toBe("CONNECTIONS");
+  await setWidgetLocale("en-US");
+  await expect(ui.getByLabel("Post text", { exact: true })).toHaveValue("LinkedIn version");
   await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "Hide manual editor", exact: true }).click();
@@ -509,16 +539,7 @@ try {
   await expect(
     ui.getByText("A little behind the scenes from today’s launch.", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
-  await page.evaluate(() =>
-    document.querySelector("iframe").contentWindow.postMessage(
-      {
-        jsonrpc: "2.0",
-        method: "ui/notifications/host-context-changed",
-        params: { locale: "ja-JP" },
-      },
-      "*",
-    ),
-  );
+  await setWidgetLocale("ja-JP");
   await expect(ui.locator("html")).toHaveAttribute("lang", "ja");
   await expect(ui.locator("html")).toHaveAttribute("dir", "ltr");
   await expect(ui.getByRole("button", { name: "今日", exact: true })).toBeVisible();

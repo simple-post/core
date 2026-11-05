@@ -98,7 +98,7 @@ export function UserMenu() {
         <DropdownMenuItem asChild>
           <Link href="/integrations" className="flex items-center gap-2">
             <Cpu className="h-4 w-4" />
-            AI Integrations
+            {t("aiIntegrations")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuLabel>

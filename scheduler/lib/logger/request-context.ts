@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { requestErrorContext as requestMetadata } from "@/lib/error-reporting";
+
 interface LogUser {
   id: string;
   email?: string | null;
@@ -16,6 +18,7 @@ export function rememberRequestUser(req: NextRequest, user: LogUser): void {
 export async function requestErrorContext(req: NextRequest): Promise<Record<string, unknown>> {
   const user = requestUsers.get(req);
   const context: Record<string, unknown> = {
+    ...requestMetadata(req.headers, new URL(req.url).pathname, req.method),
     requestMethod: req.method,
     requestPath: new URL(req.url).pathname,
     userIdentityStatus: user ? "authenticated" : "unavailable (authentication not completed)",

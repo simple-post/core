@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import { requestErrorContext } from "@/lib/error-reporting";
 import { createLogger, serializeError } from "@/lib/logger";
 import { isBrowserExtensionError } from "@/lib/logger/browser-extension";
 import { getSession } from "@/lib/middleware/auth";
@@ -43,7 +44,7 @@ function getClientKey(req: NextRequest): string {
  * cross-origin (and same-origin POST) requests, so a mismatched origin is a
  * strong signal of cross-site abuse. A missing Origin is allowed (e.g.
  * sendBeacon / non-browser callers); the IP rate limit and the server-side
- * Telegram cap remain the backstop against spoofed direct requests.
+ * ingress limits remain the backstop against spoofed direct requests.
  */
 function isAllowedOrigin(req: NextRequest): boolean {
   const origin = req.headers.get("origin");
@@ -110,6 +111,9 @@ export async function POST(req: NextRequest) {
     const errorDigest = getStringField(payload.error, "digest") || getStringField(payload.context, "digest");
 
     const logPayload = {
+      ...requestErrorContext(req.headers, new URL(req.url).pathname, req.method),
+      surface: "web",
+      userEmail: session?.user?.email,
       err: payload.error,
       // OpenTelemetry log exporters may omit nested Pino objects such as
       // `err`. Keep the structured object for stdout/Telegram and duplicate

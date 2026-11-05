@@ -9,7 +9,7 @@ import {
   updateScheduledPostSchema,
   updateScheduledPostOutputSchema,
 } from "@/lib/mcp/tools/posts";
-import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
+import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { pauseTikTokUploads, resumeTikTokUploads, pausedTikTokResults } from "@/lib/posting/tiktok-pause";
 import { reserveTikTokUploadInit } from "@/lib/posting/tiktok-rate-limit";
@@ -245,13 +245,13 @@ it("queues a Post Now minute limit on the original record and preserves successf
   ];
   const progress = { another: { success: true, postId: "already-published" } };
   const before = Date.now();
-  expect(await deferTikTokRetry("recovery-post", results, progress, {})).toBe(true);
+  expect(await deferPostRetry("recovery-post", results, progress, {})).toBe(true);
   const saved = await prisma.post.findFirstOrThrow();
   expect(saved.status).toBe("scheduled");
   expect(saved.scheduledFor!.getTime()).toBeGreaterThanOrEqual(before + 60_000);
   expect(saved.accountResults).toEqual(progress);
   expect(await prisma.post.count()).toBe(1);
-  expect(await deferTikTokRetry("recovery-post", [{ ...results[0], error: "PUBLISH_OUTCOME_UNKNOWN" }], {}, {})).toBe(
+  expect(await deferPostRetry("recovery-post", [{ ...results[0], error: "PUBLISH_OUTCOME_UNKNOWN" }], {}, {})).toBe(
     false,
   );
 });
@@ -267,12 +267,12 @@ it("persists a bounded processing-retry budget through minute limits without cha
   const progress = { another: { success: true, postId: "already-published" } };
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const before = await prisma.post.findFirstOrThrow();
-    expect(await deferTikTokRetry(before.id, [processingFailure], progress, {}, false, before.errorDetails)).toBe(true);
+    expect(await deferPostRetry(before.id, [processingFailure], progress, {}, false, before.errorDetails)).toBe(true);
     const saved = await prisma.post.findFirstOrThrow();
     expect(saved.errorDetails).toMatchObject({ tiktokProcessingRetryCount: attempt + 1 });
     expect(saved.accountResults).toEqual(progress);
     expect(
-      await deferTikTokRetry(
+      await deferPostRetry(
         saved.id,
         [{ ...processingFailure, error: "LOCAL_RATE_LIMIT" }],
         progress,
@@ -283,7 +283,7 @@ it("persists a bounded processing-retry budget through minute limits without cha
     ).toBe(true);
   }
   const saved = await prisma.post.findFirstOrThrow();
-  expect(await deferTikTokRetry(saved.id, [processingFailure], progress, {}, false, saved.errorDetails)).toBe(false);
+  expect(await deferPostRetry(saved.id, [processingFailure], progress, {}, false, saved.errorDetails)).toBe(false);
   expect(await prisma.post.count()).toBe(1);
   expect(await prisma.publishCheckpoint.findFirst()).toMatchObject({ state: "failed", fingerprint: "original" });
 });

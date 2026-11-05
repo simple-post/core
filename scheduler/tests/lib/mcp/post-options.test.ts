@@ -16,10 +16,11 @@ import {
 } from "@/lib/mcp/tools/posts";
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "@/lib/mcp/tools/validation";
 import { ingestPostMedia } from "@/lib/media-ingestion";
-import { postToAccounts } from "@/lib/posting";
+import { getPostingSummary, postToAccounts } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { deleteMediaFiles } from "@/lib/utils/media-cleanup";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
 
 import type { JsonSchemaType } from "@modelcontextprotocol/client";
 
@@ -28,7 +29,9 @@ jest.mock("@/lib/db", () => ({ PostsModel: jest.fn() }));
 jest.mock("@/lib/media-ingestion", () => ({
   ingestPostMedia: jest.fn(async (_userId, input) => input),
 }));
-jest.mock("@/lib/prisma", () => ({ prisma: { $transaction: jest.fn(), connectedAccount: { findMany: jest.fn() } } }));
+jest.mock("@/lib/prisma", () => ({
+  prisma: { $transaction: jest.fn(), connectedAccount: { findMany: jest.fn() }, post: { update: jest.fn() } },
+}));
 jest.mock("@/lib/mcp/tools/accounts", () => ({
   ...jest.requireActual("@/lib/mcp/tools/accounts"),
   listAccounts: jest.fn().mockResolvedValue({ accounts: [] }),
@@ -62,6 +65,54 @@ const accountOptions = {
   "tiktok-1": { privacyLevel: "SELF_ONLY" as const, allowComment: false },
   "youtube-1": { privacyStatus: "unlisted" as const },
 };
+
+it("queues an immediate Instagram processing failure and returns the original scheduled post", async () => {
+  jest.mocked(getPostingSummary).mockReturnValueOnce({ overallSuccess: false, successCount: 0, failureCount: 1 });
+  const accounts = [{ id: "instagram-1", platform: "instagram" }];
+  jest.mocked(prisma.connectedAccount.findMany).mockResolvedValueOnce(accounts as never);
+  jest.mocked(validatePostForAccounts).mockResolvedValueOnce({
+    accounts,
+    results: [],
+    summary: { isValid: true, errors: [], warnings: [] },
+  } as never);
+  jest.mocked(postToAccounts).mockResolvedValueOnce([
+    {
+      accountId: "instagram-1",
+      platform: "instagram",
+      success: false,
+      error: "PREPARATION_ERROR",
+      details: { phase: "processing", statusCode: "ERROR", containerId: "failed-container" },
+    },
+  ]);
+  jest.mocked(prisma.post.update).mockImplementationOnce(({ data }) => {
+    loadPost.mockResolvedValue({
+      id: "post-1",
+      message: "Reel",
+      accountIds: ["instagram-1"],
+      ...data,
+    });
+    return Promise.resolve({}) as never;
+  });
+  const result = await createPost(
+    "user-1",
+    createPostSchema.parse({
+      message: "Reel",
+      accountIds: ["instagram-1"],
+      postingMode: "now",
+    }),
+  );
+  expect(result.post).toMatchObject({ id: "post-1", status: "scheduled" });
+  expect(result.summary.scheduledCount).toBe(1);
+  expect(prisma.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "post-1" },
+      data: expect.objectContaining({ errorDetails: expect.objectContaining({ instagramProcessingRetryCount: 1 }) }),
+    }),
+  );
+  expect(savePost).toHaveBeenCalledTimes(1);
+  expect(updatePost).not.toHaveBeenCalled();
+  expect(dispatchPostWebhooks).not.toHaveBeenCalled();
+});
 
 it.each(["now", "schedule", "draft"] as const)(
   "persists photo music defaults and caption options for %s",

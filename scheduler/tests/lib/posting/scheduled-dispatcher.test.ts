@@ -989,6 +989,54 @@ it("allows a thread larger than one rate window to start making progress", async
   expect(postToAccountsMock).toHaveBeenCalledTimes(1);
 });
 
+it.each([0, 2, 3])("retries Instagram processing failures with a persisted budget of %i", async (count) => {
+  const published = { accountId: "a1", platform: "x", success: true, postId: "already-published" };
+  mockFindMany({
+    due: [
+      duePost({
+        id: "instagram-retry",
+        accounts: [
+          { id: "a1", platform: "x" },
+          { id: "a2", platform: "instagram" },
+        ],
+        accountResults: { a1: published },
+        errorDetails: { instagramProcessingRetryCount: count },
+      }),
+    ],
+  });
+  postToAccountsMock.mockResolvedValue([
+    {
+      accountId: "a2",
+      platform: "instagram",
+      success: false,
+      error: "PREPARATION_ERROR",
+      details: { phase: "processing", statusCode: "ERROR", containerId: "failed-container" },
+    },
+  ]);
+  const result = await dispatchDueScheduledPosts();
+  expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
+  expect(result.failedPosts).toBe(count === 3 ? 1 : 0);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "instagram-retry" },
+      data: expect.objectContaining({
+        status: count === 3 ? "failed" : "scheduled",
+        accountResults: expect.objectContaining({ a1: published }),
+        errorDetails: expect.objectContaining({ instagramProcessingRetryCount: Math.min(count + 1, 3) }),
+      }),
+    }),
+  );
+  if (count < 3) {
+    expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
+  } else {
+    expect(dispatchPostWebhooks).toHaveBeenCalledWith(
+      "user-1",
+      "post.failed",
+      expect.objectContaining({ id: "instagram-retry" }),
+    );
+  }
+});
+
 it("keeps an already successful thread's results when the remaining TikTok retry completes", async () => {
   const threadResults = {
     a1: [

@@ -19,7 +19,7 @@ import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
-import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
+import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import {
   createPostingProgressStream,
   sanitizePostingResult,
@@ -392,9 +392,9 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
         // Update post status based on results
-        const deferred = await deferTikTokRetry(post.id, results, accountResults, threadResultsByAccount);
+        const deferred = await deferPostRetry(post.id, results, accountResults, threadResultsByAccount);
         if (deferred) {
-          // Keep the original queued for the request window to clear.
+          // Keep the original queued for a safe retry, preserving successful targets.
         } else if (summary.overallSuccess) {
           const publishedAt = new Date();
           const repostState = buildPublishedRepostState({

@@ -106,6 +106,13 @@ retry flow at one-minute intervals, with up to three automatic retries on the
 original post. API, MCP, and scheduled publishing share this policy and preserve
 successful destinations. Uncertain transport outcomes still require reconciliation.
 
+Instagram `PREPARATION_ERROR` results with a terminal media-container processing
+status (`ERROR` or `EXPIRED`) also retry on the original post at one-minute intervals,
+up to three times. The Instagram retry count persists independently of TikTok's
+budget. These failures occur before publication; generic preparation errors,
+credential failures and uncertain publish outcomes are not automatically replayed.
+Successful destinations and thread progress are preserved during retries.
+
 Trace export sanitizes span names, attributes, events, links and resources before
 OTLP/HTTP delivery. URL queries/fragments, Telegram bot-token paths, credential
 fields and SQL statements are redacted; timing, status and trace correlation are

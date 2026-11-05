@@ -10,7 +10,7 @@ import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health"
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
 import { postToAccounts, getPostingSummary, repostToAccounts } from "@/lib/posting";
 import { getSucceededAccountIds, mergeAccountResults } from "@/lib/posting/account-results";
-import { deferTikTokRetry } from "@/lib/posting/defer-tiktok-retry";
+import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import { pausedTikTokResults } from "@/lib/posting/tiktok-pause";
 import { prisma } from "@/lib/prisma";
 import { buildQuoteTargets, hasSuccessfulQuoteSourceResult } from "@/lib/quote/targets";
@@ -589,7 +589,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
       return { postId: post.id, success: false, status: "blocked" };
     }
     if (
-      await deferTikTokRetry(
+      await deferPostRetry(
         post.id,
         postingResults,
         accountResults,
@@ -624,6 +624,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         : `Failed on ${failedResults.length} platform(s)`;
 
     const errorDetails = sanitizeForJson({
+      ...(post.errorDetails as Record<string, unknown> | null),
       failedPlatforms: failedResults.map((result) => ({
         accountId: result.accountId,
         platform: result.platform,

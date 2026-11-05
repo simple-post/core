@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiTranslation } from "@/lib/i18n/client";
+
 import { useEffect, useState, type ReactNode } from "react";
 
 import { usePathname, useSearchParams } from "next/navigation";
@@ -86,6 +88,7 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
 }
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useUiTranslation();
   const { data: session, isPending } = useLoginSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,7 +99,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{t("loading")}</div>
       </div>
     );
   }

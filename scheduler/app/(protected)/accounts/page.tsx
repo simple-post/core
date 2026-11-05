@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiTranslation } from "@/lib/i18n/client";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
@@ -54,6 +56,7 @@ function getCredentialBadge(account: ConnectedAccount): {
 }
 
 export default function AccountsPage() {
+  const { t } = useUiTranslation();
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -296,7 +299,7 @@ export default function AccountsPage() {
             readOnly ? undefined : (
               <Button onClick={() => setShowConnectDialog(true)} size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />
-                <span>Connect account</span>
+                <span>{t("connectAccount")}</span>
               </Button>
             )
           }
@@ -392,7 +395,7 @@ export default function AccountsPage() {
                           onClick={() => handleConnect(account.platform)}
                           className="gap-1.5">
                           <RefreshCw className="h-3 w-3" />
-                          <span className="hidden sm:inline">Reconnect</span>
+                          <span className="hidden sm:inline">{t("reconnect")}</span>
                         </Button>
                         <Button
                           variant="outline"
@@ -400,7 +403,7 @@ export default function AccountsPage() {
                           onClick={() => handleDisconnectClick(account)}
                           className="gap-1.5 text-destructive hover:text-destructive hover:border-destructive/40">
                           <X className="h-3 w-3" />
-                          <span className="hidden sm:inline">Disconnect</span>
+                          <span className="hidden sm:inline">{t("disconnect")}</span>
                         </Button>
                       </>
                     )
@@ -418,9 +421,9 @@ export default function AccountsPage() {
           <DialogHeader>
             <div className="section-kicker">
               <span className="section-kicker-dot" />
-              <span className="section-kicker-label">Connect</span>
+              <span className="section-kicker-label">{t("connect")}</span>
             </div>
-            <DialogTitle className="text-xl tracking-tight">New account</DialogTitle>
+            <DialogTitle className="text-xl tracking-tight">{t("newAccount")}</DialogTitle>
             <DialogDescription>
               Pick a platform to connect. You can connect multiple accounts from the same platform.
             </DialogDescription>
@@ -509,7 +512,7 @@ export default function AccountsPage() {
               Cancel
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
-              <span>{connectForemMutation.isPending ? "Connecting..." : "Connect"}</span>
+              <span>{connectForemMutation.isPending ? "Connecting..." : t("connect")}</span>
             </Button>
           </div>
         </DialogContent>
@@ -519,8 +522,8 @@ export default function AccountsPage() {
       <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-xl tracking-tight">Disconnect account</DialogTitle>
-            <DialogDescription>This action cannot be undone.</DialogDescription>
+            <DialogTitle className="text-xl tracking-tight">{t("disconnectAccount")}</DialogTitle>
+            <DialogDescription>{t("cannotUndo")}</DialogDescription>
           </DialogHeader>
           {accountToDisconnect && (
             <div className="py-2">
@@ -561,7 +564,7 @@ export default function AccountsPage() {
               onClick={handleDisconnectConfirm}
               disabled={disconnectAccountMutation.isPending}
               className="flex-1">
-              <span>{disconnectAccountMutation.isPending ? "Disconnecting..." : "Disconnect"}</span>
+              <span>{disconnectAccountMutation.isPending ? "Disconnecting..." : t("disconnect")}</span>
             </Button>
           </div>
         </DialogContent>
@@ -668,7 +671,7 @@ export default function AccountsPage() {
               Cancel
             </Button>
             <Button onClick={handleTelegramConnect} disabled={connectTelegramMutation.isPending} className="flex-1">
-              <span>{connectTelegramMutation.isPending ? "Connecting..." : "Connect"}</span>
+              <span>{connectTelegramMutation.isPending ? "Connecting..." : t("connect")}</span>
             </Button>
           </div>
         </DialogContent>

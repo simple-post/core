@@ -1,6 +1,3 @@
-import { UiLocaleProvider } from "@/lib/i18n/client";
-import { direction } from "@/lib/i18n/locales";
-import { getUiTranslation } from "@/lib/i18n/request";
 import type React from "react";
 import { Suspense } from "react";
 
@@ -10,6 +7,10 @@ import { AppAnalytics } from "@/components/app-analytics";
 import { ClientErrorLogger } from "@/components/client-error-logger";
 import { Toaster } from "@/components/ui/sonner";
 import { env } from "@/lib/env";
+import { UiLocaleProvider } from "@/lib/i18n/client";
+import { direction } from "@/lib/i18n/locales";
+import { getUiTranslation } from "@/lib/i18n/request";
+import { schedulerMetadata } from "@/lib/i18n/social-metadata";
 import { QueryClientProvider } from "@/lib/query-client";
 
 import type { Metadata } from "next";
@@ -29,34 +30,10 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(appUrl),
-  title: "SimplePost Scheduler",
-  description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
-  robots: {
-    index: false,
-    follow: false,
-    googleBot: {
-      index: false,
-      follow: false,
-      noarchive: true,
-      nosnippet: true,
-      noimageindex: true,
-    },
-  },
-  openGraph: {
-    title: "SimplePost Scheduler",
-    description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
-    images: [{ url: "/simplepost-card.png", width: 1200, height: 630, alt: "SimplePost" }],
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "SimplePost Scheduler",
-    description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
-    images: ["/simplepost-card.png"],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { locale } = await getUiTranslation();
+  return schedulerMetadata(locale, appUrl);
+}
 
 export default async function RootLayout({
   children,

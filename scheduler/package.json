@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "build": "yarn build:mcp-widgets && next build",
+    "build": "node scripts/check-social-artwork.mjs && yarn build:mcp-widgets && next build",
     "build:mcp-widgets": "node scripts/build-mcp-widgets.mjs",
     "dev": "yarn build:mcp-widgets && next dev",
     "preview:link": "yarn link -r ../../preview/packages/preview ../../preview/packages/react",
@@ -23,7 +23,9 @@
     "db:reset": "prisma migrate reset",
     "test": "jest -c jest.config.cjs",
     "test:watch": "jest -c jest.config.cjs --watch",
-    "test:i18n": "node --test lib/i18n/check-catalogs.mjs"
+    "test:i18n": "node --test lib/i18n/check-catalogs.mjs",
+    "artwork:prepare": "node scripts/prepare-social-artwork.mjs",
+    "artwork:check": "node scripts/check-social-artwork.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.1.0",

@@ -9,7 +9,11 @@ import { Bot, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { UiCopy } from "@/components/ui-copy";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
+import { useUiTranslation } from "@/lib/i18n/client";
+import { localizedPostStatus } from "@/lib/i18n/presentation";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { queryKeys } from "@/lib/query-client";
 import {
   createPostTools,
@@ -27,6 +31,7 @@ const WebMcpContext = createContext<{ status: WebMcpStatus; created: CreatedPost
 
 // Register once for the signed-in app, independently of the instructions UI.
 export function WebMcpProvider({ children }: { children: ReactNode }) {
+  const { copy, locale } = useUiCopy();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<WebMcpStatus>("loading");
   const [created, setCreated] = useState<CreatedPostResult | null>(null);
@@ -41,10 +46,13 @@ export function WebMcpProvider({ children }: { children: ReactNode }) {
     }
     const controller = new AbortController();
     const tools = createPostTools({
+      copy,
+      locale,
       fetch: (...args) => fetch(...args),
       onCreated: (result) => {
-        if (controller.signal.aborted) return;
-        setCreated(result);
+        if (!controller.signal.aborted) setCreated(result);
+        // A language change can replace tool registration while a prior write finishes.
+        // Refresh its result even when that registration has been superseded.
         void Promise.all([
           queryClient.invalidateQueries({ queryKey: ["posts"] }),
           queryClient.invalidateQueries({ queryKey: queryKeys.billing }),
@@ -64,12 +72,14 @@ export function WebMcpProvider({ children }: { children: ReactNode }) {
         }
       });
     return () => controller.abort();
-  }, [queryClient]);
+  }, [queryClient, copy, locale]);
 
   return <WebMcpContext.Provider value={{ status, created }}>{children}</WebMcpContext.Provider>;
 }
 
 export function CreatePostWebMcp() {
+  const { t } = useUiTranslation();
+  const { copy } = useUiCopy();
   const readOnly = useWorkspaceReadOnly();
   const { status, created } = useContext(WebMcpContext);
 
@@ -78,48 +88,66 @@ export function CreatePostWebMcp() {
     <Collapsible className="mb-6">
       <CollapsibleTrigger asChild>
         <Button type="button" variant="ghost" size="sm" className="group h-8 text-xs text-muted-foreground">
-          <Bot aria-hidden="true" />
-          AI agent instructions
-          <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+          <UiCopy
+            source="<part1></part1>AI agent instructions <part2></part2>"
+            components={{
+              part1: <Bot aria-hidden="true" />,
+              part2: (
+                <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+              ),
+            }}
+          />
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <aside
-          aria-label="WebMCP tools for agents"
+          aria-label={copy("WebMCP tools for agents")}
           className="mt-2 rounded-lg border border-border bg-secondary/30 px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
-            WebMCP for agents
+            {copy("WebMCP for agents")}{" "}
             <span role="status" className="text-xs font-normal text-muted-foreground">
               {status === "ready"
-                ? "Tools ready"
+                ? copy("Tools ready")
                 : status === "loading"
-                  ? "Connecting…"
+                  ? copy("Connecting…")
                   : status === "unavailable"
-                    ? "Compatible browser required"
-                    : "Tools unavailable—reload to retry"}
+                    ? copy("Compatible browser required")
+                    : copy("Tools unavailable—reload to retry")}
             </span>
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Agents: WebMCP tools are available throughout the signed-in app, even with these instructions closed. Use{" "}
-            <code>list_accounts</code>, then <code>validate_post</code> and <code>create_post</code> to save, schedule,
-            or publish directly with the signed-in account. Use <code>get_post</code> to verify the result. Only create
-            posts the user has authorized. Use the{" "}
-            <Link href="/schedule" className="underline underline-offset-4">
-              create-post form
-            </Link>{" "}
-            if your browser does not support WebMCP or a required action is unavailable.
+            <UiCopy
+              source="Agents: WebMCP tools are available throughout the signed-in app, even with these instructions closed. Use <part1></part1>, then <part2></part2> and <part3></part3> to save, schedule, or publish directly with the signed-in account. Use <part4></part4> to verify the result. Only create posts the user has authorized. Use the <part5>create-post form</part5> if your browser does not support WebMCP or a required action is unavailable."
+              components={{
+                part1: <code>list_accounts</code>,
+                part2: <code>validate_post</code>,
+                part3: <code>create_post</code>,
+                part4: <code>get_post</code>,
+                part5: <Link href="/schedule" className="underline underline-offset-4" />,
+              }}
+            />
           </p>
           {created && (
-            <p role="status" className="mt-2 text-xs">
-              Post {created.replayed ? "already saved" : "created"} via WebMCP. Status: {created.post.status}.
-              {created.postingResults?.some((result) => !result.success) && " Some accounts failed to publish."}{" "}
+            <div role="status" className="mt-2 text-xs">
+              <p>
+                {created.replayed
+                  ? copy("Post already saved via WebMCP. Status: {{status}}.", {
+                      status: localizedPostStatus(created.post.status, t),
+                    })
+                  : copy("Post created via WebMCP. Status: {{status}}.", {
+                      status: localizedPostStatus(created.post.status, t),
+                    })}
+              </p>
+              {created.postingResults?.some((result) => !result.success) && (
+                <p>{copy("Some accounts failed to publish.")}</p>
+              )}
               <Link
                 href={`/posts/${encodeURIComponent(created.post.id)}`}
                 className="font-medium text-primary underline underline-offset-4">
-                View post and results
+                {copy("View post and results")}
               </Link>
-            </p>
+            </div>
           )}
         </aside>
       </CollapsibleContent>

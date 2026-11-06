@@ -28,5 +28,9 @@
   "{{count, number}} posts can be scheduled for another TikTok attempt": "{{count, number}} post can be scheduled for another TikTok attempt",
   "Schedule {{count, number}} retries": "Schedule {{count, number}} retry",
   "{{count, number}} selected": "{{count, number}} selected",
-  "{{count, number}} posts total": "{{count, number}} post total"
+  "{{count, number}} posts total": "{{count, number}} post total",
+  "Use at least {{count, number}} characters.": "Use at least {{count, number}} character.",
+  "Provide at least {{count, number}} items.": "Provide at least {{count, number}} item.",
+  "Use at most {{count, number}} characters.": "Use at most {{count, number}} character.",
+  "Provide at most {{count, number}} items.": "Provide at most {{count, number}} item."
 }

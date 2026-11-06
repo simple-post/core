@@ -6,11 +6,15 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 import { usePostDraft } from "@/components/post-draft-context";
 import { Button } from "@/components/ui/button";
+import { UiCopy } from "@/components/ui-copy";
 import { trackEvent } from "@/lib/analytics/plausible";
 import { getPlatformName, isSocialPlatformEnabled } from "@/lib/config";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { PREVIEW_KEY, readStoredPreview, type PreviewHandoff } from "@/lib/preview/handoff";
 
 export function PreviewImport() {
+  const { copy } = useUiCopy();
   const params = useSearchParams();
   const router = useRouter();
   const id = params.get("preview");
@@ -51,23 +55,24 @@ export function PreviewImport() {
   return (
     <section className="mb-6 rounded-xl border border-primary/40 bg-card p-5" aria-labelledby="preview-import-title">
       <h2 id="preview-import-title" className="font-semibold">
-        Your preview draft is ready
+        {copy("Your preview draft is ready")}{" "}
       </h2>
       {error ? (
         <p role="alert" className="my-3">
-          {error}
+          {previewError(error, copy)}
         </p>
       ) : (
         preview && (
           <>
             <p className="my-3 text-sm text-muted-foreground">
-              Choose a platform version to bring into the composer. All versions stay available here for 24 hours.
-              Nothing is published until you review and submit it.
+              {copy(
+                "Choose a platform version to bring into the composer. All versions stay available here for 24 hours. Nothing is published until you review and submit it.",
+              )}{" "}
             </p>
             <label className="text-sm">
-              Platform version{" "}
+              {copy("Platform version")}{" "}
               <select
-                className="ml-2 rounded border bg-background p-2"
+                className="ms-2 rounded border bg-background p-2"
                 value={index}
                 onChange={(event) => {
                   importing.current = false;
@@ -78,7 +83,7 @@ export function PreviewImport() {
                 {preview.variants.map((variant, i) => (
                   <option key={variant.platform} value={i}>
                     {getPlatformName(variant.platform)}
-                    {isSocialPlatformEnabled(variant.platform) ? "" : " (unavailable on this installation)"}
+                    {isSocialPlatformEnabled(variant.platform) ? "" : copy(" (unavailable on this installation)")}
                   </option>
                 ))}
               </select>
@@ -86,36 +91,48 @@ export function PreviewImport() {
             <p className="my-3 max-h-32 overflow-auto whitespace-pre-wrap text-sm">{preview.variants[index].message}</p>
             {!isSocialPlatformEnabled(preview.variants[index].platform) && (
               <p role="status" className="my-3 text-sm">
-                This network is unavailable on this installation. You can still import its text as a draft and adapt it
-                for a supported connected account.
+                {copy(
+                  "This network is unavailable on this installation. You can still import its text as a draft and adapt it for a supported connected account.",
+                )}{" "}
               </p>
             )}
             {preview.variants[index].thread.length > 0 && (
               <p className="my-3 text-sm">
-                This version contains {preview.variants[index].thread.length + 1} posts. Threads support up to 25 posts
-                on paid plans and 20 during the trial. Review every segment and select a network that supports threads.
+                <UiCopy
+                  source="This version contains <part1></part1> posts. Threads support up to 25 posts on paid plans and 20 during the trial. Review every segment and select a network that supports threads."
+                  components={{ part1: <>{preview.variants[index].thread.length + 1}</> }}
+                />
               </p>
             )}
             {preview.hasMedia && (
               <p className="my-3 text-sm">
-                Upload your media again below. Images and videos stay in the preview tool and are not transferred.
+                {copy(
+                  "Upload your media again below. Images and videos stay in the preview tool and are not transferred.",
+                )}{" "}
               </p>
             )}
             <p className="my-3 text-sm">
-              Choose the matching connected accounts in the composer after importing. Check that your selected platform
-              is available for publishing.
+              {copy(
+                "Choose the matching connected accounts in the composer after importing. Check that your selected platform is available for publishing.",
+              )}{" "}
             </p>
             <a
               href="/accounts?onboarding=connect"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm underline">
-              Connect a social account in a new tab
+              {copy("Connect a social account in a new tab")}{" "}
             </a>
             {draft.hasDraftContent && (
               <label className="my-3 flex gap-2 text-sm">
-                <input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} />
-                Replace my current unsaved composer draft
+                <UiCopy
+                  source="<part1></part1>Replace my current unsaved composer draft"
+                  components={{
+                    part1: (
+                      <input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} />
+                    ),
+                  }}
+                />
               </label>
             )}
             <div className="mt-4">
@@ -138,21 +155,36 @@ export function PreviewImport() {
                     draft_origin: preview.draftOrigin ?? "unknown",
                   });
                 }}>
-                {imported ? "Draft imported" : "Use this draft"}
+                {imported ? copy("Draft imported") : copy("Use this draft")}
               </Button>
             </div>
             {imported && (
               <p role="status" className="mt-3 text-sm">
-                Text and thread imported. Select your accounts, add media, and review before scheduling. The composer is
-                set to save as draft.
+                {copy(
+                  "Text and thread imported. Select your accounts, add media, and review before scheduling. The composer is set to save as draft.",
+                )}{" "}
               </p>
             )}
           </>
         )
       )}
       <Button variant="ghost" className="mt-3" onClick={close}>
-        Dismiss preview transfer
+        {copy("Dismiss preview transfer")}{" "}
       </Button>
     </section>
   );
+}
+
+function previewError(error: string, copy: SourceCopy): string {
+  switch (error) {
+    case "Preview not found. Reopen it from the preview tool in this browser.": {
+      return copy("Preview not found. Reopen it from the preview tool in this browser.");
+    }
+    case "Preview could not be loaded.": {
+      return copy("Preview could not be loaded.");
+    }
+    default: {
+      return error;
+    }
+  }
 }

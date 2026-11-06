@@ -17,6 +17,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
 import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { privacyLabel } from "@/lib/i18n/tiktok-display";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
 import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
@@ -48,23 +49,6 @@ const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
 const YOUTUBE_THUMBNAIL_TYPES = new Set(["image/jpeg", "image/png"]);
 
 const TIKTOK_PRIVACY_VALUES = new Set<string>(Object.keys(TIKTOK_PRIVACY_LABELS));
-
-function privacyLabel(value: TikTokPrivacyLevel, copy: SourceCopy) {
-  switch (value) {
-    case "PUBLIC_TO_EVERYONE": {
-      return copy("Everyone");
-    }
-    case "MUTUAL_FOLLOW_FRIENDS": {
-      return copy("Friends");
-    }
-    case "FOLLOWER_OF_CREATOR": {
-      return copy("Followers");
-    }
-    case "SELF_ONLY": {
-      return copy("Only me");
-    }
-  }
-}
 
 function isTikTokPrivacyLevel(value: string): value is TikTokPrivacyLevel {
   return TIKTOK_PRIVACY_VALUES.has(value);

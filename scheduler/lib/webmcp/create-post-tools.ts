@@ -2,6 +2,9 @@ import { ImageFitSchema } from "@simple-post/sdk/image-fit";
 import { z } from "zod";
 
 import type { ScheduleWarning } from "@/lib/billing/schedule-warning";
+import type { Locale } from "@/lib/i18n/locales";
+import { schemaDisplay, schemaErrorMap } from "@/lib/i18n/schema-display";
+import { sourceCopy, type SourceCopy } from "@/lib/i18n/source-copy";
 import type { ConnectedAccount, SocialPost } from "@/types";
 
 // Browser-only adapter: use the same authenticated HTTP endpoints as the form,
@@ -9,7 +12,9 @@ import type { ConnectedAccount, SocialPost } from "@/types";
 const mediaSchema = z.object({
   url: z
     .url({ protocol: /^https?$/ })
-    .describe("Public HTTP(S) media URL supplied by the user or an upload result; not a local file or blob URL."),
+    .describe(
+      sourceCopy("Public HTTP(S) media URL supplied by the user or an upload result; not a local file or blob URL."),
+    ),
   type: z.enum(["image", "video"]),
   id: z.string().optional(),
   filename: z.string().optional(),
@@ -20,13 +25,17 @@ const mediaSchema = z.object({
 const threadSchema = z.array(z.object({ message: z.string(), media: z.array(mediaSchema).optional() })).max(24);
 const contentSchema = z.object({
   imageFit: ImageFitSchema.optional().describe(
-    "Use only after validate_post offers automatic image fitting. Ask the user to choose crop or blur, then pass that method to validate_post and create_post. If the user already requested fitting without choosing, use blur.",
+    sourceCopy(
+      "Use only after validate_post offers automatic image fitting. Ask the user to choose crop or blur, then pass that method to validate_post and create_post. If the user already requested fitting without choosing, use blur.",
+    ),
   ),
   message: z.string(),
   accountIds: z
     .array(z.string().min(1))
     .min(1)
-    .describe("Use actual connected account IDs from list_accounts. Ask which account to use if ambiguous."),
+    .describe(
+      sourceCopy("Use actual connected account IDs from list_accounts. Ask which account to use if ambiguous."),
+    ),
   media: z.array(mediaSchema).optional(),
   thread: threadSchema.optional(),
   accountOverrides: z
@@ -40,35 +49,47 @@ const contentSchema = z.object({
     )
     .optional()
     .describe(
-      "Platform-specific text, media, or threads keyed by connected account ID. Omitted fields inherit the root content.",
+      sourceCopy(
+        "Platform-specific text, media, or threads keyed by connected account ID. Omitted fields inherit the root content.",
+      ),
     ),
   accountOptions: z
     .record(z.string(), z.record(z.string(), z.unknown()))
     .optional()
     .describe(
-      "Platform settings keyed by account ID, e.g. YouTube title, privacyStatus and selfDeclaredMadeForKids, Pinterest boardId, or Forem title. TikTok supports autoAddMusic (photo Direct Post only), photoCoverIndex, title, description, and publishMode: draft to upload to the TikTok inbox for manual music/editing/publishing. Use postingMode: now to run the inbox upload; postingMode: draft only saves in SimplePost. validate_post reports missing requirements.",
+      sourceCopy(
+        "Platform settings keyed by account ID, e.g. YouTube title, privacyStatus and selfDeclaredMadeForKids, Pinterest boardId, or Forem title. TikTok supports autoAddMusic (photo Direct Post only), photoCoverIndex, title, description, and publishMode: draft to upload to the TikTok inbox for manual music/editing/publishing. Use postingMode: now to run the inbox upload; postingMode: draft only saves in SimplePost. validate_post reports missing requirements.",
+      ),
     ),
 });
 const createSchema = contentSchema
   .extend({
     postingMode: z
       .enum(["draft", "schedule", "now"])
-      .describe("Required explicit intent: draft saves only, schedule publishes later, now publishes immediately."),
+      .describe(
+        sourceCopy("Required explicit intent: draft saves only, schedule publishes later, now publishes immediately."),
+      ),
     scheduledFor: z.iso
       .datetime({ offset: true })
       .optional()
-      .describe("For schedule: future ISO 8601 datetime including timezone. Resolve ambiguous times with the user."),
+      .describe(
+        sourceCopy("For schedule: future ISO 8601 datetime including timezone. Resolve ambiguous times with the user."),
+      ),
     idempotencyKey: z
       .string()
       .min(1)
       .max(255)
       .describe(
-        "Unique key per logical post. Reuse EXACTLY this key and content on retries after an uncertain response; use a new key only for a new post.",
+        sourceCopy(
+          "Unique key per logical post. Reuse EXACTLY this key and content on retries after an uncertain response; use a new key only for a new post.",
+        ),
       ),
     userConfirmed: z
       .literal(true)
       .describe(
-        "Set true only when the user's request authorizes this content, target accounts, posting mode and time. A request to preview or edit does not authorize publishing.",
+        sourceCopy(
+          "Set true only when the user's request authorizes this content, target accounts, posting mode and time. A request to preview or edit does not authorize publishing.",
+        ),
       ),
   })
   .strict();
@@ -100,6 +121,8 @@ export interface CreatedPostResult {
 }
 
 type ToolDependencies = {
+  copy?: SourceCopy;
+  locale?: Locale;
   fetch: typeof fetch;
   onCreated: (result: CreatedPostResult) => void;
 };
@@ -139,21 +162,33 @@ function normalizeContent(input: z.infer<typeof contentSchema>) {
 }
 
 export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
+  const copy = dependencies.copy ?? sourceCopy;
+  const parseOptions =
+    dependencies.locale && dependencies.locale !== "en" ? { error: schemaErrorMap(copy) } : undefined;
   async function request<T>(path: string, body?: unknown): Promise<T> {
     const response = await dependencies.fetch(path, {
       method: body === undefined ? "GET" : "POST",
       credentials: "same-origin",
-      headers: { Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      headers: {
+        Accept: "application/json",
+        ...(dependencies.locale ? { "Accept-Language": dependencies.locale } : {}),
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      const message = typeof data?.error === "string" ? data.error : `SimplePost request failed (${response.status}).`;
+      const message =
+        typeof data?.error === "string"
+          ? data.error
+          : copy("SimplePost request failed ({{status}}).", { status: response.status });
       throw new Error(message);
     }
     if (!data)
       throw new Error(
-        "No result received. If creating a post, retry with the same idempotencyKey; do not submit the form as a fallback.",
+        copy(
+          "No result received. If creating a post, retry with the same idempotencyKey; do not submit the form as a fallback.",
+        ),
       );
     return data as T;
   }
@@ -164,9 +199,10 @@ export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
   return [
     {
       name: "list_accounts",
-      title: "List connected SimplePost accounts",
-      description:
+      title: copy("List connected SimplePost accounts"),
+      description: copy(
         "Start here to create posts on this page using WebMCP instead of clicking or filling the form. Returns account IDs and identities, current time and timezone. Next call validate_post, then create_post with the user's authorized intent. No API key is needed; these tools use the signed-in session.",
+      ),
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, idempotentHint: true, untrustedContentHint: true },
       execute: async () => {
@@ -187,19 +223,21 @@ export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
     },
     {
       name: "validate_post",
-      title: "Validate a post without saving",
-      description:
+      title: copy("Validate a post without saving"),
+      description: copy(
         "Check text, media, thread and per-account variants against platform rules before creating. Returns validation errors and warnings. Does not save, schedule, publish, or change the form. Use the same content with create_post after resolving errors. If imageFitHelp is returned, offer crop or blur and validate again with imageFit before creating.",
-      inputSchema: z.toJSONSchema(contentSchema, { io: "input" }),
+      ),
+      inputSchema: schemaDisplay(z.toJSONSchema(contentSchema, { io: "input" }), copy),
       annotations: { readOnlyHint: true, idempotentHint: true, untrustedContentHint: true },
-      execute: async (raw) => request("/api/v1/validation", normalizeContent(contentSchema.parse(raw))),
+      execute: async (raw) => request("/api/v1/validation", normalizeContent(contentSchema.parse(raw, parseOptions))),
     },
     {
       name: "create_post",
-      title: "Create, schedule, or publish a SimplePost post",
-      description:
+      title: copy("Create, schedule, or publish a SimplePost post"),
+      description: copy(
         "Create directly through WebMCP, not the form. First list_accounts and validate_post. Requires explicit postingMode, user authorization and an idempotencyKey. Draft saves only; schedule and now can publish publicly and consume posting allowance. Supports per-account variants, media, threads and imageFit when validate_post offered fitting. Returns the saved post and individual publishing results: report partial failures honestly. On timeout or network error, retry only with the SAME idempotencyKey and content, never by clicking Submit. Does not clear or submit any existing manual form draft. TikTok non-draft posting requires the user to review platform settings and give consent in the form and is not supported by this tool.",
-      inputSchema: z.toJSONSchema(createSchema, { io: "input" }),
+      ),
+      inputSchema: schemaDisplay(z.toJSONSchema(createSchema, { io: "input" }), copy),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
       execute: async (raw) => {
         const {
@@ -208,19 +246,22 @@ export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
           scheduledFor,
           idempotencyKey,
           ...content
-        } = createSchema.parse(raw);
+        } = createSchema.parse(raw, parseOptions);
         if (postingMode === "schedule" && (!scheduledFor || Date.parse(scheduledFor) <= Date.now())) {
-          throw new Error("Scheduling requires a future scheduledFor with an explicit timezone.");
+          throw new Error(copy("Scheduling requires a future scheduledFor with an explicit timezone."));
         }
         const { accounts: connected } = await accounts();
         const selected = content.accountIds.map((id) => {
           const account = connected.find((candidate) => candidate.id === id);
-          if (!account) throw new Error(`Account ${id} is not connected. Call list_accounts again.`);
+          if (!account)
+            throw new Error(copy("Account {{account}} is not connected. Call list_accounts again.", { account: id }));
           return account;
         });
         if (postingMode !== "draft" && selected.some((account) => account.platform.toLowerCase() === "tiktok")) {
           throw new Error(
-            "TikTok publishing requires the user to review platform settings and give consent in the form. You may save a draft with WebMCP; do not automate that consent.",
+            copy(
+              "TikTok publishing requires the user to review platform settings and give consent in the form. You may save a draft with WebMCP; do not automate that consent.",
+            ),
           );
         }
         const body = {
@@ -241,13 +282,14 @@ export function createPostTools(dependencies: ToolDependencies): WebMcpTool[] {
     },
     {
       name: "get_post",
-      title: "Read a created post",
-      description:
+      title: copy("Read a created post"),
+      description: copy(
         "Verify a post's saved status and per-account results using its actual ID returned by create_post. Read-only. Do not infer that creation means every platform published successfully.",
-      inputSchema: z.toJSONSchema(postIdSchema),
+      ),
+      inputSchema: schemaDisplay(z.toJSONSchema(postIdSchema), copy),
       annotations: { readOnlyHint: true, idempotentHint: true, untrustedContentHint: true },
       execute: async (raw) => {
-        const { postId } = postIdSchema.parse(raw);
+        const { postId } = postIdSchema.parse(raw, parseOptions);
         return request(`/api/v1/posts/${encodeURIComponent(postId)}`);
       },
     },

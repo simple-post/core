@@ -2,5 +2,13 @@
   "{{count}} days left": "{{count}} day left",
   "Every feature is unlocked through {{date}}, with {{count}} posts per platform. No credit card required.": "Every feature is unlocked through {{date}}, with {{count}} post per platform. No credit card required.",
   "Connect a social account to start using your {{count}} posts per platform.": "Connect a social account to start using your {{count}} post per platform.",
-  "({{count}} pins)": "({{count}} pin)"
+  "({{count}} pins)": "({{count}} pin)",
+  "{{count, number}} social accounts": "{{count, number}} social account",
+  "{{count, number}} posts / month": "{{count, number}} post / month",
+  "Free trial · {{count, number}} days left": "Free trial · {{count, number}} day left",
+  "You are on the free trial. {{count, number}} days left.": "You are on the free trial. {{count, number}} day left.",
+  "Ends on <part1></part1>. Every feature is unlocked, with {{count, number}} posts per platform. No credit card needed. <part2>Trial details</part2>": "Ends on <part1></part1>. Every feature is unlocked, with {{count, number}} post per platform. No credit card needed. <part2>Trial details</part2>",
+  "The free trial allows up to {{count, number}} posts in a thread. Shorten it or <part1>choose a plan</part1>.": "The free trial allows up to {{count, number}} post in a thread. Shorten it or <part1>choose a plan</part1>.",
+  "You are on the free trial, limited to {{count, number}} posts per platform.": "You are on the free trial, limited to {{count, number}} post per platform.",
+  "You have {{count, number}} days left.": "You have {{count, number}} day left."
 }

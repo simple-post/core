@@ -41,3 +41,26 @@ describe("authored UI copy overlays", () => {
     expect(html.indexOf("LINK")).toBeLessThan(html.indexOf("User"));
   });
 });
+
+it("selects rich plurals using numeric counts without parsing interpolated user text", () => {
+  const source = "{{count, number}} items for {{name}}: <part1>open</part1>";
+  const render = (count: number) =>
+    renderToStaticMarkup(
+      createElement(UiLocaleProvider, {
+        locale: "ar",
+        messages: {
+          [`${source}_one`]: "ONE {{count, number}} {{name}} <part1>OPEN</part1>",
+          [`${source}_two`]: "TWO {{count, number}} {{name}} <part1>OPEN</part1>",
+        },
+        children: createElement(UiCopy, {
+          source,
+          values: { count, name: "User <part1>اسم</part1>" },
+          components: { part1: createElement("a", { href: "/fixed", children: undefined }) },
+        }),
+      }),
+    );
+  expect(render(1)).toContain(`ONE ${new Intl.NumberFormat("ar").format(1)}`);
+  expect(render(2)).toContain(`TWO ${new Intl.NumberFormat("ar").format(2)}`);
+  expect(render(2)).toContain("User &lt;part1&gt;اسم&lt;/part1&gt;");
+  expect(render(2)).toContain('<a href="/fixed">OPEN</a>');
+});

@@ -8,7 +8,7 @@ export function renderMessage(
   locale = "en",
 ): ReactNode {
   const interpolate = (text: string) =>
-    text.replaceAll(/\{\{\s*(\w+)\s*\}\}/g, (token, name: string) => {
+    text.replaceAll(/\{\{\s*(\w+)(?:,\s*number)?\s*\}\}/g, (token, name: string) => {
       const value = values[name];
       return value === undefined
         ? token

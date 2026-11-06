@@ -12,6 +12,7 @@ import { useBillingStatus } from "@/hooks/use-billing";
 import { trackOnce } from "@/lib/analytics/plausible";
 import { useSession } from "@/lib/auth/auth-client";
 import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 const SelfHostedContext = createContext(false);
 
@@ -23,6 +24,7 @@ export function useSelfHosted(): boolean {
 const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans"]);
 
 export function SubscriptionGate({ children }: { children: ReactNode }) {
+  const { copy } = useUiCopy();
   const pathname = usePathname();
   // Shared with the trial banner and compose-form allowance, so
   // the whole app reads one cached copy of the billing status per page load.
@@ -47,7 +49,7 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{copy("Loading...")}</div>
       </div>
     );
   }
@@ -58,10 +60,10 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
         <Navbar />
         <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-xl flex-col items-center justify-center px-6 text-center">
           <div className="rounded-2xl border border-border bg-card p-6">
-            <h1 className="text-lg font-semibold tracking-[-0.025em]">Billing status unavailable</h1>
+            <h1 className="text-lg font-semibold tracking-[-0.025em]">{copy("Billing status unavailable")}</h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{error.message}</p>
             <Button type="button" onClick={() => window.location.reload()} className="mt-5">
-              Retry
+              {copy("Retry")}{" "}
             </Button>
           </div>
         </main>

@@ -16,9 +16,12 @@ export function UiCopy({
   values?: Record<string, string | number>;
 }) {
   const { copy, locale } = useUiCopy();
-  const placeholders = Object.fromEntries(
-    [...source.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((match) => [match[1], `{{${match[1]}}}`]),
+  const placeholders: Record<string, string | number> = Object.fromEntries(
+    [...source.matchAll(/\{\{\s*(\w+)(?:,\s*number)?\s*\}\}/g)].map((match) => [match[1], match[0]]),
   );
+  // Only numeric count enters i18next before rendering, for plural selection.
+  // User strings remain opaque until React text-node interpolation.
+  if (typeof values?.count === "number") placeholders.count = values.count;
   const opaqueSlots = new Set([...source.matchAll(/<(part\d+)><\/\1>/g)].map((match) => match[1]));
   return renderMessage(
     copy(source, placeholders),

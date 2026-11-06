@@ -20,6 +20,7 @@ import { trackOnce } from "@/lib/analytics/plausible";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
 import { getPlatformName } from "@/lib/config";
+import { planName } from "@/lib/i18n/billing-display";
 import type { Locale } from "@/lib/i18n/locales";
 import type { SourceCopy } from "@/lib/i18n/source-copy";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
@@ -396,7 +397,7 @@ export default function BillingPage() {
                     {/* The kicker above already says copy("Free trial"), so name the
                         benefit here instead of repeating it. */}
                     <h2 className="text-2xl font-semibold tracking-[-0.025em]">
-                      {isTrial ? copy("All features unlocked") : plan.name}
+                      {isTrial ? copy("All features unlocked") : planName(plan.name, copy)}
                     </h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       {isTrial
@@ -424,7 +425,7 @@ export default function BillingPage() {
                         )
                       : isComplimentary
                         ? copy("Your {{plan}} plan is complimentary through {{date}}. No payment method is required.", {
-                            plan: plan.name,
+                            plan: planName(plan.name, copy),
                             date: formatDate(billing.complimentaryAccess?.expiresAt ?? null, locale, copy),
                           })
                         : copy("{{price}} / month · Current period ends {{date}}", {

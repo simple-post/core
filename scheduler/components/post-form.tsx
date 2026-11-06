@@ -22,6 +22,7 @@ import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName } from "@/lib/config";
+import { scheduledTimeMessage } from "@/lib/i18n/scheduled-time-display";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
@@ -329,8 +330,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     if (postingMode === "schedule") {
       const nextScheduleError = getLocalScheduledDateTimeError(scheduledDate, scheduledTime);
       if (nextScheduleError) {
-        setScheduleError(nextScheduleError);
-        toast.error(nextScheduleError);
+        setScheduleError(scheduledTimeMessage(nextScheduleError, copy));
+        toast.error(scheduledTimeMessage(nextScheduleError, copy));
         return;
       }
     }

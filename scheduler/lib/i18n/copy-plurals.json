@@ -22,5 +22,10 @@
   "Maximum {{count, number}} files allowed.": "Maximum {{count, number}} file allowed.",
   "{{count, number}} bytes": "{{count, number}} byte",
   "{{count, number}}/{{limit, number}} files (uploading)": "{{count, number}}/{{limit, number}} file (uploading)",
-  "{{count, number}}/{{limit, number}} files selected": "{{count, number}}/{{limit, number}} file selected"
+  "{{count, number}}/{{limit, number}} files selected": "{{count, number}}/{{limit, number}} file selected",
+  "{{count, number}} retries scheduled. TikTok acceptance is not guaranteed.": "{{count, number}} retry scheduled. TikTok acceptance is not guaranteed.",
+  "{{count, number}} posts were not rescheduled: {{reason}}": "{{count, number}} post was not rescheduled: {{reason}}",
+  "{{count, number}} posts can be scheduled for another TikTok attempt": "{{count, number}} post can be scheduled for another TikTok attempt",
+  "Schedule {{count, number}} retries": "Schedule {{count, number}} retry",
+  "{{count, number}} selected": "{{count, number}} selected"
 }

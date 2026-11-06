@@ -1,3 +1,5 @@
+import { joinedValidationMessages } from "@/lib/i18n/validation-display";
+import type { AuthoredMessage } from "@/lib/i18n/server";
 import { Feature, Prisma } from "@prisma/client";
 import {
   ImageFitSchema,
@@ -612,13 +614,15 @@ function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Dat
  * prose would otherwise read the default `stop` and never offer to fit.
  */
 function validationFailureError(
-  message: string,
+  message: AuthoredMessage,
   canOfferImageFitting: boolean,
   logContext: { accountIds: string[]; platforms: string[] },
 ): McpToolError {
   return new McpToolError({
     code: canOfferImageFitting ? "POST_IMAGE_FIT_AVAILABLE" : "POST_VALIDATION_FAILED",
-    message: canOfferImageFitting ? `${message} ${IMAGE_FIT_HELP}` : message,
+    message: canOfferImageFitting
+      ? serverMessage("{{message}} {{help}}", { message, help: serverMessage(IMAGE_FIT_HELP) })
+      : message,
     stage: canOfferImageFitting ? "media_validation" : "tool_execution",
     recovery: canOfferImageFitting ? "retry_with_image_fit" : "stop",
     maxAutomaticRetries: canOfferImageFitting ? 1 : 0,
@@ -975,12 +979,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   // Drafts save unconditionally here too; the returned `validation` is what
   // tells the user the draft is not publishable yet.
   if (targetPostingMode === "schedule" && !validation.isValid) {
-    const errorMessages = validation.accounts
-      .flatMap((account) => account.errors)
-      .map((error) => error.message)
-      .join("; ");
+    const errorMessages = joinedValidationMessages(validation.accounts.flatMap((account) => account.errors));
     throw validationFailureError(
-      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`,
+      serverMessage("Couldn't save these changes because the scheduled post would be invalid: {{errors}}", {
+        errors: errorMessages,
+      }),
       validation.imageFitHelp !== undefined,
       { accountIds, platforms: validation.platforms },
     );
@@ -1274,10 +1277,15 @@ export async function createPost(
   // reports what must be fixed before the post can go out. Structural failures
   // — unknown account, media that could not be imported, quota — still throw.
   if (postingMode !== "draft" && !validation.summary.isValid) {
-    const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
-    const action = postingMode === "schedule" ? "scheduled" : "published";
+    const errorMessages = joinedValidationMessages(validation.summary.errors);
     throw validationFailureError(
-      `The post can't be ${action} because it failed validation: ${errorMessages}`,
+      postingMode === "schedule"
+        ? serverMessage("The post can't be scheduled because it failed validation: {{errors}}", {
+            errors: errorMessages,
+          })
+        : serverMessage("The post can't be published because it failed validation: {{errors}}", {
+            errors: errorMessages,
+          }),
       canOfferImageFitting,
       { accountIds: input.accountIds, platforms: validation.platforms },
     );

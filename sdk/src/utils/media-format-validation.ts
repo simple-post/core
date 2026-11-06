@@ -1,3 +1,4 @@
+import { describeDisplayMessage, displayMessage, withDisplayMessage } from "../validation/display-message";
 import type { MediaInspection } from "./media-inspection";
 import type { Platform } from "../types/post";
 
@@ -26,20 +27,30 @@ export function mediaFormatFailure(
   expectedType: "image" | "video",
 ): { code: string; message: string } | undefined {
   if (!inspection.contentType.startsWith(`${expectedType}/`)) {
-    return {
-      code: "media_type_mismatch",
-      message: `This attachment was declared as ${expectedType}, but contains ${inspection.contentType}. Upload the correct file.`,
-    };
+    return describeDisplayMessage(
+      {
+        code: "media_type_mismatch",
+        message: `This attachment was declared as ${expectedType}, but contains ${inspection.contentType}. Upload the correct file.`,
+      },
+      "This attachment was declared as {{expectedType}}, but contains {{value2}}. Upload the correct file.",
+      { expectedType: String(expectedType), value2: String(inspection.contentType) },
+    );
   }
   if (expectedType === "image" && !IMAGE_FORMATS[platform].includes(inspection.contentType)) {
     const formats = IMAGE_FORMATS[platform].map((type) => type.replace("image/", "").toUpperCase()).join(", ");
-    return {
-      code: "image_format_unsupported",
-      message:
-        platform === "instagram"
-          ? `Instagram does not support ${inspection.contentType.replace("image/", "").toUpperCase()} images for publishing through SimplePost. Convert this image to JPEG before posting or scheduling.`
-          : `${platform} cannot publish this ${inspection.contentType.replace("image/", "").toUpperCase()} image. Upload an image in a supported format: ${formats}.`,
-    };
+    const format = inspection.contentType.replace("image/", "").toUpperCase();
+    return withDisplayMessage(
+      { code: "image_format_unsupported" },
+      platform === "instagram"
+        ? displayMessage(
+            "Instagram does not support {{format}} images for publishing through SimplePost. Convert this image to JPEG before posting or scheduling.",
+            { format },
+          )
+        : displayMessage(
+            "{{platform}} cannot publish this {{format}} image. Upload an image in a supported format: {{formats}}.",
+            { platform, format, formats },
+          ),
+    );
   }
   return undefined;
 }

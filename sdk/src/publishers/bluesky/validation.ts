@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
@@ -31,99 +32,141 @@ export function validateBlueskyContent(content: Content): ValidationResult {
   const { images, videos } = countMedia(media);
 
   if (!text.trim() && mediaCount === 0) {
-    errors.push({
-      platform: "bluesky",
-      severity: "error",
-      code: "content_required",
-      message: "Bluesky posts require text, images, or a video.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "bluesky",
+          severity: "error",
+          code: "content_required",
+          message: "Bluesky posts require text, images, or a video.",
+          field: "text",
+        },
+        "Bluesky posts require text, images, or a video.",
+      ),
+    );
   }
 
   const textLength = [...new Intl.Segmenter("en", { granularity: "grapheme" }).segment(text)].length;
   if (textLength > BLUESKY_MAX_TEXT_LENGTH) {
-    errors.push({
-      platform: "bluesky",
-      severity: "error",
-      code: "text_too_long",
-      message: `Bluesky text cannot exceed ${BLUESKY_MAX_TEXT_LENGTH} characters.`,
-      field: "text",
-      limit: BLUESKY_MAX_TEXT_LENGTH,
-      actual: textLength,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "bluesky",
+          severity: "error",
+          code: "text_too_long",
+          message: `Bluesky text cannot exceed ${BLUESKY_MAX_TEXT_LENGTH} characters.`,
+          field: "text",
+          limit: BLUESKY_MAX_TEXT_LENGTH,
+          actual: textLength,
+        },
+        "Bluesky text cannot exceed {{BLUESKY_MAX_TEXT_LENGTH}} characters.",
+        { BLUESKY_MAX_TEXT_LENGTH: String(BLUESKY_MAX_TEXT_LENGTH) },
+      ),
+    );
   }
 
   const bytes = new TextEncoder().encode(text).length;
   if (bytes > 3000)
-    errors.push({
-      platform: "bluesky",
-      severity: "error",
-      code: "text_bytes_exceeded",
-      message: "Bluesky text cannot exceed 3000 UTF-8 bytes. Shorten the text.",
-      field: "text",
-      limit: 3000,
-      actual: bytes,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "bluesky",
+          severity: "error",
+          code: "text_bytes_exceeded",
+          message: "Bluesky text cannot exceed 3000 UTF-8 bytes. Shorten the text.",
+          field: "text",
+          limit: 3000,
+          actual: bytes,
+        },
+        "Bluesky text cannot exceed 3000 UTF-8 bytes. Shorten the text.",
+      ),
+    );
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "bluesky",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (videos > 1) {
-    errors.push({
-      platform: "bluesky",
-      severity: "error",
-      code: "too_many_videos",
-      message: "Bluesky supports only one video per post.",
-      field: "media",
-      limit: 1,
-      actual: videos,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "bluesky",
+          severity: "error",
+          code: "too_many_videos",
+          message: "Bluesky supports only one video per post.",
+          field: "media",
+          limit: 1,
+          actual: videos,
+        },
+        "Bluesky supports only one video per post.",
+      ),
+    );
   }
 
   if (videos > 0 && images > 0) {
-    errors.push({
-      platform: "bluesky",
-      severity: "error",
-      code: "mixed_media_not_supported",
-      message: "Bluesky posts cannot mix images and video.",
-      field: "media",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "bluesky",
+          severity: "error",
+          code: "mixed_media_not_supported",
+          message: "Bluesky posts cannot mix images and video.",
+          field: "media",
+        },
+        "Bluesky posts cannot mix images and video.",
+      ),
+    );
   }
 
   if (images > BLUESKY_MAX_IMAGES) {
-    warnings.push({
-      platform: "bluesky",
-      severity: "warning",
-      code: "too_many_images",
-      message: `Bluesky supports up to ${BLUESKY_MAX_IMAGES} images. Only the first ${BLUESKY_MAX_IMAGES} will be posted.`,
-      field: "media",
-      limit: BLUESKY_MAX_IMAGES,
-      actual: images,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "bluesky",
+          severity: "warning",
+          code: "too_many_images",
+          message: `Bluesky supports up to ${BLUESKY_MAX_IMAGES} images. Only the first ${BLUESKY_MAX_IMAGES} will be posted.`,
+          field: "media",
+          limit: BLUESKY_MAX_IMAGES,
+          actual: images,
+        },
+        "Bluesky supports up to {{BLUESKY_MAX_IMAGES}} images. Only the first {{BLUESKY_MAX_IMAGES2}} will be posted.",
+        { BLUESKY_MAX_IMAGES: String(BLUESKY_MAX_IMAGES), BLUESKY_MAX_IMAGES2: String(BLUESKY_MAX_IMAGES) },
+      ),
+    );
   }
 
   for (const [index, item] of media.entries()) {
     if (item.type !== "video") continue;
     if (item.durationSec !== undefined && item.durationSec > BLUESKY_MAX_VIDEO_DURATION_SEC) {
-      errors.push({
-        platform: "bluesky",
-        severity: "error",
-        code: "video_too_long",
-        message: "Bluesky videos cannot exceed 10 minutes.",
-        field: `media[${index}]`,
-        limit: BLUESKY_MAX_VIDEO_DURATION_SEC,
-        actual: item.durationSec,
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "bluesky",
+            severity: "error",
+            code: "video_too_long",
+            message: "Bluesky videos cannot exceed 10 minutes.",
+            field: `media[${index}]`,
+            limit: BLUESKY_MAX_VIDEO_DURATION_SEC,
+            actual: item.durationSec,
+          },
+          "Bluesky videos cannot exceed 10 minutes.",
+        ),
+      );
     }
   }
 

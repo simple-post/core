@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { localeFromRequestHeaders, type Locale } from "@/lib/i18n/locales";
+import { validationDetails } from "@/lib/i18n/validation-display";
 import { schemaErrorMap } from "@/lib/i18n/schema-display";
 import {
   authoredError,
@@ -306,7 +307,7 @@ function respondToApiError(error: unknown, context: Record<string, unknown>, loc
         error: displayError(error, locale),
         code: error.code,
         ...(error.reason && { reason: error.reason }),
-        ...(error instanceof ValidationError && { details: error.details }),
+        ...(error instanceof ValidationError && { details: validationDetails(error.details, locale ?? "en") }),
       },
       { status: error.statusCode },
     );

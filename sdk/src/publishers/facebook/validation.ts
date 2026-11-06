@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
@@ -30,72 +31,107 @@ export function validateFacebookContent(content: Content): ValidationResult {
   const { images, videos } = countMedia(media);
 
   if (!text.trim() && mediaCount === 0) {
-    errors.push({
-      platform: "facebook",
-      severity: "error",
-      code: "content_required",
-      message: "Facebook posts require text or media.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "facebook",
+          severity: "error",
+          code: "content_required",
+          message: "Facebook posts require text or media.",
+          field: "text",
+        },
+        "Facebook posts require text or media.",
+      ),
+    );
   }
 
   if (text.length > FACEBOOK_MAX_TEXT_LENGTH) {
-    errors.push({
-      platform: "facebook",
-      severity: "error",
-      code: "text_too_long",
-      message: `Facebook text cannot exceed ${FACEBOOK_MAX_TEXT_LENGTH.toLocaleString()} characters.`,
-      field: "text",
-      limit: FACEBOOK_MAX_TEXT_LENGTH,
-      actual: text.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "facebook",
+          severity: "error",
+          code: "text_too_long",
+          message: `Facebook text cannot exceed ${FACEBOOK_MAX_TEXT_LENGTH.toLocaleString()} characters.`,
+          field: "text",
+          limit: FACEBOOK_MAX_TEXT_LENGTH,
+          actual: text.length,
+        },
+        "Facebook text cannot exceed {{value1}} characters.",
+        { value1: String(FACEBOOK_MAX_TEXT_LENGTH.toLocaleString()) },
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "facebook",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "facebook",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (videos > 0 && mediaCount > 1) {
-    errors.push({
-      platform: "facebook",
-      severity: "error",
-      code: "video_with_other_media",
-      message: "Facebook video posts can only contain a single video.",
-      field: "media",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "facebook",
+          severity: "error",
+          code: "video_with_other_media",
+          message: "Facebook video posts can only contain a single video.",
+          field: "media",
+        },
+        "Facebook video posts can only contain a single video.",
+      ),
+    );
   }
 
   if (videos > FACEBOOK_MAX_VIDEOS) {
-    errors.push({
-      platform: "facebook",
-      severity: "error",
-      code: "too_many_videos",
-      message: "Facebook supports only one video per post.",
-      field: "media",
-      limit: FACEBOOK_MAX_VIDEOS,
-      actual: videos,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "facebook",
+          severity: "error",
+          code: "too_many_videos",
+          message: "Facebook supports only one video per post.",
+          field: "media",
+          limit: FACEBOOK_MAX_VIDEOS,
+          actual: videos,
+        },
+        "Facebook supports only one video per post.",
+      ),
+    );
   }
 
   if (images > FACEBOOK_MAX_MEDIA_COUNT) {
-    warnings.push({
-      platform: "facebook",
-      severity: "warning",
-      code: "too_many_images",
-      message: `Facebook supports up to ${FACEBOOK_MAX_MEDIA_COUNT} images. Only the first ${FACEBOOK_MAX_MEDIA_COUNT} will be posted.`,
-      field: "media",
-      limit: FACEBOOK_MAX_MEDIA_COUNT,
-      actual: images,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "facebook",
+          severity: "warning",
+          code: "too_many_images",
+          message: `Facebook supports up to ${FACEBOOK_MAX_MEDIA_COUNT} images. Only the first ${FACEBOOK_MAX_MEDIA_COUNT} will be posted.`,
+          field: "media",
+          limit: FACEBOOK_MAX_MEDIA_COUNT,
+          actual: images,
+        },
+        "Facebook supports up to {{FACEBOOK_MAX_MEDIA_COUNT}} images. Only the first {{FACEBOOK_MAX_MEDIA_COUNT2}} will be posted.",
+        {
+          FACEBOOK_MAX_MEDIA_COUNT: String(FACEBOOK_MAX_MEDIA_COUNT),
+          FACEBOOK_MAX_MEDIA_COUNT2: String(FACEBOOK_MAX_MEDIA_COUNT),
+        },
+      ),
+    );
   }
 
   errors.push(

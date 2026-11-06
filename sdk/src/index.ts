@@ -369,3 +369,13 @@ export { ImageFitSchema, canFitImageIssue, IMAGE_FIT_HELP } from "./image-fit";
 export type { ImageFit } from "./image-fit";
 export { fitImage, fitPostImages, fitRemoteImagesForAccounts, ImageFitError } from "./utils/image-fitting";
 export type { ImageFitContent } from "./utils/image-fitting";
+
+export {
+  describeDisplayMessage,
+  displayMessage,
+  getDisplayMessage,
+  copyDisplayMessage,
+  canonicalDisplayMessage,
+  withDisplayMessage,
+} from "./validation/display-message";
+export type { DisplayMessage, DisplayValues } from "./validation/display-message";

@@ -1,3 +1,5 @@
+import { copyDisplayMessage } from "@simple-post/sdk/validation";
+import { describeDisplayMessage } from "@simple-post/sdk/validation";
 import { isMetaCredentialPlatform, validatePostReadiness } from "@simple-post/sdk";
 import { getXTextLength } from "@simple-post/sdk/validation";
 
@@ -94,19 +96,26 @@ export async function validateAccountReadiness(
         return [];
       });
       for (const issue of issues)
-        (issue.severity === "error" ? result.errors : result.warnings).push({
-          ...issue,
-          meta: { accountId: account.id },
-        });
+        (issue.severity === "error" ? result.errors : result.warnings).push(
+          copyDisplayMessage(issue, {
+            ...issue,
+            meta: { accountId: account.id },
+          }),
+        );
     } catch {
-      result.warnings.push({
-        platform: result.platform,
-        severity: "warning",
-        code: "account_readiness_unverified",
-        field: "account",
-        message: "Current account eligibility could not be verified. Check the connection and retry validation.",
-        meta: { accountId: account.id },
-      });
+      result.warnings.push(
+        describeDisplayMessage(
+          {
+            platform: result.platform,
+            severity: "warning",
+            code: "account_readiness_unverified",
+            field: "account",
+            message: "Current account eligibility could not be verified. Check the connection and retry validation.",
+            meta: { accountId: account.id },
+          },
+          "Current account eligibility could not be verified. Check the connection and retry validation.",
+        ),
+      );
     }
     result.isValid = result.errors.length === 0;
   }

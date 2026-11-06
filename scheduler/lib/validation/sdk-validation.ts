@@ -1,3 +1,4 @@
+import { getDisplayMessage } from "@simple-post/sdk/validation";
 import {
   fitRemoteImagesForAccounts,
   ImageFitError,
@@ -82,7 +83,7 @@ export async function validatePostForAccounts(params: {
     } catch (error) {
       // The SDK writes these for the person who asked to fit. Keep the guidance
       // instead of letting it fall through as an unexpected 500.
-      if (error instanceof ImageFitError) throw new BadRequestError(error.message);
+      if (error instanceof ImageFitError) throw new BadRequestError(getDisplayMessage(error) ?? error.message);
       throw error;
     }
   }

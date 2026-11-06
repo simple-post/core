@@ -1,3 +1,9 @@
+import {
+  displayMessage,
+  withDisplayMessage,
+  getDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 import axios from "axios";
 
 import { getMetaCredentialRejection, isMetaCredentialPlatform, metaPlatformLabel } from "./meta-credential-rejection";
@@ -17,32 +23,41 @@ export function readinessFailure(platform: Platform, error: unknown): Validation
   const credentialRejection = isMetaCredentialPlatform(platform) ? getMetaCredentialRejection(error) : undefined;
   let code = "account_readiness_unverified";
   let severity: "error" | "warning" = "warning";
-  let message = `${platform}: current account permissions and limits could not be verified. The provider may still reject this post; check the account connection and retry validation.`;
+  let message: string | DisplayMessage = displayMessage(
+    "{{platform}}: current account permissions and limits could not be verified. The provider may still reject this post; check the account connection and retry validation.",
+    { platform },
+  );
   if (credentialRejection && isMetaCredentialPlatform(platform)) {
     code = "account_unauthorized";
     severity = "error";
-    message = `${metaPlatformLabel(platform)} invalidated this connection. Reconnect the account before publishing.`;
+    message = displayMessage("{{platform}} invalidated this connection. Reconnect the account before publishing.", {
+      platform: metaPlatformLabel(platform),
+    });
   } else if (known) {
     code = "account_ineligible";
     severity = "error";
-    message = error.message;
+    message = getDisplayMessage(error) ?? error.message;
   } else if (unauthorized) {
     code = "account_unauthorized";
     severity = "error";
-    message = `${platform}: the connection is no longer authorized. Reconnect the account.`;
+    message = displayMessage("{{platform}}: the connection is no longer authorized. Reconnect the account.", {
+      platform,
+    });
   } else if (response?.status === 429) {
     code = "account_rate_limited";
     severity = "error";
-    message = `${platform}: account checks are rate limited. Wait before retrying.`;
+    message = displayMessage("{{platform}}: account checks are rate limited. Wait before retrying.", { platform });
   }
-  return {
-    platform,
-    severity,
-    code,
-    field: "account",
+  return withDisplayMessage(
+    {
+      platform,
+      severity,
+      code,
+      field: "account",
+      ...(credentialRejection && { credentialRejection }),
+    },
     message,
-    ...(credentialRejection && { credentialRejection }),
-  };
+  );
 }
 
 /** Only read endpoints. Never infer posting permission from a failed optional read scope. */
@@ -52,10 +67,15 @@ export async function checkAccountReadiness(
   options?: PostOptions,
 ): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
-  const warning = (message: string) =>
-    issues.push({ platform, severity: "warning", code: "account_readiness_unverified", field: "account", message });
-  const block = (message: string, code = "account_ineligible", actual?: number, limit?: number) =>
-    issues.push({ platform, severity: "error", code, field: "account", message, actual, limit });
+  const warning = (message: string | DisplayMessage) =>
+    issues.push(
+      withDisplayMessage(
+        { platform, severity: "warning", code: "account_readiness_unverified", field: "account" },
+        message,
+      ),
+    );
+  const block = (message: string | DisplayMessage, code = "account_ineligible", actual?: number, limit?: number) =>
+    issues.push(withDisplayMessage({ platform, severity: "error", code, field: "account", actual, limit }, message));
   const get = async <T>(url: string, token: string, params?: Record<string, string>) => {
     const response = await axios.get<T>(url, {
       headers: { Authorization: `Bearer ${token}` },
@@ -85,14 +105,20 @@ export async function checkAccountReadiness(
       if (typeof usage?.quota_usage === "number" && typeof usage.config?.quota_total === "number") {
         if (usage.quota_usage >= usage.config.quota_total)
           block(
-            `${platform}: the account has used its current publishing quota. Wait for the rolling limit to reset.`,
+            displayMessage(
+              "{{platform}}: the account has used its current publishing quota. Wait for the rolling limit to reset.",
+              { platform: String(platform) },
+            ),
             "publishing_quota_exhausted",
             usage.quota_usage,
             usage.config.quota_total,
           );
       } else
         warning(
-          `${platform}: the provider did not return a usable publishing quota. Remaining capacity is unverified.`,
+          displayMessage(
+            "{{platform}}: the provider did not return a usable publishing quota. Remaining capacity is unverified.",
+            { platform: String(platform) },
+          ),
         );
       if (platform === "threads" && options?.threads?.replyToId) {
         try {
@@ -101,7 +127,10 @@ export async function checkAccountReadiness(
           });
         } catch (error) {
           if ((error as { response?: { status?: number } }).response?.status === 404)
-            block("The Threads reply target is unavailable. Choose an accessible post.", "reply_target_unavailable");
+            block(
+              displayMessage("The Threads reply target is unavailable. Choose an accessible post."),
+              "reply_target_unavailable",
+            );
           else throw error;
         }
       }
@@ -110,7 +139,8 @@ export async function checkAccountReadiness(
     }
     case "pinterest": {
       const settings = options?.pinterest;
-      if (!settings?.boardId) block("Select a Pinterest board before publishing.", "pinterest_board_required");
+      if (!settings?.boardId)
+        block(displayMessage("Select a Pinterest board before publishing."), "pinterest_board_required");
       else if (settings.credentials) {
         try {
           await get(
@@ -118,11 +148,16 @@ export async function checkAccountReadiness(
             settings.credentials.accessToken,
           );
           warning(
-            "The Pinterest board is accessible, but collaborator write permission is not exposed by this check. Confirm that this account can create Pins on it.",
+            displayMessage(
+              "The Pinterest board is accessible, but collaborator write permission is not exposed by this check. Confirm that this account can create Pins on it.",
+            ),
           );
         } catch (error) {
           if ((error as { response?: { status?: number } }).response?.status === 404)
-            block("The Pinterest board does not exist or is inaccessible. Select another board.", "board_unavailable");
+            block(
+              displayMessage("The Pinterest board does not exist or is inaccessible. Select another board."),
+              "board_unavailable",
+            );
           else throw error;
         }
       }
@@ -161,7 +196,11 @@ export async function checkAccountReadiness(
           ["left", "kicked"].includes(member.status) ||
           (chat.type === "channel" && member.status !== "creator" && member.can_post_messages !== true)
         )
-          block("The Telegram bot cannot post to this chat. Add it as an administrator with permission to post.");
+          block(
+            displayMessage(
+              "The Telegram bot cannot post to this chat. Add it as an administrator with permission to post.",
+            ),
+          );
         let rights = privileged ? undefined : chat.permissions;
         if (member.status === "restricted") rights = member;
         if (
@@ -169,7 +208,7 @@ export async function checkAccountReadiness(
           (content.media?.some((item) => item.type === "image") && rights?.can_send_photos === false) ||
           (content.media?.some((item) => item.type === "video") && rights?.can_send_videos === false)
         )
-          block("The Telegram bot lacks permission to send this content type in the destination chat.");
+          block(displayMessage("The Telegram bot lacks permission to send this content type in the destination chat."));
       }
 
       break;
@@ -188,13 +227,17 @@ export async function checkAccountReadiness(
           const subscription = account.data?.subscription_type?.toLowerCase();
           if (subscription === "none")
             block(
-              "This X account does not have Premium. Use at most 280 weighted characters and a video no longer than 20 minutes.",
+              displayMessage(
+                "This X account does not have Premium. Use at most 280 weighted characters and a video no longer than 20 minutes.",
+              ),
               "x_premium_required",
             );
           else if (!subscription)
-            warning("X did not report this account's Premium status. Long content eligibility is unverified.");
+            warning(
+              displayMessage("X did not report this account's Premium status. Long content eligibility is unverified."),
+            );
         } else {
-          warning("X Premium access could not be verified with these credentials.");
+          warning(displayMessage("X Premium access could not be verified with these credentials."));
         }
       }
 
@@ -213,17 +256,23 @@ export async function checkAccountReadiness(
           !page.tasks.some((task) => ["CREATE_CONTENT", "MANAGE", "PROFILE_PLUS_CREATE_CONTENT"].includes(task))
         )
           block(
-            "This Facebook Page connection does not have permission to create content. Reconnect with Page publishing access.",
+            displayMessage(
+              "This Facebook Page connection does not have permission to create content. Reconnect with Page publishing access.",
+            ),
           );
         else if (!page.tasks)
-          warning("Facebook did not expose Page publishing tasks; publishing permission remains unverified.");
+          warning(
+            displayMessage("Facebook did not expose Page publishing tasks; publishing permission remains unverified."),
+          );
       }
 
       break;
     }
     case "linkedin": {
       warning(
-        "LinkedIn does not expose a reliable pre-publish check for this member's posting restrictions. Media and content are checked; account restrictions remain provider-side.",
+        displayMessage(
+          "LinkedIn does not expose a reliable pre-publish check for this member's posting restrictions. Media and content are checked; account restrictions remain provider-side.",
+        ),
       );
 
       break;

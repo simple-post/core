@@ -20,7 +20,7 @@ function walk(directory) {
     } else if (/\.tsx?$/.test(file) && !file.endsWith(".d.ts")) files.push(file);
   }
 }
-for (const directory of ["lib", "app/api", "app/mcp", "app/mcp-ui", "types", "../sdk/src/types"])
+for (const directory of ["lib", "app/api", "app/mcp", "app/mcp-ui", "types", "../sdk/src"])
   walk(path.join(root, directory));
 const parsed = files.map((file) =>
   ts.createSourceFile(
@@ -88,7 +88,32 @@ for (const sf of parsed) {
   function visit(node) {
     if (ts.isCallExpression(node)) {
       const name = node.expression.getText(sf);
-      if (["serverT", "serverMessage"].includes(name) || (copied && name === "copy")) add(node.arguments[0], sf);
+      if (["displayMessage", "serverT", "serverMessage"].includes(name) || (copied && name === "copy"))
+        add(node.arguments[0], sf);
+      if (name === "describeDisplayMessage") {
+        add(node.arguments[1], sf);
+        const target = node.arguments[0];
+        if (target && ts.isObjectLiteralExpression(target)) {
+          const code = target.properties.find(
+            (field) => ts.isPropertyAssignment(field) && field.name.getText(sf) === "code",
+          );
+          const destructive = [
+            "too_many_images",
+            "too_many_videos",
+            "too_many_media",
+            "images_ignored",
+            "title_truncated",
+          ];
+          if (code && strings(code.initializer).some((value) => destructive.includes(value))) {
+            for (const source of strings(node.arguments[1])) {
+              const derived = `${source.split(". Only")[0].split(". The title")[0]}. Remove extra attachments before publishing.`;
+              const refs = sources.get(derived) ?? new Set();
+              refs.add(`${file}:destructive-warning`);
+              sources.set(derived, refs);
+            }
+          }
+        }
+      }
       if (
         ts.isPropertyAccessExpression(node.expression) &&
         node.expression.name.text === "describe" &&

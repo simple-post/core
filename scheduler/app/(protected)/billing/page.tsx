@@ -20,7 +20,7 @@ import { trackOnce } from "@/lib/analytics/plausible";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
 import { getPlatformName } from "@/lib/config";
-import { planName } from "@/lib/i18n/billing-display";
+import { planName, subscriptionStatusLabel } from "@/lib/i18n/billing-display";
 import type { Locale } from "@/lib/i18n/locales";
 import type { SourceCopy } from "@/lib/i18n/source-copy";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
@@ -82,38 +82,6 @@ async function parseApiError(response: Response, copy: SourceCopy): Promise<stri
   return (
     data.error || data.message || copy("Request failed with status {{status, number}}", { status: response.status })
   );
-}
-
-function subscriptionStatusLabel(status: string, copy: SourceCopy) {
-  switch (status) {
-    case "active": {
-      return copy("Active");
-    }
-    case "trialing": {
-      return copy("Trial");
-    }
-    case "past_due": {
-      return copy("Past due");
-    }
-    case "canceled": {
-      return copy("Canceled");
-    }
-    case "unpaid": {
-      return copy("Unpaid");
-    }
-    case "incomplete": {
-      return copy("Incomplete");
-    }
-    case "incomplete_expired": {
-      return copy("Incomplete and expired");
-    }
-    case "paused": {
-      return copy("Paused");
-    }
-    default: {
-      return status;
-    }
-  }
 }
 
 function delay(ms: number) {

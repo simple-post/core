@@ -1,6 +1,7 @@
 "use client";
-
 import { AuthorizePage } from "@/components/authorize-page";
+import { UiCopy } from "@/components/ui-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 function isLoopbackHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
@@ -8,21 +9,25 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 export default function CliAuthorizePage() {
+  const { copy } = useUiCopy();
   return (
     <AuthorizePage
       config={{
-        title: "Authorize CLI",
-        description: "The SimplePost CLI is requesting access to your account.",
+        title: copy("Authorize CLI"),
+        description: copy("The SimplePost CLI is requesting access to your account."),
         invalidMessage: (
-          <>
-            This authorization link is invalid or has expired. Please run{" "}
-            <code className="bg-secondary border border-border text-primary font-mono px-1.5 py-0.5 rounded text-xs">
-              simplepost connect
-            </code>{" "}
-            again.
-          </>
+          <UiCopy
+            source="This authorization link is invalid or has expired. Please run <part1></part1> again."
+            components={{
+              part1: (
+                <code className="bg-secondary border border-border text-primary font-mono px-1.5 py-0.5 rounded text-xs">
+                  simplepost connect
+                </code>
+              ),
+            }}
+          />
         ),
-        successMessage: "Authorization successful. You can close this tab and return to your terminal.",
+        successMessage: copy("Authorization successful. You can close this tab and return to your terminal."),
         loginCallbackPath: "/cli/authorize",
         validateParams: (params) => {
           const state = params.get("state");

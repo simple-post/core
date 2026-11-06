@@ -60,3 +60,38 @@ export function postAllowance(plan: AccessPlan, copy: SourceCopy): string {
     ? copy("Unlimited posts / month")
     : copy("{{count, number}} posts / month", { count: plan.limits.postsPerMonth });
 }
+
+export function subscriptionStatusLabel(status: string, copy: SourceCopy) {
+  switch (status) {
+    case "none": {
+      return copy("None");
+    }
+    case "active": {
+      return copy("Active");
+    }
+    case "trialing": {
+      return copy("Trial");
+    }
+    case "past_due": {
+      return copy("Past due");
+    }
+    case "canceled": {
+      return copy("Canceled");
+    }
+    case "unpaid": {
+      return copy("Unpaid");
+    }
+    case "incomplete": {
+      return copy("Incomplete");
+    }
+    case "incomplete_expired": {
+      return copy("Incomplete and expired");
+    }
+    case "paused": {
+      return copy("Paused");
+    }
+    default: {
+      return status;
+    }
+  }
+}

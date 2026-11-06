@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import twitterText from "twitter-text";
 
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
@@ -57,94 +58,137 @@ export function validateXContent(content: Content): ValidationResult {
   const cashtagText = text.replace(/https?:\/\/\S+/gi, "");
   const cashtags = cashtagText.match(/(?<![\p{L}\p{N}_])\$[a-z]{1,6}(?:[._][a-z]{1,2})?(?![\p{L}\p{N}_])/giu) ?? [];
   if (cashtags.length > X_MAX_CASHTAGS) {
-    errors.push({
-      platform: "x",
-      severity: "error",
-      code: "too_many_cashtags",
-      message: X_CASHTAG_LIMIT_MESSAGE,
-      field: "text",
-      limit: X_MAX_CASHTAGS,
-      actual: cashtags.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "error",
+          code: "too_many_cashtags",
+          message: X_CASHTAG_LIMIT_MESSAGE,
+          field: "text",
+          limit: X_MAX_CASHTAGS,
+          actual: cashtags.length,
+        },
+        X_CASHTAG_LIMIT_MESSAGE,
+      ),
+    );
   }
 
   if (!text.trim() && mediaCount === 0) {
-    errors.push({
-      platform: "x",
-      severity: "error",
-      code: "content_required",
-      message: "X posts require text or media.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "error",
+          code: "content_required",
+          message: "X posts require text or media.",
+          field: "text",
+        },
+        "X posts require text or media.",
+      ),
+    );
   }
 
   if (textLength > X_LONG_POST_MAX_LENGTH) {
-    errors.push({
-      platform: "x",
-      severity: "error",
-      code: "text_too_long",
-      message: `X text cannot exceed ${X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")} weighted characters.`,
-      field: "text",
-      limit: X_LONG_POST_MAX_LENGTH,
-      actual: textLength,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "error",
+          code: "text_too_long",
+          message: `X text cannot exceed ${X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")} weighted characters.`,
+          field: "text",
+          limit: X_LONG_POST_MAX_LENGTH,
+          actual: textLength,
+        },
+        "X text cannot exceed {{value1}} weighted characters.",
+        { value1: String(X_LONG_POST_MAX_LENGTH.toLocaleString("en-US")) },
+      ),
+    );
   } else if (textLength > X_STANDARD_POST_MAX_LENGTH) {
-    warnings.push({
-      platform: "x",
-      severity: "warning",
-      code: "long_post",
-      message: `X counts this post as ${textLength} characters, which requires X Premium long-post access. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} weighted characters or split it into a thread if the account is not eligible.`,
-      field: "text",
-      limit: X_STANDARD_POST_MAX_LENGTH,
-      actual: textLength,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "warning",
+          code: "long_post",
+          message: `X counts this post as ${textLength} characters, which requires X Premium long-post access. Shorten it to ${X_STANDARD_POST_MAX_LENGTH} weighted characters or split it into a thread if the account is not eligible.`,
+          field: "text",
+          limit: X_STANDARD_POST_MAX_LENGTH,
+          actual: textLength,
+        },
+        "X counts this post as {{textLength}} characters, which requires X Premium long-post access. Shorten it to {{X_STANDARD_POST_MAX_LENGTH}} weighted characters or split it into a thread if the account is not eligible.",
+        { textLength: String(textLength), X_STANDARD_POST_MAX_LENGTH: String(X_STANDARD_POST_MAX_LENGTH) },
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "x",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "x",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (videos > 0 && images > 0) {
-    errors.push({
-      platform: "x",
-      severity: "error",
-      code: "mixed_media_not_supported",
-      message: "X posts cannot mix images and videos.",
-      field: "media",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "error",
+          code: "mixed_media_not_supported",
+          message: "X posts cannot mix images and videos.",
+          field: "media",
+        },
+        "X posts cannot mix images and videos.",
+      ),
+    );
   }
 
   if (videos > X_MAX_VIDEOS) {
-    errors.push({
-      platform: "x",
-      severity: "error",
-      code: "too_many_videos",
-      message: "X supports only one video per post.",
-      field: "media",
-      limit: X_MAX_VIDEOS,
-      actual: videos,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "error",
+          code: "too_many_videos",
+          message: "X supports only one video per post.",
+          field: "media",
+          limit: X_MAX_VIDEOS,
+          actual: videos,
+        },
+        "X supports only one video per post.",
+      ),
+    );
   }
 
   if (images > X_MAX_MEDIA_COUNT) {
-    warnings.push({
-      platform: "x",
-      severity: "warning",
-      code: "too_many_images",
-      message: `X supports up to ${X_MAX_MEDIA_COUNT} images. Only the first ${X_MAX_MEDIA_COUNT} will be posted.`,
-      field: "media",
-      limit: X_MAX_MEDIA_COUNT,
-      actual: images,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "x",
+          severity: "warning",
+          code: "too_many_images",
+          message: `X supports up to ${X_MAX_MEDIA_COUNT} images. Only the first ${X_MAX_MEDIA_COUNT} will be posted.`,
+          field: "media",
+          limit: X_MAX_MEDIA_COUNT,
+          actual: images,
+        },
+        "X supports up to {{X_MAX_MEDIA_COUNT}} images. Only the first {{X_MAX_MEDIA_COUNT2}} will be posted.",
+        { X_MAX_MEDIA_COUNT: String(X_MAX_MEDIA_COUNT), X_MAX_MEDIA_COUNT2: String(X_MAX_MEDIA_COUNT) },
+      ),
+    );
   }
 
   errors.push(

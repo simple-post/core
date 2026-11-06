@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import fs from "node:fs";
 
 import { google } from "googleapis";
@@ -256,10 +257,16 @@ export class YouTubePublisher extends Publisher {
         // instead of reposting; it never becomes a retryable publication error.
         if (upload.uploadStatus === "failed" || upload.uploadStatus === "rejected") {
           this.logger.warn(`[YouTubePublisher] Upload status "${upload.uploadStatus}" reported for ${videoId}`);
-          warnings.push({
-            code: "youtube_upload_status_warning",
-            message: `YouTube accepted the upload as video ${videoId} but reported its status as "${upload.uploadStatus}". Do not repost this video; review it in YouTube Studio.`,
-          });
+          warnings.push(
+            describeDisplayMessage(
+              {
+                code: "youtube_upload_status_warning",
+                message: `YouTube accepted the upload as video ${videoId} but reported its status as "${upload.uploadStatus}". Do not repost this video; review it in YouTube Studio.`,
+              },
+              'YouTube accepted the upload as video {{videoId}} but reported its status as "{{value2}}". Do not repost this video; review it in YouTube Studio.',
+              { videoId: String(videoId), value2: String(upload.uploadStatus) },
+            ),
+          );
         }
       } catch (error: unknown) {
         this.logger.error(`[YouTubePublisher] Video upload failed after ${Date.now() - startTime}ms`);
@@ -290,11 +297,16 @@ export class YouTubePublisher extends Publisher {
           this.logger.warn(`[YouTubePublisher] Failed to upload thumbnail for video ${videoId}`);
           // The video already exists. Surface the partial failure without making
           // callers retry the upload and create a duplicate video.
-          warnings.push({
-            code: "youtube_thumbnail_upload_failed",
-            message:
+          warnings.push(
+            describeDisplayMessage(
+              {
+                code: "youtube_thumbnail_upload_failed",
+                message:
+                  "Video published, but YouTube could not apply the custom thumbnail. Do not repost this video; check custom-thumbnail eligibility in YouTube Studio and update the existing video there.",
+              },
               "Video published, but YouTube could not apply the custom thumbnail. Do not repost this video; check custom-thumbnail eligibility in YouTube Studio and update the existing video there.",
-          });
+            ),
+          );
         }
       } else {
         this.logger.info(`[YouTubePublisher] No thumbnail provided for video ${videoId}`);

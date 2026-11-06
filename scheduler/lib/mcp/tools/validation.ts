@@ -1,3 +1,6 @@
+import { copyDisplayMessage } from "@simple-post/sdk/validation";
+import { validationMessage } from "@/lib/i18n/validation-display";
+import { serverT } from "@/lib/i18n/server";
 import { Feature } from "@prisma/client";
 import {
   ImageFitSchema,
@@ -143,7 +146,7 @@ export async function toMcpValidationResult(
     imageFitHelp:
       [...result.summary.errors, ...(result.summary.warnings ?? [])].some((issue) => canFitImageIssue(issue)) &&
       (await hasFeature(userId, Feature.IMAGE_FITTING))
-        ? IMAGE_FIT_HELP
+        ? serverT(IMAGE_FIT_HELP)
         : undefined,
     // Return a wire-safe copy; persistence and dispatch still need the internal
     // media IDs and contentType added by ingestion and image fitting.
@@ -163,22 +166,26 @@ export async function toMcpValidationResult(
         displayName: account?.displayName ?? null,
         profilePicture: account?.profilePicture ?? null,
         isValid: r.isValid,
-        errors: r.errors.map((e) => ({
-          message: e.message,
-          field: e.field,
-          code: e.code,
-          severity: e.severity,
-          actual: e.actual,
-          limit: e.limit,
-        })),
-        warnings: r.warnings.map((w) => ({
-          message: w.message,
-          field: w.field,
-          code: w.code,
-          severity: w.severity,
-          actual: w.actual,
-          limit: w.limit,
-        })),
+        errors: r.errors.map((e) =>
+          copyDisplayMessage(e, {
+            message: validationMessage(e),
+            field: e.field,
+            code: e.code,
+            severity: e.severity,
+            actual: e.actual,
+            limit: e.limit,
+          }),
+        ),
+        warnings: r.warnings.map((w) =>
+          copyDisplayMessage(w, {
+            message: validationMessage(w),
+            field: w.field,
+            code: w.code,
+            severity: w.severity,
+            actual: w.actual,
+            limit: w.limit,
+          }),
+        ),
       };
     }),
     summary: {

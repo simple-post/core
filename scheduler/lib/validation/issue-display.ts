@@ -1,3 +1,6 @@
+import { getDisplayMessage, type DisplayMessage } from "@simple-post/sdk/validation";
+
+import { sourceCopy, type SourceCopy } from "@/lib/i18n/source-copy";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import type { ConnectedAccount } from "@/types";
 
@@ -19,11 +22,31 @@ export interface ValidationIssueGroup {
 
 // Issue messages double as instructions for API and MCP clients. These codes
 // carry developer guidance there, so the UI shows a plain-language version.
-const UI_MESSAGES: Record<string, string> = {
-  tiktok_privacy_status_required: "Choose who can see this post.",
-  tiktok_commercial_disclosure_required: "Say whether this post promotes your own brand, a third party, or both.",
-  tiktok_branded_content_private: "Branded content can't be set to “Only me”.",
-};
+function validationGuidance(code: string, copy: SourceCopy): string | undefined {
+  switch (code) {
+    case "tiktok_privacy_status_required":
+      return copy("Choose who can see this post.");
+    case "tiktok_commercial_disclosure_required":
+      return copy("Say whether this post promotes your own brand, a third party, or both.");
+    case "tiktok_branded_content_private":
+      return copy("Branded content can't be set to “Only me”.");
+  }
+}
+
+function renderIssue(message: DisplayMessage, copy: SourceCopy): string {
+  const values = Object.fromEntries(
+    Object.entries(message.values).map(([key, value]) => [
+      key,
+      typeof value === "object" ? renderIssue(value, copy) : value,
+    ]),
+  );
+  return copy(message.source, values);
+}
+
+export function translatedIssueText(issue: ValidationIssue, copy?: SourceCopy): string {
+  const descriptor = getDisplayMessage(issue);
+  return copy && descriptor ? renderIssue(descriptor, copy) : issue.message;
+}
 
 function getIssueAccountId(issue: ValidationIssue): string | undefined {
   const accountId = issue.meta?.accountId;
@@ -36,15 +59,22 @@ function getThreadPostNumber(field: string | undefined): number | null {
   return match ? Number(match[1]) + 2 : null;
 }
 
-export function getIssueDisplayMessage(issue: ValidationIssue): string {
-  const message = UI_MESSAGES[issue.code] ?? issue.message;
+export function getIssueDisplayMessage(
+  issue: ValidationIssue,
+  uiCopy?: SourceCopy,
+  validationCopy?: SourceCopy,
+): string {
+  const copy = uiCopy ?? sourceCopy;
+  const message = validationGuidance(issue.code, copy) ?? translatedIssueText(issue, validationCopy);
   const threadPost = getThreadPostNumber(issue.field);
-  return threadPost ? `Post ${threadPost} in thread: ${message}` : message;
+  return threadPost ? copy("Post {{number, number}} in thread: {{message}}", { number: threadPost, message }) : message;
 }
 
 export function groupValidationIssues(
   issues: ValidationIssue[],
   accounts: DisplayAccount[] = [],
+  uiCopy?: SourceCopy,
+  validationCopy?: SourceCopy,
 ): ValidationIssueGroup[] {
   const groups = new Map<string, ValidationIssueGroup>();
 
@@ -61,7 +91,7 @@ export function groupValidationIssues(
       messages: [],
     };
 
-    const message = getIssueDisplayMessage(issue);
+    const message = getIssueDisplayMessage(issue, uiCopy, validationCopy);
     if (!group.messages.includes(message)) {
       group.messages.push(message);
     }

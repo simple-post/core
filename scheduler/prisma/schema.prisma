@@ -32,6 +32,7 @@ model User {
   email                        String
   emailVerified                Boolean                     @default(false)
   image                        String?
+  uiLocale                     String? // Interface/email preference; independent of post content and timezone.
   stripeCustomerId             String?                     @unique
   isAdmin                      Boolean                     @default(false)
   analyticsExcluded            Boolean                     @default(false)

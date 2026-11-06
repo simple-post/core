@@ -3,6 +3,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Feature } from "@prisma/client";
 import { canFitImageIssue, IMAGE_FIT_HELP } from "@simple-post/sdk";
 
+import { localeFromRequestHeaders } from "@/lib/i18n/locales";
+import { validationDisplay } from "@/lib/i18n/validation-display";
+import { createServerCopy } from "@/lib/i18n/server";
 import { hasFeature } from "@/lib/features";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -53,9 +56,11 @@ export async function POST(req: NextRequest) {
         ? IMAGE_FIT_HELP
         : undefined;
 
+    const locale = localeFromRequestHeaders(req.headers);
+    const copy = createServerCopy(locale);
     return NextResponse.json({
-      ...validation,
-      ...(imageFitHelp ? { imageFitHelp } : {}),
+      ...validationDisplay(validation, locale),
+      ...(imageFitHelp ? { imageFitHelp: copy(imageFitHelp) } : {}),
       ...(validated.imageFit
         ? {
             fittedContent: {

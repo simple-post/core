@@ -194,6 +194,7 @@ export async function authenticateMcpToken(token: string, resource = getMcpResou
       name: mcpToken.user.name,
       email: mcpToken.user.email,
       emailVerified: mcpToken.user.emailVerified,
+      uiLocale: mcpToken.user.uiLocale,
       image: mcpToken.user.image,
     },
     session: {

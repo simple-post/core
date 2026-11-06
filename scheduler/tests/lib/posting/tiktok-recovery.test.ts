@@ -1,4 +1,9 @@
-import { getTikTokPostRecovery, recoveryForResult, tomorrowRetryTime } from "@/lib/posting/tiktok-recovery";
+import {
+  getTikTokPostRecovery,
+  recoveryForResult,
+  tomorrowRetryTime,
+  tikTokRecovery,
+} from "@/lib/posting/tiktok-recovery";
 
 it.each(["spam_risk_too_many_pending_share", "spam_risk_too_many_posts", "reached_active_user_cap"])(
   "offers a user-approved retry for %s",
@@ -51,4 +56,15 @@ it("does not offer a retry for uncertain, mixed, banned or already completed pos
 it("uses tomorrow at 09:00 in the user's local calendar", () => {
   const tomorrow = tomorrowRetryTime(new Date(2026, 9, 24, 23, 15));
   expect([tomorrow.getDate(), tomorrow.getHours(), tomorrow.getMinutes()]).toEqual([25, 9, 0]);
+});
+
+it("projects recovery prose without changing the retry contract", () => {
+  const original = tikTokRecovery("rate_limit_exceeded", true);
+  const localized = tikTokRecovery("rate_limit_exceeded", true, (source) => `DISPLAY: ${source}`);
+  expect(localized.title).toBe(`DISPLAY: ${original.title}`);
+  expect(localized.message).toBe(`DISPLAY: ${original.message}`);
+  expect(localized.instructions).toBe(`DISPLAY: ${original.instructions}`);
+  for (const key of ["code", "state", "automaticRetry", "canScheduleRetry", "actions", "tool"] as const) {
+    expect(localized[key]).toEqual(original[key]);
+  }
 });

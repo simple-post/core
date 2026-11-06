@@ -33,6 +33,8 @@ import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePaginatedPosts, type PaginationInfo, type PostsListType } from "@/hooks/use-posts";
 import { getAccountDisplayName } from "@/lib/config";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
 import type { SocialPost, ConnectedAccount } from "@/types";
@@ -46,32 +48,26 @@ interface PostsListProps {
   onPostDeleted?: () => void;
 }
 
-function formatDate(date: Date): string {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? "pm" : "am";
-  const displayHours = hours % 12 || 12;
-  const displayMinutes = minutes.toString().padStart(2, "0");
-
-  return `${months[date.getMonth()]} ${date.getDate()}, ${displayHours}:${displayMinutes} ${ampm}`;
+function formatDate(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(
+    date,
+  );
 }
-
-function formatTimeAgo(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60_000);
-  const diffHours = Math.floor(diffMs / 3_600_000);
-  const diffDays = Math.floor(diffMs / 86_400_000);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-  if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-  return formatDate(date);
+function formatTimeAgo(date: Date, locale: string, copy: SourceCopy): string {
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return copy("just now");
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
+  if (minutes < 60) return relative.format(-minutes, "minute");
+  const hours = Math.floor(diffMs / 3_600_000);
+  if (hours < 24) return relative.format(-hours, "hour");
+  const days = Math.floor(diffMs / 86_400_000);
+  if (days < 30) return relative.format(-days, "day");
+  return formatDate(date, locale);
 }
 
 export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange, onPostDeleted }: PostsListProps) {
+  const { copy, locale } = useUiCopy();
   const { data, isLoading: postsLoading, isFetching } = usePaginatedPosts(type, page, pageSize);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
@@ -88,12 +84,12 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
       <div className="border border-dashed border-border rounded-2xl p-12 text-center bg-card">
         <p className="text-sm text-muted-foreground">
           {type === "drafts"
-            ? "No drafts yet."
+            ? copy("No drafts yet.")
             : type === "scheduled"
-              ? "No scheduled posts yet."
+              ? copy("No scheduled posts yet.")
               : type === "failed"
-                ? "No failed posts."
-                : "No published posts yet."}
+                ? copy("No failed posts.")
+                : copy("No published posts yet.")}
         </p>
       </div>
     );
@@ -112,7 +108,7 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
 
       <div className="flex justify-end">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Show</span>
+          <span className="text-sm text-muted-foreground">{copy("Show")}</span>
           <Select
             value={String(pageSize)}
             onValueChange={(value) => {
@@ -124,9 +120,9 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="25">{new Intl.NumberFormat(locale).format(25)}</SelectItem>
+              <SelectItem value="50">{new Intl.NumberFormat(locale).format(50)}</SelectItem>
+              <SelectItem value="100">{new Intl.NumberFormat(locale).format(100)}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -148,6 +144,7 @@ function Pagination({
   onPageChange: (page: number) => void;
   isFetching: boolean;
 }) {
+  const { copy, locale } = useUiCopy();
   const { page, totalPages, total, hasNextPage, hasPreviousPage } = pagination;
 
   // Generate page numbers to show
@@ -207,7 +204,7 @@ function Pagination({
   return (
     <div className="flex items-center justify-between border-t border-border pt-4 mt-4">
       <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-        {total} {total === 1 ? "post" : "posts"} total
+        {copy("{{count, number}} posts total", { count: total })}{" "}
       </div>
 
       <div className="flex items-center gap-1">
@@ -215,9 +212,10 @@ function Pagination({
           variant="outline"
           size="sm"
           onClick={() => onPageChange(page - 1)}
+          aria-label={copy("Previous page")}
           disabled={!hasPreviousPage || isFetching}
           className="h-8 w-8 p-0">
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </Button>
 
         {pageNumbers.map((pageNum, idx) =>
@@ -227,13 +225,15 @@ function Pagination({
             </span>
           ) : (
             <Button
-              key={pageNum}
+              key={new Intl.NumberFormat(locale).format(pageNum)}
               variant={pageNum === page ? "default" : "outline"}
               size="sm"
               onClick={() => onPageChange(pageNum)}
+              aria-label={copy("Page {{page, number}}", { page: pageNum })}
+              aria-current={pageNum === page ? "page" : undefined}
               disabled={isFetching}
               className="h-8 w-8 p-0">
-              {pageNum}
+              {new Intl.NumberFormat(locale).format(pageNum)}
             </Button>
           ),
         )}
@@ -242,9 +242,10 @@ function Pagination({
           variant="outline"
           size="sm"
           onClick={() => onPageChange(page + 1)}
+          aria-label={copy("Next page")}
           disabled={!hasNextPage || isFetching}
           className="h-8 w-8 p-0">
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </Button>
       </div>
     </div>
@@ -260,6 +261,7 @@ function PostCard({
   accounts: ConnectedAccount[];
   onDeleted?: () => void;
 }) {
+  const { copy, locale } = useUiCopy();
   const readOnly = useWorkspaceReadOnly();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
@@ -287,12 +289,12 @@ function PostCard({
       }
     } catch (error) {
       logClientError(error, "Failed to delete post", { postId: post.id });
-      toast.error("Failed to delete post. Please try again.");
+      toast.error(copy("Failed to delete post. Please try again."));
     }
   };
 
   const handlePostNow = async () => {
-    const toastId = toast.loading("Posting draft...");
+    const toastId = toast.loading(copy("Posting draft..."));
 
     try {
       const data = await submitPostMutation.mutateAsync({
@@ -316,14 +318,14 @@ function PostCard({
 
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
       if (data.post?.status === "scheduled") {
-        toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.", { id: toastId });
+        toast.info(copy("Queued — waiting for TikTok's request limit. We'll retry automatically."), { id: toastId });
       } else if (allSucceeded) {
-        toast.success("Draft posted.", { id: toastId });
+        toast.success(copy("Draft posted."), { id: toastId });
       } else {
-        toast.error("Draft could not be posted to every account.", { id: toastId });
+        toast.error(copy("Draft could not be posted to every account."), { id: toastId });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to post draft.";
+      const message = error instanceof Error ? error.message : copy("Failed to post draft.");
       logClientError(error, "Failed to post draft", { postId: post.id });
       toast.error(message, { id: toastId });
     }
@@ -341,12 +343,12 @@ function PostCard({
           platforms={uniquePlatforms}
           dateLabel={
             isScheduled && post.scheduledFor
-              ? formatDate(post.scheduledFor)
+              ? formatDate(post.scheduledFor, locale)
               : isFailed
-                ? formatTimeAgo(post.scheduledFor || post.createdAt)
+                ? formatTimeAgo(post.scheduledFor || post.createdAt, locale, copy)
                 : isDraft
-                  ? `Saved ${formatTimeAgo(post.createdAt)}`
-                  : formatTimeAgo(post.publishedAt || post.createdAt)
+                  ? copy("Saved {{date}}", { date: formatTimeAgo(post.createdAt, locale, copy) })
+                  : formatTimeAgo(post.publishedAt || post.createdAt, locale, copy)
           }
           accountLabels={[
             ...postAccounts.slice(0, 2).map((account) => getAccountDisplayName(account)),
@@ -384,8 +386,8 @@ function PostCard({
                       }}
                       disabled={submitPostMutation.isPending}
                       className="cursor-pointer">
-                      <Send className="h-4 w-4 mr-2" />
-                      {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                      <Send className="h-4 w-4 me-2" />
+                      {submitPostMutation.isPending ? copy("Posting...") : copy("Post Now")}
                     </DropdownMenuItem>
                   )}
                   {(isScheduled || isDraft) && (
@@ -396,8 +398,8 @@ function PostCard({
                         setShowScheduleDialog(true);
                       }}
                       className="cursor-pointer">
-                      <CalendarClock className="h-4 w-4 mr-2" />
-                      {isScheduled ? "Reschedule" : "Schedule"}
+                      <CalendarClock className="h-4 w-4 me-2" />
+                      {isScheduled ? copy("Reschedule") : copy("Schedule")}
                     </DropdownMenuItem>
                   )}
                   {(isScheduled || isDraft || isFailed) && (
@@ -407,8 +409,8 @@ function PostCard({
                           e.stopPropagation();
                         }}
                         className="cursor-pointer">
-                        <Edit className="h-4 w-4 mr-2" />
-                        {isFailed ? "Edit and Retry" : "Edit"}
+                        <Edit className="h-4 w-4 me-2" />
+                        {isFailed ? copy("Edit and Retry") : copy("Edit")}
                       </DropdownMenuItem>
                     </Link>
                   )}
@@ -419,8 +421,8 @@ function PostCard({
                           e.stopPropagation();
                         }}
                         className="cursor-pointer">
-                        <Quote className="h-4 w-4 mr-2" />
-                        Quote
+                        <Quote className="h-4 w-4 me-2" />
+                        {copy("Quote")}{" "}
                       </DropdownMenuItem>
                     </Link>
                   )}
@@ -431,8 +433,8 @@ function PostCard({
                       setShowDeleteDialog(true);
                     }}
                     className="text-destructive focus:text-destructive cursor-pointer">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                    <Trash2 className="h-4 w-4 me-2" />
+                    {copy("Delete")}{" "}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -446,19 +448,28 @@ function PostCard({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogTitle>{copy("Delete Post?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this {isDraft ? "draft" : "post"}
-              {hasMedia ? " and all associated media files" : ""}. This action cannot be undone.
+              {isDraft
+                ? hasMedia
+                  ? copy(
+                      "This will permanently delete this draft and all associated media files. This action cannot be undone.",
+                    )
+                  : copy("This will permanently delete this draft. This action cannot be undone.")
+                : hasMedia
+                  ? copy(
+                      "This will permanently delete this post and all associated media files. This action cannot be undone.",
+                    )
+                  : copy("This will permanently delete this post. This action cannot be undone.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletePostMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePostMutation.isPending}>{copy("Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deletePostMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deletePostMutation.isPending ? "Deleting..." : "Delete"}
+              {deletePostMutation.isPending ? copy("Deleting...") : copy("Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -472,11 +483,14 @@ function PostCard({
 }
 
 function PostsListSkeleton() {
+  const { copy } = useUiCopy();
   return (
     <div className="border border-border rounded-2xl p-12 bg-card">
       <div className="flex flex-col items-center justify-center gap-3">
         <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Loading posts…</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+          {copy("Loading posts…")}
+        </p>
       </div>
     </div>
   );

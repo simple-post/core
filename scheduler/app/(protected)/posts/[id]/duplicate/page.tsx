@@ -8,9 +8,12 @@ import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
 import { PostForm } from "@/components/post-form";
 import { Button } from "@/components/ui/button";
+import { UiCopy } from "@/components/ui-copy";
 import { usePost } from "@/hooks/use-posts";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export default function DuplicatePostPage({ params }: { params: Promise<{ id: string }> }) {
+  const { copy } = useUiCopy();
   const { id } = use(params);
   const { data: post, isLoading } = usePost(id);
 
@@ -35,9 +38,9 @@ export default function DuplicatePostPage({ params }: { params: Promise<{ id: st
         <Navbar />
         <div className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold">Post not found</h1>
+            <h1 className="text-2xl font-semibold">{copy("Post not found")}</h1>
             <Link href="/">
-              <Button variant="outline">Back to dashboard</Button>
+              <Button variant="outline">{copy("Back to dashboard")}</Button>
             </Link>
           </div>
         </div>
@@ -51,10 +54,10 @@ export default function DuplicatePostPage({ params }: { params: Promise<{ id: st
         <Navbar />
         <div className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold">Cannot duplicate this post</h1>
-            <p className="text-muted-foreground text-sm">Only published posts can be duplicated.</p>
+            <h1 className="text-2xl font-semibold">{copy("Cannot duplicate this post")}</h1>
+            <p className="text-muted-foreground text-sm">{copy("Only published posts can be duplicated.")}</p>
             <Link href={`/posts/${id}`}>
-              <Button variant="outline">Back to post</Button>
+              <Button variant="outline">{copy("Back to post")}</Button>
             </Link>
           </div>
         </div>
@@ -68,15 +71,18 @@ export default function DuplicatePostPage({ params }: { params: Promise<{ id: st
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <div className="mb-6 space-y-3 animate-reveal">
-          <BackLink href={`/posts/${id}`} label="Back to post" />
+          <BackLink href={`/posts/${id}`} label={copy("Back to post")} />
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />
-              <span className="section-kicker-label">Duplicate</span>
+              <span className="section-kicker-label">{copy("Duplicate")}</span>
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              Create a <span className="text-primary">new post</span>
+              <UiCopy
+                source="Create a <part1>new post</part1>"
+                components={{ part1: <span className="text-primary" /> }}
+              />
             </h1>
           </div>
         </div>

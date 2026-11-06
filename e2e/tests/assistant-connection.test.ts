@@ -22,7 +22,12 @@ test.beforeAll(async () => {
       import Accounts from './app/(protected)/accounts/page';
       import ProtectedLayout from './app/(protected)/layout';
       import {QueryClientProvider} from './lib/query-client';
-      createRoot(document.getElementById('root')).render(<QueryClientProvider><ProtectedLayout><Accounts/></ProtectedLayout></QueryClientProvider>);
+      import {UiLocaleProvider} from './lib/i18n/client';
+      import arabic from './lib/i18n/messages/ar.json';
+      const locale = new URLSearchParams(location.search).get('locale') === 'ar' ? 'ar' : 'en';
+      document.documentElement.lang = locale;
+      document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
+      createRoot(document.getElementById('root')).render(<UiLocaleProvider locale={locale} messages={locale === 'ar' ? arabic : {}}><QueryClientProvider><ProtectedLayout><Accounts/></ProtectedLayout></QueryClientProvider></UiLocaleProvider>);
     `,
     },
     bundle: true,
@@ -142,4 +147,14 @@ test("AI-origin success stays on confirmation; ordinary connection keeps its pre
   await expect(page.getByRole("alert")).toContainText("say “connected”");
   await page.goto("https://handoff.test/accounts?success=true&platform=x");
   await expect(page.getByText("Account connected. Continue in your AI assistant.")).toHaveCount(0);
+});
+
+test("Arabic connection guidance keeps the exact provider and handoff token", async ({ page }) => {
+  await install(page, 403);
+  const prepared = page.waitForRequest("**/api/connect/handoff");
+  await page.goto("https://handoff.test/accounts?onboarding=connect&platform=x&handoffToken=fixture&locale=ar");
+  expect((await prepared).postDataJSON()).toEqual({ platform: "x", handoffToken: "fixture" });
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(page.getByText("سجّل الدخول بحساب SimplePost المرتبط بمساعد الذكاء الاصطناعي لديك.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "استخدم حساب SimplePost آخر" })).toBeVisible();
 });

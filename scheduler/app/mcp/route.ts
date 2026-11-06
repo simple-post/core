@@ -13,9 +13,12 @@ import { Feature } from "@prisma/client";
 import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { hasFeature } from "@/lib/features";
+import { localeFromRequestHeaders, type Locale } from "@/lib/i18n/locales";
+import { createServerCopy, displayError } from "@/lib/i18n/server";
 import { createLogger, serializeError } from "@/lib/logger";
 import { DEFAULT_MCP_SCOPE, getAppBaseUrl, getMcpResourceUrl } from "@/lib/mcp/config";
 import { EXTENSION_INSTRUCTIONS } from "@/lib/mcp/extensions/instructions";
+import { mcpRequestLocale, withMcpLocale } from "@/lib/mcp/locale";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { logReviewMcpExchange, shouldLogReviewMcpExchange } from "@/lib/mcp/review-logging";
 import {
@@ -68,6 +71,7 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
 
   return {
     readOnly,
+    uiLocale: await mcpRequestLocale(req, session.user.uiLocale),
     userId: session.user.id,
     userEmail: session.user.email,
     scope: session.session.scope,
@@ -91,14 +95,15 @@ function unauthorizedResponse(): Response {
   });
 }
 
-function paymentRequiredResponse(error: PaymentRequiredError): Response {
+function paymentRequiredResponse(error: PaymentRequiredError, locale: Locale): Response {
+  const copy = createServerCopy(locale);
   return new Response(
     JSON.stringify({
       error: "subscription_required",
-      message: error.message,
+      message: displayError(error, locale),
       code: error.code,
       retryable: false,
-      action: "Choose a plan in SimplePost before retrying this request.",
+      action: copy("Choose a plan in SimplePost before retrying this request."),
     }),
     {
       status: 402,
@@ -117,18 +122,19 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
       // Billing is an expected access decision, not an application failure.
       // Every rejection remains countable without flooding warning alerts.
       log.info(apiErrorLogPayload(error), "MCP billing gate denied");
-      return paymentRequiredResponse(error);
+      return paymentRequiredResponse(error, await mcpRequestLocale(req));
     }
     throw error;
   }
 }
 
-async function createMcpServer(authContext: McpToolAuthContext): Promise<McpServer> {
+async function createMcpServer(authContext: McpToolAuthContext, locale: Locale): Promise<McpServer> {
   const [imageFittingEnabled, pluginExtensionsEnabled] = await Promise.all([
     hasFeature(authContext.userId, Feature.IMAGE_FITTING),
     hasFeature(authContext.userId, Feature.PLUGIN_EXTENSIONS),
   ]);
   authContext = { ...authContext, imageFittingEnabled, pluginExtensionsEnabled };
+  const copy = createServerCopy(locale);
   const server = new McpServer(
     {
       name: "SimplePost",
@@ -136,24 +142,24 @@ async function createMcpServer(authContext: McpToolAuthContext): Promise<McpServ
     },
     {
       instructions:
-        SERVER_INSTRUCTIONS +
-        (pluginExtensionsEnabled ? "\n\n" + EXTENSION_INSTRUCTIONS : "") +
-        (authContext.imageFittingEnabled ? "\n\n" + IMAGE_FITTING_INSTRUCTIONS : ""),
+        copy(SERVER_INSTRUCTIONS) +
+        (pluginExtensionsEnabled ? "\n\n" + copy(EXTENSION_INSTRUCTIONS) : "") +
+        (authContext.imageFittingEnabled ? "\n\n" + copy(IMAGE_FITTING_INSTRUCTIONS) : ""),
     },
   );
-  registerTools(server, authContext);
+  await withMcpLocale(locale, () => registerTools(server, authContext));
   return server;
 }
 
 const SIMPLEPOST_AUTH_CONTEXT_KEY = "simplepostAuthContext";
 
 const mcpHandler = createMcpHandler(
-  async ({ authInfo }) => {
+  async ({ authInfo, requestInfo }) => {
     const authContext = authInfo?.extra?.[SIMPLEPOST_AUTH_CONTEXT_KEY] as McpToolAuthContext | undefined;
     if (!authContext) {
       throw new Error("Authenticated SimplePost context is missing");
     }
-    return createMcpServer(authContext);
+    return createMcpServer(authContext, authContext.uiLocale ?? localeFromRequestHeaders(requestInfo?.headers));
   },
   {
     legacy: "reject",
@@ -174,7 +180,7 @@ function toSdkAuthInfo(authContext: McpToolAuthContext): AuthInfo {
 }
 
 async function handleLegacyMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
-  const server = await createMcpServer(authContext);
+  const server = await createMcpServer(authContext, authContext.uiLocale ?? localeFromRequestHeaders(req.headers));
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

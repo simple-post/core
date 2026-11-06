@@ -1,5 +1,5 @@
 import { isWidgetName } from "@/lib/mcp/ui/runtime";
-import { WIDGET_ASSETS } from "@/lib/mcp/ui/widget-assets";
+import { WIDGET_ASSETS, WIDGET_LOCALE_ASSETS } from "@/lib/mcp/ui/widget-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -8,9 +8,14 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, { params }: { params: Promise<{ asset: string }> }) {
   const { asset } = await params;
   const match = /^(workspace|post-editor|schedule|post-preview)-[A-Z0-9]{8}\.(js|css)$/i.exec(asset);
-  if (!match || !isWidgetName(match[1])) return new Response("Widget asset not found.", { status: 404 });
-  const current = match[2] === "js" ? WIDGET_ASSETS[match[1]].script : WIDGET_ASSETS[match[1]].stylesheet;
-  if (current === asset) return new Response("Widget asset not found.", { status: 404 });
+  const locale = /^locale-(.+)-[A-Z0-9]{8}\.js$/.exec(asset)?.[1];
+  let current: string | undefined;
+  if (match && isWidgetName(match[1])) {
+    current = match[2] === "js" ? WIDGET_ASSETS[match[1]].script : WIDGET_ASSETS[match[1]].stylesheet;
+  } else if (locale && Object.hasOwn(WIDGET_LOCALE_ASSETS, locale)) {
+    current = WIDGET_LOCALE_ASSETS[locale as keyof typeof WIDGET_LOCALE_ASSETS];
+  }
+  if (!current || current === asset) return new Response("Widget asset not found.", { status: 404 });
   return new Response(null, {
     status: 307,
     headers: {

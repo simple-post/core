@@ -212,3 +212,29 @@ describe("Create Post WebMCP tools", () => {
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
 });
+
+it("keeps localized WebMCP instances isolated and sends untouched post text with the selected locale", async () => {
+  const fetchMock = jest
+    .fn()
+    .mockImplementation(async (url: string) =>
+      Response.json(url === "/api/v1/accounts" ? { accounts: connected } : saved),
+    );
+  const localized = createPostTools({
+    fetch: fetchMock,
+    onCreated: jest.fn(),
+    locale: "ar",
+    copy: (text) => `localized:${text}`,
+  });
+  const original = createPostTools({ fetch: fetchMock, onCreated: jest.fn() });
+  expect(localized.map((tool) => tool.name)).toEqual(original.map((tool) => tool.name));
+  expect(localized.map((tool) => tool.annotations)).toEqual(original.map((tool) => tool.annotations));
+  expect(localized[2].title).toBe(`localized:${original[2].title}`);
+  const message = "User text العربية 日本語 <b>unchanged</b>";
+  await localized[2].execute({ ...input, message });
+  const call = fetchMock.mock.calls.find(([url]) => url === "/api/v1/posts");
+  expect(call).toBeDefined();
+  expect(JSON.parse(call![1].body).message).toBe(message);
+  expect(call![1].headers["Accept-Language"]).toBe("ar");
+  await expect(localized[2].execute({ ...input, accountIds: [] })).rejects.toThrow("localized:");
+  await expect(original[2].execute({ ...input, accountIds: [] })).rejects.not.toThrow("localized:");
+});

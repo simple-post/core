@@ -1,4 +1,6 @@
 "use client";
+
+import { useUiTranslation } from "@/lib/i18n/client";
 import { useId, useRef } from "react";
 
 import { PostPreview, type PostPreviewData } from "@simple-post/preview-react";
@@ -26,6 +28,7 @@ export function PreviewSwitcher({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const { locale, t } = useUiTranslation();
   const id = useId();
   const tabs = useRef<HTMLDivElement>(null);
   const activeIndex = Math.max(
@@ -39,7 +42,7 @@ export function PreviewSwitcher({
         ref={tabs}
         className="platform-switcher"
         role="tablist"
-        aria-label="Preview platform"
+        aria-label={t("previewPlatform")}
         onKeyDown={(event) => {
           if (items.length === 0) return;
           let index: number;
@@ -79,7 +82,9 @@ export function PreviewSwitcher({
             data-platform={item.platform}
             aria-selected={index === activeIndex}
             aria-controls={`${id}-panel`}
-            aria-label={item.accessibleLabel ?? `Preview ${item.platformLabel} for ${item.accountLabel}`}
+            aria-label={
+              item.accessibleLabel ?? t("previewAccount", { platform: item.platformLabel, account: item.accountLabel })
+            }
             data-testid={`preview-platform-${item.platform}`}
             title={`${item.platformLabel} · ${item.accountLabel}`}
             tabIndex={index === activeIndex ? 0 : -1}
@@ -96,10 +101,10 @@ export function PreviewSwitcher({
         aria-labelledby={active ? `${id}-tab-${activeIndex}` : undefined}>
         {active?.data ? (
           <div data-testid={`platform-preview-${active.platform}`}>
-            <PostPreview key={active.id} data={active.data} />
+            <PostPreview key={active.id} data={{ ...active.data, locale }} />
           </div>
         ) : (
-          <p className="preview-empty">Select destinations to see your post on each platform.</p>
+          <p className="preview-empty">{t("selectDestinations")}</p>
         )}
       </div>
     </div>

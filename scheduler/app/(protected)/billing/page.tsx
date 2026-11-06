@@ -14,11 +14,16 @@ import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { UiCopy } from "@/components/ui-copy";
 import { useAccounts } from "@/hooks/use-accounts";
 import { trackOnce } from "@/lib/analytics/plausible";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
 import { getPlatformName } from "@/lib/config";
+import { planName, subscriptionStatusLabel } from "@/lib/i18n/billing-display";
+import type { Locale } from "@/lib/i18n/locales";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 interface BillingPlan {
   key: PlanKey;
@@ -72,18 +77,20 @@ interface BillingStatus {
   selfHosted?: boolean;
 }
 
-async function parseApiError(response: Response): Promise<string> {
+async function parseApiError(response: Response, copy: SourceCopy): Promise<string> {
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-  return data.error || data.message || `Request failed with status ${response.status}`;
+  return (
+    data.error || data.message || copy("Request failed with status {{status, number}}", { status: response.status })
+  );
 }
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "Not available";
-  return new Date(value).toLocaleDateString(undefined, {
+function formatDate(value: string | null, locale: Locale, copy: SourceCopy) {
+  if (!value) return copy("Not available");
+  return new Date(value).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -97,12 +104,13 @@ function usagePercent(value: number, limit: number | null) {
 
 /** A labelled usage bar. Every row in the usage grid uses this so they align. */
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  const { copy, locale } = useUiCopy();
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3 text-sm">
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground">
-          {used.toLocaleString()} / {limit === null ? "Unlimited" : limit.toLocaleString()}
+          {used.toLocaleString(locale)} / {limit === null ? copy("Unlimited") : limit.toLocaleString(locale)}
         </span>
       </div>
       <Progress value={usagePercent(used, limit)} />
@@ -111,6 +119,7 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
 }
 
 export default function BillingPage() {
+  const { copy, locale } = useUiCopy();
   const searchParams = useSearchParams();
   const checkout = searchParams.get("checkout");
   const checkoutSessionId = searchParams.get("session_id");
@@ -123,26 +132,29 @@ export default function BillingPage() {
   const loadBillingStatus = useCallback(async (): Promise<BillingStatus> => {
     const response = await fetch("/api/billing/subscription", { cache: "no-store" });
     if (!response.ok) {
-      throw new Error(await parseApiError(response));
+      throw new Error(await parseApiError(response, copy));
     }
     return (await response.json()) as BillingStatus;
-  }, []);
+  }, [copy]);
 
-  const finalizeCheckoutSession = useCallback(async (sessionId: string): Promise<BillingStatus> => {
-    const response = await fetch("/api/billing/finalize-checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
-    });
-    if (!response.ok) {
-      throw new Error(await parseApiError(response));
-    }
-    const result = (await response.json()) as BillingStatus & { analyticsConversion?: { plan: string } | null };
-    if (result.analyticsConversion) {
-      trackOnce(`paid:${sessionId}`, "Paid Subscription", result.analyticsConversion, true);
-    }
-    return result;
-  }, []);
+  const finalizeCheckoutSession = useCallback(
+    async (sessionId: string): Promise<BillingStatus> => {
+      const response = await fetch("/api/billing/finalize-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      if (!response.ok) {
+        throw new Error(await parseApiError(response, copy));
+      }
+      const result = (await response.json()) as BillingStatus & { analyticsConversion?: { plan: string } | null };
+      if (result.analyticsConversion) {
+        trackOnce(`paid:${sessionId}`, "Paid Subscription", result.analyticsConversion, true);
+      }
+      return result;
+    },
+    [copy],
+  );
 
   const fetchBilling = useCallback(async () => {
     setLoading(true);
@@ -150,11 +162,11 @@ export default function BillingPage() {
       setBilling(await loadBillingStatus());
     } catch (error) {
       console.error("Failed to load billing:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to load billing");
+      toast.error(error instanceof Error ? error.message : copy("Failed to load billing"));
     } finally {
       setLoading(false);
     }
-  }, [loadBillingStatus]);
+  }, [loadBillingStatus, copy]);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +202,7 @@ export default function BillingPage() {
         }
       } catch (error) {
         console.error("Failed to load billing:", error);
-        toast.error(error instanceof Error ? error.message : "Failed to load billing");
+        toast.error(error instanceof Error ? error.message : copy("Failed to load billing"));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -204,7 +216,7 @@ export default function BillingPage() {
     return () => {
       cancelled = true;
     };
-  }, [checkout, checkoutSessionId, finalizeCheckoutSession, loadBillingStatus]);
+  }, [checkout, checkoutSessionId, finalizeCheckoutSession, loadBillingStatus, copy]);
 
   const openPortal = async (purpose: "manage" | "invoices") => {
     setPortalLoading(purpose);
@@ -215,18 +227,18 @@ export default function BillingPage() {
         body: JSON.stringify({ purpose }),
       });
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw new Error(await parseApiError(response, copy));
       }
 
       const data = (await response.json()) as { url?: string };
       if (!data.url) {
-        throw new Error("Stripe did not return a portal URL");
+        throw new Error(copy("Stripe did not return a portal URL"));
       }
 
       window.location.href = data.url;
     } catch (error) {
       console.error("Failed to open Stripe portal:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to open Stripe portal");
+      toast.error(error instanceof Error ? error.message : copy("Failed to open Stripe portal"));
       setPortalLoading(null);
     }
   };
@@ -254,12 +266,12 @@ export default function BillingPage() {
         <Navbar />
         <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-xl flex-col items-center justify-center px-6 text-center">
           <div className="rounded-2xl border border-border bg-card p-6">
-            <h1 className="text-lg font-semibold tracking-[-0.025em]">Billing is disabled</h1>
+            <h1 className="text-lg font-semibold tracking-[-0.025em]">{copy("Billing is disabled")}</h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              This instance runs in self-hosted mode, so there is no subscription to manage.
+              {copy("This instance runs in self-hosted mode, so there is no subscription to manage.")}{" "}
             </p>
             <Button asChild className="mt-5">
-              <Link href="/">Back to the app</Link>
+              <Link href="/">{copy("Back to the app")}</Link>
             </Button>
           </div>
         </main>
@@ -276,12 +288,15 @@ export default function BillingPage() {
             <div className="flex items-center gap-3">
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
-                <span className="section-kicker-label">Subscription</span>
+                <span className="section-kicker-label">{copy("Subscription")}</span>
               </div>
               <span className="h-3 w-px bg-border" />
-              <HelpLink path="/billing">Plans, allowances, and expiry</HelpLink>
+              <HelpLink path="/billing">{copy("Plans, allowances, and expiry")}</HelpLink>
               <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-                Plan and <span className="text-primary">billing</span>
+                <UiCopy
+                  source="Plan and <part1>billing</part1>"
+                  components={{ part1: <span className="text-primary" /> }}
+                />
               </h1>
             </div>
             <Button
@@ -292,7 +307,7 @@ export default function BillingPage() {
               disabled={loading}
               className="gap-2">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">{copy("Refresh")}</span>
             </Button>
           </div>
         </div>
@@ -303,8 +318,8 @@ export default function BillingPage() {
               <div className="flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <div>
-                  <h2 className="text-lg font-semibold tracking-[-0.025em]">Finishing setup</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Your plan will be ready in a moment.</p>
+                  <h2 className="text-lg font-semibold tracking-[-0.025em]">{copy("Finishing setup")}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">{copy("Your plan will be ready in a moment.")}</p>
                 </div>
               </div>
             </div>
@@ -319,10 +334,13 @@ export default function BillingPage() {
           <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
             <PlanSelection
               embedded
-              title={trial ? "Your free trial has ended" : "Choose a plan to use SimplePost"}
+              title={trial ? copy("Your free trial has ended") : copy("Choose a plan to use SimplePost")}
               description={
                 trial
-                  ? `Your trial ran out on ${formatDate(trial.expiresAt)}. Your posts and connected accounts are still here. Pick a plan to start scheduling again.`
+                  ? copy(
+                      "Your trial ran out on {{date}}. Your posts and connected accounts are still here. Pick a plan to start scheduling again.",
+                      { date: formatDate(trial.expiresAt, locale, copy) },
+                    )
                   : undefined
               }
               displayCurrency={displayCurrency}
@@ -336,47 +354,52 @@ export default function BillingPage() {
                   <div className="section-kicker">
                     <span className="section-kicker-dot" />
                     <span className="section-kicker-label">
-                      {isTrial ? "Free trial" : isComplimentary ? "Complimentary access" : "Current plan"}
+                      {isTrial
+                        ? copy("Free trial")
+                        : isComplimentary
+                          ? copy("Complimentary access")
+                          : copy("Current plan")}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    {/* The kicker above already says "Free trial", so name the
+                    {/* The kicker above already says copy("Free trial"), so name the
                         benefit here instead of repeating it. */}
                     <h2 className="text-2xl font-semibold tracking-[-0.025em]">
-                      {isTrial ? "All features unlocked" : plan.name}
+                      {isTrial ? copy("All features unlocked") : planName(plan.name, copy)}
                     </h2>
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       {isTrial
                         ? trial && trial.daysRemaining <= 1
-                          ? "Ends today"
-                          : `${trial?.daysRemaining ?? 0} days left`
+                          ? copy("Ends today")
+                          : copy("{{count}} days left", { count: trial?.daysRemaining ?? 0 })
                         : isComplimentary
-                          ? "Complimentary"
-                          : (billing.subscription?.status ?? "active")}
+                          ? copy("Complimentary")
+                          : subscriptionStatusLabel(billing.subscription?.status ?? "active", copy)}
                     </Badge>
                     {!isTrial && !isComplimentary && billing.subscription?.cancelAtPeriodEnd ? (
                       <Badge variant="outline" className="border-destructive/50 text-destructive">
-                        Cancels at period end
+                        {copy("Cancels at period end")}{" "}
                       </Badge>
                     ) : null}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {isTrial ? (
-                      <>
-                        Every feature is unlocked through {formatDate(trial?.expiresAt ?? null)}, with{" "}
-                        {trial?.postsPerPlatform} posts per platform. No credit card required.
-                      </>
-                    ) : isComplimentary ? (
-                      <>
-                        Your {plan.name} plan is complimentary through{" "}
-                        {formatDate(billing.complimentaryAccess?.expiresAt ?? null)}. No payment method is required.
-                      </>
-                    ) : (
-                      <>
-                        {getBillingPlanPrice(plan, displayCurrency)} / month · Current period ends{" "}
-                        {formatDate(billing.subscription?.currentPeriodEnd ?? null)}
-                      </>
-                    )}
+                    {isTrial
+                      ? copy(
+                          "Every feature is unlocked through {{date}}, with {{count}} posts per platform. No credit card required.",
+                          {
+                            date: formatDate(trial?.expiresAt ?? null, locale, copy),
+                            count: trial?.postsPerPlatform ?? 0,
+                          },
+                        )
+                      : isComplimentary
+                        ? copy("Your {{plan}} plan is complimentary through {{date}}. No payment method is required.", {
+                            plan: planName(plan.name, copy),
+                            date: formatDate(billing.complimentaryAccess?.expiresAt ?? null, locale, copy),
+                          })
+                        : copy("{{price}} / month · Current period ends {{date}}", {
+                            price: getBillingPlanPrice(plan, displayCurrency),
+                            date: formatDate(billing.subscription?.currentPeriodEnd ?? null, locale, copy),
+                          })}
                   </p>
                 </div>
 
@@ -387,24 +410,30 @@ export default function BillingPage() {
                     <>
                       <Button asChild className="gap-2">
                         <a href="#plans">
-                          <CreditCard className="h-4 w-4" />
-                          Choose a plan
+                          <UiCopy
+                            source="<part1></part1>Choose a plan"
+                            components={{ part1: <CreditCard className="h-4 w-4" /> }}
+                          />
                         </a>
                       </Button>
                       <p className="max-w-56 text-xs leading-5 text-muted-foreground">
-                        Subscribing lifts the trial limits right away.
+                        {copy("Subscribing lifts the trial limits right away.")}{" "}
                       </p>
                     </>
                   ) : isComplimentary ? (
                     <>
                       <Button asChild className="gap-2">
                         <Link href="/subscribe">
-                          <CreditCard className="h-4 w-4" />
-                          Start a paid subscription
+                          <UiCopy
+                            source="<part1></part1>Start a paid subscription"
+                            components={{ part1: <CreditCard className="h-4 w-4" /> }}
+                          />
                         </Link>
                       </Button>
                       <p className="max-w-56 text-xs leading-5 text-muted-foreground">
-                        Optional. Your complimentary access stays active until you subscribe or it expires.
+                        {copy(
+                          "Optional. Your complimentary access stays active until you subscribe or it expires.",
+                        )}{" "}
                       </p>
                     </>
                   ) : (
@@ -413,8 +442,10 @@ export default function BillingPage() {
                     <div className="flex w-56 flex-col gap-2">
                       <Button asChild className="justify-start gap-2">
                         <Link href="/billing/plans">
-                          <ArrowLeftRight className="h-4 w-4" />
-                          Change plan
+                          <UiCopy
+                            source="<part1></part1>Change plan"
+                            components={{ part1: <ArrowLeftRight className="h-4 w-4" /> }}
+                          />
                         </Link>
                       </Button>
                       <Button
@@ -428,7 +459,7 @@ export default function BillingPage() {
                         ) : (
                           <ExternalLink className="h-4 w-4" />
                         )}
-                        <span>{portalLoading === "manage" ? "Opening..." : "Manage subscription"}</span>
+                        <span>{portalLoading === "manage" ? copy("Opening...") : copy("Manage subscription")}</span>
                       </Button>
                       <Button
                         type="button"
@@ -441,7 +472,7 @@ export default function BillingPage() {
                         ) : (
                           <FileText className="h-4 w-4" />
                         )}
-                        <span>{portalLoading === "invoices" ? "Opening..." : "Invoices"}</span>
+                        <span>{portalLoading === "invoices" ? copy("Opening...") : copy("Invoices")}</span>
                       </Button>
                     </div>
                   )}
@@ -452,28 +483,38 @@ export default function BillingPage() {
             <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-2">
               <div className="section-kicker">
                 <span className="section-kicker-dot" />
-                <span className="section-kicker-label">Usage</span>
+                <span className="section-kicker-label">{copy("Usage")}</span>
               </div>
               {/* One meter shape for every row, so labels and bars line up across
                   the columns no matter how many platforms are listed. */}
               <div className="grid gap-5 sm:grid-cols-2">
-                <UsageMeter label="Social accounts" used={billing.usage.connectedAccounts} limit={accountLimit} />
+                <UsageMeter
+                  label={copy("Social accounts")}
+                  used={billing.usage.connectedAccounts}
+                  limit={accountLimit}
+                />
                 {isTrial && trial ? (
                   connectedPlatforms.map((platform) => (
                     <UsageMeter
                       key={platform}
-                      label={`${getPlatformName(platform)} posts`}
+                      label={copy("{{platform}} posts", { platform: getPlatformName(platform) })}
                       used={trial.platformUsage[platform] ?? 0}
                       limit={trial.postsPerPlatform}
                     />
                   ))
                 ) : (
-                  <UsageMeter label="Posts this period" used={billing.usage.postsThisPeriod} limit={postLimit} />
+                  <UsageMeter
+                    label={copy("Posts this period")}
+                    used={billing.usage.postsThisPeriod}
+                    limit={postLimit}
+                  />
                 )}
               </div>
               {isTrial && connectedPlatforms.length === 0 ? (
                 <p className="mt-4 text-sm text-muted-foreground">
-                  Connect a social account to start using your {trial?.postsPerPlatform} posts per platform.
+                  {copy("Connect a social account to start using your {{count}} posts per platform.", {
+                    count: trial?.postsPerPlatform ?? 0,
+                  })}
                 </p>
               ) : null}
             </section>
@@ -484,8 +525,10 @@ export default function BillingPage() {
                 className="scroll-mt-20 rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-2">
                 <PlanSelection
                   embedded
-                  title="Choose the plan that fits"
-                  description="Upgrade whenever you are ready. Your paid plan starts immediately and everything you connected during the trial stays in place."
+                  title={copy("Choose the plan that fits")}
+                  description={copy(
+                    "Upgrade whenever you are ready. Your paid plan starts immediately and everything you connected during the trial stays in place.",
+                  )}
                   displayCurrency={displayCurrency}
                 />
               </section>

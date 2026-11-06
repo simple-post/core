@@ -7,6 +7,7 @@ import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getStripe } from "@/lib/billing/stripe";
 import { getBillingErrorLogContext, getBillingStatus, syncStripeSubscription } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { BadRequestError, NotFoundError, PaymentRequiredError, handleApiError } from "@/lib/utils/errors";
 
@@ -27,25 +28,25 @@ async function readJsonBody(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     if (env.SELF_HOSTED) {
-      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+      throw new NotFoundError(serverMessage("Billing is disabled on this self-hosted instance"));
     }
 
     const session = await requireBrowserSession(req);
     const parsed = changePlanSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {
-      throw new BadRequestError("Choose a valid plan");
+      throw new BadRequestError(serverMessage("Choose a valid plan"));
     }
 
     const plan = getPlanByKey(parsed.data.planKey);
     if (!plan) {
-      throw new BadRequestError("Unknown plan");
+      throw new BadRequestError(serverMessage("Unknown plan"));
     }
 
     const billing = await getBillingStatus(session.user.id);
     const subscriptionId = billing.subscription?.stripeSubscriptionId;
     if (!billing.active || !subscriptionId) {
       throw new PaymentRequiredError(
-        "An active subscription is required to change plans",
+        serverMessage("An active subscription is required to change plans"),
         await getBillingErrorLogContext(session.user.id, { action: "change_paid_plan" }),
       );
     }
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     });
     const subscriptionItem = stripeSubscription.items.data[0];
     if (!subscriptionItem) {
-      throw new BadRequestError("Subscription has no billable item");
+      throw new BadRequestError(serverMessage("Subscription has no billable item"));
     }
 
     const updatedSubscription = await stripe.subscriptions.update(subscriptionId, {

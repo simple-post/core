@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth, requireReadAuth } from "@/lib/middleware/auth";
 import type { PostingResultCallback } from "@/lib/posting";
 import { createPostingProgressStream, wantsPostingProgress } from "@/lib/posting/progress-stream";
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const post = await repository.getPostById(id);
     if (!post) {
-      throw new NotFoundError("Post not found");
+      throw new NotFoundError(serverMessage("Post not found"));
     }
 
     return NextResponse.json({ post });
@@ -60,7 +61,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // Get the post to delete its media from R2
     const post = await repository.getPostById(id);
     if (!post) {
-      throw new NotFoundError("Post not found");
+      throw new NotFoundError(serverMessage("Post not found"));
     }
 
     await assertNoUnresolvedQuotes(session.user.id, id);

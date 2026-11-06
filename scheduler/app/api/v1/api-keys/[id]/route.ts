@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { assertPlanFeature } from "@/lib/billing/subscriptions";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, handleApiError, NotFoundError } from "@/lib/utils/errors";
@@ -34,11 +35,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const apiKey = await prisma.apiKey.findUnique({ where: { id } });
 
     if (!apiKey) {
-      throw new NotFoundError("API key not found");
+      throw new NotFoundError(serverMessage("API key not found"));
     }
 
     if (apiKey.userId !== session.user.id) {
-      throw new ForbiddenError("You don't have permission to modify this API key");
+      throw new ForbiddenError(serverMessage("You don't have permission to modify this API key"));
     }
 
     if (apiKey.revokedAt) {

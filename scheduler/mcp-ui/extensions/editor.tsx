@@ -9,6 +9,8 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { MessageComposer } from "../../components/visual/message-composer";
+import { useUiTranslation } from "../../lib/i18n/client";
+import { useUiCopy } from "../../lib/i18n/use-ui-copy";
 import { PreviewSwitcher } from "../preview-switcher";
 
 import { AccountIdentity, platformName } from "./account-identity";
@@ -16,19 +18,36 @@ import { askChat, attachSelection, callTool, keepEditorHint, restoreEditorHint }
 import { localDateTime } from "./timezone";
 
 import type { EditorContent, EditorData, Validation, WorkspaceData } from "./types";
+import type { MessageKey, MessageValues } from "../../lib/i18n/translate";
 import type { App } from "@modelcontextprotocol/ext-apps";
 
 function fingerprint(value: unknown) {
   return JSON.stringify(value);
 }
-const proposalFieldLabels: Record<string, string> = {
+const proposalFieldLabels: Record<string, MessageKey> = {
   accountIds: "destinations",
   media: "attachments",
-  thread: "thread replies",
-  accountOptions: "publishing options",
-  quotePostId: "quoted post",
-  plannedSchedule: "planned publishing time",
+  thread: "threadReplies",
+  accountOptions: "publishOptions",
+  quotePostId: "quotedPost",
+  plannedSchedule: "plannedPublishingTime",
 };
+const youtubeAudience = {
+  private: "audiencePrivate",
+  unlisted: "audienceUnlisted",
+  public: "audiencePublic",
+} satisfies Record<string, MessageKey>;
+
+type EditorNotice = string | { key: MessageKey; values?: MessageValues };
+class EditorNoticeError extends Error {
+  constructor(readonly key: MessageKey) {
+    super(key);
+  }
+}
+function noticeFor(error: unknown): EditorNotice {
+  if (error instanceof EditorNoticeError) return { key: error.key };
+  return error instanceof Error ? error.message : String(error);
+}
 type Proposal = { patch: Partial<EditorContent>; explanation: string; revision: number };
 export function mergeProposal(content: EditorContent, patch: Partial<EditorContent>): EditorContent {
   return {
@@ -80,6 +99,8 @@ export function Editor({
   onClose: () => void;
   onCommitted: (editor: EditorData) => void;
 }) {
+  const { t, locale } = useUiTranslation();
+  const { copy } = useUiCopy();
   const hint = restoreEditorHint();
   const recoverLocal = hint?.sessionId === initial.sessionId && hint.content;
   const [content, setContent] = useState<EditorContent>(() => {
@@ -97,10 +118,8 @@ export function Editor({
   const timeZone = content.plannedSchedule?.timeZone ?? preferenceTimeZone;
   const [session, setSession] = useState(initial);
   const [activeAccount, setActiveAccount] = useState<string | null>(null);
-  const [notice, setNotice] = useState(
-    recoverLocal && hint.revision !== initial.revision
-      ? "This working copy changed while the editor was closed. Your local edits are shown for comparison; saving is paused."
-      : "",
+  const [notice, setNotice] = useState<EditorNotice>(
+    recoverLocal && hint.revision !== initial.revision ? { key: "editorConflictReopened" } : "",
   );
   const [conflicted, setConflicted] = useState(!!recoverLocal && hint.revision !== initial.revision);
   const conflictRef = useRef(conflicted);
@@ -188,8 +207,7 @@ export function Editor({
     const next = queue.current
       .catch(() => liveSession.current)
       .then(async () => {
-        if (conflictRef.current)
-          throw new Error("Your local edits are preserved. Compare with the recovered server copy before saving.");
+        if (conflictRef.current) throw new EditorNoticeError("editorConflictSave");
         const snapshot = liveContent.current;
         if (fingerprint(snapshot) === stored.current) return liveSession.current;
         if (mounted.current) setSyncing(true);
@@ -217,7 +235,7 @@ export function Editor({
     try {
       await action();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error));
+      setNotice(noticeFor(error));
     } finally {
       if (mounted.current) setWorking(false);
     }
@@ -238,7 +256,11 @@ export function Editor({
       if (statusEditable)
         void flush().catch((error: Error) => {
           if (mounted.current)
-            setNotice(`Your changes are still here. Working copy could not be saved: ${error.message}`);
+            setNotice(
+              error instanceof EditorNoticeError
+                ? noticeFor(error)
+                : { key: "editorAutosaveFailed", values: { error: error.message } },
+            );
         });
     }, 700);
     return () => window.clearTimeout(timer);
@@ -255,7 +277,7 @@ export function Editor({
     const timer = window.setTimeout(() => {
       void flush()
         .then((editor) => attachSelection(app, selection(editor)))
-        .catch((error: Error) => setNotice(error.message));
+        .catch((error: Error) => setNotice(noticeFor(error)));
     }, 850);
     return () => window.clearTimeout(timer);
   }, [content, contextActive, app, flush, selection]);
@@ -286,7 +308,7 @@ export function Editor({
             setContent(next.content);
           } else {
             setConflicted(true);
-            setNotice("This working copy changed in another view. Your local edits are safe; compare before saving.");
+            setNotice({ key: "editorConflictOtherView" });
           }
         })
         .catch(() => {
@@ -319,15 +341,16 @@ export function Editor({
     setReview(null);
     setValidation(null);
     keepEditorHint({ sessionId: response.editor.sessionId, revision: response.editor.revision });
-    setNotice(
-      mode === "draft"
-        ? "Draft saved. Nothing will be published."
-        : mode === "schedule"
-          ? "Post scheduled."
-          : response.editor.status === "published"
-            ? "Published to all destinations."
-            : "Some destinations did not publish. Review the results before retrying.",
-    );
+    setNotice({
+      key:
+        mode === "draft"
+          ? "editorDraftSaved"
+          : mode === "schedule"
+            ? "editorScheduled"
+            : response.editor.status === "published"
+              ? "editorAllPublished"
+              : "editorSomeFailed",
+    });
     onCommitted(response.editor);
   }
   const options = activeAccount ? (content.accountOptions[activeAccount] ?? {}) : {};
@@ -339,18 +362,18 @@ export function Editor({
       });
   }
   return (
-    <section className="sp-editor" aria-label="Post editor">
+    <section className="sp-editor" aria-label={t("postEditor")}>
       <header className="sp-editor-header">
         <div>
-          <h1 className="sp-kicker">{session.postId ? "Edit post" : "New draft"}</h1>
+          <h1 className="sp-kicker">{session.postId ? t("editPost") : t("newDraft")}</h1>
           <span aria-live="polite">
             {syncing
-              ? "Keeping working copy…"
+              ? t("keepingCopy")
               : dirty
-                ? "Unsaved changes"
+                ? t("unsavedChanges")
                 : session.status === "new"
-                  ? "Working copy saved · draft not saved yet"
-                  : "Working copy saved"}
+                  ? t("copySavedDraftNot")
+                  : t("workingCopySaved")}
           </span>
         </div>
         <Button
@@ -365,12 +388,12 @@ export function Editor({
               onClose();
             })
           }>
-          <ArrowLeft size={14} /> Back to workspace
+          <ArrowLeft size={14} /> {t("backWorkspace")}
         </Button>
       </header>
       {notice ? (
         <div role="status" className="sp-notice">
-          {notice}
+          {typeof notice === "string" ? notice : t(notice.key, notice.values)}
         </div>
       ) : null}
       {conflicted ? (
@@ -386,49 +409,48 @@ export function Editor({
             link.click();
             URL.revokeObjectURL(url);
           }}>
-          Download preserved local edits
+          {t("downloadLocalEdits")}
         </Button>
       ) : null}
-      {canValidate ? null : (
-        <div className="sp-notice">
-          Reconnect SimplePost with permission to validate posts before saving or publishing from the editor.
-        </div>
-      )}
+      {canValidate ? null : <div className="sp-notice">{t("editorValidationPermission")}</div>}
       {session.committing ? (
         <div className="sp-notice" role="alert">
-          A save or publish is being processed. Refresh to check its outcome. If this remains locked, inspect the saved
-          post in SimplePost before opening a fresh working copy.
+          {t("editorCommitBusy")}
         </div>
       ) : null}
       {session.remotelyChanged ? (
         <div className="sp-notice" role="alert">
-          The saved post has changed. Your working copy is safe. Open a fresh editor from the saved post to compare
-          before saving.
+          {t("editorRemoteChanged")}
         </div>
       ) : null}
       {proposal ? (
         <section className="sp-proposal">
-          <h2>Proposed writing changes</h2>
+          <h2>{t("proposedChanges")}</h2>
           <p>{proposal.explanation}</p>
           <details open>
-            <summary>Review changes</summary>
+            <summary>{t("reviewChanges")}</summary>
             {proposal.patch.message === undefined ? null : (
               <div className="sp-diff">
                 <div>
-                  <strong>Current shared text</strong>
-                  <pre>{content.message}</pre>
+                  <strong>{t("currentShared")}</strong>
+                  <pre dir="auto">{content.message}</pre>
                 </div>
                 <div>
-                  <strong>Proposed shared text</strong>
-                  <pre>{proposal.patch.message}</pre>
+                  <strong>{t("proposedShared")}</strong>
+                  <pre dir="auto">{proposal.patch.message}</pre>
                 </div>
               </div>
             )}
             {Object.entries(proposal.patch.accountOverrides ?? {}).map(([id, proposed]) => (
               <div className="sp-diff" key={id}>
                 <div>
-                  <strong>{accounts.find((a) => a.accountId === id)?.platform ?? "Destination"} · current</strong>
-                  <pre>
+                  <strong>
+                    {t("currentDestination", {
+                      destination:
+                        platformName(accounts.find((a) => a.accountId === id)?.platform ?? "") || t("destination"),
+                    })}
+                  </strong>
+                  <pre dir="auto">
                     {content.accountOverrides[id]?.message ?? content.message}
                     {(content.accountOverrides[id]?.thread ?? content.thread)
                       .map((part) => `\n\n${part.message}`)
@@ -436,8 +458,8 @@ export function Editor({
                   </pre>
                 </div>
                 <div>
-                  <strong>Proposed</strong>
-                  <pre>
+                  <strong>{t("proposed")}</strong>
+                  <pre dir="auto">
                     {proposed.message ?? content.accountOverrides[id]?.message ?? content.message}
                     {(proposed.thread ?? content.accountOverrides[id]?.thread ?? content.thread)
                       .map((part) => `\n\n${part.message}`)
@@ -448,12 +470,13 @@ export function Editor({
             ))}
             {Object.keys(proposal.patch).some((key) => !["message", "accountOverrides"].includes(key)) ? (
               <p>
-                This proposal also changes:{" "}
-                {Object.keys(proposal.patch)
-                  .filter((key) => !["message", "accountOverrides"].includes(key))
-                  .map((key) => proposalFieldLabels[key])
-                  .join(", ")}
-                . Preview the working copy after applying, before saving.
+                {t("proposalOtherChanges", {
+                  fields: new Intl.ListFormat(locale).format(
+                    Object.keys(proposal.patch)
+                      .filter((key) => Object.hasOwn(proposalFieldLabels, key))
+                      .map((key) => t(proposalFieldLabels[key])),
+                  ),
+                })}
               </p>
             ) : null}
           </details>
@@ -462,9 +485,9 @@ export function Editor({
             disabled={working || !statusEditable || dirty || proposal.revision !== session.revision}
             variant="default"
             onClick={() => change(mergeProposal(content, proposal.patch))}>
-            Apply to working copy
+            {t("applyToCopy")}
           </Button>
-          <span>Applying does not save or publish the post.</span>
+          <span>{t("applyDoesNotPublish")}</span>
         </section>
       ) : null}
       <footer className="sp-editor-footer">
@@ -485,14 +508,14 @@ export function Editor({
                 );
               })
             }>
-            Check platform rules
+            {t("checkRules")}
           </Button>
           <Button
             size="sm"
             variant="default"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => void act(() => commit("draft"))}>
-            <Save size={14} /> {session.status === "scheduled" ? "Move to drafts" : "Save draft"}
+            <Save size={14} /> {session.status === "scheduled" ? t("moveToDrafts") : t("saveDraft")}
           </Button>
         </div>
         <div className="sp-actions">
@@ -501,14 +524,14 @@ export function Editor({
             size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("schedule")}>
-            <CalendarClock size={14} /> Schedule
+            <CalendarClock size={14} /> {t("scheduleAction")}
           </Button>
           <Button
             variant="outline"
             size="sm"
             disabled={working || !statusEditable || !canValidate || content.accountIds.length === 0}
             onClick={() => setReview("now")}>
-            <Send size={14} /> Post now
+            <Send size={14} /> {t("postNow")}
           </Button>
         </div>
         <div className="sp-actions">
@@ -518,14 +541,14 @@ export function Editor({
             aria-expanded={manual}
             aria-controls="sp-manual-editor"
             onClick={() => setManual(!manual)}>
-            <Pencil size={14} /> {manual ? "Hide manual editor" : "Edit manually"}
+            <Pencil size={14} /> {manual ? t("manualEditorHide") : t("editManually")}
           </Button>
         </div>
       </footer>
       <div className={manual ? "sp-editor-grid is-manual" : "sp-editor-grid"}>
         {manual ? (
           <div className="sp-compose" id="sp-manual-editor">
-            <div className="sp-variant-tabs" aria-label="Edit destination variant">
+            <div className="sp-variant-tabs" aria-label={t("editVariant")}>
               <Button
                 variant="outline"
                 size="sm"
@@ -534,7 +557,7 @@ export function Editor({
                   setActiveAccount(null);
                   setContextActive(true);
                 }}>
-                Shared content
+                {t("sharedContent")}
               </Button>
               {variants.map((account) => (
                 <Button
@@ -546,15 +569,13 @@ export function Editor({
                     setActiveAccount(account.accountId);
                     setContextActive(true);
                   }}>
-                  {account.platform} · {account.displayName ?? account.username ?? "account"}
+                  {account.platform} · {account.displayName ?? account.username ?? t("mcpUnnamedAccount")}
                 </Button>
               ))}
             </div>
             {activeAccount ? (
               <p>
-                {override
-                  ? "Custom content for this destination."
-                  : "This destination inherits the shared content. Editing creates a custom version."}{" "}
+                {override ? t("customDestination") : t("inheritsShared")}{" "}
                 {override ? (
                   <Button
                     variant="outline"
@@ -568,29 +589,35 @@ export function Editor({
                         ),
                       })
                     }>
-                    Use shared content
+                    {t("useShared")}
                   </Button>
                 ) : null}
               </p>
             ) : null}
             <fieldset disabled={!statusEditable || working}>
-              <legend>{selectedAccount ? `${selectedAccount.platform} version` : "Shared post"}</legend>
+              <legend>
+                {selectedAccount
+                  ? t("platformVersion", { platform: platformName(selectedAccount.platform) })
+                  : t("sharedPost")}
+              </legend>
               <MessageComposer
                 id="sp-post-text"
-                label="Post text"
+                label={t("postText")}
+                dir="auto"
                 message={displayedMessage}
                 maxLength={100_000}
                 onMessageChange={(message) => changeVariant({ message })}
                 onFocus={() => setContextActive(true)}
               />
               <div className="sp-thread">
-                <h3>Thread replies</h3>
+                <h3>{t("threadReplies")}</h3>
                 {displayedThread.map((part, index) => (
                   <div key={index}>
                     <label>
-                      Reply {index + 1}
+                      {t("replyNumber", { index: index + 1 })}
                       <Textarea
                         rows={3}
+                        dir="auto"
                         value={part.message}
                         onChange={(event) =>
                           changeVariant({
@@ -601,12 +628,14 @@ export function Editor({
                         }
                       />
                     </label>
-                    {part.media?.length ? <small>{part.media.length} existing attachment(s) preserved</small> : null}
+                    {part.media?.length ? (
+                      <small>{t("attachmentsPreserved", { count: part.media.length })}</small>
+                    ) : null}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => changeVariant({ thread: displayedThread.filter((_, i) => i !== index) })}>
-                      Remove reply
+                      {t("removeReply")}
                     </Button>
                   </div>
                 ))}
@@ -615,26 +644,26 @@ export function Editor({
                   size="sm"
                   disabled={displayedThread.length >= 24}
                   onClick={() => changeVariant({ thread: [...displayedThread, { message: "" }] })}>
-                  Add reply
+                  {t("addReply")}
                 </Button>
               </div>
               <div className="sp-media">
-                <h3>Media</h3>
+                <h3>{t("media")}</h3>
                 {displayedMedia.map((file) => (
                   <div key={file.id}>
                     <span>
-                      {file.filename} · {file.type}
+                      <bdi>{file.filename}</bdi> · {file.type === "video" ? t("video") : t("image")}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => changeVariant({ media: displayedMedia.filter((item) => item.id !== file.id) })}>
-                      Remove
+                      {t("remove")}
                     </Button>
                   </div>
                 ))}
                 <label>
-                  Image or video URL
+                  {t("mediaUrl")}
                   <Input
                     type="url"
                     value={mediaUrl}
@@ -671,19 +700,16 @@ export function Editor({
                       setMediaUrl("");
                     })
                   }>
-                  Import media
+                  {t("importMedia")}
                 </Button>
-                <small>
-                  Media from chat can also be imported by your assistant. Original attachments are retained while
-                  editing.
-                </small>
+                <small>{t("importChatMedia")}</small>
               </div>
               {selectedAccount ? (
                 <details className="sp-options">
-                  <summary>{selectedAccount.platform} publishing options</summary>
+                  <summary>{t("platformOptions", { platform: platformName(selectedAccount.platform) })}</summary>
                   {["youtube", "pinterest", "tiktok", "forem"].includes(selectedAccount.platform) ? (
                     <label>
-                      Title
+                      {t("title")}
                       <Input
                         value={typeof options.title === "string" ? options.title : ""}
                         onChange={(event) => option("title", event.target.value)}
@@ -693,12 +719,14 @@ export function Editor({
                   {selectedAccount.platform === "youtube" ? (
                     <>
                       <label>
-                        Audience
+                        {t("audience")}
                         <select
                           value={String(options.privacyStatus ?? "private")}
                           onChange={(event) => option("privacyStatus", event.target.value)}>
-                          {["private", "unlisted", "public"].map((value) => (
-                            <option key={value}>{value}</option>
+                          {Object.entries(youtubeAudience).map(([value, key]) => (
+                            <option key={value} value={value}>
+                              {t(key)}
+                            </option>
                           ))}
                         </select>
                       </label>
@@ -708,41 +736,42 @@ export function Editor({
                           checked={options.selfDeclaredMadeForKids === true}
                           onChange={(event) => option("selfDeclaredMadeForKids", event.target.checked)}
                         />
-                        Made for kids
+
+                        {t("madeForKids")}
                       </label>
                     </>
                   ) : null}
                   {selectedAccount.platform === "linkedin" ? (
                     <label>
-                      Audience
+                      {t("audience")}
                       <select
                         value={String(options.visibility ?? "PUBLIC")}
                         onChange={(event) => option("visibility", event.target.value)}>
-                        <option value="PUBLIC">Public</option>
-                        <option value="CONNECTIONS">Connections</option>
+                        <option value="PUBLIC">{t("audiencePublic")}</option>
+                        <option value="CONNECTIONS">{t("audienceConnections")}</option>
                       </select>
                     </label>
                   ) : null}
                   {selectedAccount.platform === "tiktok" ? (
                     <>
                       <label>
-                        Posting destination
+                        {t("postingDestination")}
                         <select
                           value={String(options.publishMode ?? "public")}
                           onChange={(event) => option("publishMode", event.target.value)}>
-                          <option value="public">Publish directly</option>
-                          <option value="draft">TikTok inbox for manual editing</option>
+                          <option value="public">{t("publishDirectly")}</option>
+                          <option value="draft">{t("tiktokInbox")}</option>
                         </select>
                       </label>
                       <label>
-                        Audience
+                        {t("audience")}
                         <select
                           value={String(options.privacyLevel ?? "PUBLIC_TO_EVERYONE")}
                           onChange={(event) => option("privacyLevel", event.target.value)}>
-                          <option value="PUBLIC_TO_EVERYONE">Public</option>
-                          <option value="SELF_ONLY">Only me</option>
-                          <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
-                          <option value="FOLLOWER_OF_CREATOR">Followers</option>
+                          <option value="PUBLIC_TO_EVERYONE">{t("audiencePublic")}</option>
+                          <option value="SELF_ONLY">{t("audienceOnlyMe")}</option>
+                          <option value="MUTUAL_FOLLOW_FRIENDS">{t("audienceFriends")}</option>
+                          <option value="FOLLOWER_OF_CREATOR">{t("audienceFollowers")}</option>
                         </select>
                       </label>
                       <label>
@@ -751,21 +780,22 @@ export function Editor({
                           checked={options.autoAddMusic !== false}
                           onChange={(event) => option("autoAddMusic", event.target.checked)}
                         />
-                        Add recommended music to photos
+
+                        {t("addMusic")}
                       </label>
                     </>
                   ) : null}
                   {selectedAccount.platform === "pinterest" ? (
                     <>
                       <label>
-                        Board ID
+                        {t("boardId")}
                         <Input
                           value={String(options.boardId ?? "")}
                           onChange={(event) => option("boardId", event.target.value)}
                         />
                       </label>
                       <label>
-                        Destination link
+                        {t("destinationLink")}
                         <Input
                           type="url"
                           value={String(options.link ?? "")}
@@ -776,7 +806,7 @@ export function Editor({
                   ) : null}
                   {selectedAccount.platform === "telegram" ? (
                     <label>
-                      Text format
+                      {t("textFormat")}
                       <select
                         value={String(options.parseMode ?? "HTML")}
                         onChange={(event) => option("parseMode", event.target.value)}>
@@ -800,12 +830,19 @@ export function Editor({
                     setContextActive(true);
                     await askChat(
                       app,
-                      `Propose a shorter ${selectedAccount?.platform ?? "shared"} version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.`,
+                      selectedAccount?.platform
+                        ? copy(
+                            "Propose a shorter {{platform}} version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.",
+                            { platform: selectedAccount.platform },
+                          )
+                        : copy(
+                            "Propose a shorter shared version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.",
+                          ),
                       selection(next),
                     );
                   })
                 }>
-                Ask ChatGPT to shorten
+                {t("askShorten")}
               </Button>
               <Button
                 variant="outline"
@@ -817,19 +854,21 @@ export function Editor({
                     setContextActive(true);
                     await askChat(
                       app,
-                      "Propose writing tailored to each selected destination. Keep one SimplePost post and preserve media. Do not publish or schedule.",
+                      copy(
+                        "Propose writing tailored to each selected destination. Keep one SimplePost post and preserve media. Do not publish or schedule.",
+                      ),
                       selection(next),
                     );
                   })
                 }>
-                Ask for platform versions
+                {t("askPlatformVersions")}
               </Button>
             </div>
           </div>
         ) : null}
         <aside className="sp-live-previews">
           <div className="sp-preview-heading">
-            <h2 className="sp-kicker">Platform preview</h2>
+            <h2 className="sp-kicker">{t("platformPreview")}</h2>
             <span>
               {platformName((variants.find((a) => a.accountId === activeAccount) ?? variants[0])?.platform ?? "")}
             </span>
@@ -876,7 +915,7 @@ export function Editor({
                       : platform === "linkedin"
                         ? "LinkedIn"
                         : platform[0].toUpperCase() + platform.slice(1),
-                  accountLabel: account.displayName ?? account.username ?? "account",
+                  accountLabel: account.displayName ?? account.username ?? t("mcpUnnamedAccount"),
                   data: preview,
                 },
               ];
@@ -921,7 +960,7 @@ export function Editor({
       </div>
       {validation ? (
         <section className="sp-validation" aria-live="polite">
-          <h2>{validation.summary.isValid ? "Ready for publishing" : "Changes needed before publishing"}</h2>
+          <h2>{validation.summary.isValid ? t("readyToPublish") : t("changesBeforePublish")}</h2>
           {validation.accounts.flatMap((account) =>
             [
               ...account.errors.map((item) => ({ ...item, tone: "error" })),
@@ -936,7 +975,7 @@ export function Editor({
       ) : null}
       {results && Array.isArray(results.postingResults) ? (
         <section className="sp-validation">
-          <h2>Publishing results</h2>
+          <h2>{t("publishingResults")}</h2>
           {results.postingResults.map(
             (result: {
               accountId: string;
@@ -947,10 +986,11 @@ export function Editor({
               postUrl?: string;
             }) => (
               <p key={result.accountId}>
-                {result.platform}: {result.success ? "Published" : (result.message ?? result.error ?? "Failed")}
+                {result.platform}:{" "}
+                {result.success ? t("postPublished") : (result.message ?? result.error ?? t("postFailed"))}
                 {result.postUrl ? (
                   <Button variant="outline" size="sm" onClick={() => void app.openLink({ url: result.postUrl! })}>
-                    Open published post
+                    {t("openPublished")}
                   </Button>
                 ) : null}
               </p>
@@ -960,7 +1000,7 @@ export function Editor({
       ) : null}
       {imageFittingEnabled && manual ? (
         <label>
-          Image fitting
+          {t("imageFitting")}
           <select
             value={imageFit}
             disabled={working || !statusEditable}
@@ -969,20 +1009,21 @@ export function Editor({
               setValidation(null);
               setReview(null);
             }}>
-            <option value="">Use original images</option>
-            <option value="crop">Crop to fit platform requirements</option>
-            <option value="blur">Fit with a blurred background</option>
+            <option value="">{t("imageOriginal")}</option>
+            <option value="crop">{t("imageCrop")}</option>
+            <option value="blur">{t("imageBlur")}</option>
           </select>
         </label>
       ) : null}
 
       {review ? (
-        <section className="sp-publish-review" role="region" aria-label="Review publishing action">
+        <section className="sp-publish-review" role="region" aria-label={t("reviewPublishing")}>
           {review === "schedule" ? (
             <label>
-              Publishing time · {timeZone}
+              {t("publishingTime", { zone: timeZone })}
               <Input
                 type="datetime-local"
+                dir="ltr"
                 value={localTime}
                 disabled={working || !statusEditable}
                 onChange={(event) => {
@@ -993,23 +1034,40 @@ export function Editor({
               />
             </label>
           ) : null}
-          <h2>{review === "schedule" ? `Schedule for ${localTime.replace("T", " ")} · ${timeZone}` : "Publish now"}</h2>
+          <h2>
+            {review === "schedule"
+              ? t("scheduleReview", {
+                  date:
+                    locale === "en" || !localTime
+                      ? localTime.replace("T", " ")
+                      : new Date(`${localTime}Z`).toLocaleString(locale, {
+                          timeZone: "UTC",
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }),
+                  zone: timeZone,
+                })
+              : t("postNow")}
+          </h2>
           <p>
-            Send this single post to{" "}
-            {variants
-              .map((account) => `${account.platform} (${account.displayName ?? account.username ?? "account"})`)
-              .join(", ")}
-            . Review every preview above before continuing.
+            {t("publishReviewIntro", {
+              destinations: new Intl.ListFormat(locale).format(
+                variants.map(
+                  (account) =>
+                    `${platformName(account.platform)} (${account.displayName ?? account.username ?? t("user")})`,
+                ),
+              ),
+            })}
           </p>
           <Button
             size="sm"
             variant="default"
             disabled={working || (review === "schedule" && !localTime)}
             onClick={() => void act(() => commit(review))}>
-            {review === "schedule" ? "Confirm schedule" : "Confirm publish now"}
+            {review === "schedule" ? t("confirmSchedule") : t("confirmPublishNow")}
           </Button>
           <Button variant="outline" size="sm" disabled={working} onClick={() => setReview(null)}>
-            Keep editing
+            {t("keepEditing")}
           </Button>
         </section>
       ) : null}

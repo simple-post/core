@@ -1,3 +1,4 @@
+import { describeDisplayMessage, displayMessage } from "../validation/display-message";
 import type { Media, Platform } from "../types/post";
 import type { ValidationIssue } from "../types/validation";
 
@@ -48,15 +49,31 @@ export function validateMediaSizes(
     const limit = typeof configuredLimit === "function" ? configuredLimit(item) : configuredLimit;
     if (limit === undefined || item.size <= limit) continue;
 
-    errors.push({
-      platform,
-      severity: "error",
-      code: `${item.type}_too_large`,
-      message: `${platformName} ${item.type}s cannot exceed ${formatFileSize(limit)}.`,
-      field: `media[${index}]`,
-      limit,
-      actual: item.size,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform,
+          severity: "error",
+          code: `${item.type}_too_large`,
+          message: `${platformName} ${item.type}s cannot exceed ${formatFileSize(limit)}.`,
+          field: `media[${index}]`,
+          limit,
+          actual: item.size,
+        },
+        item.type === "image"
+          ? "{{platformName}} images cannot exceed {{size}}."
+          : "{{platformName}} videos cannot exceed {{size}}.",
+        {
+          platformName,
+          size:
+            limit % (1024 * 1024 * 1024) === 0
+              ? displayMessage("{{size}} GB", { size: limit / (1024 * 1024 * 1024) })
+              : limit % (1024 * 1024) === 0
+                ? displayMessage("{{size}} MB", { size: limit / (1024 * 1024) })
+                : displayMessage("{{size, number}} bytes", { size: limit }),
+        },
+      ),
+    );
   }
 
   return errors;

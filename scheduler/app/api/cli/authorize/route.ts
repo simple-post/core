@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { assertPlanFeature } from "@/lib/billing/subscriptions";
 import { createCliAuthorizationCode } from "@/lib/cli/tokens";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
@@ -18,11 +19,11 @@ export async function POST(req: NextRequest) {
     const { state, redirectUri } = body;
 
     if (!state || typeof state !== "string") {
-      throw new BadRequestError("Missing state parameter");
+      throw new BadRequestError(serverMessage("Missing state parameter"));
     }
 
     if (!redirectUri || typeof redirectUri !== "string") {
-      throw new BadRequestError("Missing redirectUri parameter");
+      throw new BadRequestError(serverMessage("Missing redirectUri parameter"));
     }
 
     // Validate redirect URI is a loopback address
@@ -30,11 +31,11 @@ export async function POST(req: NextRequest) {
     try {
       parsedUri = new URL(redirectUri);
     } catch {
-      throw new BadRequestError("Invalid redirectUri");
+      throw new BadRequestError(serverMessage("Invalid redirectUri"));
     }
 
     if (!isLoopbackHost(parsedUri.hostname)) {
-      throw new BadRequestError("Redirect URI must be a loopback address");
+      throw new BadRequestError(serverMessage("Redirect URI must be a loopback address"));
     }
 
     // Return a short-lived, single-use code. The CLI exchanges this code over

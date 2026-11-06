@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { ApiError, BadRequestError } from "@/lib/utils/errors";
 
 export const ASSISTANT_CONNECTION_SOURCE = "assistant_handoff" as const;
@@ -20,15 +21,17 @@ export function createConnectionHandoff(userId: string, platform: string): strin
 
 export function verifyConnectionHandoff(token: unknown, userId: string, platform: string): void {
   if (typeof token !== "string" || !/^\d{13}\.[\w-]{43}$/.test(token))
-    throw new BadRequestError("This connection link is invalid. Ask your AI assistant for a new link.");
+    throw new BadRequestError(serverMessage("This connection link is invalid. Ask your AI assistant for a new link."));
   const [expires, signed] = token.split(".");
   const expiresAt = Number(expires);
   if (expiresAt <= Date.now() || expiresAt > Date.now() + MAX_AGE_MS)
-    throw new BadRequestError("This connection link has expired. Ask your AI assistant for a new link.");
+    throw new BadRequestError(serverMessage("This connection link has expired. Ask your AI assistant for a new link."));
   const expected = Buffer.from(signature(userId, platform, expiresAt));
   if (!timingSafeEqual(Buffer.from(signed), expected))
     throw new ApiError(
-      "Sign in with the SimplePost account connected to your AI assistant, then continue with this connection.",
+      serverMessage(
+        "Sign in with the SimplePost account connected to your AI assistant, then continue with this connection.",
+      ),
       403,
       "HANDOFF_ACCOUNT_MISMATCH",
     );

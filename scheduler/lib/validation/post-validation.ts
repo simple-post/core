@@ -1,3 +1,5 @@
+import { copyDisplayMessage } from "@simple-post/sdk/validation";
+import { describeDisplayMessage } from "@simple-post/sdk/validation";
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "@simple-post/sdk/validation";
 
@@ -78,15 +80,18 @@ function getTikTokPrivacyLevel(options: Record<string, unknown>): string | undef
 function validateAccountOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): ValidationIssue[] {
   if (mapPlatformName(account.platform) === "youtube" && accountOptions?.[account.id]?.playlistId) {
     return [
-      {
-        platform: "youtube",
-        severity: "error",
-        code: "youtube_playlist_unavailable",
-        message:
-          "YouTube playlist assignment is temporarily unavailable. Remove the playlist option and add the video to a playlist in YouTube Studio after publishing.",
-        field: "accountOptions.playlistId",
-        meta: { accountId: account.id },
-      },
+      describeDisplayMessage(
+        {
+          platform: "youtube",
+          severity: "error",
+          code: "youtube_playlist_unavailable",
+          message:
+            "YouTube playlist assignment is temporarily unavailable. Remove the playlist option and add the video to a playlist in YouTube Studio after publishing.",
+          field: "accountOptions.playlistId",
+          meta: { accountId: account.id },
+        },
+        "YouTube playlist assignment is temporarily unavailable. Remove the playlist option and add the video to a playlist in YouTube Studio after publishing.",
+      ),
     ];
   }
   if (mapPlatformName(account.platform) === "pinterest") {
@@ -94,17 +99,21 @@ function validateAccountOptions(account: ConnectedAccount, accountOptions?: Acco
     return typeof boardId === "string" && boardId.trim()
       ? []
       : [
-          {
-            platform: "pinterest",
-            severity: "error",
-            code: "pinterest_board_required",
-            message:
-              'Select a Pinterest board before posting or scheduling this account. Set accountOptions["' +
-              account.id +
-              '"].boardId.',
-            field: "accountOptions.boardId",
-            meta: { accountId: account.id },
-          },
+          describeDisplayMessage(
+            {
+              platform: "pinterest",
+              severity: "error",
+              code: "pinterest_board_required",
+              message:
+                'Select a Pinterest board before posting or scheduling this account. Set accountOptions["' +
+                account.id +
+                '"].boardId.',
+              field: "accountOptions.boardId",
+              meta: { accountId: account.id },
+            },
+            'Select a Pinterest board before posting or scheduling this account. Set accountOptions["{{accountId}}"].boardId.',
+            { accountId: account.id },
+          ),
         ];
   }
   if (mapPlatformName(account.platform) !== "tiktok") {
@@ -120,14 +129,20 @@ function validateAccountOptions(account: ConnectedAccount, accountOptions?: Acco
   const privacyLevel = getTikTokPrivacyLevel(options);
 
   if (!privacyLevel) {
-    errors.push({
-      platform: "tiktok",
-      severity: "error",
-      code: "tiktok_privacy_status_required",
-      message: `Select a TikTok privacy status before posting or scheduling this account. Set accountOptions["${account.id}"].privacyLevel to the user-selected value; MCP clients can call get_tiktok_creator_info for available choices.`,
-      field: "accountOptions.privacyLevel",
-      meta: { accountId: account.id },
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "tiktok",
+          severity: "error",
+          code: "tiktok_privacy_status_required",
+          message: `Select a TikTok privacy status before posting or scheduling this account. Set accountOptions["${account.id}"].privacyLevel to the user-selected value; MCP clients can call get_tiktok_creator_info for available choices.`,
+          field: "accountOptions.privacyLevel",
+          meta: { accountId: account.id },
+        },
+        'Select a TikTok privacy status before posting or scheduling this account. Set accountOptions["{{value1}}"].privacyLevel to the user-selected value; MCP clients can call get_tiktok_creator_info for available choices.',
+        { value1: String(account.id) },
+      ),
+    );
   }
 
   if (
@@ -135,25 +150,35 @@ function validateAccountOptions(account: ConnectedAccount, accountOptions?: Acco
     options.discloseYourBrand !== true &&
     options.discloseBrandedContent !== true
   ) {
-    errors.push({
-      platform: "tiktok",
-      severity: "error",
-      code: "tiktok_commercial_disclosure_required",
-      message: "Indicate whether this content promotes your brand, a third-party brand, or both.",
-      field: "accountOptions.commercialContentDisclosure",
-      meta: { accountId: account.id },
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "tiktok",
+          severity: "error",
+          code: "tiktok_commercial_disclosure_required",
+          message: "Indicate whether this content promotes your brand, a third-party brand, or both.",
+          field: "accountOptions.commercialContentDisclosure",
+          meta: { accountId: account.id },
+        },
+        "Indicate whether this content promotes your brand, a third-party brand, or both.",
+      ),
+    );
   }
 
   if (options.discloseBrandedContent === true && privacyLevel === "SELF_ONLY") {
-    errors.push({
-      platform: "tiktok",
-      severity: "error",
-      code: "tiktok_branded_content_private",
-      message: "Branded content visibility cannot be set to private.",
-      field: "accountOptions.privacyLevel",
-      meta: { accountId: account.id },
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "tiktok",
+          severity: "error",
+          code: "tiktok_branded_content_private",
+          message: "Branded content visibility cannot be set to private.",
+          field: "accountOptions.privacyLevel",
+          meta: { accountId: account.id },
+        },
+        "Branded content visibility cannot be set to private.",
+      ),
+    );
   }
 
   return errors;
@@ -224,14 +249,20 @@ export function validatePostForResolvedAccounts(params: {
     if (platform === "instagram" && params.mediaFormatHints !== false) {
       for (const [index, file] of (override?.media ?? params.media ?? []).entries()) {
         if (file.type === "image" && /\.png$/i.test(file.filename)) {
-          warnings.push({
-            platform,
-            severity: "warning",
-            code: "instagram_png_format_hint",
-            message: "Instagram does not support PNG images. Convert this image to JPEG before posting or scheduling.",
-            field: `text.media[${index}]`,
-            meta: { accountId: account.id },
-          });
+          warnings.push(
+            describeDisplayMessage(
+              {
+                platform,
+                severity: "warning",
+                code: "instagram_png_format_hint",
+                message:
+                  "Instagram does not support PNG images. Convert this image to JPEG before posting or scheduling.",
+                field: `text.media[${index}]`,
+                meta: { accountId: account.id },
+              },
+              "Instagram does not support PNG images. Convert this image to JPEG before posting or scheduling.",
+            ),
+          );
         }
       }
     }
@@ -239,49 +270,68 @@ export function validatePostForResolvedAccounts(params: {
     errors.push(...validateAccountOptions(account, params.accountOptions));
 
     if (!isSocialPlatformEnabled(account.platform)) {
-      errors.push({
-        platform,
-        severity: "error",
-        code: "provider_disabled",
-        message: `${getPlatformById(account.platform)?.name ?? account.platform} is not enabled in this environment.`,
-        field: "accounts",
-        meta: { accountId: account.id },
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform,
+            severity: "error",
+            code: "provider_disabled",
+            message: `${getPlatformById(account.platform)?.name ?? account.platform} is not enabled in this environment.`,
+            field: "accounts",
+            meta: { accountId: account.id },
+          },
+          "{{value1}} is not enabled in this environment.",
+          { value1: String(getPlatformById(account.platform)?.name ?? account.platform) },
+        ),
+      );
     }
 
     if (isPreviewOnlyConnectedAccount(account)) {
-      errors.push({
-        platform,
-        severity: "error",
-        code: "preview_only_account",
-        message: `${getPlatformById(platform)?.name ?? platform} is configured for preview only. Connect a real account before posting.`,
-        field: "accounts",
-        meta: { accountId: account.id },
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform,
+            severity: "error",
+            code: "preview_only_account",
+            message: `${getPlatformById(platform)?.name ?? platform} is configured for preview only. Connect a real account before posting.`,
+            field: "accounts",
+            meta: { accountId: account.id },
+          },
+          "{{value1}} is configured for preview only. Connect a real account before posting.",
+          { value1: String(getPlatformById(platform)?.name ?? platform) },
+        ),
+      );
     }
 
     for (const { field, content } of segments) {
       const validation = validateContentForPlatform(platform, content, {
         [platform]: params.accountOptions?.[account.id],
       } as PostOptions);
-      const withMeta = (issue: ValidationIssue) => ({
-        ...issue,
-        field: issue.field === "text" ? field : `${field}.${issue.field}`,
-        meta: { ...issue.meta, accountId: account.id },
-      });
+      const withMeta = (issue: ValidationIssue) =>
+        copyDisplayMessage(issue, {
+          ...issue,
+          field: issue.field === "text" ? field : `${field}.${issue.field}`,
+          meta: { ...issue.meta, accountId: account.id },
+        });
       validation.errors.forEach((issue) => errors.push(withMeta(issue)));
       validation.warnings.forEach((issue) => warnings.push(withMeta(issue)));
     }
 
     if (!threadAware && accountThread.length > 0) {
-      warnings.push({
-        platform,
-        severity: "warning",
-        code: "thread_not_supported",
-        message: `${getPlatformById(platform)?.name ?? platform} doesn't support threads, so only the first post will be published there.`,
-        field: "thread",
-        meta: { accountId: account.id },
-      });
+      warnings.push(
+        describeDisplayMessage(
+          {
+            platform,
+            severity: "warning",
+            code: "thread_not_supported",
+            message: `${getPlatformById(platform)?.name ?? platform} doesn't support threads, so only the first post will be published there.`,
+            field: "thread",
+            meta: { accountId: account.id },
+          },
+          "{{value1}} doesn't support threads, so only the first post will be published there.",
+          { value1: String(getPlatformById(platform)?.name ?? platform) },
+        ),
+      );
     }
 
     return {
@@ -299,14 +349,19 @@ export function validatePostForResolvedAccounts(params: {
   const anyThreadCapable = params.accounts.some((account) => isThreadCapable(mapPlatformName(account.platform)));
   const crossAccountErrors: ValidationResult["errors"] = [];
   if (anyThread && !anyThreadCapable) {
-    crossAccountErrors.push({
-      platform: "common",
-      severity: "error",
-      code: "no_thread_capable_accounts",
-      message:
+    crossAccountErrors.push(
+      describeDisplayMessage(
+        {
+          platform: "common",
+          severity: "error",
+          code: "no_thread_capable_accounts",
+          message:
+            "None of the selected accounts support threads. Remove the extra posts or add an account that supports them (X, Bluesky, Threads, or Telegram).",
+          field: "thread",
+        },
         "None of the selected accounts support threads. Remove the extra posts or add an account that supports them (X, Bluesky, Threads, or Telegram).",
-      field: "thread",
-    });
+      ),
+    );
   }
 
   const errors = [...results.flatMap((result) => result.errors), ...crossAccountErrors];

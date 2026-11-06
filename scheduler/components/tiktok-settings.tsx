@@ -6,10 +6,13 @@ import { PlatformIcon } from "@/components/platform-icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UiCopy } from "@/components/ui-copy";
 import { mergeAccountOptions } from "@/features/platform-options/merge-account-options";
 import { useTikTokCreatorInfo } from "@/hooks/use-tiktok-creator-info";
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getAccountDisplayName } from "@/lib/config";
+import { privacyLabel } from "@/lib/i18n/tiktok-display";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
 import type { TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
 import type { AccountOptionsMap, ConnectedAccount } from "@/types";
@@ -52,6 +55,7 @@ function TikTokPrivacyRow({
   applyInteractionDefaults: boolean;
   onUpdate: UpdateOptions;
 }) {
+  const { copy } = useUiCopy();
   const unavailable = isPreviewOnlyConnectedAccount(account) || needsReconnect(account);
   const { data: creatorInfo, error, isLoading } = useTikTokCreatorInfo(account.id, !unavailable);
   const privacyLevel = getPrivacyLevel(options);
@@ -72,11 +76,11 @@ function TikTokPrivacyRow({
   }, [account.id, applyInteractionDefaults, creatorInfo, onUpdate, options]);
 
   let hint: string | null = null;
-  if (unavailable) hint = "Reconnect this account to load its privacy options.";
+  if (unavailable) hint = copy("Reconnect this account to load its privacy options.");
   else if (error) hint = error.message;
   else if (creatorInfo?.canPost === false) hint = creatorInfo.blockReason;
   else if (privacyLevel && creatorInfo && !creatorInfo.privacyLevelOptions.includes(privacyLevel))
-    hint = "This option isn't available for this account anymore. Choose another one.";
+    hint = copy("This option isn't available for this account anymore. Choose another one.");
 
   return (
     <div className={styles.privacyRow}>
@@ -86,8 +90,18 @@ function TikTokPrivacyRow({
             <PlatformIcon platform="tiktok" className="h-4 w-4" />
           </span>
           <Label htmlFor={selectId} className={styles.label}>
-            TikTok audience
-            {showAccountName ? <span className={styles.accountName}>{getAccountDisplayName(account)}</span> : null}
+            <UiCopy
+              source="TikTok audience <part1></part1>"
+              components={{
+                part1: (
+                  <>
+                    {showAccountName ? (
+                      <span className={styles.accountName}>{getAccountDisplayName(account)}</span>
+                    ) : null}
+                  </>
+                ),
+              }}
+            />
           </Label>
         </div>
         <Select
@@ -100,15 +114,16 @@ function TikTokPrivacyRow({
             className={styles.select}
             aria-describedby={hint ? `${selectId}-hint` : undefined}
             aria-invalid={Boolean(hint)}>
-            <SelectValue placeholder={isLoading ? "Loading…" : "Choose…"} />
+            <SelectValue placeholder={isLoading ? copy("Loading…") : copy("Choose…")} />
           </SelectTrigger>
           <SelectContent align="end">
             {(creatorInfo?.privacyLevelOptions ?? []).map((level) => {
               const blocked = brandedContent && level === "SELF_ONLY";
               return (
                 <SelectItem key={level} value={level} disabled={blocked}>
-                  {TIKTOK_PRIVACY_LABELS[level]}
-                  {blocked ? " (not for branded content)" : ""}
+                  {blocked
+                    ? copy("{{audience}} (not for branded content)", { audience: privacyLabel(level, copy) })
+                    : privacyLabel(level, copy)}
                 </SelectItem>
               );
             })}
@@ -135,15 +150,7 @@ function TikTokConsent({
   onCheckedChange: (checked: boolean) => void;
   brandedContent: boolean;
 }) {
-  const link = (href: string, text: string) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={styles.link}>
-      {text}
-    </a>
-  );
-  const musicLink = link(
-    "https://www.tiktok.com/legal/page/global/music-usage-confirmation/en",
-    "Music Usage Confirmation",
-  );
+  const { copy } = useUiCopy();
 
   return (
     <div className={styles.consent}>
@@ -155,17 +162,45 @@ function TikTokConsent({
       />
       <div>
         <Label htmlFor={id} className={styles.consentLabel}>
-          By posting, you agree to TikTok&apos;s{" "}
           {brandedContent ? (
-            <>
-              {link("https://www.tiktok.com/legal/page/global/bc-policy/en", "Branded Content Policy")} and {musicLink}
-            </>
+            <UiCopy
+              source="By posting, you agree to TikTok's <part1>Branded Content Policy</part1> and <part2>Music Usage Confirmation</part2>."
+              components={{
+                part1: (
+                  <a
+                    href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.link}
+                  />
+                ),
+                part2: (
+                  <a
+                    href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.link}
+                  />
+                ),
+              }}
+            />
           ) : (
-            musicLink
+            <UiCopy
+              source="By posting, you agree to TikTok's <part1>Music Usage Confirmation</part1>."
+              components={{
+                part1: (
+                  <a
+                    href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.link}
+                  />
+                ),
+              }}
+            />
           )}
-          .
         </Label>
-        <p className={styles.note}>Publishing can take a few minutes.</p>
+        <p className={styles.note}>{copy("Publishing can take a few minutes.")}</p>
       </div>
     </div>
   );

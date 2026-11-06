@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import { displayMessage, withDisplayMessage, type DisplayMessage } from "@simple-post/sdk/validation";
 import { derToRaw, getMetaCredentialRejection, isMetaCredentialPlatform } from "@simple-post/sdk";
 
 import { createLogger, serializeError } from "@/lib/logger";
@@ -256,24 +257,26 @@ function status(
   state: ConnectedAccountCredentialState,
   severity: CredentialSeverity,
   label: string,
-  message: string,
+  message: DisplayMessage,
   action: CredentialAction,
   canRefresh: boolean,
 ): ConnectedAccountCredentialStatus {
   const refreshTokenExpiresAt = metadataDate(account, "refreshTokenExpiresAt");
   const metadata = getTokenMetadata(account);
-  return {
-    action,
-    canRefresh,
-    expiresAt: account.expiresAt?.toISOString() ?? null,
-    label,
-    lastRefreshAttemptAt: typeof metadata.lastRefreshAttemptAt === "string" ? metadata.lastRefreshAttemptAt : null,
-    lastRefreshError: typeof metadata.lastRefreshError === "string" ? metadata.lastRefreshError : null,
+  return withDisplayMessage(
+    {
+      action,
+      canRefresh,
+      expiresAt: account.expiresAt?.toISOString() ?? null,
+      label,
+      lastRefreshAttemptAt: typeof metadata.lastRefreshAttemptAt === "string" ? metadata.lastRefreshAttemptAt : null,
+      lastRefreshError: typeof metadata.lastRefreshError === "string" ? metadata.lastRefreshError : null,
+      refreshTokenExpiresAt: refreshTokenExpiresAt?.toISOString() ?? null,
+      severity,
+      state,
+    },
     message,
-    refreshTokenExpiresAt: refreshTokenExpiresAt?.toISOString() ?? null,
-    severity,
-    state,
-  };
+  );
 }
 
 function hasStoredPermanentRefreshFailure(account: ConnectedAccount): boolean {
@@ -327,10 +330,18 @@ export function getConnectedAccountCredentialStatus(
       "error",
       "Reconnect",
       rejectionReason === "session_revoked"
-        ? `${label} invalidated this login session. This can follow a password change or a security action by the provider. Reconnect this account before posting.`
+        ? displayMessage(
+            "{{platform}} invalidated this login session. This can follow a password change or a security action by the provider. Reconnect this account before posting.",
+            { platform: label },
+          )
         : rejectionReason === "authorization_removed"
-          ? `${label} authorization for SimplePost was removed. Reconnect this account before posting.`
-          : `${label} credentials cannot be refreshed. Reconnect this account before posting.`,
+          ? displayMessage(
+              "{{platform}} authorization for SimplePost was removed. Reconnect this account before posting.",
+              { platform: label },
+            )
+          : displayMessage("{{platform}} credentials cannot be refreshed. Reconnect this account before posting.", {
+              platform: label,
+            }),
       "reconnect",
       false,
     );
@@ -342,7 +353,9 @@ export function getConnectedAccountCredentialStatus(
       "reauth_required",
       "error",
       "Reconnect",
-      `${label} refresh token has expired. Reconnect this account before posting.`,
+      displayMessage("{{platform}} refresh token has expired. Reconnect this account before posting.", {
+        platform: label,
+      }),
       "reconnect",
       false,
     );
@@ -359,8 +372,13 @@ export function getConnectedAccountCredentialStatus(
       canRefresh ? "warning" : "error",
       canRefresh ? "Refreshing soon" : "Reconnect",
       canRefresh
-        ? `${label} refresh token expires soon. SimplePost will refresh it before it expires.`
-        : `${label} refresh token expires soon and ${readiness.reason ?? "cannot be refreshed"}. Reconnect this account.`,
+        ? displayMessage("{{platform}} refresh token expires soon. SimplePost will refresh it before it expires.", {
+            platform: label,
+          })
+        : displayMessage("{{platform}} refresh token expires soon and {{reason}}. Reconnect this account.", {
+            platform: label,
+            reason: displayMessage(readiness.reason ?? "cannot be refreshed"),
+          }),
       canRefresh ? "refresh" : "reconnect",
       canRefresh,
     );
@@ -373,7 +391,7 @@ export function getConnectedAccountCredentialStatus(
         "non_expiring",
         "ok",
         "Active",
-        `${label} credentials do not have a known expiry.`,
+        displayMessage("{{platform}} credentials do not have a known expiry.", { platform: label }),
         "none",
         false,
       );
@@ -384,8 +402,11 @@ export function getConnectedAccountCredentialStatus(
       readiness.ready ? "ok" : "warning",
       readiness.ready ? "Active" : "Check credentials",
       readiness.ready
-        ? `${label} credentials are refreshable.`
-        : `${label} credentials do not have an expiry recorded, and ${readiness.reason ?? "refresh readiness is unknown"}.`,
+        ? displayMessage("{{platform}} credentials are refreshable.", { platform: label })
+        : displayMessage("{{platform}} credentials do not have an expiry recorded, and {{reason}}.", {
+            platform: label,
+            reason: displayMessage(readiness.reason ?? "refresh readiness is unknown"),
+          }),
       readiness.ready ? "none" : "reconnect",
       readiness.ready,
     );
@@ -398,8 +419,13 @@ export function getConnectedAccountCredentialStatus(
       canRefresh ? "warning" : "error",
       canRefresh ? "Refreshing" : "Reconnect",
       canRefresh
-        ? `${label} access token is expired. SimplePost will refresh it before posting.`
-        : `${label} access token is expired and ${readiness.reason ?? "cannot be refreshed"}. Reconnect this account.`,
+        ? displayMessage("{{platform}} access token is expired. SimplePost will refresh it before posting.", {
+            platform: label,
+          })
+        : displayMessage("{{platform}} access token is expired and {{reason}}. Reconnect this account.", {
+            platform: label,
+            reason: displayMessage(readiness.reason ?? "cannot be refreshed"),
+          }),
       canRefresh ? "refresh" : "reconnect",
       canRefresh,
     );
@@ -412,8 +438,13 @@ export function getConnectedAccountCredentialStatus(
       canRefresh ? "warning" : "error",
       canRefresh ? "Refreshing soon" : "Reconnect",
       canRefresh
-        ? `${label} access token expires soon. SimplePost will refresh it before posting.`
-        : `${label} access token expires soon and ${readiness.reason ?? "cannot be refreshed"}. Reconnect this account.`,
+        ? displayMessage("{{platform}} access token expires soon. SimplePost will refresh it before posting.", {
+            platform: label,
+          })
+        : displayMessage("{{platform}} access token expires soon and {{reason}}. Reconnect this account.", {
+            platform: label,
+            reason: displayMessage(readiness.reason ?? "cannot be refreshed"),
+          }),
       canRefresh ? "refresh" : "reconnect",
       canRefresh,
     );
@@ -431,7 +462,10 @@ export function getConnectedAccountCredentialStatus(
         "healthy",
         "ok",
         "Active",
-        `${label} credentials are active. SimplePost will ask you to reconnect before they expire.`,
+        displayMessage(
+          "{{platform}} credentials are active. SimplePost will ask you to reconnect before they expire.",
+          { platform: label },
+        ),
         "none",
         false,
       );
@@ -442,13 +476,24 @@ export function getConnectedAccountCredentialStatus(
       "refresh_unavailable",
       "warning",
       "Refresh unavailable",
-      `${label} access token is valid now, but ${readiness.reason ?? "automatic refresh is unavailable"}. Reconnect before it expires.`,
+      displayMessage("{{platform}} access token is valid now, but {{reason}}. Reconnect before it expires.", {
+        platform: label,
+        reason: displayMessage(readiness.reason ?? "automatic refresh is unavailable"),
+      }),
       "reconnect",
       false,
     );
   }
 
-  return status(account, "healthy", "ok", "Active", `${label} credentials are healthy.`, "none", canRefresh);
+  return status(
+    account,
+    "healthy",
+    "ok",
+    "Active",
+    displayMessage("{{platform}} credentials are healthy.", { platform: label }),
+    "none",
+    canRefresh,
+  );
 }
 
 async function parseJsonObject(response: Response): Promise<Record<string, unknown>> {
@@ -1250,31 +1295,36 @@ export async function getCredentialIssuesForPublishTime(params: {
 
     if (account.credentialRefreshBlockedAt || hasStoredPermanentRefreshFailure(account)) {
       return [
-        {
-          accountId: account.id,
-          message: `${label} rejected the stored credentials. Reconnect this account before scheduling.`,
-          platform: account.platform,
-        },
+        withDisplayMessage(
+          { accountId: account.id, platform: account.platform },
+          displayMessage("{{platform}} rejected the stored credentials. Reconnect this account before scheduling.", {
+            platform: label,
+          }),
+        ),
       ];
     }
 
     if (refreshTokenExpiresAt && refreshTokenExpiresAt.getTime() <= requiredAtMs) {
       return [
-        {
-          accountId: account.id,
-          message: `${label} refresh token expires before the scheduled publish time. Reconnect this account before scheduling.`,
-          platform: account.platform,
-        },
+        withDisplayMessage(
+          { accountId: account.id, platform: account.platform },
+          displayMessage(
+            "{{platform}} refresh token expires before the scheduled publish time. Reconnect this account before scheduling.",
+            { platform: label },
+          ),
+        ),
       ];
     }
 
     if (account.expiresAt && account.expiresAt.getTime() <= requiredAtMs && !readiness.ready) {
       return [
-        {
-          accountId: account.id,
-          message: `${label} access token expires before the publish time and ${readiness.reason ?? "cannot be refreshed"}. Reconnect this account before scheduling.`,
-          platform: account.platform,
-        },
+        withDisplayMessage(
+          { accountId: account.id, platform: account.platform },
+          displayMessage(
+            "{{platform}} access token expires before the publish time and {{reason}}. Reconnect this account before scheduling.",
+            { platform: label, reason: displayMessage(readiness.reason ?? "cannot be refreshed") },
+          ),
+        ),
       ];
     }
 

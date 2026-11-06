@@ -1,4 +1,7 @@
-jest.mock("next/headers", () => ({ headers: async () => new Headers() }));
+jest.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ get: () => undefined }),
+}));
 jest.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NOT_FOUND");

@@ -7,6 +7,10 @@ import { AppAnalytics } from "@/components/app-analytics";
 import { ClientErrorLogger } from "@/components/client-error-logger";
 import { Toaster } from "@/components/ui/sonner";
 import { env } from "@/lib/env";
+import { UiLocaleProvider } from "@/lib/i18n/client";
+import { direction } from "@/lib/i18n/locales";
+import { getUiTranslation } from "@/lib/i18n/request";
+import { schedulerMetadata } from "@/lib/i18n/social-metadata";
 import { QueryClientProvider } from "@/lib/query-client";
 
 import type { Metadata } from "next";
@@ -26,53 +30,32 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(appUrl),
-  title: "SimplePost Scheduler",
-  description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
-  robots: {
-    index: false,
-    follow: false,
-    googleBot: {
-      index: false,
-      follow: false,
-      noarchive: true,
-      nosnippet: true,
-      noimageindex: true,
-    },
-  },
-  openGraph: {
-    title: "SimplePost Scheduler",
-    description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
-    images: [{ url: "/simplepost-card.png", width: 1200, height: 630, alt: "SimplePost" }],
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "SimplePost Scheduler",
-    description: "Schedule and publish content across social platforms with the open-source SimplePost Scheduler.",
-    images: ["/simplepost-card.png"],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { locale } = await getUiTranslation();
+  return schedulerMetadata(locale, appUrl);
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { locale, messages, t } = await getUiTranslation();
   return (
-    <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang={locale} dir={direction(locale)} className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased">
-        <QueryClientProvider>
-          <ClientErrorLogger />
-          {!env.SELF_HOSTED && process.env.NODE_ENV === "production" && (
-            <Suspense fallback={null}>
-              <AppAnalytics />
-            </Suspense>
-          )}
-          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-          <Toaster />
-        </QueryClientProvider>
+        <UiLocaleProvider locale={locale} messages={messages}>
+          <QueryClientProvider>
+            <ClientErrorLogger />
+            {!env.SELF_HOSTED && process.env.NODE_ENV === "production" && (
+              <Suspense fallback={null}>
+                <AppAnalytics />
+              </Suspense>
+            )}
+            <Suspense fallback={<div>{t("loading")}</div>}>{children}</Suspense>
+            <Toaster />
+          </QueryClientProvider>
+        </UiLocaleProvider>
       </body>
     </html>
   );

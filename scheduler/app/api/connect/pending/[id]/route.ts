@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth";
 import { CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS } from "@/lib/oauth/connected-account-lock";
@@ -44,21 +45,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!pending) {
-      throw new NotFoundError("Pending connection not found");
+      throw new NotFoundError(serverMessage("Pending connection not found"));
     }
 
     if (!isSocialPlatformEnabled(pending.platform)) {
-      throw new BadRequestError("Social platform is not enabled in this environment");
+      throw new BadRequestError(serverMessage("Social platform is not enabled in this environment"));
     }
 
     if (pending.expiresAt && pending.expiresAt.getTime() < Date.now()) {
       await prisma.pendingOAuthConnection.delete({ where: { id: pending.id } });
-      throw new GoneError("Pending connection expired");
+      throw new GoneError(serverMessage("Pending connection expired"));
     }
 
     const data = pending.data as PendingData;
     if (!data || !Array.isArray(data.accounts)) {
-      throw new BadRequestError("Invalid pending connection data");
+      throw new BadRequestError(serverMessage("Invalid pending connection data"));
     }
 
     return NextResponse.json({
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const selectedAccountIds = Array.isArray(body.selectedAccountIds) ? body.selectedAccountIds : [];
 
     if (selectedAccountIds.length === 0) {
-      throw new BadRequestError("Select at least one account");
+      throw new BadRequestError(serverMessage("Select at least one account"));
     }
 
     const pending = await prisma.pendingOAuthConnection.findFirst({
@@ -93,16 +94,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!pending) {
-      throw new NotFoundError("Pending connection not found");
+      throw new NotFoundError(serverMessage("Pending connection not found"));
     }
 
     if (!isSocialPlatformEnabled(pending.platform)) {
-      throw new BadRequestError("Social platform is not enabled in this environment");
+      throw new BadRequestError(serverMessage("Social platform is not enabled in this environment"));
     }
 
     if (pending.expiresAt && pending.expiresAt.getTime() < Date.now()) {
       await prisma.pendingOAuthConnection.delete({ where: { id: pending.id } });
-      throw new GoneError("Pending connection expired");
+      throw new GoneError(serverMessage("Pending connection expired"));
     }
 
     const data = pending.data as PendingData;
@@ -110,12 +111,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     measurementPlatform = pending.platform;
     source = data?.source;
     if (!data || !Array.isArray(data.accounts)) {
-      throw new BadRequestError("Invalid pending connection data");
+      throw new BadRequestError(serverMessage("Invalid pending connection data"));
     }
 
     const selectedAccounts = data.accounts.filter((account) => selectedAccountIds.includes(account.id));
     if (selectedAccounts.length === 0) {
-      throw new BadRequestError("Selected accounts not found");
+      throw new BadRequestError(serverMessage("Selected accounts not found"));
     }
 
     const scope = data.scope || null;

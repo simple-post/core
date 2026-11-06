@@ -1,3 +1,9 @@
+import {
+  displayMessage,
+  canonicalDisplayMessage,
+  describeDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 
@@ -33,9 +39,10 @@ export interface MediaInspection {
 export class MediaInspectionError extends Error {
   constructor(
     readonly code: string,
-    message: string,
+    message: string | DisplayMessage,
   ) {
-    super(message);
+    super(canonicalDisplayMessage(message));
+    if (typeof message !== "string") describeDisplayMessage(this, message.source, message.values);
     this.name = "MediaInspectionError";
   }
 }
@@ -43,7 +50,9 @@ export class MediaInspectionError extends Error {
 const invalidMedia = () =>
   new MediaInspectionError(
     "media_invalid",
-    "This URL or file does not contain a supported image or video. Upload the file directly; links to sign-in, preview, or download-confirmation pages cannot be published.",
+    displayMessage(
+      "This URL or file does not contain a supported image or video. Upload the file directly; links to sign-in, preview, or download-confirmation pages cannot be published.",
+    ),
   );
 
 async function inspectStream(
@@ -69,7 +78,7 @@ async function inspectStream(
         if (reportedType && reportedType !== "application/octet-stream" && reportedType !== contentType) {
           throw new MediaInspectionError(
             "media_type_mismatch",
-            "The media bytes do not match its Content-Type. Upload the original file directly.",
+            displayMessage("The media bytes do not match its Content-Type. Upload the original file directly."),
           );
         }
       }
@@ -79,7 +88,9 @@ async function inspectStream(
       if (length > MAX_INSPECTABLE_IMAGE_BYTES) {
         throw new MediaInspectionError(
           "media_inspection_limit",
-          "This media cannot be validated within the download limit. Use an image under 32 MB or a video URL that reports its file size.",
+          displayMessage(
+            "This media cannot be validated within the download limit. Use an image under 32 MB or a video URL that reports its file size.",
+          ),
         );
       }
     }
@@ -87,7 +98,9 @@ async function inspectStream(
     if (size !== undefined && size !== length) {
       throw new MediaInspectionError(
         "media_incomplete",
-        "The media download was incomplete. Upload the original file directly or use a reliable public URL.",
+        displayMessage(
+          "The media download was incomplete. Upload the original file directly or use a reliable public URL.",
+        ),
       );
     }
     if (!contentType.startsWith("image/")) return { size: length, contentType };
@@ -108,7 +121,9 @@ async function inspectStream(
     } catch {
       throw new MediaInspectionError(
         "image_invalid",
-        "The image is corrupt, incomplete, or too large to decode. Export it again as JPEG or PNG and upload the file directly.",
+        displayMessage(
+          "The image is corrupt, incomplete, or too large to decode. Export it again as JPEG or PNG and upload the file directly.",
+        ),
       );
     }
   } finally {
@@ -152,7 +167,9 @@ export async function inspectRemoteMedia(
     if (error instanceof MediaInspectionError) throw error;
     throw new MediaInspectionError(
       "media_unavailable",
-      "SimplePost couldn't fully inspect this media. Use a public URL, a valid image or video, and a remote video under the 500 MB inspection/download limit.",
+      displayMessage(
+        "SimplePost couldn't fully inspect this media. Use a public URL, a valid image or video, and a remote video under the 500 MB inspection/download limit.",
+      ),
     );
   }
 }
@@ -176,7 +193,9 @@ export async function inspectLocalMedia(filePath: string): Promise<MediaInspecti
     if (error instanceof MediaInspectionError) throw error;
     throw new MediaInspectionError(
       "media_unavailable",
-      "SimplePost couldn't fully inspect this media file. Check its path, permissions and encoding; install a supported ffprobe binary.",
+      displayMessage(
+        "SimplePost couldn't fully inspect this media file. Check its path, permissions and encoding; install a supported ffprobe binary.",
+      ),
     );
   }
 }

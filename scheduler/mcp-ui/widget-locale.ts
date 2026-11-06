@@ -1,9 +1,16 @@
-
 import { normalizeLocale, type Locale } from "../lib/i18n/locales";
 import { createTranslator, type MessageKey, type Messages } from "../lib/i18n/translate";
 
 import type { SourceCopy } from "../lib/i18n/source-copy";
 import type { App } from "@modelcontextprotocol/ext-apps";
+
+export function preferredWidgetLocale(
+  hostLocale?: unknown,
+  compatibilityLocale?: unknown,
+  resourceLocale?: unknown,
+): Locale {
+  return normalizeLocale(hostLocale) ?? normalizeLocale(compatibilityLocale) ?? normalizeLocale(resourceLocale) ?? "en";
+}
 
 const contexts = new WeakMap<App, { locale: Locale; copy: SourceCopy }>();
 

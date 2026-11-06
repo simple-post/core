@@ -20,7 +20,8 @@ function walk(directory) {
     } else if (/\.tsx?$/.test(file) && !file.endsWith(".d.ts")) files.push(file);
   }
 }
-for (const directory of ["lib", "app/api", "app/mcp", "types", "../sdk/src/types"]) walk(path.join(root, directory));
+for (const directory of ["lib", "app/api", "app/mcp", "app/mcp-ui", "types", "../sdk/src/types"])
+  walk(path.join(root, directory));
 const parsed = files.map((file) =>
   ts.createSourceFile(
     file,
@@ -80,6 +81,8 @@ for (const sf of parsed) {
   const copied =
     file === "lib/notifications/disconnect-email.ts" ||
     file === "app/mcp/route.ts" ||
+    file === "lib/mcp/ui/runtime.ts" ||
+    file === "app/mcp-ui/runtime.js/route.ts" ||
     file === "lib/i18n/schema-display.ts" ||
     file === "lib/utils/errors.ts";
   function visit(node) {
@@ -95,6 +98,7 @@ for (const sf of parsed) {
     }
     if (ts.isPropertyAssignment(node)) {
       const key = node.name.getText(sf).replaceAll(/["']/g, "");
+      if (file === "lib/mcp/ui/resources.ts" && ["name", "widgetDescription"].includes(key)) add(node.initializer, sf);
       if (
         (mcp || openapi) &&
         ["title", "description", "summary", "openai/toolInvocation/invoking", "openai/toolInvocation/invoked"].includes(

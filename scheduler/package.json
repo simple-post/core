@@ -113,7 +113,7 @@
     "recharts": "^3.9.2",
     "resend": "^6.1.2",
     "sharp": "^0.35.5",
-    "sonner": "^1.7.4",
+    "sonner": "^2.0.7",
     "stripe": "^22.3.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",

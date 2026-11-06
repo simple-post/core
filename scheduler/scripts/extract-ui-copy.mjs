@@ -28,8 +28,18 @@ for (const file of ["app", "components", "features", "hooks", "lib", "mcp-ui"].f
     true,
     file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
+  // Backend copy has a separate catalog and completeness gate.
+  const usesServerCopy = ast.statements.some(
+    (node) =>
+      ts.isImportDeclaration(node) &&
+      /(?:^|\/)i18n\/server$/.test(node.moduleSpecifier.text) &&
+      node.importClause?.namedBindings &&
+      ts.isNamedImports(node.importClause.namedBindings) &&
+      node.importClause.namedBindings.elements.some((entry) => entry.name.text === "createServerCopy"),
+  );
   function visit(node) {
     if (
+      !usesServerCopy &&
       ts.isCallExpression(node) &&
       ["copy", "sourceCopy"].includes(node.expression.getText(ast)) &&
       ts.isStringLiteralLike(node.arguments[0] ?? {})

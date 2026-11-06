@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
-
-import { direction, normalizeLocale, type Locale } from "../lib/i18n/locales";
+import { direction, type Locale } from "../lib/i18n/locales";
 import { createTranslator, type Messages } from "../lib/i18n/translate";
 
-import { bindWidgetLocale } from "./widget-locale";
+import { bindWidgetLocale, preferredWidgetLocale } from "./widget-locale";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 
@@ -21,14 +20,20 @@ function compatibilityLocale() {
   return (window as Window & { openai?: { locale?: unknown } }).openai?.locale;
 }
 
+function resourceLocale() {
+  return document.querySelector('meta[name="simplepost-ui-locale"]')?.getAttribute("content");
+}
+
 /** Hosts can send the locale during initialization or update it after mounting. */
 export function useHostLocale(app: App | null | undefined) {
-  const [locale, setLocale] = useState<Locale>(() => normalizeLocale(compatibilityLocale()) ?? "en");
+  const [locale, setLocale] = useState<Locale>(() =>
+    preferredWidgetLocale(undefined, compatibilityLocale(), resourceLocale()),
+  );
   const [active, setActive] = useState<{ locale: Locale; messages: Messages }>({ locale: "en", messages: {} });
 
   useEffect(() => {
     const sync = () =>
-      setLocale(normalizeLocale(app?.getHostContext()?.locale) ?? normalizeLocale(compatibilityLocale()) ?? "en");
+      setLocale(preferredWidgetLocale(app?.getHostContext()?.locale, compatibilityLocale(), resourceLocale()));
     sync();
     app?.addEventListener("hostcontextchanged", sync);
     window.addEventListener("openai:set_globals", sync);

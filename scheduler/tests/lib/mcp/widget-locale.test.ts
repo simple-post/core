@@ -1,6 +1,11 @@
-
 import { askChat, callTool } from "@/mcp-ui/extensions/host";
-import { bindWidgetLocale, widgetCopy, widgetFallback, widgetLocale } from "@/mcp-ui/widget-locale";
+import {
+  bindWidgetLocale,
+  preferredWidgetLocale,
+  widgetCopy,
+  widgetFallback,
+  widgetLocale,
+} from "@/mcp-ui/widget-locale";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 
@@ -68,4 +73,11 @@ it("keeps provider detail intact and translates locally authored fallback only",
   a.mock.callServerTool.mockResolvedValue({ isError: true, content: [] } as never);
   await expect(callTool(a.app, "inspect_post")).rejects.toThrow("marker-a");
   expect(widgetFallback("user text 日本語", (source) => `marker:${source}`)).toBe("user text 日本語");
+});
+
+it("prefers explicit host language while retaining the request language when the host omits it", () => {
+  expect(preferredWidgetLocale("ja-JP", "de", "ar")).toBe("ja");
+  expect(preferredWidgetLocale(undefined, "de", "ar")).toBe("de");
+  expect(preferredWidgetLocale(undefined, undefined, "ar")).toBe("ar");
+  expect(preferredWidgetLocale("unsupported", undefined, "zh-TW")).toBe("zh-Hant");
 });

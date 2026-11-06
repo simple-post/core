@@ -29,7 +29,8 @@
     "i18n:copy:extract": "node scripts/extract-ui-copy.mjs",
     "i18n:copy:check": "node scripts/extract-ui-copy.mjs --check && node scripts/check-ui-copy.mjs",
     "i18n:server:extract": "node lib/i18n/extract-server-source.mjs",
-    "i18n:server:check": "node lib/i18n/extract-server-source.mjs --check && node scripts/check-server-copy.mjs"
+    "i18n:server:check": "node lib/i18n/extract-server-source.mjs --check && node scripts/check-server-copy.mjs",
+    "i18n:server:check:active": "node lib/i18n/extract-server-source.mjs --check && node scripts/check-server-copy.mjs --allow-mcp-instructions-fallback"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.1.0",

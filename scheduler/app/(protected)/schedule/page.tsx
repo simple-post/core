@@ -5,8 +5,11 @@ import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { Navbar } from "@/components/navbar";
 import { PreviewImport } from "@/components/preview-import";
 import { SchedulePostForm } from "@/components/schedule-post-form";
+import { UiCopy } from "@/components/ui-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export default function SchedulePage() {
+  const { copy } = useUiCopy();
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -16,11 +19,11 @@ export default function SchedulePage() {
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />
-              <span className="section-kicker-label">Compose</span>
+              <span className="section-kicker-label">{copy("Compose")}</span>
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              Create a <span className="text-primary">post</span>
+              <UiCopy source="Create a <part1>post</part1>" components={{ part1: <span className="text-primary" /> }} />
             </h1>
           </div>
         </div>

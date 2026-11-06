@@ -183,8 +183,20 @@ function previewError(error: string, copy: SourceCopy): string {
     case "Preview could not be loaded.": {
       return copy("Preview could not be loaded.");
     }
+    case "Invalid preview": {
+      return copy("Invalid preview");
+    }
+    case "Preview is too large": {
+      return copy("Preview is too large");
+    }
+    case "Invalid preview link": {
+      return copy("Invalid preview link");
+    }
+    case "This preview has expired. Open it again from the preview tool.": {
+      return copy("This preview has expired. Open it again from the preview tool.");
+    }
     default: {
-      return error;
+      return copy("Preview could not be loaded.");
     }
   }
 }

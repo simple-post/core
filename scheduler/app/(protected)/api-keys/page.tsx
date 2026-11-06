@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUiTranslation } from "@/lib/i18n/client";
 import type { createTranslator, MessageKey } from "@/lib/i18n/translate";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 
 const MAX_KEY_NAME_LENGTH = 80;
-const DEFAULT_KEY_NAME = "Default API key";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social";
 
 interface ApiKeyRecord {
@@ -75,6 +75,7 @@ function describeKeyError(error: unknown, fallback: MessageKey, t: ReturnType<ty
 }
 
 export default function ApiKeysPage() {
+  const { copy } = useUiCopy();
   const { locale, t } = useUiTranslation();
   const [keys, setKeys] = useState<ApiKeyRecord[]>([]);
   const [name, setName] = useState<string>();
@@ -124,7 +125,7 @@ export default function ApiKeysPage() {
       const response = await fetch("/api/v1/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name === undefined ? DEFAULT_KEY_NAME : name.trim() || undefined }),
+        body: JSON.stringify({ name: name === undefined ? copy("Default API key") : name.trim() || undefined }),
       });
 
       if (!response.ok) {

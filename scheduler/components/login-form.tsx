@@ -195,7 +195,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
         {/* Title Section */}
         <div className="text-center mb-12 animate-reveal">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <img src="/simplepost-logo.png" alt="SimplePost Logo" className="w-10 h-10 drop-shadow-2xl" />
+            <img src="/simplepost-logo.png" alt="SimplePost" className="w-10 h-10 drop-shadow-2xl" />
             <span className="font-mono text-base font-medium text-muted-foreground tracking-tight">SimplePost</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-[-0.03em] text-foreground mb-3">

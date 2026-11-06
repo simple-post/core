@@ -1,12 +1,13 @@
 "use client";
 
-import { useUiTranslation } from "@/lib/i18n/client";
-import { localizedSchedulePeriod } from "@/lib/i18n/presentation";
 import { createContext, useContext, type ReactNode } from "react";
 
 import { format } from "date-fns";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 
+import { useUiTranslation } from "@/lib/i18n/client";
+import { localizedSchedulePeriod } from "@/lib/i18n/presentation";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 import { PlatformIconBadge } from "../platform-icons";
@@ -570,6 +571,7 @@ function DayAgenda({
   onOpenDay?: (date: Date) => void;
 }) {
   const { date, number, t } = useCalendarCopy();
+  const { copy } = useUiCopy();
   const isToday = isSameDay(day, now);
   const itemCount = entries.reduce((count, entry) => count + Math.max(1, entry.posts.length), 0);
 
@@ -629,7 +631,7 @@ function DayAgenda({
             <Button asChild variant="outline" size="sm" className="h-9 shrink-0 px-3 text-xs">
               <Action target={{ kind: "create" }}>
                 <Plus className="h-3.5 w-3.5" />
-                Add post
+                {copy("Add post")}
               </Action>
             </Button>
           ) : null}

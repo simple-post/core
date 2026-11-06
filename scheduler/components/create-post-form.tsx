@@ -45,6 +45,7 @@ import {
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { parseSlotOccurrenceKey } from "@/lib/posting-slots/occurrences";
+import { isScheduledTimeError, isTrialSubmissionError } from "@/lib/utils/api-response-error";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
@@ -624,13 +625,13 @@ export function CreatePostForm() {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : copy("Failed to create post. Please try again.");
-      if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
+      if (postingMode === "schedule" && isScheduledTimeError(error)) {
         setScheduleError(errorMessage);
       }
       // The client-side projection can be stale (another tab, or an agent
       // posting over MCP). Keep the server's verdict on screen rather than only
       // in a toast that disappears.
-      if (errorMessage.toLowerCase().includes("free trial")) {
+      if (isTrialSubmissionError(error)) {
         setTrialSubmissionError(errorMessage);
       }
       if (postingMode === "now") {

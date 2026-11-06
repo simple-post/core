@@ -15,7 +15,7 @@ export async function scheduleTikTokRetry(
   expectedUpdatedAt?: string,
 ) {
   const error = getScheduledForValueError(scheduledForValue);
-  if (error) throw new BadRequestError(error);
+  if (error) throw new BadRequestError(error, "INVALID_SCHEDULED_TIME");
   const scheduledFor = new Date(scheduledForValue);
   const repository = new PostsModel(userId);
   const post = await repository.getPostById(postId);

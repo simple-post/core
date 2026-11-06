@@ -82,12 +82,12 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
   }
 
   if (!scheduledForValue) {
-    throw new BadRequestError("Choose a date and time before scheduling this post.");
+    throw new BadRequestError("Choose a date and time before scheduling this post.", "INVALID_SCHEDULED_TIME");
   }
 
   const scheduledForError = getScheduledForValueError(scheduledForValue);
   if (scheduledForError) {
-    throw new BadRequestError(scheduledForError);
+    throw new BadRequestError(scheduledForError, "INVALID_SCHEDULED_TIME");
   }
 
   return parseScheduledForValue(scheduledForValue)!;

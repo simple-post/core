@@ -34,6 +34,7 @@ import {
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { isScheduledTimeError } from "@/lib/utils/api-response-error";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
@@ -473,7 +474,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             : mode === "edit"
               ? copy("Failed to edit post.")
               : copy("Failed to duplicate post.");
-      if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
+      if (postingMode === "schedule" && isScheduledTimeError(error)) {
         setScheduleError(errorMessage);
       }
       if (postingMode === "now") {

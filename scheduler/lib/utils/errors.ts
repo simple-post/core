@@ -72,6 +72,8 @@ export function sanitizeForJson<T>(value: T): unknown {
  * Base error class for API errors
  */
 export class ApiError extends Error {
+  /** Additive UI reason; the existing public error code remains unchanged. */
+  public reason?: "INVALID_SCHEDULED_TIME" | "TRIAL_ALLOWANCE" | "TRIAL_EXPIRED";
   constructor(
     message: string,
     public statusCode: number = 500,
@@ -101,9 +103,14 @@ export class UnauthorizedError extends ApiError {
  * Payment required error (402)
  */
 export class PaymentRequiredError extends ApiError {
-  constructor(message: string = "An active subscription is required", logContext?: Record<string, unknown>) {
+  constructor(
+    message: string = "An active subscription is required",
+    logContext?: Record<string, unknown>,
+    reason?: ApiError["reason"],
+  ) {
     super(message, 402, "PAYMENT_REQUIRED", logContext);
     this.name = "PaymentRequiredError";
+    this.reason = reason;
   }
 }
 
@@ -111,9 +118,10 @@ export class PaymentRequiredError extends ApiError {
  * Forbidden error (403)
  */
 export class ForbiddenError extends ApiError {
-  constructor(message: string = "Forbidden", logContext?: Record<string, unknown>) {
+  constructor(message: string = "Forbidden", logContext?: Record<string, unknown>, reason?: ApiError["reason"]) {
     super(message, 403, "FORBIDDEN", logContext);
     this.name = "ForbiddenError";
+    this.reason = reason;
   }
 }
 
@@ -131,9 +139,10 @@ export class NotFoundError extends ApiError {
  * Bad request error (400)
  */
 export class BadRequestError extends ApiError {
-  constructor(message: string = "Bad request") {
+  constructor(message: string = "Bad request", reason?: ApiError["reason"]) {
     super(message, 400, "BAD_REQUEST");
     this.name = "BadRequestError";
+    this.reason = reason;
   }
 }
 
@@ -278,6 +287,7 @@ function respondToApiError(error: unknown, context: Record<string, unknown>): Ne
       {
         error: error.message,
         code: error.code,
+        ...(error.reason && { reason: error.reason }),
         ...(error instanceof ValidationError && { details: error.details }),
       },
       { status: error.statusCode },

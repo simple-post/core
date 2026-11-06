@@ -186,7 +186,7 @@ interface PostMutationResult {
 type PostingProgressEvent =
   | { type: "result"; result: PostingResult }
   | { type: "complete"; data: PostMutationResult }
-  | { type: "error"; error: string; status?: number };
+  | { type: "error"; error: string; status?: number; code?: string; reason?: string; details?: unknown };
 
 async function readPostingProgress(
   response: Response,
@@ -216,7 +216,7 @@ async function readPostingProgress(
         break;
       }
       case "error": {
-        throw new ApiResponseError({ error: event.error }, copy("Posting request failed"), event.status ?? 500);
+        throw new ApiResponseError(event, copy("Posting request failed"), event.status ?? 500);
       }
     }
   };

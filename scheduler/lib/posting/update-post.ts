@@ -59,16 +59,16 @@ function resolveScheduledFor(
   if (!scheduledForValue) {
     if (currentScheduledFor) {
       if (currentScheduledFor <= new Date()) {
-        throw new BadRequestError(SCHEDULED_TIME_PAST_MESSAGE);
+        throw new BadRequestError(SCHEDULED_TIME_PAST_MESSAGE, "INVALID_SCHEDULED_TIME");
       }
       return currentScheduledFor;
     }
-    throw new BadRequestError("Choose a date and time before scheduling this post.");
+    throw new BadRequestError("Choose a date and time before scheduling this post.", "INVALID_SCHEDULED_TIME");
   }
 
   const scheduledForError = getScheduledForValueError(scheduledForValue);
   if (scheduledForError) {
-    throw new BadRequestError(scheduledForError);
+    throw new BadRequestError(scheduledForError, "INVALID_SCHEDULED_TIME");
   }
 
   return parseScheduledForValue(scheduledForValue)!;

@@ -696,6 +696,7 @@ function assertTrialAllowance(
     throw new ForbiddenError(
       `The free trial allows up to ${maxThreadSegments} posts in a thread. Upgrade to publish longer threads.`,
       buildBillingLogContext(userId, email, status, context),
+      "TRIAL_ALLOWANCE",
     );
   }
 
@@ -714,6 +715,7 @@ function assertTrialAllowance(
     throw new ForbiddenError(
       `The free trial includes ${postsPerPlatform} posts per platform, and ${exceeded.join(", ")} would go over. Choose a plan to keep posting.`,
       buildBillingLogContext(userId, email, status, context),
+      "TRIAL_ALLOWANCE",
     );
   }
 }
@@ -738,6 +740,7 @@ export async function assertCanCreatePost(
     throw new PaymentRequiredError(
       paymentRequiredMessage(status, "to keep scheduling with SimplePost"),
       buildBillingLogContext(userId, email, status, gateContext),
+      !status.subscription && status.trial ? "TRIAL_EXPIRED" : undefined,
     );
   }
 

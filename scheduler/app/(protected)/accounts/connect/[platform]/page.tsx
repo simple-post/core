@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getPlatformById, isSocialPlatformEnabled } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
+import { useUiTranslation } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/translate";
 
 type PendingAccount = {
   id: string;
@@ -30,7 +32,15 @@ type PendingConnection = {
   accounts: PendingAccount[];
 };
 
+function pendingError(status: number, fallback: MessageKey): MessageKey {
+  if (status === 404) return "pendingConnectionMissing";
+  if (status === 410) return "pendingConnectionExpired";
+  if (status === 401) return "oauthSessionMismatch";
+  return fallback;
+}
+
 export default function ConnectAccountPickerPage() {
+  const { t } = useUiTranslation();
   const router = useRouter();
   const params = useParams<{ platform: string }>();
   const searchParams = useSearchParams();
@@ -41,18 +51,18 @@ export default function ConnectAccountPickerPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MessageKey | null>(null);
 
   const platformConfig = useMemo(() => getPlatformById(platformId), [platformId]);
 
   useEffect(() => {
     if (!isSocialPlatformEnabled(platformId)) {
-      setError("This social platform is not enabled in this environment.");
+      setError("platformNotEnabled");
       setLoading(false);
       return;
     }
     if (!pendingId) {
-      setError("Missing pending connection ID.");
+      setError("pendingConnectionMissing");
       setLoading(false);
       return;
     }
@@ -62,18 +72,19 @@ export default function ConnectAccountPickerPage() {
         setLoading(true);
         const response = await fetch(`/api/connect/pending/${pendingId}`);
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "Failed to load pending connection");
+          setError(pendingError(response.status, "pendingConnectionLoadFailed"));
+          return;
         }
         const data = (await response.json()) as PendingConnection;
         if (data.platform !== platformId) {
-          throw new Error("Pending connection does not match the selected platform.");
+          setError("oauthPlatformMismatch");
+          return;
         }
         setPending(data);
         setSelectedIds(data.accounts.map((account) => account.id));
         setError(null);
-      } catch (error_) {
-        setError(error_ instanceof Error ? error_.message : "Failed to load pending connection");
+      } catch {
+        setError("pendingConnectionLoadFailed");
       } finally {
         setLoading(false);
       }
@@ -108,16 +119,16 @@ export default function ConnectAccountPickerPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to connect accounts");
+        setError(pendingError(response.status, "connectAccountsFailed"));
+        return;
       }
 
       const data = await response.json();
       router.push(
         `/accounts?success=true&platform=${platformId}&count=${data.count || 0}${data.source === "assistant_handoff" ? "&source=assistant_handoff" : ""}`,
       );
-    } catch (error_) {
-      setError(error_ instanceof Error ? error_.message : "Failed to connect accounts");
+    } catch {
+      setError("connectAccountsFailed");
     } finally {
       setSubmitting(false);
     }
@@ -142,12 +153,12 @@ export default function ConnectAccountPickerPage() {
         <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12 space-y-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Unable to continue</AlertTitle>
-            <AlertDescription>{error || "Pending connection not found."}</AlertDescription>
+            <AlertTitle>{t("unableToContinue")}</AlertTitle>
+            <AlertDescription>{t(error ?? "pendingConnectionMissing")}</AlertDescription>
           </Alert>
-          <HelpLink path={platformHelpPath(platformId)}>Connection help</HelpLink>
+          <HelpLink path={platformHelpPath(platformId)}>{t("connectionHelp")}</HelpLink>
           <Link href="/accounts">
-            <Button variant="outline">Back to Accounts</Button>
+            <Button variant="outline">{t("backToAccounts")}</Button>
           </Link>
         </div>
       </div>
@@ -159,17 +170,9 @@ export default function ConnectAccountPickerPage() {
       <Navbar />
 
       <main className="max-w-5xl mx-auto px-[clamp(18px,4vw,48px)] py-6 space-y-5">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Something went wrong</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         <div className="space-y-3">
-          <BackLink href="/accounts" label="Back to accounts" />
-          <HelpLink path={platformHelpPath(platformId)}>Account requirements and connection help</HelpLink>
+          <BackLink href="/accounts" label={t("backToAccounts")} />
+          <HelpLink path={platformHelpPath(platformId)}>{t("connectionRequirements")}</HelpLink>
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />
@@ -177,17 +180,17 @@ export default function ConnectAccountPickerPage() {
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              Available <span className="text-primary">accounts</span>
+              <span className="text-primary">{t("availableAccounts")}</span>
             </h1>
           </div>
         </div>
 
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={selectAll} disabled={pending.accounts.length === 0}>
-            Select all
+            {t("selectAll")}
           </Button>
           <Button variant="outline" size="sm" onClick={clearAll} disabled={selectedIds.length === 0}>
-            Clear
+            {t("clearSelection")}
           </Button>
         </div>
 
@@ -202,8 +205,9 @@ export default function ConnectAccountPickerPage() {
                 }`}>
                 <button
                   type="button"
+                  aria-pressed={isSelected}
                   onClick={() => toggleSelection(account.id)}
-                  className="flex w-full items-center gap-4 text-left">
+                  className="flex w-full items-center gap-4 text-start">
                   <Checkbox
                     checked={isSelected}
                     onCheckedChange={() => toggleSelection(account.id)}
@@ -218,7 +222,9 @@ export default function ConnectAccountPickerPage() {
                       )}
                     </div>
                     <div>
-                      <div className="font-medium text-sm">{account.name || account.username || account.id}</div>
+                      <div dir="auto" className="font-medium text-sm">
+                        {account.name || account.username || account.id}
+                      </div>
                       {account.username && (
                         <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
                           @{account.username.replace(/^@/, "")}
@@ -234,10 +240,10 @@ export default function ConnectAccountPickerPage() {
 
         <div className="flex gap-3 pt-2">
           <Button variant="outline" onClick={() => router.push("/accounts")} disabled={submitting} className="flex-1">
-            Cancel
+            {t("cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || selectedIds.length === 0} className="flex-1">
-            {submitting ? "Connecting..." : `Connect ${selectedIds.length} account(s)`}
+            {submitting ? t("connecting") : t("connectSelectedCount", { count: selectedIds.length })}
           </Button>
         </div>
       </main>

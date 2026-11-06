@@ -1,7 +1,5 @@
 "use client";
 
-import { useUiTranslation } from "@/lib/i18n/client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
@@ -28,35 +26,60 @@ import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hoo
 import { recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
+import { useUiTranslation } from "@/lib/i18n/client";
+import { platformDescriptionKey } from "@/lib/i18n/platform-copy";
+import type { MessageKey } from "@/lib/i18n/translate";
 import { logClientError } from "@/lib/logger/client";
-import { knownOAuthErrorMessage } from "@/lib/oauth/error-messages";
+import { oauthErrorKey } from "@/lib/oauth/error-messages";
 import { queryKeys } from "@/lib/query-client";
 import type { ConnectedAccount } from "@/types";
 
 const CONNECTION_RETURN_KEY = "simplepost:account-connection:return";
 
-function getCredentialBadge(account: ConnectedAccount): {
-  className: string;
-  label: string;
-} | null {
+function getCredentialBadge(account: ConnectedAccount): string | null {
   const status = account.credentialStatus;
   if (!status || status.severity === "ok" || status.state === "refreshing_soon") {
     return null;
   }
   if (status.severity === "error") {
-    return {
-      className: "border-destructive/20 bg-destructive/10 text-destructive",
-      label: status.label,
-    };
+    return "border-destructive/20 bg-destructive/10 text-destructive";
   }
-  return {
-    className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    label: status.label,
-  };
+  return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+}
+
+const credentialCopy = {
+  unknown: { label: "checkCredentials", message: "credentialsUnknown" },
+  refresh_unavailable: { label: "refreshUnavailable", message: "credentialsRefreshUnavailable" },
+  reauth_required: { label: "reconnect", message: "credentialsReconnect" },
+} as const;
+
+function TelegramHelpLink({
+  message,
+  name,
+}: {
+  message: "botTokenHelp" | "chatIdHelp";
+  name: "botfather" | "userinfobot";
+}) {
+  const { t } = useUiTranslation();
+  const marker = "\uE000";
+  const [before, after] = t(message, { link: marker }).split(marker);
+  return (
+    <>
+      {before}
+      <a
+        href={`https://t.me/${name}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-2 hover:text-foreground">
+        <bdi dir="ltr">{name === "botfather" ? "@BotFather" : "@userinfobot"}</bdi>
+      </a>
+      {after}
+    </>
+  );
 }
 
 export default function AccountsPage() {
-  const { t } = useUiTranslation();
+  const { locale, t } = useUiTranslation();
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,7 +88,7 @@ export default function AccountsPage() {
   const onboardingConnection = useRef(false);
   const handledReconnect = useRef(false);
   const [manualHandoff, setManualHandoff] = useState<{ platform: string; token: string } | null>(null);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<MessageKey | null>(null);
   const [recoveryReturnTo, setRecoveryReturnTo] = useState<string | null>(null);
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const disconnectAccountMutation = useDisconnectAccount();
@@ -79,11 +102,11 @@ export default function AccountsPage() {
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramChannelName, setTelegramChannelName] = useState("");
-  const [telegramError, setTelegramError] = useState("");
+  const [telegramError, setTelegramError] = useState<MessageKey | "">("");
   const [showForemDialog, setShowForemDialog] = useState(false);
   const [foremInstance, setForemInstance] = useState("https://dev.to");
   const [foremApiKey, setForemApiKey] = useState("");
-  const [foremError, setForemError] = useState("");
+  const [foremError, setForemError] = useState<MessageKey | "">("");
 
   // OAuth and manual connections share a quiet hand-off to the dashboard.
   useEffect(() => {
@@ -102,17 +125,14 @@ export default function AccountsPage() {
     } catch {
       // Storage can be unavailable; connection success must still be usable.
     }
-    toast.success("Account connected");
+    toast.success(t("accountConnected"));
     if (searchParams.get("source") === "assistant_handoff") return;
     router.replace(resumeRecoveryHref(destination), { scroll: false });
-  }, [queryClient, router, searchParams]);
+  }, [queryClient, router, searchParams, t]);
 
   useEffect(() => {
     if (!searchParams.get("error")) return;
-    setConnectionError(
-      knownOAuthErrorMessage(searchParams.get("error")) ??
-        "Your account connection did not finish. Try reconnecting again. Your saved work is still here.",
-    );
+    setConnectionError(oauthErrorKey(searchParams.get("error")) ?? "accountConnectInterrupted");
     try {
       setRecoveryReturnTo(recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)));
     } catch {
@@ -176,7 +196,7 @@ export default function AccountsPage() {
     handledReconnect.current = true;
     if (account) handleConnect(account.platform, recoveryReturnPath(searchParams.get("returnTo")) ?? "/accounts");
     else {
-      setConnectionError("This account is no longer connected. Your post is still saved.");
+      setConnectionError("accountDisconnectedSaved");
       setRecoveryReturnTo(recoveryReturnPath(searchParams.get("returnTo")));
     }
   }, [accounts, handleConnect, loading, readOnly, searchParams]);
@@ -195,11 +215,11 @@ export default function AccountsPage() {
 
   const handleForemConnect = async () => {
     if (!foremInstance.trim() || !foremApiKey.trim()) {
-      setForemError("Please provide the instance URL and API key");
+      setForemError("foremMissingFields");
       return;
     }
     if (!/^https:\/\//i.test(foremInstance.trim())) {
-      setForemError("The instance URL must start with https://");
+      setForemError("foremHttpsRequired");
       return;
     }
     setForemError("");
@@ -214,13 +234,13 @@ export default function AccountsPage() {
       router.replace(manualSuccessUrl("forem"), { scroll: false });
     } catch (error) {
       logClientError(error, "Forem connection error");
-      setForemError(error instanceof Error ? error.message : "Failed to connect Forem");
+      setForemError("foremConnectionFailed");
     }
   };
 
   const handleTelegramConnect = async () => {
     if (!telegramBotToken.trim() || !telegramChatId.trim()) {
-      setTelegramError("Please provide both bot token and chat ID");
+      setTelegramError("telegramMissingFields");
       return;
     }
 
@@ -241,7 +261,7 @@ export default function AccountsPage() {
       router.replace(manualSuccessUrl("telegram"), { scroll: false });
     } catch (error) {
       logClientError(error, "Telegram connection error");
-      setTelegramError(error instanceof Error ? error.message : "Failed to connect Telegram account");
+      setTelegramError("telegramConnectionFailed");
     }
   };
 
@@ -259,7 +279,7 @@ export default function AccountsPage() {
       setAccountToDisconnect(null);
     } catch (error) {
       logClientError(error, "Disconnect error", { accountId: accountToDisconnect.id });
-      toast.error("An error occurred while disconnecting the account.");
+      toast.error(t("accountDisconnectFailed"));
     }
   };
 
@@ -271,10 +291,8 @@ export default function AccountsPage() {
         {connectionError && (
           <Alert variant="destructive" className="mb-4" role="alert">
             <AlertDescription className="space-y-3">
-              <p>{connectionError}</p>
-              {searchParams.get("source") === "assistant_handoff" && (
-                <p>Return to your AI conversation and ask for a fresh connection link to try again.</p>
-              )}
+              <p>{t(connectionError)}</p>
+              {searchParams.get("source") === "assistant_handoff" && <p>{t("returnFreshLink")}</p>}
               {recoveryReturnTo && recoveryReturnTo !== "/accounts" && (
                 <Button asChild size="sm" variant="outline">
                   <Link
@@ -286,7 +304,7 @@ export default function AccountsPage() {
                         /* No storage means no retained return destination. */
                       }
                     }}>
-                    {recoveryReturnTo === "/" ? "Back to dashboard" : "Back to your post"}
+                    {recoveryReturnTo === "/" ? t("backDashboard") : t("backToPost")}
                   </Link>
                 </Button>
               )}
@@ -305,7 +323,7 @@ export default function AccountsPage() {
           }
         />
         <HelpLink path="/accounts" className="mb-4">
-          Connection and account requirements
+          {t("connectionRequirements")}
         </HelpLink>
         {loading ? (
           <div className="space-y-3">
@@ -327,7 +345,7 @@ export default function AccountsPage() {
               readOnly ? undefined : (
                 <Button onClick={() => setShowConnectDialog(true)}>
                   <Plus className="h-4 w-4" />
-                  Connect your first account
+                  {t("connectFirstAccount")}
                 </Button>
               )
             }
@@ -338,6 +356,12 @@ export default function AccountsPage() {
               const platformConfig = getPlatformById(account.platform);
               if (!platformConfig) return null;
               const credentialBadge = getCredentialBadge(account);
+              const credentialStatus = account.credentialStatus;
+              const credentialLabel =
+                credentialStatus && Object.hasOwn(credentialCopy, credentialStatus.state)
+                  ? credentialCopy[credentialStatus.state as keyof typeof credentialCopy]
+                  : undefined;
+              const affected = credentialStatus?.affectedQueuedPosts ?? 0;
 
               return (
                 <AccountCardView
@@ -353,18 +377,18 @@ export default function AccountsPage() {
                   }
                   name={getAccountDisplayName(account)}
                   platform={platformConfig.name}
-                  connectedAt={new Date(account.createdAt).toLocaleDateString()}
+                  connectedAt={new Date(account.createdAt).toLocaleDateString(locale)}
                   health={
                     credentialBadge ? (
                       <span
-                        className={`inline-flex w-fit shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${credentialBadge.className}`}>
-                        {credentialBadge.label}
+                        className={`inline-flex w-fit shrink-0 items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${credentialBadge}`}>
+                        {credentialLabel ? t(credentialLabel.label) : null}
                       </span>
                     ) : null
                   }
                   help={
                     <HelpLink path={platformHelpPath(account.platform)} className="mt-2">
-                      Connection help
+                      {t("connectionHelp")}
                     </HelpLink>
                   }
                   details={
@@ -372,15 +396,15 @@ export default function AccountsPage() {
                       {account.email && <p className="text-xs text-muted-foreground mt-1 truncate">{account.email}</p>}
                       {credentialBadge && account.credentialStatus && (
                         <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-                          {account.credentialStatus.message}
+                          {locale === "en"
+                            ? account.credentialStatus.message
+                            : credentialLabel && t(credentialLabel.message)}
                         </p>
                       )}
                       {account.credentialStatus?.state === "reauth_required" && (
                         <p role="status" className="text-xs text-destructive mt-1 max-w-xl">
-                          {(account.credentialStatus.affectedQueuedPosts ?? 0) > 0
-                            ? `${account.credentialStatus.affectedQueuedPosts} queued ${account.credentialStatus.affectedQueuedPosts === 1 ? "post needs" : "posts need"} this connection. Reconnect before the next scheduled post.`
-                            : "Reconnect before publishing again."}{" "}
-                          Failed posts must be rescheduled separately.
+                          {affected > 0 ? t("queuedAccountImpact", { count: affected }) : t("reconnectBeforePosting")}{" "}
+                          {t("failedPostsReschedule")}
                         </p>
                       )}
                     </>
@@ -393,6 +417,7 @@ export default function AccountsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleConnect(account.platform)}
+                          aria-label={t("reconnect")}
                           className="gap-1.5">
                           <RefreshCw className="h-3 w-3" />
                           <span className="hidden sm:inline">{t("reconnect")}</span>
@@ -401,6 +426,7 @@ export default function AccountsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleDisconnectClick(account)}
+                          aria-label={t("disconnect")}
                           className="gap-1.5 text-destructive hover:text-destructive hover:border-destructive/40">
                           <X className="h-3 w-3" />
                           <span className="hidden sm:inline">{t("disconnect")}</span>
@@ -424,29 +450,32 @@ export default function AccountsPage() {
               <span className="section-kicker-label">{t("connect")}</span>
             </div>
             <DialogTitle className="text-xl tracking-tight">{t("newAccount")}</DialogTitle>
-            <DialogDescription>
-              Pick a platform to connect. You can connect multiple accounts from the same platform.
-            </DialogDescription>
+            <DialogDescription>{t("pickPlatformToConnect")}</DialogDescription>
           </DialogHeader>
-          <HelpLink path="/accounts#platform-requirements">Check platform requirements</HelpLink>
+          <HelpLink path="/accounts#platform-requirements">{t("checkPlatformRequirements")}</HelpLink>
           <div className="grid gap-2 sm:grid-cols-2 mt-4">
-            {SOCIAL_PLATFORMS.map((platform) => (
-              <button
-                key={platform.id}
-                onClick={() => handleConnect(platform.id)}
-                className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-secondary transition-colors text-left group cursor-pointer">
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-lg flex-shrink-0 ${
-                    platform.id === "youtube" ? "bg-white text-red-600" : `${platform.color} text-white`
-                  }`}>
-                  <PlatformIcon platform={platform.id} className="!h-8 !w-8" />
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-medium text-sm text-foreground truncate">{platform.name}</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{platform.description}</p>
-                </div>
-              </button>
-            ))}
+            {SOCIAL_PLATFORMS.map((platform) => {
+              const description = platformDescriptionKey(platform.id);
+              return (
+                <button
+                  key={platform.id}
+                  onClick={() => handleConnect(platform.id)}
+                  className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-secondary transition-colors text-start group cursor-pointer">
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-lg flex-shrink-0 ${
+                      platform.id === "youtube" ? "bg-white text-red-600" : `${platform.color} text-white`
+                    }`}>
+                    <PlatformIcon platform={platform.id} className="!h-8 !w-8" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-medium text-sm text-foreground truncate">{platform.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      {description ? t(description) : platform.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>
@@ -457,49 +486,52 @@ export default function AccountsPage() {
               <span className="section-kicker-dot" />
               <span className="section-kicker-label">DEV/Forem</span>
             </div>
-            <DialogTitle className="text-xl tracking-tight">Connect DEV/Forem</DialogTitle>
-            <DialogDescription>Use an API key from your Forem account settings.</DialogDescription>
-            <HelpLink path="/forem">Forem setup guide</HelpLink>
+            <DialogTitle className="text-xl tracking-tight">
+              {t("connectNamedPlatform", { platform: "DEV/Forem" })}
+            </DialogTitle>
+            <DialogDescription>{t("foremKeyDescription")}</DialogDescription>
+            <HelpLink path="/forem">{t("foremSetupGuide")}</HelpLink>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             {foremError && (
               <Alert variant="destructive">
-                <AlertDescription>{foremError}</AlertDescription>
+                <AlertDescription>{t(foremError, { prefix: "https://" })}</AlertDescription>
               </Alert>
             )}
             <div>
               <Label
                 htmlFor="foremInstance"
                 className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                Instance URL
+                {t("instanceUrl")}
               </Label>
               <Input
                 id="foremInstance"
+                dir="ltr"
                 placeholder="https://dev.to"
                 value={foremInstance}
                 onChange={(e) => setForemInstance(e.target.value)}
                 className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                Keep https://dev.to for DEV Community, or point at your own Forem.
+                {t("foremInstanceHelp", { url: "https://dev.to" })}
               </p>
             </div>
             <div>
               <Label
                 htmlFor="foremApiKey"
                 className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                API key
+                {t("apiKey")}
               </Label>
               <Input
                 id="foremApiKey"
+                dir="ltr"
                 type="password"
                 value={foremApiKey}
                 onChange={(e) => setForemApiKey(e.target.value)}
                 className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                For DEV, generate a dedicated key under Settings → Extensions → DEV Community API Keys. Revoke it there
-                when no longer needed.
+                {t("foremKeyHelp", { path: "Settings → Extensions → DEV Community API Keys" })}
               </p>
             </div>
           </div>
@@ -509,10 +541,10 @@ export default function AccountsPage() {
               onClick={closeForemDialog}
               disabled={connectForemMutation.isPending}
               className="flex-1">
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleForemConnect} disabled={connectForemMutation.isPending} className="flex-1">
-              <span>{connectForemMutation.isPending ? "Connecting..." : t("connect")}</span>
+              <span>{connectForemMutation.isPending ? t("connecting") : t("connect")}</span>
             </Button>
           </div>
         </DialogContent>
@@ -557,14 +589,14 @@ export default function AccountsPage() {
               onClick={() => setShowDisconnectDialog(false)}
               disabled={disconnectAccountMutation.isPending}
               className="flex-1">
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={handleDisconnectConfirm}
               disabled={disconnectAccountMutation.isPending}
               className="flex-1">
-              <span>{disconnectAccountMutation.isPending ? "Disconnecting..." : t("disconnect")}</span>
+              <span>{disconnectAccountMutation.isPending ? t("disconnecting") : t("disconnect")}</span>
             </Button>
           </div>
         </DialogContent>
@@ -578,23 +610,26 @@ export default function AccountsPage() {
               <span className="section-kicker-dot" />
               <span className="section-kicker-label">Telegram</span>
             </div>
-            <DialogTitle className="text-xl tracking-tight">Connect Telegram</DialogTitle>
-            <DialogDescription>Provide your bot token and chat ID to publish to a channel or group.</DialogDescription>
+            <DialogTitle className="text-xl tracking-tight">
+              {t("connectNamedPlatform", { platform: "Telegram" })}
+            </DialogTitle>
+            <DialogDescription>{t("telegramConnectDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             {telegramError && (
               <Alert variant="destructive">
-                <AlertDescription>{telegramError}</AlertDescription>
+                <AlertDescription>{t(telegramError)}</AlertDescription>
               </Alert>
             )}
             <div>
               <Label
                 htmlFor="botToken"
                 className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                Bot token
+                {t("botToken")}
               </Label>
               <Input
                 id="botToken"
+                dir="ltr"
                 type="text"
                 placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
                 value={telegramBotToken}
@@ -602,25 +637,18 @@ export default function AccountsPage() {
                 className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                Get this from{" "}
-                <a
-                  href="https://t.me/botfather"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-foreground">
-                  @BotFather
-                </a>
-                .
+                <TelegramHelpLink message="botTokenHelp" name="botfather" />
               </p>
             </div>
             <div>
               <Label
                 htmlFor="chatId"
                 className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                Chat ID
+                {t("chatId")}
               </Label>
               <Input
                 id="chatId"
+                dir="ltr"
                 type="text"
                 placeholder="-1001234567890"
                 value={telegramChatId}
@@ -628,32 +656,25 @@ export default function AccountsPage() {
                 className="mt-2 font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                Channel or group ID. Use{" "}
-                <a
-                  href="https://t.me/userinfobot"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-foreground">
-                  @userinfobot
-                </a>{" "}
-                to find it.
+                <TelegramHelpLink message="chatIdHelp" name="userinfobot" />
               </p>
             </div>
             <div>
               <Label
                 htmlFor="channelName"
                 className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                Channel name <span className="text-[#555555] normal-case font-sans">(optional)</span>
+                {t("channelNameOptional")}
               </Label>
               <Input
                 id="channelName"
                 type="text"
-                placeholder="My Channel"
+                placeholder={t("exampleChannelName")}
+                dir="auto"
                 value={telegramChannelName}
                 onChange={(e) => setTelegramChannelName(e.target.value)}
                 className="mt-2"
               />
-              <p className="text-xs text-muted-foreground mt-1.5">A friendly label to identify this channel.</p>
+              <p className="text-xs text-muted-foreground mt-1.5">{t("channelNameHelp")}</p>
             </div>
           </div>
           <div className="flex gap-3 mt-2">
@@ -668,10 +689,10 @@ export default function AccountsPage() {
               }}
               disabled={connectTelegramMutation.isPending}
               className="flex-1">
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleTelegramConnect} disabled={connectTelegramMutation.isPending} className="flex-1">
-              <span>{connectTelegramMutation.isPending ? "Connecting..." : t("connect")}</span>
+              <span>{connectTelegramMutation.isPending ? t("connecting") : t("connect")}</span>
             </Button>
           </div>
         </DialogContent>

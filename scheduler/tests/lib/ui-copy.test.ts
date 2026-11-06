@@ -64,3 +64,14 @@ it("selects rich plurals using numeric counts without parsing interpolated user 
   expect(render(2)).toContain("User &lt;part1&gt;اسم&lt;/part1&gt;");
   expect(render(2)).toContain('<a href="/fixed">OPEN</a>');
 });
+
+it("renders opaque RSC scalar slots without assuming they have element props", () => {
+  const source = "Year <part1></part1> — <part2></part2>";
+  const html = renderToStaticMarkup(createElement(UiLocaleProvider, {
+    locale: "en", messages: {}, children: createElement(UiCopy, {
+      source, components: { part1: 2026, part2: "Preserve <tag>日本語</tag>" },
+    }),
+  }));
+  expect(html).toContain("Year 2026");
+  expect(html).toContain("Preserve &lt;tag&gt;日本語&lt;/tag&gt;");
+});

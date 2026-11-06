@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, type ReactElement, type ReactNode } from "react";
+import { cloneElement, createElement, Fragment, isValidElement, type ReactNode } from "react";
 
 import { renderMessage } from "@/lib/i18n/rich-message";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
@@ -12,7 +12,7 @@ export function UiCopy({
   values,
 }: {
   source: string;
-  components?: Record<string, ReactElement<{ children?: ReactNode }>>;
+  components?: Record<string, ReactNode>;
   values?: Record<string, string | number>;
 }) {
   const { copy, locale } = useUiCopy();
@@ -27,11 +27,13 @@ export function UiCopy({
     copy(source, placeholders),
     (name, children, key) => {
       const element = components[name];
-      return element
-        ? element.type === "br"
-          ? cloneElement(element, { key })
-          : cloneElement(element, { key }, opaqueSlots.has(name) ? element.props.children : children)
-        : children;
+      // RSC can serialize an opaque Fragment as its scalar children. Keep the
+      // slot intact instead of reading element.props or reconstructing user text.
+      if (opaqueSlots.has(name)) return createElement(Fragment, { key }, element);
+      if (!isValidElement(element)) return children;
+      return element.type === "br"
+        ? cloneElement(element, { key })
+        : cloneElement(element, { key }, children);
     },
     values,
     locale,

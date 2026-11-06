@@ -1,6 +1,10 @@
 import { createInstance } from "i18next";
+
+import copyEnglish from "./copy/en.json";
+import mainEnglish from "./messages/en.json";
+
 import type { Locale } from "./locales";
-import english from "./messages/en.json";
+const english = { ...mainEnglish, ...copyEnglish };
 
 export type MessageKey = keyof typeof english;
 export type Messages = Partial<Record<MessageKey, string>> & Record<string, string>;

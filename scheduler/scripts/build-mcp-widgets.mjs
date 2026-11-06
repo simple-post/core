@@ -27,7 +27,8 @@ await Promise.all(
 // English fallback is bundled in the translator. Fetch only the selected
 // non-English locale, using the same immutable filenames as the widget code.
 const catalogDirectory = path.resolve(schedulerRoot, "lib/i18n/messages");
-const catalogEntries = (await readdir(catalogDirectory))
+const catalogFiles = await readdir(catalogDirectory);
+const catalogEntries = catalogFiles
   .filter((name) => name.endsWith(".json") && name !== "en.json")
   .sort()
   .map((name) => ({ in: path.join(catalogDirectory, name), out: `locale-${name.slice(0, -5)}` }));
@@ -36,10 +37,16 @@ const catalogs = await build({
     {
       name: "locale-module",
       setup(build) {
-        build.onLoad({ filter: /\.json$/ }, async ({ path: source }) => ({
-          contents: `export default ${await readFile(source, "utf8")};`,
-          loader: "js",
-        }));
+        build.onLoad({ filter: /\.json$/ }, async ({ path: source }) => {
+          const main = JSON.parse(await readFile(source, "utf8"));
+          const copy = await readFile(path.join(schedulerRoot, "lib/i18n/copy", path.basename(source)), "utf8")
+            .then((text) => JSON.parse(text))
+            .catch((error) => {
+              if (error.code === "ENOENT") return {};
+              throw error;
+            });
+          return { contents: `export default ${JSON.stringify({ ...main, ...copy })};`, loader: "js" };
+        });
       },
     },
   ],

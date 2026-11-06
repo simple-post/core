@@ -1,3 +1,5 @@
+import { loadCopyMessages } from "./copy-resources";
+
 import type { Locale } from "./locales";
 import type { Messages } from "./translate";
 
@@ -19,6 +21,7 @@ const loaders = {
   bg: () => import("./messages/bg.json").then((module) => module.default),
 } satisfies Record<Locale, () => Promise<Messages>>;
 
-export function loadMessages(locale: Locale): Promise<Messages> {
-  return loaders[locale]();
+export async function loadMessages(locale: Locale): Promise<Messages> {
+  const [main, copy] = await Promise.all([loaders[locale](), loadCopyMessages(locale)]);
+  return { ...main, ...copy };
 }

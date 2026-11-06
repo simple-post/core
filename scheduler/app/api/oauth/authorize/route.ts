@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
@@ -32,30 +35,25 @@ export async function POST(req: NextRequest) {
       await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
         properties: { reason: "invalid_request" },
       });
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Missing required parameters" },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_request", serverMessage("Missing required parameters"), { status: 400 });
     }
 
     if (code_challenge_method && code_challenge_method !== "S256") {
       await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
         properties: { reason: "invalid_request" },
       });
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Only S256 code_challenge_method is supported" },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_request", serverMessage("Only S256 code_challenge_method is supported"), {
+        status: 400,
+      });
     }
 
     if (nonce != null && (typeof nonce !== "string" || nonce.length > 512)) {
       await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
         properties: { reason: "invalid_request" },
       });
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "nonce must be a string of at most 512 characters" },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_request", serverMessage("nonce must be a string of at most 512 characters"), {
+        status: 400,
+      });
     }
 
     // Validate client and redirect URI
@@ -64,21 +62,23 @@ export async function POST(req: NextRequest) {
       await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
         properties: { reason: "invalid_request" },
       });
-      return NextResponse.json(
-        { error: "invalid_client", error_description: "Unknown client or invalid redirect URI" },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_client", serverMessage("Unknown client or invalid redirect URI"), {
+        status: 400,
+      });
     }
 
     let resolvedResource: string;
     try {
       resolvedResource = resolveMcpResource(resource);
     } catch (error) {
-      return NextResponse.json(
-        {
-          error: "invalid_target",
-          error_description: error instanceof Error ? error.message : "Unsupported MCP resource",
-        },
+      return oauthError(
+        req,
+        "invalid_target",
+        typeof resource === "string"
+          ? serverMessage("Unsupported MCP resource: {{resource}}", { resource })
+          : error instanceof Error
+            ? error.message
+            : serverMessage("Unsupported MCP resource"),
         { status: 400 },
       );
     }
@@ -88,8 +88,10 @@ export async function POST(req: NextRequest) {
       await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
         properties: { reason: "invalid_request" },
       });
-      return NextResponse.json(
-        { error: "invalid_scope", error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}` },
+      return oauthError(
+        req,
+        "invalid_scope",
+        serverMessage("Unsupported scope(s): {{scopes}}", { scopes: scopeResult.unsupported.join(", ") }),
         { status: 400 },
       );
     }
@@ -107,10 +109,9 @@ export async function POST(req: NextRequest) {
       if (canUpgradeLegacyMcpClientScope(scopeResult.scope, client.scope)) {
         await updateClientScope(client_id, scopeResult.scope);
       } else {
-        return NextResponse.json(
-          { error: "invalid_scope", error_description: "Requested scopes exceed registered client scopes" },
-          { status: 400 },
-        );
+        return oauthError(req, "invalid_scope", serverMessage("Requested scopes exceed registered client scopes"), {
+          status: 400,
+        });
       }
     }
 

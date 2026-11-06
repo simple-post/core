@@ -9,6 +9,7 @@ import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
 import { localeFromRequestHeaders } from "../i18n/locales";
 import { loadMessages } from "../i18n/resources";
+import { createServerCopy } from "../i18n/server";
 import { createLogger } from "../logger";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
@@ -114,7 +115,11 @@ export const auth = betterAuth({
       // Carry the failure on this request's context so the form receives an error.
       const delivery = ctx.context as typeof ctx.context & { otpDeliveryFailed?: boolean };
       if (delivery.otpDeliveryFailed) {
-        throw new APIError("SERVICE_UNAVAILABLE", { message: "Failed to send verification code. Please try again." });
+        const locale = localeFromRequestHeaders(ctx.headers ?? ctx.request?.headers);
+        const copy = createServerCopy(locale);
+        throw new APIError("SERVICE_UNAVAILABLE", {
+          message: copy("Failed to send verification code. Please try again."),
+        });
       }
     }),
   },

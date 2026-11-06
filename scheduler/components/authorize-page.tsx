@@ -77,7 +77,10 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
         const data = await res.json().catch(() => ({}));
         setBillingRequired(res.status === 402 || data.code === "PAYMENT_REQUIRED");
         throw new Error(
-          data.error_description || data.error || copy("Failed to authorize ({{status}})", { status: res.status }),
+          data.message ||
+            data.error_description ||
+            data.error ||
+            copy("Failed to authorize ({{status}})", { status: res.status }),
         );
       }
 

@@ -64,18 +64,21 @@ export async function validateAccountReadiness(
         for (let attempt = 0; attempt < 2; attempt++) {
           const fresh = await reloadAccountSecrets(account);
           const credentials = await refreshConnectedAccountIfNeeded(fresh, { reason: "post" });
-          if (credentials.error || credentials.account.credentialRefreshBlockedAt)
+          if (credentials.error || credentials.account.credentialRefreshBlockedAt) {
+            const fallback = "The account connection needs attention. Reconnect it before publishing.";
+            const issue = {
+              platform: result.platform,
+              severity: "error" as const,
+              code: "account_unauthorized",
+              field: "account",
+              message: credentials.status?.message ?? fallback,
+            };
             return [
-              {
-                platform: result.platform,
-                severity: "error" as const,
-                code: "account_unauthorized",
-                field: "account",
-                message:
-                  credentials.status?.message ??
-                  "The account connection needs attention. Reconnect it before publishing.",
-              },
+              credentials.status
+                ? copyDisplayMessage(credentials.status, issue)
+                : describeDisplayMessage(issue, fallback),
             ];
+          }
           const issues = await validatePostReadiness(
             result.platform,
             content,

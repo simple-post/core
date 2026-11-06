@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
     const user = await response.json().catch(() => ({}));
     if (!response.ok || !user.id || !user.username)
-      throw new BadRequestError(user.error || "Forem rejected this API key");
+      throw new BadRequestError(user.error || serverMessage("Forem rejected this API key"));
     await upsertConnectedAccount({
       userId: session.user.id,
       platform: "forem",

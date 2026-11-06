@@ -1,4 +1,6 @@
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
+
+import type { ConnectedAccountCredentialStatus } from "@/types";
 import { copyDisplayMessage, getDisplayMessage } from "@simple-post/sdk/validation";
 
 import { createServerCopy, currentServerLocale, renderServerMessage, serverMessage } from "./server";
@@ -70,4 +72,8 @@ export function joinedValidationMessages(issues: Array<{ message: string }>, sep
     })
     .join(separator);
   return serverMessage(source, values);
+}
+
+export function credentialStatusDisplay(status: ConnectedAccountCredentialStatus, locale = currentServerLocale()) {
+  return { ...status, label: createServerCopy(locale)(status.label), message: validationMessage(status, locale) };
 }

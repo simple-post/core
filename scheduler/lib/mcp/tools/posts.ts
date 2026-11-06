@@ -1,4 +1,4 @@
-import { joinedValidationMessages } from "@/lib/i18n/validation-display";
+import { validationMessage, joinedValidationMessages } from "@/lib/i18n/validation-display";
 import type { AuthoredMessage } from "@/lib/i18n/server";
 import { Feature, Prisma } from "@prisma/client";
 import {
@@ -19,7 +19,7 @@ import {
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
-import { serverMessage } from "@/lib/i18n/server";
+import { authoredError, canonicalMessage, serverMessage, serverT } from "@/lib/i18n/server";
 import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
@@ -674,7 +674,8 @@ async function assertCredentialsReadyForPublish(params: {
     userId: params.userId,
   });
   if (issues.length > 0) {
-    throw new Error(issues.map((issue) => issue.message).join(" "));
+    const message = joinedValidationMessages(issues, " ");
+    throw authoredError(new Error(canonicalMessage(message)), message);
   }
 }
 
@@ -1518,7 +1519,9 @@ export async function createPost(
     post: mapPost(post),
     validation: mcpValidation,
     imageFitHelp: canOfferImageFitting
-      ? fittableImageIssues.map((issue) => `${issue.platform}: ${issue.message}`).join(" ") + " " + IMAGE_FIT_HELP
+      ? fittableImageIssues.map((issue) => `${issue.platform}: ${validationMessage(issue)}`).join(" ") +
+        " " +
+        serverT(IMAGE_FIT_HELP)
       : undefined,
     postingResults: [],
     warnings: scheduleWarnings,

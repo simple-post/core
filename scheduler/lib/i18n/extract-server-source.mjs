@@ -53,6 +53,8 @@ function strings(node, seen = new Set()) {
     const candidates = declarations.get(node.text) ?? [];
     if (candidates.length === 1) return strings(candidates[0], new Set([...seen, node.text]));
   }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+    return strings(node.right, seen);
   if (ts.isConditionalExpression(node)) return [...strings(node.whenTrue, seen), ...strings(node.whenFalse, seen)];
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken)
     return strings(node.left, seen).flatMap((a) => strings(node.right, seen).map((b) => a + b));
@@ -80,6 +82,8 @@ for (const sf of parsed) {
   const openapi = file.endsWith("/openapi.ts") || file.startsWith("lib/openapi/");
   const copied =
     file === "lib/notifications/disconnect-email.ts" ||
+    file === "lib/auth/auth.ts" ||
+    file.startsWith("app/api/v1/") ||
     file === "app/mcp/route.ts" ||
     file === "lib/mcp/ui/runtime.ts" ||
     file === "app/mcp-ui/runtime.js/route.ts" ||
@@ -90,6 +94,7 @@ for (const sf of parsed) {
       const name = node.expression.getText(sf);
       if (["displayMessage", "serverT", "serverMessage"].includes(name) || (copied && name === "copy"))
         add(node.arguments[0], sf);
+      if (file === "lib/oauth/credential-health.ts" && name === "status") add(node.arguments[3], sf);
       if (name === "describeDisplayMessage") {
         add(node.arguments[1], sf);
         const target = node.arguments[0];
@@ -123,6 +128,13 @@ for (const sf of parsed) {
     }
     if (ts.isPropertyAssignment(node)) {
       const key = node.name.getText(sf).replaceAll(/["']/g, "");
+      if (
+        file === "lib/oauth/credential-health.ts" &&
+        key === "reason" &&
+        ts.isStringLiteral(node.initializer) &&
+        /\s/.test(node.initializer.text)
+      )
+        add(node.initializer, sf);
       if (file === "lib/mcp/ui/resources.ts" && ["name", "widgetDescription"].includes(key)) add(node.initializer, sf);
       if (
         (mcp || openapi) &&
@@ -141,6 +153,11 @@ for (const sf of parsed) {
     }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       if (mcp && /(?:INSTRUCTIONS|DESCRIPTION)$/.test(node.name.text)) add(node.initializer, sf);
+      if (
+        file === "lib/validations/scheduled-time.ts" &&
+        /^SCHEDULED_(TIME_(REQUIRED|PAST)|FOR_ISO)_MESSAGE$/.test(node.name.text)
+      )
+        add(node.initializer, sf);
       if (
         mcp &&
         ["MIME_LABEL", "EXTENSION_TOOL_DESCRIPTIONS"].includes(node.name.text) &&

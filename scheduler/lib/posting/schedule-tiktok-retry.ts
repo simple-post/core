@@ -1,5 +1,6 @@
 import { PostsModel } from "@/lib/db";
 import { serverMessage } from "@/lib/i18n/server";
+import { joinedValidationMessages } from "@/lib/i18n/validation-display";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
@@ -16,7 +17,7 @@ export async function scheduleTikTokRetry(
   expectedUpdatedAt?: string,
 ) {
   const error = getScheduledForValueError(scheduledForValue);
-  if (error) throw new BadRequestError(error, "INVALID_SCHEDULED_TIME");
+  if (error) throw new BadRequestError(serverMessage(error), "INVALID_SCHEDULED_TIME");
   const scheduledFor = new Date(scheduledForValue);
   const repository = new PostsModel(userId);
   const post = await repository.getPostById(postId);
@@ -30,7 +31,7 @@ export async function scheduleTikTokRetry(
     );
   const failedIds = post.accountIds.filter((id) => !post.accountResults?.[id]?.success);
   const issues = await getCredentialIssuesForPublishTime({ userId, accountIds: failedIds, publishAt: scheduledFor });
-  if (issues.length > 0) throw new BadRequestError(issues.map((issue) => issue.message).join(" "));
+  if (issues.length > 0) throw new BadRequestError(joinedValidationMessages(issues, " "));
   await validateQuoteSource({
     userId,
     quotePostId: post.quotePostId ?? undefined,

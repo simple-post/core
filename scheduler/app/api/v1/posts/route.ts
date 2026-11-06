@@ -13,6 +13,7 @@ import {
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { serverMessage } from "@/lib/i18n/server";
+import { joinedValidationMessages } from "@/lib/i18n/validation-display";
 import { createLogger, serializeError } from "@/lib/logger";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { requireAuth, requireReadAuth } from "@/lib/middleware/auth";
@@ -91,7 +92,7 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
 
   const scheduledForError = getScheduledForValueError(scheduledForValue);
   if (scheduledForError) {
-    throw new BadRequestError(scheduledForError, "INVALID_SCHEDULED_TIME");
+    throw new BadRequestError(serverMessage(scheduledForError), "INVALID_SCHEDULED_TIME");
   }
 
   return parseScheduledForValue(scheduledForValue)!;
@@ -251,7 +252,9 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       throw new ValidationError(
         draftImageErrors.length > 0 ? { ...validation, imageFitHelp: IMAGE_FIT_HELP } : validation,
         draftImageErrors.length > 0
-          ? `The draft contains images that must be fitted before it can be saved. ${IMAGE_FIT_HELP}`
+          ? serverMessage("The draft contains images that must be fitted before it can be saved. {{help}}", {
+              help: serverMessage(IMAGE_FIT_HELP),
+            })
           : undefined,
       );
     }
@@ -263,7 +266,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         userId,
       });
       if (credentialIssues.length > 0) {
-        throw new BadRequestError(credentialIssues.map((issue) => issue.message).join(" "));
+        throw new BadRequestError(joinedValidationMessages(credentialIssues, " "));
       }
     }
 

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { serverMessage } from "@/lib/i18n/server";
+import { localeFromRequestHeaders } from "@/lib/i18n/locales";
+import { createServerCopy, serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
@@ -28,7 +29,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       where: { id },
     });
 
-    return NextResponse.json({ success: true, message: "Account disconnected successfully" });
+    const copy = createServerCopy(localeFromRequestHeaders(request.headers));
+    return NextResponse.json({ success: true, message: copy("Account disconnected successfully") });
   } catch (error) {
     return handleApiError(error, request);
   }

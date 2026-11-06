@@ -10,6 +10,7 @@ import {
 import { getChargedTrialAccounts } from "@/lib/billing/trial";
 import { PostsModel } from "@/lib/db";
 import { serverMessage } from "@/lib/i18n/server";
+import { joinedValidationMessages } from "@/lib/i18n/validation-display";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -60,7 +61,7 @@ function resolveScheduledFor(
   if (!scheduledForValue) {
     if (currentScheduledFor) {
       if (currentScheduledFor <= new Date()) {
-        throw new BadRequestError(SCHEDULED_TIME_PAST_MESSAGE, "INVALID_SCHEDULED_TIME");
+        throw new BadRequestError(serverMessage(SCHEDULED_TIME_PAST_MESSAGE), "INVALID_SCHEDULED_TIME");
       }
       return currentScheduledFor;
     }
@@ -72,7 +73,7 @@ function resolveScheduledFor(
 
   const scheduledForError = getScheduledForValueError(scheduledForValue);
   if (scheduledForError) {
-    throw new BadRequestError(scheduledForError, "INVALID_SCHEDULED_TIME");
+    throw new BadRequestError(serverMessage(scheduledForError), "INVALID_SCHEDULED_TIME");
   }
 
   return parseScheduledForValue(scheduledForValue)!;
@@ -175,7 +176,9 @@ export async function executePostUpdate(
     throw new ValidationError(
       draftImageErrors.length > 0 ? { ...validation, imageFitHelp: IMAGE_FIT_HELP } : validation,
       draftImageErrors.length > 0
-        ? `The draft contains images that must be fitted before it can be saved. ${IMAGE_FIT_HELP}`
+        ? serverMessage("The draft contains images that must be fitted before it can be saved. {{help}}", {
+            help: serverMessage(IMAGE_FIT_HELP),
+          })
         : undefined,
     );
   }
@@ -187,7 +190,7 @@ export async function executePostUpdate(
       userId: userId,
     });
     if (credentialIssues.length > 0) {
-      throw new BadRequestError(credentialIssues.map((issue) => issue.message).join(" "));
+      throw new BadRequestError(joinedValidationMessages(credentialIssues, " "));
     }
   }
 

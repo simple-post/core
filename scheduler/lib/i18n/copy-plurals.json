@@ -27,5 +27,6 @@
   "{{count, number}} posts were not rescheduled: {{reason}}": "{{count, number}} post was not rescheduled: {{reason}}",
   "{{count, number}} posts can be scheduled for another TikTok attempt": "{{count, number}} post can be scheduled for another TikTok attempt",
   "Schedule {{count, number}} retries": "Schedule {{count, number}} retry",
-  "{{count, number}} selected": "{{count, number}} selected"
+  "{{count, number}} selected": "{{count, number}} selected",
+  "{{count, number}} posts total": "{{count, number}} post total"
 }

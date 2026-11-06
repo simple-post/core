@@ -10,5 +10,17 @@
   "Ends on <part1></part1>. Every feature is unlocked, with {{count, number}} posts per platform. No credit card needed. <part2>Trial details</part2>": "Ends on <part1></part1>. Every feature is unlocked, with {{count, number}} post per platform. No credit card needed. <part2>Trial details</part2>",
   "The free trial allows up to {{count, number}} posts in a thread. Shorten it or <part1>choose a plan</part1>.": "The free trial allows up to {{count, number}} post in a thread. Shorten it or <part1>choose a plan</part1>.",
   "You are on the free trial, limited to {{count, number}} posts per platform.": "You are on the free trial, limited to {{count, number}} post per platform.",
-  "You have {{count, number}} days left.": "You have {{count, number}} day left."
+  "You have {{count, number}} days left.": "You have {{count, number}} day left.",
+  "{{completed, number}} of {{count, number}} platforms complete.": "{{completed, number}} of {{count, number}} platform complete.",
+  "{{completed, number}} completed. {{count, number}} destinations need attention.": "{{completed, number}} completed. {{count, number}} destination needs attention.",
+  "Successfully completed for {{count, number}} platforms.": "Successfully completed for {{count, number}} platform.",
+  "{{completed, number}}/{{count, number}} posts": "{{completed, number}}/{{count, number}} post",
+  "{{count, number}} success": "{{count, number}} success",
+  "{{count, number}} failed": "{{count, number}} failed",
+  "{{count, number}} posting": "{{count, number}} posting",
+  "{{count, number}} unknown": "{{count, number}} unknown",
+  "Maximum {{count, number}} files allowed.": "Maximum {{count, number}} file allowed.",
+  "{{count, number}} bytes": "{{count, number}} byte",
+  "{{count, number}}/{{limit, number}} files (uploading)": "{{count, number}}/{{limit, number}} file (uploading)",
+  "{{count, number}}/{{limit, number}} files selected": "{{count, number}}/{{limit, number}} file selected"
 }

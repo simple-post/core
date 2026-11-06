@@ -24,6 +24,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { UiCopy } from "@/components/ui-copy";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
@@ -31,6 +32,7 @@ import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { useRepostSettings } from "@/hooks/use-repost-settings";
 import { getAccountDisplayName } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
@@ -72,6 +74,7 @@ function normalizeDelayHours(value: number) {
 }
 
 export function CreatePostForm() {
+  const { copy } = useUiCopy();
   const router = useRouter();
   const searchParams = useSearchParams();
   const submitPostMutation = useSubmitPost();
@@ -310,7 +313,7 @@ export function CreatePostForm() {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "Validation failed");
+          throw new Error(data.error || copy("Validation failed"));
         }
 
         const data = (await response.json()) as ValidationResponse;
@@ -321,14 +324,14 @@ export function CreatePostForm() {
         if (signal?.aborted) {
           return null;
         }
-        setValidationError(error instanceof Error ? error.message : "Validation failed");
+        setValidationError(error instanceof Error ? error.message : copy("Validation failed"));
         setServerValidation(null);
         return null;
       } finally {
         setValidationLoading(false);
       }
     },
-    [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread],
+    [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread, copy],
   );
 
   // Local validation cannot decode remote image bytes, so it cannot know the
@@ -551,7 +554,7 @@ export function CreatePostForm() {
       if (postingMode === "schedule") {
         const scheduledFor = parseLocalScheduledDateTime(scheduledDate, scheduledTime);
         if (!scheduledFor) {
-          setScheduleError("Choose a valid date and time before scheduling this post.");
+          setScheduleError(copy("Choose a valid date and time before scheduling this post."));
           return;
         }
         body.scheduledFor = scheduledFor.toISOString();
@@ -596,7 +599,7 @@ export function CreatePostForm() {
       if (data.post?.id) clearRecoveryDraft();
 
       if (postingMode === "now" && data.post?.status === "scheduled") {
-        toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.");
+        toast.info(copy("Queued — waiting for TikTok's request limit. We'll retry automatically."));
         resetDraftToDefaults();
         router.push("/?tab=scheduled");
       } else if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
@@ -619,7 +622,7 @@ export function CreatePostForm() {
         router.push("/?tab=scheduled");
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to create post. Please try again.";
+      const errorMessage = error instanceof Error ? error.message : copy("Failed to create post. Please try again.");
       if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
         setScheduleError(errorMessage);
       }
@@ -676,10 +679,9 @@ export function CreatePostForm() {
               setContentTouched(false);
               setSubmitAttempted(false);
               resetDraftToDefaults();
-              toast.success("Draft cleared");
+              toast.success(copy("Draft cleared"));
             }}>
-            <Trash2 className="h-3.5 w-3.5" />
-            Clear all
+            <UiCopy source="<part1></part1>Clear all" components={{ part1: <Trash2 className="h-3.5 w-3.5" /> }} />
           </Button>
         </div>
 
@@ -696,7 +698,7 @@ export function CreatePostForm() {
         <AccountSelector
           selectedAccountIds={selectedAccountIds}
           onSelectionChange={setSelectedAccountIds}
-          title="Post to"
+          title={copy("Post to")}
           showAdvancedButton
           getAdvancedHref={(accountId) => `/schedule/advanced/${accountId}`}
           layout="row"
@@ -725,25 +727,25 @@ export function CreatePostForm() {
 
         <div className="space-y-4">
           <div>
-            <Label className="text-sm font-medium">When to Post</Label>
+            <Label className="text-sm font-medium">{copy("When to Post")}</Label>
           </div>
           <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as PostingMode)}>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="now" id="post-now" />
               <Label htmlFor="post-now" className="font-normal cursor-pointer">
-                Post Now
+                {copy("Post Now")}{" "}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="schedule" id="post-schedule" />
               <Label htmlFor="post-schedule" className="font-normal cursor-pointer">
-                Schedule for Later
+                {copy("Schedule for Later")}{" "}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="draft" id="post-draft" />
               <Label htmlFor="post-draft" className="font-normal cursor-pointer">
-                Save as Draft
+                {copy("Save as Draft")}{" "}
               </Label>
             </div>
           </RadioGroup>
@@ -751,7 +753,7 @@ export function CreatePostForm() {
 
         {postingMode === "schedule" && (
           <div className="space-y-2">
-            <HelpLink path="/scheduling#timezones">Scheduling and timezone help</HelpLink>
+            <HelpLink path="/scheduling#timezones">{copy("Scheduling and timezone help")}</HelpLink>
             <SchedulePicker
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}
@@ -772,34 +774,39 @@ export function CreatePostForm() {
             <div className="flex items-center gap-2">
               <Repeat2 className="h-4 w-4 shrink-0 text-primary" />
               <Label htmlFor="auto-repost-create" className="text-sm font-medium">
-                Auto-repost
+                {copy("Auto-repost")}{" "}
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label="About auto-repost"
+                    aria-label={copy("About auto-repost")}
                     className="text-muted-foreground transition-colors hover:text-foreground">
                     <Info className="h-3.5 w-3.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Default from settings</TooltipContent>
+                <TooltipContent>{copy("Default from settings")}</TooltipContent>
               </Tooltip>
             </div>
 
             <div className="flex items-center justify-center gap-1.5">
               {repostSettings.enabled ? (
                 <>
-                  <span className="text-xs text-muted-foreground">after</span>
-                  <NumberInput
-                    id="auto-repost-delay-hours"
-                    min={1}
-                    max={720}
-                    value={repostSettings.delayHours}
-                    onChange={(value) => setRepostSettings({ ...repostSettings, delayHours: value })}
-                    className="h-7 w-14 px-2"
+                  <UiCopy
+                    source="Delay in hours: <part1></part1>"
+                    components={{
+                      part1: (
+                        <NumberInput
+                          id="auto-repost-delay-hours"
+                          min={1}
+                          max={720}
+                          value={repostSettings.delayHours}
+                          onChange={(value) => setRepostSettings({ ...repostSettings, delayHours: value })}
+                          className="h-7 w-14 px-2"
+                        />
+                      ),
+                    }}
                   />
-                  <span className="text-xs text-muted-foreground">h</span>
                 </>
               ) : null}
             </div>
@@ -835,22 +842,22 @@ export function CreatePostForm() {
               router.push("/");
             }}
             className="flex-1">
-            Cancel
+            {copy("Cancel")}{" "}
           </Button>
           <Button type="submit" disabled={!isFormValid || submitPostMutation.isPending} className="flex-1">
             {submitPostMutation.isPending
               ? postingMode === "now"
-                ? "Posting..."
+                ? copy("Posting...")
                 : postingMode === "draft"
-                  ? "Saving..."
-                  : "Scheduling..."
+                  ? copy("Saving...")
+                  : copy("Scheduling...")
               : postingMode === "draft"
-                ? "Save Draft"
+                ? copy("Save Draft")
                 : validationLoading
-                  ? "Validating..."
+                  ? copy("Validating...")
                   : postingMode === "now"
-                    ? "Post Now"
-                    : "Schedule Post"}
+                    ? copy("Post Now")
+                    : copy("Schedule Post")}
           </Button>
         </div>
       </form>
@@ -862,7 +869,7 @@ export function CreatePostForm() {
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                <p className="font-medium">Draft is not being saved</p>
+                <p className="font-medium">{copy("Draft is not being saved")}</p>
               </div>
               <p className="mt-1 text-muted-foreground">{storageError}</p>
             </div>
@@ -870,7 +877,7 @@ export function CreatePostForm() {
 
           {selectedAccountIds.length === 0 && (
             <div className="p-3 rounded-lg border border-border bg-card text-sm text-muted-foreground">
-              Select at least one account to publish your content.
+              {copy("Select at least one account to publish your content.")}{" "}
             </div>
           )}
 
@@ -880,7 +887,7 @@ export function CreatePostForm() {
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                <p className="font-medium">Free trial limit</p>
+                <p className="font-medium">{copy("Free trial limit")}</p>
               </div>
               <p className="mt-1 text-muted-foreground">{trialSubmissionError}</p>
             </div>
@@ -890,7 +897,7 @@ export function CreatePostForm() {
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                <p className="font-medium">Something went wrong</p>
+                <p className="font-medium">{copy("Something went wrong")}</p>
               </div>
               <p className="mt-1 text-muted-foreground">{validationError}</p>
             </div>
@@ -922,11 +929,11 @@ export function CreatePostForm() {
             <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm space-y-1">
               <div className="flex items-center gap-1.5 text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                <p className="font-medium">Before you can post</p>
+                <p className="font-medium">{copy("Before you can post")}</p>
               </div>
               {canOfferImageFitting && (
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
-                  Fit images…
+                  {copy("Fit images…")}{" "}
                 </Button>
               )}
               <ValidationIssueList issues={visibleValidationErrors} accounts={validation?.accounts} className="pt-1" />
@@ -937,11 +944,11 @@ export function CreatePostForm() {
             <div className="p-3 rounded-lg border border-border bg-card text-sm space-y-1">
               <div className="flex items-center gap-1.5 text-foreground">
                 <Info className="h-3.5 w-3.5" />
-                <p className="font-medium">Tips</p>
+                <p className="font-medium">{copy("Tips")}</p>
               </div>
               {canOfferImageFitting && visibleValidationErrors.length === 0 && (
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
-                  Fit images…
+                  {copy("Fit images…")}{" "}
                 </Button>
               )}
               <ValidationIssueList

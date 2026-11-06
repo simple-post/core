@@ -6,6 +6,7 @@ import { deleteFromStorage, generateFileKey, S3MediaUploader } from "@simple-pos
 import { ALLOWED_MEDIA_TYPES, mediaHeaderMatchesContentType, normalizeContentType } from "@simple-post/sdk/media-types";
 import Busboy from "busboy";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { requireAuth } from "@/lib/middleware/auth";
 import { hasAllowedOrigin } from "@/lib/middleware/origin";
@@ -36,7 +37,13 @@ class MediaSignatureTransform extends Transform {
   private checkAndFlush(callback: (error?: Error | null) => void): void {
     const buffered = Buffer.concat(this.chunks, this.bufferedBytes);
     if (!mediaHeaderMatchesContentType(buffered, this.contentType)) {
-      callback(new BadRequestError(`File contents do not match the declared type: ${this.contentType}`));
+      callback(
+        new BadRequestError(
+          serverMessage("File contents do not match the declared type: {{value1}}", {
+            value1: String(this.contentType),
+          }),
+        ),
+      );
       return;
     }
 
@@ -75,10 +82,10 @@ class MediaSignatureTransform extends Transform {
 async function streamMultipartUpload(req: NextRequest, userId: string): Promise<StreamedUpload> {
   const contentType = req.headers.get("content-type");
   if (!contentType?.toLowerCase().startsWith("multipart/form-data")) {
-    throw new BadRequestError("Content-Type must be multipart/form-data");
+    throw new BadRequestError(serverMessage("Content-Type must be multipart/form-data"));
   }
   if (!req.body) {
-    throw new BadRequestError("No file provided");
+    throw new BadRequestError(serverMessage("No file provided"));
   }
 
   const uploader = new S3MediaUploader();
@@ -110,7 +117,7 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
 
       parser.on("file", (fieldName, stream, info) => {
         if (fileSeen || fieldName !== "file") {
-          failure ??= new BadRequestError("Expected one multipart file field named 'file'");
+          failure ??= new BadRequestError(serverMessage("Expected one multipart file field named 'file'"));
           stream.resume();
           return;
         }
@@ -118,7 +125,9 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
         filename = info.filename || "upload";
         resolvedType = normalizeContentType(info.mimeType, filename) ?? "";
         if (!resolvedType || !ALLOWED_MEDIA_TYPES.has(resolvedType)) {
-          failure = new BadRequestError(`Invalid file type: ${info.mimeType || "(unknown)"}`);
+          failure = new BadRequestError(
+            serverMessage("Invalid file type: {{value1}}", { value1: String(info.mimeType || "(unknown)") }),
+          );
           stream.resume();
           return;
         }
@@ -148,24 +157,28 @@ async function streamMultipartUpload(req: NextRequest, userId: string): Promise<
       });
 
       parser.on("filesLimit", () => {
-        failure ??= new BadRequestError("Only one file may be uploaded");
+        failure ??= new BadRequestError(serverMessage("Only one file may be uploaded"));
       });
       parser.on("fieldsLimit", () => {
-        failure ??= new BadRequestError("Multipart form fields are not accepted");
+        failure ??= new BadRequestError(serverMessage("Multipart form fields are not accepted"));
       });
       parser.on("partsLimit", () => {
-        failure ??= new BadRequestError("Multipart request contains too many parts");
+        failure ??= new BadRequestError(serverMessage("Multipart request contains too many parts"));
       });
       parser.on("error", reject);
       parser.on("finish", () => {
         void (async () => {
           if (!fileSeen || !uploadPromise || !keyForCleanup) {
-            throw failure ?? new BadRequestError("No file provided");
+            throw failure ?? new BadRequestError(serverMessage("No file provided"));
           }
 
           const upload = await uploadPromise;
           if (fileTooLarge) {
-            throw new BadRequestError(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)} MiB`);
+            throw new BadRequestError(
+              serverMessage("File too large. Maximum size is {{value1}} MiB", {
+                value1: String(MAX_FILE_SIZE / (1024 * 1024)),
+              }),
+            );
           }
           if (failure) throw failure;
           if ("error" in upload) throw upload.error;

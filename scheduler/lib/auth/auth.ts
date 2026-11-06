@@ -65,6 +65,7 @@ export const auth = betterAuth({
   }),
   user: {
     additionalFields: {
+      uiLocale: { type: "string", required: false, input: false, returned: false },
       analyticsExcluded: { type: "boolean", required: false, input: false, returned: false },
       acquisition: { type: "json", required: false, input: false, returned: false },
       experimentAttribution: { type: "json", required: false, input: false, returned: false },

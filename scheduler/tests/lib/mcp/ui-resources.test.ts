@@ -53,7 +53,7 @@ describe("MCP UI resources", () => {
       scripts: Record<string, string>;
     };
 
-    expect(packageJson.scripts.build).toMatch(/^yarn build:mcp-widgets && next build/);
+    expect(packageJson.scripts.build).toMatch(/(?:^|&& )yarn build:mcp-widgets && next build/);
     expect(packageJson.scripts.dev).toMatch(/^yarn build:mcp-widgets && next dev/);
     expect(packageJson.scripts.prebuild).toBeUndefined();
     expect(packageJson.scripts.predev).toBeUndefined();

@@ -52,14 +52,26 @@ export function negotiateLocale(preference?: string, acceptLanguage?: string): L
   return ranked[0]?.locale ?? "en";
 }
 
-export function localeFromRequestHeaders(headers?: Pick<Headers, "get"> | null) {
+export function cookieLocale(headers?: Pick<Headers, "get"> | null): Locale | undefined {
   const preference = headers
     ?.get("cookie")
     ?.split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${localeCookie}=`))
     ?.slice(localeCookie.length + 1);
-  return negotiateLocale(preference, headers?.get("accept-language") ?? undefined);
+  try {
+    return normalizeLocale(preference ? decodeURIComponent(preference) : undefined);
+  } catch {
+    return undefined;
+  }
+}
+
+export function localeFromRequestHeaders(headers?: Pick<Headers, "get"> | null, savedPreference?: unknown) {
+  return (
+    cookieLocale(headers) ??
+    normalizeLocale(savedPreference) ??
+    negotiateLocale(undefined, headers?.get("accept-language") ?? undefined)
+  );
 }
 
 export function direction(locale: Locale) {

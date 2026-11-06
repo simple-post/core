@@ -4,14 +4,14 @@ import { z } from "zod";
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
 
-import type { CallToolResult } from "@modelcontextprotocol/server";
+import type { CallToolResult, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
 jest.mock("@modelcontextprotocol/ext-apps/server", () => ({ registerAppTool: jest.fn() }));
 jest.mock("@/lib/analytics/events", () => ({
   recordFunnelEvent: jest.fn(),
   measurementFailure: () => "unknown_error",
 }));
 beforeEach(() => jest.clearAllMocks());
-it("forwards an object schema unchanged and preserves its typed callback result", async () => {
+it("preserves object-schema validation and its typed callback result", async () => {
   const schema = z.object({ message: z.string() }),
     config = { inputSchema: schema, _meta: {} };
   const result: CallToolResult = { content: [{ type: "text", text: "HELLO" }] };
@@ -20,19 +20,27 @@ it("forwards an object schema unchanged and preserves its typed callback result"
     return result;
   });
   const call = jest.mocked(registerAppTool).mock.calls[0];
-  expect(call[2]).toBe(config);
+  expect(call[2]._meta).toBe(config._meta);
+  const registered = call[2].inputSchema as StandardSchemaWithJSON;
+  expect(await registered["~standard"].validate({ message: "hello" })).toEqual({ value: { message: "hello" } });
+  const invalid = await registered["~standard"].validate({ message: 42 });
+  expect(invalid.issues).toBeDefined();
   const callback = call[3] as (input: { message: string }, ctx: never) => Promise<CallToolResult>;
   expect(await callback({ message: "hello" }, {} as never)).toBe(result);
   expect(recordFunnelEvent).toHaveBeenCalledTimes(1);
 });
-it("does not convert legacy raw shapes or move their validation outside the existing callback", () => {
+it("preserves legacy raw-shape validation and strips the same unknown fields", async () => {
   const shape = { message: z.string() },
     config = { inputSchema: shape, _meta: {} };
   registerMeasuredTool({ userId: "u" }, { registerTool: jest.fn() }, "legacy", config, async (input) => ({
     content: [{ type: "text", text: input.message.toUpperCase() }],
   }));
-  expect(jest.mocked(registerAppTool).mock.calls[0][2]).toBe(config);
-  expect(jest.mocked(registerAppTool).mock.calls[0][2].inputSchema).toBe(shape);
+  const registered = jest.mocked(registerAppTool).mock.calls[0][2].inputSchema as StandardSchemaWithJSON;
+  expect(await registered["~standard"].validate({ message: "unchanged", other: true })).toEqual({
+    value: { message: "unchanged" },
+  });
+  const invalid = await registered["~standard"].validate({ message: false });
+  expect(invalid.issues).toBeDefined();
 });
 
 it.each([

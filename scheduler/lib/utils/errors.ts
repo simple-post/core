@@ -2,6 +2,16 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { ZodError } from "zod";
 
+import { localeFromRequestHeaders, type Locale } from "@/lib/i18n/locales";
+import { schemaErrorMap } from "@/lib/i18n/schema-display";
+import {
+  authoredError,
+  canonicalMessage,
+  createServerCopy,
+  displayError,
+  serverMessage,
+  type AuthoredMessage,
+} from "@/lib/i18n/server";
 import { apiLogger, serializeError } from "@/lib/logger";
 import { diagnosticText, flatErrorFields } from "@/lib/logger/error-fields";
 import { requestErrorContext } from "@/lib/logger/request-context";
@@ -75,13 +85,14 @@ export class ApiError extends Error {
   /** Additive UI reason; the existing public error code remains unchanged. */
   public reason?: "INVALID_SCHEDULED_TIME" | "TRIAL_ALLOWANCE" | "TRIAL_EXPIRED";
   constructor(
-    message: string,
+    message: string | AuthoredMessage,
     public statusCode: number = 500,
     public code?: string,
     /** Structured diagnostics written to server logs but never returned to API clients. */
     public logContext?: Record<string, unknown>,
   ) {
-    super(message);
+    super(canonicalMessage(message));
+    if (typeof message !== "string") authoredError(this, message);
     // Constructor names are minified in production bundles. Subclasses assign
     // a stable public name so logs and alerts never degrade to values like `i`.
     this.name = "ApiError";
@@ -93,7 +104,7 @@ export class ApiError extends Error {
  * Unauthorized error (401)
  */
 export class UnauthorizedError extends ApiError {
-  constructor(message: string = "Unauthorized") {
+  constructor(message: string | AuthoredMessage = serverMessage("Unauthorized")) {
     super(message, 401, "UNAUTHORIZED");
     this.name = "UnauthorizedError";
   }
@@ -104,7 +115,7 @@ export class UnauthorizedError extends ApiError {
  */
 export class PaymentRequiredError extends ApiError {
   constructor(
-    message: string = "An active subscription is required",
+    message: string | AuthoredMessage = serverMessage("An active subscription is required"),
     logContext?: Record<string, unknown>,
     reason?: ApiError["reason"],
   ) {
@@ -118,7 +129,11 @@ export class PaymentRequiredError extends ApiError {
  * Forbidden error (403)
  */
 export class ForbiddenError extends ApiError {
-  constructor(message: string = "Forbidden", logContext?: Record<string, unknown>, reason?: ApiError["reason"]) {
+  constructor(
+    message: string | AuthoredMessage = serverMessage("Forbidden"),
+    logContext?: Record<string, unknown>,
+    reason?: ApiError["reason"],
+  ) {
     super(message, 403, "FORBIDDEN", logContext);
     this.name = "ForbiddenError";
     this.reason = reason;
@@ -129,7 +144,7 @@ export class ForbiddenError extends ApiError {
  * Not found error (404)
  */
 export class NotFoundError extends ApiError {
-  constructor(message: string = "Resource not found") {
+  constructor(message: string | AuthoredMessage = serverMessage("Resource not found")) {
     super(message, 404, "NOT_FOUND");
     this.name = "NotFoundError";
   }
@@ -139,7 +154,7 @@ export class NotFoundError extends ApiError {
  * Bad request error (400)
  */
 export class BadRequestError extends ApiError {
-  constructor(message: string = "Bad request", reason?: ApiError["reason"]) {
+  constructor(message: string | AuthoredMessage = serverMessage("Bad request"), reason?: ApiError["reason"]) {
     super(message, 400, "BAD_REQUEST");
     this.name = "BadRequestError";
     this.reason = reason;
@@ -152,7 +167,7 @@ export class BadRequestError extends ApiError {
 export class ValidationError extends ApiError {
   constructor(
     public details: unknown,
-    message: string = "Validation failed",
+    message: string | AuthoredMessage = serverMessage("Validation failed"),
   ) {
     super(message, 400, "VALIDATION_ERROR");
     this.name = "ValidationError";
@@ -163,7 +178,7 @@ export class ValidationError extends ApiError {
  * Conflict error (409)
  */
 export class ConflictError extends ApiError {
-  constructor(message: string = "Resource conflict") {
+  constructor(message: string | AuthoredMessage = serverMessage("Resource conflict")) {
     super(message, 409, "CONFLICT");
     this.name = "ConflictError";
   }
@@ -173,7 +188,7 @@ export class ConflictError extends ApiError {
  * Gone error (410)
  */
 export class GoneError extends ApiError {
-  constructor(message: string = "Resource is no longer available") {
+  constructor(message: string | AuthoredMessage = serverMessage("Resource is no longer available")) {
     super(message, 410, "GONE");
     this.name = "GoneError";
   }
@@ -183,7 +198,7 @@ export class GoneError extends ApiError {
  * Internal server error (500)
  */
 export class InternalServerError extends ApiError {
-  constructor(message: string = "Internal server error") {
+  constructor(message: string | AuthoredMessage = serverMessage("Internal server error")) {
     super(message, 500, "INTERNAL_SERVER_ERROR");
     this.name = "InternalServerError";
   }
@@ -255,11 +270,14 @@ function validationLogFields(details: unknown): Record<string, string | number> 
 export function handleApiError(error: unknown): NextResponse;
 export function handleApiError(error: unknown, req: NextRequest): Promise<NextResponse>;
 export function handleApiError(error: unknown, req?: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req) return requestErrorContext(req).then((context) => respondToApiError(error, context));
+  if (req)
+    return requestErrorContext(req).then((context) =>
+      respondToApiError(error, context, localeFromRequestHeaders(req.headers)),
+    );
   return respondToApiError(error, {});
 }
 
-function respondToApiError(error: unknown, context: Record<string, unknown>): NextResponse {
+function respondToApiError(error: unknown, context: Record<string, unknown>, locale?: Locale): NextResponse {
   // Log error with structured logging
   if (error instanceof ApiError) {
     const payload = { ...context, ...apiErrorLogPayload(error) };
@@ -285,7 +303,7 @@ function respondToApiError(error: unknown, context: Record<string, unknown>): Ne
   if (error instanceof ApiError) {
     return NextResponse.json(
       {
-        error: error.message,
+        error: displayError(error, locale),
         code: error.code,
         ...(error.reason && { reason: error.reason }),
         ...(error instanceof ValidationError && { details: error.details }),
@@ -295,11 +313,31 @@ function respondToApiError(error: unknown, context: Record<string, unknown>): Ne
   }
 
   if (error instanceof ZodError) {
+    const copy = createServerCopy(locale ?? "en");
+    const errorMap = schemaErrorMap(copy);
+    const issues = error.issues.map((issue) => {
+      const translated =
+        !locale || locale === "en"
+          ? issue.message
+          : issue.code === "custom"
+            ? copy(issue.message)
+            : errorMap(issue as never);
+      return {
+        ...issue,
+        message: typeof translated === "string" ? translated : (translated?.message ?? copy(issue.message)),
+      };
+    });
+    const first = issues[0];
+    const message = first
+      ? first.path.length > 0
+        ? `${first.path.join(".")}: ${first.message}`
+        : first.message
+      : copy("Invalid request");
     return NextResponse.json(
       {
-        error: formatZodErrorMessage(error),
+        error: message,
         code: "VALIDATION_ERROR",
-        details: error.issues,
+        details: issues,
       },
       { status: 400 },
     );

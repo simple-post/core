@@ -1,6 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useUiTranslation } from "./client";
 import { languageNames, localeCookie, locales } from "./locales";
@@ -8,6 +10,16 @@ import { languageNames, localeCookie, locales } from "./locales";
 export function UiLanguageSelect({ className }: { className?: string }) {
   const { locale, t } = useUiTranslation();
   const router = useRouter();
+  const pathname = usePathname();
+  const query = useSearchParams().toString();
+  const pendingRefresh = useRef<string | null>(null);
+  const currentPath = query ? `${pathname}?${query}` : pathname;
+  useEffect(() => {
+    if (pendingRefresh.current === currentPath) {
+      pendingRefresh.current = null;
+      router.refresh();
+    }
+  }, [currentPath, router]);
   return (
     <select
       className={className}
@@ -22,9 +34,11 @@ export function UiLanguageSelect({ className }: { className?: string }) {
         const url = new URL(window.location.href);
         if (url.searchParams.has(localeCookie)) {
           url.searchParams.delete(localeCookie);
-          window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+          pendingRefresh.current = `${url.pathname}${url.search}`;
+          router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+        } else {
+          router.refresh();
         }
-        router.refresh();
       }}>
       {locales.map((value) => (
         <option key={value} value={value} lang={value}>

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
@@ -15,11 +16,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     });
 
     if (!account) {
-      throw new NotFoundError("Account not found");
+      throw new NotFoundError(serverMessage("Account not found"));
     }
 
     if (account.userId !== session.user.id) {
-      throw new ForbiddenError("You don't have permission to delete this account");
+      throw new ForbiddenError(serverMessage("You don't have permission to delete this account"));
     }
 
     // Delete the account

@@ -17,6 +17,7 @@ import {
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
+import { serverMessage } from "@/lib/i18n/server";
 import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
@@ -893,7 +894,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   }
   assertEditableManagedPost(currentPost);
   if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentPost.updatedAt.toISOString()) {
-    throw new ConflictError("This post changed. Reload it before saving.");
+    throw new ConflictError(serverMessage("This post changed. Reload it before saving."));
   }
 
   const message = input.message ?? currentPost.message;
@@ -1095,7 +1096,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const media = collectMediaForCleanup(post);
 
   if (input.expectedUpdatedAt && input.expectedUpdatedAt !== post.updatedAt.toISOString()) {
-    throw new ConflictError("This post changed. Reload it before discarding.");
+    throw new ConflictError(serverMessage("This post changed. Reload it before discarding."));
   }
   await repository.deletePost(input.postId, post.updatedAt);
   if (media.length > 0) {

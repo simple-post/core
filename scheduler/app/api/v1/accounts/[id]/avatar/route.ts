@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { requireReadAuth } from "@/lib/middleware/auth";
 import { fetchFreshProfilePicture } from "@/lib/oauth/profile-picture";
 import { prisma } from "@/lib/prisma";
@@ -88,21 +89,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
     if (!account) {
-      throw new NotFoundError("Account not found");
+      throw new NotFoundError(serverMessage("Account not found"));
     }
 
     if (account.userId !== session.user.id) {
-      throw new ForbiddenError("You don't have permission to access this account");
+      throw new ForbiddenError(serverMessage("You don't have permission to access this account"));
     }
 
     const platform = normalizePlatform(account.platform);
     if (!SUPPORTED_PLATFORMS.has(platform)) {
-      throw new BadRequestError("Avatar proxy is not supported for this platform");
+      throw new BadRequestError(serverMessage("Avatar proxy is not supported for this platform"));
     }
 
     const storedAvatarUrl = getAllowedAvatarUrl(account.profilePicture, platform);
     if (account.profilePicture && !storedAvatarUrl) {
-      throw new BadRequestError("Account profile picture URL is not supported");
+      throw new BadRequestError(serverMessage("Account profile picture URL is not supported"));
     }
 
     let imageResponse = await fetchAvatar(storedAvatarUrl);

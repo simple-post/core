@@ -1,4 +1,5 @@
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
@@ -19,13 +20,13 @@ export async function scheduleTikTokRetry(
   const scheduledFor = new Date(scheduledForValue);
   const repository = new PostsModel(userId);
   const post = await repository.getPostById(postId);
-  if (!post) throw new NotFoundError("Post not found");
+  if (!post) throw new NotFoundError(serverMessage("Post not found"));
   if (expectedUpdatedAt && post.updatedAt.toISOString() !== expectedUpdatedAt)
-    throw new ConflictError("This post changed. Reload it before scheduling a retry.");
+    throw new ConflictError(serverMessage("This post changed. Reload it before scheduling a retry."));
   const recovery = getTikTokPostRecovery(post);
   if (!recovery)
     throw new BadRequestError(
-      "This post does not have a recoverable TikTok failure. Inspect its results before retrying.",
+      serverMessage("This post does not have a recoverable TikTok failure. Inspect its results before retrying."),
     );
   const failedIds = post.accountIds.filter((id) => !post.accountResults?.[id]?.success);
   const issues = await getCredentialIssuesForPublishTime({ userId, accountIds: failedIds, publishAt: scheduledFor });
@@ -47,7 +48,9 @@ export async function scheduleTikTokRetry(
         pending.some((checkpoint) => !["failed", "succeeded"].includes(checkpoint.state)) ||
         (post.status === "failed" && pending.length === 0)
       )
-        throw new BadRequestError("The previous upload outcome is uncertain. Reconcile it before retrying.");
+        throw new BadRequestError(
+          serverMessage("The previous upload outcome is uncertain. Reconcile it before retrying."),
+        );
     }
     const updated = await repository.updatePost(
       postId,

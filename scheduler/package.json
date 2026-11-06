@@ -27,7 +27,9 @@
     "artwork:prepare": "node scripts/prepare-social-artwork.mjs",
     "artwork:check": "node scripts/check-social-artwork.mjs",
     "i18n:copy:extract": "node scripts/extract-ui-copy.mjs",
-    "i18n:copy:check": "node scripts/extract-ui-copy.mjs --check && node scripts/check-ui-copy.mjs"
+    "i18n:copy:check": "node scripts/extract-ui-copy.mjs --check && node scripts/check-ui-copy.mjs",
+    "i18n:server:extract": "node lib/i18n/extract-server-source.mjs",
+    "i18n:server:check": "node lib/i18n/extract-server-source.mjs --check && node scripts/check-server-copy.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.1.0",

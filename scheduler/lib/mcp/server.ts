@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { type McpServer } from "@modelcontextprotocol/server";
 
-import { createLogger, serializeError } from "@/lib/logger";
+import type { Locale } from "@/lib/i18n/locales";
 import { localizedPostStatus, localizedSchedulePeriod } from "@/lib/i18n/presentation";
+import { authoredError, canonicalMessage, displayError, serverMessage, serverT } from "@/lib/i18n/server";
 import type { MessageKey } from "@/lib/i18n/translate";
+import { createLogger, serializeError } from "@/lib/logger";
 import { mcpText, mcpUiTranslation } from "@/lib/mcp/locale";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
 import { prisma } from "@/lib/prisma";
@@ -175,6 +177,7 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 - It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
+  uiLocale?: Locale;
   readOnly?: boolean;
   imageFittingEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
@@ -233,7 +236,13 @@ function errorResult(error: unknown, context: McpToolAuthContext) {
     "MCP tool returned an error",
   );
 
-  const userMessage = diagnostic.code === NO_CONNECTED_ACCOUNTS_CODE ? accountGuidance() : diagnostic.message;
+  const userMessage =
+    diagnostic.code === NO_CONNECTED_ACCOUNTS_CODE
+      ? accountGuidance()
+      : displayError(error) +
+        (billingDenied
+          ? " " + serverT("Do not retry until the user changes their plan or allowance in SimplePost.")
+          : "");
   return {
     content: [
       {
@@ -249,18 +258,38 @@ function errorResult(error: unknown, context: McpToolAuthContext) {
   };
 }
 
-const SCOPE_ACTIONS: Record<McpScope, string> = {
-  "accounts:read": "view your connected accounts",
-  "posts:read": "view your posts",
-  "posts:validate": "check posts against platform rules",
-  "posts:write": "create or change posts",
+const scopeMessage = (scope: McpScope) => {
+  switch (scope) {
+    case "accounts:read": {
+      return serverMessage(
+        "SimplePost doesn't have permission to view your connected accounts for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+    case "posts:read": {
+      return serverMessage(
+        "SimplePost doesn't have permission to view your posts for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+    case "posts:validate": {
+      return serverMessage(
+        "SimplePost doesn't have permission to check posts against platform rules for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+    case "posts:write": {
+      return serverMessage(
+        "SimplePost doesn't have permission to create or change posts for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+  }
 };
-
 function requireScope(context: McpToolAuthContext, scope: McpScope): void {
   if (!hasMcpScope(context.scope, scope)) {
-    throw new Error(
-      `SimplePost doesn't have permission to ${SCOPE_ACTIONS[scope]} for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: ${scope}).`,
-    );
+    const message = scopeMessage(scope);
+    throw authoredError(new Error(canonicalMessage(message)), message);
   }
 }
 
@@ -461,14 +490,14 @@ function formatPostingResults(
                 ]
                   .filter(Boolean)
                   .join(" — ");
-                return `  - ${segment.index === 0 ? "Root post" : mcpText("mcpReply", { index: segment.index })}: ${statusLabel(
+                return `  - ${segment.index === 0 ? serverT("Root post") : mcpText("mcpReply", { index: segment.index })}: ${statusLabel(
                   segment.success ? "published" : "failed",
                 )}${segmentDetails ? ` (${segmentDetails})` : ""}`;
               })
               .join("\n")}`
           : "";
 
-      return `- ${platformLabel(result.platform)} (account ID: ${result.accountId}): ${
+      return `- ${serverT("{{platform}} (account ID: {{accountId}})", { platform: platformLabel(result.platform), accountId: result.accountId })}: ${
         result.recovery?.automaticRetry && !result.success
           ? mcpText("mcpRetryQueued")
           : statusLabel(result.success ? "published" : "failed")
@@ -530,9 +559,8 @@ function formatCreatedPostDetails(result: {
 }): string {
   const { summary, post } = result;
   const outcome =
-    mcpUiTranslation().locale !== "en"
-      ? localizedPostOutcome(result)
-      : result.postingMode === "draft"
+    mcpUiTranslation().locale === "en"
+      ? result.postingMode === "draft"
         ? `Saved as a draft for ${plural(summary.accountCount, "account")}.`
         : result.postingMode === "schedule"
           ? `Scheduled for ${plural(summary.accountCount, "account")}.`
@@ -543,7 +571,8 @@ function formatCreatedPostDetails(result: {
               : `Published to ${summary.successCount} of ${plural(summary.accountCount, "account")}; ${plural(
                   summary.failureCount,
                   "account",
-                )} failed.`;
+                )} failed.`
+      : localizedPostOutcome(result);
 
   return [
     mcpText("mcpPostDetails"),
@@ -589,7 +618,7 @@ function formatManagedPostDetails(post: {
     post.quotePostId ? mcpText("mcpQuote", { id: post.quotePostId }) : "",
     post.errorMessage ? mcpText("mcpLastError", { error: post.errorMessage }) : "",
     post.recovery
-      ? `${post.recovery.title}: ${post.recovery.message}${post.recovery.automaticRetry ? " No action is needed for this scheduled attempt." : " Offer to reschedule this original post for tomorrow or a chosen time; get approval for exact times and timezone."}`
+      ? `${post.recovery.title}: ${post.recovery.message}${post.recovery.automaticRetry ? " " + serverT("No action is needed for this scheduled attempt.") : " " + serverT("Offer to reschedule this original post for tomorrow or a chosen time; get approval for exact times and timezone.")}`
       : "",
   ]
     .filter(Boolean)
@@ -743,9 +772,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text:
-                mcpUiTranslation().locale !== "en"
-                  ? `${mcpText(result.isValid ? "mcpCanPublish" : "mcpPublishBlockers", { count: result.isValid ? result.summary.accountCount : result.summary.errorCount })}\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}\n\n${formatValidationDetails(result)}`
-                  : result.isValid
+                mcpUiTranslation().locale === "en"
+                  ? result.isValid
                     ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
                         input.message,
                         input.thread,
@@ -758,7 +786,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                         input.message,
                         input.thread,
                         input.accountOverrides,
-                      )}\n\n${formatValidationDetails(result)}`,
+                      )}\n\n${formatValidationDetails(result)}`
+                  : `${mcpText(result.isValid ? "mcpCanPublish" : "mcpPublishBlockers", { count: result.isValid ? result.summary.accountCount : result.summary.errorCount })}\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}\n\n${formatValidationDetails(result)}`,
             },
           ],
         };
@@ -786,9 +815,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         if (input.imageFit) requireScope(context, "posts:write");
         const result = await previewPost(context.userId, input);
         const summaryText =
-          mcpUiTranslation().locale !== "en"
-            ? `${mcpText(result.validation.isValid ? "mcpPreviewAccounts" : "mcpPublishBlockers", { count: result.validation.isValid ? result.summary.accountCount : result.summary.errorCount })}\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-            : result.validation.isValid
+          mcpUiTranslation().locale === "en"
+            ? result.validation.isValid
               ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
                   result.summary.mediaCount > 0 ? ` with ${plural(result.summary.mediaCount, "media item")}` : ""
                 }${
@@ -799,7 +827,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               : `The preview found ${plural(
                   result.summary.errorCount,
                   "problem",
-                )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
+                )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+            : `${mcpText(result.validation.isValid ? "mcpPreviewAccounts" : "mcpPublishBlockers", { count: result.validation.isValid ? result.summary.accountCount : result.summary.errorCount })}\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
 
         return {
           structuredContent: result,
@@ -872,14 +901,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         // here — over MCP this text is the only thing the user ever sees.
         const blockerCount = result.validation && !result.validation.isValid ? result.validation.summary.errorCount : 0;
         const summaryText =
-          mcpUiTranslation().locale !== "en"
-            ? [
-                blockerCount > 0 ? mcpText("mcpPublishBlockers", { count: blockerCount }) : "",
-                formatPostContent(input.message, input.thread, input.accountOverrides),
-              ]
-                .filter(Boolean)
-                .join("\n\n")
-            : result.post.status === "draft"
+          mcpUiTranslation().locale === "en"
+            ? result.post.status === "draft"
               ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}${
                   blockerCount > 0
                     ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
@@ -900,7 +923,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                   : `Published to ${result.summary.successCount} of ${plural(
                       result.summary.accountCount,
                       "account",
-                    )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
+                    )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+            : [
+                blockerCount > 0 ? mcpText("mcpPublishBlockers", { count: blockerCount }) : "",
+                formatPostContent(input.message, input.thread, input.accountOverrides),
+              ]
+                .filter(Boolean)
+                .join("\n\n");
         const warningText =
           result.warnings?.map((warning) => mcpText("mcpWarnings", { details: warning.message })).join("\n") ?? "";
 
@@ -962,11 +991,11 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                   : withConnectGuidance(
                       result.summary.totalReturned === 0
                         ? formatManagedPosts(result.posts)
-                        : mcpUiTranslation().locale !== "en"
-                          ? `${mcpText("mcpFoundCount", { count: result.summary.totalReturned })}\n\n${formatManagedPosts(result.posts)}`
-                          : `Found ${plural(result.summary.totalReturned, "post")}${
+                        : mcpUiTranslation().locale === "en"
+                          ? `Found ${plural(result.summary.totalReturned, "post")}${
                               statusBreakdown ? ` (${statusBreakdown})` : ""
-                            }.\n\n${formatManagedPosts(result.posts)}`,
+                            }.\n\n${formatManagedPosts(result.posts)}`
+                          : `${mcpText("mcpFoundCount", { count: result.summary.totalReturned })}\n\n${formatManagedPosts(result.posts)}`,
                       result.connectAccountsUrl,
                     ),
             },
@@ -1064,16 +1093,8 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text:
-                mcpUiTranslation().locale !== "en"
-                  ? [
-                      result.validation ? mcpText("mcpPostUpdated") : mcpText("mcpTikTokRetry"),
-                      warningText,
-                      formatManagedPostDetails(result.post),
-                      result.validation && formatValidationDetails(result.validation),
-                    ]
-                      .filter(Boolean)
-                      .join("\n\n")
-                  : result.validation
+                mcpUiTranslation().locale === "en"
+                  ? result.validation
                     ? result.post.status === "draft"
                       ? `Updated the draft${
                           result.validation.isValid
@@ -1086,7 +1107,15 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
                       : `Updated the post — it's now scheduled for ${formatDateTime(
                           result.post.scheduledFor ?? "",
                         )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
-                    : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`,
+                    : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`
+                  : [
+                      result.validation ? mcpText("mcpPostUpdated") : mcpText("mcpTikTokRetry"),
+                      warningText,
+                      formatManagedPostDetails(result.post),
+                      result.validation && formatValidationDetails(result.validation),
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n"),
             },
           ],
         };
@@ -1118,13 +1147,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text:
-                mcpUiTranslation().locale !== "en"
-                  ? `${mcpText("mcpDeleteLocal")}\n\n${formatManagedPostDetails(result.post)}`
-                  : `Deleted the ${
+                mcpUiTranslation().locale === "en"
+                  ? `Deleted the ${
                       result.post.status === "draft" ? "draft" : "scheduled post"
                     } — it will not be published.\n\n${formatManagedPostDetails(
                       result.post,
-                    )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`,
+                    )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`
+                  : `${mcpText("mcpDeleteLocal")}\n\n${formatManagedPostDetails(result.post)}`,
             },
           ],
         };

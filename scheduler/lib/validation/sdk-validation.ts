@@ -9,6 +9,7 @@ import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { requireImageFitting } from "@/lib/features";
+import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
 import { BadRequestError } from "@/lib/utils/errors";
@@ -73,7 +74,7 @@ export async function validatePostForAccounts(params: {
 
   if (params.imageFit) {
     if (resolvedAccounts.length !== new Set(params.accountIds).size)
-      throw new BadRequestError("One or more accounts were not found");
+      throw new BadRequestError(serverMessage("One or more accounts were not found"));
     try {
       await fitRemoteImagesForAccounts(params, resolvedAccounts, params.imageFit, params.userId, async (url) => {
         await prisma.$transaction((tx) => queueStorageDeletion(tx, params.userId, url));

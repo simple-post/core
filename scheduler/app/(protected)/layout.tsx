@@ -14,6 +14,7 @@ import { LoginForm } from "@/components/login-form";
 import { ScheduleCalendarProvider } from "@/components/schedule-calendar-context";
 import { useLoginSession } from "@/lib/auth/use-login-session";
 import { useUiTranslation } from "@/lib/i18n/client";
+import { SavedUiPreferenceSync } from "@/lib/i18n/saved-preference-sync";
 import type { SourceCopy } from "@/lib/i18n/source-copy";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { COMPLIMENTARY_INVITE_STORAGE_KEY } from "@/lib/invites/constants";
@@ -120,6 +121,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <InviteRedemptionGate userId={session.user.id}>
       {/* Outside the subscription gate: milestones still relay after a trial ends. */}
+      <SavedUiPreferenceSync userId={session.user.id} />
       <ActivationAnalytics />
       <WebMcpProvider key={session.user.id}>
         <ScheduleCalendarProvider>

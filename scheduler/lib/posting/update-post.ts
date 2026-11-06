@@ -9,6 +9,7 @@ import {
 } from "@/lib/billing/subscriptions";
 import { getChargedTrialAccounts } from "@/lib/billing/trial";
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
@@ -63,7 +64,10 @@ function resolveScheduledFor(
       }
       return currentScheduledFor;
     }
-    throw new BadRequestError("Choose a date and time before scheduling this post.", "INVALID_SCHEDULED_TIME");
+    throw new BadRequestError(
+      serverMessage("Choose a date and time before scheduling this post."),
+      "INVALID_SCHEDULED_TIME",
+    );
   }
 
   const scheduledForError = getScheduledForValueError(scheduledForValue);
@@ -91,21 +95,23 @@ export async function executePostUpdate(
   // Get the current post
   const currentPost = await repository.getPostById(id);
   if (!currentPost) {
-    throw new NotFoundError("Post not found");
+    throw new NotFoundError(serverMessage("Post not found"));
   }
   if (currentPost.status !== "scheduled" && currentPost.status !== "draft" && currentPost.status !== "failed") {
-    throw new BadRequestError("Only scheduled posts, drafts and failed posts can be edited");
+    throw new BadRequestError(serverMessage("Only scheduled posts, drafts and failed posts can be edited"));
   }
 
   // Parse and validate body
   let validated = updatePostSchema.parse(body);
   if (validated.expectedUpdatedAt && validated.expectedUpdatedAt !== currentPost.updatedAt.toISOString()) {
-    throw new ConflictError("This post changed. Reload it before saving or publishing.");
+    throw new ConflictError(serverMessage("This post changed. Reload it before saving or publishing."));
   }
   const isRetry = currentPost.status === "failed";
   if (isRetry) {
     if (validated.accountIds.some((accountId) => !currentPost.accountIds.includes(accountId)))
-      throw new BadRequestError("A retry cannot add accounts. Duplicate the post to target new accounts.");
+      throw new BadRequestError(
+        serverMessage("A retry cannot add accounts. Duplicate the post to target new accounts."),
+      );
     const checkpoints = await prisma.publishCheckpoint.count({ where: { postId: id } });
     const safelyUnattempted = currentPost.accountIds.every((accountId) =>
       ["CREDENTIALS_ERROR", "ACCOUNT_NOT_FOUND", "LOCAL_RATE_LIMIT"].includes(
@@ -114,7 +120,9 @@ export async function executePostUpdate(
     );
     if (!checkpoints && !safelyUnattempted)
       throw new BadRequestError(
-        "This post has no durable publishing record. Check its platform results, then explicitly duplicate only the content that still needs publishing.",
+        serverMessage(
+          "This post has no durable publishing record. Check its platform results, then explicitly duplicate only the content that still needs publishing.",
+        ),
       );
   }
   validated = await ingestPostMedia(userId, validated, {
@@ -155,7 +163,7 @@ export async function executePostUpdate(
   });
 
   if (validation.accounts.length !== validated.accountIds.length) {
-    throw new BadRequestError("One or more accounts were not found");
+    throw new BadRequestError(serverMessage("One or more accounts were not found"));
   }
 
   const draftImageErrors = await requiredDraftImageFittingErrors({
@@ -410,6 +418,6 @@ export async function executePostUpdate(
       repostStatus: "not_applicable",
     });
 
-    throw new ApiError("Publishing could not be confirmed. Check Posts before retrying.", 500);
+    throw new ApiError(serverMessage("Publishing could not be confirmed. Check Posts before retrying."), 500);
   }
 }

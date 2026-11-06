@@ -1,3 +1,4 @@
+import type { AuthoredMessage } from "@/lib/i18n/server";
 import { ApiError } from "@/lib/utils/errors";
 
 export type McpErrorStage =
@@ -32,7 +33,13 @@ export class McpToolError extends ApiError {
   readonly recovery: McpErrorRecovery;
   readonly maxAutomaticRetries: number;
 
-  constructor(options: McpErrorDiagnostic & { statusCode?: number; logContext?: Record<string, unknown> }) {
+  constructor(
+    options: Omit<McpErrorDiagnostic, "message"> & {
+      message: string | AuthoredMessage;
+      statusCode?: number;
+      logContext?: Record<string, unknown>;
+    },
+  ) {
     super(options.message, options.statusCode ?? 400, options.code, options.logContext);
     this.name = "McpToolError";
     this.stage = options.stage;

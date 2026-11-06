@@ -6,9 +6,12 @@ import {
   type ZodRawShape,
   type LegacyToolCallback,
 } from "@modelcontextprotocol/ext-apps/server";
+import { z } from "zod";
 
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { measureMcpTool } from "@/lib/analytics/tool-measurement";
+import { createServerCopy, serverMessage } from "@/lib/i18n/server";
+import { localizeStandardSchema } from "@/lib/i18n/standard-schema";
 import { mcpUiTranslation, withMcpUiTranslation } from "@/lib/mcp/locale";
 import { toMcpErrorDiagnostic } from "@/lib/mcp/tool-errors";
 import { PaymentRequiredError } from "@/lib/utils/errors";
@@ -58,45 +61,73 @@ export function registerMeasuredTool(
   config: McpUiAppToolConfig,
   callback: (input: never, ctx: ServerContext) => Result | Promise<Result>,
 ): RegisteredTool {
+  const locale = mcpUiTranslation().locale;
+  const copy = createServerCopy(locale);
   // Preserve schema inference and SDK validation while measuring calls and
   // enforcing the narrow saved-data exception for expired trials.
   const measured = (input: never, ctx: ServerContext) =>
     measureMcpTool(context, name, () =>
-      withMcpUiTranslation(ctx, async () => {
-        if (
-          context.readOnly &&
-          (!SAVED_DATA_TOOLS.has(name) || (name === "show_post_preview" && !(input as { postId?: string }).postId))
-        ) {
-          await recordFunnelEvent(context.userId, "billing_denied", {
-            key: `${context.userId}:${name}:${new Date().toISOString().slice(0, 10)}`,
-            properties: { reason: "trial_expired", method: name },
-          });
-          const diagnostic = {
-            ...toMcpErrorDiagnostic(
-              new PaymentRequiredError(
-                "Your trial has ended. Saved posts, accounts and the calendar are still viewable. Creating or changing posts requires an active plan in SimplePost.",
+      withMcpUiTranslation(
+        ctx,
+        async () => {
+          if (
+            context.readOnly &&
+            (!SAVED_DATA_TOOLS.has(name) || (name === "show_post_preview" && !(input as { postId?: string }).postId))
+          ) {
+            await recordFunnelEvent(context.userId, "billing_denied", {
+              key: `${context.userId}:${name}:${new Date().toISOString().slice(0, 10)}`,
+              properties: { reason: "trial_expired", method: name },
+            });
+            const diagnostic = {
+              ...toMcpErrorDiagnostic(
+                new PaymentRequiredError(
+                  serverMessage(
+                    "Your trial has ended. Saved posts, accounts and the calendar are still viewable. Creating or changing posts requires an active plan in SimplePost.",
+                  ),
+                ),
               ),
-            ),
-            supportId: randomUUID(),
-          };
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text" as const,
-                text: `${mcpUiTranslation().t("mcpTrialExpired")}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
-              },
-            ],
-            _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
-          };
-        }
-        return callback(input, ctx);
-      }),
+              supportId: randomUUID(),
+            };
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text" as const,
+                  text: `${mcpUiTranslation().t("mcpTrialExpired")}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
+                },
+              ],
+              _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
+            };
+          }
+          return callback(input, ctx);
+        },
+        locale,
+      ),
     );
   return registerAppTool(
     server,
     name,
-    config as McpUiAppToolConfig & { inputSchema: StandardSchemaWithJSON; outputSchema?: StandardSchemaWithJSON },
+    {
+      ...config,
+      ...(config.title ? { title: copy(config.title) } : {}),
+      ...(config.description ? { description: copy(config.description) } : {}),
+      inputSchema: localizeStandardSchema(
+        config.inputSchema && "~standard" in config.inputSchema
+          ? (config.inputSchema as StandardSchemaWithJSON)
+          : z.object((config.inputSchema ?? {}) as z.ZodRawShape),
+        copy,
+      ),
+      ...(config.outputSchema
+        ? {
+            outputSchema: localizeStandardSchema(
+              "~standard" in config.outputSchema
+                ? (config.outputSchema as StandardSchemaWithJSON)
+                : z.object(config.outputSchema as z.ZodRawShape),
+              copy,
+            ),
+          }
+        : {}),
+    } as McpUiAppToolConfig & { inputSchema: StandardSchemaWithJSON; outputSchema?: StandardSchemaWithJSON },
     measured as ToolCallback<StandardSchemaWithJSON>,
   );
 }

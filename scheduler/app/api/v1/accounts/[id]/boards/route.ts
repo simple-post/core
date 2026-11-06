@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -31,15 +32,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const account = storedAccount ? decryptConnectedAccountSecrets(storedAccount) : null;
 
     if (!account) {
-      throw new NotFoundError("Account not found");
+      throw new NotFoundError(serverMessage("Account not found"));
     }
 
     if (account.userId !== session.user.id) {
-      throw new ForbiddenError("You don't have permission to access this account");
+      throw new ForbiddenError(serverMessage("You don't have permission to access this account"));
     }
 
     if (account.platform.toLowerCase() !== "pinterest") {
-      throw new BadRequestError("This endpoint only supports Pinterest accounts");
+      throw new BadRequestError(serverMessage("This endpoint only supports Pinterest accounts"));
     }
 
     // Fetch boards from Pinterest API
@@ -53,7 +54,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new BadRequestError(
-        `Failed to fetch Pinterest boards: ${(error as { message?: string }).message || response.statusText}`,
+        serverMessage("Failed to fetch Pinterest boards: {{value1}}", {
+          value1: String((error as { message?: string }).message || response.statusText),
+        }),
       );
     }
 

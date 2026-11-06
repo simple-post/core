@@ -1,8 +1,11 @@
+"use client";
+
 import { ExternalLink } from "lucide-react";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
 import { getPlatformById } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { getPublishedPostLinkGroups } from "@/lib/posting/published-links";
 import type { ConnectedAccount, SocialPost } from "@/types";
 
@@ -12,14 +15,15 @@ interface PublishedPostLinksProps {
 }
 
 export function PublishedPostLinks({ post, accounts }: PublishedPostLinksProps) {
-  const groups = getPublishedPostLinkGroups(post, accounts);
+  const { copy } = useUiCopy();
+  const groups = getPublishedPostLinkGroups(post, accounts, copy);
   if (groups.length === 0) return null;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6" aria-label="Published links">
+    <section className="rounded-2xl border border-border bg-card p-6" aria-label={copy("Published links")}>
       <div className="section-kicker">
         <span className="section-kicker-dot" />
-        <span className="section-kicker-label">Published links</span>
+        <span className="section-kicker-label">{copy("Published links")}</span>
       </div>
       <div className="mt-2 space-y-3">
         {groups.map((group) => {

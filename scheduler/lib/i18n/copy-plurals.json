@@ -32,5 +32,7 @@
   "Use at least {{count, number}} characters.": "Use at least {{count, number}} character.",
   "Provide at least {{count, number}} items.": "Provide at least {{count, number}} item.",
   "Use at most {{count, number}} characters.": "Use at most {{count, number}} character.",
-  "Provide at most {{count, number}} items.": "Provide at most {{count, number}} item."
+  "Provide at most {{count, number}} items.": "Provide at most {{count, number}} item.",
+  "{{platforms}} do not support quotes, so those destinations receive a regular post.": "{{platforms}} does not support quotes, so that destination receives a regular post.",
+  "Show {{count, number}} More": "Show {{count, number}} More"
 }

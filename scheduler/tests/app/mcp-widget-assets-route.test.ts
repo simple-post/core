@@ -1,5 +1,5 @@
 import { GET } from "@/app/mcp-widgets/[asset]/route";
-import { WIDGET_ASSETS } from "@/lib/mcp/ui/widget-assets";
+import { WIDGET_ASSETS, WIDGET_LOCALE_ASSETS } from "@/lib/mcp/ui/widget-assets";
 
 it.each(["schedule", "post-preview", "workspace", "post-editor"] as const)(
   "recovers a missing %s hash during rolling deployment",
@@ -27,4 +27,16 @@ it("rejects unrelated paths", async () => {
     params: Promise.resolve({ asset: "unknown.js" }),
   });
   expect(response.status).toBe(404);
+});
+
+it("recovers a missing language file during rolling deployment without redirecting unsupported locales", async () => {
+  const base = "https://app.simplepost.social/mcp-widgets";
+  const asset = "locale-zh-Hant-OLDHASH1.js";
+  const response = await GET(new Request(`${base}/${asset}`), { params: Promise.resolve({ asset }) });
+  expect(response.status).toBe(307);
+  expect(response.headers.get("location")).toBe(`${base}/${WIDGET_LOCALE_ASSETS["zh-Hant"]}`);
+  const unknown = "locale-nope-OLDHASH1.js";
+  expect((await GET(new Request(`${base}/${unknown}`), { params: Promise.resolve({ asset: unknown }) })).status).toBe(
+    404,
+  );
 });

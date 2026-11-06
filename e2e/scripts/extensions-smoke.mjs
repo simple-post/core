@@ -198,6 +198,11 @@ try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: "America/Los_Angeles" });
   const errors = [];
+  const requestedLocales = new Set();
+  page.on("request", (request) => {
+    const locale = new URL(request.url()).pathname.match(/\/mcp-widgets\/locale-(.+)-[A-Z0-9]{8}\.js$/)?.[1];
+    if (locale) requestedLocales.add(locale);
+  });
   page.on("pageerror", (error) => {
     errors.push(error.message);
     console.error("Widget error:", error.message);
@@ -544,6 +549,7 @@ try {
   await expect(ui.locator("html")).toHaveAttribute("dir", "ltr");
   await expect(ui.getByRole("button", { name: "今日", exact: true })).toBeVisible();
   await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
+  assert.deepEqual([...requestedLocales].sort(), ["ar", "ja"]);
   assert.deepEqual(errors, []);
   console.log(
     "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",

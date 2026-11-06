@@ -52,6 +52,16 @@ export function negotiateLocale(preference?: string, acceptLanguage?: string): L
   return ranked[0]?.locale ?? "en";
 }
 
+export function localeFromRequestHeaders(headers?: Pick<Headers, "get"> | null) {
+  const preference = headers
+    ?.get("cookie")
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${localeCookie}=`))
+    ?.slice(localeCookie.length + 1);
+  return negotiateLocale(preference, headers?.get("accept-language") ?? undefined);
+}
+
 export function direction(locale: Locale) {
   return locale === "ar" ? "rtl" : "ltr";
 }

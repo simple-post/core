@@ -7,6 +7,8 @@ import { enrollOpenAiMeasurement, syncAdsPermission } from "../analytics/ads-per
 import { acquisitionContext } from "../analytics/first-touch";
 import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
+import { localeFromRequestHeaders } from "../i18n/locales";
+import { loadMessages } from "../i18n/resources";
 import { createLogger } from "../logger";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
@@ -139,7 +141,8 @@ export const auth = betterAuth({
       },
       async sendVerificationOTP({ email, otp, type }, ctx) {
         if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return;
-        const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL);
+        const locale = localeFromRequestHeaders(ctx?.headers ?? ctx?.request?.headers);
+        const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL, locale, await loadMessages(locale));
         try {
           await sendEmail(email, message.subject, message.html, message.text);
         } catch (error) {

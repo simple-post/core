@@ -13,8 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUiTranslation } from "@/lib/i18n/client";
+import type { createTranslator, MessageKey } from "@/lib/i18n/translate";
 import { logClientError } from "@/lib/logger/client";
 
+const MAX_KEY_NAME_LENGTH = 80;
+const DEFAULT_KEY_NAME = "Default API key";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social";
 
 interface ApiKeyRecord {
@@ -37,32 +41,55 @@ interface ApiKeyCreateResponse {
   key: ApiKeyRecord;
 }
 
-async function parseApiError(response: Response): Promise<string> {
-  const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-  return data.error || data.message || `Request failed with status ${response.status}`;
+class ApiKeyRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "Never";
-  return new Date(value).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+async function parseApiError(response: Response): Promise<ApiKeyRequestError> {
+  const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string; code?: string };
+  return new ApiKeyRequestError(data.error || data.message || String(response.status), response.status, data.code);
+}
+
+const keyErrorMessages = {
+  UNAUTHORIZED: "apiKeysSignIn",
+  PAYMENT_REQUIRED: "apiKeysPlanRequired",
+  FORBIDDEN: "apiKeysForbidden",
+  NOT_FOUND: "apiKeyNotFound",
+  VALIDATION_ERROR: "invalidKeyName",
+} satisfies Record<string, MessageKey>;
+
+function describeKeyError(error: unknown, fallback: MessageKey, t: ReturnType<typeof createTranslator>) {
+  if (!(error instanceof ApiKeyRequestError)) return t(fallback);
+  const code = error.code;
+  if (code && Object.hasOwn(keyErrorMessages, code)) {
+    return t(keyErrorMessages[code as keyof typeof keyErrorMessages], { maximum: MAX_KEY_NAME_LENGTH });
+  }
+  if (code === "BAD_REQUEST" && fallback === "rotateKeyFailed") return t("onlyActiveKeysRotate");
+  return `${t(fallback)}. ${t("requestFailedStatus", { status: error.status })}`;
 }
 
 export default function ApiKeysPage() {
+  const { locale, t } = useUiTranslation();
   const [keys, setKeys] = useState<ApiKeyRecord[]>([]);
-  const [name, setName] = useState("Default API key");
+  const [name, setName] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [busyKeyId, setBusyKeyId] = useState<string | null>(null);
   const [revealedKey, setRevealedKey] = useState<ApiKeyCreateResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const formatDate = (value: string | null) =>
+    value ? new Date(value).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }) : t("never");
   const fetchKeys = useCallback(async () => {
     const response = await fetch("/api/v1/api-keys", { cache: "no-store" });
     if (!response.ok) {
-      throw new Error(await parseApiError(response));
+      throw await parseApiError(response);
     }
 
     const data = (await response.json()) as ApiKeysResponse;
@@ -73,18 +100,22 @@ export default function ApiKeysPage() {
     fetchKeys()
       .catch((error) => {
         logClientError(error, "Failed to load API keys");
-        toast.error(error instanceof Error ? error.message : "Failed to load API keys");
+        toast.error(describeKeyError(error, "loadKeysFailed", t));
       })
       .finally(() => setLoading(false));
-  }, [fetchKeys]);
+  }, [fetchKeys, t]);
 
   const copyRevealedKey = async () => {
     if (!revealedKey) return;
 
-    await navigator.clipboard.writeText(revealedKey.apiKey);
-    setCopied(true);
-    toast.success("API key copied");
-    setTimeout(() => setCopied(false), 1600);
+    try {
+      await navigator.clipboard.writeText(revealedKey.apiKey);
+      setCopied(true);
+      toast.success(t("apiKeyCopied"));
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error(t("copyKeyFailed"));
+    }
   };
 
   const createKey = async () => {
@@ -93,27 +124,27 @@ export default function ApiKeysPage() {
       const response = await fetch("/api/v1/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() || undefined }),
+        body: JSON.stringify({ name: name === undefined ? DEFAULT_KEY_NAME : name.trim() || undefined }),
       });
 
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw await parseApiError(response);
       }
 
       const data = (await response.json()) as ApiKeyCreateResponse;
       setRevealedKey(data);
-      setName("Default API key");
+      setName(undefined);
       await fetchKeys();
     } catch (error) {
       logClientError(error, "Failed to create API key");
-      toast.error(error instanceof Error ? error.message : "Failed to create API key");
+      toast.error(describeKeyError(error, "createKeyFailed", t));
     } finally {
       setCreating(false);
     }
   };
 
   const deactivateKey = async (key: ApiKeyRecord) => {
-    if (!window.confirm(`Deactivate "${key.name}"? Requests using this key will stop working immediately.`)) {
+    if (!window.confirm(t("confirmDeactivateKey", { name: key.name }))) {
       return;
     }
 
@@ -121,21 +152,21 @@ export default function ApiKeysPage() {
     try {
       const response = await fetch(`/api/v1/api-keys/${key.id}`, { method: "DELETE" });
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw await parseApiError(response);
       }
 
       await fetchKeys();
-      toast.success("API key deactivated");
+      toast.success(t("apiKeyDeactivated"));
     } catch (error) {
       logClientError(error, "Failed to deactivate API key", { keyId: key.id });
-      toast.error(error instanceof Error ? error.message : "Failed to deactivate API key");
+      toast.error(describeKeyError(error, "deactivateKeyFailed", t));
     } finally {
       setBusyKeyId(null);
     }
   };
 
   const rotateKey = async (key: ApiKeyRecord) => {
-    if (!window.confirm(`Rotate "${key.name}"? The current key will be deactivated and replaced.`)) {
+    if (!window.confirm(t("confirmRotateKey", { name: key.name }))) {
       return;
     }
 
@@ -143,16 +174,16 @@ export default function ApiKeysPage() {
     try {
       const response = await fetch(`/api/v1/api-keys/${key.id}/rotate`, { method: "POST" });
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw await parseApiError(response);
       }
 
       const data = (await response.json()) as ApiKeyCreateResponse;
       setRevealedKey(data);
       await fetchKeys();
-      toast.success("API key rotated");
+      toast.success(t("apiKeyRotated"));
     } catch (error) {
       logClientError(error, "Failed to rotate API key", { keyId: key.id });
-      toast.error(error instanceof Error ? error.message : "Failed to rotate API key");
+      toast.error(describeKeyError(error, "rotateKeyFailed", t));
     } finally {
       setBusyKeyId(null);
     }
@@ -171,7 +202,7 @@ export default function ApiKeysPage() {
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              API <span className="text-primary">keys</span>
+              <span className="text-primary">{t("apiKeys")}</span>
             </h1>
           </div>
         </div>
@@ -179,20 +210,20 @@ export default function ApiKeysPage() {
         <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-1">
           <div className="section-kicker">
             <span className="section-kicker-dot" />
-            <span className="section-kicker-label">Bearer auth</span>
+            <span className="section-kicker-label">{t("bearerAuth")}</span>
           </div>
-          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-3">Use the Scheduler API</h2>
+          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-3">{t("useSchedulerApi")}</h2>
           <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-            API keys authenticate the same `/api/v1` routes used by the Scheduler app, CLI, and MCP integrations.
+            {t("schedulerApiSummary", { path: "/api/v1" })}
           </p>
           <Button asChild variant="outline" size="sm" className="mb-5">
             <a href="https://docs.simplepost.social/api-reference" target="_blank" rel="noreferrer">
-              View API documentation
+              {t("viewApiDocs")}
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </Button>
           <HelpLink path="/api#hosted-api-quickstart" className="mb-4">
-            Hosted API setup, plan requirements, and authentication
+            {t("hostedApiSetupHelp")}
           </HelpLink>
           <TerminalBlock title="curl">{`curl -H "Authorization: Bearer $SIMPLEPOST_API_KEY" \\
   "${APP_URL}/api/v1/accounts"`}</TerminalBlock>
@@ -201,14 +232,20 @@ export default function ApiKeysPage() {
         {revealedKey && (
           <Alert className="animate-reveal border-primary/40 bg-primary/10">
             <KeyRound className="h-4 w-4" />
-            <AlertTitle>Copy this key now</AlertTitle>
+            <AlertTitle>{t("copyKeyNow")}</AlertTitle>
             <AlertDescription className="w-full">
-              <p>This is the only time the full key will be shown. It begins with {revealedKey.key.keyPrefix}.</p>
+              <p>{t("fullKeyOnce", { prefix: revealedKey.key.keyPrefix })}</p>
               <div className="mt-3 flex w-full flex-col gap-2 sm:flex-row">
-                <Input readOnly value={revealedKey.apiKey} className="font-mono text-xs" />
+                <Input
+                  readOnly
+                  dir="ltr"
+                  aria-label={t("apiKey")}
+                  value={revealedKey.apiKey}
+                  className="font-mono text-xs"
+                />
                 <Button type="button" onClick={copyRevealedKey} className="gap-2 sm:w-32">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? t("copied") : t("copy")}
                 </Button>
               </div>
             </AlertDescription>
@@ -218,27 +255,28 @@ export default function ApiKeysPage() {
         <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-2">
           <div className="section-kicker">
             <span className="section-kicker-dot" />
-            <span className="section-kicker-label">Create</span>
+            <span className="section-kicker-label">{t("create")}</span>
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="flex-1">
               <Label
                 htmlFor="api-key-name"
                 className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                Key name
+                {t("keyName")}
               </Label>
               <Input
                 id="api-key-name"
-                value={name}
+                value={name ?? t("defaultApiKey")}
+                dir="auto"
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Production deploy key"
+                placeholder={t("exampleApiKeyName")}
                 className="mt-2"
-                maxLength={80}
+                maxLength={MAX_KEY_NAME_LENGTH}
               />
             </div>
             <Button type="button" onClick={createKey} disabled={creating} className="gap-2">
               <Plus className="h-4 w-4" />
-              {creating ? "Creating..." : "Create API key"}
+              {creating ? t("creating") : t("createApiKey")}
             </Button>
           </div>
         </section>
@@ -246,9 +284,9 @@ export default function ApiKeysPage() {
         <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 animate-reveal animate-reveal-delay-3">
           <div className="section-kicker">
             <span className="section-kicker-dot" />
-            <span className="section-kicker-label">Keys</span>
+            <span className="section-kicker-label">{t("keys")}</span>
           </div>
-          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-5">Existing keys</h2>
+          <h2 className="text-xl font-semibold tracking-[-0.025em] text-foreground mb-5">{t("existingKeys")}</h2>
 
           {loading ? (
             <div className="space-y-3">
@@ -261,8 +299,8 @@ export default function ApiKeysPage() {
               <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card">
                 <KeyRound className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-foreground">No API keys yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Create a key to call the Scheduler API directly.</p>
+              <p className="text-sm font-medium text-foreground">{t("noApiKeys")}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t("createKeyForApi")}</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -271,18 +309,22 @@ export default function ApiKeysPage() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
-                        <h3 className="truncate font-semibold text-foreground">{key.name}</h3>
+                        <h3 dir="auto" className="truncate font-semibold text-foreground">
+                          {key.name}
+                        </h3>
                         <Badge
                           variant="secondary"
                           className={key.active ? "border-primary/30 bg-primary/10 text-primary" : "border-border"}>
-                          {key.active ? "Active" : "Inactive"}
+                          {key.active ? t("active") : t("inactive")}
                         </Badge>
                       </div>
-                      <p className="font-mono text-xs text-muted-foreground">{key.keyPrefix}...</p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        <bdi dir="ltr">{key.keyPrefix}…</bdi>
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>Created {formatDate(key.createdAt)}</span>
-                        <span>Last used {formatDate(key.lastUsedAt)}</span>
-                        {!key.active && <span>Deactivated {formatDate(key.revokedAt)}</span>}
+                        <span>{t("createdDate", { date: formatDate(key.createdAt) })}</span>
+                        <span>{t("lastUsedDate", { date: formatDate(key.lastUsedAt) })}</span>
+                        {!key.active && <span>{t("deactivatedDate", { date: formatDate(key.revokedAt) })}</span>}
                       </div>
                     </div>
 
@@ -295,7 +337,7 @@ export default function ApiKeysPage() {
                         disabled={!key.active || busyKeyId === key.id}
                         className="gap-1.5">
                         <RefreshCw className="h-3.5 w-3.5" />
-                        Rotate
+                        {t("rotateKey")}
                       </Button>
                       <Button
                         type="button"
@@ -305,7 +347,7 @@ export default function ApiKeysPage() {
                         disabled={!key.active || busyKeyId === key.id}
                         className="gap-1.5 text-destructive hover:border-destructive/40 hover:text-destructive">
                         <Ban className="h-3.5 w-3.5" />
-                        Deactivate
+                        {t("deactivateKey")}
                       </Button>
                     </div>
                   </div>

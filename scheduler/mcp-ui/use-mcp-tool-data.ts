@@ -3,6 +3,9 @@ import { useCallback, useState } from "react";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 
 import { useHostLocale } from "./use-host-locale";
+import { widgetFallback } from "./widget-locale";
+
+import type { SourceCopy } from "../lib/i18n/source-copy";
 
 type ChatGptWindow = Window & {
   openai?: {
@@ -47,7 +50,7 @@ export function useMcpToolData<T>(name: string) {
     ...locale,
     data,
     setData,
-    toolError,
+    toolError: widgetFallback(toolError, locale.t as SourceCopy),
     setToolError,
   };
 }

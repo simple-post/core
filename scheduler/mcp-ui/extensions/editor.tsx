@@ -10,7 +10,7 @@ import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { MessageComposer } from "../../components/visual/message-composer";
 import { useUiTranslation } from "../../lib/i18n/client";
-import type { MessageKey, MessageValues } from "../../lib/i18n/translate";
+import { useUiCopy } from "../../lib/i18n/use-ui-copy";
 import { PreviewSwitcher } from "../preview-switcher";
 
 import { AccountIdentity, platformName } from "./account-identity";
@@ -18,6 +18,7 @@ import { askChat, attachSelection, callTool, keepEditorHint, restoreEditorHint }
 import { localDateTime } from "./timezone";
 
 import type { EditorContent, EditorData, Validation, WorkspaceData } from "./types";
+import type { MessageKey, MessageValues } from "../../lib/i18n/translate";
 import type { App } from "@modelcontextprotocol/ext-apps";
 
 function fingerprint(value: unknown) {
@@ -99,6 +100,7 @@ export function Editor({
   onCommitted: (editor: EditorData) => void;
 }) {
   const { t, locale } = useUiTranslation();
+  const { copy } = useUiCopy();
   const hint = restoreEditorHint();
   const recoverLocal = hint?.sessionId === initial.sessionId && hint.content;
   const [content, setContent] = useState<EditorContent>(() => {
@@ -828,7 +830,14 @@ export function Editor({
                     setContextActive(true);
                     await askChat(
                       app,
-                      `Propose a shorter ${selectedAccount?.platform ?? "shared"} version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.`,
+                      selectedAccount?.platform
+                        ? copy(
+                            "Propose a shorter {{platform}} version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.",
+                            { platform: selectedAccount.platform },
+                          )
+                        : copy(
+                            "Propose a shorter shared version. Preserve other variants, media and publishing time. Use propose_post_edit for this editor.",
+                          ),
                       selection(next),
                     );
                   })
@@ -845,7 +854,9 @@ export function Editor({
                     setContextActive(true);
                     await askChat(
                       app,
-                      "Propose writing tailored to each selected destination. Keep one SimplePost post and preserve media. Do not publish or schedule.",
+                      copy(
+                        "Propose writing tailored to each selected destination. Keep one SimplePost post and preserve media. Do not publish or schedule.",
+                      ),
                       selection(next),
                     );
                   })

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { App } from "@modelcontextprotocol/ext-apps";
 
 import { direction, normalizeLocale, type Locale } from "../lib/i18n/locales";
 import { createTranslator, type Messages } from "../lib/i18n/translate";
+
+import { bindWidgetLocale } from "./widget-locale";
+
+import type { App } from "@modelcontextprotocol/ext-apps";
 
 declare const __SIMPLEPOST_WIDGET_LOCALE_ASSETS__: Record<Exclude<Locale, "en">, string>;
 
@@ -55,6 +58,10 @@ export function useHostLocale(app: App | null | undefined) {
     document.documentElement.lang = active.locale;
     document.documentElement.dir = direction(active.locale);
   }, [active.locale]);
+
+  useEffect(() => {
+    if (app) bindWidgetLocale(app, active.locale, active.messages);
+  }, [app, active]);
 
   return useMemo(() => ({ ...active, t: createTranslator(active.locale, active.messages) }), [active]);
 }

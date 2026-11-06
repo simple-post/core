@@ -23,14 +23,15 @@ import { SimplePostBrand, WorkspaceNavigation } from "../../components/visual/na
 import { getAccountDisplayName, getPlatformName } from "../../components/visual/platforms";
 import { PostCardView } from "../../components/visual/post-card";
 import { PostStatusTabs } from "../../components/visual/post-status-tabs";
-
 import { UiLocaleProvider } from "../../lib/i18n/client";
+
 import { Calendar } from "./calendar";
 import { Editor } from "./editor";
 import { askChat, attachSelection, callTool, isWorkspaceLaunch, restoreEditorHint, useExtensionHost } from "./host";
 
 import type { ScheduleEntry } from "../schedule";
 import type { EditorData, WorkspaceData } from "./types";
+import type { SourceCopy } from "../../lib/i18n/source-copy";
 import "./design-system.css";
 import "./workspace.css";
 
@@ -39,6 +40,7 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const chooserOnly = editorOnly && !workspaceOpened;
   const { app, launch, setLaunch, incoming, error, toolError, setToolError, locale, messages, t } =
     useExtensionHost<WorkspaceData>();
+  const copy = t as SourceCopy;
   const [editor, setEditor] = useState<EditorData | null>(null);
   const [selected, setSelected] = useState<ScheduleEntry | null>(null);
   const [chosenPosts, setChosenPosts] = useState<string[]>([]);
@@ -59,14 +61,14 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
     setToolError(null);
     try {
       const data = await callTool<WorkspaceData>(app, "get_simplepost_workspace");
-      if (!isWorkspaceLaunch(data)) throw new Error("The publishing workspace returned incomplete data.");
+      if (!isWorkspaceLaunch(data)) throw new Error(copy("The publishing workspace returned incomplete data."));
       setLaunch((current) => current ?? data);
     } catch (error_) {
       setToolError(error_ instanceof Error ? error_.message : String(error_));
     } finally {
       setBusy(false);
     }
-  }, [app, setLaunch, setToolError]);
+  }, [app, copy, setLaunch, setToolError]);
 
   useEffect(() => {
     if (!app || launch || launchError || busy) return;
@@ -682,8 +684,12 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
                     await askChat(
                       app,
                       selected?.kind === "slot"
-                        ? "Help me prepare a post for this selected slot. Propose content; do not schedule it yet."
-                        : "Help me plan these selected posts into available slots. Show the proposed times before scheduling.",
+                        ? copy(
+                            "Help me prepare a post for this selected slot. Propose content; do not schedule it yet.",
+                          )
+                        : copy(
+                            "Help me plan these selected posts into available slots. Show the proposed times before scheduling.",
+                          ),
                       selection,
                     );
                 })

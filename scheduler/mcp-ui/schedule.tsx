@@ -3,9 +3,10 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { Button } from "../components/ui/button";
+import { UiLocaleProvider } from "../lib/i18n/client";
 
 import { Calendar } from "./extensions/calendar";
-import { UiLocaleProvider } from "../lib/i18n/client";
+import { callTool } from "./extensions/host";
 import { useMcpToolData } from "./use-mcp-tool-data";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
@@ -68,15 +69,7 @@ async function loadSchedule(
   app: App,
   input: { view: ScheduleView; date: string; timeZone: string },
 ): Promise<ScheduleData> {
-  const result = await app.callServerTool({
-    name: "get_schedule",
-    arguments: input,
-  });
-  if (result.isError || !result.structuredContent) {
-    const text = result.content.find((item) => item.type === "text");
-    throw new Error(text?.type === "text" ? text.text : "Couldn't load the schedule.");
-  }
-  return result.structuredContent as ScheduleData;
+  return callTool<ScheduleData>(app, "get_schedule", input);
 }
 
 function ScheduleApp() {

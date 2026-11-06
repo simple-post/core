@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 
+import { sourceCopy, type SourceCopy } from "../../lib/i18n/source-copy";
 import { useHostLocale } from "../use-host-locale";
+import { widgetCopy, widgetLocale, widgetFallback } from "../widget-locale";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 
@@ -18,11 +20,16 @@ export function keepEditorHint(state: WidgetState) {
 }
 
 export async function callTool<T>(app: App, name: string, arguments_: Record<string, unknown> = {}): Promise<T> {
-  const result = await app.callServerTool({ name, arguments: arguments_ });
+  const copy = widgetCopy(app);
+  const result = await app.callServerTool({
+    name,
+    arguments: arguments_,
+    _meta: { "openai/locale": widgetLocale(app) },
+  });
   if (result.isError || !result.structuredContent) {
     const item = result.content.find((content) => content.type === "text");
     throw new Error(
-      item?.type === "text" ? item.text.split("\nSIMPLEPOST_ERROR")[0] : "The action could not be completed.",
+      item?.type === "text" ? item.text.split("\nSIMPLEPOST_ERROR")[0] : copy("The action could not be completed."),
     );
   }
   return result.structuredContent as T;
@@ -55,7 +62,7 @@ export function useExtensionHost<T>() {
         setToolError(
           item?.type === "text"
             ? item.text.split("\nSIMPLEPOST_ERROR")[0]
-            : "The publishing workspace could not be opened.",
+            : sourceCopy("The publishing workspace could not be opened."),
         );
         return;
       }
@@ -65,7 +72,7 @@ export function useExtensionHost<T>() {
         setToolError(null);
         setLaunch(data as T);
       } else if (data.kind === "workspace" || data.kind === "editor_launch") {
-        setToolError("The publishing workspace returned incomplete data. Please try again.");
+        setToolError(sourceCopy("The publishing workspace returned incomplete data. Please try again."));
       } else setIncoming(data);
     };
   }, []);
@@ -94,16 +101,30 @@ export function useExtensionHost<T>() {
   });
   useHostStyles(host.app, host.app?.getHostContext());
   const locale = useHostLocale(host.app);
-  return { ...host, ...locale, launch, setLaunch, incoming, toolError, setToolError };
+  return {
+    ...host,
+    ...locale,
+    launch,
+    setLaunch,
+    incoming,
+    toolError: widgetFallback(toolError, locale.t as SourceCopy),
+    setToolError,
+  };
 }
 
 export async function attachSelection(app: App, selected: Record<string, unknown> | null) {
+  const copy = widgetCopy(app);
   const capabilities = app.getHostCapabilities()?.updateModelContext;
   if (!capabilities) return false;
   await app.updateModelContext(
     selected
       ? {
-          content: [{ type: "text", text: `SimplePost selection: ${JSON.stringify(selected)}` }],
+          content: [
+            {
+              type: "text",
+              text: copy("SimplePost selection: {{selection}}", { selection: JSON.stringify(selected) }),
+            },
+          ],
           ...(capabilities.structuredContent ? { structuredContent: selected } : {}),
         }
       : { content: [], ...(capabilities.structuredContent ? { structuredContent: {} } : {}) },
@@ -111,13 +132,19 @@ export async function attachSelection(app: App, selected: Record<string, unknown
   return true;
 }
 export async function askChat(app: App, prompt: string, selection: Record<string, unknown>) {
+  const copy = widgetCopy(app);
   await attachSelection(app, selection);
   if (!app.getHostCapabilities()?.message)
     throw new Error(
-      "This host cannot send a chat request. Copy your request and selected post ID into the conversation.",
+      copy("This host cannot send a chat request. Copy your request and selected post ID into the conversation."),
     );
   await app.sendMessage({
     role: "user",
-    content: [{ type: "text", text: `${prompt}\n\nSelected SimplePost context: ${JSON.stringify(selection)}` }],
+    content: [
+      {
+        type: "text",
+        text: `${prompt}\n\n${copy("Selected SimplePost context: {{selection}}", { selection: JSON.stringify(selection) })}`,
+      },
+    ],
   });
 }

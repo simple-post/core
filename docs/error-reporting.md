@@ -1,8 +1,8 @@
 # Error reporting across Simple products
 
-All five products use the same v1 incident format. Every unexpected application failure is reported to its product's private Telegram bot and SigNoz. The report starts with the error message and area, followed by user email/ID, country, client surface, agent, environment, time, request/tool/job identifiers and a unique report ID. Unknown context is explicitly labelled unknown. Worker failures identify the worker, not an invented request location.
+All five products use the same v1 incident format. Every unexpected application failure is reported to its product's private Telegram bot and SigNoz. The report starts with the error message and area, followed by user email/ID, country, client surface, agent, environment, time, request/tool/job identifiers and a unique report ID. Telegram leaves out unknown fields. SigNoz labels unknown context explicitly. Worker failures identify the worker, not an invented request location.
 
-Telegram contains concise plain text without stack traces. SigNoz's log body contains the same human-readable summary; structured attributes contain the complete sanitized stack and cause chain. Search `error.id` from the Telegram message to find the exact record. Existing traces/metrics continue; user IDs, emails and report IDs are never added as metric dimensions.
+Telegram puts the product, urgency and error first, then groups the available context under bold labels. Its final line is a copyable report ID. SigNoz's log body retains the detailed plain text summary; structured attributes contain the complete sanitized stack and cause chain. Search `error.id` from the Telegram message to find the exact record. Existing traces/metrics continue; user IDs, emails and report IDs are never added as metric dimensions.
 
 Example (illustrative):
 

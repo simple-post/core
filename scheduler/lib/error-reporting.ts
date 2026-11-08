@@ -175,6 +175,51 @@ export function buildErrorReport(product: string, error: unknown, input: ErrorCo
   return { id, timestamp, severity, summary: boundedSummary(lines, id), attributes };
 }
 
+function formatTelegramReport(report: ErrorReport): string {
+  const escaped = (value: string | number | boolean, limit: number) => {
+    const characters = [...String(value).replaceAll(/\s+/g, " ").trim()];
+    const text = characters.length > limit ? characters.slice(0, limit - 1).join("") + "…" : characters.join("");
+    return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  };
+  const { attributes } = report;
+  const value = (key: string, limit = 100) => {
+    const field = attributes[key];
+    return field === undefined || field === "unknown" ? "" : escaped(field, limit);
+  };
+  const group = (...parts: string[]) => parts.filter(Boolean).join(" · ");
+  const status =
+    report.severity === "fatal"
+      ? { icon: "🔴", label: "Act now" }
+      : attributes["retry.scheduled"] === true
+        ? { icon: "🔁", label: "Retrying" }
+        : { icon: "⚠️", label: "Investigate" };
+  const product = value("product.name", 80) || "Simple";
+  const error = value("exception.message", 500) || "Unknown error";
+  const path = value("url.path", 160);
+  const http = value("http.response.status_code", 12);
+  const attempt = value("retry.attempt", 20);
+  const environment = value("deployment.environment.name", 40);
+  const rows = [
+    ["Where", group(value("error.area"), path && `<code>${path}</code>`, http && `HTTP ${http}`)],
+    ["User", value("user.email", 180) || value("user.id")],
+    ["Client", group(value("client.surface"), value("client.agent"), value("geo.country", 20))],
+    ["Tool", value("mcp.tool")],
+    ["Job", value("job.id")],
+    ["Post", group(value("post.id"), value("platform"), value("account.handle"))],
+    ["Details", group(value("failure.stage"), value("failure.code"), attempt && `attempt ${attempt}`)],
+    ["Environment", environment === "production" ? "" : environment],
+  ];
+  let text = `${status.icon} <b>${product}</b> · ${status.label}\n\n<b>${error}</b>\n`;
+  const footer = `\n\n<b>Report</b>  <code>${escaped(report.id, 80)}</code>`;
+  // Budget whole rows so truncation never splits an HTML tag or entity.
+  for (const [label, details] of rows) {
+    if (!details) continue;
+    const row = `\n<b>${label}</b>  ${details}`;
+    if (text.length + row.length + footer.length <= 3900) text += row;
+  }
+  return text.trimEnd() + footer;
+}
+
 function boundedSummary(lines: string[], id: string): string {
   const text = lines.join("\n");
   if (text.length <= 3900) return text;
@@ -361,7 +406,8 @@ export function sendErrorReport(report: ErrorReport, options: DeliveryOptions): 
         `https://api.telegram.org/bot${token}/sendMessage`,
         {
           chat_id: chatId,
-          text: report.summary.slice(0, 3900),
+          text: formatTelegramReport(report),
+          parse_mode: "HTML",
           disable_web_page_preview: true,
         },
         {},

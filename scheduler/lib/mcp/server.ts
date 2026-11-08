@@ -229,6 +229,7 @@ function errorResult(error: unknown, context: McpToolAuthContext) {
     {
       ...apiFields,
       userId: context.userId,
+      userEmail: context.userEmail,
       clientId: context.clientId,
       supportId: diagnostic.supportId,
       diagnostic,

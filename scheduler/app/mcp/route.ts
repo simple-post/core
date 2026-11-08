@@ -12,6 +12,7 @@ import { Feature } from "@prisma/client";
 
 import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
+import { withErrorContext, addErrorContext, requestErrorContext } from "@/lib/error-reporting";
 import { hasFeature } from "@/lib/features";
 import { localeFromRequestHeaders, type Locale } from "@/lib/i18n/locales";
 import { createServerCopy, displayError } from "@/lib/i18n/server";
@@ -288,7 +289,10 @@ function scheduleReviewExchange(
 /**
  * POST /mcp — Handle MCP JSON-RPC requests via Streamable HTTP.
  */
-export async function POST(req: NextRequest) {
+export function POST(req: NextRequest) {
+  return withErrorContext(requestErrorContext(req.headers, "/mcp", req.method), () => handlePost(req));
+}
+async function handlePost(req: NextRequest) {
   const authContext = await getAuthContextOrResponse(req);
   if (authContext instanceof Response) {
     return authContext;
@@ -297,8 +301,10 @@ export async function POST(req: NextRequest) {
     return unauthorizedResponse();
   }
 
+  addErrorContext({ userId: authContext.userId, userEmail: authContext.userEmail });
   const startedAt = Date.now();
   const requestId = crypto.randomUUID();
+  addErrorContext({ requestId });
   // Clone before the MCP transport consumes the body. The server boundary only
   // contains JSON-RPC tool payloads, not the complete ChatGPT conversation.
   const reviewRequestBody = shouldLogReviewMcpExchange(authContext) ? req.clone().text() : undefined;

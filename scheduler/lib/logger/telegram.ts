@@ -1,16 +1,6 @@
 import { context as otelContext } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 
-type TelegramLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
-
-export interface TelegramLogNotification {
-  level: TelegramLogLevel;
-  message: string;
-  timestamp: string;
-  context?: Record<string, unknown>;
-  error?: unknown;
-}
-
 export interface TelegramReviewExchangeNotification {
   userEmail: string;
   toolName: string;
@@ -21,215 +11,34 @@ export interface TelegramReviewExchangeNotification {
   succeeded: boolean;
 }
 
-const LEVEL_VALUES: Record<TelegramLogLevel, number> = {
-  trace: 10,
-  debug: 20,
-  info: 30,
-  warn: 40,
-  error: 50,
-  fatal: 60,
-};
-
-const DEFAULT_MAX_PER_MINUTE = 10;
-const DEFAULT_REVIEW_MAX_PER_MINUTE = 60;
+// Application error reports are sent by lib/error-reporting.ts. This file
+// retains the separate, intentionally rate-limited demo review notifications.
 const MAX_MESSAGE_LENGTH = 3900;
 const MAX_REVIEW_ARGUMENTS_LENGTH = 1500;
 const MAX_REVIEW_ERROR_LENGTH = 600;
-
-let windowStartedAt = 0;
-let sentInWindow = 0;
 let reviewWindowStartedAt = 0;
 let reviewExchangesInWindow = 0;
-
 function getTelegramConfig() {
   const botToken = process.env.LOG_TELEGRAM_BOT_TOKEN;
   const chatId = process.env.LOG_TELEGRAM_CHAT_ID;
-
-  if (!botToken || !chatId || process.env.LOG_TELEGRAM_DISABLED === "true") {
-    return null;
-  }
-
-  const configuredLevel = process.env.LOG_TELEGRAM_MIN_LEVEL as TelegramLogLevel | undefined;
-  const minLevel = configuredLevel && configuredLevel in LEVEL_VALUES ? configuredLevel : "error";
-  const maxPerMinute = Number.parseInt(process.env.LOG_TELEGRAM_MAX_PER_MINUTE || "", 10);
-  const reviewMaxPerMinute = Number.parseInt(process.env.LOG_TELEGRAM_REVIEW_MAX_PER_MINUTE || "", 10);
-
-  return {
-    botToken,
-    chatId,
-    minLevel,
-    maxPerMinute: Number.isFinite(maxPerMinute) && maxPerMinute > 0 ? maxPerMinute : DEFAULT_MAX_PER_MINUTE,
-    reviewMaxPerMinute:
-      Number.isFinite(reviewMaxPerMinute) && reviewMaxPerMinute > 0
-        ? reviewMaxPerMinute
-        : DEFAULT_REVIEW_MAX_PER_MINUTE,
-  };
+  if (!botToken || !chatId || process.env.LOG_TELEGRAM_DISABLED === "true") return null;
+  const cap = Number(process.env.LOG_TELEGRAM_REVIEW_MAX_PER_MINUTE);
+  return { botToken, chatId, reviewMaxPerMinute: Number.isFinite(cap) && cap > 0 ? cap : 60 };
 }
-
-function shouldNotify(level: TelegramLogLevel, minLevel: TelegramLogLevel): boolean {
-  return LEVEL_VALUES[level] >= LEVEL_VALUES[minLevel];
-}
-
-/**
- * Cheap check used by the logger hook to skip context extraction/redaction
- * work entirely when Telegram is not configured or the level is below the
- * configured threshold.
- */
-export function isTelegramNotificationEnabled(level: TelegramLogLevel): boolean {
-  const config = getTelegramConfig();
-  return config !== null && shouldNotify(level, config.minLevel);
-}
-
-function consumeRateLimit(maxPerMinute: number): boolean {
-  const now = Date.now();
-  if (now - windowStartedAt > 60_000) {
-    windowStartedAt = now;
-    sentInWindow = 0;
-  }
-
-  if (sentInWindow >= maxPerMinute) {
-    return false;
-  }
-
-  sentInWindow += 1;
-  return true;
-}
-
 function consumeReviewRateLimit(maxPerMinute: number): boolean {
   const now = Date.now();
   if (now - reviewWindowStartedAt > 60_000) {
     reviewWindowStartedAt = now;
     reviewExchangesInWindow = 0;
   }
-
-  if (reviewExchangesInWindow >= maxPerMinute) {
-    return false;
-  }
-
+  if (reviewExchangesInWindow >= maxPerMinute) return false;
   reviewExchangesInWindow += 1;
   return true;
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 14)}... [truncated]`;
-}
-
-function stringifyValue(value: unknown, maxLength = 900): string {
-  if (value === undefined) return "";
-  if (typeof value === "string") return truncate(value, maxLength);
-
-  try {
-    return truncate(JSON.stringify(value, null, 2), maxLength);
-  } catch {
-    return truncate(String(value), maxLength);
-  }
-}
-
-export function formatTelegramLogNotification(notification: TelegramLogNotification): string {
-  const env = process.env.NODE_ENV || "development";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const context = notification.context || {};
-  const moduleName = typeof context.module === "string" ? context.module : undefined;
-  const requestId = typeof context.requestId === "string" ? context.requestId : undefined;
-  const userId = typeof context.userId === "string" ? context.userId : undefined;
-  const userEmail = typeof context.userEmail === "string" ? context.userEmail : undefined;
-  const userName = typeof context.userName === "string" ? context.userName : undefined;
-  const postId = typeof context.postId === "string" ? context.postId : undefined;
-  const accountId = typeof context.accountId === "string" ? context.accountId : undefined;
-  const accountUsername = typeof context.accountUsername === "string" ? context.accountUsername : undefined;
-  const accountHandle = typeof context.accountHandle === "string" ? context.accountHandle : undefined;
-  const platform = typeof context.platform === "string" ? context.platform : undefined;
-  const postingSource = typeof context.postingSource === "string" ? context.postingSource : undefined;
-  const traceId = typeof context.traceId === "string" ? context.traceId : undefined;
-  const contentPreview = typeof context.contentPreview === "string" ? context.contentPreview : undefined;
-  const contentLength = typeof context.contentLength === "number" ? context.contentLength : undefined;
-  const providerMessage = typeof context.message === "string" ? context.message : undefined;
-
-  const lines = [
-    `<b>SimplePost Scheduler ${escapeHtml(notification.level.toUpperCase())}</b>`,
-    `<b>Env:</b> ${escapeHtml(env)}`,
-    `<b>Time:</b> ${escapeHtml(notification.timestamp)}`,
-  ];
-
-  if (appUrl) lines.push(`<b>App:</b> ${escapeHtml(appUrl)}`);
-  if (moduleName) lines.push(`<b>Module:</b> ${escapeHtml(moduleName)}`);
-  if (requestId) lines.push(`<b>Request:</b> ${escapeHtml(requestId)}`);
-  if (userId || userEmail || userName) {
-    const userLabel = [userName, userEmail ? `<${userEmail}>` : undefined, userId ? `(${userId})` : undefined]
-      .filter(Boolean)
-      .join(" ");
-    lines.push(`<b>User:</b> ${escapeHtml(userLabel)}`);
-  }
-  if (!userId && !userEmail && !userName) {
-    lines.push(`<b>User:</b> ${escapeHtml(String(context.userIdentityStatus || "unavailable (no user context)"))}`);
-  }
-  if (Array.isArray(context.connectedAccounts)) {
-    const accounts = context.connectedAccounts.map(
-      (account: Record<string, unknown>) =>
-        `${account.platform}: ${account.username || account.displayName || account.platformAccountId} (${account.id})`,
-    );
-    lines.push(
-      `<b>Connected accounts (not necessarily the destination):</b> ${escapeHtml(truncate(accounts.join("; ") || "none", 900))}`,
-    );
-  } else if (context.connectedAccountsStatus) {
-    lines.push(`<b>Connected accounts:</b> ${escapeHtml(String(context.connectedAccountsStatus))}`);
-  } else if (!accountId && !accountHandle && !accountUsername) {
-    lines.push("<b>Social account:</b> unavailable (no destination context)");
-  }
-  if (postId) lines.push(`<b>Post:</b> ${escapeHtml(postId)}`);
-  if (platform) lines.push(`<b>Platform:</b> ${escapeHtml(platform)}`);
-  if (accountHandle) lines.push(`<b>Handle:</b> ${escapeHtml(accountHandle)}`);
-  if (accountId) lines.push(`<b>Account ID:</b> ${escapeHtml(accountId)}`);
-  if (!accountHandle && accountUsername) lines.push(`<b>Account:</b> ${escapeHtml(accountUsername)}`);
-  if (postingSource) lines.push(`<b>Source:</b> ${escapeHtml(postingSource)}`);
-  if (traceId) lines.push(`<b>Trace:</b> <code>${escapeHtml(traceId)}</code>`);
-
-  lines.push(`<b>Message:</b> ${escapeHtml(truncate(notification.message, 600))}`);
-  if (providerMessage && providerMessage !== notification.message) {
-    lines.push(`<b>Reason:</b> ${escapeHtml(truncate(providerMessage, 900))}`);
-  }
-  if (contentPreview) {
-    const lengthSuffix = contentLength === undefined ? "" : ` (${contentLength} chars)`;
-    lines.push(`<b>Content${escapeHtml(lengthSuffix)}:</b> ${escapeHtml(truncate(contentPreview, 900))}`);
-  }
-
-  if (notification.error) {
-    lines.push(`<b>Error:</b> <pre>${escapeHtml(stringifyValue(notification.error, 1200))}</pre>`);
-  }
-
-  const extraContext = { ...context };
-  delete extraContext.module;
-  delete extraContext.requestId;
-  delete extraContext.connectedAccounts;
-  delete extraContext.connectedAccountsStatus;
-  delete extraContext.userIdentityStatus;
-  delete extraContext.userId;
-  delete extraContext.userEmail;
-  delete extraContext.userName;
-  delete extraContext.postId;
-  delete extraContext.accountId;
-  delete extraContext.accountUsername;
-  delete extraContext.accountHandle;
-  delete extraContext.platform;
-  delete extraContext.postingSource;
-  delete extraContext.traceId;
-  delete extraContext.spanId;
-  delete extraContext.contentPreview;
-  delete extraContext.contentLength;
-  delete extraContext.message;
-  delete extraContext.err;
-  delete extraContext.error;
-
-  if (Object.keys(extraContext).length > 0) {
-    lines.push(`<b>Context:</b> <pre>${escapeHtml(stringifyValue(extraContext, 1000))}</pre>`);
-  }
-
-  return truncate(lines.join("\n"), MAX_MESSAGE_LENGTH);
 }
 
 export function formatTelegramReviewExchange(notification: TelegramReviewExchangeNotification): string {
@@ -286,23 +95,8 @@ async function postTelegramMessage(
   }
 }
 
-export async function sendTelegramLogNotification(notification: TelegramLogNotification): Promise<void> {
-  const config = getTelegramConfig();
-  if (!config || !shouldNotify(notification.level, config.minLevel)) {
-    return;
-  }
-
-  if (!consumeRateLimit(config.maxPerMinute)) {
-    console.warn("Telegram log notification skipped because LOG_TELEGRAM_MAX_PER_MINUTE was reached.");
-    return;
-  }
-
-  await postTelegramMessage(config, formatTelegramLogNotification(notification), "HTML");
-}
-
 /**
- * Send a review-account MCP exchange regardless of the normal minimum log
- * level. Review events have their own rate limit because a submission test can
+ * Send a review-account MCP exchange on the dedicated review channel. Review events have a rate limit because a submission test can
  * make several successful tool calls in quick succession.
  */
 export async function sendTelegramReviewExchange(notification: TelegramReviewExchangeNotification): Promise<void> {

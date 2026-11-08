@@ -29,7 +29,8 @@
     "e2e:report": "yarn workspace @simple-post/e2e report",
     "docs:export": "node scripts/export-docs.mjs",
     "hermes:validate": "node scripts/validate-hermes-submission.mjs",
-    "muse:check": "node --test integrations/meta-muse/integration.test.mjs"
+    "muse:check": "node --test integrations/meta-muse/integration.test.mjs",
+    "test:error-reporting": "node --test tests/error-reporting.test.mjs"
   },
   "resolutions": {
     "postcss": "^8.5.16",

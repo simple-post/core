@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { measureMcpTool } from "@/lib/analytics/tool-measurement";
+import { withErrorContext } from "@/lib/error-reporting";
 import { createServerCopy, serverMessage } from "@/lib/i18n/server";
 import { localizeStandardSchema } from "@/lib/i18n/standard-schema";
 import { mcpUiTranslation, withMcpUiTranslation } from "@/lib/mcp/locale";
@@ -99,7 +100,9 @@ export function registerMeasuredTool(
               _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
             };
           }
-          return callback(input, ctx);
+          return withErrorContext({ toolName: name, area: "mcp.tool", userId: context.userId, surface: "mcp" }, () =>
+            callback(input, ctx),
+          );
         },
         locale,
       ),

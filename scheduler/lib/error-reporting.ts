@@ -177,7 +177,7 @@ export function buildErrorReport(product: string, error: unknown, input: ErrorCo
 
 function formatTelegramReport(report: ErrorReport): string {
   const escaped = (value: string | number | boolean, limit: number) => {
-    const characters = Array.from(String(value).replace(/\s+/g, " ").trim());
+    const characters = [String(value).replaceAll(/\s+/g, " ").trim()];
     const text = characters.length > limit ? characters.slice(0, limit - 1).join("") + "…" : characters.join("");
     return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   };

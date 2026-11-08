@@ -31,7 +31,7 @@ This repository handles its deployed application and backend surfaces. Native cr
 
 ## Configuration and rollout
 
-Each product gets a **different bot token**. Do not reuse a business-notification bot or another product's token. Configure the same product's token in all its web/worker services; use separate development credentials or disable Telegram in development.
+Each product uses its own Telegram bot for operator notifications, including error reports and any contact or review notifications. Use that product’s token across its web and worker services. The products may share the same private chat ID. Disable Telegram in development if those alerts should stay out of the production chat.
 
 | Product              | Repository                | Default service      |
 | -------------------- | ------------------------- | -------------------- |
@@ -44,7 +44,7 @@ Each product gets a **different bot token**. Do not reuse a business-notificatio
 Runtime secrets (never committed):
 
 ```dotenv
-LOG_TELEGRAM_BOT_TOKEN=<this product's dedicated error bot token>
+LOG_TELEGRAM_BOT_TOKEN=<this product's bot token>
 LOG_TELEGRAM_CHAT_ID=<private chat or group ID>
 LOG_TELEGRAM_DISABLED=false
 OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://collector.example/v1/logs

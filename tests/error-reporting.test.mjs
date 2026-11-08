@@ -110,9 +110,10 @@ test("both destinations start independently; the same report body and full stack
   assert.equal(calls.length, 2);
   const log = calls.find((call) => call.url.includes("collector")).body.resourceLogs[0].scopeLogs[0].logRecords[0];
   const telegram = calls.find((call) => call.url.includes("telegram")).body;
-  assert.equal(log.body.stringValue, telegram.text);
+  assert.equal(log.body.stringValue, report.summary);
+  assert.ok(telegram.text.includes(`<code>${report.id}</code>`));
   assert.ok(log.attributes.some((attribute) => attribute.key === "exception.stacktrace"));
-  assert.equal(telegram.parse_mode, undefined);
+  assert.equal(telegram.parse_mode, "HTML");
   release();
   await delivery;
 });
@@ -199,4 +200,31 @@ test("long summaries retain the correlation ID within Telegram limits", () => {
   assert.ok(report.summary.length <= 3900);
   assert.ok(report.summary.endsWith(report.id));
   assert.equal(report.attributes["exception.message"].length, 5000);
+});
+
+test("Telegram escapes diagnostic values, groups context and keeps the report ID copyable", async () => {
+  configured();
+  let text;
+  mock.method(globalThis, "fetch", async (url, options) => {
+    if (url.includes("telegram")) text = JSON.parse(options.body).text;
+    return new Response('{"ok":true}');
+  });
+  const error = new Error("Bad <field> & value " + "&".repeat(2000));
+  const report = buildErrorReport("Simple <Example>", error, {
+    area: "browser.render",
+    path: "/<draft>",
+    surface: "web",
+    agent: "Chrome",
+    country: "DE",
+    userEmail: "unknown",
+    willRetry: true,
+  });
+  await sendErrorReport(report, { service: "simple" });
+  assert.ok(text.startsWith("🔁 <b>Simple &lt;Example&gt;</b> · Retrying\n\n"));
+  assert.ok(text.includes("<b>Bad &lt;field&gt; &amp; value "));
+  assert.ok(text.includes("<b>Where</b>  browser.render · <code>/&lt;draft&gt;</code>"));
+  assert.ok(text.includes("<b>Client</b>  web · Chrome · DE"));
+  assert.ok(!text.includes("<b>User</b>"));
+  assert.ok(text.length <= 3900);
+  assert.ok(text.endsWith(`<b>Report</b>  <code>${report.id}</code>`));
 });

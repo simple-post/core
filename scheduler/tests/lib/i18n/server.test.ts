@@ -1,3 +1,4 @@
+import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 import { z } from "zod";
 
 import {
@@ -8,8 +9,21 @@ import {
   withServerLocale,
 } from "@/lib/i18n/server";
 import { localizeStandardSchema } from "@/lib/i18n/standard-schema";
+import { locales } from "@/lib/i18n/locales";
+import { validationDetails } from "@/lib/i18n/validation-display";
 import { mcpRequestLocale, mcpUiLocale, withMcpLocale } from "@/lib/mcp/locale";
 import { BadRequestError } from "@/lib/utils/errors";
+
+it.each(locales.filter((locale) => locale !== "en"))("keeps retry parameter values in %s image-fit help", (locale) => {
+  const result = validationDetails(
+    { results: [], summary: { isValid: false, errors: [], warnings: [] }, imageFitHelp: IMAGE_FIT_HELP },
+    locale,
+  ) as { imageFitHelp: string };
+  expect(result.imageFitHelp).not.toBe(IMAGE_FIT_HELP);
+  for (const token of ["imageFit", "crop", "blur"]) {
+    expect(result.imageFitHelp).toContain(token);
+  }
+});
 
 it("isolates overlapping async requests and restores the caller context", async () => {
   const results = await Promise.all(

@@ -24,6 +24,12 @@ it.each([0, 1])("handles %s queued targets without inventing failed-post counts"
   expect(email.text).not.toContain("three failed");
   expect(email.subject).toContain("LinkedIn");
 });
+it("explains the effect of one queued post in the Hindi reconnect email", () => {
+  const email = renderDisconnectEmail({ ...input, locale: "hi", affectedQueuedPosts: 1 });
+  expect(email.text.split("\n\n")).toContain(
+    "कतार में मौजूद 1 पोस्ट के लिए यह कनेक्शन ज़रूरी है। अगली शेड्यूल की गई पोस्ट से पहले खाता फिर से कनेक्ट करें।",
+  );
+});
 it("escapes untrusted profile fields and rejects non-web links", () => {
   const email = renderDisconnectEmail({
     ...input,

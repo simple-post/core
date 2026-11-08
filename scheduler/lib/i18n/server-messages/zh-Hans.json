@@ -499,7 +499,7 @@
   "The saved draft could not be loaded.": "无法加载已保存的草稿。",
   "The saved post changed. Your working copy is safe; reload and compare before saving.": "已保存的帖子已更改。你的工作副本仍安全保留。请重新加载并比较后再保存。",
   "The saved post could not be loaded.": "无法加载已保存的帖子。",
-  "These images can be fitted automatically. Offer crop (trim edges) or blur (keep the full image over a blurred background), then retry with imageFit set to the chosen method. If fitting was already requested, use that method without another question; default to blur. Fitting cannot fix missing media, attachment counts, or mixed image/video posts.": "这些图片可以自动适配。请提供裁剪（去掉边缘）或模糊背景（在模糊背景上保留完整图片）两种选项，然后将 imageFit 设为选定的方法并重试。如果已经收到适配请求，请直接使用指定方法，默认使用模糊背景。适配无法解决媒体缺失、附件数量不符或同一帖子混用图片和视频的问题。",
+  "These images can be fitted automatically. Offer crop (trim edges) or blur (keep the full image over a blurred background), then retry with imageFit set to the chosen method. If fitting was already requested, use that method without another question; default to blur. Fitting cannot fix missing media, attachment counts, or mixed image/video posts.": "这些图片可以自动适配。请提供裁剪 (crop)（去掉边缘）或模糊背景 (blur)（在模糊背景上保留完整图片）两种选项，然后将 imageFit 设为选定的方法并重试。如果已经收到适配请求，请直接使用指定方法，没有指定方式时，默认使用 blur。适配无法解决媒体缺失、附件数量不符或同一帖子混用图片和视频的问题。",
   "This Facebook Page connection does not have permission to create content. Reconnect with Page publishing access.": "当前 Facebook 公共主页连接没有创建内容的权限。请授予主页发布权限后重新连接。",
   "This SimplePost widget mount has been superseded.": "此 SimplePost 小组件实例已被替换。",
   "This URL or file does not contain a supported image or video. Upload the file directly; links to sign-in, preview, or download-confirmation pages cannot be published.": "此 URL 或文件不包含受支持的图片或视频。请直接上传文件。登录页、预览页或下载确认页的链接无法发布。",

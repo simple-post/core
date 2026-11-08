@@ -9,6 +9,7 @@ import {
 
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { measureMcpTool } from "@/lib/analytics/tool-measurement";
+import { withErrorContext } from "@/lib/error-reporting";
 import { toMcpErrorDiagnostic } from "@/lib/mcp/tool-errors";
 import { PaymentRequiredError } from "@/lib/utils/errors";
 
@@ -88,7 +89,9 @@ export function registerMeasuredTool(
           _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
         };
       }
-      return callback(input, ctx);
+      return withErrorContext({ toolName: name, area: "mcp.tool", userId: context.userId, surface: "mcp" }, () =>
+        callback(input, ctx),
+      );
     });
   return registerAppTool(
     server,

@@ -24,12 +24,15 @@ export interface ValidationIssueGroup {
 // carry developer guidance there, so the UI shows a plain-language version.
 function validationGuidance(code: string, copy: SourceCopy): string | undefined {
   switch (code) {
-    case "tiktok_privacy_status_required":
+    case "tiktok_privacy_status_required": {
       return copy("Choose who can see this post.");
-    case "tiktok_commercial_disclosure_required":
+    }
+    case "tiktok_commercial_disclosure_required": {
       return copy("Say whether this post promotes your own brand, a third party, or both.");
-    case "tiktok_branded_content_private":
+    }
+    case "tiktok_branded_content_private": {
       return copy("Branded content can't be set to “Only me”.");
+    }
   }
 }
 

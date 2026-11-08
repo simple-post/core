@@ -25,13 +25,19 @@ export function countMedia(media: Media[]): { images: number; videos: number } {
   return { images, videos };
 }
 
-export function formatFileSize(bytes: number): string {
-  const gibibyte = 1024 * 1024 * 1024;
-  const mebibyte = 1024 * 1024;
+const gibibyte = 1024 * 1024 * 1024;
+const mebibyte = 1024 * 1024;
 
+export function formatFileSize(bytes: number): string {
   if (bytes % gibibyte === 0) return `${bytes / gibibyte} GB`;
   if (bytes % mebibyte === 0) return `${bytes / mebibyte} MB`;
   return `${bytes.toLocaleString("en-US")} bytes`;
+}
+
+function describeFileSize(bytes: number) {
+  if (bytes % gibibyte === 0) return displayMessage("{{size}} GB", { size: bytes / gibibyte });
+  if (bytes % mebibyte === 0) return displayMessage("{{size}} MB", { size: bytes / mebibyte });
+  return displayMessage("{{size, number}} bytes", { size: bytes });
 }
 
 export function validateMediaSizes(
@@ -65,12 +71,7 @@ export function validateMediaSizes(
           : "{{platformName}} videos cannot exceed {{size}}.",
         {
           platformName,
-          size:
-            limit % (1024 * 1024 * 1024) === 0
-              ? displayMessage("{{size}} GB", { size: limit / (1024 * 1024 * 1024) })
-              : limit % (1024 * 1024) === 0
-                ? displayMessage("{{size}} MB", { size: limit / (1024 * 1024) })
-                : displayMessage("{{size, number}} bytes", { size: limit }),
+          size: describeFileSize(limit),
         },
       ),
     );

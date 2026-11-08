@@ -14,7 +14,7 @@ const serverSource = ts.createSourceFile(
   true,
 );
 const instructions = serverSource.statements
-  .filter(ts.isVariableStatement)
+  .filter((statement) => ts.isVariableStatement(statement))
   .flatMap((statement) => [...statement.declarationList.declarations])
   .find((declaration) => declaration.name.getText(serverSource) === "SERVER_INSTRUCTIONS")?.initializer;
 assert.ok(instructions && (ts.isNoSubstitutionTemplateLiteral(instructions) || ts.isTemplateExpression(instructions)));
@@ -72,7 +72,7 @@ for (const locale of locales) {
   }
   if (locale !== "en") assert.notDeepEqual(messages, english, `${locale}: copied English is not a translation`);
 }
-if (fallbackLocales.length) {
+if (fallbackLocales.length > 0) {
   console.warn(
     `Server overlays validated for ${locales.length} locales. MCP instructions use English in ${fallbackLocales.join(", ")}.`,
   );

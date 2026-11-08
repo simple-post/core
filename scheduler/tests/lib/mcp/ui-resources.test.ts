@@ -32,7 +32,6 @@ import {
 import { WIDGET_RUNTIME_PATH, WIDGET_RUNTIME_TIMEOUT_MS } from "@/lib/mcp/ui/runtime";
 import { WIDGET_ASSETS } from "@/lib/mcp/ui/widget-assets";
 
-
 import type { McpServer } from "@modelcontextprotocol/server";
 
 type ResourceResult = {

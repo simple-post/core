@@ -31,9 +31,7 @@ export function UiCopy({
       // slot intact instead of reading element.props or reconstructing user text.
       if (opaqueSlots.has(name)) return createElement(Fragment, { key }, element);
       if (!isValidElement(element)) return children;
-      return element.type === "br"
-        ? cloneElement(element, { key })
-        : cloneElement(element, { key }, children);
+      return element.type === "br" ? cloneElement(element, { key }) : cloneElement(element, { key }, children);
     },
     values,
     locale,

@@ -27,7 +27,7 @@ export function localizedSchedulePeriod(
   const dates = data.days.filter(({ inPeriod }) => inPeriod).map(({ date }) => date);
   if (dates.length === 0) return data.periodLabel;
   const first = new Date(dates[0] + "T00:00:00Z");
-  const last = new Date(dates[dates.length - 1] + "T00:00:00Z");
+  const last = new Date(dates.at(-1) + "T00:00:00Z");
   if (!Number.isFinite(first.getTime()) || !Number.isFinite(last.getTime())) return data.periodLabel;
   const formatter = new Intl.DateTimeFormat(
     locale,

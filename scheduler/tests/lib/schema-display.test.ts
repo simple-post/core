@@ -40,7 +40,7 @@ it("keeps validation translators per parse and does not include submitted values
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues.every((issue) => issue.message.startsWith(prefix))).toBe(true);
-      expect(result.error.issues.map((issue) => issue.message).join(',')).not.toContain("private-user-secret");
+      expect(result.error.issues.map((issue) => issue.message).join(",")).not.toContain("private-user-secret");
       expect(result.error.issues[1].message).toContain('"draft", "now"');
     }
   }

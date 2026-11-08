@@ -70,7 +70,9 @@ it("persists an opt-out before automatic enrollment or recovery can run", async 
 
 it("automatically enrolls and delivers a missed trial without inventing consent", async () => {
   await prisma.openAiAdsMeasurement.delete({ where: { userId } });
-  await prisma.freeTrial.update({ where: { userId }, data: { startsAt: new Date() } });
+  const startsAt = new Date();
+  const expiresAt = new Date(startsAt.getTime() + 7 * 86_400_000);
+  await prisma.freeTrial.update({ where: { userId }, data: { startsAt, expiresAt } });
   await enrollOpenAiMeasurement(userId, "");
   const row = await prisma.openAiAdsMeasurement.findUniqueOrThrow({ where: { userId } });
   expect(row.enrollmentMode).toBe("automatic");

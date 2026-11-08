@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const locales = "en es pt-BR fr de ja it ko zh-Hans zh-Hant ar hi id tr bg".split(" ");
-const directory = new URL("./messages/", import.meta.url);
+const directory = new URL("messages/", import.meta.url);
 const load = (locale) => JSON.parse(readFileSync(new URL(`${locale}.json`, directory), "utf8"));
 const pluralKeys = ["calendarItemCount"];
 const pluralVariant = new RegExp(`^(${pluralKeys.join("|")})_(zero|one|two|few|many|other)$`);

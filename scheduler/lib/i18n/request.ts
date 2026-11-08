@@ -5,8 +5,10 @@ import { loadMessages } from "./resources";
 import { createTranslator } from "./translate";
 
 export const getUiLocale = cache(async () => {
-  const preference = (await cookies()).get(localeCookie)?.value;
-  return negotiateLocale(preference, (await headers()).get("accept-language") ?? undefined);
+  const requestCookies = await cookies();
+  const requestHeaders = await headers();
+  const preference = requestCookies.get(localeCookie)?.value;
+  return negotiateLocale(preference, requestHeaders.get("accept-language") ?? undefined);
 });
 
 export const getUiTranslation = cache(async () => {

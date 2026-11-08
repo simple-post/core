@@ -36,7 +36,8 @@ it("recovers a missing language file during rolling deployment without redirecti
   expect(response.status).toBe(307);
   expect(response.headers.get("location")).toBe(`${base}/${WIDGET_LOCALE_ASSETS["zh-Hant"]}`);
   const unknown = "locale-nope-OLDHASH1.js";
-  expect((await GET(new Request(`${base}/${unknown}`), { params: Promise.resolve({ asset: unknown }) })).status).toBe(
-    404,
-  );
+  const unsupportedResponse = await GET(new Request(`${base}/${unknown}`), {
+    params: Promise.resolve({ asset: unknown }),
+  });
+  expect(unsupportedResponse.status).toBe(404);
 });

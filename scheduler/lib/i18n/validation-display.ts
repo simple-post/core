@@ -55,7 +55,7 @@ export function validationDetails(value: unknown, locale: Locale): unknown {
       Array.isArray(list) && list.every((issue) => issue && typeof issue.message === "string");
     return isIssueList(row.errors) && isIssueList(row.warnings);
   };
-  if (!hasIssues(value.summary) || !value.results.every(hasIssues)) return value;
+  if (!hasIssues(value.summary) || !value.results.every((result) => hasIssues(result))) return value;
   const translated = validationDisplay(value as ValidationResultByPlatform, locale);
   return "imageFitHelp" in value && value.imageFitHelp === IMAGE_FIT_HELP
     ? { ...translated, imageFitHelp: createServerCopy(locale)(IMAGE_FIT_HELP) }

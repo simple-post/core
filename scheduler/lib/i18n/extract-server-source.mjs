@@ -102,14 +102,14 @@ for (const sf of parsed) {
           const code = target.properties.find(
             (field) => ts.isPropertyAssignment(field) && field.name.getText(sf) === "code",
           );
-          const destructive = [
+          const destructive = new Set([
             "too_many_images",
             "too_many_videos",
             "too_many_media",
             "images_ignored",
             "title_truncated",
-          ];
-          if (code && strings(code.initializer).some((value) => destructive.includes(value))) {
+          ]);
+          if (code && strings(code.initializer).some((value) => destructive.has(value))) {
             for (const source of strings(node.arguments[1])) {
               const derived = `${source.split(". Only")[0].split(". The title")[0]}. Remove extra attachments before publishing.`;
               const refs = sources.get(derived) ?? new Set();

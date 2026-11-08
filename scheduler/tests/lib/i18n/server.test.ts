@@ -1,6 +1,7 @@
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 import { z } from "zod";
 
+import { locales } from "@/lib/i18n/locales";
 import {
   createServerCopy,
   currentServerLocale,
@@ -9,7 +10,6 @@ import {
   withServerLocale,
 } from "@/lib/i18n/server";
 import { localizeStandardSchema } from "@/lib/i18n/standard-schema";
-import { locales } from "@/lib/i18n/locales";
 import { validationDetails } from "@/lib/i18n/validation-display";
 import { mcpRequestLocale, mcpUiLocale, withMcpLocale } from "@/lib/mcp/locale";
 import { BadRequestError } from "@/lib/utils/errors";

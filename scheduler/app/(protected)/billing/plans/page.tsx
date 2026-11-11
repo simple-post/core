@@ -14,6 +14,9 @@ import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { type PlanKey } from "@/lib/billing/plans";
+import { planName } from "@/lib/i18n/billing-display";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 interface BillingStatus {
   active: boolean;
@@ -35,23 +38,33 @@ interface BillingStatus {
   selfHosted?: boolean;
 }
 
-function describeTrial(trial: NonNullable<BillingStatus["trial"]>): string {
-  if (trial.status === "expired") {
-    return `Your free trial ended on ${formatDate(trial.expiresAt)}. Everything you created is still here. Pick a plan to start scheduling again.`;
-  }
-
-  const remaining = trial.daysRemaining <= 1 ? "It ends today" : `You have ${trial.daysRemaining} days left`;
-  return `You are on the free trial, limited to ${trial.postsPerPlatform} posts per platform. ${remaining}. Subscribe whenever you are ready, no need to wait for it to run out.`;
+function describeTrial(trial: NonNullable<BillingStatus["trial"]>, locale: string, copy: SourceCopy): string {
+  if (trial.status === "expired")
+    return copy(
+      "Your free trial ended on {{date}}. Everything you created is still here. Pick a plan to start scheduling again.",
+      { date: formatDate(trial.expiresAt, locale, copy) },
+    );
+  const allowance = copy("You are on the free trial, limited to {{count, number}} posts per platform.", {
+    count: trial.postsPerPlatform,
+  });
+  const remaining =
+    trial.daysRemaining <= 1
+      ? copy("It ends today.")
+      : copy("You have {{count, number}} days left.", { count: trial.daysRemaining });
+  return copy("{{allowance}} {{remaining}} Subscribe whenever you are ready, no need to wait for it to run out.", {
+    allowance,
+    remaining,
+  });
 }
 
-async function parseApiError(response: Response): Promise<string> {
+async function parseApiError(response: Response, copy: SourceCopy): Promise<string> {
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-  return data.error || data.message || `Request failed with status ${response.status}`;
+  return data.error || data.message || copy("Request failed with status {{status}}", { status: response.status });
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "its configured end date";
-  return new Date(value).toLocaleDateString(undefined, {
+function formatDate(value: string | null | undefined, locale: string, copy: SourceCopy) {
+  if (!value) return copy("its configured end date");
+  return new Date(value).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -59,6 +72,7 @@ function formatDate(value: string | null | undefined) {
 }
 
 export default function BillingPlansPage() {
+  const { copy, locale } = useUiCopy();
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,16 +81,16 @@ export default function BillingPlansPage() {
     try {
       const response = await fetch("/api/billing/subscription", { cache: "no-store" });
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw new Error(await parseApiError(response, copy));
       }
       setBilling((await response.json()) as BillingStatus);
     } catch (error) {
       console.error("Failed to load billing:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to load billing");
+      toast.error(error instanceof Error ? error.message : copy("Failed to load billing"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [copy]);
 
   useEffect(() => {
     void fetchBilling();
@@ -90,7 +104,7 @@ export default function BillingPlansPage() {
       <main>
         <div className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] pt-6">
           <div className="flex items-center justify-between gap-4">
-            <BackLink href="/billing" label="Back to subscription" />
+            <BackLink href="/billing" label={copy("Back to subscription")} />
             <Button
               type="button"
               variant="outline"
@@ -99,7 +113,7 @@ export default function BillingPlansPage() {
               disabled={loading}
               className="gap-2">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">{copy("Refresh")}</span>
             </Button>
           </div>
         </div>
@@ -109,32 +123,42 @@ export default function BillingPlansPage() {
             <div className="rounded-2xl border border-border bg-card p-8">
               <div className="flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Loading plans...</p>
+                <p className="text-sm text-muted-foreground">{copy("Loading plans...")}</p>
               </div>
             </div>
           </section>
         ) : billing?.selfHosted ? (
           <section className="mx-auto w-full max-w-2xl px-[clamp(18px,4vw,48px)] py-10 sm:py-12">
             <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-              <h1 className="text-xl font-semibold tracking-[-0.025em]">Billing is disabled</h1>
+              <h1 className="text-xl font-semibold tracking-[-0.025em]">{copy("Billing is disabled")}</h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                This instance runs in self-hosted mode, so there are no plans to manage.
+                {copy("This instance runs in self-hosted mode, so there are no plans to manage.")}{" "}
               </p>
               <Button asChild className="mt-5">
-                <Link href="/">Back to the app</Link>
+                <Link href="/">{copy("Back to the app")}</Link>
               </Button>
             </div>
           </section>
         ) : billing?.accessType === "complimentary" && billing.plan ? (
           <PlanSelection
-            title="Start a paid subscription"
-            description={`You currently have complimentary ${billing.plan.name} access through ${formatDate(billing.complimentaryAccess?.expiresAt)}. No payment method is required for that access; choose a plan here only if you want to start a paid subscription now.`}
+            title={copy("Start a paid subscription")}
+            description={copy(
+              "You currently have complimentary {{plan}} access through {{date}}. No payment method is required for that access; choose a plan here only if you want to start a paid subscription now.",
+              {
+                plan: planName(billing.plan.name, copy),
+                date: formatDate(billing.complimentaryAccess?.expiresAt, locale, copy),
+              },
+            )}
             displayCurrency={displayCurrency}
           />
         ) : billing?.trial && billing.accessType !== "stripe" ? (
           <PlanSelection
-            title={billing.trial.status === "expired" ? "Choose a plan to continue" : "Upgrade from your free trial"}
-            description={describeTrial(billing.trial)}
+            title={
+              billing.trial.status === "expired"
+                ? copy("Choose a plan to continue")
+                : copy("Upgrade from your free trial")
+            }
+            description={describeTrial(billing.trial, locale, copy)}
             displayCurrency={displayCurrency}
           />
         ) : billing?.accessType !== "stripe" || !billing.plan ? (
@@ -142,14 +166,14 @@ export default function BillingPlansPage() {
             <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
               <div className="section-kicker">
                 <span className="section-kicker-dot" />
-                <span className="section-kicker-label">No active plan</span>
+                <span className="section-kicker-label">{copy("No active plan")}</span>
               </div>
-              <h1 className="text-xl font-semibold tracking-[-0.025em]">Choose a plan first</h1>
+              <h1 className="text-xl font-semibold tracking-[-0.025em]">{copy("Choose a plan first")}</h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Plan changes are available after your first subscription is active.
+                {copy("Plan changes are available after your first subscription is active.")}{" "}
               </p>
               <Button asChild className="mt-5">
-                <Link href="/subscribe">Choose a plan</Link>
+                <Link href="/subscribe">{copy("Choose a plan")}</Link>
               </Button>
             </div>
           </section>

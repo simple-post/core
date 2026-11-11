@@ -30,6 +30,8 @@ jobs:
         path: /tmp/simplepost-docs
     - name: Check legacy documentation redirects
       run: node --test workers/legacy-docs-redirect/redirect.test.mjs
+    - name: Check generated marketplace packages (offline)
+      run: node --test scripts/plugin-packaging.test.mjs
     - name: Check Meta Muse integration examples (offline)
       run: yarn muse:check
     - name: Run checks
@@ -167,6 +169,11 @@ jobs:
       run: corepack enable
     - name: Install dependencies
       run: yarn install --immutable
+    - name: Validate complete scheduler localization
+      run: |
+        yarn workspace @simple-post/scheduler test:i18n
+        yarn workspace @simple-post/scheduler i18n:copy:check
+        yarn workspace @simple-post/scheduler artwork:check
     - name: Run Scheduler tests
       env:
         NODE_OPTIONS: --max_old_space_size=4096

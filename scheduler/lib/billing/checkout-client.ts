@@ -1,9 +1,10 @@
 import { trackEvent } from "@/lib/analytics/plausible";
 import type { PlanKey } from "@/lib/billing/plans";
+import { sourceCopy, type SourceCopy } from "@/lib/i18n/source-copy";
 
-async function parseApiError(response: Response): Promise<string> {
+async function parseApiError(response: Response, copy: SourceCopy): Promise<string> {
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-  return data.error || data.message || `Request failed with status ${response.status}`;
+  return data.error || data.message || copy("Request failed with status {{status}}", { status: response.status });
 }
 
 /**
@@ -11,7 +12,7 @@ async function parseApiError(response: Response): Promise<string> {
  * need to handle the throw. Shared by every upgrade entry point (plan grid,
  * trial-expired dialog) so they cannot drift apart.
  */
-export async function startPlanCheckout(planKey: PlanKey): Promise<never> {
+export async function startPlanCheckout(planKey: PlanKey, copy: SourceCopy = sourceCopy): Promise<never> {
   const response = await fetch("/api/billing/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -19,12 +20,12 @@ export async function startPlanCheckout(planKey: PlanKey): Promise<never> {
   });
 
   if (!response.ok) {
-    throw new Error(await parseApiError(response));
+    throw new Error(await parseApiError(response, copy));
   }
 
   const data = (await response.json()) as { url?: string; checkoutStarted?: boolean };
   if (!data.url) {
-    throw new Error("Stripe did not return a checkout URL");
+    throw new Error(copy("Stripe did not return a checkout URL"));
   }
 
   if (data.checkoutStarted) {

@@ -1,4 +1,9 @@
-import { apiResponseError } from "@/lib/utils/api-response-error";
+import {
+  apiResponseError,
+  ApiResponseError,
+  isScheduledTimeError,
+  isTrialSubmissionError,
+} from "@/lib/utils/api-response-error";
 
 it("prioritizes blocking summary errors over provider warnings", () => {
   expect(
@@ -44,4 +49,26 @@ it("deduplicates platform messages and safely falls back for malformed responses
   ).toBe("Too many images.");
   expect(apiResponseError(null, "Try again")).toBe("Try again");
   expect(apiResponseError({ error: "Reconnect Instagram." }, "Failed")).toBe("Reconnect Instagram.");
+});
+
+it("routes scheduling and trial UI by machine reasons instead of translated prose", () => {
+  const schedule = new ApiResponseError(
+    { error: "LOCALE_MESSAGE", code: "BAD_REQUEST", reason: "INVALID_SCHEDULED_TIME" },
+    "Fallback",
+    400,
+  );
+  expect(schedule.message).toBe("LOCALE_MESSAGE");
+  expect(schedule.code).toBe("BAD_REQUEST");
+  expect(isScheduledTimeError(schedule)).toBe(true);
+  expect(isTrialSubmissionError(schedule)).toBe(false);
+  for (const reason of ["TRIAL_ALLOWANCE", "TRIAL_EXPIRED"]) {
+    expect(isTrialSubmissionError(new ApiResponseError({ error: "LOCALE_MESSAGE", reason }, "Fallback", 403))).toBe(
+      true,
+    );
+  }
+  expect(isScheduledTimeError(new Error("scheduled"))).toBe(false);
+  expect(
+    isTrialSubmissionError(new ApiResponseError({ error: "free trial", code: "FORBIDDEN" }, "Fallback", 403)),
+  ).toBe(false);
+  expect(new ApiResponseError({ code: {}, reason: 2 }, "Fallback", 400).reason).toBeUndefined();
 });

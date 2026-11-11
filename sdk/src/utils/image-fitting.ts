@@ -1,3 +1,9 @@
+import {
+  displayMessage,
+  canonicalDisplayMessage,
+  describeDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 import { randomUUID } from "node:crypto";
 import { readFile, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -32,8 +38,9 @@ const MAX_INPUT_BYTES = MAX_INSPECTABLE_IMAGE_BYTES;
  * rather than replacing it with a generic failure.
  */
 export class ImageFitError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string | DisplayMessage) {
+    super(canonicalDisplayMessage(message));
+    if (typeof message !== "string") describeDisplayMessage(this, message.source, message.values);
     this.name = "ImageFitError";
   }
 }
@@ -50,12 +57,14 @@ export async function fitImage(
   const downloaded =
     !source.path && source.url ? await downloadToTempFile(source.url, undefined, MAX_INPUT_BYTES) : undefined;
   const inputPath = source.path ?? downloaded;
-  if (!inputPath) throw new ImageFitError("An image path or public URL is required.");
+  if (!inputPath) throw new ImageFitError(displayMessage("An image path or public URL is required."));
   try {
     const sourceStat = await stat(inputPath);
-    if (sourceStat.size > MAX_INPUT_BYTES) throw new ImageFitError("Image fitting accepts files up to 32 MB.");
+    if (sourceStat.size > MAX_INPUT_BYTES)
+      throw new ImageFitError(displayMessage("Image fitting accepts files up to 32 MB."));
     const inspection = await inspectLocalMedia(inputPath);
-    if (!inspection.contentType.startsWith("image/")) throw new ImageFitError("Image fitting requires an image.");
+    if (!inspection.contentType.startsWith("image/"))
+      throw new ImageFitError(displayMessage("Image fitting requires an image."));
     const mediaCount = context.mediaCount ?? 1;
     const maxBytes = Math.min(
       MAX_INPUT_BYTES,
@@ -153,7 +162,9 @@ export async function fitImage(
       }
       scale *= 0.8;
     }
-    throw new ImageFitError("Could not fit this image within the selected platforms' limits. Choose a smaller image.");
+    throw new ImageFitError(
+      displayMessage("Could not fit this image within the selected platforms' limits. Choose a smaller image."),
+    );
   } finally {
     if (downloaded) await unlink(downloaded).catch(() => {});
   }

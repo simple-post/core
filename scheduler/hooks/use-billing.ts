@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import type { BillingStatus } from "@/lib/billing/subscriptions";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { queryKeys } from "@/lib/query-client";
 
 /** Shape of `GET /api/billing/subscription`: the billing status plus request-derived extras. */
@@ -13,12 +15,14 @@ export interface BillingStatusResponse extends BillingStatus {
   selfHosted?: boolean;
 }
 
-async function fetchBillingStatus(): Promise<BillingStatusResponse> {
+async function fetchBillingStatus(copy: SourceCopy): Promise<BillingStatusResponse> {
   const response = await fetch("/api/billing/subscription", { cache: "no-store" });
   if (!response.ok) {
     // SubscriptionGate renders this message, so keep the server's wording.
     const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-    throw new Error(data.error || data.message || `Request failed with status ${response.status}`);
+    throw new Error(
+      data.error || data.message || copy("Request failed with status {{status}}", { status: response.status }),
+    );
   }
   return (await response.json()) as BillingStatusResponse;
 }
@@ -29,9 +33,10 @@ async function fetchBillingStatus(): Promise<BillingStatusResponse> {
  * trial usage numbers this returns.
  */
 export function useBillingStatus() {
+  const { copy } = useUiCopy();
   return useQuery({
     queryKey: queryKeys.billing,
-    queryFn: fetchBillingStatus,
+    queryFn: () => fetchBillingStatus(copy),
     staleTime: 30 * 1000,
     // A staleTime alone never refreshes an already mounted dashboard. Keep
     // access current across trial expiry and returning from Stripe/another tab.

@@ -31,14 +31,14 @@ Cursor-style MCP config:
 }
 ```
 
-Clients with OAuth support should open the Scheduler authorization flow. If the client cannot complete remote MCP OAuth, use the CLI or HTTP API instead.
+Clients with OAuth support should open the Scheduler authorization flow. Never ask the user to paste an access token into chat or read credentials from their machine. If the client cannot complete remote MCP OAuth, report the connection problem; do not bypass it with a credential from another interface.
 
 ## Tool Workflow
 
 1. Call `list_accounts` first. Use returned `accountId` values; never invent them. Check `trialAllowance` before a write; allowance is shared by accounts on the same platform, while drafts do not consume it.
 2. If media is needed and the user provided a public URL, pass it directly in `media`.
 3. If the client exposes an attached/generated file as a tool file parameter, call `upload_media` and use the returned URL.
-4. If the post details are explicit, call `create_post` directly with `postingMode: "now"`, `"schedule"`, or `"draft"`. Always send a new unique `idempotencyKey` for a new intended post.
+4. Call `create_post` with `postingMode: "now"`, `"schedule"`, or `"draft"` only when the user has explicitly authorized that action and the exact accounts, content, media, timing, and audience are established. Otherwise show the proposed action and ask for approval. A draft or preview request never authorizes publishing. Always send a new unique `idempotencyKey` for a new intended post, and reuse it for retries of that same post.
 5. Use `preview_post` for a text and structured-data preflight. Use `show_post_preview` when the user asks to see the rendered post; it provides MCP Apps UI plus a text fallback.
 6. Use `validate_post` only when the user asks to validate, check, test, or troubleshoot a draft without creating anything.
 7. Use `inspect_posts` to list or inspect drafts, scheduled posts, posted posts, or failed posts.
@@ -54,8 +54,8 @@ Do not call tools for actions SimplePost cannot perform. For adding a social acc
 
 - `list_*`: enumerate collections.
 - `get_*`: retrieve text and structured data without UI.
-- `validate_*`: check without writing.
-- `preview_*`: compute a non-writing preflight without UI.
+- `validate_*`: check without saving or publishing a post; supplied media can still be imported into managed storage.
+- `preview_*`: compute a preflight without saving or publishing a post or showing UI; supplied media can still be imported into managed storage.
 - `show_*`: render MCP Apps UI with a text fallback.
 - `create_*`, `update_*`, `discard_*`, `upload_*`: mutate stored or external state.
 
@@ -75,6 +75,8 @@ For scheduled posts, pass a future ISO 8601 datetime with timezone:
 Never pass date-only strings or naive local times. Resolve "tomorrow at 9" using the user's timezone before calling the tool.
 
 ## Media
+
+Uploads and imported media use public URLs that are internet-accessible to anyone with the URL; a saved draft does not make its media private. Explain this and obtain approval before exposing private, sensitive, or embargoed assets. `upload_media`, and validation or preview with media, can store files even when no post is saved or published. For a read-only smoke test, use text only and do not upload or supply media URLs.
 
 MCP media items are:
 
@@ -131,7 +133,7 @@ SimplePost MCP does not expose social-network engagement analytics. `inspect_pos
 
 ## TikTok privacy
 
-TikTok posts through MCP default to public (`PUBLIC_TO_EVERYONE`) when privacy is omitted. The default is applied server-side only to TikTok targets and is preserved when saving drafts, scheduling, and publishing. A generic posting request does not need a privacy question or a creator-info preflight.
+TikTok posts through MCP default to public (`PUBLIC_TO_EVERYONE`) when privacy is omitted. The default is applied server-side only to TikTok targets and is preserved when saving drafts, scheduling, and publishing. Before publishing or scheduling, surface the selected audience. If the user has not chosen an audience and public visibility is not already clear from their request, explain that the default is public and ask them to choose. Do not change or broaden the audience without permission.
 
 Override the audience through `accountOptions`, keyed by the connected account ID:
 

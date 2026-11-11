@@ -1,6 +1,7 @@
 import { createConnectionHandoff } from "@/lib/accounts/assistant-handoff";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
 import { getAppBaseUrl } from "@/lib/mcp/config";
+import type { createTranslator } from "@/lib/i18n/translate";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { prisma } from "@/lib/prisma";
 
@@ -36,7 +37,11 @@ export function getAccountConnectionLinks(userId: string) {
 }
 
 /** Markdown with the link in its own brackets, so chat clients render it clickable. */
-export function formatConnectAccountsGuidance(url: string = getConnectAccountsUrl()): string {
+export function formatConnectAccountsGuidance(
+  url: string = getConnectAccountsUrl(),
+  t?: ReturnType<typeof createTranslator>,
+): string {
+  if (t) return t("mcpNoAccounts", { link: `[${t("mcpConnectSocial")}](${url})` });
   return `No social account is connected yet, so there is nowhere to publish. [Connect a social account](${url}), then return to this conversation to continue.`;
 }
 

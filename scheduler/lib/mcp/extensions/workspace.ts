@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { lockUserForQuota } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
 import { listAccounts } from "@/lib/mcp/tools/accounts";
 import { createPost, inspectPosts } from "@/lib/mcp/tools/posts";
 import { getSchedule } from "@/lib/mcp/tools/schedule";
@@ -71,12 +72,13 @@ export async function loadWorkspace(userId: string, input: z.infer<typeof worksp
 export async function startEditor(userId: string, postId?: string) {
   const preferences = await readPublishingPreferences(userId);
   const post = postId ? await new PostsModel(userId).getPostById(postId) : null;
-  if (postId && !post) throw new NotFoundError("That post is no longer available.");
+  if (postId && !post) throw new NotFoundError(serverMessage("That post is no longer available."));
   const editable =
     !post ||
     post.status === "draft" ||
     (post.status === "scheduled" && !!post.scheduledFor && post.scheduledFor > new Date());
-  if (!editable) throw new ConflictError("This post cannot be edited. Inspect its results in SimplePost.");
+  if (!editable)
+    throw new ConflictError(serverMessage("This post cannot be edited. Inspect its results in SimplePost."));
   const accounts = await listAccounts(userId);
   const content = editorContentSchema.parse(
     post
@@ -97,7 +99,7 @@ export async function startEditor(userId: string, postId?: string) {
   const session = await prisma.$transaction(async (tx) => {
     await lockUserForQuota(tx, userId);
     if ((await tx.postEditorSession.count({ where: { userId, expiresAt: { gt: new Date() } } })) >= 500)
-      throw new ConflictError("You have too many active working copies. Reuse one from the workspace.");
+      throw new ConflictError(serverMessage("You have too many active working copies. Reuse one from the workspace."));
     await assertStorageAvailable(tx, userId, content);
     await queueStorageDeletion(tx, userId, content);
     return tx.postEditorSession.create({
@@ -151,7 +153,8 @@ export async function readEditor(userId: string, sessionId: string) {
   const session = await prisma.postEditorSession.findFirst({
     where: { id: sessionId, userId, expiresAt: { gt: new Date() } },
   });
-  if (!session) throw new NotFoundError("This working copy expired or is unavailable. Open the saved draft again.");
+  if (!session)
+    throw new NotFoundError(serverMessage("This working copy expired or is unavailable. Open the saved draft again."));
   const post = session.postId ? await new PostsModel(userId).getPostById(session.postId) : null;
   return {
     ...editorResult(session, post?.status ?? "new", post?.scheduledFor?.toISOString() ?? null),
@@ -181,7 +184,7 @@ export async function updateEditor(userId: string, input: z.infer<typeof session
   });
   if (!updated.count)
     throw new ConflictError(
-      "This working copy changed or a save is in progress. Reload it without discarding your changes.",
+      serverMessage("This working copy changed or a save is in progress. Reload it without discarding your changes."),
     );
   return readEditor(userId, input.sessionId);
 }
@@ -205,7 +208,7 @@ export async function proposeEdit(userId: string, input: z.infer<typeof proposal
     });
   });
   if (!updated.count)
-    throw new ConflictError("The editor changed. Read its current revision before proposing an edit.");
+    throw new ConflictError(serverMessage("The editor changed. Read its current revision before proposing an edit."));
   return readEditor(userId, input.sessionId);
 }
 export async function validateEditor(
@@ -216,7 +219,7 @@ export async function validateEditor(
 ) {
   const editor = await readEditor(userId, sessionId);
   if (editor.revision !== expectedRevision)
-    throw new ConflictError("The editor changed. Validate its current revision.");
+    throw new ConflictError(serverMessage("The editor changed. Validate its current revision."));
   if (editor.content.accountIds.length === 0) throw new Error("Choose at least one connected destination.");
   return validatePostForAccounts({ userId, ...editor.content, imageFit, checkAccountReadiness: true });
 }
@@ -225,7 +228,7 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
   const session = await prisma.postEditorSession.findFirst({
     where: { id: input.sessionId, userId, expiresAt: { gt: new Date() } },
   });
-  if (!session) throw new NotFoundError("This working copy is unavailable.");
+  if (!session) throw new NotFoundError(serverMessage("This working copy is unavailable."));
   const scheduledFor =
     input.mode === "schedule"
       ? (input.scheduledFor ??
@@ -238,7 +241,9 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
   if (session.commitRevision === input.expectedRevision && session.commitMode === action && session.commitResult)
     return session.commitResult;
   if (session.revision !== input.expectedRevision || session.committing)
-    throw new ConflictError("The editor changed or a save is in progress. Refresh before taking another action.");
+    throw new ConflictError(
+      serverMessage("The editor changed or a save is in progress. Refresh before taking another action."),
+    );
   const content = editorContentSchema.parse(session.payload);
   if (content.accountIds.length === 0) throw new Error("Connect and choose at least one destination before saving.");
   const claim = await prisma.postEditorSession.updateMany({
@@ -251,7 +256,7 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
       expiresAt: expiry(),
     },
   });
-  if (!claim.count) throw new ConflictError("A save is already in progress.");
+  if (!claim.count) throw new ConflictError(serverMessage("A save is already in progress."));
   try {
     let postId = session.postId;
     // First save always creates a draft, including Publish now. A lost response reuses the same record.
@@ -266,7 +271,7 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
       postId = created.post.id;
       session.postId = postId;
       const post = await new PostsModel(userId).getPostById(postId);
-      if (!post) throw new NotFoundError("The saved draft could not be loaded.");
+      if (!post) throw new NotFoundError(serverMessage("The saved draft could not be loaded."));
       session.baseUpdatedAt = post.updatedAt;
       await prisma.postEditorSession.update({
         where: { id: session.id },
@@ -275,12 +280,14 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
     }
     const current = await new PostsModel(userId).getPostById(postId);
     if (!current || current.updatedAt.toISOString() !== session.baseUpdatedAt?.toISOString())
-      throw new ConflictError("The saved post changed. Your working copy is safe; reload and compare before saving.");
+      throw new ConflictError(
+        serverMessage("The saved post changed. Your working copy is safe; reload and compare before saving."),
+      );
     if (
       current.status !== "draft" &&
       !(current.status === "scheduled" && current.scheduledFor && current.scheduledFor > new Date())
     )
-      throw new ConflictError("This post is publishing or no longer editable.");
+      throw new ConflictError(serverMessage("This post is publishing or no longer editable."));
     const result = await executePostUpdate(userId, postId, {
       ...content,
       expectedUpdatedAt: session.baseUpdatedAt?.toISOString(),
@@ -289,7 +296,7 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
       imageFit: input.imageFit,
     });
     const saved = await new PostsModel(userId).getPostById(postId);
-    if (!saved) throw new NotFoundError("The saved post could not be loaded.");
+    if (!saved) throw new NotFoundError(serverMessage("The saved post could not be loaded."));
     const next = {
       ...session,
       committing: false,
@@ -330,7 +337,9 @@ export async function commitEditor(userId: string, input: z.infer<typeof session
       await prisma.postEditorSession.updateMany({ where: { id: session.id, userId }, data: { committing: false } });
     if (terminalPublish)
       throw new ApiError(
-        "Publishing may have completed or partially failed. Refresh the post results in SimplePost; do not retry publishing this working copy.",
+        serverMessage(
+          "Publishing may have completed or partially failed. Refresh the post results in SimplePost; do not retry publishing this working copy.",
+        ),
         409,
         "PUBLISH_OUTCOME_REQUIRES_REVIEW",
       );

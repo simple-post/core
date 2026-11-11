@@ -1,5 +1,11 @@
 import { apiLogger } from "@/lib/logger";
-import { handleApiError, PaymentRequiredError, ValidationError } from "@/lib/utils/errors";
+import {
+  handleApiError,
+  PaymentRequiredError,
+  ValidationError,
+  BadRequestError,
+  ForbiddenError,
+} from "@/lib/utils/errors";
 
 jest.mock("@/lib/logger", () => ({
   apiLogger: {
@@ -111,4 +117,16 @@ it("keeps allowlisted provider evidence in validation logs without credentials",
     }),
   ]);
   expect(JSON.stringify(payload)).not.toContain("DO_NOT_STORE");
+});
+
+it("returns additive UI reasons without changing established HTTP status or error codes", async () => {
+  for (const [error, status, code, reason] of [
+    [new BadRequestError("LOCALE_MESSAGE", "INVALID_SCHEDULED_TIME"), 400, "BAD_REQUEST", "INVALID_SCHEDULED_TIME"],
+    [new ForbiddenError("LOCALE_MESSAGE", undefined, "TRIAL_ALLOWANCE"), 403, "FORBIDDEN", "TRIAL_ALLOWANCE"],
+    [new PaymentRequiredError("LOCALE_MESSAGE", undefined, "TRIAL_EXPIRED"), 402, "PAYMENT_REQUIRED", "TRIAL_EXPIRED"],
+  ] as const) {
+    const response = handleApiError(error);
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({ error: "LOCALE_MESSAGE", code, reason });
+  }
 });

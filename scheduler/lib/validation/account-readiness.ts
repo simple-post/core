@@ -1,3 +1,5 @@
+import { copyDisplayMessage } from "@simple-post/sdk/validation";
+import { describeDisplayMessage } from "@simple-post/sdk/validation";
 import { isMetaCredentialPlatform, validatePostReadiness } from "@simple-post/sdk";
 import { getXTextLength } from "@simple-post/sdk/validation";
 
@@ -62,18 +64,21 @@ export async function validateAccountReadiness(
         for (let attempt = 0; attempt < 2; attempt++) {
           const fresh = await reloadAccountSecrets(account);
           const credentials = await refreshConnectedAccountIfNeeded(fresh, { reason: "post" });
-          if (credentials.error || credentials.account.credentialRefreshBlockedAt)
+          if (credentials.error || credentials.account.credentialRefreshBlockedAt) {
+            const fallback = "The account connection needs attention. Reconnect it before publishing.";
+            const issue = {
+              platform: result.platform,
+              severity: "error" as const,
+              code: "account_unauthorized",
+              field: "account",
+              message: credentials.status?.message ?? fallback,
+            };
             return [
-              {
-                platform: result.platform,
-                severity: "error" as const,
-                code: "account_unauthorized",
-                field: "account",
-                message:
-                  credentials.status?.message ??
-                  "The account connection needs attention. Reconnect it before publishing.",
-              },
+              credentials.status
+                ? copyDisplayMessage(credentials.status, issue)
+                : describeDisplayMessage(issue, fallback),
             ];
+          }
           const issues = await validatePostReadiness(
             result.platform,
             content,
@@ -94,19 +99,26 @@ export async function validateAccountReadiness(
         return [];
       });
       for (const issue of issues)
-        (issue.severity === "error" ? result.errors : result.warnings).push({
-          ...issue,
-          meta: { accountId: account.id },
-        });
+        (issue.severity === "error" ? result.errors : result.warnings).push(
+          copyDisplayMessage(issue, {
+            ...issue,
+            meta: { accountId: account.id },
+          }),
+        );
     } catch {
-      result.warnings.push({
-        platform: result.platform,
-        severity: "warning",
-        code: "account_readiness_unverified",
-        field: "account",
-        message: "Current account eligibility could not be verified. Check the connection and retry validation.",
-        meta: { accountId: account.id },
-      });
+      result.warnings.push(
+        describeDisplayMessage(
+          {
+            platform: result.platform,
+            severity: "warning",
+            code: "account_readiness_unverified",
+            field: "account",
+            message: "Current account eligibility could not be verified. Check the connection and retry validation.",
+            meta: { accountId: account.id },
+          },
+          "Current account eligibility could not be verified. Check the connection and retry validation.",
+        ),
+      );
     }
     result.isValid = result.errors.length === 0;
   }

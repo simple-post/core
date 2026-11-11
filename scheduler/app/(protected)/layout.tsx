@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -13,14 +13,23 @@ import { WebMcpProvider } from "@/components/create-post-webmcp";
 import { LoginForm } from "@/components/login-form";
 import { ScheduleCalendarProvider } from "@/components/schedule-calendar-context";
 import { useLoginSession } from "@/lib/auth/use-login-session";
+import { useUiTranslation } from "@/lib/i18n/client";
+import { SavedUiPreferenceSync } from "@/lib/i18n/saved-preference-sync";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { COMPLIMENTARY_INVITE_STORAGE_KEY } from "@/lib/invites/constants";
 
-async function parseApiError(response: Response): Promise<string> {
+async function parseApiError(response: Response, copy: SourceCopy): Promise<string> {
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-  return data.error || data.message || `Request failed with status ${response.status}`;
+  return data.error || data.message || copy("Request failed with status {{status}}", { status: response.status });
 }
 
 function InviteRedemptionGate({ userId, children }: { userId: string; children: ReactNode }) {
+  const { copy } = useUiCopy();
+  const copyRef = useRef(copy);
+  useEffect(() => {
+    copyRef.current = copy;
+  }, [copy]);
   const [redeeming, setRedeeming] = useState(true);
 
   useEffect(() => {
@@ -28,6 +37,7 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
     setRedeeming(true);
 
     async function redeemStoredInvite() {
+      const copy: SourceCopy = (source, values) => copyRef.current(source, values);
       const code = window.localStorage.getItem(COMPLIMENTARY_INVITE_STORAGE_KEY);
       if (!code) {
         setRedeeming(false);
@@ -42,7 +52,7 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
         });
 
         if (!response.ok) {
-          const message = await parseApiError(response);
+          const message = await parseApiError(response, copy);
           if (response.status < 500) {
             window.localStorage.removeItem(COMPLIMENTARY_INVITE_STORAGE_KEY);
           }
@@ -51,11 +61,11 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
 
         window.localStorage.removeItem(COMPLIMENTARY_INVITE_STORAGE_KEY);
         if (!cancelled) {
-          toast.success("Complimentary access activated");
+          toast.success(copy("Complimentary access activated"));
         }
       } catch (error) {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Could not activate complimentary access");
+          toast.error(error instanceof Error ? error.message : copy("Could not activate complimentary access"));
         }
       } finally {
         if (!cancelled) {
@@ -76,7 +86,7 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          Activating complimentary access…
+          {copy("Activating complimentary access…")}{" "}
         </div>
       </div>
     );
@@ -86,6 +96,7 @@ function InviteRedemptionGate({ userId, children }: { userId: string; children: 
 }
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useUiTranslation();
   const { data: session, isPending } = useLoginSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,7 +107,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{t("loading")}</div>
       </div>
     );
   }
@@ -110,6 +121,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <InviteRedemptionGate userId={session.user.id}>
       {/* Outside the subscription gate: milestones still relay after a trial ends. */}
+      <SavedUiPreferenceSync userId={session.user.id} />
       <ActivationAnalytics />
       <WebMcpProvider key={session.user.id}>
         <ScheduleCalendarProvider>

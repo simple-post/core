@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import axios from "axios";
 
 import { foremSafeLookup, normalizeForemInstanceUrl, validateForemRedirect } from "./security";
@@ -49,23 +50,33 @@ export class ForemPublisher extends Publisher {
           (article) => article.title === title && Date.parse(article.created_at) > Date.now() - 5 * 60_000,
         )
       )
-        issues.push({
-          platform: "forem",
-          severity: "warning",
-          code: "recent_duplicate_title",
-          field: "title",
-          message:
+        issues.push(
+          describeDisplayMessage(
+            {
+              platform: "forem",
+              severity: "warning",
+              code: "recent_duplicate_title",
+              field: "title",
+              message:
+                "You recently created an article with this title. Forem may reject a duplicate; check the existing article before publishing.",
+            },
             "You recently created an article with this title. Forem may reject a duplicate; check the existing article before publishing.",
-        });
+          ),
+        );
       if (options?.forem?.organizationId || options?.forem?.series)
-        issues.push({
-          platform: "forem",
-          severity: "warning",
-          code: "article_destination_unverified",
-          field: "account",
-          message:
+        issues.push(
+          describeDisplayMessage(
+            {
+              platform: "forem",
+              severity: "warning",
+              code: "article_destination_unverified",
+              field: "account",
+              message:
+                "Organization membership and series eligibility are not fully exposed by this Forem check. Confirm access in your Forem dashboard.",
+            },
             "Organization membership and series eligibility are not fully exposed by this Forem check. Confirm access in your Forem dashboard.",
-        });
+          ),
+        );
       return issues;
     } catch (error) {
       return [readinessFailure("forem", error)];

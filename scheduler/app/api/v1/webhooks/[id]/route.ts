@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError, NotFoundError } from "@/lib/utils/errors";
@@ -38,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     if (count === 0) {
-      throw new NotFoundError("Webhook endpoint not found");
+      throw new NotFoundError(serverMessage("Webhook endpoint not found"));
     }
 
     return NextResponse.json({ success: true });
@@ -58,7 +59,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     });
 
     if (count === 0) {
-      throw new NotFoundError("Webhook endpoint not found");
+      throw new NotFoundError(serverMessage("Webhook endpoint not found"));
     }
 
     return NextResponse.json({ success: true });

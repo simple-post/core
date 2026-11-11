@@ -4,6 +4,8 @@ import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSession } from "@/lib/auth/auth-client";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { AccountOptionsMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 export interface DraftAccountOverride {
@@ -251,6 +253,26 @@ function getStorageErrorMessage(error: unknown) {
   return "Draft could not be saved in this browser.";
 }
 
+function storageErrorCopy(message: string | null, copy: SourceCopy): string | null {
+  switch (message) {
+    case "Draft could not be saved because browser storage is full.": {
+      return copy("Draft could not be saved because browser storage is full.");
+    }
+    case "Draft could not be saved in this browser.": {
+      return copy("Draft could not be saved in this browser.");
+    }
+    case "Draft could not be loaded from this browser.": {
+      return copy("Draft could not be loaded from this browser.");
+    }
+    case "Draft could not be restored from this browser.": {
+      return copy("Draft could not be restored from this browser.");
+    }
+    default: {
+      return message;
+    }
+  }
+}
+
 /**
  * Holds the composer's draft across the composer and its per-account pages.
  *
@@ -265,6 +287,7 @@ export function PostDraftProvider({
   children: React.ReactNode;
   initialDraft?: PostDraftState;
 }) {
+  const { copy } = useUiCopy();
   const { data: session } = useSession();
   const storageKey = !initialDraft && session?.user?.id ? `${DRAFT_STORAGE_KEY_PREFIX}:${session.user.id}` : null;
   const [initial] = useState(() => initialDraft ?? DEFAULT_DRAFT);
@@ -581,7 +604,7 @@ export function PostDraftProvider({
     () => ({
       hasDraftContent,
       isHydrated,
-      storageError,
+      storageError: storageErrorCopy(storageError, copy),
       message,
       media,
       selectedAccountIds,
@@ -618,6 +641,7 @@ export function PostDraftProvider({
       clearRecoveryDraft,
     }),
     [
+      copy,
       accountOptions,
       accountOverrides,
       hasDraftContent,

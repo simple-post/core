@@ -14,6 +14,7 @@ import { getStripe } from "@/lib/billing/stripe";
 import { getTrialDaysRemaining, getTrialPlatformUsage, isTrialActive } from "@/lib/billing/trial";
 import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
 import { env } from "@/lib/env";
+import { serverMessage, type AuthoredMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, PaymentRequiredError } from "@/lib/utils/errors";
 
@@ -645,12 +646,16 @@ export async function assertPlanFeature(
   const { status, email } = await assertActiveBillingEvaluation(userId, gateContext);
 
   if (!status.plan?.limits[feature]) {
-    const featureLabel = feature === "apiAccess" ? "API access" : "CLI access";
+    const featureMessage =
+      feature === "apiAccess"
+        ? status.plan?.name
+          ? serverMessage("API access is not included in your {{plan}} plan", { plan: status.plan.name })
+          : serverMessage("API access is not included in your current plan")
+        : status.plan?.name
+          ? serverMessage("CLI access is not included in your {{plan}} plan", { plan: status.plan.name })
+          : serverMessage("CLI access is not included in your current plan");
     const resolvedContext = await resolveSocialAccountLogContext(userId, gateContext);
-    throw new ForbiddenError(
-      `${featureLabel} is not included in your ${status.plan?.name ?? "current"} plan`,
-      buildBillingLogContext(userId, email, status, resolvedContext),
-    );
+    throw new ForbiddenError(featureMessage, buildBillingLogContext(userId, email, status, resolvedContext));
   }
 }
 
@@ -659,15 +664,23 @@ export async function assertPlanFeature(
  * access at all: "your trial ended" explains why something that worked
  * yesterday stopped working today.
  */
-function paymentRequiredMessage(status: BillingStatus, purpose: string): string {
+function paymentRequiredMessage(
+  status: BillingStatus,
+  purpose: "to keep using SimplePost" | "to keep scheduling with SimplePost",
+): AuthoredMessage {
   if (status.subscription) {
-    return ["past_due", "unpaid", "incomplete"].includes(status.subscription.status)
-      ? "Your subscription payment needs attention. Open Billing to update your payment details."
-      : `Your SimplePost subscription is not active. Choose a plan ${purpose}.`;
+    if (["past_due", "unpaid", "incomplete"].includes(status.subscription.status)) {
+      return serverMessage("Your subscription payment needs attention. Open Billing to update your payment details.");
+    }
+    return purpose === "to keep using SimplePost"
+      ? serverMessage("Your SimplePost subscription is not active. Choose a plan to keep using SimplePost.")
+      : serverMessage("Your SimplePost subscription is not active. Choose a plan to keep scheduling with SimplePost.");
   }
-  return status.trial
-    ? `Your free trial has ended. Choose a plan ${purpose}.`
-    : "An active SimplePost subscription is required";
+  if (status.trial)
+    return purpose === "to keep using SimplePost"
+      ? serverMessage("Your free trial has ended. Choose a plan to keep using SimplePost.")
+      : serverMessage("Your free trial has ended. Choose a plan to keep scheduling with SimplePost.");
+  return serverMessage("An active SimplePost subscription is required");
 }
 
 /**
@@ -694,8 +707,12 @@ function assertTrialAllowance(
 
   if (maxThreadSegments != null && (context.threadSegments ?? 1) > maxThreadSegments) {
     throw new ForbiddenError(
-      `The free trial allows up to ${maxThreadSegments} posts in a thread. Upgrade to publish longer threads.`,
+      serverMessage(
+        "The free trial allows up to {{maxThreadSegments}} posts in a thread. Upgrade to publish longer threads.",
+        { maxThreadSegments: String(maxThreadSegments) },
+      ),
       buildBillingLogContext(userId, email, status, context),
+      "TRIAL_ALLOWANCE",
     );
   }
 
@@ -712,8 +729,12 @@ function assertTrialAllowance(
 
   if (exceeded.length > 0) {
     throw new ForbiddenError(
-      `The free trial includes ${postsPerPlatform} posts per platform, and ${exceeded.join(", ")} would go over. Choose a plan to keep posting.`,
+      serverMessage(
+        "The free trial includes {{postsPerPlatform}} posts per platform, and {{value2}} would go over. Choose a plan to keep posting.",
+        { postsPerPlatform: String(postsPerPlatform), value2: String(exceeded.join(", ")) },
+      ),
       buildBillingLogContext(userId, email, status, context),
+      "TRIAL_ALLOWANCE",
     );
   }
 }
@@ -738,6 +759,7 @@ export async function assertCanCreatePost(
     throw new PaymentRequiredError(
       paymentRequiredMessage(status, "to keep scheduling with SimplePost"),
       buildBillingLogContext(userId, email, status, gateContext),
+      !status.subscription && status.trial ? "TRIAL_EXPIRED" : undefined,
     );
   }
 
@@ -753,7 +775,12 @@ export async function assertCanCreatePost(
 
   if (limit && status.usage.postsThisPeriod >= limit) {
     throw new ForbiddenError(
-      `Your ${status.plan?.name ?? "current"} plan includes ${limit.toLocaleString()} posts per month`,
+      status.plan?.name
+        ? serverMessage("Your {{plan}} plan includes {{count, number}} posts per month", {
+            plan: status.plan.name,
+            count: limit,
+          })
+        : serverMessage("Your current plan includes {{count, number}} posts per month", { count: limit }),
       buildBillingLogContext(userId, email, status, gateContext),
     );
   }
@@ -797,14 +824,20 @@ export async function assertCanConnectAccount(
   if (!status.active || !status.plan) {
     throw new PaymentRequiredError(
       status.trial
-        ? "Your free trial has ended. Choose a plan to connect more accounts."
-        : "An active SimplePost subscription is required to connect accounts",
+        ? serverMessage("Your free trial has ended. Choose a plan to connect more accounts.")
+        : serverMessage("An active SimplePost subscription is required to connect accounts"),
       logContext,
     );
   }
 
   const accountLimit = status.plan.limits.socialAccounts;
   if (accountLimit !== null && status.usage.connectedAccounts + 1 > accountLimit) {
-    throw new ForbiddenError(`Your ${status.plan.name} plan includes ${accountLimit} social accounts`, logContext);
+    throw new ForbiddenError(
+      serverMessage("Your {{plan}} plan includes {{count, number}} social accounts", {
+        plan: status.plan.name,
+        count: accountLimit,
+      }),
+      logContext,
+    );
   }
 }

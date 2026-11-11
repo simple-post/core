@@ -6,6 +6,7 @@ import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-reac
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 type CarouselApi = UseEmblaCarouselType[1];
@@ -158,6 +159,7 @@ function CarouselPrevious({
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const { copy } = useUiCopy();
   const { orientation, scrollPrev, canScrollPrev } = useCarousel();
 
   return (
@@ -176,7 +178,7 @@ function CarouselPrevious({
       onClick={scrollPrev}
       {...props}>
       <ArrowLeft />
-      <span className="sr-only">Previous slide</span>
+      <span className="sr-only">{copy("Previous slide")}</span>
     </Button>
   );
 }
@@ -187,6 +189,7 @@ function CarouselNext({
   size = "icon",
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const { copy } = useUiCopy();
   const { orientation, scrollNext, canScrollNext } = useCarousel();
 
   return (
@@ -205,7 +208,7 @@ function CarouselNext({
       onClick={scrollNext}
       {...props}>
       <ArrowRight />
-      <span className="sr-only">Next slide</span>
+      <span className="sr-only">{copy("Next slide")}</span>
     </Button>
   );
 }

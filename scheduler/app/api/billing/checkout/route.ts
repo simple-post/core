@@ -7,6 +7,7 @@ import { getPlanByKey, requireStripePriceId } from "@/lib/billing/plans";
 import { getAppUrl, getOrCreateStripeCustomer, getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/utils/errors";
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   let measurementUserId: string | null = null;
   try {
     if (env.SELF_HOSTED) {
-      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+      throw new NotFoundError(serverMessage("Billing is disabled on this self-hosted instance"));
     }
 
     const session = await requireBrowserSession(req);
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     const body = checkoutSchema.parse(await readJsonBody(req));
     const plan = getPlanByKey(body.planKey);
     if (!plan) {
-      throw new BadRequestError("Unknown plan");
+      throw new BadRequestError(serverMessage("Unknown plan"));
     }
 
     const billing = await getBillingStatus(session.user.id);
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      throw new BadRequestError("User not found");
+      throw new BadRequestError(serverMessage("User not found"));
     }
 
     const appUrl = getAppUrl();
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!checkoutSession.url) {
-      throw new BadRequestError("Stripe did not return a Checkout URL");
+      throw new BadRequestError(serverMessage("Stripe did not return a Checkout URL"));
     }
 
     await recordFunnelEvent(session.user.id, "checkout_created", {

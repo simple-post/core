@@ -1,17 +1,20 @@
 "use client";
-
 import { AuthorizePage } from "@/components/authorize-page";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export default function OAuthAuthorizePage() {
+  const { copy } = useUiCopy();
   return (
     <AuthorizePage
       config={{
-        title: "Connect SimplePost",
-        description:
+        title: copy("Connect SimplePost"),
+        description: copy(
           "ChatGPT or another MCP client is requesting permission to view connected accounts, inspect post history, validate drafts, and create or manage drafts and scheduled posts through SimplePost.",
-        invalidMessage:
+        ),
+        invalidMessage: copy(
           "This authorization link is invalid or has expired. Please try connecting again from your AI assistant.",
-        successMessage: "Authorization successful. You can close this tab and return to your app.",
+        ),
+        successMessage: copy("Authorization successful. You can close this tab and return to your app."),
         loginCallbackPath: "/oauth/authorize",
         validateParams: (params) =>
           !!(

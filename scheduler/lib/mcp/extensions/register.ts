@@ -3,6 +3,7 @@ import { Feature } from "@prisma/client";
 import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
+import { serverMessage } from "@/lib/i18n/server";
 import { getAppBaseUrl, hasMcpScope, type McpScope } from "@/lib/mcp/config";
 import { getAccountConnectionLinks } from "@/lib/mcp/connect-guidance";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
@@ -46,11 +47,13 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
   async function guard(scopes: McpScope[]) {
     if (!(await hasFeature(context.userId, Feature.PLUGIN_EXTENSIONS)))
       throw new ForbiddenError(
-        "The SimplePost workspace is currently unavailable. Existing posting tools remain available.",
+        serverMessage("The SimplePost workspace is currently unavailable. Existing posting tools remain available."),
       );
     for (const scope of scopes)
       if (!hasMcpScope(context.scope, scope))
-        throw new ForbiddenError(`Reconnect SimplePost to approve the required access (${scope}).`);
+        throw new ForbiddenError(
+          serverMessage("Reconnect SimplePost to approve the required access ({{scope}}).", { scope: String(scope) }),
+        );
   }
   function tool<S extends z.ZodObject>(
     name: keyof typeof EXTENSION_TOOL_ANNOTATIONS,

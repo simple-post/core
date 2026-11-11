@@ -8,3 +8,29 @@
   --font-inter: Inter, sans-serif;
   --font-jetbrains-mono: "JetBrains Mono", monospace;
 }
+
+/* Use region-appropriate glyph shapes when the Latin brand fonts lack them. */
+:lang(ja) {
+  --ui-local-font: "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP";
+}
+:lang(ko) {
+  --ui-local-font: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR";
+}
+:lang(zh-Hans) {
+  --ui-local-font: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC";
+}
+:lang(zh-Hant) {
+  --ui-local-font: "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC";
+}
+:lang(ar) {
+  --ui-local-font: "Noto Sans Arabic", "Geeza Pro", "Segoe UI";
+}
+:lang(hi) {
+  --ui-local-font: "Noto Sans Devanagari", "Kohinoor Devanagari", "Mangal";
+}
+
+html:is(:lang(ja), :lang(ko), :lang(zh-Hans), :lang(zh-Hant), :lang(ar), :lang(hi)) {
+  --font-body: var(--ui-local-font), system-ui, sans-serif;
+  --font-sans: var(--ui-local-font), system-ui, sans-serif;
+  --font-display: var(--ui-local-font), system-ui, sans-serif;
+}

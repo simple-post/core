@@ -16,9 +16,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { UiCopy } from "@/components/ui-copy";
 import { useAccounts } from "@/hooks/use-accounts";
 import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
 import { getPlatformById } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
 
 import { PlatformIcon } from "./platform-icons";
@@ -55,6 +57,7 @@ export function PostLinksModal({
   onRecover,
   onEditFailed,
 }: PostLinksModalProps) {
+  const { copy } = useUiCopy();
   const [recoveryError, setRecoveryError] = useState(false);
   const { data: accounts = [] } = useAccounts();
   const successfulPosts = results.filter((result) => result.success === true);
@@ -86,31 +89,43 @@ export function PostLinksModal({
         <DialogHeader>
           <div className="section-kicker">
             <span className="section-kicker-dot" />
-            <span className="section-kicker-label">{isPosting ? "Progress" : "Results"}</span>
+            <span className="section-kicker-label">{isPosting ? copy("Progress") : copy("Results")}</span>
           </div>
           <DialogTitle className="text-xl tracking-[-0.025em]">
-            {isPosting ? "Posting your content" : "Posting results"}
+            {isPosting ? copy("Posting your content") : copy("Posting results")}
           </DialogTitle>
           <DialogDescription aria-live="polite">
             {isPosting
               ? completedPosts === results.length
-                ? "Posting complete. Finishing up…"
-                : `${completedPosts} of ${results.length} platform${results.length === 1 ? "" : "s"} complete.`
+                ? copy("Posting complete. Finishing up…")
+                : copy("{{completed, number}} of {{count, number}} platforms complete.", {
+                    completed: completedPosts,
+                    count: results.length,
+                  })
               : hasUncertainOutcome
-                ? "Final posting status could not be confirmed. Check Posts before retrying."
+                ? copy("Final posting status could not be confirmed. Check Posts before retrying.")
                 : failedPosts.length > 0 && successfulPosts.length > 0
-                  ? `${successfulPosts.length} completed. ${failedPosts.length} ${failedPosts.length === 1 ? "destination needs" : "destinations need"} attention.`
+                  ? copy("{{completed, number}} completed. {{count, number}} destinations need attention.", {
+                      completed: successfulPosts.length,
+                      count: failedPosts.length,
+                    })
                   : successfulPosts.length > 0
-                    ? `Successfully completed for ${successfulPosts.length} platform${successfulPosts.length > 1 ? "s" : ""}.`
+                    ? copy("Successfully completed for {{count, number}} platforms.", { count: successfulPosts.length })
                     : failedPosts.length > 0
-                      ? "Your post needs attention. Review the details below."
-                      : "Posting completed."}
+                      ? copy("Your post needs attention. Review the details below.")
+                      : copy("Posting completed.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="max-w-full space-y-2 overflow-hidden">
           {isPosting && (
-            <Progress value={progress} aria-label={`${completedPosts} of ${results.length} platforms complete`} />
+            <Progress
+              value={progress}
+              aria-label={copy("{{completed, number}} of {{count, number}} platforms complete.", {
+                completed: completedPosts,
+                count: results.length,
+              })}
+            />
           )}
 
           {results.map((result) => {
@@ -155,31 +170,36 @@ export function PostLinksModal({
                       )}
                       {isThread && (
                         <span className="flex-shrink-0 font-mono text-xs text-muted-foreground">
-                          {succeededSegments}/{totalSegments} posts
+                          {copy("{{completed, number}}/{{count, number}} posts", {
+                            completed: succeededSegments,
+                            count: totalSegments,
+                          })}
                         </span>
                       )}
                     </div>
 
                     <div className="flex h-8 w-20 flex-shrink-0 items-center justify-end">
                       {result.uncertain ? (
-                        <span className="text-xs text-amber-500">Check status</span>
+                        <span className="text-xs text-amber-500">{copy("Check status")}</span>
                       ) : result.success === undefined ? (
-                        <span className="text-xs text-muted-foreground">Posting…</span>
+                        <span className="text-xs text-muted-foreground">{copy("Posting…")}</span>
                       ) : result.success && postUrl ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-8 w-20 justify-end gap-2 px-0"
                           onClick={() => window.open(postUrl, "_blank", "noopener,noreferrer")}>
-                          <ExternalLink className="h-4 w-4" />
-                          View
+                          <UiCopy
+                            source="<part1></part1>View"
+                            components={{ part1: <ExternalLink className="h-4 w-4" /> }}
+                          />
                         </Button>
                       ) : result.success ? (
                         <span className="text-xs text-primary" title={result.message}>
-                          {result.message ? "Submitted" : "Posted"}
+                          {result.message ? copy("Submitted") : copy("Posted")}
                         </span>
                       ) : (
-                        <span className="text-xs text-destructive">Failed</span>
+                        <span className="text-xs text-destructive">{copy("Failed")}</span>
                       )}
                     </div>
                   </div>
@@ -193,13 +213,15 @@ export function PostLinksModal({
                     <div className="mt-2 space-y-2">
                       <p className="break-words text-sm text-foreground">
                         {result.uncertain
-                          ? "We lost the connection while publishing. Open Posts to check whether it published before trying again."
+                          ? copy(
+                              "We lost the connection while publishing. Open Posts to check whether it published before trying again.",
+                            )
                           : result.message ||
                             (result.error && !/^[A-Z][A-Z_0-9]+$/.test(result.error)
                               ? result.error
                               : needsReconnect
-                                ? "Reconnect this account before trying again."
-                                : "Publishing failed. Review this post before trying again.")}
+                                ? copy("Reconnect this account before trying again.")
+                                : copy("Publishing failed. Review this post before trying again."))}
                       </p>
                       {!isPosting && !hasUncertainOutcome && (
                         <div className="flex flex-wrap gap-2">
@@ -218,7 +240,7 @@ export function PostLinksModal({
                                     setRecoveryError(true);
                                   }
                                 }}>
-                                Reconnect account
+                                {copy("Reconnect account")}{" "}
                               </Link>
                             </Button>
                           )}
@@ -233,26 +255,46 @@ export function PostLinksModal({
 
           {/* Summary */}
           {failedPosts.length > 0 && successfulPosts.length > 0 && !hasUncertainOutcome && !isPosting && (
-            <p className="pt-1 text-xs text-muted-foreground">Only failed destinations will be selected for retry.</p>
+            <p className="pt-1 text-xs text-muted-foreground">
+              {copy("Only failed destinations will be selected for retry.")}
+            </p>
           )}
           {recoveryError && (
             <p role="alert" className="text-sm text-destructive">
-              Your edits could not be saved in this browser. Close this dialog and save your work before continuing.
+              {copy(
+                "Your edits could not be saved in this browser. Close this dialog and save your work before continuing.",
+              )}{" "}
             </p>
           )}
           <div className="pt-3 mt-2 border-t border-border flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em]">
-            <span className="text-muted-foreground">Total</span>
+            <span className="text-muted-foreground">{copy("Total")}</span>
             <div className="flex items-center gap-3">
-              {successfulPosts.length > 0 && <span className="text-primary">{successfulPosts.length} success</span>}
-              {failedPosts.length > 0 && <span className="text-destructive">{failedPosts.length} failed</span>}
-              {pendingPosts.length > 0 && <span className="text-muted-foreground">{pendingPosts.length} posting</span>}
-              {uncertainPosts.length > 0 && <span className="text-amber-500">{uncertainPosts.length} unknown</span>}
+              {successfulPosts.length > 0 && (
+                <span className="text-primary">
+                  {copy("{{count, number}} success", { count: successfulPosts.length })}
+                </span>
+              )}
+              {failedPosts.length > 0 && (
+                <span className="text-destructive">
+                  {copy("{{count, number}} failed", { count: failedPosts.length })}
+                </span>
+              )}
+              {pendingPosts.length > 0 && (
+                <span className="text-muted-foreground">
+                  {copy("{{count, number}} posting", { count: pendingPosts.length })}
+                </span>
+              )}
+              {uncertainPosts.length > 0 && (
+                <span className="text-amber-500">
+                  {copy("{{count, number}} unknown", { count: uncertainPosts.length })}
+                </span>
+              )}
             </div>
           </div>
 
           {hasTikTokTarget && (
             <p className="rounded-lg border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
-              TikTok may take a few minutes to process your content before it is visible on your profile.
+              {copy("TikTok may take a few minutes to process your content before it is visible on your profile.")}{" "}
             </p>
           )}
         </div>
@@ -264,11 +306,11 @@ export function PostLinksModal({
             aria-hidden={isPosting}
             tabIndex={isPosting ? -1 : 0}
             onClick={() => onOpenChange(false)}>
-            Done
+            {copy("Done")}{" "}
           </Button>
           {!isPosting && hasUncertainOutcome && (
             <Button asChild>
-              <Link href={postId ? `/posts/${encodeURIComponent(postId)}` : "/?tab=past"}>Check Posts</Link>
+              <Link href={postId ? `/posts/${encodeURIComponent(postId)}` : "/?tab=past"}>{copy("Check Posts")}</Link>
             </Button>
           )}
           {!isPosting &&
@@ -280,14 +322,14 @@ export function PostLinksModal({
                   onEditFailed(failedPosts.map((post) => post.accountId));
                   onOpenChange(false);
                 }}>
-                Edit and retry
+                {copy("Edit and retry")}{" "}
               </Button>
             ) : postId ? (
               <Button asChild>
-                <Link href={`/posts/${encodeURIComponent(postId)}/edit`}>Edit and retry</Link>
+                <Link href={`/posts/${encodeURIComponent(postId)}/edit`}>{copy("Edit and retry")}</Link>
               </Button>
             ) : (
-              <Button onClick={() => onOpenChange(false)}>Edit post</Button>
+              <Button onClick={() => onOpenChange(false)}>{copy("Edit post")}</Button>
             ))}
         </DialogFooter>
       </DialogContent>

@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
 import {
   cleanupExpiredCliCredentials,
   exchangeCliAuthorizationCode,
@@ -9,6 +12,11 @@ import {
 import { createLogger, serializeError } from "@/lib/logger";
 
 const log = createLogger("api:cli:token");
+const CLI_ERROR_DESCRIPTIONS = {
+  code_not_found: serverMessage("code not found"),
+  code_expired: serverMessage("code expired"),
+  redirect_uri_mismatch: serverMessage("redirect uri mismatch"),
+};
 
 async function requestParameters(req: NextRequest): Promise<Record<string, string>> {
   const contentType = req.headers.get("content-type") ?? "";
@@ -25,18 +33,12 @@ export async function POST(req: NextRequest) {
     const redirectUri = params.redirect_uri;
 
     if (!code || !redirectUri) {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "code and redirect_uri are required" },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_request", serverMessage("code and redirect_uri are required"), { status: 400 });
     }
 
     const result = await exchangeCliAuthorizationCode(code, redirectUri);
     if (!result.ok) {
-      return NextResponse.json(
-        { error: "invalid_grant", error_description: result.error.replaceAll("_", " ") },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_grant", CLI_ERROR_DESCRIPTIONS[result.error], { status: 400 });
     }
 
     void cleanupExpiredCliCredentials().catch((error) => {
@@ -51,10 +53,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     log.error({ err: serializeError(error) }, "CLI token exchange failed");
-    return NextResponse.json(
-      { error: "server_error", error_description: "CLI token exchange failed" },
-      { status: 500 },
-    );
+    return oauthError(req, "server_error", serverMessage("CLI token exchange failed"), { status: 500 });
   }
 }
 

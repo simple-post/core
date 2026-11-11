@@ -5,7 +5,6 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { format } from "date-fns";
 import { Trash2, Calendar, CalendarClock, Clock, Copy, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { UiCopy } from "@/components/ui-copy";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
@@ -32,6 +32,7 @@ import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import type { ConnectedAccount } from "@/types";
 
@@ -43,6 +44,7 @@ type FailedPlatform = {
 };
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { copy, locale } = useUiCopy();
   const { id } = use(params);
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
@@ -62,14 +64,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       router.push("/");
     } catch (error) {
       logClientError(error, "Failed to delete post", { postId: id });
-      toast.error("Failed to delete post. Please try again.");
+      toast.error(copy("Failed to delete post. Please try again."));
     }
   };
 
   const handlePostNow = async () => {
     if (!post) return;
 
-    const toastId = toast.loading("Posting draft...");
+    const toastId = toast.loading(copy("Posting draft..."));
 
     try {
       const data = await submitPostMutation.mutateAsync({
@@ -93,14 +95,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
       if (data.post?.status === "scheduled") {
-        toast.info("Queued — waiting for TikTok's request limit. We'll retry automatically.", { id: toastId });
+        toast.info(copy("Queued — waiting for TikTok's request limit. We'll retry automatically."), { id: toastId });
       } else if (allSucceeded) {
-        toast.success("Draft posted.", { id: toastId });
+        toast.success(copy("Draft posted."), { id: toastId });
       } else {
-        toast.error("Draft could not be posted to every account.", { id: toastId });
+        toast.error(copy("Draft could not be posted to every account."), { id: toastId });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to post draft.";
+      const message = error instanceof Error ? error.message : copy("Failed to post draft.");
       logClientError(error, "Failed to post draft", { postId: post.id });
       toast.error(message, { id: toastId });
     }
@@ -127,9 +129,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <Navbar />
         <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold">Post not found</h1>
+            <h1 className="text-2xl font-semibold">{copy("Post not found")}</h1>
             <Link href="/">
-              <Button variant="outline">Back to dashboard</Button>
+              <Button variant="outline">{copy("Back to dashboard")}</Button>
             </Link>
           </div>
         </div>
@@ -158,7 +160,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               <div className="section-kicker !mb-0">
                 <span className="section-kicker-dot" />
                 <span className="section-kicker-label">
-                  {isDraft ? "Draft" : isScheduled ? "Scheduled" : isFailed ? "Failed" : "Published"}
+                  {isDraft
+                    ? copy("Draft")
+                    : isScheduled
+                      ? copy("Scheduled")
+                      : isFailed
+                        ? copy("Failed")
+                        : copy("Published")}
                 </span>
               </div>
               <span className="h-3 w-px bg-border" />
@@ -174,20 +182,33 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                 )}
                 <span>
                   {isDraft
-                    ? `Saved ${format(post.createdAt, "MMMM d, yyyy 'at' h:mm a")}`
+                    ? copy("Saved {{date}}", {
+                        date: new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" }).format(
+                          new Date(post.createdAt),
+                        ),
+                      })
                     : isScheduled && post.scheduledFor
-                      ? format(post.scheduledFor, "EEEE, MMMM d, yyyy 'at' h:mm a")
-                      : format(post.publishedAt || post.createdAt, "MMMM d, yyyy 'at' h:mm a")}
+                      ? new Intl.DateTimeFormat(locale, {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "numeric",
+                        }).format(new Date(post.scheduledFor))
+                      : new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" }).format(
+                          new Date(post.publishedAt || post.createdAt),
+                        )}
                 </span>
               </div>
             </div>
 
             {!readOnly && (
-              <div className="flex items-center gap-2" aria-label="Post actions">
+              <div className="flex items-center gap-2" aria-label={copy("Post actions")}>
                 {isDraft && (
                   <Button size="sm" onClick={handlePostNow} disabled={submitPostMutation.isPending}>
                     <Send className="h-4 w-4" />
-                    {submitPostMutation.isPending ? "Posting..." : "Post Now"}
+                    {submitPostMutation.isPending ? copy("Posting...") : copy("Post Now")}
                   </Button>
                 )}
                 {(isScheduled || isDraft) && (
@@ -197,30 +218,28 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     onClick={() => setShowScheduleDialog(true)}
                     disabled={submitPostMutation.isPending}>
                     <CalendarClock className="h-4 w-4" />
-                    {isScheduled ? "Reschedule" : "Schedule"}
+                    {isScheduled ? copy("Reschedule") : copy("Schedule")}
                   </Button>
                 )}
                 {(isScheduled || isDraft || isFailed) && (
                   <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
                     <Link href={`/posts/${id}/edit`}>
                       <Edit className="h-4 w-4" />
-                      {isFailed ? "Edit and Retry" : "Edit"}
+                      {isFailed ? copy("Edit and Retry") : copy("Edit")}
                     </Link>
                   </Button>
                 )}
                 {isPublished && (
                   <Button asChild variant="outline" size="sm">
                     <Link href={`/posts/${id}/duplicate`}>
-                      <Copy className="h-4 w-4" />
-                      Duplicate
+                      <UiCopy source="<part1></part1>Duplicate" components={{ part1: <Copy className="h-4 w-4" /> }} />
                     </Link>
                   </Button>
                 )}
                 {canQuote && (
                   <Button asChild variant="outline" size="sm">
                     <Link href={`/schedule?quotePostId=${id}`}>
-                      <Quote className="h-4 w-4" />
-                      Quote
+                      <UiCopy source="<part1></part1>Quote" components={{ part1: <Quote className="h-4 w-4" /> }} />
                     </Link>
                   </Button>
                 )}
@@ -231,7 +250,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => setShowDeleteDialog(true)}>
                   <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete post</span>
+                  <span className="sr-only">{copy("Delete post")}</span>
                 </Button>
               </div>
             )}
@@ -243,9 +262,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="flex items-start gap-3">
                     <Quote className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">Quotes another SimplePost post</p>
+                      <p className="text-sm font-medium">{copy("Quotes another SimplePost post")}</p>
                       <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
-                        {quotePost?.message || "Open the source post"}
+                        {quotePost?.message || copy("Open the source post")}
                       </p>
                     </div>
                   </div>
@@ -260,9 +279,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                   <div className="space-y-2 flex-1 min-w-0">
-                    <p className="text-sm font-medium text-destructive">Post failed</p>
+                    <p className="text-sm font-medium text-destructive">{copy("Post failed")}</p>
                     <HelpLink path="/troubleshooting#failed-or-partially-published-posts">
-                      Fix and retry this post safely
+                      {copy("Fix and retry this post safely")}{" "}
                     </HelpLink>
                     {post.errorMessage && <p className="text-sm text-muted-foreground">{post.errorMessage}</p>}
                     {failedPlatforms.length > 0 && (
@@ -272,7 +291,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                             (fp.platform || "").toLowerCase() === "twitter" ? "x" : (fp.platform || "").toLowerCase(),
                           );
                           const platformName = platformConfig?.name || fp.platform || "Unknown";
-                          const errMsg = fp.message || fp.error || "Unknown error";
+                          const errMsg = fp.message || fp.error || copy("Unknown error");
                           return (
                             <li key={i} className="flex items-start gap-2 text-muted-foreground">
                               <span className="font-medium text-foreground">{platformName}:</span>
@@ -299,7 +318,12 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                           .map((account) => (
                             <Button key={account.id} asChild variant="outline" size="sm">
                               <Link href={reconnectHref(account.id, `/posts/${id}/edit`)}>
-                                Reconnect {getPlatformById(account.platform)?.name ?? account.platform}
+                                <UiCopy
+                                  source="Reconnect <part1></part1>"
+                                  components={{
+                                    part1: <>{getPlatformById(account.platform)?.name ?? account.platform}</>,
+                                  }}
+                                />
                               </Link>
                             </Button>
                           ))}
@@ -328,7 +352,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             <div className="rounded-2xl border border-border bg-card p-6">
               <div className="section-kicker">
                 <span className="section-kicker-dot" />
-                <span className="section-kicker-label">Publishing to</span>
+                <span className="section-kicker-label">{copy("Publishing to")}</span>
               </div>
               <div className="space-y-3 mt-2">
                 {postAccounts.map((account: ConnectedAccount) => {
@@ -355,19 +379,28 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogTitle>{copy("Delete Post?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this {isDraft ? "draft" : "post"}
-              {post.media.length > 0 ? " and all associated media files" : ""}. This action cannot be undone.
+              {isDraft
+                ? post.media.length > 0
+                  ? copy(
+                      "This will permanently delete this draft and all associated media files. This action cannot be undone.",
+                    )
+                  : copy("This will permanently delete this draft. This action cannot be undone.")
+                : post.media.length > 0
+                  ? copy(
+                      "This will permanently delete this post and all associated media files. This action cannot be undone.",
+                    )
+                  : copy("This will permanently delete this post. This action cannot be undone.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletePostMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePostMutation.isPending}>{copy("Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deletePostMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deletePostMutation.isPending ? "Deleting..." : "Delete"}
+              {deletePostMutation.isPending ? copy("Deleting...") : copy("Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

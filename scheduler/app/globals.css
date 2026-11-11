@@ -3,3 +3,75 @@
 @source "../features";
 
 @import "../components/visual/theme.css";
+
+/* Use region-appropriate glyph shapes when the Latin brand fonts lack them. */
+:lang(ja) {
+  --ui-local-font: "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP";
+}
+:lang(ko) {
+  --ui-local-font: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR";
+}
+:lang(zh-Hans) {
+  --ui-local-font: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC";
+}
+:lang(zh-Hant) {
+  --ui-local-font: "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC";
+}
+:lang(ar) {
+  --ui-local-font: "Noto Sans Arabic", "Geeza Pro", "Segoe UI";
+}
+:lang(hi) {
+  --ui-local-font: "Noto Sans Devanagari", "Kohinoor Devanagari", "Mangal";
+}
+
+html:is(:lang(ja), :lang(ko), :lang(zh-Hans), :lang(zh-Hant), :lang(ar), :lang(hi)) {
+  --font-body: var(--ui-local-font), system-ui, sans-serif;
+  --font-sans: var(--ui-local-font), system-ui, sans-serif;
+  --font-display: var(--ui-local-font), system-ui, sans-serif;
+}
+
+/* Reserve the shared footer without pushing full-height pages below the fold. */
+.app-content > .min-h-screen {
+  min-height: calc(100svh - 3.5rem);
+}
+
+.locale-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: 100%;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.locale-control > svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+}
+
+.locale-control > select {
+  width: auto;
+  max-width: 8.25rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.2rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.locale-control > select:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.locale-control option {
+  background: Canvas;
+  color: CanvasText;
+}

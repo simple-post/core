@@ -4,6 +4,7 @@ import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { normalizePlatformId } from "@/lib/config";
 import { getAccountConnectionLinks, getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
+import { credentialStatusDisplay } from "@/lib/i18n/validation-display";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -86,7 +87,7 @@ export async function listAccounts(userId: string): Promise<z.infer<typeof listA
 
   const mappedAccounts = accounts.map((storedAccount) => {
     const account = decryptConnectedAccountSecrets(storedAccount);
-    const credentialStatus = getConnectedAccountCredentialStatus(account);
+    const credentialStatus = credentialStatusDisplay(getConnectedAccountCredentialStatus(account));
     const trialUsed = billing.trial?.platformUsage[normalizePlatformId(account.platform)] ?? 0;
     return {
       accountId: account.id,

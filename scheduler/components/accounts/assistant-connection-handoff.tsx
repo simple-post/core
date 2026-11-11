@@ -9,14 +9,17 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/auth-client";
+import { useUiTranslation } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/translate";
 
 export function AssistantConnectionHandoff({ onManual }: { onManual: (platform: string, token: string) => void }) {
+  const { t } = useUiTranslation();
   const query = useSearchParams();
   const platform = query.get("platform");
   const token = query.get("handoffToken");
   const complete = query.get("source") === "assistant_handoff" && query.get("success") === "true";
   const [manual, setManual] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MessageKey | null>(null);
   const [wrongAccount, setWrongAccount] = useState(false);
   const [switchingAccount, setSwitchingAccount] = useState(false);
 
@@ -37,20 +40,17 @@ export function AssistantConnectionHandoff({ onManual }: { onManual: (platform: 
         const result = await response.json();
         if (controller.signal.aborted) return;
         if (!response.ok) {
-          setWrongAccount(result.code === "HANDOFF_ACCOUNT_MISMATCH");
-          throw new Error(
-            result.error || "The connection could not start. Return to your AI assistant for a new link.",
-          );
+          const mismatch = result.code === "HANDOFF_ACCOUNT_MISMATCH";
+          setWrongAccount(mismatch);
+          setError(mismatch ? "handoffAccountMismatch" : "returnFreshLink");
+          return;
         }
         if (result.connectionType === "manual") {
           setManual(true);
           onManual(platform!, token!);
         } else window.location.replace(result.startUrl);
-      } catch (error_) {
-        if (!controller.signal.aborted)
-          setError(
-            error_ instanceof Error ? error_.message : "The connection could not start. Try opening the link again.",
-          );
+      } catch {
+        if (!controller.signal.aborted) setError("handoffTryAgain");
       }
     }
     void start();
@@ -61,20 +61,17 @@ export function AssistantConnectionHandoff({ onManual }: { onManual: (platform: 
     return (
       <Alert className="mb-6 border-primary/25 bg-primary/5">
         <CheckCircle2 className="size-4 text-primary" />
-        <AlertTitle className="line-clamp-none">Account connected. Continue in your AI assistant.</AlertTitle>
-        <AlertDescription>
-          Return to the conversation where you opened this link and say “connected”. Your assistant will check your
-          accounts and help you prepare your post.
-        </AlertDescription>
+        <AlertTitle className="line-clamp-none">{t("handoffComplete")}</AlertTitle>
+        <AlertDescription>{t("handoffCompleteDetails")}</AlertDescription>
       </Alert>
     );
   if (!platform || !token) return null;
   if (error)
     return (
       <Alert variant="destructive" className="mb-6">
-        <AlertTitle className="line-clamp-none">Connection could not start</AlertTitle>
+        <AlertTitle className="line-clamp-none">{t("handoffCouldNotStart")}</AlertTitle>
         <AlertDescription className="space-y-3">
-          <p>{error}</p>
+          <p>{t(error)}</p>
           {wrongAccount && (
             <Button
               variant="outline"
@@ -84,14 +81,14 @@ export function AssistantConnectionHandoff({ onManual }: { onManual: (platform: 
                 setSwitchingAccount(true);
                 try {
                   const result = await authClient.signOut();
-                  if (result.error) throw new Error("Could not sign out. Please try again.");
+                  if (result.error) throw result.error;
                   window.location.reload();
                 } catch {
-                  setError("Could not sign out. Please try again.");
+                  setError("signOutFailed");
                   setSwitchingAccount(false);
                 }
               }}>
-              {switchingAccount ? "Signing out…" : "Use a different SimplePost account"}
+              {switchingAccount ? t("signingOut") : t("useAnotherSimplePostAccount")}
             </Button>
           )}
         </AlertDescription>
@@ -100,13 +97,13 @@ export function AssistantConnectionHandoff({ onManual }: { onManual: (platform: 
   if (manual)
     return (
       <Button variant="outline" className="mb-6" onClick={() => onManual(platform, token)}>
-        Continue account setup
+        {t("continueAccountSetup")}
       </Button>
     );
   return (
     <p className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="size-4 animate-spin" />
-      Starting your account connection…
+      {t("startingAccountConnection")}
     </p>
   );
 }

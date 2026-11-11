@@ -64,7 +64,15 @@ export function createPostingProgressStream(run: (onResult: PostingResultCallbac
           if (response.ok) {
             send({ type: "complete", data });
           } else {
-            send({ type: "error", error: getResponseError(data, response.status), status: response.status });
+            const body = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+            send({
+              type: "error",
+              error: getResponseError(data, response.status),
+              status: response.status,
+              ...(typeof body.code === "string" && { code: body.code }),
+              ...(typeof body.reason === "string" && { reason: body.reason }),
+              ...(body.details !== undefined && { details: sanitizeForJson(body.details) }),
+            });
           }
         })
         .catch((error: unknown) => {

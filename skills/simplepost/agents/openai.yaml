@@ -2,7 +2,7 @@ interface:
   display_name: "SimplePost"
   short_description: "Publish and schedule social posts with SimplePost"
   brand_color: "#C6F432"
-  default_prompt: "Use $simplepost to publish this content to my connected social accounts."
+  default_prompt: "Use $simplepost to review my connected accounts and prepare a preview. Do not upload media, save, schedule, or publish anything yet."
 
 policy:
   allow_implicit_invocation: true

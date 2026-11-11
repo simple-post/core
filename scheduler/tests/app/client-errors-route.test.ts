@@ -73,9 +73,27 @@ it("continues to log application errors", async () => {
       errorName: "TypeError",
       errorMessage: "Failed to publish",
       errorStack: expect.stringContaining("publishPost"),
+      errorSource: "browser",
+      browserCritical: false,
       clientUrl: undefined,
       clientUserAgent: undefined,
     }),
     "Unhandled browser error",
   );
+});
+
+it("only gives error-boundary reports critical browser priority", async () => {
+  for (const [area, expected] of [
+    ["app.error-boundary", true],
+    ["app.global-error-boundary", true],
+    ["window.error", false],
+  ]) {
+    await POST(
+      request({ message: "failed", context: { area, browserCritical: !expected }, error: { message: "failed" } }),
+    );
+    expect(logger.error).toHaveBeenLastCalledWith(
+      expect.objectContaining({ errorSource: "browser", browserCritical: expected }),
+      "failed",
+    );
+  }
 });

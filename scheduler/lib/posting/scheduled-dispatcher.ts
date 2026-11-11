@@ -4,6 +4,7 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { isSocialPlatformEnabled } from "@/lib/config";
+import { serverMessage } from "@/lib/i18n/server";
 import { createLogger, serializeError } from "@/lib/logger";
 import { dispatchDisconnectNotifications } from "@/lib/notifications/disconnect-notifications";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
@@ -460,7 +461,9 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
     if (!validation.summary.isValid) {
       throw new ValidationError(
         validation,
-        `Scheduled post failed validation: ${validation.summary.errors.map((issue) => issue.message).join("; ")}`,
+        serverMessage("Scheduled post failed validation: {{value1}}", {
+          value1: String(validation.summary.errors.map((issue) => issue.message).join("; ")),
+        }),
       );
     }
 

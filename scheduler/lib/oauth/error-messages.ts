@@ -1,3 +1,5 @@
+import type { MessageKey } from "../i18n/translate";
+
 import type { OAuthErrorCode } from "./errors";
 
 export const OAUTH_ERROR_MESSAGES: Record<OAuthErrorCode, string> = {
@@ -24,4 +26,29 @@ export const FACEBOOK_NO_PAGES_MESSAGE =
 /** Query strings are untrusted: only display messages from our own callbacks. */
 export function knownOAuthErrorMessage(value: string | null): string | null {
   return value && [...Object.values(OAUTH_ERROR_MESSAGES), FACEBOOK_NO_PAGES_MESSAGE].includes(value) ? value : null;
+}
+
+const oauthMessages = {
+  invalid_state: "oauthInvalidState",
+  state_expired: "oauthExpired",
+  session_mismatch: "oauthSessionMismatch",
+  pkce_missing: "oauthPkceMissing",
+  missing_params: "oauthMissingParams",
+  platform_mismatch: "oauthPlatformMismatch",
+  token_exchange_failed: "oauthTokenExchangeFailed",
+  profile_fetch_failed: "oauthProfileFetchFailed",
+  youtube_no_channel: "oauthYoutubeNoChannel",
+  youtube_ambiguous_channel: "oauthYoutubeAmbiguous",
+  no_access_token: "oauthNoToken",
+  authorization_denied: "oauthDenied",
+  unknown_error: "oauthUnexpected",
+} satisfies Record<OAuthErrorCode, MessageKey>;
+
+/** The callbacks still return the original values. Only render their known messages. */
+export function oauthErrorKey(value: string | null): MessageKey | undefined {
+  if (value === FACEBOOK_NO_PAGES_MESSAGE) return "oauthFacebookNoPages";
+  const code = (Object.keys(OAUTH_ERROR_MESSAGES) as OAuthErrorCode[]).find(
+    (key) => OAUTH_ERROR_MESSAGES[key] === value,
+  );
+  return code ? oauthMessages[code] : undefined;
 }

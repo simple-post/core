@@ -11,6 +11,7 @@ import { useScheduleCalendarState, type CalendarView } from "@/components/schedu
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { usePostingSlots } from "@/hooks/use-posting-slots";
 import { useCalendarPosts } from "@/hooks/use-posts";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { getSlotOccurrencesInRange, slotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 
 import { ScheduleCalendarView, type CalendarActionProps, type DayEntry } from "./visual/schedule-calendar";
@@ -113,6 +114,7 @@ function dayKey(date: Date): string {
  * touch-friendly agendas on mobile.
  */
 export function ScheduleCalendar() {
+  const { copy } = useUiCopy();
   const readOnly = useWorkspaceReadOnly();
   const { view, setView, anchorDate, setAnchorDate } = useScheduleCalendarState();
   const [now, setNow] = useState(() => new Date());
@@ -198,10 +200,10 @@ export function ScheduleCalendar() {
       summary={summary}
       isLoading={isLoading}
       showEmptySlots={!readOnly && !slotsLoading && slots.length === 0}
-      slotHint={readOnly ? "Saved posts appear here" : undefined}
+      slotHint={readOnly ? copy("Saved posts appear here") : undefined}
       help={
         <HelpLink path="/scheduling" className="mb-3">
-          Calendar, timezones, and posting slots
+          {copy("Calendar, timezones, and posting slots")}{" "}
         </HelpLink>
       }
       setAnchorDate={setAnchorDate}

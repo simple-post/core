@@ -1,3 +1,6 @@
+"use client";
+
+import { useUiTranslation } from "@/lib/i18n/client";
 import type { ReactNode, ReactEventHandler } from "react";
 
 import { AlertCircle, FileText, Quote } from "lucide-react";
@@ -30,6 +33,7 @@ export function PostCardView({
   selection?: ReactNode;
   onImageError?: ReactEventHandler<HTMLImageElement>;
 }) {
+  const { locale, t } = useUiTranslation();
   const hasMedia = post.media.length > 0;
   const isFailed = post.status === "failed";
   const isDraft = post.status === "draft";
@@ -66,12 +70,12 @@ export function PostCardView({
                       d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                     />
                   </svg>
-                  <span className="text-[10px] text-muted-foreground">Video</span>
+                  <span className="text-[10px] text-muted-foreground">{t("video")}</span>
                 </div>
               )}
               {post.media.length > 1 && (
-                <div className="absolute top-1.5 right-1.5 h-5 w-5 bg-foreground/90 backdrop-blur-sm text-background rounded-full text-xs flex items-center justify-center shadow-md font-medium">
-                  {post.media.length}
+                <div className="absolute top-1.5 end-1.5 h-5 w-5 bg-foreground/90 backdrop-blur-sm text-background rounded-full text-xs flex items-center justify-center shadow-md font-medium">
+                  {post.media.length.toLocaleString(locale)}
                 </div>
               )}
               {post.media[0].type === "video" && post.media[0].thumbnailUrl && (
@@ -98,7 +102,7 @@ export function PostCardView({
           )}
           {/* Platform indicator */}
           {uniquePlatforms.length > 0 && (
-            <div className="absolute -bottom-1 -right-1 flex max-w-[5.5rem] flex-wrap justify-end gap-0.5">
+            <div className="absolute -bottom-1 -end-1 flex max-w-[5.5rem] flex-wrap justify-end gap-0.5">
               {uniquePlatforms.map((platform) => (
                 <PlatformIconBadge key={platform} platform={platform} />
               ))}
@@ -110,28 +114,30 @@ export function PostCardView({
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <p className="text-sm text-foreground line-clamp-2 flex-1">{post.message || "No message"}</p>
+                <p className="text-sm text-foreground line-clamp-2 flex-1" dir="auto">
+                  {post.message || t("noMessage")}
+                </p>
                 {isFailed && (
                   <Badge variant="destructive" className="flex-shrink-0 text-xs">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    Failed
+                    <AlertCircle className="h-3 w-3 me-1" />
+                    {t("postFailed")}
                   </Badge>
                 )}
                 {isDraft && (
                   <Badge variant="secondary" className="flex-shrink-0 text-xs">
-                    <FileText className="h-3 w-3 mr-1" />
-                    Draft
+                    <FileText className="h-3 w-3 me-1" />
+                    {t("postDraft")}
                   </Badge>
                 )}
                 {waiting && (
                   <Badge variant="secondary" className="flex-shrink-0 text-xs">
-                    Waiting for TikTok
+                    {t("waitingTiktok")}
                   </Badge>
                 )}
                 {post.quotePostId && (
                   <Badge variant="outline" className="flex-shrink-0 text-xs">
-                    <Quote className="h-3 w-3 mr-1" />
-                    Quote
+                    <Quote className="h-3 w-3 me-1" />
+                    {t("quote")}
                   </Badge>
                 )}
               </div>

@@ -1,0 +1,6 @@
+[
+  "{{count, number}} queued posts need this connection. Reconnect before your next scheduled post.",
+  "Your {{plan}} plan includes {{count, number}} posts per month",
+  "Your current plan includes {{count, number}} posts per month",
+  "Your {{plan}} plan includes {{count, number}} social accounts"
+]

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireReadAuth } from "@/lib/middleware/auth";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 
@@ -11,12 +12,12 @@ const MAX_RANGE_DAYS = 62;
 
 function parseRangeValue(value: string | null, name: string): Date {
   if (!value) {
-    throw new BadRequestError(`${name} is required.`);
+    throw new BadRequestError(serverMessage("{{name}} is required.", { name: String(name) }));
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    throw new BadRequestError(`${name} must be a valid ISO 8601 datetime.`);
+    throw new BadRequestError(serverMessage("{{name}} must be a valid ISO 8601 datetime.", { name: String(name) }));
   }
 
   return date;
@@ -32,10 +33,14 @@ export async function GET(req: NextRequest) {
     const to = parseRangeValue(searchParams.get("to"), "to");
 
     if (to <= from) {
-      throw new BadRequestError("to must be after from.");
+      throw new BadRequestError(serverMessage("to must be after from."));
     }
     if (to.getTime() - from.getTime() > MAX_RANGE_DAYS * 24 * 60 * 60 * 1000) {
-      throw new BadRequestError(`Calendar range must be at most ${MAX_RANGE_DAYS} days.`);
+      throw new BadRequestError(
+        serverMessage("Calendar range must be at most {{MAX_RANGE_DAYS}} days.", {
+          MAX_RANGE_DAYS: String(MAX_RANGE_DAYS),
+        }),
+      );
     }
 
     const repository = new PostsModel(session.user.id);

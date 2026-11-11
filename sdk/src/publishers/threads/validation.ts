@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
@@ -34,62 +35,90 @@ export function validateThreadsContent(content: Content): ValidationResult {
   }
 
   if (!text.trim() && mediaCount === 0) {
-    errors.push({
-      platform: "threads",
-      severity: "error",
-      code: "content_required",
-      message: "Threads posts require text or media.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "threads",
+          severity: "error",
+          code: "content_required",
+          message: "Threads posts require text or media.",
+          field: "text",
+        },
+        "Threads posts require text or media.",
+      ),
+    );
   }
 
   if (text.length > THREADS_MAX_TEXT_LENGTH) {
-    errors.push({
-      platform: "threads",
-      severity: "error",
-      code: "text_too_long",
-      message: `Threads text cannot exceed ${THREADS_MAX_TEXT_LENGTH} characters.`,
-      field: "text",
-      limit: THREADS_MAX_TEXT_LENGTH,
-      actual: text.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "threads",
+          severity: "error",
+          code: "text_too_long",
+          message: `Threads text cannot exceed ${THREADS_MAX_TEXT_LENGTH} characters.`,
+          field: "text",
+          limit: THREADS_MAX_TEXT_LENGTH,
+          actual: text.length,
+        },
+        "Threads text cannot exceed {{THREADS_MAX_TEXT_LENGTH}} characters.",
+        { THREADS_MAX_TEXT_LENGTH: String(THREADS_MAX_TEXT_LENGTH) },
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "threads",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "threads",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (videos > THREADS_MAX_VIDEOS) {
-    errors.push({
-      platform: "threads",
-      severity: "error",
-      code: "too_many_videos",
-      message: `Threads supports up to ${THREADS_MAX_VIDEOS} videos per carousel.`,
-      field: "media",
-      limit: THREADS_MAX_VIDEOS,
-      actual: videos,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "threads",
+          severity: "error",
+          code: "too_many_videos",
+          message: `Threads supports up to ${THREADS_MAX_VIDEOS} videos per carousel.`,
+          field: "media",
+          limit: THREADS_MAX_VIDEOS,
+          actual: videos,
+        },
+        "Threads supports up to {{THREADS_MAX_VIDEOS}} videos per carousel.",
+        { THREADS_MAX_VIDEOS: String(THREADS_MAX_VIDEOS) },
+      ),
+    );
   }
 
   if (mediaCount > THREADS_MAX_MEDIA_COUNT) {
-    errors.push({
-      platform: "threads",
-      severity: "error",
-      code: "too_many_media",
-      message: `Threads supports up to ${THREADS_MAX_MEDIA_COUNT} media items per carousel.`,
-      field: "media",
-      limit: THREADS_MAX_MEDIA_COUNT,
-      actual: mediaCount,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "threads",
+          severity: "error",
+          code: "too_many_media",
+          message: `Threads supports up to ${THREADS_MAX_MEDIA_COUNT} media items per carousel.`,
+          field: "media",
+          limit: THREADS_MAX_MEDIA_COUNT,
+          actual: mediaCount,
+        },
+        "Threads supports up to {{THREADS_MAX_MEDIA_COUNT}} media items per carousel.",
+        { THREADS_MAX_MEDIA_COUNT: String(THREADS_MAX_MEDIA_COUNT) },
+      ),
+    );
   }
 
   errors.push(

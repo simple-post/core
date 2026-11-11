@@ -6,6 +6,7 @@ import { type PostPreviewData, type PreviewMedia } from "@simple-post/preview-re
 
 import { PreviewSwitcher } from "@/components/visual/preview-switcher";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { normalizePreviewPlatform, type PreviewPlatform } from "@/lib/platform-preview";
 import type { AccountOptionsMap, ConnectedAccount, MediaFile, ThreadSegment } from "@/types";
 
@@ -66,6 +67,7 @@ export function PlatformPostPreview({
   thread = [],
   previewDate: publishDate,
 }: PlatformPostPreviewProps) {
+  const { copy } = useUiCopy();
   const platformAccounts = useMemo<PlatformAccount[]>(() => {
     const seen = new Set<PreviewPlatform>();
     const result: PlatformAccount[] = [];
@@ -122,11 +124,11 @@ export function PlatformPostPreview({
   }, [activeAccount, effectiveMedia, effectiveMessage, effectiveThread, options, platform, previewDate]);
 
   return (
-    <section className="space-y-3" aria-label="Post preview">
+    <section className="space-y-3" aria-label={copy("Post preview")}>
       <div className="flex items-center justify-between">
         <div className="section-kicker">
           <span className="section-kicker-dot" />
-          <span className="section-kicker-label">Platform preview</span>
+          <span className="section-kicker-label">{copy("Platform preview")}</span>
         </div>
         {platformConfig ? (
           <span className="text-xs font-medium text-muted-foreground">{platformConfig.name}</span>
@@ -139,7 +141,9 @@ export function PlatformPostPreview({
           platform: entry.platform,
           platformLabel: getPlatformById(entry.platform)?.name ?? entry.platform,
           accountLabel: getAccountDisplayName(entry.account),
-          accessibleLabel: `Preview ${getPlatformById(entry.platform)?.name ?? entry.platform}`,
+          accessibleLabel: copy("Preview {{platform}}", {
+            platform: getPlatformById(entry.platform)?.name ?? entry.platform,
+          }),
           data: entry.platform === platform ? previewData : undefined,
         }))}
         selectedId={platform ?? null}

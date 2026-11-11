@@ -1,7 +1,8 @@
 "use client";
-
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { queryKeys } from "@/lib/query-client";
 import { ApiResponseError } from "@/lib/utils/api-response-error";
 import type { SocialPost } from "@/types";
@@ -54,11 +55,16 @@ function parsePost(post: RawSocialPost): SocialPost {
 
 export type PostsListType = "drafts" | "scheduled" | "past" | "failed";
 
-async function fetchPaginatedPosts(type: PostsListType, page: number, limit: number): Promise<PaginatedPostsResult> {
+async function fetchPaginatedPosts(
+  type: PostsListType,
+  page: number,
+  limit: number,
+  copy: SourceCopy,
+): Promise<PaginatedPostsResult> {
   const url = `/api/v1/posts?type=${type}&page=${page}&limit=${limit}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new ApiResponseError(await response.json().catch(() => null), "Failed to fetch posts", response.status);
+    throw new ApiResponseError(await response.json().catch(() => null), copy("Failed to fetch posts"), response.status);
   }
   const data: PostsResponse = await response.json();
   return {
@@ -74,13 +80,13 @@ async function fetchPaginatedPosts(type: PostsListType, page: number, limit: num
   };
 }
 
-async function fetchCalendarPosts(from: Date, to: Date): Promise<SocialPost[]> {
+async function fetchCalendarPosts(from: Date, to: Date, copy: SourceCopy): Promise<SocialPost[]> {
   const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
   const response = await fetch(`/api/v1/posts/calendar?${params.toString()}`);
   if (!response.ok) {
     throw new ApiResponseError(
       await response.json().catch(() => null),
-      "Failed to fetch calendar posts",
+      copy("Failed to fetch calendar posts"),
       response.status,
     );
   }
@@ -88,38 +94,44 @@ async function fetchCalendarPosts(from: Date, to: Date): Promise<SocialPost[]> {
   return (data.posts || []).map((post) => parsePost(post));
 }
 
-async function fetchPost(id: string): Promise<SocialPost | null> {
+async function fetchPost(id: string, copy: SourceCopy): Promise<SocialPost | null> {
   const response = await fetch(`/api/v1/posts/${id}`);
   if (response.status === 404) {
     return null;
   }
   if (!response.ok) {
-    throw new ApiResponseError(await response.json().catch(() => null), "Failed to fetch post", response.status);
+    throw new ApiResponseError(await response.json().catch(() => null), copy("Failed to fetch post"), response.status);
   }
   const data: { post: RawSocialPost } = await response.json();
   return data.post ? parsePost(data.post) : null;
 }
 
-async function fetchPostCounts(): Promise<PostCountsResult> {
+async function fetchPostCounts(copy: SourceCopy): Promise<PostCountsResult> {
   const response = await fetch("/api/v1/posts?type=counts");
   if (!response.ok) {
-    throw new ApiResponseError(await response.json().catch(() => null), "Failed to fetch post counts", response.status);
+    throw new ApiResponseError(
+      await response.json().catch(() => null),
+      copy("Failed to fetch post counts"),
+      response.status,
+    );
   }
   return (await response.json()) as PostCountsResult;
 }
 
 export function usePaginatedPosts(type: PostsListType, page: number = 1, limit: number = 25) {
+  const { copy } = useUiCopy();
   return useQuery({
     queryKey: queryKeys.paginatedPosts(type, page, limit),
-    queryFn: () => fetchPaginatedPosts(type, page, limit),
+    queryFn: () => fetchPaginatedPosts(type, page, limit, copy),
     placeholderData: keepPreviousData,
   });
 }
 
 export function usePostCounts() {
+  const { copy } = useUiCopy();
   return useQuery({
     queryKey: queryKeys.postCounts,
-    queryFn: fetchPostCounts,
+    queryFn: () => fetchPostCounts(copy),
     // A billing denial is terminal until access changes. SubscriptionGate
     // rechecks billing and replaces this dashboard with the subscribe screen.
     refetchInterval: (query) =>
@@ -128,17 +140,19 @@ export function usePostCounts() {
 }
 
 export function useCalendarPosts(from: Date, to: Date) {
+  const { copy } = useUiCopy();
   return useQuery({
     queryKey: queryKeys.calendarPosts(from.toISOString(), to.toISOString()),
-    queryFn: () => fetchCalendarPosts(from, to),
+    queryFn: () => fetchCalendarPosts(from, to, copy),
     placeholderData: keepPreviousData,
   });
 }
 
 export function usePost(id: string) {
+  const { copy } = useUiCopy();
   return useQuery({
     queryKey: queryKeys.post(id),
-    queryFn: () => fetchPost(id),
+    queryFn: () => fetchPost(id, copy),
     enabled: !!id,
   });
 }

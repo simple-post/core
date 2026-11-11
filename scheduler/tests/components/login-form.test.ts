@@ -7,6 +7,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 
 import { LoginForm } from "@/components/login-form";
 
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: jest.fn(), replace: jest.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const mockSendOtp = jest.fn();
 const mockSignIn = jest.fn();
 const mockSocial = jest.fn();

@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { assertActiveSubscription, assertPlanFeature, type BillingGateContext } from "@/lib/billing/subscriptions";
 import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
+import { serverMessage } from "@/lib/i18n/server";
 import { rememberRequestUser } from "@/lib/logger/request-context";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
@@ -158,7 +159,7 @@ export async function requireAuth(
   const session = await auth.api.getSession({ headers: req.headers });
 
   if (!session?.user?.id) {
-    throw new UnauthorizedError("Authentication required");
+    throw new UnauthorizedError(serverMessage("Authentication required"));
   }
 
   rememberRequestUser(req, session.user);
@@ -208,7 +209,7 @@ export async function requireBrowserSession(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
 
   if (!session?.user?.id) {
-    throw new UnauthorizedError("Authentication required");
+    throw new UnauthorizedError(serverMessage("Authentication required"));
   }
 
   rememberRequestUser(req, session.user);

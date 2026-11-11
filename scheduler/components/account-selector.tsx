@@ -8,6 +8,7 @@ import { AccountAvatar } from "@/components/account-avatar";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { ConnectedAccount } from "@/types";
 
 import { AccountRowPicker } from "./account-row-picker";
@@ -27,14 +28,15 @@ interface AccountSelectorProps {
 export function AccountSelector({
   selectedAccountIds,
   onSelectionChange,
-  title = "Select Accounts",
-  description = "Choose which accounts to publish your content to",
+  title,
+  description,
   maxSelections,
   showAdvancedButton = false,
   getAdvancedHref,
   layout = "list",
   compact = false,
 }: AccountSelectorProps) {
+  const { copy, locale } = useUiCopy();
   const { data: accounts = [], isLoading: loading } = useAccounts();
 
   const handleAccountToggle = (accountId: string) => {
@@ -64,8 +66,12 @@ export function AccountSelector({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-medium">{title}</h3>
-          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+          <h3 className="text-sm font-medium">{title ?? copy("Select Accounts")}</h3>
+          {(description ?? copy("Choose which accounts to publish your content to")) && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {description ?? copy("Choose which accounts to publish your content to")}
+            </p>
+          )}
         </div>
         <div className="grid gap-2">
           {[1, 2, 3].map((i) => (
@@ -88,13 +94,17 @@ export function AccountSelector({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-medium">{title}</h3>
-          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+          <h3 className="text-sm font-medium">{title ?? copy("Select Accounts")}</h3>
+          {(description ?? copy("Choose which accounts to publish your content to")) && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {description ?? copy("Choose which accounts to publish your content to")}
+            </p>
+          )}
         </div>
         <div className="p-6 border border-dashed border-border rounded-xl bg-card text-center">
-          <p className="text-sm text-muted-foreground mb-3">No accounts connected yet</p>
+          <p className="text-sm text-muted-foreground mb-3">{copy("No accounts connected yet")}</p>
           <Button variant="outline" size="sm" asChild>
-            <a href="/accounts">Connect accounts</a>
+            <a href="/accounts">{copy("Connect accounts")}</a>
           </Button>
         </div>
       </div>
@@ -122,7 +132,10 @@ export function AccountSelector({
       <Button asChild variant="ghost" size="icon" className="h-8 w-8 shrink-0">
         <Link
           href={getAdvancedHref(account.id)}
-          aria-label={`Settings for ${getPlatformById(account.platform)?.name}: ${getAccountDisplayName(account)}`}
+          aria-label={copy("Settings for {{platform}}: {{account}}", {
+            platform: getPlatformById(account.platform)?.name ?? account.platform,
+            account: getAccountDisplayName(account),
+          })}
           onClick={(event) => event.stopPropagation()}>
           <Settings className="h-4 w-4" />
         </Link>
@@ -134,8 +147,8 @@ export function AccountSelector({
   if (layout === "row") {
     return (
       <AccountRowPicker
-        title={title}
-        description={description}
+        title={title ?? copy("Select Accounts")}
+        description={description ?? copy("Choose which accounts to publish your content to")}
         compact={compact}
         selectedIds={selectedAccountIds}
         onToggle={handleAccountToggle}
@@ -164,7 +177,10 @@ export function AccountSelector({
                   <Button asChild variant="ghost" size="icon" className="h-5 w-5">
                     <Link
                       href={getAdvancedHref(account.id)}
-                      aria-label={`Settings for ${platform.name}: ${getAccountDisplayName(account)}`}>
+                      aria-label={copy("Settings for {{platform}}: {{account}}", {
+                        platform: platform.name ?? account.platform,
+                        account: getAccountDisplayName(account),
+                      })}>
                       <Settings className="h-3 w-3" />
                     </Link>
                   </Button>
@@ -180,10 +196,16 @@ export function AccountSelector({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">{title}</h3>
-          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+          <h3 className="text-sm font-medium">{title ?? copy("Select Accounts")}</h3>
+          {(description ?? copy("Choose which accounts to publish your content to")) && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {description ?? copy("Choose which accounts to publish your content to")}
+            </p>
+          )}
         </div>
-        <div className="text-xs text-muted-foreground">{selectedAccountIds.length} selected</div>
+        <div className="text-xs text-muted-foreground">
+          {copy("{{count, number}} selected", { count: selectedAccountIds.length })}
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -195,7 +217,7 @@ export function AccountSelector({
           onClick={selectAll}
           disabled={maxSelections ? selectedAccountIds.length >= maxSelections : false}
           className="text-xs">
-          Select All
+          {copy("Select All")}{" "}
         </Button>
         <Button
           type="button"
@@ -204,7 +226,7 @@ export function AccountSelector({
           onClick={clearAll}
           disabled={selectedAccountIds.length === 0}
           className="text-xs bg-transparent">
-          Clear
+          {copy("Clear")}{" "}
         </Button>
       </div>
 
@@ -264,7 +286,10 @@ export function AccountSelector({
                           <Button asChild variant="ghost" size="icon" className="absolute top-2 right-2 z-10 h-7 w-7">
                             <Link
                               href={getAdvancedHref(account.id)}
-                              aria-label={`Settings for ${platformConfig.name}: ${getAccountDisplayName(account)}`}
+                              aria-label={copy("Settings for {{platform}}: {{account}}", {
+                                platform: platformConfig.name ?? account.platform,
+                                account: getAccountDisplayName(account),
+                              })}
                               onClick={(event) => event.stopPropagation()}>
                               <Settings className="h-4 w-4" />
                             </Link>
@@ -332,27 +357,22 @@ export function AccountSelector({
       {selectedAccountIds.length > 0 && (
         <div className="p-3 rounded-lg border border-border bg-card text-sm">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-            Publishing to
+            {copy("Publishing to")}{" "}
           </p>
           <div className="text-foreground">
-            {selectedAccountIds.map((accountId, index) => {
-              const account = accounts.find((a: ConnectedAccount) => a.id === accountId);
-              if (!account) return null;
-
-              return (
-                <span key={accountId}>
-                  {getAccountDisplayName(account)}
-                  {index < selectedAccountIds.length - 1 && ", "}
-                </span>
-              );
-            })}
+            {new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(
+              selectedAccountIds.flatMap((accountId) => {
+                const account = accounts.find((a: ConnectedAccount) => a.id === accountId);
+                return account ? [getAccountDisplayName(account)] : [];
+              }),
+            )}
           </div>
         </div>
       )}
 
       {/* Validation Message */}
       {selectedAccountIds.length === 0 && (
-        <p className="text-xs text-muted-foreground">Select at least one account to publish your content</p>
+        <p className="text-xs text-muted-foreground">{copy("Select at least one account to publish your content")}</p>
       )}
     </div>
   );

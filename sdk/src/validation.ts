@@ -1,3 +1,4 @@
+import { describeDisplayMessage, getDisplayMessage } from "./validation/display-message";
 import { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";
 import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 import { FOREM_VALIDATION_RULES, validateForemContent } from "./publishers/forem/validation";
@@ -71,11 +72,21 @@ export function validateContentForPlatform(
   result.errors.push(
     ...result.warnings
       .filter((issue) => destructive.has(issue.code))
-      .map((issue) => ({
-        ...issue,
-        severity: "error" as const,
-        message: `${issue.message.split(". Only")[0].split(". The title")[0]}. Remove extra attachments before publishing.`,
-      })),
+      .map((issue) => {
+        const result = {
+          ...issue,
+          severity: "error" as const,
+          message: `${issue.message.split(". Only")[0].split(". The title")[0]}. Remove extra attachments before publishing.`,
+        };
+        const descriptor = getDisplayMessage(issue);
+        return descriptor
+          ? describeDisplayMessage(
+              result,
+              `${descriptor.source.split(". Only")[0].split(". The title")[0]}. Remove extra attachments before publishing.`,
+              descriptor.values,
+            )
+          : result;
+      }),
   );
   result.warnings = result.warnings.filter((issue) => !destructive.has(issue.code));
   const extra = validateFinalOptions(platform, content, options);
@@ -98,3 +109,13 @@ export { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/t
 export { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";
 export { X_VALIDATION_RULES, validateXContent, getXTextLength } from "./publishers/x/validation";
 export { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";
+
+export {
+  describeDisplayMessage,
+  displayMessage,
+  getDisplayMessage,
+  copyDisplayMessage,
+  canonicalDisplayMessage,
+  withDisplayMessage,
+} from "./validation/display-message";
+export type { DisplayMessage, DisplayValues } from "./validation/display-message";

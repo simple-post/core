@@ -11,6 +11,7 @@ import {
   type DayEntry,
 } from "../../components/visual/schedule-calendar";
 
+import { useUiTranslation } from "../../lib/i18n/client";
 import { localDateTime } from "./timezone";
 
 import type { ScheduleData, ScheduleEntry } from "../schedule";
@@ -34,6 +35,7 @@ export function Calendar({
   onSettings?: () => void;
   onCreate?: () => void;
 }) {
+  const { t } = useUiTranslation();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const entriesByDay = new Map<string, DayEntry[]>();
   const entries = new Map<string, ScheduleEntry>();
@@ -83,7 +85,7 @@ export function Calendar({
         type="button"
         disabled={busy}
         title={title}
-        className={`${className ?? ""} w-full text-left ${entry?.id === selectedId ? "ring-2 ring-primary" : ""}`}
+        className={`${className ?? ""} w-full text-start ${entry?.id === selectedId ? "ring-2 ring-primary" : ""}`}
         aria-pressed={entry ? entry.id === selectedId : undefined}
         onClick={() => {
           if (entry) onSelect?.(entry);
@@ -96,13 +98,13 @@ export function Calendar({
   };
   const days = data.view === "day" ? data.days.filter((day) => day.date === data.anchorDate) : data.days;
   return (
-    <section aria-label="Publishing calendar" className="simplepost-visual space-y-3">
+    <section aria-label={t("publishingCalendar")} className="simplepost-visual space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-base font-semibold">
-          <CalendarDays size={18} /> Calendar
+          <CalendarDays size={18} /> {t("calendar")}
         </h2>
         {onSettings ? (
-          <Button variant="ghost" size="icon" aria-label="Manage recurring slots" onClick={onSettings}>
+          <Button variant="ghost" size="icon" aria-label={t("manageSlots")} onClick={onSettings}>
             <Settings2 size={16} />
           </Button>
         ) : null}
@@ -128,7 +130,7 @@ export function Calendar({
           move={(direction) => onNavigate({ date: direction < 0 ? data.previousAnchorDate : data.nextAnchorDate })}
           onToday={() => onNavigate({ date: data.todayAnchorDate })}
           renderAction={Action}
-          slotHint={onSelect ? "Select this time to plan a post with ChatGPT" : "Available for a new post"}
+          slotHint={onSelect ? t("slotChatGpt") : t("slotAvailable")}
         />
       </fieldset>
     </section>

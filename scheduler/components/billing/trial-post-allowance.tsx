@@ -7,10 +7,12 @@ import Link from "next/link";
 import { AlertTriangle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { UiCopy } from "@/components/ui-copy";
 import { useBillingStatus } from "@/hooks/use-billing";
 import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
 import type { BillingTrialStatus } from "@/lib/billing/subscriptions";
 import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,12 +21,6 @@ import { cn } from "@/lib/utils";
  * above this.
  */
 export const LOW_REMAINING = 3;
-
-/** "X", or "X and Bluesky", or "X, Bluesky and Threads". */
-function formatPlatformList(labels: string[]): string {
-  if (labels.length <= 1) return labels.join("");
-  return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
-}
 
 /** Warns about platforms that are nearly out, without putting numbers on screen. */
 export function LowAllowanceWarning({
@@ -36,9 +32,10 @@ export function LowAllowanceWarning({
   allUsedUp: boolean;
   className?: string;
 }) {
+  const { copy, locale } = useUiCopy();
   if (platforms.length === 0) return null;
 
-  const names = formatPlatformList(platforms);
+  const names = new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(platforms);
 
   return (
     <div className={cn("rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm", className)}>
@@ -46,15 +43,17 @@ export function LowAllowanceWarning({
         <AlertTriangle className="h-3.5 w-3.5" />
         <p className="font-medium">
           {allUsedUp
-            ? `You have used all your free trial posts for ${names}`
-            : `Almost all your free trial posts for ${names} are used up`}
+            ? copy("You have used all your free trial posts for {{platforms}}", { platforms: names })
+            : copy("Almost all your free trial posts for {{platforms}} are used up", { platforms: names })}
         </p>
       </div>
       <p className="mt-1 text-muted-foreground">
-        <Link href="/billing/plans" className="font-medium text-primary hover:underline">
-          Choose a plan
-        </Link>{" "}
-        to keep posting there.
+        <UiCopy
+          source="<part1>Choose a plan</part1> to keep posting there."
+          components={{
+            part1: <Link href="/billing/plans" className="font-medium text-primary hover:underline" />,
+          }}
+        />
       </p>
     </div>
   );
@@ -167,6 +166,7 @@ export function useTrialPostAllowance({
  * selected accounts are at or near their limit; exact counts stay off screen.
  */
 export function TrialLimitNotice({ allowance }: { allowance: TrialPostAllowance }) {
+  const { copy } = useUiCopy();
   if (!allowance.onTrial) return null;
 
   const { exceeded, runningLow, threadTooLong, maxThreadSegments } = allowance;
@@ -179,14 +179,14 @@ export function TrialLimitNotice({ allowance }: { allowance: TrialPostAllowance 
       <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
         <div className="flex items-center gap-1.5 text-destructive">
           <AlertTriangle className="h-3.5 w-3.5" />
-          <p className="font-medium">Thread is too long</p>
+          <p className="font-medium">{copy("Thread is too long")}</p>
         </div>
         <p className="mt-1 text-muted-foreground">
-          The free trial allows up to {maxThreadSegments} posts in a thread. Shorten it or{" "}
-          <Link href="/billing/plans" className="font-medium text-primary hover:underline">
-            choose a plan
-          </Link>
-          .
+          <UiCopy
+            source="The free trial allows up to {{count, number}} posts in a thread. Shorten it or <part1>choose a plan</part1>."
+            values={{ count: maxThreadSegments ?? 0 }}
+            components={{ part1: <Link href="/billing/plans" className="font-medium text-primary hover:underline" /> }}
+          />
         </p>
       </div>
     );
@@ -204,6 +204,7 @@ export function TrialLimitNotice({ allowance }: { allowance: TrialPostAllowance 
 
 /** Warns about a valid schedule that falls outside the user's active trial. */
 export function TrialExpiryScheduleWarningNotice({ scheduledFor }: { scheduledFor: Date | null }) {
+  const { copy } = useUiCopy();
   const { data: billing } = useBillingStatus();
   const warning = getTrialExpiryScheduleWarning(billing, scheduledFor);
 
@@ -213,14 +214,15 @@ export function TrialExpiryScheduleWarningNotice({ scheduledFor }: { scheduledFo
     <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
       <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
         <AlertTriangle className="h-3.5 w-3.5" />
-        <p className="font-medium">Scheduled after your free trial</p>
+        <p className="font-medium">{copy("Scheduled after your free trial")}</p>
       </div>
       <p className="mt-1 text-muted-foreground">
-        The post will be scheduled, but it will not publish unless you{" "}
-        <Link href="/billing/plans" className="font-medium text-primary hover:underline">
-          choose a plan
-        </Link>{" "}
-        before the scheduled time.
+        <UiCopy
+          source="The post will be scheduled, but it will not publish unless you <part1>choose a plan</part1> before the scheduled time."
+          components={{
+            part1: <Link href="/billing/plans" className="font-medium text-primary hover:underline" />,
+          }}
+        />
       </p>
     </div>
   );
@@ -232,6 +234,7 @@ export function TrialExpiryScheduleWarningNotice({ scheduledFor }: { scheduledFo
  * but the numbers are only worth surfacing when they start to bite.
  */
 export function TrialScheduleNotice() {
+  const { copy, locale } = useUiCopy();
   const trial = useActiveTrial();
 
   const lowPlatforms = useMemo(() => {
@@ -242,8 +245,8 @@ export function TrialScheduleNotice() {
         remaining: Math.max(0, trial.postsPerPlatform - used),
       }))
       .filter((entry) => entry.remaining < LOW_REMAINING)
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [trial]);
+      .sort((a, b) => a.label.localeCompare(b.label, locale));
+  }, [trial, locale]);
 
   if (!trial) return null;
 
@@ -255,10 +258,12 @@ export function TrialScheduleNotice() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Sparkles className="h-4 w-4 text-primary" />
-            Free trial · {trial.daysRemaining} {trial.daysRemaining === 1 ? "day" : "days"} left
+            {copy("Free trial · {{count, number}} days left", { count: trial.daysRemaining })}{" "}
           </div>
           <Button asChild size="sm" variant={lowPlatforms.length > 0 ? "default" : "outline"} className="shrink-0">
-            <Link href="/billing/plans">{lowPlatforms.length > 0 ? "Upgrade to keep posting" : "Upgrade"}</Link>
+            <Link href="/billing/plans">
+              {lowPlatforms.length > 0 ? copy("Upgrade to keep posting") : copy("Upgrade")}
+            </Link>
           </Button>
         </div>
       </div>

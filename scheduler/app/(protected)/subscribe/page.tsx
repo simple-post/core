@@ -9,6 +9,8 @@ import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-curr
 import { getPlanByKey } from "@/lib/billing/plans";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
+import { planName } from "@/lib/i18n/billing-display";
+import { getUiCopy } from "@/lib/i18n/request-copy";
 
 interface SubscribePageProps {
   searchParams?: Promise<{
@@ -18,6 +20,7 @@ interface SubscribePageProps {
 }
 
 export default async function SubscribePage({ searchParams }: SubscribePageProps) {
+  const { copy, locale } = await getUiCopy();
   if (env.SELF_HOSTED) {
     redirect("/");
   }
@@ -43,30 +46,40 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
         {freeTrial ? (
           <div className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] pt-6">
             <Alert className="border-primary/30 bg-primary/10">
-              <AlertTitle>You are on the free trial</AlertTitle>
+              <AlertTitle>{copy("You are on the free trial")}</AlertTitle>
               <AlertDescription>
-                Every feature is unlocked through{" "}
-                {new Date(freeTrial.expiresAt).toLocaleDateString(undefined, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-                . No payment method is required unless you choose a paid plan below.
+                {copy(
+                  "Every feature is unlocked through {{date}}. No payment method is required unless you choose a paid plan below.",
+                  {
+                    date: new Date(freeTrial.expiresAt).toLocaleDateString(locale, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }),
+                  },
+                )}
               </AlertDescription>
             </Alert>
           </div>
         ) : complimentaryPlan ? (
           <div className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] pt-6">
             <Alert className="border-primary/30 bg-primary/10">
-              <AlertTitle>You already have complimentary {complimentaryPlan.name} access</AlertTitle>
-              <AlertDescription>
-                No payment method is required through{" "}
-                {new Date(complimentaryExpiresAt ?? "").toLocaleDateString(undefined, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
+              <AlertTitle>
+                {copy("You already have complimentary {{plan}} access", {
+                  plan: planName(complimentaryPlan.name, copy),
                 })}
-                . Choose a plan below only if you want to start a paid subscription now.
+              </AlertTitle>
+              <AlertDescription>
+                {copy(
+                  "No payment method is required through {{date}}. Choose a plan below only if you want to start a paid subscription now.",
+                  {
+                    date: new Date(complimentaryExpiresAt ?? "").toLocaleDateString(locale, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }),
+                  },
+                )}
               </AlertDescription>
             </Alert>
           </div>
@@ -74,18 +87,22 @@ export default async function SubscribePage({ searchParams }: SubscribePageProps
         {checkout === "cancelled" ? (
           <div className="mx-auto w-full max-w-6xl px-[clamp(18px,4vw,48px)] pt-6">
             <Alert className="border-border bg-card">
-              <AlertTitle>Checkout canceled</AlertTitle>
-              <AlertDescription>No subscription was created. Choose a plan when you are ready.</AlertDescription>
+              <AlertTitle>{copy("Checkout canceled")}</AlertTitle>
+              <AlertDescription>
+                {copy("No subscription was created. Choose a plan when you are ready.")}
+              </AlertDescription>
             </Alert>
           </div>
         ) : null}
         <PlanSelection
-          title={freeTrial || complimentaryPlan ? "Choose a paid plan" : undefined}
+          title={freeTrial || complimentaryPlan ? copy("Choose a paid plan") : undefined}
           description={
             freeTrial
-              ? "Your free trial stays active until you subscribe or it expires."
+              ? copy("Your free trial stays active until you subscribe or it expires.")
               : complimentaryPlan
-                ? "Your complimentary access remains free until you subscribe or it expires. Paid plans are optional."
+                ? copy(
+                    "Your complimentary access remains free until you subscribe or it expires. Paid plans are optional.",
+                  )
                 : undefined
           }
           displayCurrency={displayCurrency}

@@ -123,7 +123,7 @@ if(location.search.includes('review')) {
 window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
  const send=(result)=>event.source.postMessage({jsonrpc:'2.0',id:req.id,result},'*');
- if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
+ if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',locale:new URLSearchParams(location.search).get('locale') || 'en',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
  else if(req.method==='ui/notifications/initialized') {
    if(location.search.includes('launch-error')) event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{isError:true,content:[{type:'text',text:'The workspace could not be opened. Reconnect SimplePost and try again.'}]}},'*');
    else if(location.search.includes('missing-result')) { /* Sidebar host did not deliver the opening result. */ }
@@ -198,6 +198,11 @@ try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: "America/Los_Angeles" });
   const errors = [];
+  const requestedLocales = new Set();
+  page.on("request", (request) => {
+    const locale = new URL(request.url()).pathname.match(/\/mcp-widgets\/locale-(.+)-[A-Z0-9]{8}\.js$/)?.[1];
+    if (locale) requestedLocales.add(locale);
+  });
   page.on("pageerror", (error) => {
     errors.push(error.message);
     console.error("Widget error:", error.message);
@@ -361,6 +366,36 @@ try {
   await ui.getByLabel("Post text", { exact: true }).fill("LinkedIn version");
   await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
+  const setWidgetLocale = (locale) =>
+    page.evaluate(
+      (locale) =>
+        document.querySelector("iframe").contentWindow.postMessage(
+          {
+            jsonrpc: "2.0",
+            method: "ui/notifications/host-context-changed",
+            params: { locale },
+          },
+          "*",
+        ),
+      locale,
+    );
+  await setWidgetLocale("ja-JP");
+  await expect(ui.getByLabel("投稿本文", { exact: true })).toHaveValue("LinkedIn version");
+  await ui.getByText("LinkedIn の公開オプション", { exact: true }).click();
+  const audience = ui.locator(".sp-options").getByRole("combobox");
+  await expect(audience).toHaveAccessibleName(/公開範囲/);
+  await audience.selectOption({ label: "つながり" });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.calls.filter((c) => c.name === "update_post_editor_session").at(-1)?.args.content.accountOptions
+            .linkedin?.visibility,
+      ),
+    )
+    .toBe("CONNECTIONS");
+  await setWidgetLocale("en-US");
+  await expect(ui.getByLabel("Post text", { exact: true })).toHaveValue("LinkedIn version");
   await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "Hide manual editor", exact: true }).click();
@@ -501,6 +536,20 @@ try {
   await ui.getByRole("radio", { name: "Month view", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.calls.at(-1)?.args.view)).toBe("month");
   await expect(ui.getByRole("button", { name: "Expand", exact: true })).toBeVisible();
+  await page.goto(`${base}/?legacy-schedule&week&locale=ar-EG`);
+  await expect(ui.locator("html")).toHaveAttribute("lang", "ar");
+  await expect(ui.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(ui.getByRole("button", { name: "اليوم", exact: true })).toBeVisible();
+  await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
+  await expect(
+    ui.getByText("A little behind the scenes from today’s launch.", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
+  await setWidgetLocale("ja-JP");
+  await expect(ui.locator("html")).toHaveAttribute("lang", "ja");
+  await expect(ui.locator("html")).toHaveAttribute("dir", "ltr");
+  await expect(ui.getByRole("button", { name: "今日", exact: true })).toBeVisible();
+  await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
+  assert.deepEqual([...requestedLocales].sort(), ["ar", "ja"]);
   assert.deepEqual(errors, []);
   console.log(
     "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { assertPlanFeature } from "@/lib/billing/subscriptions";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { generateApiKey, getApiKeyPrefix, hashApiKey } from "@/lib/security/api-keys";
@@ -35,15 +36,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const currentKey = await prisma.apiKey.findUnique({ where: { id } });
 
     if (!currentKey) {
-      throw new NotFoundError("API key not found");
+      throw new NotFoundError(serverMessage("API key not found"));
     }
 
     if (currentKey.userId !== session.user.id) {
-      throw new ForbiddenError("You don't have permission to modify this API key");
+      throw new ForbiddenError(serverMessage("You don't have permission to modify this API key"));
     }
 
     if (currentKey.revokedAt) {
-      throw new BadRequestError("Only active API keys can be rotated");
+      throw new BadRequestError(serverMessage("Only active API keys can be rotated"));
     }
 
     const apiKey = generateApiKey();

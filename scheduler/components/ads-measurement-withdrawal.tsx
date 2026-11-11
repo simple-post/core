@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 
 import { saveAdsPreference } from "@/lib/analytics/ads-preference";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 /** Privacy-page control for previous participants; never offers or creates enrollment. */
 export function AdsMeasurementWithdrawal() {
+  const { copy } = useUiCopy();
   const [preference, setPreference] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     void fetch("/api/analytics/ads-measurement", { cache: "no-store" })
@@ -23,7 +25,7 @@ export function AdsMeasurementWithdrawal() {
   }, []);
   async function withdraw() {
     setBusy(true);
-    setError("");
+    setFailed(false);
     try {
       const response = await fetch("/api/analytics/ads-measurement", {
         method: "POST",
@@ -34,7 +36,7 @@ export function AdsMeasurementWithdrawal() {
       saveAdsPreference(false);
       setPreference("declined");
     } catch {
-      setError("Could not save your preference. Please try again.");
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -44,12 +46,12 @@ export function AdsMeasurementWithdrawal() {
     <div className="mt-4 text-sm">
       {preference === "allowed" ? (
         <button className="rounded border border-border px-3 py-2" disabled={busy} onClick={() => void withdraw()}>
-          Stop sharing conversion events
+          {copy("Stop sharing conversion events")}
         </button>
       ) : (
-        <p role="status">Ad measurement is off for your account.</p>
+        <p role="status">{copy("Ad measurement is off for your account.")}</p>
       )}
-      {error && <p role="status">{error}</p>}
+      {failed && <p role="status">{copy("Could not save your preference. Please try again.")}</p>}
     </div>
   );
 }

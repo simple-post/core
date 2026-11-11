@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { getAppUrl, getOrCreateStripeCustomer, getStripe } from "@/lib/billing/stripe";
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/utils/errors";
@@ -25,7 +26,7 @@ async function readJsonBody(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     if (env.SELF_HOSTED) {
-      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+      throw new NotFoundError(serverMessage("Billing is disabled on this self-hosted instance"));
     }
 
     const session = await requireBrowserSession(req);
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      throw new BadRequestError("User not found");
+      throw new BadRequestError(serverMessage("User not found"));
     }
 
     const customerId = await getOrCreateStripeCustomer({

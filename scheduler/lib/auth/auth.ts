@@ -7,6 +7,9 @@ import { enrollOpenAiMeasurement, syncAdsPermission } from "../analytics/ads-per
 import { acquisitionContext } from "../analytics/first-touch";
 import { env } from "../env";
 import { signupExperiment } from "../experiments/signup";
+import { localeFromRequestHeaders } from "../i18n/locales";
+import { loadMessages } from "../i18n/resources";
+import { createServerCopy } from "../i18n/server";
 import { createLogger } from "../logger";
 import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
@@ -63,6 +66,7 @@ export const auth = betterAuth({
   }),
   user: {
     additionalFields: {
+      uiLocale: { type: "string", required: false, input: false, returned: false },
       analyticsExcluded: { type: "boolean", required: false, input: false, returned: false },
       acquisition: { type: "json", required: false, input: false, returned: false },
       experimentAttribution: { type: "json", required: false, input: false, returned: false },
@@ -111,7 +115,11 @@ export const auth = betterAuth({
       // Carry the failure on this request's context so the form receives an error.
       const delivery = ctx.context as typeof ctx.context & { otpDeliveryFailed?: boolean };
       if (delivery.otpDeliveryFailed) {
-        throw new APIError("SERVICE_UNAVAILABLE", { message: "Failed to send verification code. Please try again." });
+        const locale = localeFromRequestHeaders(ctx.headers ?? ctx.request?.headers);
+        const copy = createServerCopy(locale);
+        throw new APIError("SERVICE_UNAVAILABLE", {
+          message: copy("Failed to send verification code. Please try again."),
+        });
       }
     }),
   },
@@ -139,7 +147,8 @@ export const auth = betterAuth({
       },
       async sendVerificationOTP({ email, otp, type }, ctx) {
         if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return;
-        const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL);
+        const locale = localeFromRequestHeaders(ctx?.headers ?? ctx?.request?.headers);
+        const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL, locale, await loadMessages(locale));
         try {
           await sendEmail(email, message.subject, message.html, message.text);
         } catch (error) {

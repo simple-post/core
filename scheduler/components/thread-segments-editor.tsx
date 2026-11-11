@@ -7,6 +7,7 @@ import { Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { MediaFile, ThreadSegment } from "@/types";
 
 import { getClipboardImageFiles, MediaUpload, type MediaUploadHandle } from "./media-upload";
@@ -33,6 +34,7 @@ export function ThreadSegmentsEditor({
   onPasteMedia,
   maxThreadSegments,
 }: ThreadSegmentsEditorProps) {
+  const { copy } = useUiCopy();
   const mediaUploadRefs = useRef<Array<MediaUploadHandle | null>>([]);
   const atLimit = maxThreadSegments != null && thread.length + 1 >= maxThreadSegments;
 
@@ -59,20 +61,20 @@ export function ThreadSegmentsEditor({
               <div className="flex-1 space-y-2 pb-4 pt-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                    Post {index + 2}
+                    {copy("Post {{index, number}}", { index: index + 2 })}
                   </span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                    aria-label={`Remove post ${index + 2}`}
+                    aria-label={copy("Remove post {{index, number}}", { index: index + 2 })}
                     onClick={() => onRemove(index)}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
                 <Textarea
-                  placeholder="Continue your thread…"
+                  placeholder={copy("Continue your thread…")}
                   value={segment.message}
                   onChange={(e) => onMessageChange(index, e.target.value)}
                   onPaste={(event) => handlePaste(index, event)}
@@ -100,7 +102,7 @@ export function ThreadSegmentsEditor({
         disabled={atLimit}
         onClick={onAdd}>
         <Plus className="h-3.5 w-3.5" />
-        {atLimit ? `Thread limit (${maxThreadSegments})` : "Add to thread"}
+        {atLimit ? copy("Thread limit ({{limit, number}})", { limit: maxThreadSegments ?? 0 }) : copy("Add to thread")}
       </Button>
     </>
   );

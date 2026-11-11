@@ -48,7 +48,9 @@ test.beforeAll(async () => {
             "next/link": "export {default as default} from 'react-link-mock';",
             "next/navigation": `
             const params = new URLSearchParams();
+            const router = { refresh() {}, replace() {} };
             export const usePathname = () => location.pathname;
+            export const useRouter = () => router;
             export const useSearchParams = () => params;
           `,
             "@/lib/auth/auth-client": `export const useSession = () => ({data: {user: {name: 'Test User', email: 'test@example.test'}}}); export const authClient = {};`,

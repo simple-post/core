@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
 import { createLogger, serializeError } from "@/lib/logger";
 import { resolveMcpResource } from "@/lib/mcp/config";
 import { cleanupExpired, exchangeCodeForToken, hashValue } from "@/lib/mcp/oauth";
@@ -7,14 +10,14 @@ import { prisma } from "@/lib/prisma";
 
 const log = createLogger("api:oauth:token");
 
-const ERROR_DESCRIPTIONS: Record<string, string> = {
-  code_not_found: "Authorization code not found or already used",
-  user_not_found: "The authorizing user no longer exists",
-  client_mismatch: "Client ID does not match the authorization code",
-  redirect_uri_mismatch: "Redirect URI does not match the authorization code",
-  resource_mismatch: "Resource does not match the authorization code",
-  code_expired: "Authorization code has expired",
-  pkce_failed: "PKCE code_verifier validation failed",
+const ERROR_DESCRIPTIONS: Record<string, ReturnType<typeof serverMessage>> = {
+  code_not_found: serverMessage("Authorization code not found or already used"),
+  user_not_found: serverMessage("The authorizing user no longer exists"),
+  client_mismatch: serverMessage("Client ID does not match the authorization code"),
+  redirect_uri_mismatch: serverMessage("Redirect URI does not match the authorization code"),
+  resource_mismatch: serverMessage("Resource does not match the authorization code"),
+  code_expired: serverMessage("Authorization code has expired"),
+  pkce_failed: serverMessage("PKCE code_verifier validation failed"),
 };
 
 function parseBasicAuth(authHeader: string | null): { clientId: string; clientSecret: string } | null {
@@ -60,10 +63,9 @@ export async function POST(req: NextRequest) {
     const resource = params.resource;
 
     if (grant_type !== "authorization_code") {
-      return NextResponse.json(
-        { error: "unsupported_grant_type", error_description: "Only authorization_code is supported" },
-        { status: 400 },
-      );
+      return oauthError(req, "unsupported_grant_type", serverMessage("Only authorization_code is supported"), {
+        status: 400,
+      });
     }
 
     if (!code || !client_id || !redirect_uri || !code_verifier) {
@@ -73,8 +75,10 @@ export async function POST(req: NextRequest) {
         !redirect_uri && "redirect_uri",
         !code_verifier && "code_verifier",
       ].filter(Boolean);
-      return NextResponse.json(
-        { error: "invalid_request", error_description: `Missing required parameters: ${missing.join(", ")}` },
+      return oauthError(
+        req,
+        "invalid_request",
+        serverMessage("Missing required parameters: {{parameters}}", { parameters: missing.join(", ") }),
         { status: 400 },
       );
     }
@@ -83,11 +87,14 @@ export async function POST(req: NextRequest) {
     try {
       resolvedResource = resolveMcpResource(resource);
     } catch (error) {
-      return NextResponse.json(
-        {
-          error: "invalid_target",
-          error_description: error instanceof Error ? error.message : "Unsupported MCP resource",
-        },
+      return oauthError(
+        req,
+        "invalid_target",
+        typeof resource === "string"
+          ? serverMessage("Unsupported MCP resource: {{resource}}", { resource })
+          : error instanceof Error
+            ? error.message
+            : serverMessage("Unsupported MCP resource"),
         { status: 400 },
       );
     }
@@ -98,22 +105,16 @@ export async function POST(req: NextRequest) {
     });
 
     if (!client) {
-      return NextResponse.json({ error: "invalid_client", error_description: "Unknown client" }, { status: 401 });
+      return oauthError(req, "invalid_client", serverMessage("Unknown client"), { status: 401 });
     }
 
     // If client has a secret, verify it
     if (client.clientSecret) {
       if (!client_secret) {
-        return NextResponse.json(
-          { error: "invalid_client", error_description: "Client secret required" },
-          { status: 401 },
-        );
+        return oauthError(req, "invalid_client", serverMessage("Client secret required"), { status: 401 });
       }
       if (hashValue(client_secret) !== client.clientSecret) {
-        return NextResponse.json(
-          { error: "invalid_client", error_description: "Invalid client secret" },
-          { status: 401 },
-        );
+        return oauthError(req, "invalid_client", serverMessage("Invalid client secret"), { status: 401 });
       }
     }
 
@@ -128,10 +129,7 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       log.warn({ error: result.error, clientId: client_id, redirectUri: redirect_uri }, "Token exchange failed");
-      return NextResponse.json(
-        { error: "invalid_grant", error_description: ERROR_DESCRIPTIONS[result.error] || result.error },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_grant", ERROR_DESCRIPTIONS[result.error] || result.error, { status: 400 });
     }
 
     void cleanupExpired().catch((error) => {
@@ -148,9 +146,8 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log.error({ err: serializeError(error) }, "Token endpoint error");
-    return NextResponse.json(
-      { error: "server_error", error_description: `Token exchange failed: ${message}` },
-      { status: 500 },
-    );
+    return oauthError(req, "server_error", serverMessage("Token exchange failed: {{detail}}", { detail: message }), {
+      status: 500,
+    });
   }
 }

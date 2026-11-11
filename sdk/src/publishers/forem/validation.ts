@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 export const FOREM_MAX_BODY_LENGTH = 100_000;
@@ -12,40 +13,62 @@ export function validateForemContent(content: Content): ValidationResult {
   const text = content.text ?? "";
   const media = content.media ?? [];
   if (!text.trim() && media.length === 0)
-    errors.push({
-      platform: "forem",
-      severity: "error",
-      code: "content_required",
-      message: "Forem articles require body text or media.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "forem",
+          severity: "error",
+          code: "content_required",
+          message: "Forem articles require body text or media.",
+          field: "text",
+        },
+        "Forem articles require body text or media.",
+      ),
+    );
   if (text.length > FOREM_MAX_BODY_LENGTH)
-    errors.push({
-      platform: "forem",
-      severity: "error",
-      code: "text_too_long",
-      message: `Forem article bodies cannot exceed ${FOREM_MAX_BODY_LENGTH} characters in SimplePost.`,
-      field: "text",
-      limit: FOREM_MAX_BODY_LENGTH,
-      actual: text.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "forem",
+          severity: "error",
+          code: "text_too_long",
+          message: `Forem article bodies cannot exceed ${FOREM_MAX_BODY_LENGTH} characters in SimplePost.`,
+          field: "text",
+          limit: FOREM_MAX_BODY_LENGTH,
+          actual: text.length,
+        },
+        "Forem article bodies cannot exceed {{FOREM_MAX_BODY_LENGTH}} characters in SimplePost.",
+        { FOREM_MAX_BODY_LENGTH: String(FOREM_MAX_BODY_LENGTH) },
+      ),
+    );
   if (media.length > FOREM_MAX_MEDIA_COUNT)
-    errors.push({
-      platform: "forem",
-      severity: "error",
-      code: "too_many_media",
-      message: `Forem articles support at most ${FOREM_MAX_MEDIA_COUNT} media URLs in SimplePost.`,
-      field: "media",
-      limit: FOREM_MAX_MEDIA_COUNT,
-      actual: media.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "forem",
+          severity: "error",
+          code: "too_many_media",
+          message: `Forem articles support at most ${FOREM_MAX_MEDIA_COUNT} media URLs in SimplePost.`,
+          field: "media",
+          limit: FOREM_MAX_MEDIA_COUNT,
+          actual: media.length,
+        },
+        "Forem articles support at most {{FOREM_MAX_MEDIA_COUNT}} media URLs in SimplePost.",
+        { FOREM_MAX_MEDIA_COUNT: String(FOREM_MAX_MEDIA_COUNT) },
+      ),
+    );
   if (media.some((item) => !item.url))
-    errors.push({
-      platform: "forem",
-      severity: "error",
-      code: "media_url_required",
-      message: "Forem media must use public URLs.",
-      field: "media",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "forem",
+          severity: "error",
+          code: "media_url_required",
+          message: "Forem media must use public URLs.",
+          field: "media",
+        },
+        "Forem media must use public URLs.",
+      ),
+    );
   return { errors, warnings, isValid: errors.length === 0 };
 }

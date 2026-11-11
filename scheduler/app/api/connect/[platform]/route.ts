@@ -4,6 +4,7 @@ import { handoffSource } from "@/lib/accounts/assistant-handoff";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
@@ -22,12 +23,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform, source } });
 
     if (!isSocialPlatformEnabled(platform)) {
-      throw new BadRequestError("Social platform is not enabled in this environment");
+      throw new BadRequestError(serverMessage("Social platform is not enabled in this environment"));
     }
 
     const config = getPlatformOAuthConfig(platform);
     if (!config || !config.clientId) {
-      throw new BadRequestError("Platform not supported or not configured");
+      throw new BadRequestError(serverMessage("Platform not supported or not configured"));
     }
 
     const baseURL = env.NEXT_PUBLIC_APP_URL;

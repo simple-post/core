@@ -15,7 +15,11 @@ jest.mock("@/lib/auth/auth-client", () => ({
   useSession: () => mockSession,
   authClient: { emailOtp: { sendVerificationOtp: (...args: unknown[]) => mockSendOtp(...args) } },
 }));
-jest.mock("next/navigation", () => ({ usePathname: () => "/schedule", useSearchParams: () => mockParams }));
+jest.mock("next/navigation", () => ({
+  usePathname: () => "/schedule",
+  useSearchParams: () => mockParams,
+  useRouter: () => ({ refresh: jest.fn() }),
+}));
 jest.mock("@/components/activation-analytics", () => ({ ActivationAnalytics: () => null }));
 jest.mock("@/components/billing/subscription-gate", () => ({ SubscriptionGate: () => null }));
 jest.mock("@/components/create-post-webmcp", () => ({ WebMcpProvider: () => null }));

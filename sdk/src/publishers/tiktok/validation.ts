@@ -1,3 +1,4 @@
+import { displayMessage, withDisplayMessage, type DisplayMessage } from "../../validation/display-message";
 import { TikTokOptionsSchema } from "../../types/post";
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
@@ -56,15 +57,19 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
   const warnings: ValidationIssue[] = [];
   const media = content.media ?? [];
   const { images, videos } = countMedia(media);
-  const add = (code: string, message: string, field: string, limit?: number, actual?: number) => {
-    errors.push({
-      platform: "tiktok",
-      severity: "error",
-      code,
-      message,
-      field,
-      ...(limit === undefined ? {} : { limit, actual }),
-    });
+  const add = (code: string, message: string | DisplayMessage, field: string, limit?: number, actual?: number) => {
+    errors.push(
+      withDisplayMessage(
+        {
+          platform: "tiktok",
+          severity: "error",
+          code,
+          field,
+          ...(limit === undefined ? {} : { limit, actual }),
+        },
+        message,
+      ),
+    );
   };
   const parsed = TikTokOptionsSchema.safeParse(options);
   if (!parsed.success) {
@@ -72,12 +77,16 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
       add("invalid_option", issue.message, `options.tiktok.${issue.path.join(".")}`);
     return { errors, warnings, isValid: false };
   }
-  if (media.length === 0) add("media_required", "TikTok posts require at least one media item.", "media");
-  if (images && videos) add("mixed_media", "TikTok posts cannot mix photos and videos.", "media");
-  if (videos > 1) add("too_many_media", "TikTok video posts support exactly one video.", "media", 1, videos);
-  if (images > 35) add("too_many_media", "TikTok photo posts support up to 35 images.", "media", 35, images);
+  if (media.length === 0)
+    add("media_required", displayMessage("TikTok posts require at least one media item."), "media");
+  if (images && videos) add("mixed_media", displayMessage("TikTok posts cannot mix photos and videos."), "media");
+  if (videos > 1)
+    add("too_many_media", displayMessage("TikTok video posts support exactly one video."), "media", 1, videos);
+  if (images > 35)
+    add("too_many_media", displayMessage("TikTok photo posts support up to 35 images."), "media", 35, images);
   for (const [index, item] of media.entries()) {
-    if (!hasMediaSource(item)) add("media_source_missing", "Media must have either a path or url.", `media[${index}]`);
+    if (!hasMediaSource(item))
+      add("media_source_missing", displayMessage("Media must have either a path or url."), `media[${index}]`);
     if (item.type !== "image") continue;
     let source = item.path ?? "";
     if (item.url && !item.path) {
@@ -86,12 +95,12 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
         if (url.protocol !== "https:" || url.username || url.password)
           add(
             "photo_url_invalid",
-            "TikTok photos require a public HTTPS URL without credentials.",
+            displayMessage("TikTok photos require a public HTTPS URL without credentials."),
             `media[${index}].url`,
           );
         source = url.pathname;
       } catch {
-        add("photo_url_invalid", "TikTok photos require a valid HTTPS URL.", `media[${index}].url`);
+        add("photo_url_invalid", displayMessage("TikTok photos require a valid HTTPS URL."), `media[${index}].url`);
       }
     }
     const extension = source
@@ -102,7 +111,7 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
     if (extension && !["jpg", "jpeg", "webp"].includes(extension))
       add(
         "photo_format_unsupported",
-        "TikTok photos must be JPEG or WebP. Convert this image before posting.",
+        displayMessage("TikTok photos must be JPEG or WebP. Convert this image before posting."),
         `media[${index}]`,
       );
   }
@@ -111,7 +120,9 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
   if (text.title.length > titleLimit)
     add(
       "caption_too_long",
-      `TikTok ${images ? "photo titles" : "video captions"} cannot exceed ${titleLimit} characters.`,
+      images
+        ? displayMessage("TikTok photo titles cannot exceed {{titleLimit}} characters.", { titleLimit })
+        : displayMessage("TikTok video captions cannot exceed {{titleLimit}} characters.", { titleLimit }),
       options.title === undefined ? (images ? "media[0].caption" : "text") : "options.tiktok.title",
       titleLimit,
       text.title.length,
@@ -119,7 +130,7 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
   if (text.description && text.description.length > TIKTOK_MAX_PHOTO_CAPTION_LENGTH)
     add(
       "caption_too_long",
-      "TikTok photo descriptions cannot exceed 4000 characters.",
+      displayMessage("TikTok photo descriptions cannot exceed 4000 characters."),
       options.description === undefined ? "text" : "options.tiktok.description",
       4000,
       text.description.length,
@@ -127,13 +138,15 @@ export function validateTikTokContent(content: Content, options: TikTokOptions =
   if (options.photoCoverIndex !== undefined && (!images || options.photoCoverIndex >= images))
     add(
       "photo_cover_invalid",
-      "Choose a cover index within the attached photos (starting at 0).",
+      displayMessage("Choose a cover index within the attached photos (starting at 0)."),
       "options.tiktok.photoCoverIndex",
     );
   if (options.autoAddMusic === true && (!images || videos || options.publishMode === "draft"))
     add(
       "auto_music_unavailable",
-      "Automatic music is available only for directly published photo posts. Turn it off to upload to the TikTok inbox and add music manually.",
+      displayMessage(
+        "Automatic music is available only for directly published photo posts. Turn it off to upload to the TikTok inbox and add music manually.",
+      ),
       "options.tiktok.autoAddMusic",
     );
   errors.push(

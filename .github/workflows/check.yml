@@ -169,6 +169,11 @@ jobs:
       run: corepack enable
     - name: Install dependencies
       run: yarn install --immutable
+    - name: Validate complete scheduler localization
+      run: |
+        yarn workspace @simple-post/scheduler test:i18n
+        yarn workspace @simple-post/scheduler i18n:copy:check
+        yarn workspace @simple-post/scheduler artwork:check
     - name: Run Scheduler tests
       env:
         NODE_OPTIONS: --max_old_space_size=4096

@@ -36,3 +36,15 @@ describe("posting progress stream", () => {
     expect(events).toEqual([{ type: "error", error: "Not allowed", status: 403 }]);
   });
 });
+
+it("preserves existing API codes and additive reasons through streamed validation failures", async () => {
+  const payload = {
+    error: "LOCALE_MESSAGE",
+    code: "BAD_REQUEST",
+    reason: "INVALID_SCHEDULED_TIME",
+    details: { field: "scheduledFor", message: "LOCALE_DETAIL" },
+  };
+  const response = createPostingProgressStream(async () => Response.json(payload, { status: 400 }));
+  const body = await response.text();
+  expect(JSON.parse(body.trim())).toEqual({ type: "error", status: 400, ...payload });
+});

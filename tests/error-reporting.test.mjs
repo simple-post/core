@@ -110,9 +110,10 @@ test("both destinations start independently; the same report body and full stack
   assert.equal(calls.length, 2);
   const log = calls.find((call) => call.url.includes("collector")).body.resourceLogs[0].scopeLogs[0].logRecords[0];
   const telegram = calls.find((call) => call.url.includes("telegram")).body;
-  assert.equal(log.body.stringValue, telegram.text);
+  assert.equal(log.body.stringValue, report.summary);
+  assert.ok(telegram.text.includes(`<code>${report.id}</code>`));
   assert.ok(log.attributes.some((attribute) => attribute.key === "exception.stacktrace"));
-  assert.equal(telegram.parse_mode, undefined);
+  assert.equal(telegram.parse_mode, "HTML");
   release();
   await delivery;
 });
@@ -199,4 +200,60 @@ test("long summaries retain the correlation ID within Telegram limits", () => {
   assert.ok(report.summary.length <= 3900);
   assert.ok(report.summary.endsWith(report.id));
   assert.equal(report.attributes["exception.message"].length, 5000);
+});
+
+test("Telegram escapes diagnostic values, groups context and keeps the report ID copyable", async () => {
+  configured();
+  let text;
+  mock.method(globalThis, "fetch", async (url, options) => {
+    if (url.includes("telegram")) text = JSON.parse(options.body).text;
+    return new Response('{"ok":true}');
+  });
+  const error = new Error("Bad <field> & value " + "&".repeat(2000));
+  const report = buildErrorReport("Simple <Example>", error, {
+    area: "browser.render",
+    path: "/<draft>",
+    surface: "web",
+    agent: "Chrome",
+    country: "DE",
+    userEmail: "unknown",
+    willRetry: true,
+  });
+  await sendErrorReport(report, { service: "simple" });
+  assert.ok(text.startsWith("🔁 <b>Simple &lt;Example&gt;</b> · Retrying\n\n"));
+  assert.ok(text.includes("<b>Bad &lt;field&gt; &amp; value "));
+  assert.ok(text.includes("<b>Where</b>  browser.render · <code>/&lt;draft&gt;</code>"));
+  assert.ok(text.includes("<b>Client</b>  web · Chrome · DE"));
+  assert.ok(!text.includes("<b>User</b>"));
+  assert.ok(text.length <= 3900);
+  assert.ok(text.endsWith(`<b>Report</b>  <code>${report.id}</code>`));
+});
+
+test("only blocking browser failures alert; backend errors always alert", async () => {
+  configured();
+  const calls = [];
+  mock.method(globalThis, "fetch", async (url) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  });
+  for (const [context, expected] of [
+    [{ errorSource: "browser", browserCritical: false, area: "browser.window.resource-error" }, false],
+    [{ errorSource: "browser", area: "browser.window.unhandledrejection" }, false],
+    [{ errorSource: "browser", browserCritical: true, area: "browser.app.error-boundary" }, true],
+    [{ surface: "web", area: "api.upload", browserCritical: false }, true],
+    [{ surface: "mcp", area: "mcp.tool" }, true],
+    [{ surface: "worker", area: "job.failed" }, true],
+  ]) {
+    calls.length = 0;
+    const report = buildErrorReport("Simple", new Error("failed"), context);
+    await sendErrorReport(report, { service: "simple" });
+    assert.equal(
+      calls.some((url) => url.includes("api.telegram.org")),
+      expected,
+    );
+    assert.ok(
+      calls.some((url) => url.includes("collector.example")),
+      "all diagnostics reach SigNoz",
+    );
+  }
 });

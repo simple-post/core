@@ -37,7 +37,10 @@ describe("Pino error report integration", () => {
       expect(summary).toContain("user@example.com");
       expect(summary).toContain("Provider unavailable");
       expect(summary).not.toContain("at Object");
-      expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).text).toBe(summary);
+      const telegram = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+      expect(telegram.parse_mode).toBe("HTML");
+      expect(telegram.text).toContain("<b>Provider unavailable</b>");
+      expect(telegram.text).toContain(`<code>${attributes["error.id"]}</code>`);
     } finally {
       process.env = originalEnv;
       fetcher.mockRestore();

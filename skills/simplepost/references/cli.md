@@ -2,6 +2,8 @@
 
 Use the CLI for terminal workflows, scripts, CI jobs, and local coding agents that can run shell commands.
 
+Posting sends content and media to external social platforms. Establish explicit permission for the selected action, accounts, content, media, and audience before a write. Use the CLI's interactive credential setup or an approved secret manager; never search the user's files or environment for existing secrets or display credentials in chat or logs. Connected-account media uploads produce URLs internet-accessible to anyone with the URL, so obtain approval before uploading private, sensitive, or embargoed media.
+
 ## Commands
 
 In this repo:

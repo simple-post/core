@@ -10,6 +10,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   const { copy } = useUiCopy();
   useEffect(() => {
     logClientError(error, "Unhandled React error boundary error", {
+      area: "app.error-boundary",
       digest: error.digest,
       documentLanguage: document.documentElement.lang,
       translated:

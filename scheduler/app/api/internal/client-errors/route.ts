@@ -113,6 +113,10 @@ export async function POST(req: NextRequest) {
     const logPayload = {
       ...requestErrorContext(req.headers, new URL(req.url).pathname, req.method),
       surface: "web",
+      errorSource: "browser",
+      browserCritical: ["app.error-boundary", "app.global-error-boundary"].includes(
+        getStringField(payload.context, "area") || "",
+      ),
       userEmail: session?.user?.email,
       err: payload.error,
       // OpenTelemetry log exporters may omit nested Pino objects such as

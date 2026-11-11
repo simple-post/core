@@ -69,3 +69,14 @@ Keep the v1 reporting module and its contract tests synchronized across repos. N
 Validation: `npm run test:error-reporting` checks stack preservation, redaction, concurrent-user isolation, classification, independent sink failure, logs-only configuration and repeated-error delivery without real network calls. The PR workflow runs these contract tests without production secrets.
 
 Reference: [SigNoz exception fields](https://signoz.io/docs/userguide/exceptions/) and [Next.js request-error instrumentation](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation).
+
+
+## Browser alert priority
+
+Backend error/fatal reports (HTTP 5xx, unexpected MCP failures and worker failures)
+continue to send immediate Telegram alerts, including backend requests from web clients.
+Browser ingress explicitly marks `error.source=browser`. Only reports from blocking
+React/Next.js error boundaries have `browser.critical=true` and send Telegram alerts.
+Resource failures, global browser errors, unhandled promises and recoverable hydration
+errors remain in SigNoz with their original message, stack and context. They do not
+send Telegram messages. The browser surface alone never suppresses a backend alert.

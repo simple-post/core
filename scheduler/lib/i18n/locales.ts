@@ -20,6 +20,28 @@ export type Locale = keyof typeof languageNames;
 export const locales = Object.keys(languageNames) as Locale[];
 export const localeCookie = "ui_locale";
 
+const localeFlags: Record<Locale, string> = {
+  en: "🇬🇧",
+  es: "🇪🇸",
+  "pt-BR": "🇧🇷",
+  fr: "🇫🇷",
+  de: "🇩🇪",
+  ja: "🇯🇵",
+  it: "🇮🇹",
+  ko: "🇰🇷",
+  "zh-Hans": "🇨🇳",
+  "zh-Hant": "🇹🇼",
+  ar: "🇸🇦",
+  hi: "🇮🇳",
+  id: "🇮🇩",
+  tr: "🇹🇷",
+  bg: "🇧🇬",
+};
+
+export function localeLabel(locale: Locale): string {
+  return `${localeFlags[locale]} ${locale.toUpperCase()}`;
+}
+
 export function normalizeLocale(value: unknown): Locale | undefined {
   if (typeof value !== "string" || value.length > 100) return;
   try {

@@ -8,6 +8,7 @@ import { ClientErrorLogger } from "@/components/client-error-logger";
 import { Toaster } from "@/components/ui/sonner";
 import { env } from "@/lib/env";
 import { UiLocaleProvider } from "@/lib/i18n/client";
+import { UiLanguageSelect } from "@/lib/i18n/language-select";
 import { direction } from "@/lib/i18n/locales";
 import { getUiTranslation } from "@/lib/i18n/request";
 import { schedulerMetadata } from "@/lib/i18n/social-metadata";
@@ -43,7 +44,7 @@ export default async function RootLayout({
   const { locale, messages, t } = await getUiTranslation();
   return (
     <html lang={locale} dir={direction(locale)} className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="antialiased">
+      <body className="antialiased flex min-h-svh flex-col">
         <UiLocaleProvider locale={locale} messages={messages}>
           <QueryClientProvider>
             <ClientErrorLogger />
@@ -52,7 +53,14 @@ export default async function RootLayout({
                 <AppAnalytics />
               </Suspense>
             )}
-            <Suspense fallback={<div>{t("loading")}</div>}>{children}</Suspense>
+            <div className="app-content flex-1">
+              <Suspense fallback={<div>{t("loading")}</div>}>{children}</Suspense>
+            </div>
+            <footer className="flex h-14 shrink-0 items-center justify-center px-6 text-muted-foreground">
+              <Suspense fallback={null}>
+                <UiLanguageSelect />
+              </Suspense>
+            </footer>
             <Toaster />
           </QueryClientProvider>
         </UiLocaleProvider>

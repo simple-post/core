@@ -15,7 +15,6 @@ import { authClient } from "@/lib/auth/auth-client";
 import { loginCallbackUrl } from "@/lib/auth/callback-url";
 import { isTestUserEmail } from "@/lib/auth/test-users";
 import { useUiTranslation } from "@/lib/i18n/client";
-import { UiLanguageSelect } from "@/lib/i18n/language-select";
 import { logClientError } from "@/lib/logger/client";
 
 interface LoginFormProps {
@@ -391,9 +390,6 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
                     ),
                   )}
               </p>
-            </div>
-            <div className="text-center">
-              <UiLanguageSelect className="rounded-md border border-border bg-background px-2 py-1 text-sm" />
             </div>
           </CardContent>
         </Card>

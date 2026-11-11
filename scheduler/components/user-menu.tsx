@@ -1,7 +1,5 @@
 "use client";
 
-import { useUiTranslation } from "@/lib/i18n/client";
-import { UiLanguageSelect } from "@/lib/i18n/language-select";
 
 import { useState } from "react";
 
@@ -20,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession, authClient } from "@/lib/auth/auth-client";
+import { useUiTranslation } from "@/lib/i18n/client";
 import { logClientError } from "@/lib/logger/client";
 
 export function UserMenu() {
@@ -101,9 +100,6 @@ export function UserMenu() {
             {t("aiIntegrations")}
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuLabel>
-          <UiLanguageSelect className="w-full rounded-md border border-border bg-background px-2 py-1" />
-        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={isLoading}>
           {isLoading ? t("signingOut") : t("signOut")}

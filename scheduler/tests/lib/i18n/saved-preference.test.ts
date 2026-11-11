@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 
 import { GET, PATCH } from "@/app/api/ui-preference/route";
-import { cookieLocale, localeFromRequestHeaders } from "@/lib/i18n/locales";
+import { cookieLocale, localeFromRequestHeaders, locales } from "@/lib/i18n/locales";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { UnauthorizedError } from "@/lib/utils/errors";
@@ -54,4 +54,9 @@ it("resolves cookie then saved preference then ranked browser languages without 
   );
   expect(localeFromRequestHeaders(new Headers({ "accept-language": "fr;q=0.3,ja;q=0.9" }))).toBe("ja");
   expect(cookieLocale(new Headers({ cookie: "other=ar" }))).toBeUndefined();
+});
+
+it.each(locales)("uses browser language %s on the first visit and respects a later manual choice", (locale) => {
+  expect(localeFromRequestHeaders(new Headers({ "accept-language": `${locale};q=1,en;q=0.2` }))).toBe(locale);
+  expect(localeFromRequestHeaders(new Headers({ cookie: "ui_locale=bg", "accept-language": locale }))).toBe("bg");
 });

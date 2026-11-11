@@ -50,7 +50,9 @@ it("shows only flags and uppercase locale codes with accessible native names", (
   expect(select.getAttribute("dir")).toBe("ltr");
   expect(select.getAttribute("title")).toBe(languageNames.ar);
   expect(container.querySelector("label.locale-control svg[aria-hidden='true'] ellipse")).not.toBeNull();
-  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(locales.map(localeLabel));
+  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(
+    locales.map((locale) => localeLabel(locale)),
+  );
   for (const locale of locales) {
     expect(screen.getByRole("option", { name: languageNames[locale] }).getAttribute("value")).toBe(locale);
   }

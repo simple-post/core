@@ -27,13 +27,15 @@ Confirm the installation resolves as a bundle package with the SimplePost skill 
 Use the latest ClawHub CLI from the repository root:
 
 ```bash
-npx --yes clawhub@0.25.1 package validate ./integrations/openclaw
+npx --yes clawhub@0.25.1 package validate ./integrations/openclaw --out /tmp/simplepost-clawhub-inspector
 npx --yes clawhub@0.25.1 package publish ./integrations/openclaw --family bundle-plugin --dry-run
 npx --yes clawhub@0.25.1 login
 npx --yes clawhub@0.25.1 package publish ./integrations/openclaw --family bundle-plugin --wait
 ```
 
 The catalog icon is `integrations/openclaw/assets/icon.png`, a 512 × 512 PNG under the 512 KiB limit. The unscoped package name is `simplepost`. Before the first real publish, check that the name is available. If publishing under an organization scope, claim or create the ClawHub publisher first and change the package name to the matching scope only after that owner exists.
+
+Keep inspector reports outside the package directory. The ClawHub publisher can include ignored report files despite `.gitignore` and the npm `files` list. Before publishing, run `node --test scripts/plugin-packaging.test.mjs` and inspect the dry-run file count; this bundle should contain 17 publishable files, without inspector reports or local operator paths.
 
 New releases remain out of public install surfaces until ClawHub's automated security checks and verification complete. Inspect the published package and its file list before announcing it.
 

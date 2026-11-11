@@ -30,6 +30,9 @@ test("generated Claude and OpenClaw adapters are current", async () => {
 
 test("OpenClaw release metadata agrees and declares no executable extension", async () => {
   const base = path.join(root, "integrations/openclaw");
+  for (const file of await treeFiles(base)) {
+    assert(!/(^|\/)(reports|node_modules|\.git|\.env[^/]*|\.DS_Store)(\/|$)/.test(file), `Do not publish local artifacts: ${file}`);
+  }
   const manifests = await Promise.all(["package.json", "plugin.json", ".codex-plugin/plugin.json"].map(async file => JSON.parse(await readFile(path.join(base, file), "utf8"))));
   assert.equal(new Set(manifests.map(item => item.version)).size, 1);
   assert.equal(manifests[0].openclaw?.extensions, undefined);

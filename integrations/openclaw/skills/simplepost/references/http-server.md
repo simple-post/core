@@ -2,6 +2,8 @@
 
 Use the HTTP API for service-to-service posting from any language. The self-hosted server is a stateless wrapper around `@simple-post/sdk`; the Scheduler app exposes a related `/api/v1` contract with accounts, uploads, posts, validation, and scheduling.
 
+Posting transmits content and media to the selected social platforms. Establish the user's explicit permission for the exact action and payload before running a write. Keep API keys and platform credentials in server-side secret storage, never client-side code, chat, logs, or a public repository. Do not inspect existing local credential files or environment values to obtain them.
+
 ## Self-Hosted Server
 
 Use this when:
@@ -43,7 +45,7 @@ curl -X POST https://posts.example.com/api/v1/upload \
   -F "file=@photo.jpg"
 ```
 
-The returned URL must be publicly reachable by social platforms. Configure `SIMPLE_POST_PUBLIC_URL` correctly.
+The returned URL must be publicly reachable by social platforms. Uploaded media is internet-accessible to anyone with the URL, even if the post is only a draft. Warn the user and obtain approval before uploading private, sensitive, or embargoed media. Configure `SIMPLE_POST_PUBLIC_URL` correctly.
 
 ## Post Request
 

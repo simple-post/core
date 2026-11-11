@@ -27,12 +27,14 @@ Confirm the installation resolves as a bundle package with the SimplePost skill 
 Use the latest ClawHub CLI from the repository root:
 
 ```bash
-clawhub package validate ./integrations/openclaw
-clawhub package publish ./integrations/openclaw --family bundle-plugin --dry-run
-clawhub login
-clawhub package publish ./integrations/openclaw --family bundle-plugin --wait
+npx --yes clawhub@0.25.1 package validate ./integrations/openclaw
+npx --yes clawhub@0.25.1 package publish ./integrations/openclaw --family bundle-plugin --dry-run
+npx --yes clawhub@0.25.1 login
+npx --yes clawhub@0.25.1 package publish ./integrations/openclaw --family bundle-plugin --wait
 ```
 
 The catalog icon is `integrations/openclaw/assets/icon.png`, a 512 × 512 PNG under the 512 KiB limit. The unscoped package name is `simplepost`. Before the first real publish, check that the name is available. If publishing under an organization scope, claim or create the ClawHub publisher first and change the package name to the matching scope only after that owner exists.
 
 New releases remain out of public install surfaces until ClawHub's automated security checks and verification complete. Inspect the published package and its file list before announcing it.
+
+For the 1.0.1 review-hardening release, the skill explains write authorization, public media URLs (including drafts and media preflight), TikTok audience selection, and developer-only credential setup. Its default prompt requests a preview without writes. Do not claim the audit findings are cleared until the registry has audited this exact release; local validation and publication dry-run do not establish that.

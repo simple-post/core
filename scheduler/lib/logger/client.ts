@@ -89,7 +89,10 @@ function isDuplicate(payload: ClientErrorPayload): boolean {
   const name = typeof error?.name === "string" ? error.name : "";
   const message = typeof error?.message === "string" ? error.message : "";
   const stackFrame = typeof error?.stack === "string" ? (error.stack.split("\n")[1] ?? "").trim() : "";
-  const signature = `${payload.level}|${name}|${message || payload.message}|${stackFrame}`;
+  const priority = ["app.error-boundary", "app.global-error-boundary"].includes(String(payload.context?.area))
+    ? "critical"
+    : "diagnostic";
+  const signature = `${priority}|${payload.level}|${name}|${message || payload.message}|${stackFrame}`;
 
   const now = Date.now();
   // Opportunistically prune stale entries so the map cannot grow unbounded.

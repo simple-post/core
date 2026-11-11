@@ -8,6 +8,7 @@ import { logClientError } from "@/lib/logger/client";
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     logClientError(error, "Unhandled React error boundary error", {
+      area: "app.error-boundary",
       digest: error.digest,
       documentLanguage: document.documentElement.lang,
       translated:

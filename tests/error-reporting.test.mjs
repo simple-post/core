@@ -228,3 +228,32 @@ test("Telegram escapes diagnostic values, groups context and keeps the report ID
   assert.ok(text.length <= 3900);
   assert.ok(text.endsWith(`<b>Report</b>  <code>${report.id}</code>`));
 });
+
+test("only blocking browser failures alert; backend errors always alert", async () => {
+  configured();
+  const calls = [];
+  mock.method(globalThis, "fetch", async (url) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  });
+  for (const [context, expected] of [
+    [{ errorSource: "browser", browserCritical: false, area: "browser.window.resource-error" }, false],
+    [{ errorSource: "browser", area: "browser.window.unhandledrejection" }, false],
+    [{ errorSource: "browser", browserCritical: true, area: "browser.app.error-boundary" }, true],
+    [{ surface: "web", area: "api.upload", browserCritical: false }, true],
+    [{ surface: "mcp", area: "mcp.tool" }, true],
+    [{ surface: "worker", area: "job.failed" }, true],
+  ]) {
+    calls.length = 0;
+    const report = buildErrorReport("Simple", new Error("failed"), context);
+    await sendErrorReport(report, { service: "simple" });
+    assert.equal(
+      calls.some((url) => url.includes("api.telegram.org")),
+      expected,
+    );
+    assert.ok(
+      calls.some((url) => url.includes("collector.example")),
+      "all diagnostics reach SigNoz",
+    );
+  }
+});

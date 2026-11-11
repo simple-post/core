@@ -41,6 +41,8 @@ const object = (value: unknown): ErrorContext => (value && typeof value === "obj
 
 /** Only selected diagnostic fields leave the process; never bodies, headers or tool arguments. */
 const fields: Record<string, string[]> = {
+  "error.source": ["errorSource"],
+  "browser.critical": ["browserCritical"],
   "error.area": ["area", "module", "scope", "functionName", "context", "event"],
   "user.id": ["userId", "user.id", "enduser.id"],
   "user.email": ["userEmail", "user.email"],
@@ -399,6 +401,9 @@ export function sendErrorReport(report: ErrorReport, options: DeliveryOptions): 
   const task = Promise.all([
     deliver("signoz", () => (options.emit ? options.emit(report) : exportLog(report, options.service))),
     deliver("telegram", async () => {
+      // Browser diagnostics stay in SigNoz; only a blocking error boundary pages the owner.
+      // A web client surface can also describe a backend request, so never filter on surface.
+      if (report.attributes["error.source"] === "browser" && report.attributes["browser.critical"] !== true) return;
       const token = process.env.LOG_TELEGRAM_BOT_TOKEN;
       const chatId = process.env.LOG_TELEGRAM_CHAT_ID;
       if (!token || !chatId || process.env.LOG_TELEGRAM_DISABLED === "true") return;

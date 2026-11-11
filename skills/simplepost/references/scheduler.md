@@ -15,14 +15,17 @@ Use the Scheduler app when humans need a browser UI and when AI clients need acc
 
 ## Local Development
 
+This section is for an explicitly requested self-hosted development setup. Never inspect existing credential files, copy production secrets, or run a migration against a user's existing database as a connectivity check. The user configures a new isolated development environment using the repository's example configuration through their trusted editor or secret manager.
+
 ```bash
 yarn install
-cp scheduler/.env.example scheduler/.env
 yarn workspace @simple-post/scheduler db:migrate
 yarn workspace @simple-post/scheduler dev
 ```
 
 `NEXT_PUBLIC_APP_URL` should match the reachable app URL used for OAuth callbacks, CLI authorization, and MCP metadata.
+
+Uploaded media uses public URLs that are internet-accessible to anyone with the URL. A draft is not private media storage. Obtain approval for that exposure before uploading private, sensitive, or embargoed assets. Publishing also sends content and media to the selected social platforms and requires explicit authorization for the exact action and payload.
 
 ## Scheduled Dispatch
 

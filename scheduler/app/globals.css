@@ -38,7 +38,7 @@ html:is(:lang(ja), :lang(ko), :lang(zh-Hans), :lang(zh-Hant), :lang(ar), :lang(h
 .locale-control {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
   width: max-content;
   max-width: 100%;
   font-size: 0.75rem;
@@ -47,16 +47,16 @@ html:is(:lang(ja), :lang(ko), :lang(zh-Hans), :lang(zh-Hant), :lang(ar), :lang(h
 }
 
 .locale-control > svg {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 0.75rem;
+  height: 0.75rem;
   flex-shrink: 0;
 }
 
 .locale-control > select {
-  width: auto;
-  max-width: 8.25rem;
-  min-height: 2rem;
-  padding: 0.25rem 0.2rem;
+  width: 4.75rem;
+  max-width: 100%;
+  min-height: 1.75rem;
+  padding: 0.125rem;
   border: 0;
   border-radius: 0.25rem;
   background: transparent;

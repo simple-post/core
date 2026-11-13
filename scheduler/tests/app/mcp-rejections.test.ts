@@ -1,3 +1,4 @@
+jest.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: jest.fn(async () => ({ pluginLocale: null })) } } }));
 import { NextRequest } from "next/server";
 
 import { POST } from "@/app/mcp/route";

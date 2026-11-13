@@ -578,5 +578,6 @@
   "continueAccountSetup": "Продължаване на настройката на акаунта",
   "startingAccountConnection": "Свързването на акаунта започва…",
   "calendarItemCount_one": "{{count, number}} запис",
-  "calendarItemCount_other": "{{count, number}} записа"
+  "calendarItemCount_other": "{{count, number}} записа",
+  "pluginAutomatic": "Автоматично"
 }

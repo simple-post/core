@@ -11,11 +11,15 @@ import { z } from "zod";
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { measureMcpTool } from "@/lib/analytics/tool-measurement";
 import { withErrorContext } from "@/lib/error-reporting";
+import type { Locale } from "@/lib/i18n/locales";
 import { createServerCopy, serverMessage } from "@/lib/i18n/server";
 import { localizeStandardSchema } from "@/lib/i18n/standard-schema";
-import { mcpUiTranslation, withMcpUiTranslation } from "@/lib/mcp/locale";
+import { mcpUiTranslation, mcpUiLocale, withMcpLocale } from "@/lib/mcp/locale";
 import { toMcpErrorDiagnostic } from "@/lib/mcp/tool-errors";
+import { savedPluginLanguage, responseLocaleSchema } from "@/lib/preferences/plugin-language";
 import { PaymentRequiredError } from "@/lib/utils/errors";
+
+import { withResponseLocale } from "./language-schema";
 
 import type {
   CallToolResult,
@@ -29,8 +33,10 @@ import type {
 
 type Result = CallToolResult | InputRequiredResult;
 type Server = Pick<McpServer, "registerTool">;
-type ToolAccess = { userId: string; readOnly?: boolean };
+type ToolAccess = { userId: string; readOnly?: boolean; uiLocale?: Locale };
 const SAVED_DATA_TOOLS = new Set([
+  "get_language_settings",
+  "set_plugin_language",
   "list_accounts",
   "inspect_posts",
   "get_schedule",
@@ -67,46 +73,63 @@ export function registerMeasuredTool(
   // Preserve schema inference and SDK validation while measuring calls and
   // enforcing the narrow saved-data exception for expired trials.
   const measured = (input: never, ctx: ServerContext) =>
-    measureMcpTool(context, name, () =>
-      withMcpUiTranslation(
-        ctx,
-        async () => {
-          if (
-            context.readOnly &&
-            (!SAVED_DATA_TOOLS.has(name) || (name === "show_post_preview" && !(input as { postId?: string }).postId))
-          ) {
-            await recordFunnelEvent(context.userId, "billing_denied", {
-              key: `${context.userId}:${name}:${new Date().toISOString().slice(0, 10)}`,
-              properties: { reason: "trial_expired", method: name },
-            });
-            const diagnostic = {
-              ...toMcpErrorDiagnostic(
-                new PaymentRequiredError(
-                  serverMessage(
-                    "Your trial has ended. Saved posts, accounts and the calendar are still viewable. Creating or changing posts requires an active plan in SimplePost.",
-                  ),
+    measureMcpTool(context, name, async () => {
+      const { response_locale, ...args } = z
+        .object({ response_locale: responseLocaleSchema })
+        .passthrough()
+        .parse(input);
+      let saved = await savedPluginLanguage(context.userId);
+      const clientLocale = mcpUiLocale(ctx, context.uiLocale ?? locale);
+      const resolved = () => response_locale ?? saved ?? clientLocale;
+      const result = await withMcpLocale(resolved(), async () => {
+        if (
+          context.readOnly &&
+          (!SAVED_DATA_TOOLS.has(name) || (name === "show_post_preview" && !(input as { postId?: string }).postId))
+        ) {
+          await recordFunnelEvent(context.userId, "billing_denied", {
+            key: `${context.userId}:${name}:${new Date().toISOString().slice(0, 10)}`,
+            properties: { reason: "trial_expired", method: name },
+          });
+          const diagnostic = {
+            ...toMcpErrorDiagnostic(
+              new PaymentRequiredError(
+                serverMessage(
+                  "Your trial has ended. Saved posts, accounts and the calendar are still viewable. Creating or changing posts requires an active plan in SimplePost.",
                 ),
               ),
-              supportId: randomUUID(),
-            };
-            return {
-              isError: true,
-              content: [
-                {
-                  type: "text" as const,
-                  text: `${mcpUiTranslation().t("mcpTrialExpired")}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
-                },
-              ],
-              _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
-            };
-          }
-          return withErrorContext({ toolName: name, area: "mcp.tool", userId: context.userId, surface: "mcp" }, () =>
-            callback(input, ctx),
-          );
+            ),
+            supportId: randomUUID(),
+          };
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text" as const,
+                text: `${mcpUiTranslation().t("mcpTrialExpired")}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
+              },
+            ],
+            _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
+          };
+        }
+        return withErrorContext({ toolName: name, area: "mcp.tool", userId: context.userId, surface: "mcp" }, () =>
+          callback(args as never, ctx),
+        );
+      });
+      if (name === "set_plugin_language" && !("isError" in result && result.isError))
+        saved = await savedPluginLanguage(context.userId);
+      if (!("content" in result) || !Array.isArray(result.content)) return result;
+      const resolvedLocale = resolved();
+      return {
+        ...result,
+        content: [...result.content, { type: "text" as const, text: JSON.stringify({ resolvedLocale }) }],
+        _meta: {
+          ...result._meta,
+          "simplepost/uiLocale": resolvedLocale,
+          "simplepost/pluginLanguage": saved ?? "auto",
+          "simplepost/responseLocale": response_locale,
         },
-        locale,
-      ),
-    );
+      };
+    });
   return registerAppTool(
     server,
     name,
@@ -115,9 +138,11 @@ export function registerMeasuredTool(
       ...(config.title ? { title: copy(config.title) } : {}),
       ...(config.description ? { description: copy(config.description) } : {}),
       inputSchema: localizeStandardSchema(
-        config.inputSchema && "~standard" in config.inputSchema
-          ? (config.inputSchema as StandardSchemaWithJSON)
-          : z.object((config.inputSchema ?? {}) as z.ZodRawShape),
+        withResponseLocale(
+          config.inputSchema && "~standard" in config.inputSchema
+            ? (config.inputSchema as StandardSchemaWithJSON)
+            : z.object((config.inputSchema ?? {}) as z.ZodRawShape),
+        ),
         copy,
       ),
       ...(config.outputSchema

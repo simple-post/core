@@ -3,7 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { direction, type Locale } from "../lib/i18n/locales";
 import { createTranslator, type Messages } from "../lib/i18n/translate";
 
-import { bindWidgetLocale, preferredWidgetLocale } from "./widget-locale";
+import {
+  bindWidgetLocale,
+  preferredWidgetLocale,
+  effectiveWidgetLocale,
+  subscribeWidgetLanguage,
+} from "./widget-locale";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 
@@ -32,12 +37,13 @@ export function useHostLocale(app: App | null | undefined) {
   const [active, setActive] = useState<{ locale: Locale; messages: Messages }>({ locale: "en", messages: {} });
 
   useEffect(() => {
-    const sync = () =>
-      setLocale(preferredWidgetLocale(app?.getHostContext()?.locale, compatibilityLocale(), resourceLocale()));
+    const sync = () => setLocale(effectiveWidgetLocale(app, compatibilityLocale(), resourceLocale()));
     sync();
+    const unsubscribe = app ? subscribeWidgetLanguage(app, sync) : () => {};
     app?.addEventListener("hostcontextchanged", sync);
     window.addEventListener("openai:set_globals", sync);
     return () => {
+      unsubscribe();
       app?.removeEventListener("hostcontextchanged", sync);
       window.removeEventListener("openai:set_globals", sync);
     };

@@ -578,5 +578,6 @@
   "continueAccountSetup": "Kontoeinrichtung fortsetzen",
   "startingAccountConnection": "Kontoverbindung wird gestartet…",
   "calendarItemCount_one": "{{count, number}} Eintrag",
-  "calendarItemCount_other": "{{count, number}} Einträge"
+  "calendarItemCount_other": "{{count, number}} Einträge",
+  "pluginAutomatic": "Automatisch"
 }

@@ -763,5 +763,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}}에서는 스레드를 지원하지 않으므로 첫 게시물만 게시됩니다.",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}}은 미리 보기 전용으로 설정되었습니다. 게시하기 전에 실제 계정을 연결하세요.",
   "{{value1}} is not enabled in this environment.": "이 환경에서는 {{value1}}이 활성화되어 있지 않습니다.",
-  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} 이미지: {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} 이미지: {{message}}",
+  "Language": "언어",
+  "Read the plugin language setting. Automatic follows the connected client.": "플러그인의 언어 설정을 확인합니다. 자동은 연결된 클라이언트의 언어를 따릅니다.",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "사용자가 요청하면 플러그인 언어를 저장합니다. 연결된 클라이언트의 언어를 따르려면 auto를 사용하세요. 사용자 콘텐츠는 변경되지 않습니다.",
+  "Language for this response only. Does not change saved preferences or user content.": "이 응답에만 사용할 언어입니다. 저장된 설정이나 사용자 콘텐츠는 변경하지 않습니다."
 }

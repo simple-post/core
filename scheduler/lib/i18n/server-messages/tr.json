@@ -767,5 +767,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} dizileri desteklemediği için orada yalnızca ilk gönderi yayımlanır.",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} yalnızca önizleme için yapılandırılmış. Yayımlamadan önce gerçek bir hesap bağla.",
   "{{value1}} is not enabled in this environment.": "{{value1}} bu ortamda etkin değil.",
-  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} görsel: {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} görsel: {{message}}",
+  "Language": "Dil",
+  "Read the plugin language setting. Automatic follows the connected client.": "Eklentinin dil ayarını okur. Otomatik, bağlı istemcinin dilini kullanır.",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "Kullanıcı istediğinde eklentinin dilini kaydeder. Bağlı istemcinin dilini kullanmak için auto seçin. Kullanıcı içeriği değişmez.",
+  "Language for this response only. Does not change saved preferences or user content.": "Yalnızca bu yanıtın dili. Kayıtlı tercihleri veya kullanıcı içeriğini değiştirmez."
 }

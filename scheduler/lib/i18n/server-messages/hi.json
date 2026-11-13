@@ -767,5 +767,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} थ्रेड सपोर्ट नहीं करता, इसलिए वहाँ सिर्फ़ पहली पोस्ट प्रकाशित होगी।",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} सिर्फ़ प्रीव्यू के लिए सेट है। प्रकाशित करने से पहले असली खाता कनेक्ट करें।",
   "{{value1}} is not enabled in this environment.": "इस एनवायरनमेंट में {{value1}} चालू नहीं है।",
-  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} इमेज: {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} इमेज: {{message}}",
+  "Language": "भाषा",
+  "Read the plugin language setting. Automatic follows the connected client.": "प्लगइन की भाषा सेटिंग पढ़ें। स्वचालित मोड जुड़े हुए क्लाइंट की भाषा का पालन करता है।",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "उपयोगकर्ता के अनुरोध पर प्लगइन की भाषा सहेजें। जुड़े हुए क्लाइंट की भाषा अपनाने के लिए auto का उपयोग करें। उपयोगकर्ता की सामग्री नहीं बदलती।",
+  "Language for this response only. Does not change saved preferences or user content.": "केवल इस उत्तर की भाषा। सहेजी गई प्राथमिकताएँ या उपयोगकर्ता की सामग्री नहीं बदलती।"
 }

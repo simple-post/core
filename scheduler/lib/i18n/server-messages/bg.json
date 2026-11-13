@@ -767,5 +767,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} не поддържа нишки, затова там ще бъде публикувана само първата публикация.",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} е настроен само за преглед. Свържи реален акаунт преди публикуване.",
   "{{value1}} is not enabled in this environment.": "{{value1}} не е активиран в тази среда.",
-  "{{width}}×{{height}} image: {{message}}": "Изображение с размери {{width}}×{{height}}: {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "Изображение с размери {{width}}×{{height}}: {{message}}",
+  "Language": "Език",
+  "Read the plugin language setting. Automatic follows the connected client.": "Прочита езиковата настройка на приставката. Автоматичният режим следва езика на свързания клиент.",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "Запазва езика на приставката по заявка на потребителя. Използвайте auto, за да следвате езика на свързания клиент. Потребителското съдържание не се променя.",
+  "Language for this response only. Does not change saved preferences or user content.": "Език само за този отговор. Не променя запазените предпочитания или потребителското съдържание."
 }

@@ -62,3 +62,10 @@ For every preview, draft, schedule, edit, discard, or publish result, make the o
 - surface validation warnings and partial failures once;
 - include returned post URLs or IDs when useful;
 - mention whether SimplePost scheduled an automatic repost when the result says it did.
+
+## Language
+
+- Follow the user’s explicitly requested conversation language. Otherwise use the saved plugin language, then the connected client’s language.
+- Pass `response_locale` on tool calls when the user requests a language for the current conversation or answer (for example, “Switch to Italian” means `it`). This does not save an account preference. Continue that choice until the user changes it. Supported codes: `en`, `es`, `pt-BR`, `fr`, `de`, `ja`, `it`, `ko`, `zh-Hans`, `zh-Hant`, `ar`, `hi`, `id`, `tr`, `bg`.
+- Use `get_language_settings` to inspect the preference when needed. Call `set_plugin_language` only when the user asks to save/change the plugin language setting; use `language: "auto"` to follow the client again. Do not save a preference merely because a message uses another language.
+- Tool text includes `resolvedLocale`; use it for explanations and UI-related guidance. Keep IDs, argument names, URLs, technical enum values, and user-generated content unchanged. Do not translate names, notes, captions, posts, titles or supplied source text unless the user specifically asks for a content translation.

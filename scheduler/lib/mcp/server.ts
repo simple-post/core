@@ -17,6 +17,7 @@ import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatConnectAccountsGuidance, NO_CONNECTED_ACCOUNTS_CODE } from "./connect-guidance";
 import { registerExtensionTools } from "./extensions/register";
 import { formatBytes, formatDateTime as formatUtcDateTime, platformLabel, plural } from "./format";
+import { registerLanguageTools } from "./language-tools";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { isMcpBillingDenial, MCP_ERROR_INSTRUCTIONS, mcpToolLogLevel, toMcpErrorDiagnostic } from "./tool-errors";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
@@ -178,6 +179,7 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 
 export interface McpToolAuthContext {
   uiLocale?: Locale;
+  pluginLocale?: Locale;
   readOnly?: boolean;
   imageFittingEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
@@ -638,6 +640,7 @@ function formatManagedPosts(posts: Array<Parameters<typeof formatManagedPostDeta
  */
 export function registerTools(server: McpServer, context: McpToolAuthContext): void {
   registerMcpUiResources(server, context.pluginExtensionsEnabled);
+  registerLanguageTools(server, context);
   if (context.pluginExtensionsEnabled) registerExtensionTools(server, context, errorResult);
 
   registerMeasuredTool(

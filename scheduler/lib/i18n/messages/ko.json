@@ -577,5 +577,6 @@
   "useAnotherSimplePostAccount": "다른 SimplePost 계정 사용",
   "continueAccountSetup": "계정 설정 계속하기",
   "startingAccountConnection": "계정 연결을 시작하는 중…",
-  "calendarItemCount_other": "{{count, number}}개"
+  "calendarItemCount_other": "{{count, number}}개",
+  "pluginAutomatic": "자동"
 }

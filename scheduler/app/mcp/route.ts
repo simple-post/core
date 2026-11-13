@@ -28,6 +28,7 @@ import {
   IMAGE_FITTING_INSTRUCTIONS,
   type McpToolAuthContext,
 } from "@/lib/mcp/server";
+import { savedPluginLanguage } from "@/lib/preferences/plugin-language";
 import { apiErrorLogPayload, PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
@@ -73,6 +74,7 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
   return {
     readOnly,
     uiLocale: await mcpRequestLocale(req, session.user.uiLocale),
+    pluginLocale: await savedPluginLanguage(session.user.id),
     userId: session.user.id,
     userEmail: session.user.email,
     scope: session.session.scope,
@@ -160,7 +162,10 @@ const mcpHandler = createMcpHandler(
     if (!authContext) {
       throw new Error("Authenticated SimplePost context is missing");
     }
-    return createMcpServer(authContext, authContext.uiLocale ?? localeFromRequestHeaders(requestInfo?.headers));
+    return createMcpServer(
+      authContext,
+      authContext.pluginLocale ?? authContext.uiLocale ?? localeFromRequestHeaders(requestInfo?.headers),
+    );
   },
   {
     legacy: "reject",
@@ -181,7 +186,10 @@ function toSdkAuthInfo(authContext: McpToolAuthContext): AuthInfo {
 }
 
 async function handleLegacyMcpRequest(req: Request, authContext: McpToolAuthContext): Promise<Response> {
-  const server = await createMcpServer(authContext, authContext.uiLocale ?? localeFromRequestHeaders(req.headers));
+  const server = await createMcpServer(
+    authContext,
+    authContext.pluginLocale ?? authContext.uiLocale ?? localeFromRequestHeaders(req.headers),
+  );
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

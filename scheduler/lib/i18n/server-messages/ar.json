@@ -783,5 +783,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "لا يدعم {{value1}} السلاسل، لذا لن يُنشر عليه إلا المنشور الأول.",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "تم إعداد {{value1}} للمعاينة فقط. اربط حسابًا فعليًا قبل النشر.",
   "{{value1}} is not enabled in this environment.": "لم يُفعّل {{value1}} في هذه البيئة.",
-  "{{width}}×{{height}} image: {{message}}": "صورة بأبعاد {{width}}×{{height}}: {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "صورة بأبعاد {{width}}×{{height}}: {{message}}",
+  "Language": "اللغة",
+  "Read the plugin language setting. Automatic follows the connected client.": "قراءة إعداد لغة الإضافة. يتبع الوضع التلقائي لغة العميل المتصل.",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "حفظ لغة الإضافة عندما يطلب المستخدم ذلك. استخدم auto لاتباع لغة العميل المتصل. يبقى محتوى المستخدم دون تغيير.",
+  "Language for this response only. Does not change saved preferences or user content.": "لغة هذه الاستجابة فقط. لا تغيّر التفضيلات المحفوظة أو محتوى المستخدم."
 }

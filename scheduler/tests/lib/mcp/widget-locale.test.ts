@@ -41,7 +41,7 @@ it("isolates host locales and propagates live locale metadata without changing t
   a.context.locale = "de-DE";
   expect(widgetLocale(a.app)).toBe("de");
   await callTool(a.app, "inspect_post", args);
-  expect(a.mock.callServerTool.mock.calls[1][0]._meta["openai/locale"]).toBe("de");
+  expect(a.mock.callServerTool.mock.calls[1][0]._meta["openai/locale"]).toBe("de-DE");
   expect(widgetLocale(b.app)).toBe("ja");
 });
 

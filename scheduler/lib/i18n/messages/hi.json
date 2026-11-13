@@ -578,5 +578,6 @@
   "continueAccountSetup": "खाता सेटअप जारी रखें",
   "startingAccountConnection": "खाते का कनेक्शन शुरू हो रहा है…",
   "calendarItemCount_one": "{{count, number}} आइटम",
-  "calendarItemCount_other": "{{count, number}} आइटम"
+  "calendarItemCount_other": "{{count, number}} आइटम",
+  "pluginAutomatic": "स्वचालित"
 }

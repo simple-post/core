@@ -582,5 +582,6 @@
   "calendarItemCount_two": "عنصران",
   "calendarItemCount_few": "{{count, number}} عناصر",
   "calendarItemCount_many": "{{count, number}} عنصرًا",
-  "calendarItemCount_other": "{{count, number}} عنصر"
+  "calendarItemCount_other": "{{count, number}} عنصر",
+  "pluginAutomatic": "تلقائي"
 }

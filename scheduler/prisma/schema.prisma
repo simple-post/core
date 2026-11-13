@@ -26,6 +26,7 @@ model UserFeature {
 }
 
 model User {
+  pluginLocale String? // Null follows the connected client; independent of post content and email language.
   features                     UserFeature[]
   id                           String                      @id
   name                         String

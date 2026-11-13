@@ -57,18 +57,18 @@ Use the SimplePost MCP tools directly after loading the skill. Use `terminal` on
 
 ## Quick Reference
 
-| Need | SimplePost MCP tool | Writes data? |
-| --- | --- | --- |
-| Resolve connected targets | `list_accounts` | No |
-| Validate without saving | `validate_post` | No |
-| Preview without saving | `preview_post` | No |
-| Render a post preview | `show_post_preview` | No |
-| Publish, schedule, or draft | `create_post` | Yes |
-| Find drafts, queued, or delivered posts | `inspect_posts` | No |
-| Edit a draft or future scheduled post | `update_scheduled_post` | Yes |
-| Discard a draft or future scheduled post | `discard_scheduled_post` | Yes |
-| Inspect the posting calendar | `get_schedule` or `show_schedule` | No |
-| Upload an attachment exposed by the client | `upload_media` | Yes |
+| Need                                       | SimplePost MCP tool               | Writes data? |
+| ------------------------------------------ | --------------------------------- | ------------ |
+| Resolve connected targets                  | `list_accounts`                   | No           |
+| Validate without saving                    | `validate_post`                   | No           |
+| Preview without saving                     | `preview_post`                    | No           |
+| Render a post preview                      | `show_post_preview`               | No           |
+| Publish, schedule, or draft                | `create_post`                     | Yes          |
+| Find drafts, queued, or delivered posts    | `inspect_posts`                   | No           |
+| Edit a draft or future scheduled post      | `update_scheduled_post`           | Yes          |
+| Discard a draft or future scheduled post   | `discard_scheduled_post`          | Yes          |
+| Inspect the posting calendar               | `get_schedule` or `show_schedule` | No           |
+| Upload an attachment exposed by the client | `upload_media`                    | Yes          |
 
 Read [`references/mcp.md`](references/mcp.md) for payload rules, result interpretation, media handling, TikTok options, and recovery behavior.
 
@@ -108,3 +108,10 @@ Read [`references/mcp.md`](references/mcp.md) for payload rules, result interpre
 For a non-writing smoke test, call `list_accounts`, then `preview_post` or `validate_post` with clearly marked test content and confirm no post was created. For a writing smoke test, save a draft, inspect the returned ID with `inspect_posts`, render it with `show_post_preview`, and discard it only if the user authorized that cleanup.
 
 For a real publish or schedule, verify every requested account has a corresponding result and report partial failures individually. Restart Hermes after the first OAuth setup and confirm the SimplePost MCP tools reconnect without requesting or exposing credentials.
+
+## Language
+
+- Follow the user’s explicitly requested conversation language. Otherwise use the saved plugin language, then the connected client’s language.
+- Pass `response_locale` on tool calls when the user requests a language for the current conversation or answer (for example, “Switch to Italian” means `it`). This does not save an account preference. Continue that choice until the user changes it. Supported codes: `en`, `es`, `pt-BR`, `fr`, `de`, `ja`, `it`, `ko`, `zh-Hans`, `zh-Hant`, `ar`, `hi`, `id`, `tr`, `bg`.
+- Use `get_language_settings` to inspect the preference when needed. Call `set_plugin_language` only when the user asks to save/change the plugin language setting; use `language: "auto"` to follow the client again. Do not save a preference merely because a message uses another language.
+- Tool text includes `resolvedLocale`; use it for explanations and UI-related guidance. Keep IDs, argument names, URLs, technical enum values, and user-generated content unchanged. Do not translate names, notes, captions, posts, titles or supplied source text unless the user specifically asks for a content translation.

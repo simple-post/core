@@ -21,6 +21,7 @@ export function mcpText(key: MessageKey, values?: MessageValues) {
 export function mcpUiLocale(ctx?: Pick<ServerContext, "mcpReq" | "http">, fallback?: Locale): Locale {
   return (
     normalizeLocale(ctx?.mcpReq?._meta?.["openai/locale"]) ??
+    normalizeLocale(ctx?.mcpReq?._meta?.["webplus/i18n"]) ??
     normalizeLocale(ctx?.mcpReq?._meta?.locale) ??
     fallback ??
     localeFromRequestHeaders(ctx?.http?.req?.headers)
@@ -44,6 +45,7 @@ export async function mcpRequestLocale(req: Request, savedPreference?: unknown):
     if (!meta || typeof meta !== "object") return fallback;
     return (
       normalizeLocale((meta as Record<string, unknown>)["openai/locale"]) ??
+      normalizeLocale((meta as Record<string, unknown>)["webplus/i18n"]) ??
       normalizeLocale((meta as Record<string, unknown>).locale) ??
       fallback
     );

@@ -8,6 +8,7 @@ import {
   preferredWidgetLocale,
   effectiveWidgetLocale,
   subscribeWidgetLanguage,
+  acceptWidgetLanguage,
 } from "./widget-locale";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
@@ -25,6 +26,15 @@ function compatibilityLocale() {
   return (window as Window & { openai?: { locale?: unknown } }).openai?.locale;
 }
 
+function compatibilityMetadata(event?: Event) {
+  const globals = (event as CustomEvent<{ globals?: { toolResponseMetadata?: Record<string, unknown> } }> | undefined)
+    ?.detail?.globals;
+  const metadata =
+    globals?.toolResponseMetadata ??
+    (window as Window & { openai?: { toolResponseMetadata?: Record<string, unknown> } }).openai?.toolResponseMetadata;
+  return (metadata?._meta as Record<string, unknown> | undefined) ?? metadata;
+}
+
 function resourceLocale() {
   return document.querySelector('meta[name="simplepost-ui-locale"]')?.getAttribute("content");
 }
@@ -38,14 +48,19 @@ export function useHostLocale(app: App | null | undefined) {
 
   useEffect(() => {
     const sync = () => setLocale(effectiveWidgetLocale(app, compatibilityLocale(), resourceLocale()));
+    if (app) acceptWidgetLanguage(app, compatibilityMetadata());
     sync();
+    const globals = (event: Event) => {
+      if (app) acceptWidgetLanguage(app, compatibilityMetadata(event));
+      sync();
+    };
     const unsubscribe = app ? subscribeWidgetLanguage(app, sync) : () => {};
     app?.addEventListener("hostcontextchanged", sync);
-    window.addEventListener("openai:set_globals", sync);
+    window.addEventListener("openai:set_globals", globals);
     return () => {
       unsubscribe();
       app?.removeEventListener("hostcontextchanged", sync);
-      window.removeEventListener("openai:set_globals", sync);
+      window.removeEventListener("openai:set_globals", globals);
     };
   }, [app]);
 

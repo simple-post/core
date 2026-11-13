@@ -52,17 +52,10 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const [settings, setSettings] = useState(false);
   const [language, setLanguage] = useState("auto");
   useEffect(() => {
-    if (!app) return;
-    let active = true;
-    void callTool(app, "get_language_settings")
-      .then(() => {
-        if (active) setLanguage(pluginLanguage(app));
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [app, locale]);
+    // Launch results already carry the saved preference. Avoid another server
+    // read on mount or when loading translated messages.
+    setLanguage(app ? pluginLanguage(app) : "auto");
+  }, [app, locale, incoming, launch, settings]);
   const [zone, setZone] = useState("");
   const restored = useRef(false);
   const guessedZone = useRef(false);

@@ -53,6 +53,10 @@ html:is(:lang(ja), :lang(ko), :lang(zh-Hans), :lang(zh-Hant), :lang(ar), :lang(h
 }
 
 .locale-control > select {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25;
+  box-shadow: none;
   width: 4rem;
   max-width: 100%;
   min-height: 1.75rem;

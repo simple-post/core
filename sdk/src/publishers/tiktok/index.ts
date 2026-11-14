@@ -37,15 +37,22 @@ interface TikTokUploadInitResponse {
   error?: { code?: string };
 }
 
-// An explicit rejection of the upload session means that session cannot publish.
-// Keep this local: transport errors must never trigger a fresh publishing intent.
-class TikTokUploadSessionRejected extends PostError {
-  constructor(status: number, chunkIndex: number) {
-    super(PostErrorType.PUBLISH_REJECTED, `TikTok upload session rejected (HTTP ${status}).`, {
-      phase: "upload",
-      httpStatus: status,
-      chunkIndex,
-    });
+// A discarded session or an upload that never sent its final chunk cannot publish.
+// Keep this local so only proven incomplete uploads may start a fresh session.
+class TikTokUploadRejected extends PostError {
+  constructor(
+    status: number | undefined,
+    chunkIndex: number,
+    totalChunks: number,
+    readonly retryable: boolean,
+  ) {
+    super(
+      PostErrorType.PUBLISH_REJECTED,
+      status === 403 || status === 404
+        ? `TikTok upload session rejected (HTTP ${status}).`
+        : "TikTok video upload stopped before the final chunk was sent. The video was not submitted for publishing.",
+      { phase: "upload", httpStatus: status, chunkIndex, totalChunks },
+    );
   }
 }
 
@@ -485,13 +492,21 @@ export class TikTokPublisher extends Publisher {
         this.logger.info(`Uploaded ${uploadedBytes}/${fileSize} bytes`);
       } catch (error: unknown) {
         const status = (error as { response?: { status?: number } })?.response?.status;
-        // TikTok documents 403 (expired) and 404 (missing) upload sessions as
-        // discarded. Never restart after a timeout, server error, or lost response.
-        if (status === 403 || status === 404) throw new TikTokUploadSessionRejected(status, chunkIndex);
+        // Chunks are sequential: a failed non-final PUT prevents the final PUT
+        // from ever being sent, even if TikTok accepted the failed request's bytes.
+        // Restart from zero rather than guessing the old session's byte offset.
+        // Once the final PUT is attempted, only an explicitly discarded session
+        // (403 expired / 404 missing) is safe to restart.
+        const sessionDiscarded = status === 403 || status === 404;
+        if (sessionDiscarded || chunkIndex < totalChunks - 1) {
+          const transient = status === undefined || status === 408 || (status >= 500 && status < 600);
+          throw new TikTokUploadRejected(status, chunkIndex, totalChunks, sessionDiscarded || transient);
+        }
         throw new PostError(PostErrorType.API_ERROR, "TikTok chunk upload outcome is uncertain.", {
           phase: "upload",
           httpStatus: status,
           chunkIndex,
+          totalChunks,
         });
       }
     }
@@ -607,8 +622,8 @@ export class TikTokPublisher extends Publisher {
     const privacyLevel = isDraft ? undefined : await this.validateDirectPostRequirements(media, options);
 
     for (let attempt = 0; ; attempt += 1) {
-      // Initialization failures are never retried here. Only an explicit upload
-      // session rejection permits a new session, always starting at byte zero.
+      // Initialization failures are never retried here. A discarded session or
+      // transient failure before the final chunk permits a bounded fresh upload.
       const initResponse = isDraft
         ? await this.initVideoUploadDraft(resolvedPath)
         : await this.initVideoUploadDirect(media, resolvedPath, content, privacyLevel!, options);
@@ -617,9 +632,9 @@ export class TikTokPublisher extends Publisher {
         return initResponse.data.publish_id;
       } catch (error) {
         const delay = UPLOAD_RETRY_DELAYS_MS[attempt];
-        if (!(error instanceof TikTokUploadSessionRejected) || delay === undefined) throw error;
+        if (!(error instanceof TikTokUploadRejected) || !error.retryable || delay === undefined) throw error;
         this.logger.warn(
-          `TikTok upload session rejected; restarting upload (attempt ${attempt + 2}/${UPLOAD_RETRY_DELAYS_MS.length + 1}).`,
+          `TikTok upload did not complete; restarting upload (attempt ${attempt + 2}/${UPLOAD_RETRY_DELAYS_MS.length + 1}).`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }

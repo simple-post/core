@@ -263,6 +263,15 @@ describe("TikTokPublisher", () => {
     const content: Content = { media: [{ type: "video", path: "./test-video.mp4" }] };
     let sessions: number;
 
+    function mockVideoFile(size: number) {
+      mockedFs.statSync.mockReturnValue({ size } as any);
+      jest.spyOn(fs, "createReadStream").mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield Buffer.alloc(size);
+        },
+      } as any);
+    }
+
     beforeEach(() => {
       jest.useFakeTimers();
       sessions = 0;
@@ -330,7 +339,7 @@ describe("TikTokPublisher", () => {
     });
 
     it.each([undefined, 400, 401, 408, 416, 429, 500, 503])(
-      "does not restart an upload after HTTP %s",
+      "does not restart a single-chunk upload after HTTP %s",
       async (status) => {
         mockedAxios.put.mockRejectedValue({ response: { status }, message: "Uncertain upload" });
         await expect(publisher.postContent(content, directOptions)).rejects.toMatchObject({
@@ -340,6 +349,100 @@ describe("TikTokPublisher", () => {
         expect(mockedAxios.put).toHaveBeenCalledTimes(1);
       },
     );
+
+    it("recovers HTTP 500 on chunk six of seven without sending the old session's final chunk", async () => {
+      const size = 83_388_322;
+      mockVideoFile(size);
+      const beforeUploadInit = jest.fn();
+      publisher = new TikTokPublisher({ tiktok: { ...directOptions.tiktok!, beforeUploadInit } });
+      for (let chunk = 0; chunk < 5; chunk += 1) mockedAxios.put.mockResolvedValueOnce({ status: 206 });
+      mockedAxios.put.mockRejectedValueOnce({ response: { status: 500 } });
+
+      const result = publisher.postContent(content, directOptions);
+      await jest.advanceTimersByTimeAsync(999);
+      expect(sessions).toBe(1);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(6);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(await result).toMatchObject({ id: "public_video", error: PostErrorType.NO_ERROR });
+      expect(sessions).toBe(2);
+      expect(beforeUploadInit).toHaveBeenCalledTimes(2);
+      const calls = mockedAxios.put.mock.calls;
+      expect(calls.filter(([url]) => url === "https://upload.tiktok.com/1")).toHaveLength(6);
+      expect(calls.filter(([url]) => url === "https://upload.tiktok.com/2")).toHaveLength(7);
+      expect(calls[6][2]?.headers?.["Content-Range"]).toBe(`bytes 0-10485759/${size}`);
+      expect(calls.at(-1)?.[2]?.headers?.["Content-Range"]).toBe(`bytes 62914560-${size - 1}/${size}`);
+      expect(mockAxiosInstance.post.mock.calls.filter(([url]: [string]) => url.includes("status/fetch"))).toEqual([
+        ["/v2/post/publish/status/fetch/", { publish_id: "publish_2" }],
+      ]);
+    });
+
+    it.each([undefined, 408, 500, 503])("recovers a non-final HTTP %s failure", async (status) => {
+      mockVideoFile(25 * 1024 * 1024);
+      mockedAxios.put.mockRejectedValueOnce({ response: { status } });
+      const result = publisher.postContent(content, directOptions);
+      await jest.runAllTimersAsync();
+      expect(await result).toMatchObject({ id: "public_video", error: PostErrorType.NO_ERROR });
+      expect(sessions).toBe(2);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(3);
+    });
+
+    it("stops after three incomplete uploads, recording a definite failure without leaking credentials", async () => {
+      mockVideoFile(25 * 1024 * 1024);
+      const secret = "Bearer secret https://upload.tiktok.com/?upload_token=secret";
+      mockedAxios.put.mockRejectedValue({ response: { status: 500 }, message: secret, config: { url: secret } });
+      const result = publisher.postContent(content, directOptions).catch((error) => error);
+      await jest.advanceTimersByTimeAsync(999);
+      expect(sessions).toBe(1);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(sessions).toBe(2);
+      await jest.advanceTimersByTimeAsync(2999);
+      expect(sessions).toBe(2);
+      await jest.advanceTimersByTimeAsync(1);
+      const error = await result;
+      expect(error).toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        details: { phase: "upload", httpStatus: 500, chunkIndex: 0, totalChunks: 2 },
+      });
+      expect(`${error.message} ${JSON.stringify(error.details)}`).not.toContain("secret");
+      expect(sessions).toBe(3);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(3);
+      expect(mockAxiosInstance.post.mock.calls.some(([url]: [string]) => url.includes("status/fetch"))).toBe(false);
+    });
+
+    it.each([400, 401, 416, 429])("does not automatically retry a permanent non-final HTTP %s", async (status) => {
+      mockVideoFile(25 * 1024 * 1024);
+      mockedAxios.put.mockRejectedValue({ response: { status } });
+      await expect(publisher.postContent(content, directOptions)).rejects.toMatchObject({
+        errorType: PostErrorType.PUBLISH_REJECTED,
+        details: { phase: "upload", httpStatus: status, chunkIndex: 0, totalChunks: 2 },
+      });
+      expect(sessions).toBe(1);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([undefined, 408, 500, 503])("never restarts after a final-chunk HTTP %s failure", async (status) => {
+      mockVideoFile(25 * 1024 * 1024);
+      mockedAxios.put.mockResolvedValueOnce({ status: 206 }).mockRejectedValueOnce({ response: { status } });
+      await expect(publisher.postContent(content, directOptions)).rejects.toMatchObject({
+        errorType: PostErrorType.API_ERROR,
+        details: { chunkIndex: 1, totalChunks: 2 },
+      });
+      expect(sessions).toBe(1);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops if a non-final recovery is followed by an uncertain final chunk", async () => {
+      mockVideoFile(25 * 1024 * 1024);
+      mockedAxios.put
+        .mockRejectedValueOnce(new Error("connection reset"))
+        .mockResolvedValueOnce({ status: 206 })
+        .mockRejectedValueOnce(new Error("timeout"));
+      const result = publisher.postContent(content, directOptions).catch((error) => error);
+      await jest.runAllTimersAsync();
+      expect(await result).toMatchObject({ errorType: PostErrorType.API_ERROR, details: { chunkIndex: 1 } });
+      expect(sessions).toBe(2);
+      expect(mockedAxios.put).toHaveBeenCalledTimes(3);
+    });
 
     it("stops immediately if the replacement session has an ambiguous upload outcome", async () => {
       mockedAxios.put.mockRejectedValueOnce({ response: { status: 404 } }).mockRejectedValueOnce(new Error("timeout"));
@@ -382,7 +485,26 @@ describe("TikTokPublisher", () => {
       expect(mockAxiosInstance.post).toHaveBeenLastCalledWith("/v2/post/publish/inbox/video/init/", expect.any(Object));
     });
 
-    it("gates every initialization, including a replacement session, before making the request", async () => {
+    it("also recovers a transient non-final failure in draft mode", async () => {
+      mockVideoFile(25 * 1024 * 1024);
+      mockAxiosInstance.post.mockReset().mockImplementation(async () => {
+        sessions += 1;
+        return {
+          data: { data: { publish_id: `draft_${sessions}`, upload_url: `https://upload.tiktok.com/${sessions}` } },
+        };
+      });
+      mockedAxios.put.mockRejectedValueOnce({ response: { status: 500 } });
+      const result = publisher.postContent(content, { tiktok: { ...directOptions.tiktok!, publishMode: "draft" } });
+      await jest.runAllTimersAsync();
+      expect(await result).toMatchObject({ id: "draft_2", error: PostErrorType.NO_ERROR });
+      expect(mockAxiosInstance.post.mock.calls.map(([url]: [string]) => url)).toEqual([
+        "/v2/post/publish/inbox/video/init/",
+        "/v2/post/publish/inbox/video/init/",
+      ]);
+    });
+
+    it.each([404, 500])("gates every replacement initialization after HTTP %s", async (status) => {
+      mockVideoFile(25 * 1024 * 1024);
       const beforeUploadInit = jest
         .fn()
         .mockImplementationOnce(async () => {})
@@ -390,7 +512,7 @@ describe("TikTokPublisher", () => {
           new PostError(PostErrorType.RATE_LIMIT_ERROR, "Account request budget is full", { localRateLimit: true }),
         );
       publisher = new TikTokPublisher({ tiktok: { ...directOptions.tiktok!, beforeUploadInit } });
-      mockedAxios.put.mockRejectedValueOnce({ response: { status: 404 } });
+      mockedAxios.put.mockRejectedValueOnce({ response: { status } });
       const result = publisher.postContent(content, directOptions).catch((error) => error);
       await jest.runAllTimersAsync();
       expect(await result).toMatchObject({

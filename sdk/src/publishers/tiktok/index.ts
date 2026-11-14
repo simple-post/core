@@ -41,9 +41,9 @@ interface TikTokUploadInitResponse {
 // Keep this local so only proven incomplete uploads may start a fresh session.
 class TikTokUploadRejected extends PostError {
   constructor(
-    status: number | undefined,
-    chunkIndex: number,
-    totalChunks: number,
+    readonly status: number | undefined,
+    readonly chunkIndex: number,
+    readonly totalChunks: number,
     readonly retryable: boolean,
   ) {
     super(
@@ -634,7 +634,7 @@ export class TikTokPublisher extends Publisher {
         const delay = UPLOAD_RETRY_DELAYS_MS[attempt];
         if (!(error instanceof TikTokUploadRejected) || !error.retryable || delay === undefined) throw error;
         this.logger.warn(
-          `TikTok upload did not complete; restarting upload (attempt ${attempt + 2}/${UPLOAD_RETRY_DELAYS_MS.length + 1}).`,
+          `TikTok upload failed on chunk ${error.chunkIndex + 1}/${error.totalChunks} (${error.status === undefined ? "no HTTP response" : `HTTP ${error.status}`}); restarting upload (attempt ${attempt + 2}/${UPLOAD_RETRY_DELAYS_MS.length + 1}).`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }

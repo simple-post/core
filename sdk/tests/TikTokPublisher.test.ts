@@ -355,8 +355,10 @@ describe("TikTokPublisher", () => {
       mockVideoFile(size);
       const beforeUploadInit = jest.fn();
       publisher = new TikTokPublisher({ tiktok: { ...directOptions.tiktok!, beforeUploadInit } });
+      const warn = jest.spyOn(publisher.logger, "warn");
       for (let chunk = 0; chunk < 5; chunk += 1) mockedAxios.put.mockResolvedValueOnce({ status: 206 });
-      mockedAxios.put.mockRejectedValueOnce({ response: { status: 500 } });
+      const secret = "Bearer secret https://upload.tiktok.com/?upload_token=secret";
+      mockedAxios.put.mockRejectedValueOnce({ response: { status: 500 }, message: secret, config: { url: secret } });
 
       const result = publisher.postContent(content, directOptions);
       await jest.advanceTimersByTimeAsync(999);
@@ -366,6 +368,10 @@ describe("TikTokPublisher", () => {
       expect(await result).toMatchObject({ id: "public_video", error: PostErrorType.NO_ERROR });
       expect(sessions).toBe(2);
       expect(beforeUploadInit).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(
+        "TikTok upload failed on chunk 6/7 (HTTP 500); restarting upload (attempt 2/3).",
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("secret");
       const calls = mockedAxios.put.mock.calls;
       expect(calls.filter(([url]) => url === "https://upload.tiktok.com/1")).toHaveLength(6);
       expect(calls.filter(([url]) => url === "https://upload.tiktok.com/2")).toHaveLength(7);
@@ -378,12 +384,16 @@ describe("TikTokPublisher", () => {
 
     it.each([undefined, 408, 500, 503])("recovers a non-final HTTP %s failure", async (status) => {
       mockVideoFile(25 * 1024 * 1024);
+      const warn = jest.spyOn(publisher.logger, "warn");
       mockedAxios.put.mockRejectedValueOnce({ response: { status } });
       const result = publisher.postContent(content, directOptions);
       await jest.runAllTimersAsync();
       expect(await result).toMatchObject({ id: "public_video", error: PostErrorType.NO_ERROR });
       expect(sessions).toBe(2);
       expect(mockedAxios.put).toHaveBeenCalledTimes(3);
+      expect(warn).toHaveBeenCalledWith(
+        `TikTok upload failed on chunk 1/2 (${status === undefined ? "no HTTP response" : `HTTP ${status}`}); restarting upload (attempt 2/3).`,
+      );
     });
 
     it("stops after three incomplete uploads, recording a definite failure without leaking credentials", async () => {

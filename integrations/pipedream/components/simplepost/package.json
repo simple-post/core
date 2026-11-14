@@ -1,0 +1,19 @@
+{
+  "name": "@pipedream/simplepost",
+  "version": "0.1.0",
+  "description": "Pipedream SimplePost Components",
+  "main": "simplepost.app.mjs",
+  "keywords": [
+    "pipedream",
+    "simplepost"
+  ],
+  "homepage": "https://pipedream.com/apps/simplepost",
+  "author": "Pipedream <support@pipedream.com> (https://pipedream.com/)",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pipedream/platform": "^3.4.0",
+    "form-data": "^4.0.4"
+  }
+}

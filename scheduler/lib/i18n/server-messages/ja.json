@@ -763,5 +763,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} はスレッドに対応していないため、先頭の投稿のみ公開されます。",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} はプレビュー専用に設定されています。投稿前に実際のアカウントを連携してください。",
   "{{value1}} is not enabled in this environment.": "この環境では {{value1}} が有効になっていません。",
-  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} の画像：{{message}}"
+  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} の画像：{{message}}",
+  "Language": "言語",
+  "Read the plugin language setting. Automatic follows the connected client.": "プラグインの言語設定を確認します。「自動」では接続先クライアントの言語に従います。",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "ユーザーの希望に応じてプラグインの言語を保存します。接続先クライアントの言語に従う場合は auto を指定します。ユーザーのコンテンツは変更されません。",
+  "Language for this response only. Does not change saved preferences or user content.": "この応答だけに使用する言語です。保存済みの設定やユーザーのコンテンツは変更されません。"
 }

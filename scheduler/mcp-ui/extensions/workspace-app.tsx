@@ -24,6 +24,8 @@ import { getAccountDisplayName, getPlatformName } from "../../components/visual/
 import { PostCardView } from "../../components/visual/post-card";
 import { PostStatusTabs } from "../../components/visual/post-status-tabs";
 import { UiLocaleProvider } from "../../lib/i18n/client";
+import { languageNames } from "../../lib/i18n/locales";
+import { pluginLanguage } from "../widget-locale";
 
 import { Calendar } from "./calendar";
 import { Editor } from "./editor";
@@ -48,6 +50,12 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("calendar");
   const [settings, setSettings] = useState(false);
+  const [language, setLanguage] = useState("auto");
+  useEffect(() => {
+    // Launch results already carry the saved preference. Avoid another server
+    // read on mount or when loading translated messages.
+    setLanguage(app ? pluginLanguage(app) : "auto");
+  }, [app, locale, incoming, launch, settings]);
   const [zone, setZone] = useState("");
   const restored = useRef(false);
   const guessedZone = useRef(false);
@@ -270,6 +278,29 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
       {settings ? (
         <section className="sp-settings" aria-label={t("publishingPreferences")}>
           <h2>{t("publishingPreferences")}</h2>
+          <label>
+            {t("language")}
+            <select
+              value={language}
+              disabled={busy}
+              onChange={(event) => {
+                const language = event.target.value;
+                void act(async () => {
+                  if (app) {
+                    await callTool(app, "set_plugin_language", { language });
+                    setLanguage(pluginLanguage(app));
+                    await refresh();
+                  }
+                });
+              }}>
+              <option value="auto">{t("pluginAutomatic")}</option>
+              {Object.entries(languageNames).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             {t("timezone")}
             <Input

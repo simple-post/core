@@ -577,5 +577,6 @@
   "useAnotherSimplePostAccount": "Gunakan akun SimplePost lain",
   "continueAccountSetup": "Lanjutkan penyiapan akun",
   "startingAccountConnection": "Memulai penghubungan akun…",
-  "calendarItemCount_other": "{{count, number}} item"
+  "calendarItemCount_other": "{{count, number}} item",
+  "pluginAutomatic": "Otomatis"
 }

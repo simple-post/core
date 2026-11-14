@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 
 import { useHostLocale } from "./use-host-locale";
-import { widgetFallback } from "./widget-locale";
+import { widgetFallback, acceptWidgetLanguage } from "./widget-locale";
 
 import type { SourceCopy } from "../lib/i18n/source-copy";
 
@@ -25,6 +25,7 @@ export function useMcpToolData<T>(name: string) {
   const onAppCreated = useCallback(
     (createdApp: Parameters<NonNullable<Parameters<typeof useApp>[0]["onAppCreated"]>>[0]) => {
       createdApp.ontoolresult = (result) => {
+        acceptWidgetLanguage(createdApp, result._meta);
         if (result.isError) {
           const message = result.content.find((item) => item.type === "text");
           setToolError(message?.type === "text" ? message.text : "The tool call failed.");

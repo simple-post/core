@@ -771,5 +771,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} ne prend pas en charge les fils. Seule la première publication y sera publiée.",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} est configuré uniquement pour l’aperçu. Connectez un véritable compte avant de publier.",
   "{{value1}} is not enabled in this environment.": "{{value1}} n’est pas activé dans cet environnement.",
-  "{{width}}×{{height}} image: {{message}}": "Image de {{width}}×{{height}} : {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "Image de {{width}}×{{height}} : {{message}}",
+  "Language": "Langue",
+  "Read the plugin language setting. Automatic follows the connected client.": "Consulte le paramètre de langue du plugin. Automatique suit la langue du client connecté.",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "Enregistre la langue du plugin à la demande de l’utilisateur. Utilisez auto pour suivre la langue du client connecté. Le contenu de l’utilisateur reste inchangé.",
+  "Language for this response only. Does not change saved preferences or user content.": "Langue pour cette réponse uniquement. Ne modifie ni les préférences enregistrées ni le contenu de l’utilisateur."
 }

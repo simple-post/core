@@ -5,6 +5,7 @@ import { recordFunnelEvent } from "@/lib/analytics/events";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
 
 import type { CallToolResult, StandardSchemaWithJSON } from "@modelcontextprotocol/server";
+jest.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: jest.fn(async () => ({ pluginLocale: null })) } } }));
 jest.mock("@modelcontextprotocol/ext-apps/server", () => ({ registerAppTool: jest.fn() }));
 jest.mock("@/lib/analytics/events", () => ({
   recordFunnelEvent: jest.fn(),
@@ -26,7 +27,9 @@ it("preserves object-schema validation and its typed callback result", async () 
   const invalid = await registered["~standard"].validate({ message: 42 });
   expect(invalid.issues).toBeDefined();
   const callback = call[3] as (input: { message: string }, ctx: never) => Promise<CallToolResult>;
-  expect(await callback({ message: "hello" }, {} as never)).toBe(result);
+  const enriched = await callback({ message: "hello" }, {} as never);
+  expect(enriched.content[0]).toEqual(result.content[0]);
+  expect(enriched.content.at(-1)).toEqual({ type: "text", text: JSON.stringify({ resolvedLocale: "en" }) });
   expect(recordFunnelEvent).toHaveBeenCalledTimes(1);
 });
 it("preserves legacy raw-shape validation and strips the same unknown fields", async () => {

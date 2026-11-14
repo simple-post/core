@@ -763,5 +763,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} 不支援串文，因此只會在該平台發布第一則貼文。",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} 已設定為僅供預覽。發布前請連結真實帳號。",
   "{{value1}} is not enabled in this environment.": "此環境中未啟用 {{value1}}。",
-  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} 圖片：{{message}}"
+  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} 圖片：{{message}}",
+  "Language": "語言",
+  "Read the plugin language setting. Automatic follows the connected client.": "讀取外掛的語言設定。自動模式使用已連線用戶端的語言。",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "在使用者要求時儲存外掛語言。使用 auto 跟隨已連線用戶端的語言。使用者內容保持不變。",
+  "Language for this response only. Does not change saved preferences or user content.": "僅用於本次回應的語言，不會變更已儲存的偏好設定或使用者內容。"
 }

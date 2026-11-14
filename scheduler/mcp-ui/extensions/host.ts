@@ -4,7 +4,7 @@ import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 
 import { sourceCopy, type SourceCopy } from "../../lib/i18n/source-copy";
 import { useHostLocale } from "../use-host-locale";
-import { widgetCopy, widgetLocale, widgetFallback } from "../widget-locale";
+import { widgetCopy, widgetLocale, widgetFallback, acceptWidgetLanguage, responseLocale } from "../widget-locale";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 
@@ -23,9 +23,13 @@ export async function callTool<T>(app: App, name: string, arguments_: Record<str
   const copy = widgetCopy(app);
   const result = await app.callServerTool({
     name,
-    arguments: arguments_,
-    _meta: { "openai/locale": widgetLocale(app) },
+    arguments: {
+      ...arguments_,
+      ...(name !== "set_plugin_language" && responseLocale(app) ? { response_locale: responseLocale(app) } : {}),
+    },
+    _meta: { "openai/locale": app.getHostContext()?.locale ?? widgetLocale(app) },
   });
+  acceptWidgetLanguage(app, result._meta);
   if (result.isError || !result.structuredContent) {
     const item = result.content.find((content) => content.type === "text");
     throw new Error(
@@ -57,6 +61,7 @@ export function useExtensionHost<T>() {
   const [incoming, setIncoming] = useState<Record<string, unknown> | null>(null);
   const onAppCreated = useCallback((app: App) => {
     app.ontoolresult = (result) => {
+      acceptWidgetLanguage(app, result._meta);
       if (result.isError) {
         const item = result.content.find((content) => content.type === "text");
         setToolError(

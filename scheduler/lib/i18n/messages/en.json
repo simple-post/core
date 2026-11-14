@@ -578,5 +578,6 @@
   "continueAccountSetup": "Continue account setup",
   "startingAccountConnection": "Starting your account connection…",
   "calendarItemCount_one": "{{count, number}} item",
-  "calendarItemCount_other": "{{count, number}} items"
+  "calendarItemCount_other": "{{count, number}} items",
+  "pluginAutomatic": "Automatic"
 }

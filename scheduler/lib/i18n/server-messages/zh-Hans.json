@@ -763,5 +763,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} 不支持帖串，因此只会在那里发布第一条帖子。",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} 已配置为仅供预览。发布前请关联真实账号。",
   "{{value1}} is not enabled in this environment.": "此环境中未启用 {{value1}}。",
-  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} 图片：{{message}}"
+  "{{width}}×{{height}} image: {{message}}": "{{width}}×{{height}} 图片：{{message}}",
+  "Language": "语言",
+  "Read the plugin language setting. Automatic follows the connected client.": "读取插件的语言设置。自动模式使用已连接客户端的语言。",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "在用户要求时保存插件语言。使用 auto 跟随已连接客户端的语言。用户内容保持不变。",
+  "Language for this response only. Does not change saved preferences or user content.": "仅用于本次响应的语言，不会更改已保存的偏好设置或用户内容。"
 }

@@ -577,5 +577,6 @@
   "useAnotherSimplePostAccount": "使用其他 SimplePost 账号",
   "continueAccountSetup": "继续设置账号",
   "startingAccountConnection": "正在开始连接账号…",
-  "calendarItemCount_other": "{{count, number}} 项"
+  "calendarItemCount_other": "{{count, number}} 项",
+  "pluginAutomatic": "自动"
 }

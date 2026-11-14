@@ -579,5 +579,6 @@
   "startingAccountConnection": "Avvio del collegamento dell’account…",
   "calendarItemCount_one": "{{count, number}} elemento",
   "calendarItemCount_many": "{{count, number}} elementi",
-  "calendarItemCount_other": "{{count, number}} elementi"
+  "calendarItemCount_other": "{{count, number}} elementi",
+  "pluginAutomatic": "Automatico"
 }

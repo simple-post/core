@@ -578,5 +578,6 @@
   "continueAccountSetup": "Hesap kurulumuna devam et",
   "startingAccountConnection": "Hesap bağlantısı başlatılıyor…",
   "calendarItemCount_one": "{{count, number}} öğe",
-  "calendarItemCount_other": "{{count, number}} öğe"
+  "calendarItemCount_other": "{{count, number}} öğe",
+  "pluginAutomatic": "Otomatik"
 }

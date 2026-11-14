@@ -24,3 +24,10 @@ Open `open_post_editor`. Help the user write and preview one draft for their con
 Setup is complete when at least one destination is connected, the timezone is configured, and a draft is saved. Do not publish, schedule, discard, or retry a post as part of setup unless the user explicitly asks.
 
 If extension tools are unavailable, use `list_accounts`, the SimplePost accounts web handoff, and the existing draft/preview tools. Never invent IDs, file references, or access tokens.
+
+## Language
+
+- Follow the user’s explicitly requested conversation language. Otherwise use the saved plugin language, then the connected client’s language.
+- Pass `response_locale` on tool calls when the user requests a language for the current conversation or answer (for example, “Switch to Italian” means `it`). This does not save an account preference. Continue that choice until the user changes it. Supported codes: `en`, `es`, `pt-BR`, `fr`, `de`, `ja`, `it`, `ko`, `zh-Hans`, `zh-Hant`, `ar`, `hi`, `id`, `tr`, `bg`.
+- Use `get_language_settings` to inspect the preference when needed. Call `set_plugin_language` only when the user asks to save/change the plugin language setting; use `language: "auto"` to follow the client again. Do not save a preference merely because a message uses another language.
+- Tool text includes `resolvedLocale`; use it for explanations and UI-related guidance. Keep IDs, argument names, URLs, technical enum values, and user-generated content unchanged. Do not translate names, notes, captions, posts, titles or supplied source text unless the user specifically asks for a content translation.

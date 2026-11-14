@@ -763,5 +763,9 @@
   "{{value1}} doesn't support threads, so only the first post will be published there.": "{{value1}} tidak mendukung utas, jadi hanya postingan pertama yang akan terbit di sana.",
   "{{value1}} is configured for preview only. Connect a real account before posting.": "{{value1}} dikonfigurasi hanya untuk pratinjau. Hubungkan akun sungguhan sebelum menerbitkan.",
   "{{value1}} is not enabled in this environment.": "{{value1}} tidak diaktifkan di lingkungan ini.",
-  "{{width}}×{{height}} image: {{message}}": "Gambar {{width}}×{{height}}: {{message}}"
+  "{{width}}×{{height}} image: {{message}}": "Gambar {{width}}×{{height}}: {{message}}",
+  "Language": "Bahasa",
+  "Read the plugin language setting. Automatic follows the connected client.": "Membaca pengaturan bahasa plugin. Otomatis mengikuti bahasa klien yang terhubung.",
+  "Save the plugin language when the user requests it. Use auto to follow the connected client. User content is unchanged.": "Menyimpan bahasa plugin saat diminta pengguna. Gunakan auto untuk mengikuti bahasa klien yang terhubung. Konten pengguna tidak diubah.",
+  "Language for this response only. Does not change saved preferences or user content.": "Bahasa hanya untuk respons ini. Tidak mengubah preferensi tersimpan atau konten pengguna."
 }

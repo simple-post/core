@@ -12,6 +12,41 @@ export function preferredWidgetLocale(
   return normalizeLocale(hostLocale) ?? normalizeLocale(compatibilityLocale) ?? normalizeLocale(resourceLocale) ?? "en";
 }
 
+const preferences = new WeakMap<App, { language: string; responseLocale?: Locale; resolvedLocale?: Locale }>();
+const listeners = new WeakMap<App, Set<() => void>>();
+export function pluginLanguage(app: App) {
+  return preferences.get(app)?.language ?? "auto";
+}
+export function responseLocale(app: App) {
+  return preferences.get(app)?.responseLocale;
+}
+export function acceptWidgetLanguage(app: App, meta?: Record<string, unknown>) {
+  if (!normalizeLocale(meta?.["simplepost/uiLocale"])) return;
+  preferences.set(app, {
+    language: typeof meta?.["simplepost/pluginLanguage"] === "string" ? meta["simplepost/pluginLanguage"] : "auto",
+    responseLocale: normalizeLocale(meta?.["simplepost/responseLocale"]),
+    resolvedLocale: normalizeLocale(meta?.["simplepost/uiLocale"]),
+  });
+  for (const listener of listeners.get(app) ?? []) listener();
+}
+export function subscribeWidgetLanguage(app: App, listener: () => void) {
+  const set = listeners.get(app) ?? new Set();
+  listeners.set(app, set);
+  set.add(listener);
+  return () => {
+    set.delete(listener);
+  };
+}
+export function effectiveWidgetLocale(
+  app: App | null | undefined,
+  compatibility?: unknown,
+  resource?: unknown,
+): Locale {
+  const preference = app && preferences.get(app);
+  return preference && (preference.language !== "auto" || preference.responseLocale)
+    ? (preference.resolvedLocale ?? "en")
+    : preferredWidgetLocale(app?.getHostContext()?.locale, compatibility, resource);
+}
 const contexts = new WeakMap<App, { locale: Locale; copy: SourceCopy }>();
 
 /** Translators belong to an individual host connection, never a shared mutable locale. */
@@ -21,7 +56,7 @@ export function bindWidgetLocale(app: App, locale: Locale, messages: Messages) {
 }
 
 export function widgetLocale(app: App): Locale {
-  return normalizeLocale(app.getHostContext()?.locale) ?? contexts.get(app)?.locale ?? "en";
+  return effectiveWidgetLocale(app, undefined, contexts.get(app)?.locale);
 }
 
 export function widgetCopy(app: App): SourceCopy {

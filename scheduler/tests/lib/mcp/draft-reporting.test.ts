@@ -1,3 +1,4 @@
+jest.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: jest.fn(async () => ({ pluginLocale: null })) } } }));
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/server";
 

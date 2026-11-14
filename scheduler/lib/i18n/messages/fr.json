@@ -579,5 +579,6 @@
   "startingAccountConnection": "Connexion de votre compte en cours…",
   "calendarItemCount_one": "{{count, number}} élément",
   "calendarItemCount_many": "{{count, number}} éléments",
-  "calendarItemCount_other": "{{count, number}} éléments"
+  "calendarItemCount_other": "{{count, number}} éléments",
+  "pluginAutomatic": "Automatique"
 }

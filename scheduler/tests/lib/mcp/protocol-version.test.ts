@@ -1,3 +1,4 @@
+jest.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: jest.fn(async () => ({ pluginLocale: null })) } } }));
 import { NextRequest } from "next/server";
 
 import { Feature } from "@prisma/client";
@@ -8,6 +9,8 @@ import { hasFeature } from "@/lib/features";
 import { authenticateMcpToken } from "@/lib/mcp/oauth";
 
 const TOOL_NAMES = [
+  "get_language_settings",
+  "set_plugin_language",
   "list_accounts",
   "get_tiktok_creator_info",
   "upload_media",

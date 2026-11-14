@@ -38,8 +38,9 @@ const localeFlags: Record<Locale, string> = {
   bg: "🇧🇬",
 };
 
+const shortCodes: Partial<Record<Locale, string>> = { "pt-BR": "PT", "zh-Hans": "简体", "zh-Hant": "繁體" };
 export function localeLabel(locale: Locale): string {
-  return `${localeFlags[locale]} ${locale.toUpperCase()}`;
+  return `${localeFlags[locale]} ${shortCodes[locale] ?? locale.split("-")[0].toUpperCase()}`;
 }
 
 export function normalizeLocale(value: unknown): Locale | undefined {

@@ -158,6 +158,43 @@ describe("XPublisher", () => {
       expect(result).toEqual({ id: "tweet_id_456", error: PostErrorType.NO_ERROR });
     });
 
+    it.each(["images", "videos", "mixed"])("publishes all 20 %s in order without truncating", async (kind) => {
+      const media = Array.from({ length: 20 }, (_, index) => {
+        const type = kind === "videos" || (kind === "mixed" && index % 2 === 1) ? "video" : "image";
+        return { type, path: `/path/${index}.${type === "video" ? "mp4" : "jpg"}` } as const;
+      });
+      let uploaded = 0;
+      const nextId = () => `media_${++uploaded}`;
+      mockV2Client.uploadMedia.mockImplementation(async () => nextId());
+      mockV2Client.post.mockImplementation(async (url: string) => ({
+        data: url.endsWith("/initialize") ? { id: nextId() } : {},
+      }));
+      mockV2Client.get.mockResolvedValue({ data: { processing_info: { state: "succeeded" } } });
+      mockV2Client.tweet.mockResolvedValue({ data: { id: "carousel_id" } });
+
+      await expect(publisher.postContent({ media }, options)).resolves.toMatchObject({ id: "carousel_id" });
+
+      expect(uploaded).toBe(20);
+      expect(mockV2Client.tweet).toHaveBeenCalledTimes(1);
+      expect(mockV2Client.tweet).toHaveBeenCalledWith("", {
+        media: { media_ids: Array.from({ length: 20 }, (_, index) => `media_${index + 1}`) },
+        reply: undefined,
+      });
+    });
+
+    it("rejects 21 combined attachments before uploading or publishing", async () => {
+      const media: NonNullable<Content["media"]> = Array.from({ length: 21 }, (_, index) =>
+        index % 2 === 0 ? { type: "image", path: `/path/${index}.jpg` } : { type: "video", path: `/path/${index}.mp4` },
+      );
+      await expect(publisher.postContent({ media }, options)).rejects.toMatchObject({
+        errorType: PostErrorType.INVALID_CONTENT,
+        details: { errors: [expect.objectContaining({ code: "too_many_media", limit: 20, actual: 21 })] },
+      });
+      expect(mockV2Client.uploadMedia).not.toHaveBeenCalled();
+      expect(mockV2Client.post).not.toHaveBeenCalled();
+      expect(mockV2Client.tweet).not.toHaveBeenCalled();
+    });
+
     it("keeps polling video processing when X omits check_after_secs", async () => {
       jest.useFakeTimers();
       try {
@@ -959,26 +996,24 @@ describe("XPublisher", () => {
   });
 
   describe("validate", () => {
-    it("should reject when too many images are provided", () => {
+    it.each(["image", "video"] as const)("rejects more than 20 %s attachments", (type) => {
       const content: Content = {
         text: "Too many images",
-        media: [
-          { type: "image", path: "/path/1.jpg" },
-          { type: "image", path: "/path/2.jpg" },
-          { type: "image", path: "/path/3.jpg" },
-          { type: "image", path: "/path/4.jpg" },
-          { type: "image", path: "/path/5.jpg" },
-        ],
+        media: Array.from({ length: 21 }, (_, index) => ({
+          type,
+          path: `/path/${index}.${type === "video" ? "mp4" : "jpg"}`,
+        })),
       };
 
       const result = XPublisher.validate(content);
 
       expect(result.warnings).toHaveLength(0);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].code).toBe("too_many_images");
+      expect(result.isValid).toBe(false);
+      expect(result.errors[0]).toMatchObject({ code: "too_many_media", limit: 20, actual: 21 });
     });
 
-    it("should error when mixing images and videos", () => {
+    it("accepts mixed images and videos and advertises the combined limit", () => {
       const content: Content = {
         text: "Mixed media",
         media: [
@@ -989,8 +1024,14 @@ describe("XPublisher", () => {
 
       const result = XPublisher.validate(content);
 
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].code).toBe("mixed_media_not_supported");
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(XPublisher.getValidationRules().media).toMatchObject({
+        maxCount: 20,
+        maxImages: 20,
+        maxVideos: 20,
+        allowsMixed: true,
+      });
     });
 
     it("should warn (not error) when text is longer than 280 but within long-post max", () => {

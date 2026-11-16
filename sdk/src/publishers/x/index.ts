@@ -7,7 +7,6 @@ import {
   X_CASHTAG_LIMIT_MESSAGE,
   X_MAX_GIF_SIZE_BYTES,
   X_MAX_IMAGE_SIZE_BYTES,
-  X_MAX_MEDIA_COUNT,
   X_MAX_VIDEO_SIZE_BYTES,
   X_STANDARD_POST_MAX_LENGTH,
   X_VALIDATION_RULES,
@@ -30,6 +29,7 @@ import type {
   XCredentials,
 } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
+import type { SendTweetV2Params } from "twitter-api-v2";
 
 interface RefreshTokenResponse {
   access_token: string;
@@ -555,7 +555,7 @@ export class XPublisher extends Publisher {
       // Upload all media files if any
       const mediaIds: string[] = [];
       if (content.media) {
-        for (const media of content.media.slice(0, X_MAX_MEDIA_COUNT)) {
+        for (const media of content.media) {
           // Resolve media path (download if URL)
           const { path: resolvedPath, cleanup } = await resolveMediaPath(media);
           tempFileManager.add(cleanup);
@@ -566,8 +566,13 @@ export class XPublisher extends Publisher {
       }
 
       // Post the tweet
+      // twitter-api-v2 still types the former four-attachment limit. Validation
+      // enforces X's combined limit; the client sends the complete array as JSON.
       const { data: createdTweet } = await this.client.v2.tweet(content.text || "", {
-        media: mediaIds.length > 0 ? { media_ids: mediaIds as [string, string, string, string] } : undefined,
+        media:
+          mediaIds.length > 0
+            ? { media_ids: mediaIds as NonNullable<SendTweetV2Params["media"]>["media_ids"] }
+            : undefined,
         reply: replyToId ? { in_reply_to_tweet_id: replyToId } : undefined,
         ...(quoteTarget ? { quote_tweet_id: quoteTarget.postId } : {}),
       });

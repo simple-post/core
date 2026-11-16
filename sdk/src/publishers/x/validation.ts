@@ -1,7 +1,7 @@
-import { describeDisplayMessage } from "../../validation/display-message";
 import twitterText from "twitter-text";
 
-import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
+import { describeDisplayMessage } from "../../validation/display-message";
+import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content, Media } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
@@ -10,8 +10,8 @@ import type { PlatformValidationRules, ValidationIssue, ValidationResult } from 
 export const X_STANDARD_POST_MAX_LENGTH = 280;
 /** X long-post ceiling per X help (longer posts); posting still requires a capable account. */
 export const X_LONG_POST_MAX_LENGTH = 25_000;
-export const X_MAX_MEDIA_COUNT = 4;
-export const X_MAX_VIDEOS = 1;
+export const X_MAX_MEDIA_COUNT = 20;
+export const X_MAX_VIDEOS = X_MAX_MEDIA_COUNT;
 export const X_MAX_CASHTAGS = 1;
 export const X_CASHTAG_LIMIT_MESSAGE =
   "X allows only one cashtag ($SYMBOL) per post, including repeated symbols. Remove the $ from additional mentions or put them in separate thread posts.";
@@ -37,7 +37,7 @@ function isGif(media: Media): boolean {
 
 export const X_VALIDATION_RULES: PlatformValidationRules = {
   text: { maxLength: X_LONG_POST_MAX_LENGTH, standardMaxLength: X_STANDARD_POST_MAX_LENGTH },
-  media: { maxCount: X_MAX_MEDIA_COUNT, maxImages: X_MAX_MEDIA_COUNT, maxVideos: X_MAX_VIDEOS, allowsMixed: false },
+  media: { maxCount: X_MAX_MEDIA_COUNT, maxImages: X_MAX_MEDIA_COUNT, maxVideos: X_MAX_VIDEOS, allowsMixed: true },
   image: { maxSizeBytes: X_MAX_IMAGE_SIZE_BYTES },
   video: { maxSizeBytes: X_MAX_VIDEO_SIZE_BYTES },
   notes: [`Animated GIFs may be up to ${X_MAX_GIF_SIZE_BYTES / (1024 * 1024)} MB.`, X_CASHTAG_LIMIT_MESSAGE],
@@ -50,7 +50,6 @@ export function validateXContent(content: Content): ValidationResult {
   const textLength = getXTextLength(text);
   const media = content.media ?? [];
   const mediaCount = media.length;
-  const { images, videos } = countMedia(media);
 
   // Count occurrences, not unique symbols. URLs and currency amounts are not
   // cashtags. X's API rejects even two mentions of the same ticker.
@@ -141,52 +140,20 @@ export function validateXContent(content: Content): ValidationResult {
     }
   }
 
-  if (videos > 0 && images > 0) {
+  if (mediaCount > X_MAX_MEDIA_COUNT) {
     errors.push(
       describeDisplayMessage(
         {
           platform: "x",
           severity: "error",
-          code: "mixed_media_not_supported",
-          message: "X posts cannot mix images and videos.",
-          field: "media",
-        },
-        "X posts cannot mix images and videos.",
-      ),
-    );
-  }
-
-  if (videos > X_MAX_VIDEOS) {
-    errors.push(
-      describeDisplayMessage(
-        {
-          platform: "x",
-          severity: "error",
-          code: "too_many_videos",
-          message: "X supports only one video per post.",
-          field: "media",
-          limit: X_MAX_VIDEOS,
-          actual: videos,
-        },
-        "X supports only one video per post.",
-      ),
-    );
-  }
-
-  if (images > X_MAX_MEDIA_COUNT) {
-    warnings.push(
-      describeDisplayMessage(
-        {
-          platform: "x",
-          severity: "warning",
-          code: "too_many_images",
-          message: `X supports up to ${X_MAX_MEDIA_COUNT} images. Only the first ${X_MAX_MEDIA_COUNT} will be posted.`,
+          code: "too_many_media",
+          message: `X supports up to ${X_MAX_MEDIA_COUNT} photos and videos combined per post. Remove extra attachments before publishing.`,
           field: "media",
           limit: X_MAX_MEDIA_COUNT,
-          actual: images,
+          actual: mediaCount,
         },
-        "X supports up to {{X_MAX_MEDIA_COUNT}} images. Only the first {{X_MAX_MEDIA_COUNT2}} will be posted.",
-        { X_MAX_MEDIA_COUNT: String(X_MAX_MEDIA_COUNT), X_MAX_MEDIA_COUNT2: String(X_MAX_MEDIA_COUNT) },
+        "X supports up to {{limit}} photos and videos combined per post. Remove extra attachments before publishing.",
+        { limit: String(X_MAX_MEDIA_COUNT) },
       ),
     );
   }

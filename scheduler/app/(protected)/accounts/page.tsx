@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, X } from "lucide-react";
+import { Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
@@ -32,9 +32,11 @@ import type { MessageKey } from "@/lib/i18n/translate";
 import { logClientError } from "@/lib/logger/client";
 import { oauthErrorKey } from "@/lib/oauth/error-messages";
 import { queryKeys } from "@/lib/query-client";
+import { cn } from "@/lib/utils";
 import type { ConnectedAccount } from "@/types";
 
 const CONNECTION_RETURN_KEY = "simplepost:account-connection:return";
+const WORKSPACE_RETURN_PATH = "/accounts?source=workspace";
 
 function getCredentialBadge(account: ConnectedAccount): string | null {
   const status = account.credentialStatus;
@@ -83,6 +85,7 @@ export default function AccountsPage() {
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const fromWorkspace = searchParams.get("source") === "workspace";
   const queryClient = useQueryClient();
   const handledConnection = useRef(false);
   const onboardingConnection = useRef(false);
@@ -96,6 +99,7 @@ export default function AccountsPage() {
   const connectForemMutation = useConnectForem();
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
   const [showTelegramDialog, setShowTelegramDialog] = useState(false);
@@ -118,17 +122,20 @@ export default function AccountsPage() {
     handledConnection.current = true;
     void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
     void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
-    let destination = "/accounts";
+    let destination = fromWorkspace ? WORKSPACE_RETURN_PATH : "/accounts";
     try {
-      destination = recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)) ?? "/accounts";
+      destination = recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)) ?? destination;
       window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
     } catch {
       // Storage can be unavailable; connection success must still be usable.
     }
     toast.success(t("accountConnected"));
     if (searchParams.get("source") === "assistant_handoff") return;
-    router.replace(resumeRecoveryHref(destination), { scroll: false });
-  }, [queryClient, router, searchParams, t]);
+    router.replace(
+      destination === WORKSPACE_RETURN_PATH ? `${destination}&connected=true` : resumeRecoveryHref(destination),
+      { scroll: false },
+    );
+  }, [fromWorkspace, queryClient, router, searchParams, t]);
 
   useEffect(() => {
     if (!searchParams.get("error")) return;
@@ -151,12 +158,29 @@ export default function AccountsPage() {
       return;
     onboardingConnection.current = true;
     setShowConnectDialog(true);
-    router.replace("/accounts", { scroll: false });
-  }, [readOnly, router, searchParams]);
+    router.replace(fromWorkspace ? WORKSPACE_RETURN_PATH : "/accounts", { scroll: false });
+  }, [fromWorkspace, readOnly, router, searchParams]);
+
+  useEffect(() => {
+    function restorePicker(event: PageTransitionEvent) {
+      if (event.persisted) setConnectingPlatform(null);
+    }
+    window.addEventListener("pageshow", restorePicker);
+    return () => window.removeEventListener("pageshow", restorePicker);
+  }, []);
+
+  useEffect(() => {
+    if (!connectingPlatform) return;
+    // Commit the pending UI before starting a full-page navigation.
+    const timer = window.setTimeout(() => {
+      window.location.assign(`/api/connect/${connectingPlatform}`);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [connectingPlatform]);
 
   const handleConnect = useCallback(
     (platform: string, returnTo?: string) => {
-      if (readOnly) return;
+      if (readOnly || connectingPlatform) return;
       setManualHandoff(null);
       const platformConfig = getPlatformById(platform);
       // Preserve the return destination through the provider's full-page OAuth navigation.
@@ -166,7 +190,11 @@ export default function AccountsPage() {
           CONNECTION_RETURN_KEY,
           recoveryReturnPath(returnTo) ??
             recoveryReturnTo ??
-            (onboardingConnection.current || (!loading && accounts.length === 0) ? "/" : "/accounts"),
+            (fromWorkspace
+              ? WORKSPACE_RETURN_PATH
+              : onboardingConnection.current || (!loading && accounts.length === 0)
+                ? "/"
+                : "/accounts"),
         );
       } catch {
         // Do not block account connection when storage is disabled.
@@ -182,11 +210,10 @@ export default function AccountsPage() {
           setTelegramError("");
         }
       } else {
-        setShowConnectDialog(false);
-        window.location.href = `/api/connect/${platform}`;
+        setConnectingPlatform(platform);
       }
     },
-    [readOnly, loading, accounts.length, recoveryReturnTo],
+    [readOnly, connectingPlatform, loading, accounts.length, recoveryReturnTo, fromWorkspace],
   );
 
   useEffect(() => {
@@ -205,8 +232,12 @@ export default function AccountsPage() {
     if (platform === "forem") setShowForemDialog(true);
     else if (platform === "telegram") setShowTelegramDialog(true);
   }, []);
-  const manualSuccessUrl = (platform: string) =>
-    `/accounts?success=true&platform=${platform}${manualHandoff?.platform === platform ? "&source=assistant_handoff" : ""}`;
+  const manualSuccessUrl = (platform: string) => {
+    const params = new URLSearchParams({ success: "true", platform });
+    if (manualHandoff?.platform === platform) params.set("source", "assistant_handoff");
+    else if (fromWorkspace) params.set("source", "workspace");
+    return `/accounts?${params}`;
+  };
   const closeForemDialog = () => {
     setShowForemDialog(false);
     setForemApiKey("");
@@ -304,7 +335,11 @@ export default function AccountsPage() {
                         /* No storage means no retained return destination. */
                       }
                     }}>
-                    {recoveryReturnTo === "/" ? t("backDashboard") : t("backToPost")}
+                    {recoveryReturnTo === "/"
+                      ? t("backDashboard")
+                      : recoveryReturnTo === WORKSPACE_RETURN_PATH
+                        ? t("backToAccounts")
+                        : t("backToPost")}
                   </Link>
                 </Button>
               )}
@@ -312,6 +347,11 @@ export default function AccountsPage() {
           </Alert>
         )}
         {!readOnly && <AssistantConnectionHandoff onManual={openManualHandoff} />}
+        {fromWorkspace && searchParams.get("connected") === "true" && (
+          <Alert className="mb-6 border-primary/25 bg-primary/5">
+            <AlertDescription>{t("handoffComplete")}</AlertDescription>
+          </Alert>
+        )}
         <AccountsHeading
           action={
             readOnly ? undefined : (
@@ -453,24 +493,38 @@ export default function AccountsPage() {
             <DialogDescription>{t("pickPlatformToConnect")}</DialogDescription>
           </DialogHeader>
           <HelpLink path="/accounts#platform-requirements">{t("checkPlatformRequirements")}</HelpLink>
+          <span className="sr-only" role="status">
+            {connectingPlatform ? t("connecting") : ""}
+          </span>
           <div className="grid gap-2 sm:grid-cols-2 mt-4">
             {SOCIAL_PLATFORMS.map((platform) => {
               const description = platformDescriptionKey(platform.id);
+              const connecting = connectingPlatform === platform.id;
               return (
                 <button
                   key={platform.id}
+                  type="button"
+                  disabled={connectingPlatform !== null}
                   onClick={() => handleConnect(platform.id)}
-                  className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-secondary transition-colors text-start group cursor-pointer">
+                  className={cn(
+                    "flex items-center gap-4 p-4 rounded-xl border border-border bg-card enabled:hover:border-primary/40 enabled:hover:bg-secondary transition-colors text-start enabled:cursor-pointer",
+                    connecting && "border-primary/40 bg-secondary",
+                    connectingPlatform && !connecting && "opacity-50",
+                  )}>
                   <div
                     className={`flex h-11 w-11 items-center justify-center rounded-lg flex-shrink-0 ${
                       platform.id === "youtube" ? "bg-white text-red-600" : `${platform.color} text-white`
                     }`}>
-                    <PlatformIcon platform={platform.id} className="!h-8 !w-8" />
+                    {connecting ? (
+                      <Loader2 aria-hidden="true" className="size-5 motion-safe:animate-spin" />
+                    ) : (
+                      <PlatformIcon platform={platform.id} className="!h-8 !w-8" />
+                    )}
                   </div>
                   <div className="min-w-0">
                     <h4 className="font-medium text-sm text-foreground truncate">{platform.name}</h4>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                      {description ? t(description) : platform.description}
+                      {connecting ? t("connecting") : description ? t(description) : platform.description}
                     </p>
                   </div>
                 </button>

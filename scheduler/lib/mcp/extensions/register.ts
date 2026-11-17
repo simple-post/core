@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { type McpServer } from "@modelcontextprotocol/server";
 import { Feature } from "@prisma/client";
 import { z } from "zod";
@@ -100,6 +102,12 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
     canWrite: hasMcpScope(context.scope, "posts:write"),
     canValidate: hasMcpScope(context.scope, "posts:validate"),
     imageFittingEnabled: await hasFeature(context.userId, Feature.IMAGE_FITTING),
+    onboarding: context.readOnly
+      ? null
+      : {
+          dismissalId: createHash("sha256").update(context.userId).digest("hex"),
+          trialDays: context.onboardingTrialDays ?? null,
+        },
   });
   const openerMeta = (uri: string, type: "global" | "thread") => ({
     ui: { resourceUri: uri, visibility: ["model", "app"] },

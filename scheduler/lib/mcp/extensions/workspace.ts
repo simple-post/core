@@ -9,6 +9,7 @@ import { serverMessage } from "@/lib/i18n/server";
 import { listAccounts } from "@/lib/mcp/tools/accounts";
 import { createPost, inspectPosts } from "@/lib/mcp/tools/posts";
 import { getSchedule } from "@/lib/mcp/tools/schedule";
+import { hasOnboardingPost } from "@/lib/onboarding/state";
 import { executePostUpdate } from "@/lib/posting/update-post";
 import { readPublishingPreferences, timeZoneSchema } from "@/lib/preferences/publishing";
 import { prisma } from "@/lib/prisma";
@@ -37,7 +38,7 @@ export const workspaceInputSchema = z.object({
 
 export async function loadWorkspace(userId: string, input: z.infer<typeof workspaceInputSchema>) {
   const preferences = await readPublishingPreferences(userId);
-  const [schedule, accounts, posts, sessions] = await Promise.all([
+  const [schedule, accounts, posts, sessions, hasPost] = await Promise.all([
     getSchedule(userId, {
       view: input.view ?? preferences.calendarView,
       date: input.date,
@@ -51,12 +52,14 @@ export async function loadWorkspace(userId: string, input: z.infer<typeof worksp
       take: 10,
       select: { id: true, postId: true, payload: true, updatedAt: true, revision: true, committing: true },
     }),
+    hasOnboardingPost(userId),
   ]);
   return {
     kind: "workspace" as const,
     preferences,
     schedule,
     accounts: accounts.accounts,
+    hasPost,
     posts,
     recovery: sessions.map((session) => ({
       id: session.id,

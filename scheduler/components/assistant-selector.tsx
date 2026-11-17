@@ -9,6 +9,7 @@ import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { useUiTranslation } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/translate";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 type IconComponent = ComponentType<{ className?: string }>;
@@ -27,58 +28,72 @@ type AssistantOption = {
   commands?: CodeBlock[];
 };
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social").replace(/\/+$/, "");
-const MCP_URL = `${APP_URL}/mcp`;
-const CLAUDE_DIRECTORY_URL = "https://claude.ai/directory/simplepost";
-const CHATGPT_PLUGIN_URL = "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795";
-
-const connectors: Array<{ id: string; label: MessageKey; Icon: IconComponent; href: string }> = [
-  { id: "chatgpt", label: "chatGptPlugin", Icon: OpenAIIcon, href: CHATGPT_PLUGIN_URL },
-  { id: "claude", label: "claudeConnector", Icon: ClaudeIcon, href: CLAUDE_DIRECTORY_URL },
-];
-
-const options: AssistantOption[] = [
+const HOSTED_APP_URL = "https://app.simplepost.social";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || HOSTED_APP_URL;
+const connectors = [
   {
-    id: "claude-code",
-    label: "Claude Code",
+    id: "chatgpt",
+    name: "ChatGPT",
+    label: "chatGptPlugin",
+    Icon: OpenAIIcon,
+    directoryUrl: "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795",
+    setupUrl: "https://chatgpt.com/plugins",
+  },
+  {
+    id: "claude",
+    name: "Claude",
+    label: "claudeConnector",
     Icon: ClaudeIcon,
-    description: "claudeCodeInstructions",
-    commands: [{ code: `claude mcp add --transport http simplepost ${MCP_URL}`, label: "command", shell: true }],
+    directoryUrl: "https://claude.ai/directory/simplepost",
+    setupUrl: "https://claude.ai/",
   },
-  {
-    id: "openclaw",
-    label: "OpenClaw",
-    Icon: Cpu,
-    description: "openClawInstructions",
-    commands: [
-      {
-        code: `openclaw mcp add simplepost --url ${MCP_URL} --transport streamable-http --auth oauth --no-probe`,
-        label: "addServer",
-        shell: true,
-      },
-      { code: "openclaw mcp login simplepost", label: "signIn", shell: true },
-      { code: "openclaw mcp login simplepost --code <code>", label: "finishLogin", shell: true },
-    ],
-  },
-  {
-    id: "mcp",
-    label: "MCP",
-    Icon: Plug,
-    description: "mcpSetupInstructions",
-    commands: [{ code: MCP_URL, label: "remoteMcpUrl" }],
-  },
-  {
-    id: "cli",
-    label: "CLI",
-    Icon: Terminal,
-    description: "cliSetupInstructions",
-    commands: [
-      { code: "npm install -g @simple-post/cli", label: "install", shell: true },
-      { code: "simplepost setup --backend keychain", label: "configureSecretStorage", shell: true },
-      { code: `simplepost connect --url ${APP_URL}`, label: "connect", shell: true },
-    ],
-  },
-];
+] as const;
+type ConnectorId = (typeof connectors)[number]["id"];
+
+function otherOptions(appUrl: string, mcpUrl: string): AssistantOption[] {
+  return [
+    {
+      id: "claude-code",
+      label: "Claude Code",
+      Icon: ClaudeIcon,
+      description: "claudeCodeInstructions",
+      commands: [{ code: `claude mcp add --transport http simplepost ${mcpUrl}`, label: "command", shell: true }],
+    },
+    {
+      id: "openclaw",
+      label: "OpenClaw",
+      Icon: Cpu,
+      description: "openClawInstructions",
+      commands: [
+        {
+          code: `openclaw mcp add simplepost --url ${mcpUrl} --transport streamable-http --auth oauth --no-probe`,
+          label: "addServer",
+          shell: true,
+        },
+        { code: "openclaw mcp login simplepost", label: "signIn", shell: true },
+        { code: "openclaw mcp login simplepost --code <code>", label: "finishLogin", shell: true },
+      ],
+    },
+    {
+      id: "mcp",
+      label: "MCP",
+      Icon: Plug,
+      description: "mcpSetupInstructions",
+      commands: [{ code: mcpUrl, label: "remoteMcpUrl" }],
+    },
+    {
+      id: "cli",
+      label: "CLI",
+      Icon: Terminal,
+      description: "cliSetupInstructions",
+      commands: [
+        { code: "npm install -g @simple-post/cli", label: "install", shell: true },
+        { code: "simplepost setup --backend keychain", label: "configureSecretStorage", shell: true },
+        { code: `simplepost connect --url ${appUrl}`, label: "connect", shell: true },
+      ],
+    },
+  ];
+}
 
 function CopyButton({ text }: { text: string }) {
   const { t } = useUiTranslation();
@@ -128,46 +143,69 @@ function CopyField({ command }: { command: CodeBlock }) {
   );
 }
 
-export function AssistantSelector({ onInstall }: { onInstall?: () => void }) {
+export function AssistantSelector({ onInstall, appUrl = APP_URL }: { onInstall?: () => void; appUrl?: string }) {
   const { t } = useUiTranslation();
-  const [showOthers, setShowOthers] = useState(false);
+  const { copy } = useUiCopy();
+  const baseUrl = appUrl.replace(/\/+$/, "");
+  const hosted = baseUrl === HOSTED_APP_URL;
+  const mcpUrl = `${baseUrl}/mcp`;
+  const options = otherOptions(baseUrl, mcpUrl);
+  const [view, setView] = useState<"overview" | "others" | ConnectorId>("overview");
   const [activeId, setActiveId] = useState(options[0].id);
   const activeOption = options.find((option) => option.id === activeId) ?? options[0];
-  const othersRef = useRef<HTMLButtonElement>(null);
+  const connector = connectors.find((option) => option.id === view);
+  const overviewRef = useRef<HTMLDivElement>(null);
+  const lastChoice = useRef<"others" | ConnectorId | null>(null);
   const backRef = useRef<HTMLButtonElement>(null);
-  const navigated = useRef(false);
 
   useEffect(() => {
-    if (navigated.current) (showOthers ? backRef : othersRef).current?.focus();
-  }, [showOthers]);
+    if (view !== "overview") {
+      backRef.current?.focus();
+      return;
+    }
+    if (lastChoice.current)
+      overviewRef.current?.querySelector<HTMLButtonElement>(`[data-choice="${lastChoice.current}"]`)?.focus();
+  }, [view]);
 
-  if (!showOthers) {
+  function choose(next: "others" | ConnectorId) {
+    lastChoice.current = next;
+    setView(next);
+  }
+
+  if (view === "overview") {
+    const choiceClassName =
+      "flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-start text-base font-medium transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
     return (
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid gap-3" role="group" aria-label={t("aiIntegrations")}>
-          {connectors.map(({ id, label, Icon, href }) => (
-            <a
-              key={id}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={onInstall}
-              className="flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-start text-base font-medium transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <Icon className="h-7 w-7 shrink-0" />
-              <span className="flex-1">
-                {t(label)}
-                <span className="sr-only"> {t("opensNewTab")}</span>
-              </span>
-              <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            </a>
-          ))}
+        <div ref={overviewRef} className="grid gap-3" role="group" aria-label={t("aiIntegrations")}>
+          {connectors.map(({ id, label, Icon, directoryUrl }) =>
+            hosted ? (
+              <a
+                key={id}
+                href={directoryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onInstall}
+                className={choiceClassName}>
+                <Icon className="h-7 w-7 shrink-0" />
+                <span className="flex-1">
+                  {t(label)}
+                  <span className="sr-only"> {t("opensNewTab")}</span>
+                </span>
+                <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </a>
+            ) : (
+              <button key={id} type="button" onClick={() => choose(id)} data-choice={id} className={choiceClassName}>
+                <Icon className="h-7 w-7 shrink-0" />
+                <span className="flex-1">{t(label)}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:rotate-180" aria-hidden="true" />
+              </button>
+            ),
+          )}
           <button
-            ref={othersRef}
+            data-choice="others"
             type="button"
-            onClick={() => {
-              navigated.current = true;
-              setShowOthers(true);
-            }}
+            onClick={() => choose("others")}
             className="flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-start transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <MoreHorizontal className="h-7 w-7 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="min-w-0 flex-1">
@@ -189,51 +227,71 @@ export function AssistantSelector({ onInstall }: { onInstall?: () => void }) {
         variant="ghost"
         size="sm"
         className="shrink-0 self-start"
-        onClick={() => {
-          navigated.current = true;
-          setShowOthers(false);
-        }}>
+        onClick={() => setView("overview")}>
         <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t("allIntegrations")}
       </Button>
-      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label={t("otherIntegrations")}>
-        {options.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={activeId === id}
-            onClick={() => setActiveId(id)}
-            className={cn(
-              "flex min-h-10 items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              activeId === id
-                ? "border-primary/45 bg-primary/10 text-foreground"
-                : "border-border text-muted-foreground hover:text-foreground",
-            )}>
-            <Icon className="h-4 w-4 shrink-0" />
-            {label}
-          </button>
-        ))}
-      </div>
-      <section
-        key={activeId}
-        aria-label={t("setupAssistant", { name: activeOption.label })}
-        tabIndex={0}
-        className="min-h-32 flex-1 overflow-y-auto rounded-xl border border-border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <p className="mb-4 text-sm leading-6 text-muted-foreground">{t(activeOption.description)}</p>
-        <div className="grid gap-4">
-          {activeOption.commands?.map((command) => (
-            <CopyField key={command.label} command={command} />
-          ))}
-        </div>
-        <HelpLink
-          className="mt-4"
-          path={
-            activeId === "cli"
-              ? "/cli#scheduler-connected-accounts"
-              : `/mcp#${activeId === "mcp" ? "other-clients" : activeId}`
-          }>
-          {t("setupGuide")}
-        </HelpLink>
-      </section>
+      {connector ? (
+        <section aria-label={t("setupAssistant", { name: connector.name })} className="grid gap-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            {connector.id === "chatgpt"
+              ? copy("In ChatGPT Plugins, choose +, then Add custom MCP server. Use this URL and select OAuth.")
+              : copy("In Claude, go to Customize → Connectors and add a custom web connector with this URL.")}
+          </p>
+          <CopyField command={{ code: mcpUrl, label: "remoteMcpUrl" }} />
+          <Button asChild size="sm" className="justify-self-start">
+            <a href={connector.setupUrl} target="_blank" rel="noopener noreferrer" onClick={onInstall}>
+              {copy("Open {{assistant}}", { assistant: connector.name })}
+              <span className="sr-only"> {t("opensNewTab")}</span>
+              <ExternalLink aria-hidden="true" />
+            </a>
+          </Button>
+        </section>
+      ) : (
+        <>
+          <div
+            className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4"
+            role="group"
+            aria-label={t("otherIntegrations")}>
+            {options.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={activeId === id}
+                onClick={() => setActiveId(id)}
+                className={cn(
+                  "flex min-h-10 items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  activeId === id
+                    ? "border-primary/45 bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground",
+                )}>
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
+          <section
+            key={activeId}
+            aria-label={t("setupAssistant", { name: activeOption.label })}
+            tabIndex={0}
+            className="min-h-32 flex-1 overflow-y-auto rounded-xl border border-border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <p className="mb-4 text-sm leading-6 text-muted-foreground">{t(activeOption.description)}</p>
+            <div className="grid gap-4">
+              {activeOption.commands?.map((command) => (
+                <CopyField key={command.label} command={command} />
+              ))}
+            </div>
+            <HelpLink
+              className="mt-4"
+              path={
+                activeId === "cli"
+                  ? "/cli#scheduler-connected-accounts"
+                  : `/mcp#${activeId === "mcp" ? "other-clients" : activeId}`
+              }>
+              {t("setupGuide")}
+            </HelpLink>
+          </section>
+        </>
+      )}
     </div>
   );
 }

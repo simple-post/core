@@ -179,6 +179,7 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 export interface McpToolAuthContext {
   uiLocale?: Locale;
   readOnly?: boolean;
+  onboardingTrialDays?: number | null;
   imageFittingEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
   clientId?: string;

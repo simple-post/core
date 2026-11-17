@@ -1,4 +1,8 @@
 {
+  "Setup reminder scheduled.": "Lembrete de configuração agendado.",
+  "Cancel setup reminder": "Cancelar lembrete de configuração",
+  "Email me once if I haven’t connected an account two days after signup.": "Envie um único e-mail se eu ainda não tiver conectado uma conta dois dias após o cadastro.",
+  "If you have a minute, could you tell me why you canceled?": "Se tiver um minuto, você pode me contar por que cancelou?",
   "Connect a social account to schedule your first post.": "Conecte uma conta de rede social para agendar sua primeira publicação.",
   " (unavailable on this installation)": " (indisponível nesta instalação)",
   "({{count}} pins)": "({{count}} Pins)",

@@ -1,4 +1,8 @@
 {
+  "Setup reminder scheduled.": "Promemoria di configurazione programmato.",
+  "Cancel setup reminder": "Annulla il promemoria",
+  "Email me once if I haven’t connected an account two days after signup.": "Mandami una sola email se non ho collegato un account due giorni dopo la registrazione.",
+  "If you have a minute, could you tell me why you canceled?": "Se hai un minuto, mi diresti perché hai annullato l’abbonamento?",
   "Connect a social account to schedule your first post.": "Collega un account social per programmare il tuo primo post.",
   " (unavailable on this installation)": " (non disponibile in questa installazione)",
   "({{count}} pins)": "({{count}} Pin)",

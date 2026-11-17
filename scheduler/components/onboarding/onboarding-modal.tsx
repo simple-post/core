@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 
 import { AssistantSelector } from "@/components/assistant-selector";
 import { focusOnboardingTitle, OnboardingDialog, OnboardingGuide } from "@/components/onboarding/onboarding-guide";
+import { SetupReminderPreference } from "@/components/onboarding/setup-reminder-preference";
 import { useOnboardingDismissal, useOnboardingState } from "@/components/onboarding/use-onboarding";
 import { useStoredOnboardingDismissal } from "@/components/onboarding/use-stored-onboarding-dismissal";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/di
 import { useBillingStatus } from "@/hooks/use-billing";
 import { useSession } from "@/lib/auth/auth-client";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
+import { setupReminderDueAt } from "@/lib/onboarding/setup-reminder";
 import { getOnboardingTrialDays } from "@/lib/onboarding/trial-days";
 
 export function OnboardingModal() {
@@ -26,7 +28,7 @@ export function OnboardingModal() {
   const user = session?.user;
   const reminder = useStoredOnboardingDismissal(user ? `simplepost:onboarding:connect-reminder:v1:${user.id}` : null);
   const [openedAt] = useState(Date.now);
-  const isAtLeastTwoDaysOld = Boolean(user && openedAt - new Date(user.createdAt).getTime() >= 48 * 60 * 60_000);
+  const isAtLeastTwoDaysOld = Boolean(user && setupReminderDueAt(new Date(user.createdAt)).getTime() <= openedAt);
   const checkReminder = billing?.active === true && isAtLeastTwoDaysOld && reminder.ready;
   const [assistantView, setAssistantView] = useState<"setup" | "chooser" | "checking">("setup");
   const { data: state, isFetchedAfterMount } = useOnboardingState(
@@ -97,6 +99,9 @@ export function OnboardingModal() {
         hasConnectedAccount={state.hasConnectedAccount}
         hasAiConnection={state.hasAiConnection}
         onSkip={dismiss}
+        setupReminder={
+          user?.emailVerified && !isAtLeastTwoDaysOld && !state.hasConnectedAccount ? <SetupReminderPreference /> : null
+        }
         connectAccount={
           <Button asChild size="sm">
             <Link href="/accounts?onboarding=connect">

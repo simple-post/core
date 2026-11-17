@@ -1,4 +1,8 @@
 {
+  "Setup reminder scheduled.": "設定リマインダーを予約しました。",
+  "Cancel setup reminder": "設定リマインダーをキャンセル",
+  "Email me once if I haven’t connected an account two days after signup.": "登録から2日経ってもアカウントを連携していなければ、メールで一度だけ知らせてください。",
+  "If you have a minute, could you tell me why you canceled?": "お時間があれば、解約した理由を教えていただけますか？",
   "Connect a social account to schedule your first post.": "ソーシャルアカウントを連携して、最初の投稿を予約しましょう。",
   " (unavailable on this installation)": " （この環境では利用できません）",
   "({{count}} pins)": "（ピン {{count}} 件）",

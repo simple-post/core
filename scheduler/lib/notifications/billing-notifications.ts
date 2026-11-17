@@ -9,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { EmailDeliveryError, sendNotificationEmail, type NotificationEmail } from "@/lib/resend/notification-email";
 
-import { renderBillingEmail } from "./billing-email";
+import { renderBillingEmail, renderSetupReminderEmail } from "./billing-email";
 
 const log = createLogger("billing-notifications");
 const TRIAL_NOTICE_MS = 24 * 60 * 60_000;
@@ -31,10 +31,6 @@ export async function enqueueTrialEndingNotifications(now: Date) {
     FROM "free_trial" t
     WHERE t."expiresAt" > (${now}::timestamptz AT TIME ZONE 'UTC')
       AND t."expiresAt" <= (${deadline}::timestamptz AT TIME ZONE 'UTC')
-      AND EXISTS (
-        SELECT 1 FROM "post" p WHERE p."userId" = t."userId"
-          AND p.status = 'scheduled' AND p."scheduledFor" >= t."expiresAt"
-      )
       AND NOT EXISTS (
         SELECT 1 FROM "billing_notification" n WHERE n."userId" = t."userId"
           AND n.kind = 'trial_ending' AND n."effectiveAt" = t."expiresAt"
@@ -83,24 +79,39 @@ async function prepareEmail(notice: BillingNotification, now: Date): Promise<Not
     timeZone: user.publishingPreferences?.timeZone ?? "UTC",
   };
   let content: ReturnType<typeof renderBillingEmail>;
-  if (notice.kind === "trial_ending") {
-    if (
-      notice.effectiveAt.getTime() <= now.getTime() ||
-      user.freeTrial?.expiresAt.getTime() !== notice.effectiveAt.getTime()
-    ) {
-      return null;
+  switch (notice.kind) {
+    case "trial_ending": {
+      if (
+        notice.effectiveAt.getTime() <= now.getTime() ||
+        user.freeTrial?.expiresAt.getTime() !== notice.effectiveAt.getTime()
+      ) {
+        return null;
+      }
+      const billing = await getBillingStatus(notice.userId);
+      if (billing.accessType !== "trial") return null;
+      const affectedPosts = await prisma.post.count({
+        where: { userId: notice.userId, status: "scheduled", scheduledFor: { gte: notice.effectiveAt } },
+      });
+      content = renderBillingEmail({ ...common, kind: "trial_ending", affectedPosts });
+      break;
     }
-    const billing = await getBillingStatus(notice.userId);
-    if (billing.accessType !== "trial") return null;
-    const affectedPosts = await prisma.post.count({
-      where: { userId: notice.userId, status: "scheduled", scheduledFor: { gte: notice.effectiveAt } },
-    });
-    if (affectedPosts === 0) return null;
-    content = renderBillingEmail({ ...common, kind: "trial_ending", affectedPosts });
-  } else if (notice.kind === "paid_cancellation") {
-    content = renderBillingEmail({ ...common, kind: "paid_cancellation", occurredAt: notice.occurredAt });
-  } else {
-    throw new Error("Unknown billing notification kind");
+    case "paid_cancellation":
+      content = renderBillingEmail({ ...common, kind: "paid_cancellation", occurredAt: notice.occurredAt });
+      break;
+    case "setup_reminder": {
+      if (notice.consentRecipient !== user.email) return null;
+      const billing = await getBillingStatus(notice.userId);
+      if (!billing.active || billing.usage.connectedAccounts > 0) return null;
+      const publishedPosts = await prisma.post.count({
+        where: { userId: notice.userId, status: "published" },
+        take: 1,
+      });
+      if (publishedPosts > 0) return null;
+      content = renderSetupReminderEmail(common.appUrl);
+      break;
+    }
+    default:
+      throw new Error("Unknown billing notification kind");
   }
   return { ...content, from: founderFromAddress(), to: user.email, replyTo: env.BILLING_EMAIL_REPLY_TO };
 }
@@ -140,6 +151,11 @@ async function deliver(notice: BillingNotification) {
         data: { firstAttemptAt: now, message: { ...message } },
       });
       if (!saved.count) return;
+    }
+    if (notice.kind === "setup_reminder") {
+      // A withdrawal clears the lease. Check again immediately before handing off to Resend.
+      const currentClaim = await prisma.billingNotification.count({ where });
+      if (currentClaim === 0) return;
     }
     const providerMessageId = await sendNotificationEmail(message, notice.key);
     await release({ status: "sent", sentAt: new Date(), providerMessageId, message: Prisma.DbNull, lastError: null });

@@ -1,4 +1,8 @@
 {
+  "Setup reminder scheduled.": "Напомнянето за настройка е насрочено.",
+  "Cancel setup reminder": "Отмени напомнянето за настройка",
+  "Email me once if I haven’t connected an account two days after signup.": "Изпратете ми един имейл, ако не съм свързал профил два дни след регистрацията.",
+  "If you have a minute, could you tell me why you canceled?": "Ако имате минута, бихте ли ми казали защо отменихте абонамента?",
   "Connect a social account to schedule your first post.": "Свържете профил в социална мрежа, за да насрочите първата си публикация.",
   " (unavailable on this installation)": " (не е налично в тази инсталация)",
   "({{count}} pins)": "({{count}} пина)",

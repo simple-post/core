@@ -1,4 +1,8 @@
 {
+  "Setup reminder scheduled.": "सेटअप रिमाइंडर शेड्यूल हो गया है।",
+  "Cancel setup reminder": "सेटअप रिमाइंडर रद्द करें",
+  "Email me once if I haven’t connected an account two days after signup.": "साइन अप करने के दो दिन बाद भी मेरा खाता जुड़ा न हो, तो मुझे एक बार ईमेल भेजें।",
+  "If you have a minute, could you tell me why you canceled?": "अगर आपके पास एक मिनट हो, तो क्या आप बता सकते हैं कि आपने सदस्यता क्यों रद्द की?",
   "Connect a social account to schedule your first post.": "अपनी पहली पोस्ट शेड्यूल करने के लिए एक सोशल मीडिया खाता जोड़ें।",
   " (unavailable on this installation)": " (इस इंस्टॉलेशन में उपलब्ध नहीं)",
   "({{count}} pins)": "({{count}} पिन)",

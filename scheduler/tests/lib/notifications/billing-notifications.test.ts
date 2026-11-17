@@ -8,7 +8,7 @@ import type { BillingNotification } from "@prisma/client";
 jest.mock("@/lib/billing/subscriptions", () => ({ getBillingStatus: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({
   prisma: {
-    billingNotification: { findUnique: jest.fn(), updateMany: jest.fn() },
+    billingNotification: { count: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
     user: { findUnique: jest.fn() },
     post: { count: jest.fn() },
   },
@@ -59,4 +59,45 @@ it("uses the stable notice key and founder reply address for an affected trial",
   expect(prisma.billingNotification.updateMany).toHaveBeenLastCalledWith(
     expect.objectContaining({ data: expect.objectContaining({ status: "sent", providerMessageId: "provider-id" }) }),
   );
+});
+
+it("sends a shorter expiry notice when the trial has no affected posts", async () => {
+  jest.mocked(getBillingStatus).mockResolvedValue({ accessType: "trial" } as never);
+  jest.mocked(prisma.post.count).mockResolvedValue(0);
+  jest.mocked(sendNotificationEmail).mockResolvedValue("provider-id");
+  await dispatchBillingNotification(notice.key);
+  const [message] = jest.mocked(sendNotificationEmail).mock.calls[0];
+  expect(message.text).toContain("reply and I’ll help");
+  expect(message.text).not.toContain("posts scheduled");
+  expect(message.text).toContain("Open SimplePost");
+});
+
+it("only sends the setup reminder with a matching opt-in and no connected account", async () => {
+  jest.mocked(prisma.billingNotification.findUnique).mockResolvedValue({
+    ...notice,
+    kind: "setup_reminder",
+    consentRecipient: "person@example.invalid",
+  });
+  jest.mocked(prisma.post.count).mockResolvedValue(0);
+  jest.mocked(prisma.billingNotification.count).mockResolvedValue(1);
+  jest.mocked(sendNotificationEmail).mockResolvedValue("provider-id");
+  jest.mocked(getBillingStatus).mockResolvedValue({ active: true, usage: { connectedAccounts: 1 } } as never);
+  await dispatchBillingNotification(notice.key);
+  expect(sendNotificationEmail).not.toHaveBeenCalled();
+
+  jest.mocked(getBillingStatus).mockResolvedValue({ active: true, usage: { connectedAccounts: 0 } } as never);
+  await dispatchBillingNotification(notice.key);
+  expect(sendNotificationEmail).toHaveBeenCalledTimes(1);
+  expect(sendNotificationEmail).toHaveBeenCalledWith(
+    expect.objectContaining({ text: expect.stringContaining("You asked me to remind you") }),
+    notice.key,
+  );
+
+  jest.mocked(prisma.billingNotification.findUnique).mockResolvedValue({
+    ...notice,
+    kind: "setup_reminder",
+    consentRecipient: "previous@example.invalid",
+  });
+  await dispatchBillingNotification(notice.key);
+  expect(sendNotificationEmail).toHaveBeenCalledTimes(1);
 });

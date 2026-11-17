@@ -55,6 +55,7 @@ model User {
   subscription                 UserSubscription?
   complimentaryAccess          ComplimentaryAccess?
   freeTrial                    FreeTrial?
+  billingNotifications         BillingNotification[]
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
   postingSlots                 PostingSlot[]
@@ -313,6 +314,30 @@ model AccountDisconnectNotification {
   @@unique([accountId, disconnectedAt])
   @@index([status, nextAttemptAt])
   @@map("account_disconnect_notification")
+}
+
+// Durable service email queue. The rendered message is frozen for Resend retries.
+model BillingNotification {
+  key               String   @id
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind              String
+  occurredAt        DateTime
+  effectiveAt       DateTime
+  status            String   @default("pending")
+  nextAttemptAt     DateTime @default(now())
+  attempts          Int      @default(0)
+  firstAttemptAt    DateTime?
+  leaseUntil        DateTime?
+  leaseToken        String?
+  message           Json?
+  providerMessageId String?
+  sentAt            DateTime?
+  lastError         String?
+
+  @@index([status, nextAttemptAt])
+  @@index([userId])
+  @@map("billing_notification")
 }
 
 // Pending OAuth connections (used for Facebook/Instagram account pickers)

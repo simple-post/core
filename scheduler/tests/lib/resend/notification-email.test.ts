@@ -3,6 +3,7 @@ import { EmailDeliveryError, sendNotificationEmail } from "@/lib/resend/notifica
 const message = {
   from: "SimplePost <auth@example.invalid>",
   to: "owner@example.invalid",
+  replyTo: "support@example.invalid",
   subject: "Reconnect",
   html: "<p>Reconnect</p>",
   text: "Reconnect",
@@ -20,10 +21,18 @@ it("uses bounded requests and identical request bytes even after JSONB key reord
   fetchMock.mockResolvedValue({ ok: true, json: async () => ({ id: "provider-id" }) });
   expect(await sendNotificationEmail(message, "episode-1")).toBe("provider-id");
   await sendNotificationEmail(
-    { text: message.text, subject: message.subject, to: message.to, html: message.html, from: message.from },
+    {
+      text: message.text,
+      subject: message.subject,
+      to: message.to,
+      html: message.html,
+      from: message.from,
+      replyTo: message.replyTo,
+    },
     "episode-1",
   );
   expect(fetchMock.mock.calls[0][1].body).toBe(fetchMock.mock.calls[1][1].body);
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body).reply_to).toBe("support@example.invalid");
   expect(fetchMock).toHaveBeenCalledWith(
     "https://api.resend.com/emails",
     expect.objectContaining({

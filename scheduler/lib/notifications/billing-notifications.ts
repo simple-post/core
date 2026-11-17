@@ -95,9 +95,10 @@ async function prepareEmail(notice: BillingNotification, now: Date): Promise<Not
       content = renderBillingEmail({ ...common, kind: "trial_ending", affectedPosts });
       break;
     }
-    case "paid_cancellation":
+    case "paid_cancellation": {
       content = renderBillingEmail({ ...common, kind: "paid_cancellation", occurredAt: notice.occurredAt });
       break;
+    }
     case "setup_reminder": {
       if (notice.consentRecipient !== user.email) return null;
       const billing = await getBillingStatus(notice.userId);
@@ -110,8 +111,9 @@ async function prepareEmail(notice: BillingNotification, now: Date): Promise<Not
       content = renderSetupReminderEmail(common.appUrl);
       break;
     }
-    default:
+    default: {
       throw new Error("Unknown billing notification kind");
+    }
   }
   return { ...content, from: founderFromAddress(), to: user.email, replyTo: env.BILLING_EMAIL_REPLY_TO };
 }

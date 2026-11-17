@@ -13,6 +13,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 
+import { OnboardingDialog, OnboardingGuide } from "../../components/onboarding/onboarding-guide";
+import { useStoredOnboardingDismissal } from "../../components/onboarding/use-stored-onboarding-dismissal";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -42,6 +44,8 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
     useExtensionHost<WorkspaceData>();
   const copy = t as SourceCopy;
   const [editor, setEditor] = useState<EditorData | null>(null);
+  const [manualEditor, setManualEditor] = useState(false);
+  const [connectingAccount, setConnectingAccount] = useState(false);
   const [selected, setSelected] = useState<ScheduleEntry | null>(null);
   const [chosenPosts, setChosenPosts] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
@@ -54,6 +58,24 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   const requested = useRef<string | null>(null);
   const [slotTime, setSlotTime] = useState<string | null>(null);
   const launchError = error?.message ?? toolError;
+  const onboarding = launch?.onboarding;
+  const { dismissed, dismiss, ready } = useStoredOnboardingDismissal(
+    onboarding ? `simplepost:onboarding:dismissed:v1:workspace:${onboarding.dismissalId}` : null,
+  );
+  const showOnboarding =
+    !!app &&
+    !chooserOnly &&
+    !editor &&
+    tab !== "accounts" &&
+    !!launch?.canWrite &&
+    !!onboarding &&
+    launch.hasPost === false &&
+    ready &&
+    !dismissed;
+
+  useEffect(() => {
+    if (ready && !dismissed && launch?.hasPost) dismiss();
+  }, [ready, dismissed, launch?.hasPost, dismiss]);
 
   const loadLaunch = useCallback(async () => {
     if (!app) return;
@@ -89,21 +111,49 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
       setBusy(false);
     }
   }, []);
-  async function refresh(overrides: Record<string, unknown> = {}) {
-    if (!app || !launch) return;
-    const data = await callTool<WorkspaceData>(app, "get_simplepost_workspace", {
-      view: launch.schedule.view,
-      date: launch.schedule.anchorDate,
-      timeZone: launch.schedule.timeZone,
-      status: launch.posts.status === "single" || launch.posts.status === "all" ? "drafts" : launch.posts.status,
-      ...overrides,
-    });
-    setLaunch(data);
-  }
+  const refresh = useCallback(
+    async (overrides: Record<string, unknown> = {}, background = false) => {
+      if (!app || !launch) return;
+      const data = await callTool<WorkspaceData>(app, "get_simplepost_workspace", {
+        view: launch.schedule.view,
+        date: launch.schedule.anchorDate,
+        timeZone: launch.schedule.timeZone,
+        status: launch.posts.status === "single" || launch.posts.status === "all" ? "drafts" : launch.posts.status,
+        ...overrides,
+      });
+      setLaunch((current) => (background && current !== launch ? current : data));
+    },
+    [app, launch, setLaunch],
+  );
+  useEffect(() => {
+    if (!showOnboarding || busy) return;
+    let refreshing = false;
+    async function syncOnboarding() {
+      if (refreshing || document.visibilityState !== "visible") return;
+      refreshing = true;
+      try {
+        await refresh({}, true);
+      } catch {
+        // The visible refresh action remains available for a deliberate retry.
+      } finally {
+        refreshing = false;
+      }
+    }
+    const timer = window.setInterval(syncOnboarding, 5000);
+    window.addEventListener("focus", syncOnboarding);
+    document.addEventListener("visibilitychange", syncOnboarding);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", syncOnboarding);
+      document.removeEventListener("visibilitychange", syncOnboarding);
+    };
+  }, [busy, refresh, showOnboarding]);
   const openEditor = useCallback(
-    async (postId?: string) => {
+    async (postId?: string, startManually = false) => {
       if (!app || !launch?.canWrite) return;
-      setEditor(await callTool<EditorData>(app, "start_post_editor_session", postId ? { postId } : {}));
+      const data = await callTool<EditorData>(app, "start_post_editor_session", postId ? { postId } : {});
+      setManualEditor(startManually);
+      setEditor(data);
     },
     [app, launch?.canWrite],
   );
@@ -368,13 +418,16 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
           canValidate={launch.canValidate}
           canWrite={launch.canWrite}
           imageFittingEnabled={launch.imageFittingEnabled}
+          startManually={manualEditor}
           onClose={() => {
             setEditor(null);
+            setManualEditor(false);
             setSlotTime(null);
             setWorkspaceOpened(true);
           }}
           onCommitted={(next) => {
             setEditor(next);
+            if (next.postId) dismiss();
             void act(() => refresh());
           }}
         />
@@ -717,6 +770,54 @@ export function Workspace({ editorOnly = false }: { editorOnly?: boolean }) {
   return (
     <UiLocaleProvider locale={locale} messages={messages}>
       {content}
+      {showOnboarding && onboarding && (
+        <OnboardingDialog onClose={dismiss}>
+          <OnboardingGuide
+            trialDays={onboarding.trialDays}
+            hasConnectedAccount={launch.accounts.length > 0}
+            hasAiConnection
+            onSkip={dismiss}
+            connectAccount={
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(async () => {
+                      const url = new URL(launch.accountsUrl);
+                      url.searchParams.set("source", "workspace");
+                      await app?.openLink({ url: url.toString() });
+                      setConnectingAccount(true);
+                    })
+                  }>
+                  {copy("Connect an account")}
+                </Button>
+                {connectingAccount && (
+                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void act(refresh)}>
+                    {t("refresh")}
+                  </Button>
+                )}
+              </div>
+            }
+            writeManually={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void act(() => openEditor(undefined, true))}>
+                {copy("Write manually")}
+              </Button>
+            }
+          />
+          {notice && (
+            <p role="alert" className="px-6 pb-5 text-sm text-destructive sm:px-10">
+              {notice}
+            </p>
+          )}
+        </OnboardingDialog>
+      )}
     </UiLocaleProvider>
   );
 }

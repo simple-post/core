@@ -84,6 +84,7 @@ export function Editor({
   canValidate,
   canWrite,
   imageFittingEnabled,
+  startManually = false,
   onClose,
   onCommitted,
 }: {
@@ -96,6 +97,7 @@ export function Editor({
   canValidate: boolean;
   canWrite: boolean;
   imageFittingEnabled: boolean;
+  startManually?: boolean;
   onClose: () => void;
   onCommitted: (editor: EditorData) => void;
 }) {
@@ -140,7 +142,7 @@ export function Editor({
   const [review, setReview] = useState<"schedule" | "now" | null>(null);
   const [results, setResults] = useState<Record<string, unknown> | null>(null);
   const [contextActive, setContextActive] = useState(true);
-  const [manual, setManual] = useState(false);
+  const [manual, setManual] = useState(startManually);
   const deselectedOverrides = useRef<EditorContent["accountOverrides"]>({});
   const liveContent = useRef(content);
   const liveSession = useRef(session);

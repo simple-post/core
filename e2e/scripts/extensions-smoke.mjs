@@ -111,7 +111,15 @@ if (location.search.includes('localized-times')) {
    entry.localTime=new Intl.DateTimeFormat('en-US',{timeZone:launch.schedule.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(entry.at));
  }
 }
-if (location.search.includes('onboarding')) launch.accounts=[];
+const query=new URLSearchParams(location.search);
+if (query.has('onboarding')) {
+ const destinations=launch.accounts;
+ launch.accounts=[];
+ launch.hasPost=query.has('existing-post');
+ launch.onboarding={dismissalId:query.has('skip')?'skip-demo':query.has('existing-post')?'existing-post-demo':'onboarding-demo',trialDays:7};
+ window.finishConnecting=()=>{ launch.accounts=destinations; };
+ window.finishOnboarding=()=>{ launch.hasPost=true; };
+}
 if (location.search.includes('readonly')) { launch.canWrite=false; launch.canValidate=false; }
 window.calls=[]; window.contexts=[]; window.messages=[]; window.links=[];
 let session={kind:'editor',sessionId:'3e07953d-c01f-4a95-baf0-20b597ff9373',postId:null,revision:0,baseUpdatedAt:null,committing:false,proposal:null,status:'new',scheduledFor:null,content:{message:'',accountIds:launch.preferences.defaultAccountIds,media:[],thread:[],accountOptions:{},accountOverrides:{},quotePostId:null}};
@@ -504,10 +512,33 @@ try {
   await page.goto(`${base}/?readonly`);
   await expect(ui.getByRole("button", { name: "New draft", exact: true })).toBeDisabled();
   await page.goto(`${base}/?onboarding`);
-  await expect(ui.getByRole("heading", { name: "Connect your first destination" })).toBeVisible();
-  await expect(ui.getByRole("button", { name: "New draft", exact: true })).toBeDisabled();
-  await ui.getByRole("button", { name: "Connect a platform", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => JSON.stringify(window.links))).toMatch(/accounts\?onboarding=connect/);
+  const onboarding = ui.getByRole("dialog", { name: "Welcome to SimplePost" });
+  await expect(onboarding.getByText("Your 7-day free trial has started.", { exact: true })).toBeVisible();
+  await expect(onboarding.getByRole("listitem").nth(1).getByRole("img", { name: "Complete" })).toBeVisible();
+  await onboarding.getByRole("button", { name: "Connect an account", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.links.at(-1)?.url))
+    .toBe("https://app.simplepost.social/accounts?onboarding=connect&source=workspace");
+  await page.evaluate(() => window.finishConnecting());
+  const focusWidget = () => ui.locator("body").evaluate(() => window.dispatchEvent(new Event("focus")));
+  await focusWidget();
+  await expect(onboarding.getByRole("listitem").first().getByRole("img", { name: "Complete" })).toBeVisible();
+  await expect(onboarding.getByRole("button", { name: "Copy prompt", exact: true })).toBeVisible();
+  await onboarding.getByRole("button", { name: "Write manually", exact: true }).click();
+  await expect(ui.getByLabel("Post text", { exact: true })).toBeVisible();
+  await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();
+  await expect(onboarding).toBeVisible();
+  await page.evaluate(() => window.finishOnboarding());
+  await focusWidget();
+  await expect(onboarding).toHaveCount(0);
+  await page.goto(`${base}/?onboarding&existing-post`);
+  await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
+  await expect(onboarding).toHaveCount(0);
+  await page.goto(`${base}/?onboarding&skip`);
+  await onboarding.getByRole("button", { name: "Skip setup", exact: true }).click();
+  await page.reload();
+  await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
+  await expect(onboarding).toHaveCount(0);
   await page.goto(`${base}/?editor`);
   await expect(ui.getByRole("heading", { name: "Choose a draft to edit" })).toBeVisible();
   await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();

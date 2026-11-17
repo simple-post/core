@@ -28,6 +28,7 @@ import {
   IMAGE_FITTING_INSTRUCTIONS,
   type McpToolAuthContext,
 } from "@/lib/mcp/server";
+import { getOnboardingTrialDays } from "@/lib/onboarding/trial-days";
 import { apiErrorLogPayload, PaymentRequiredError } from "@/lib/utils/errors";
 
 const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
@@ -72,6 +73,7 @@ async function authenticateRequest(req: Request): Promise<McpToolAuthContext | n
 
   return {
     readOnly,
+    onboardingTrialDays: getOnboardingTrialDays(billing),
     uiLocale: await mcpRequestLocale(req, session.user.uiLocale),
     userId: session.user.id,
     userEmail: session.user.email,

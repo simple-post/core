@@ -8,6 +8,7 @@ export type WorkspaceData = Awaited<ReturnType<typeof loadWorkspace>> & {
   canWrite: boolean;
   canValidate: boolean;
   imageFittingEnabled: boolean;
+  onboarding?: { dismissalId: string; trialDays: number | null } | null;
   requestedPostId?: string | null;
 };
 export type EditorData = Awaited<ReturnType<typeof readEditor>>;

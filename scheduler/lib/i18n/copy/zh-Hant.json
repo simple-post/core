@@ -1,4 +1,9 @@
 {
+  "Setup reminder scheduled.": "設定提醒已排程。",
+  "Cancel setup reminder": "取消設定提醒",
+  "Email me once if I haven’t connected an account two days after signup.": "如果我註冊兩天後還沒連結帳號，請寄一封提醒郵件給我。",
+  "If you have a minute, could you tell me why you canceled?": "如果你有一分鐘，可以告訴我為什麼取消訂閱嗎？",
+  "Connect a social account to schedule your first post.": "連結一個社群媒體帳號，排定你的第一篇貼文。",
   " (unavailable on this installation)": " （此安裝環境中無法使用）",
   "({{count}} pins)": "（{{count}} 個釘選）",
   "({{count}} pins)_other": "（{{count}} 個釘選）",

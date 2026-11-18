@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
+import { SetupReminderPreference } from "@/components/onboarding/setup-reminder-preference";
 import { createSlotRows, PostingSlotsSection, type PostingSlotRow } from "@/components/posting-slots-settings";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -155,6 +156,7 @@ export default function SettingsPage() {
 
         <HelpLink path="/scheduling#calendar-and-posting-slots">{t("postingSlotHelp")}</HelpLink>
         <PostingSlotsSection slots={slots} onChange={setSlots} disabled={disabled} />
+        <SetupReminderPreference pendingOnly />
 
         <div className="flex justify-center">
           <Button onClick={handleSave} disabled={disabled}>

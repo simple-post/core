@@ -1,4 +1,9 @@
 {
+  "Setup reminder scheduled.": "تمت جدولة تذكير الإعداد.",
+  "Cancel setup reminder": "إلغاء تذكير الإعداد",
+  "Email me once if I haven’t connected an account two days after signup.": "أرسل إليّ تذكيرًا واحدًا بالبريد الإلكتروني إذا لم أربط حسابًا بعد يومين من التسجيل.",
+  "If you have a minute, could you tell me why you canceled?": "إذا كان لديك دقيقة، هل يمكنك إخباري بسبب الإلغاء؟",
+  "Connect a social account to schedule your first post.": "اربط حسابًا على إحدى شبكات التواصل لجدولة منشورك الأول.",
   " (unavailable on this installation)": " (غير متاح في هذه النسخة)",
   "({{count}} pins)": "({{count}} من دبابيس Pinterest)",
   "({{count}} pins)_few": "({{count}} دبابيس)",

@@ -14,6 +14,10 @@ let mockActive = true;
 let mockDismissed = false;
 let mockFetched = true;
 const mockDismiss = jest.fn();
+let mockCreatedAt: Date;
+jest.mock("@/lib/auth/auth-client", () => ({
+  useSession: () => ({ data: { user: { id: "onboarding-test", createdAt: mockCreatedAt } } }),
+}));
 jest.mock("@/hooks/use-billing", () => ({
   useBillingStatus: () => ({
     data: {
@@ -33,9 +37,28 @@ beforeEach(() => {
   mockActive = true;
   mockDismissed = false;
   mockFetched = true;
+  mockCreatedAt = new Date();
+  window.localStorage.clear();
   jest.clearAllMocks();
 });
 afterEach(cleanup);
+
+it("shows a dismissible inline reminder after two days when no account is connected", () => {
+  mockCreatedAt = new Date(Date.now() - 49 * 60 * 60_000);
+  mockDismissed = true;
+  const { rerender } = render(createElement(OnboardingModal));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByText("Connect a social account to schedule your first post.")).toBeTruthy();
+
+  mockState.hasConnectedAccount = true;
+  rerender(createElement(OnboardingModal));
+  expect(screen.queryByText("Connect a social account to schedule your first post.")).toBeNull();
+
+  mockState.hasConnectedAccount = false;
+  rerender(createElement(OnboardingModal));
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("complementary")).toBeNull();
+});
 
 it("welcomes the user with their trial and guides them through the three steps", () => {
   render(createElement(OnboardingModal));

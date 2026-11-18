@@ -6,6 +6,7 @@ import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { serverMessage } from "@/lib/i18n/server";
 import { createLogger, serializeError } from "@/lib/logger";
+import { dispatchBillingNotifications } from "@/lib/notifications/billing-notifications";
 import { dispatchDisconnectNotifications } from "@/lib/notifications/disconnect-notifications";
 import { refreshExpiringConnectedAccounts } from "@/lib/oauth/credential-health";
 import { recordSchedulerQueueLag, withScheduledDispatch } from "@/lib/observability/telemetry";
@@ -1284,6 +1285,6 @@ export async function dispatchDueScheduledPosts(): Promise<DispatchDuePostsResul
     return await withScheduledDispatch(dispatchDueScheduledPostsInternal);
   } finally {
     // Send after publishing/refresh checks so this run's disconnects are included.
-    await dispatchDisconnectNotifications();
+    await Promise.all([dispatchDisconnectNotifications(), dispatchBillingNotifications()]);
   }
 }

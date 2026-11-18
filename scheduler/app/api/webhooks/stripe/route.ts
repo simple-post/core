@@ -12,6 +12,8 @@ import {
 } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
+import { dispatchBillingNotification } from "@/lib/notifications/billing-notifications";
+import { getStripeCancellation } from "@/lib/notifications/stripe-cancellation";
 import { prisma } from "@/lib/prisma";
 
 import type Stripe from "stripe";
@@ -109,6 +111,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Webhook event is already being processed" }, { status: 409 });
     }
 
+    let cancellationKey: string | undefined;
     switch (event.type) {
       case "checkout.session.expired": {
         const checkout = event.data.object as Stripe.Checkout.Session;
@@ -142,6 +145,14 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.resumed":
       case "customer.subscription.updated": {
         const synced = await syncStripeSubscription(event.data.object as Stripe.Subscription);
+        const cancellation = event.livemode && synced ? getStripeCancellation(event) : null;
+        if (synced && cancellation) {
+          await prisma.billingNotification.createMany({
+            data: [{ ...cancellation, userId: synced.userId, nextAttemptAt: new Date() }],
+            skipDuplicates: true,
+          });
+          cancellationKey = cancellation.key;
+        }
         await recordBillingWebhook(event, synced?.userId, synced?.status);
         break;
       }
@@ -164,6 +175,8 @@ export async function POST(req: NextRequest) {
       where: { id: event.id },
       data: { status: "succeeded", processedAt: new Date(), lastError: null },
     });
+
+    if (cancellationKey) await dispatchBillingNotification(cancellationKey);
 
     return NextResponse.json({ received: true });
   } catch (error) {

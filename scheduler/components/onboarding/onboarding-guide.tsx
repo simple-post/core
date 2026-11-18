@@ -75,6 +75,7 @@ export function OnboardingGuide({
   connectAccount,
   connectAssistant,
   writeManually,
+  setupReminder,
   onSkip,
 }: {
   trialDays: number | null;
@@ -83,6 +84,7 @@ export function OnboardingGuide({
   connectAccount: ReactNode;
   connectAssistant?: ReactNode;
   writeManually: ReactNode;
+  setupReminder?: ReactNode;
   onSkip: () => void;
 }) {
   const { copy } = useUiCopy();
@@ -129,7 +131,8 @@ export function OnboardingGuide({
         </SetupStep>
       </ol>
 
-      <div className="mt-auto flex justify-end px-6 pt-5 pb-4 sm:px-10 sm:pt-7 sm:pb-6">
+      <div className="mt-auto flex flex-wrap items-center justify-end gap-3 px-6 pt-5 pb-4 sm:px-10 sm:pt-7 sm:pb-6">
+        {setupReminder && <div className="me-auto">{setupReminder}</div>}
         <Button type="button" size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={onSkip}>
           {copy("Skip setup")}
         </Button>

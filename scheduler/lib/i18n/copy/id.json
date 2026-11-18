@@ -1,4 +1,9 @@
 {
+  "Setup reminder scheduled.": "Pengingat penyiapan dijadwalkan.",
+  "Cancel setup reminder": "Batalkan pengingat penyiapan",
+  "Email me once if I haven’t connected an account two days after signup.": "Kirimi saya satu email jika saya belum menghubungkan akun dua hari setelah mendaftar.",
+  "If you have a minute, could you tell me why you canceled?": "Jika ada waktu sebentar, boleh beri tahu saya kenapa Anda membatalkan langganan?",
+  "Connect a social account to schedule your first post.": "Hubungkan akun media sosial untuk menjadwalkan postingan pertama Anda.",
   " (unavailable on this installation)": " (tidak tersedia di instalasi ini)",
   "({{count}} pins)": "({{count}} pin)",
   "({{count}} pins)_other": "({{count}} pin)",

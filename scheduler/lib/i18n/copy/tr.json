@@ -1,4 +1,9 @@
 {
+  "Setup reminder scheduled.": "Kurulum hatırlatması planlandı.",
+  "Cancel setup reminder": "Kurulum hatırlatmasını iptal et",
+  "Email me once if I haven’t connected an account two days after signup.": "Kaydolduktan iki gün sonra henüz bir hesap bağlamadıysam bana bir kez e-posta gönder.",
+  "If you have a minute, could you tell me why you canceled?": "Bir dakikan varsa neden iptal ettiğini söyler misin?",
+  "Connect a social account to schedule your first post.": "İlk gönderinizi planlamak için bir sosyal medya hesabı bağlayın.",
   " (unavailable on this installation)": " (bu kurulumda kullanılamaz)",
   "({{count}} pins)": "({{count}} Pin)",
   "({{count}} pins)_one": "({{count}} Pin)",

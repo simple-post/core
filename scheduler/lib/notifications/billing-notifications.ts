@@ -54,6 +54,7 @@ export async function enqueueTrialEndingNotifications(now: Date) {
 function readFrozenMessage(value: Prisma.JsonValue | null): NotificationEmail | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   if (!["from", "to", "replyTo", "subject", "html", "text"].every((key) => typeof value[key] === "string")) return;
+  if ("bcc" in value && typeof value.bcc !== "string") return;
   return value as unknown as NotificationEmail;
 }
 
@@ -110,10 +111,12 @@ async function prepareEmail(notice: BillingNotification, now: Date): Promise<Not
       throw new Error("Unknown billing notification kind");
     }
   }
+  const bcc = env.BILLING_EMAIL_MONITOR_BCC;
   return {
     ...content,
     from: formatFounderFrom(env.RESEND_FROM_ADDRESS),
     to: user.email,
+    ...(bcc && bcc.toLowerCase() !== user.email.toLowerCase() && { bcc }),
     replyTo: env.BILLING_EMAIL_REPLY_TO,
   };
 }

@@ -4,7 +4,7 @@ type BillingEmailInput = {
   appUrl: string;
   timeZone: string;
   effectiveAt: Date;
-} & ({ kind: "trial_ending"; affectedPosts: number } | { kind: "paid_cancellation"; occurredAt: Date });
+} & ({ kind: "trial_ending"; affectedPosts: number } | { kind: "paid_cancellation" });
 
 type FounderEmail = { subject: string; html: string; text: string };
 type Paragraph = string | { before: string; label: string; path: string; after: string };
@@ -38,15 +38,8 @@ export function renderBillingEmail(input: BillingEmailInput): FounderEmail {
   const end = formatDate(input.effectiveAt, input.timeZone);
   if (input.kind === "paid_cancellation") {
     return renderFounderEmail(input.appUrl, "Your SimplePost cancellation", [
-      `I got your cancellation on ${formatDate(input.occurredAt, input.timeZone)}. Your paid access ends on ${end}, and your subscription won’t renew.`,
-      "Posts queued for that time or later need active access to go out.",
-      {
-        before: "You can ",
-        label: "check your billing details",
-        path: "/billing",
-        after: " in SimplePost.",
-      },
-      "If you have a minute, would you reply and tell me why you canceled? If you have a question about your bill or a scheduled post, I’ll help.",
+      `I got your cancellation. Your paid access ends on ${end}.`,
+      "If you have a minute, would you tell me why you canceled?",
     ]);
   }
 

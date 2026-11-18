@@ -91,7 +91,7 @@ async function prepareEmail(notice: BillingNotification, now: Date): Promise<Not
       break;
     }
     case "paid_cancellation": {
-      content = renderBillingEmail({ ...common, kind: "paid_cancellation", occurredAt: notice.occurredAt });
+      content = renderBillingEmail({ ...common, kind: "paid_cancellation" });
       break;
     }
     case "setup_reminder": {

@@ -33,6 +33,7 @@ beforeEach(() => {
     ...process.env,
     RESEND_FROM_ADDRESS: "SimplePost <auth@simplepost.social>",
     BILLING_EMAIL_REPLY_TO: "support@simplepost.social",
+    BILLING_EMAIL_MONITOR_BCC: "",
   });
   jest.mocked(prisma.billingNotification.findUnique).mockResolvedValue(notice);
   jest.mocked(prisma.billingNotification.updateMany).mockResolvedValue({ count: 1 });
@@ -69,6 +70,18 @@ it("uses the stable notice key and founder reply address for an affected trial",
   expect(prisma.billingNotification.updateMany).toHaveBeenLastCalledWith(
     expect.objectContaining({ data: expect.objectContaining({ status: "sent", providerMessageId: "provider-id" }) }),
   );
+});
+
+it("freezes the configured monitoring BCC with the message before delivery", async () => {
+  process.env.BILLING_EMAIL_MONITOR_BCC = "monitor@example.invalid";
+  jest.mocked(prisma.billingNotification.findUnique).mockResolvedValue({ ...notice, kind: "paid_cancellation" });
+  jest.mocked(sendNotificationEmail).mockResolvedValue("provider-id");
+  await dispatchBillingNotification(notice.key);
+  const envelope = expect.objectContaining({ to: "person@example.invalid", bcc: "monitor@example.invalid" });
+  expect(prisma.billingNotification.updateMany).toHaveBeenCalledWith(
+    expect.objectContaining({ data: expect.objectContaining({ message: envelope }) }),
+  );
+  expect(sendNotificationEmail).toHaveBeenCalledWith(envelope, notice.key);
 });
 
 it("sends a shorter expiry notice when the trial has no affected posts", async () => {

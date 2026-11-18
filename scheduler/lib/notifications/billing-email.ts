@@ -19,12 +19,8 @@ export function formatFounderFrom(configuredFrom: string): string {
 
 function formatDate(date: Date, timeZone: string): string {
   const options: Intl.DateTimeFormatOptions = {
-    year: "numeric",
     month: "long",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
   };
   try {
     return new Intl.DateTimeFormat("en", { ...options, timeZone }).format(date);

@@ -75,6 +75,7 @@ interface BillingStatus {
     postsThisPeriod: number;
   };
   selfHosted?: boolean;
+  cancellationFeedbackAvailable?: boolean;
 }
 
 async function parseApiError(response: Response, copy: SourceCopy): Promise<string> {
@@ -311,6 +312,17 @@ export default function BillingPage() {
             </Button>
           </div>
         </div>
+
+        {!loading && billing?.cancellationFeedbackAvailable && (
+          <p className="mb-5 rounded-xl border border-border bg-card p-4 text-sm">
+            <a
+              href="mailto:support@simplepost.social?subject=SimplePost%20cancellation%20feedback"
+              className="text-primary underline underline-offset-4">
+              {copy("If you have a minute, could you tell me why you canceled?")}
+            </a>
+            <span className="ms-2 text-muted-foreground">Vlad</span>
+          </p>
+        )}
 
         {loading ? (
           finalizingCheckout ? (

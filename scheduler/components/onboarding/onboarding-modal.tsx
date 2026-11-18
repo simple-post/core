@@ -4,24 +4,37 @@ import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
 
 import { AssistantSelector } from "@/components/assistant-selector";
 import { focusOnboardingTitle, OnboardingDialog, OnboardingGuide } from "@/components/onboarding/onboarding-guide";
+import { SetupReminderPreference } from "@/components/onboarding/setup-reminder-preference";
 import { useOnboardingDismissal, useOnboardingState } from "@/components/onboarding/use-onboarding";
+import { useStoredOnboardingDismissal } from "@/components/onboarding/use-stored-onboarding-dismissal";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useBillingStatus } from "@/hooks/use-billing";
+import { useSession } from "@/lib/auth/auth-client";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
+import { setupReminderDueAt } from "@/lib/onboarding/setup-reminder";
 import { getOnboardingTrialDays } from "@/lib/onboarding/trial-days";
 
 export function OnboardingModal() {
   const { copy } = useUiCopy();
+  const { data: session } = useSession();
   const { data: billing } = useBillingStatus();
   const { dismissed, dismiss, ready } = useOnboardingDismissal();
   const enabled = billing?.active === true && ready && !dismissed;
+  const user = session?.user;
+  const reminder = useStoredOnboardingDismissal(user ? `simplepost:onboarding:connect-reminder:v1:${user.id}` : null);
+  const [openedAt] = useState(Date.now);
+  const isAtLeastTwoDaysOld = Boolean(user && setupReminderDueAt(new Date(user.createdAt)).getTime() <= openedAt);
+  const checkReminder = billing?.active === true && isAtLeastTwoDaysOld && reminder.ready;
   const [assistantView, setAssistantView] = useState<"setup" | "chooser" | "checking">("setup");
-  const { data: state, isFetchedAfterMount } = useOnboardingState(enabled, assistantView !== "setup");
+  const { data: state, isFetchedAfterMount } = useOnboardingState(
+    enabled || (checkReminder && !reminder.dismissed),
+    assistantView !== "setup",
+  );
 
   useEffect(() => {
     if (enabled && isFetchedAfterMount && state?.hasPost) dismiss();
@@ -30,6 +43,25 @@ export function OnboardingModal() {
   useEffect(() => {
     if (state?.hasAiConnection) setAssistantView("setup");
   }, [state?.hasAiConnection]);
+
+  if (checkReminder && isFetchedAfterMount && state && !state.hasConnectedAccount && !state.hasPublishedPost) {
+    if (reminder.dismissed) return null;
+    return (
+      <aside className="mb-6 flex items-start gap-3 rounded-lg border border-border bg-card p-4">
+        <div className="min-w-0 flex-1">
+          <p className="mb-3 text-sm text-foreground">
+            {copy("Connect a social account to schedule your first post.")}
+          </p>
+          <Button asChild size="sm">
+            <Link href="/accounts?onboarding=connect">{copy("Connect an account")}</Link>
+          </Button>
+        </div>
+        <Button type="button" size="icon" variant="ghost" onClick={reminder.dismiss} aria-label={copy("Close")}>
+          <X aria-hidden="true" />
+        </Button>
+      </aside>
+    );
+  }
 
   if (!enabled || !isFetchedAfterMount || !state || state.hasPost) return null;
 
@@ -67,6 +99,9 @@ export function OnboardingModal() {
         hasConnectedAccount={state.hasConnectedAccount}
         hasAiConnection={state.hasAiConnection}
         onSkip={dismiss}
+        setupReminder={
+          user?.emailVerified && !isAtLeastTwoDaysOld && !state.hasConnectedAccount ? <SetupReminderPreference /> : null
+        }
         connectAccount={
           <Button asChild size="sm">
             <Link href="/accounts?onboarding=connect">

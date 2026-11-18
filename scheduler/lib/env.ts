@@ -57,6 +57,9 @@ export const env = {
   get RESEND_FROM_ADDRESS() {
     return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.social";
   },
+  get BILLING_EMAIL_REPLY_TO() {
+    return getRuntimeEnvironmentVariable("BILLING_EMAIL_REPLY_TO") || "support@simplepost.social";
+  },
   /**
    * Self-hosted mode: disables all billing and Stripe integration. Every user
    * gets unrestricted access, billing UI is hidden, and Stripe environment

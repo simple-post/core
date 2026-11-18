@@ -1,4 +1,9 @@
 {
+  "Setup reminder scheduled.": "설정 알림이 예약되었습니다.",
+  "Cancel setup reminder": "설정 알림 취소",
+  "Email me once if I haven’t connected an account two days after signup.": "가입 이틀 후에도 계정을 연결하지 않았다면 이메일을 한 번 보내 주세요.",
+  "If you have a minute, could you tell me why you canceled?": "잠깐 시간이 되시면 구독을 취소한 이유를 알려 주실 수 있나요?",
+  "Connect a social account to schedule your first post.": "소셜 계정을 연결해 첫 게시물을 예약하세요.",
   " (unavailable on this installation)": " (이 설치에서 사용할 수 없음)",
   "({{count}} pins)": "({{count}}개 핀)",
   "({{count}} pins)_other": "({{count}}개 핀)",

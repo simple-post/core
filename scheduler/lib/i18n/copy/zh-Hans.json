@@ -1,4 +1,9 @@
 {
+  "Setup reminder scheduled.": "设置提醒已安排。",
+  "Cancel setup reminder": "取消设置提醒",
+  "Email me once if I haven’t connected an account two days after signup.": "如果我注册两天后还没连接账号，请给我发一封提醒邮件。",
+  "If you have a minute, could you tell me why you canceled?": "如果你有一分钟，可以告诉我为什么取消订阅吗？",
+  "Connect a social account to schedule your first post.": "连接一个社交媒体账号，安排你的第一篇帖子。",
   " (unavailable on this installation)": " （此安装中不可用）",
   "({{count}} pins)": "（{{count}} 个图钉）",
   "({{count}} pins)_other": "（{{count}} 个图钉）",

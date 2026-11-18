@@ -71,7 +71,7 @@ export function renderSetupReminderEmail(appUrl: string): FounderEmail {
 function renderFounderEmail(appUrl: string, subject: string, paragraphs: Paragraph[]): FounderEmail {
   const logo = new URL("/simplepost-logo.png", appUrl);
   if (!["https:", "http:"].includes(logo.protocol)) throw new Error("Invalid email application URL");
-  const lines: Paragraph[] = ["Hey, it’s Vlad, the founder of SimplePost.", ...paragraphs, "Vlad"];
+  const lines: Paragraph[] = ["Hey, it’s Vlad.", ...paragraphs, "Vlad, Founder of Simple Post."];
   const body = lines
     .map((line) => {
       const content =

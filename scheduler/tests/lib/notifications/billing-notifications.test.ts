@@ -29,6 +29,11 @@ const notice = {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  jest.replaceProperty(process, "env", {
+    ...process.env,
+    RESEND_FROM_ADDRESS: "SimplePost <auth@simplepost.social>",
+    BILLING_EMAIL_REPLY_TO: "support@simplepost.social",
+  });
   jest.mocked(prisma.billingNotification.findUnique).mockResolvedValue(notice);
   jest.mocked(prisma.billingNotification.updateMany).mockResolvedValue({ count: 1 });
   jest.mocked(prisma.user.findUnique).mockResolvedValue({
@@ -37,6 +42,7 @@ beforeEach(() => {
     publishingPreferences: { timeZone: "Europe/Berlin" },
   } as never);
 });
+afterEach(() => jest.restoreAllMocks());
 
 it("drops a pending expiry notice if the user now has a paid plan", async () => {
   jest.mocked(getBillingStatus).mockResolvedValue({ accessType: "stripe" } as never);
@@ -53,7 +59,11 @@ it("uses the stable notice key and founder reply address for an affected trial",
   jest.mocked(sendNotificationEmail).mockResolvedValue("provider-id");
   await dispatchBillingNotification(notice.key);
   expect(sendNotificationEmail).toHaveBeenCalledWith(
-    expect.objectContaining({ replyTo: "support@simplepost.social", text: expect.stringContaining("one post") }),
+    expect.objectContaining({
+      from: "Vlad from SimplePost <vlad@simplepost.social>",
+      replyTo: "support@simplepost.social",
+      text: expect.stringContaining("one post"),
+    }),
     notice.key,
   );
   expect(prisma.billingNotification.updateMany).toHaveBeenLastCalledWith(
@@ -68,8 +78,8 @@ it("sends a shorter expiry notice when the trial has no affected posts", async (
   await dispatchBillingNotification(notice.key);
   const [message] = jest.mocked(sendNotificationEmail).mock.calls[0];
   expect(message.text).toContain("reply and I’ll help");
-  expect(message.text).not.toContain("posts scheduled");
-  expect(message.text).toContain("Open SimplePost");
+  expect(message.text).not.toContain("posts lined up");
+  expect(message.text).not.toContain("check your queue here");
 });
 
 it("only sends the setup reminder with a matching opt-in and no connected account", async () => {
@@ -89,7 +99,7 @@ it("only sends the setup reminder with a matching opt-in and no connected accoun
   await dispatchBillingNotification(notice.key);
   expect(sendNotificationEmail).toHaveBeenCalledTimes(1);
   expect(sendNotificationEmail).toHaveBeenCalledWith(
-    expect.objectContaining({ text: expect.stringContaining("You asked me to remind you") }),
+    expect.objectContaining({ text: expect.stringContaining("You asked me to send a reminder") }),
     notice.key,
   );
 

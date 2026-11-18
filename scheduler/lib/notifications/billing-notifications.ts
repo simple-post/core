@@ -9,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { EmailDeliveryError, sendNotificationEmail, type NotificationEmail } from "@/lib/resend/notification-email";
 
-import { renderBillingEmail, renderSetupReminderEmail } from "./billing-email";
+import { formatFounderFrom, renderBillingEmail, renderSetupReminderEmail } from "./billing-email";
 
 const log = createLogger("billing-notifications");
 const TRIAL_NOTICE_MS = 24 * 60 * 60_000;
@@ -55,11 +55,6 @@ function readFrozenMessage(value: Prisma.JsonValue | null): NotificationEmail | 
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   if (!["from", "to", "replyTo", "subject", "html", "text"].every((key) => typeof value[key] === "string")) return;
   return value as unknown as NotificationEmail;
-}
-
-function founderFromAddress() {
-  const configured = env.RESEND_FROM_ADDRESS;
-  return `Vlad at SimplePost <${configured.match(/<([^<>]+)>$/)?.[1] ?? configured}>`;
 }
 
 async function prepareEmail(notice: BillingNotification, now: Date): Promise<NotificationEmail | null> {
@@ -115,7 +110,12 @@ async function prepareEmail(notice: BillingNotification, now: Date): Promise<Not
       throw new Error("Unknown billing notification kind");
     }
   }
-  return { ...content, from: founderFromAddress(), to: user.email, replyTo: env.BILLING_EMAIL_REPLY_TO };
+  return {
+    ...content,
+    from: formatFounderFrom(env.RESEND_FROM_ADDRESS),
+    to: user.email,
+    replyTo: env.BILLING_EMAIL_REPLY_TO,
+  };
 }
 
 async function deliver(notice: BillingNotification) {

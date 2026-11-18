@@ -44,8 +44,9 @@ export function renderBillingEmail(input: BillingEmailInput): FounderEmail {
         before: "You can ",
         label: "check your billing details",
         path: "/billing",
-        after: " in SimplePost. If you have a question about your bill or a post you scheduled, reply and I’ll help.",
+        after: " in SimplePost.",
       },
+      "If you have a minute, would you reply and tell me why you canceled? If you have a question about your bill or a scheduled post, I’ll help.",
     ]);
   }
 

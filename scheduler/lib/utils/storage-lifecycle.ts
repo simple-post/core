@@ -8,7 +8,7 @@ import { ConflictError } from "@/lib/utils/errors";
 
 import type { Prisma } from "@prisma/client";
 
-const RETENTION_MS = 24 * 60 * 60 * 1000;
+const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Includes URLs in root media, thumbnails, options, overrides and nested threads. */
 export function collectStorageKeys(userId: string, value: unknown): Set<string> {
@@ -79,7 +79,7 @@ export async function collectUnusedStorage(): Promise<void> {
       const claimed = await prisma.$transaction(async (tx) => {
         await lockUserForQuota(tx, candidate.userId);
         const current = await tx.storageDeletion.findUnique({ where: { key: candidate.key } });
-        if (!current || current.state === "deleted") return false;
+        if (!current || current.state === "deleted" || current.dueAt > new Date()) return false;
         const posts = await tx.post.findMany({
           where: { userId: candidate.userId },
           select: { media: true, thread: true, accountOptions: true, accountOverrides: true },
@@ -107,7 +107,7 @@ export async function collectUnusedStorage(): Promise<void> {
       mediaLogger.error({ err: serializeError(error), key: candidate.key }, "Storage collection failed; will retry");
       await prisma.storageDeletion
         .updateMany({
-          where: { key: candidate.key, state: { not: "deleted" } },
+          where: { key: candidate.key, state: { not: "deleted" }, dueAt: { lte: new Date() } },
           data: { dueAt: new Date(Date.now() + 300_000) },
         })
         .catch(() => undefined);

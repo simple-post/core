@@ -1,4 +1,4 @@
-import type { AuthoredMessage } from "@/lib/i18n/server";
+import { serverMessage, type AuthoredMessage } from "@/lib/i18n/server";
 import { ApiError } from "@/lib/utils/errors";
 
 export type McpErrorStage =
@@ -46,6 +46,18 @@ export class McpToolError extends ApiError {
     this.recovery = options.recovery;
     this.maxAutomaticRetries = options.maxAutomaticRetries;
   }
+}
+
+export function mediaSourceExpiredError(cause?: unknown): McpToolError {
+  const error = new McpToolError({
+    code: "MEDIA_SOURCE_EXPIRED",
+    stage: "source_download",
+    recovery: "replace_media",
+    maxAutomaticRetries: 0,
+    message: serverMessage("The media URL is missing or expired. Provide a fresh public URL or reattach the file."),
+  });
+  if (cause !== undefined) error.cause = cause;
+  return error;
 }
 
 /**

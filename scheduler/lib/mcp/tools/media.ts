@@ -13,7 +13,7 @@ import { z } from "zod";
 
 import { serverMessage, type AuthoredMessage } from "@/lib/i18n/server";
 import { mediaLogger, serializeError } from "@/lib/logger";
-import { McpToolError } from "@/lib/mcp/tool-errors";
+import { McpToolError, mediaSourceExpiredError } from "@/lib/mcp/tool-errors";
 import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { ApiError } from "@/lib/utils/errors";
 
@@ -358,17 +358,7 @@ async function resolveUploadSource(input: UploadMediaInput): Promise<ResolvedUpl
         error,
       );
     }
-    if (status === 404 || status === 410) {
-      throw mediaError(
-        "MEDIA_SOURCE_EXPIRED",
-        serverMessage("The media URL is missing or expired. Provide a fresh public URL or reattach the file."),
-        "source_download",
-        "replace_media",
-        0,
-        400,
-        error,
-      );
-    }
+    if (status === 404 || status === 410) throw mediaSourceExpiredError(error);
     const transient =
       status === 408 ||
       status === 429 ||

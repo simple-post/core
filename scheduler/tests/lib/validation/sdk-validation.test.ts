@@ -1,5 +1,11 @@
-import { fitRemoteImagesForAccounts, hydrateRemoteMediaSizesForAccounts, ImageFitError } from "@simple-post/sdk";
+import {
+  fitRemoteImagesForAccounts,
+  hydrateRemoteMediaSizesForAccounts,
+  ImageFitError,
+  ImageFitSourceUnavailableError,
+} from "@simple-post/sdk";
 
+import { mcpToolLogLevel, toMcpErrorDiagnostic } from "@/lib/mcp/tool-errors";
 import { prisma } from "@/lib/prisma";
 import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -16,6 +22,7 @@ jest.mock("@/lib/prisma", () => ({
     connectedAccount: {
       findMany: jest.fn(),
     },
+    storageDeletion: { findFirst: jest.fn().mockResolvedValue(null) },
   },
 }));
 
@@ -283,6 +290,63 @@ it("surfaces unfittable images as an actionable 400 instead of an unexpected 500
       imageFit: "crop",
     }),
   ).rejects.toMatchObject({ statusCode: 400, message: "Image fitting accepts files up to 32 MB." });
+});
+
+it("asks for a fresh upload before fitting a post with an expired attachment", async () => {
+  const storageBase = jest.replaceProperty(process, "env", {
+    ...process.env,
+    S3_STORAGE_BASE_URL: "https://files.example.com",
+  });
+  const key = "uploads/user-1/old-thumbnail.jpg";
+  prismaMock.connectedAccount.findMany.mockResolvedValue([connectedAccount]);
+  jest.mocked(prisma.storageDeletion.findFirst).mockResolvedValueOnce({
+    key,
+    userId: "user-1",
+    state: "deleted",
+    dueAt: new Date(),
+    updatedAt: new Date(),
+  });
+  try {
+    await expect(
+      validatePostForAccounts({
+        userId: "user-1",
+        message: "A photo post",
+        media: [],
+        accountIds: ["account-1"],
+        accountOptions: { "account-1": { thumbnailUrl: `https://files.example.com/${key}` } },
+        imageFit: "crop",
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, code: "MEDIA_SOURCE_EXPIRED", recovery: "replace_media" });
+    expect(prisma.storageDeletion.findFirst).toHaveBeenCalledWith({
+      where: { key: { in: [key] }, state: { in: ["deleting", "deleted"] } },
+      select: { key: true },
+    });
+    expect(fitRemoteImagesForAccounts).not.toHaveBeenCalled();
+    expect(hydrateRemoteMediaSizesForAccounts).not.toHaveBeenCalled();
+  } finally {
+    storageBase.restore();
+  }
+});
+
+it("tells MCP to replace an image that disappeared during fitting and records a warning", async () => {
+  prismaMock.connectedAccount.findMany.mockResolvedValue([connectedAccount]);
+  jest.mocked(fitRemoteImagesForAccounts).mockRejectedValueOnce(new ImageFitSourceUnavailableError());
+  const error = await validatePostForAccounts({
+    userId: "user-1",
+    message: "A photo post",
+    media: [],
+    accountIds: ["account-1"],
+    imageFit: "blur",
+  }).catch((error: unknown) => error);
+  expect(toMcpErrorDiagnostic(error)).toMatchObject({
+    code: "MEDIA_SOURCE_EXPIRED",
+    stage: "source_download",
+    recovery: "replace_media",
+    maxAutomaticRetries: 0,
+    message: expect.stringContaining("reattach the file"),
+  });
+  expect(mcpToolLogLevel(error)).toBe("warn");
+  expect(hydrateRemoteMediaSizesForAccounts).not.toHaveBeenCalled();
 });
 
 it("rejects fitting against an account the user does not own with 400, not 500", async () => {

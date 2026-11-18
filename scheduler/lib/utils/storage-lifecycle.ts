@@ -24,18 +24,27 @@ export function collectStorageKeys(userId: string, value: unknown): Set<string> 
   return keys;
 }
 
+export async function hasUnavailableStorage(
+  client: Pick<Prisma.TransactionClient, "storageDeletion">,
+  userId: string,
+  value: unknown,
+): Promise<boolean> {
+  const keys = [...collectStorageKeys(userId, value)];
+  if (keys.length === 0) return false;
+  const unavailable = await client.storageDeletion.findFirst({
+    where: { key: { in: keys }, state: { in: ["deleting", "deleted"] } },
+    select: { key: true },
+  });
+  return unavailable !== null;
+}
+
 // Caller holds the same user-row lock as collection through the save commit.
 export async function assertStorageAvailable(
   tx: Prisma.TransactionClient,
   userId: string,
   value: unknown,
 ): Promise<void> {
-  const keys = [...collectStorageKeys(userId, value)];
-  if (keys.length === 0) return;
-  const unavailable = await tx.storageDeletion.findFirst({
-    where: { key: { in: keys }, state: { in: ["deleting", "deleted"] } },
-  });
-  if (unavailable)
+  if (await hasUnavailableStorage(tx, userId, value))
     throw new ConflictError(
       serverMessage("Some media has expired or been deleted. Upload it again before saving this post."),
     );

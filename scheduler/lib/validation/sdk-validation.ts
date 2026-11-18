@@ -1,20 +1,22 @@
-import { getDisplayMessage } from "@simple-post/sdk/validation";
 import {
   fitRemoteImagesForAccounts,
+  hydrateRemoteMediaSizesForAccounts,
   ImageFitError,
+  ImageFitSourceUnavailableError,
   type ImageFit,
   type ThreadSegment,
   type ValidationIssue,
 } from "@simple-post/sdk";
-import { hydrateRemoteMediaSizesForAccounts } from "@simple-post/sdk";
+import { getDisplayMessage } from "@simple-post/sdk/validation";
 
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { requireImageFitting } from "@/lib/features";
 import { serverMessage } from "@/lib/i18n/server";
+import { mediaSourceExpiredError } from "@/lib/mcp/tool-errors";
 import { prisma } from "@/lib/prisma";
 import { decryptTokenMetadata } from "@/lib/security/connected-account-secrets";
 import { BadRequestError } from "@/lib/utils/errors";
-import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
+import { hasUnavailableStorage, queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { validateAccountReadiness } from "@/lib/validation/account-readiness";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
@@ -76,11 +78,15 @@ export async function validatePostForAccounts(params: {
   if (params.imageFit) {
     if (resolvedAccounts.length !== new Set(params.accountIds).size)
       throw new BadRequestError(serverMessage("One or more accounts were not found"));
+    const { media, thread, accountOverrides, accountOptions } = params;
+    if (await hasUnavailableStorage(prisma, params.userId, { media, thread, accountOverrides, accountOptions }))
+      throw mediaSourceExpiredError();
     try {
       await fitRemoteImagesForAccounts(params, resolvedAccounts, params.imageFit, params.userId, async (url) => {
         await prisma.$transaction((tx) => queueStorageDeletion(tx, params.userId, url));
       });
     } catch (error) {
+      if (error instanceof ImageFitSourceUnavailableError) throw mediaSourceExpiredError();
       // The SDK writes these for the person who asked to fit. Keep the guidance
       // instead of letting it fall through as an unexpected 500.
       if (error instanceof ImageFitError) throw new BadRequestError(getDisplayMessage(error) ?? error.message);

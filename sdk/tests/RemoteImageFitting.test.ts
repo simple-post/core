@@ -4,7 +4,7 @@ import path from "node:path";
 
 import sharp from "sharp";
 
-import { fitRemoteImagesForAccounts } from "../src/utils/image-fitting";
+import { fitRemoteImagesForAccounts, ImageFitSourceUnavailableError } from "../src/utils/image-fitting";
 import { downloadToTempFile } from "../src/utils/media";
 import { S3MediaUploader } from "../src/utils/s3";
 
@@ -83,6 +83,22 @@ it("deduplicates identical shared and override transformations", async () => {
   );
   expect(upload).toHaveBeenCalledTimes(1);
   expect(content.media[0].url).toBe(content.accountOverrides!.second.media![0].url);
+});
+
+it.each([404, 410])("classifies a source HTTP %i as unavailable and rolls back fitted derivatives", async (status) => {
+  const content: ImageFitContent = { media: [media("present"), media("missing")] };
+  const original = structuredClone(content);
+  const download = jest.mocked(downloadToTempFile);
+  download.mockImplementationOnce(download.getMockImplementation()!).mockRejectedValueOnce({
+    isAxiosError: true,
+    response: { status },
+  });
+  await expect(
+    fitRemoteImagesForAccounts(content, [{ id: "ig", platform: "instagram" }], "crop", "user-1"),
+  ).rejects.toBeInstanceOf(ImageFitSourceUnavailableError);
+  expect(content).toEqual(original);
+  expect(upload).toHaveBeenCalledTimes(1);
+  expect(remove).toHaveBeenCalledTimes(1);
 });
 
 it("keeps all input references unchanged and deletes derivatives when a later transformation fails", async () => {

@@ -1,15 +1,10 @@
-import {
-  displayMessage,
-  canonicalDisplayMessage,
-  describeDisplayMessage,
-  type DisplayMessage,
-} from "../validation/display-message";
 import { randomUUID } from "node:crypto";
 import { readFile, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 
+import { isAxiosError } from "axios";
 import sharp from "sharp";
 
 import { downloadToTempFile } from "./media";
@@ -22,6 +17,12 @@ import { MAX_INSPECTABLE_IMAGE_BYTES } from "../media-types";
 import { mapPlatformName } from "../platform-names";
 import { isThreadCapablePlatform } from "../types/api";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "../validation";
+import {
+  displayMessage,
+  canonicalDisplayMessage,
+  describeDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 import { validateInspectedMedia } from "../validation/media-rules";
 
 import type { ImageFit } from "../image-fit";
@@ -45,6 +46,13 @@ export class ImageFitError extends Error {
   }
 }
 
+export class ImageFitSourceUnavailableError extends ImageFitError {
+  constructor() {
+    super(displayMessage("The media URL is missing or expired. Provide a fresh public URL or reattach the file."));
+    this.name = "ImageFitSourceUnavailableError";
+  }
+}
+
 /** Produces a new still JPEG only when needed. Source files are never overwritten. */
 export async function fitImage(
   source: { path?: string; url?: string },
@@ -54,8 +62,16 @@ export async function fitImage(
 ): Promise<{ bytes: Buffer; width: number; height: number; flattened: boolean } | undefined> {
   ImageFitSchema.parse(mode);
   if (platforms.length === 0) return;
-  const downloaded =
-    !source.path && source.url ? await downloadToTempFile(source.url, undefined, MAX_INPUT_BYTES) : undefined;
+  let downloaded: string | undefined;
+  if (!source.path && source.url) {
+    try {
+      downloaded = await downloadToTempFile(source.url, undefined, MAX_INPUT_BYTES);
+    } catch (error) {
+      if (isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 410))
+        throw new ImageFitSourceUnavailableError();
+      throw error;
+    }
+  }
   const inputPath = source.path ?? downloaded;
   if (!inputPath) throw new ImageFitError(displayMessage("An image path or public URL is required."));
   try {

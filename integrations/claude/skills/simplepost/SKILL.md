@@ -1,11 +1,6 @@
 ---
 name: simplepost
 description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing and calendar tasks; not generic copywriting, engagement analytics, private messages, or local credential setup.
-license: MIT
-metadata:
-  hermes:
-    tags: [social-media, publishing, scheduling, mcp]
-    category: social-media
 ---
 
 # SimplePost

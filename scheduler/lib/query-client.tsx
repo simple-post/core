@@ -86,4 +86,9 @@ export const queryKeys = {
   calendarPosts: (from: string, to: string) => ["posts", "calendar", { from, to }],
   post: (id: string) => ["posts", "detail", id],
   tiktokCreatorInfo: (accountId: string) => ["tiktok-creator-info", accountId],
+  analytics: ["analytics"],
+  postAnalytics: (id: string) => ["analytics", "post", id],
+  analyticsSummary: (params: string) => ["analytics", "summary", params],
+  analyticsPosts: (params: string) => ["analytics", "posts", params],
+  accountAnalytics: ["analytics", "accounts"],
 } as const;

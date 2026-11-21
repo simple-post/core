@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/no-await-expression-member -- Keep database assertions beside their operations. */
+ 
 import { NextRequest } from "next/server";
 
 import { getAccountAnalytics, getPostAnalytics } from "@simple-post/sdk";

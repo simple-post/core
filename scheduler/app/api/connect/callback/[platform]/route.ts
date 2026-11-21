@@ -161,6 +161,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       await failure("no_access_token");
       return NextResponse.redirect(errorRedirect("no_access_token"));
     }
+    if (platform === "tiktok" && (typeof tokenData.refresh_token !== "string" || !tokenData.refresh_token.trim())) {
+      authLogger.warn({ platform, userId }, "OAuth token response did not contain a refresh token");
+      await failure("token_exchange_failed");
+      return NextResponse.redirect(errorRedirect("token_exchange_failed"));
+    }
     tokenMetadata = mergeTokenMetadata(tokenMetadata, tokenData);
 
     // Dispatch to platform-specific handler

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
-import { displayMessage, withDisplayMessage, type DisplayMessage } from "@simple-post/sdk/validation";
 import { derToRaw, getMetaCredentialRejection, isMetaCredentialPlatform } from "@simple-post/sdk";
+import { displayMessage, withDisplayMessage, type DisplayMessage } from "@simple-post/sdk/validation";
 
 import { createLogger, serializeError } from "@/lib/logger";
 import { addBlueskyClientAuthentication, getBlueskyClientId, getBlueskyOAuthIssuer } from "@/lib/oauth/bluesky-client";
@@ -558,7 +558,8 @@ function isPermanentRefreshRejection(status: number, code: string | null, messag
 
 async function expectTokenResponse(platform: string, response: Response): Promise<Record<string, unknown>> {
   const data = await parseJsonObject(response);
-  if (!response.ok) {
+  const tiktokOAuthError = platform === "tiktok" && typeof data.error === "string" && Boolean(data.error);
+  if (!response.ok || tiktokOAuthError) {
     const details = providerErrorDetails(data);
     const providerMessage = details.message || response.statusText || "unknown error";
     const combinedMessage =
@@ -572,7 +573,7 @@ async function expectTokenResponse(platform: string, response: Response): Promis
       details.subtype,
       (isMetaCredentialPlatform(platform) &&
         Boolean(getMetaCredentialRejection({ response: { status: response.status, data } }))) ||
-        isPermanentRefreshRejection(response.status, details.code, combinedMessage),
+        isPermanentRefreshRejection(response.ok ? 400 : response.status, details.code, combinedMessage),
     );
   }
   return data;
@@ -689,7 +690,24 @@ async function refreshTikTok(account: ConnectedAccount, now: Date): Promise<Toke
     method: "POST",
     signal: AbortSignal.timeout(REFRESH_REQUEST_TIMEOUT_MS),
   });
-  return buildRefreshResult(account, await expectTokenResponse("tiktok", response), now, { keepRefreshToken: true });
+  const data = await expectTokenResponse("tiktok", response);
+  if (
+    typeof data.refresh_token !== "string" ||
+    !data.refresh_token.trim() ||
+    typeof data.access_token !== "string" ||
+    !data.access_token.trim()
+  ) {
+    // TikTok may have already invalidated the submitted token. Block further
+    // refreshes until the user reconnects instead of submitting it again.
+    throw new TokenRefreshError(
+      "TikTok token refresh returned incomplete credentials",
+      response.status,
+      null,
+      null,
+      true,
+    );
+  }
+  return buildRefreshResult(account, data, now, { fallbackExpiresInSec: 2 * 60 * 60 });
 }
 
 function base64UrlEncode(input: string | Buffer): string {
@@ -1151,6 +1169,11 @@ export async function refreshConnectedAccountIfNeeded(
   try {
     return await prisma.$transaction(async (transaction) => {
       await acquireConnectedAccountCredentialLock(transaction, account.id);
+      if (account.platform.toLowerCase() === "tiktok") {
+        // Even a concurrent profile update changes updatedAt. Hold the row
+        // until the rotated token is saved so that update cannot defeat the CAS.
+        await transaction.$queryRaw`SELECT "id" FROM "connected_account" WHERE "id" = ${account.id} FOR UPDATE`;
+      }
       const freshAccount = await loadConnectedAccount(transaction, account.id);
       if (!freshAccount) {
         const message = `${platformLabel(account.platform)} account no longer exists.`;

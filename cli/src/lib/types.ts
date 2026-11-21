@@ -66,6 +66,7 @@ export interface OAuthAccountSecretPayload extends SecretPayload {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: number;
+  refreshTokenExpiresAt?: number;
   tokenMetadata?: Record<string, unknown>;
 }
 

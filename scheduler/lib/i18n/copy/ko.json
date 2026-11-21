@@ -791,6 +791,7 @@
   "Show day, week, or month schedules with posting slots and post statuses": "게시 시간대와 게시물 상태가 포함된 일간, 주간 또는 월간 일정 표시",
   "Show {{count, number}} More": "{{count, number}}개 더 보기",
   "Show {{count, number}} More_other": "{{count, number}}개 더 보기",
+  "Show saved post previews": "저장된 게시물 미리보기 표시",
   "Sidebar": "사이드바",
   "Signed in as": "로그인 계정",
   "Signup": "가입",
@@ -1166,5 +1167,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. 비워 두면 메시지를 사용합니다.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "{{variant}} 가입률의 95% 윌슨 구간: 관찰 기간이 끝나기를 기다리는 중",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "{{variant}} 가입률의 95% 윌슨 구간: {{lower}}~{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: 아직 진행 중인 가입 관찰 기간 {{pending, number}}건, 해당 기간에 확인된 가입 {{signups, number}}건"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: 아직 진행 중인 가입 관찰 기간 {{pending, number}}건, 해당 기간에 확인된 가입 {{signups, number}}건",
+  "Choose access": "액세스 권한 선택",
+  "Choose how much access Muse gets to your SimplePost account.": "Muse에 부여할 SimplePost 계정 액세스 수준을 선택하세요.",
+  "Connecting does not approve individual writes.": "계정을 연결해도 개별 쓰기 작업이 승인되지는 않습니다.",
+  "Inspect post history and upcoming schedules": "게시물 기록 및 예정된 일정 확인",
+  "Read and write": "읽기 및 쓰기",
+  "Read only": "읽기 전용",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "읽기 전용 액세스로는 초안을 검증하거나 미디어를 업로드하거나 게시물을 변경할 수 없습니다."
 }

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { trackBrowserFunnelEvent } from "@/lib/analytics/browser-events";
 import { useLoginSession } from "@/lib/auth/use-login-session";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
+import type { McpAccessMode } from "@/lib/mcp/config";
 
 interface AuthorizePageConfig {
   title: string;
@@ -20,7 +21,8 @@ interface AuthorizePageConfig {
   successMessage: string;
   loginCallbackPath: string;
   validateParams: (searchParams: URLSearchParams) => boolean;
-  authorize: (searchParams: URLSearchParams) => Promise<Response>;
+  authorize: (searchParams: URLSearchParams, accessMode: McpAccessMode) => Promise<Response>;
+  allowReadOnly?: boolean;
   buildCancelUrl: (searchParams: URLSearchParams) => string;
 }
 
@@ -32,6 +34,8 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billingRequired, setBillingRequired] = useState(false);
+  const [accessMode, setAccessMode] = useState<McpAccessMode>("read_write");
+  const readOnly = config.allowReadOnly && accessMode === "read_only";
 
   const paramsValid = config.validateParams(searchParams);
 
@@ -71,7 +75,7 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
     setBillingRequired(false);
 
     try {
-      const res = await config.authorize(searchParams);
+      const res = await config.authorize(searchParams, config.allowReadOnly ? accessMode : "read_write");
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -143,6 +147,30 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
           {session.user.email && <p className="text-xs text-muted-foreground mt-0.5">{session.user.email}</p>}
         </div>
 
+        {config.allowReadOnly && (
+          <fieldset className="space-y-3 mb-6" disabled={isLoading}>
+            <legend className="text-sm font-medium mb-2">{copy("Choose access")}</legend>
+            {(
+              [
+                ["read_write", copy("Read and write")],
+                ["read_only", copy("Read only")],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="access_mode"
+                  value={value}
+                  checked={accessMode === value}
+                  onChange={() => setAccessMode(value)}
+                  className="mt-1"
+                />
+                <span className="font-medium">{label}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+
         <div className="space-y-3 mb-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             {copy("This app will be able to")}{" "}
@@ -150,8 +178,10 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
           <ul className="space-y-2 text-sm text-muted-foreground">
             {[
               copy("View connected social accounts"),
-              copy("Validate draft post text against platform rules"),
-              copy("Create or schedule posts after you approve the tool call"),
+              readOnly ? copy("Show saved post previews") : copy("Validate draft post text against platform rules"),
+              readOnly
+                ? copy("Inspect post history and upcoming schedules")
+                : copy("Create or schedule posts after you approve the tool call"),
             ].map((item) => (
               <li key={item} className="flex items-start gap-2.5">
                 <Check className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
@@ -160,9 +190,12 @@ function AuthorizeContent({ config }: { config: AuthorizePageConfig }) {
             ))}
           </ul>
           <p className="text-xs text-muted-foreground pt-1">
-            {copy(
-              "Publishing now creates public content on the selected platforms. Review the tool-call details before approving.",
-            )}{" "}
+            {readOnly
+              ? copy("Read-only access cannot validate drafts, upload media, or change posts.")
+              : copy(
+                  "Publishing now creates public content on the selected platforms. Review the tool-call details before approving.",
+                )}
+            {config.allowReadOnly && !readOnly && <> {copy("Connecting does not approve individual writes.")}</>}
           </p>
         </div>
 

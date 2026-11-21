@@ -811,6 +811,7 @@
   "Show {{count, number}} More_many": "Afficher {{count, number}} de plus",
   "Show {{count, number}} More_one": "Afficher {{count, number}} de plus",
   "Show {{count, number}} More_other": "Afficher {{count, number}} de plus",
+  "Show saved post previews": "Afficher les aperçus enregistrés des publications",
   "Sidebar": "Barre latérale",
   "Signed in as": "Connecté en tant que",
   "Signup": "Inscription",
@@ -1238,5 +1239,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Si le champ est vide, le message est utilisé.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "Intervalle de Wilson à 95 % pour le taux d’inscription de {{variant}} : en attente de la fin de la période d’observation",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "Intervalle de Wilson à 95 % pour le taux d’inscription de {{variant}} : {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}} : {{pending, number}} fenêtres d’inscription en cours, {{signups, number}} inscriptions observées dans les délais"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}} : {{pending, number}} fenêtres d’inscription en cours, {{signups, number}} inscriptions observées dans les délais",
+  "Choose access": "Choisir l’accès",
+  "Choose how much access Muse gets to your SimplePost account.": "Choisissez le niveau d’accès de Muse à votre compte SimplePost.",
+  "Connecting does not approve individual writes.": "La connexion ne vaut pas approbation de chaque action d’écriture.",
+  "Inspect post history and upcoming schedules": "Consulter l’historique et les prochaines publications programmées",
+  "Read and write": "Lecture et écriture",
+  "Read only": "Lecture seule",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "L’accès en lecture seule ne permet pas de valider les brouillons, d’importer des médias ni de modifier les publications."
 }

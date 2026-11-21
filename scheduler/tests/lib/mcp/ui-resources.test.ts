@@ -24,6 +24,7 @@ import { transform } from "esbuild";
 
 import { withMcpLocale } from "@/lib/mcp/locale";
 import {
+  EDITOR_WIDGET_URI,
   LEGACY_SCHEDULE_WIDGET_URIS,
   POST_PREVIEW_WIDGET_URI,
   registerMcpUiResources,
@@ -169,6 +170,26 @@ describe("MCP UI resources", () => {
           text: expect.stringContaining(`${WIDGET_RUNTIME_PATH}?mode=schedule`),
         }),
       );
+    }
+  });
+
+  it("allows the configured upload origin in the post preview and editor sandboxes", async () => {
+    const previous = process.env.S3_STORAGE_BASE_URL;
+    process.env.S3_STORAGE_BASE_URL = "https://media.example.test/uploads";
+    try {
+      const registerResource = jest.fn();
+      registerMcpUiResources({ registerResource } as unknown as McpServer, true);
+      for (const uri of [POST_PREVIEW_WIDGET_URI, EDITOR_WIDGET_URI]) {
+        const registration = registerResource.mock.calls.find((call) => call[1] === uri)!;
+        const callback = registration[3] as (requestedUri: URL) => Promise<ResourceResult>;
+        const resource = await callback(new URL(uri));
+        for (const meta of [registration[2]._meta, resource.contents[0]._meta]) {
+          expect(meta.ui.csp.resourceDomains).toContain("https://media.example.test");
+        }
+      }
+    } finally {
+      if (previous === undefined) delete process.env.S3_STORAGE_BASE_URL;
+      else process.env.S3_STORAGE_BASE_URL = previous;
     }
   });
 

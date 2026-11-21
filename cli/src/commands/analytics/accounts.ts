@@ -76,5 +76,6 @@ export default class AnalyticsAccountsCommand extends Command {
       }
     }
     this.log(flags.json ? JSON.stringify(rows, null, 2) : lines.join("\n"));
+    if (rows.some((row) => row.status !== "ok")) process.exitCode = 1;
   }
 }

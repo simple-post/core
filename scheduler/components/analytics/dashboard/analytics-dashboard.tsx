@@ -120,7 +120,12 @@ export function AnalyticsDashboard() {
     platform: filters.platform,
     mode: filters.mode,
   };
-  const { data: summary, isLoading, isError, isFetching } = useAnalyticsSummary({ ...queryFilters, topSortBy });
+  const {
+    data: summary,
+    isLoading,
+    isError,
+    isFetching,
+  } = useAnalyticsSummary({ ...queryFilters, topSortBy }, !customIncomplete);
   const refresh = useRefreshAnalytics();
 
   const updateFilters = useCallback(
@@ -145,6 +150,8 @@ export function AnalyticsDashboard() {
           from: queryFilters.from,
           to: queryFilters.to,
           timeZone,
+          mode: queryFilters.mode,
+          ...(queryFilters.platform ? { platforms: [queryFilters.platform] } : {}),
           force,
         },
         {
@@ -152,22 +159,34 @@ export function AnalyticsDashboard() {
             if (force && result.posts.failed > 0)
               toast.warning(copy("Some platforms could not be read. Check the notes below."));
           },
-          onError: (error) => toast.error(error instanceof Error ? error.message : copy("Failed to refresh analytics")),
+          // Automatic refreshes fail quietly; the cached numbers stay on screen.
+          onError: (error) => {
+            if (force) toast.error(error instanceof Error ? error.message : copy("Failed to refresh analytics"));
+          },
         },
       ),
 
-    [refresh, queryFilters.period, queryFilters.from, queryFilters.to, timeZone, copy],
+    [
+      refresh,
+      queryFilters.period,
+      queryFilters.from,
+      queryFilters.to,
+      queryFilters.mode,
+      queryFilters.platform,
+      timeZone,
+      copy,
+    ],
   );
 
   // Opening the dashboard (or a new period) reads stale numbers once, after the cached ones render.
   const refreshedKey = useRef<string | null>(null);
-  const refreshKey = `${queryFilters.period}|${queryFilters.from ?? ""}|${queryFilters.to ?? ""}`;
+  const refreshKey = `${queryFilters.period}|${queryFilters.from ?? ""}|${queryFilters.to ?? ""}|${queryFilters.mode}|${queryFilters.platform ?? ""}`;
   useEffect(() => {
-    if (readOnly || !summary || refresh.isPending || refreshedKey.current === refreshKey) return;
+    if (readOnly || customIncomplete || !summary || refresh.isPending || refreshedKey.current === refreshKey) return;
     if (summary.coverage.stale === 0 && summary.coverage.pending === 0) return;
     refreshedKey.current = refreshKey;
     runRefresh(false);
-  }, [readOnly, summary, refresh.isPending, refreshKey, runRefresh]);
+  }, [readOnly, customIncomplete, summary, refresh.isPending, refreshKey, runRefresh]);
 
   const supportedMetrics = useMemo(() => {
     const metrics = new Set<PostMetric>();
@@ -200,6 +219,15 @@ export function AnalyticsDashboard() {
     if (filters.platform) known.add(filters.platform);
     return [...known].sort();
   }, [summary, filters.platform]);
+
+  // The API reports the engagement-rate change in points; tiles show every change as relative.
+  const tileChange = (metric: TimelineMetric): number | null => {
+    if (!summary?.change) return null;
+    if (metric !== "engagementRate") return summary.change[metric] ?? null;
+    const current = summary.totals.engagementRate;
+    const previous = summary.previous?.engagementRate;
+    return current !== null && previous ? (current - previous) / previous : null;
+  };
 
   const tileValue = (metric: TimelineMetric): string => {
     if (!summary) return "—";
@@ -253,7 +281,7 @@ export function AnalyticsDashboard() {
           onRefresh={() => runRefresh(true)}
           refreshing={refresh.isPending}
           lastUpdatedAt={summary?.coverage.lastUpdatedAt ?? null}
-          readOnly={readOnly}
+          readOnly={readOnly || customIncomplete}
         />
 
         {filters.mode === "activity" && (
@@ -297,116 +325,128 @@ export function AnalyticsDashboard() {
           </div>
         )}
 
-        {isError && !summary ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm">
+        {customIncomplete ? (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            {copy("Pick a start and end date for the custom range.")}
+          </div>
+        ) : null}
+
+        {isError && !customIncomplete ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm">
             {copy("Analytics could not be loaded. Please try again.")}
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]",
-            (isLoading || isFetching) && !refresh.isPending && "opacity-70",
-          )}>
-          {tiles.map((metric) => (
-            <MetricTile
-              key={metric}
-              locale={locale}
-              label={labels.metric[metric]}
-              help={labels.metricHelp[metric]}
-              value={isLoading ? "…" : tileValue(metric)}
-              change={summary?.change?.[metric] ?? null}
-              changeLabel={summary?.previous ? copy("vs previous") : undefined}
-              active={activeChartMetric === metric}
-              onClick={() => setChartMetric(metric)}
-            />
-          ))}
-          {summary && summary.followers.length > 0 && (
-            <MetricTile
-              locale={locale}
-              label={labels.accountMetric.followers}
-              value={formatMetricValue("engagements", followerTotal, locale)}
-              footer={
-                followerChange === 0 ? undefined : (
-                  <span
-                    className={cn(
-                      "text-xs tabular-nums",
-                      followerChange > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
-                    )}>
-                    {followerChange > 0 ? "+" : ""}
-                    {formatMetricValue("engagements", followerChange, locale)} {copy("in period")}
-                  </span>
-                )
-              }
-            />
-          )}
-        </div>
+        {!customIncomplete && (
+          <>
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]",
+                (isLoading || isFetching) && !refresh.isPending && "opacity-70",
+              )}>
+              {tiles.map((metric) => (
+                <MetricTile
+                  key={metric}
+                  locale={locale}
+                  label={labels.metric[metric]}
+                  help={labels.metricHelp[metric]}
+                  value={isLoading ? "…" : tileValue(metric)}
+                  change={tileChange(metric)}
+                  changeLabel={summary?.previous ? copy("vs previous") : undefined}
+                  active={activeChartMetric === metric}
+                  onClick={() => setChartMetric(metric)}
+                />
+              ))}
+              {summary && summary.followers.length > 0 && (
+                <MetricTile
+                  locale={locale}
+                  label={labels.accountMetric.followers}
+                  value={formatMetricValue("engagements", followerTotal, locale)}
+                  footer={
+                    followerChange === 0 ? undefined : (
+                      <span
+                        className={cn(
+                          "text-xs tabular-nums",
+                          followerChange > 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400",
+                        )}>
+                        {followerChange > 0 ? "+" : ""}
+                        {formatMetricValue("engagements", followerChange, locale)} {copy("in period")}
+                      </span>
+                    )
+                  }
+                />
+              )}
+            </div>
 
-        <Section
-          title={labels.metric[activeChartMetric]}
-          description={
-            filters.mode === "activity"
-              ? copy("{{period}} · gained per interval", { period: periodLabel })
-              : copy("{{period}} · by publish date", { period: periodLabel })
-          }>
-          {summary ? (
-            <TimelineChart summary={summary} metric={activeChartMetric} />
-          ) : (
-            <div className="h-64 animate-pulse rounded-xl bg-secondary" />
-          )}
-        </Section>
+            <Section
+              title={labels.metric[activeChartMetric]}
+              description={
+                filters.mode === "activity"
+                  ? copy("{{period}} · gained per interval", { period: periodLabel })
+                  : copy("{{period}} · by publish date", { period: periodLabel })
+              }>
+              {summary ? (
+                <TimelineChart summary={summary} metric={activeChartMetric} />
+              ) : (
+                <div className="h-64 animate-pulse rounded-xl bg-secondary" />
+              )}
+            </Section>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Section
-            title={filters.platform ? copy("Accounts") : copy("Platforms")}
-            description={filters.platform ? undefined : copy("Select a platform to drill down.")}>
-            {summary ? (
-              <BreakdownTable
-                summary={summary}
-                drilledPlatform={filters.platform}
-                onSelectPlatform={(platform) => updateFilters({ platform })}
-              />
-            ) : (
-              <div className="h-40 animate-pulse rounded-xl bg-secondary" />
-            )}
-          </Section>
-          <Section title={copy("Top posts")}>
-            {summary ? (
-              <TopPosts
-                posts={summary.topPosts}
-                sortBy={TOP_POST_SORTS.includes(topSortBy) ? topSortBy : "engagements"}
-                onSortChange={setTopSortBy}
-              />
-            ) : (
-              <div className="h-40 animate-pulse rounded-xl bg-secondary" />
-            )}
-          </Section>
-        </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Section
+                title={filters.platform ? copy("Accounts") : copy("Platforms")}
+                description={filters.platform ? undefined : copy("Select a platform to drill down.")}>
+                {summary ? (
+                  <BreakdownTable
+                    summary={summary}
+                    drilledPlatform={filters.platform}
+                    onSelectPlatform={(platform) => updateFilters({ platform })}
+                  />
+                ) : (
+                  <div className="h-40 animate-pulse rounded-xl bg-secondary" />
+                )}
+              </Section>
+              <Section title={copy("Top posts")}>
+                {summary ? (
+                  <TopPosts
+                    posts={summary.topPosts}
+                    sortBy={TOP_POST_SORTS.includes(topSortBy) ? topSortBy : "engagements"}
+                    onSortChange={setTopSortBy}
+                  />
+                ) : (
+                  <div className="h-40 animate-pulse rounded-xl bg-secondary" />
+                )}
+              </Section>
+            </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Section
-            title={copy("Best time to post")}
-            description={copy("Average engagements by the time posts were published.")}>
-            {summary ? (
-              <BestTimes bestTimes={summary.bestTimes} />
-            ) : (
-              <div className="h-40 animate-pulse rounded-xl bg-secondary" />
-            )}
-          </Section>
-          <Section title={labels.accountMetric.followers}>
-            {summary ? (
-              <FollowersPanel followers={summary.followers} />
-            ) : (
-              <div className="h-40 animate-pulse rounded-xl bg-secondary" />
-            )}
-          </Section>
-        </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Section
+                title={copy("Best time to post")}
+                description={copy("Average engagements by the time posts were published.")}>
+                {summary ? (
+                  <BestTimes bestTimes={summary.bestTimes} />
+                ) : (
+                  <div className="h-40 animate-pulse rounded-xl bg-secondary" />
+                )}
+              </Section>
+              <Section title={labels.accountMetric.followers}>
+                {summary ? (
+                  <FollowersPanel followers={summary.followers} />
+                ) : (
+                  <div className="h-40 animate-pulse rounded-xl bg-secondary" />
+                )}
+              </Section>
+            </div>
 
-        <Section title={copy("All posts")}>
-          <PostsTable filters={queryFilters} supportedMetrics={supportedMetrics} />
-        </Section>
+            <Section title={copy("All posts")}>
+              <PostsTable filters={queryFilters} supportedMetrics={supportedMetrics} />
+            </Section>
+          </>
+        )}
 
-        {summary && (
+        {summary && !customIncomplete && (
           <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
             <BarChart3 className="h-3.5 w-3.5" aria-hidden />
             <span>

@@ -1284,5 +1284,6 @@
   "{{period}} · by publish date": "{{period}} · menurut tanggal terbit",
   "{{period}} · gained per interval": "{{period}} · pertambahan per interval",
   "Based on {{count, number}} posts": "Berdasarkan {{count, number}} postingan",
-  "{{count, number}} waiting for their first read.": "{{count, number}} menunggu pembacaan pertama."
+  "{{count, number}} waiting for their first read.": "{{count, number}} menunggu pembacaan pertama.",
+  "Pick a start and end date for the custom range.": "Pilih tanggal mulai dan selesai untuk rentang khusus."
 }

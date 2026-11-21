@@ -1360,5 +1360,6 @@
   "{{count, number}} waiting for their first read._many": "{{count, number}} pendientes de la primera lectura.",
   "{{count, number}} waiting for their first read._other": "{{count, number}} pendientes de la primera lectura.",
   "Based on {{count, number}} posts": "Basado en {{count, number}} publicaciones",
-  "{{count, number}} waiting for their first read.": "{{count, number}} pendientes de la primera lectura."
+  "{{count, number}} waiting for their first read.": "{{count, number}} pendientes de la primera lectura.",
+  "Pick a start and end date for the custom range.": "Elige una fecha de inicio y de fin para el rango personalizado."
 }

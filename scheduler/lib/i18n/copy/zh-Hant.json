@@ -1284,5 +1284,6 @@
   "What to measure": "衡量項目",
   "Yesterday": "昨天",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "你在{{day}} {{hour}}左右發佈的貼文互動最多。",
-  "Your posts published on {{day}} get the most engagement.": "你在{{day}}發佈的貼文互動最多。"
+  "Your posts published on {{day}} get the most engagement.": "你在{{day}}發佈的貼文互動最多。",
+  "Pick a start and end date for the custom range.": "請為自訂期間選擇開始和結束日期。"
 }

@@ -1322,5 +1322,6 @@
   "{{period}} · by publish date": "{{period}} · по дата на публикуване",
   "{{period}} · gained per interval": "{{period}} · прираст за интервал",
   "Based on {{count, number}} posts": "Въз основа на {{count, number}} публикации",
-  "{{count, number}} waiting for their first read.": "{{count, number}} очакват първо отчитане."
+  "{{count, number}} waiting for their first read.": "{{count, number}} очакват първо отчитане.",
+  "Pick a start and end date for the custom range.": "Изберете начална и крайна дата за персонализирания период."
 }

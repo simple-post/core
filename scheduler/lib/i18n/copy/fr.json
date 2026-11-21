@@ -1360,5 +1360,6 @@
   "{{count, number}} waiting for their first read._many": "{{count, number}} en attente du premier relevé.",
   "{{count, number}} waiting for their first read._other": "{{count, number}} en attente du premier relevé.",
   "Based on {{count, number}} posts": "Sur la base de {{count, number}} publications",
-  "{{count, number}} waiting for their first read.": "{{count, number}} en attente du premier relevé."
+  "{{count, number}} waiting for their first read.": "{{count, number}} en attente du premier relevé.",
+  "Pick a start and end date for the custom range.": "Choisissez une date de début et de fin pour la période personnalisée."
 }

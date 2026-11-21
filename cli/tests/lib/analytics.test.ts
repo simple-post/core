@@ -1,6 +1,6 @@
 import { getAccountPlatformConfig } from "../../src/lib/account/platforms.js";
 import { normalizePeriod, periodQuery } from "../../src/lib/analytics/flags.js";
-import { renderPostAnalytics, renderPostList, renderSummary } from "../../src/lib/analytics/render.js";
+import { localDate, renderPostAnalytics, renderPostList, renderSummary } from "../../src/lib/analytics/render.js";
 import { createColors } from "../../src/lib/ux/colors.js";
 
 const colors = createColors(false);
@@ -53,6 +53,11 @@ describe("analytics scopes", () => {
 });
 
 describe("analytics rendering", () => {
+  it("prints dates in the summary's timezone", () => {
+    expect(localDate("2026-10-31T15:00:00.000Z", "Asia/Tokyo")).toBe("2026-11-01");
+    expect(localDate("2026-10-31T15:00:00.000Z")).toBe("2026-10-31");
+  });
+
   const summary = {
     summary: {
       period: { key: "last_7d", start: "2026-11-14T00:00:00.000Z", end: "2026-11-21T00:00:00.000Z", timeZone: "UTC" },

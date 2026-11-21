@@ -126,6 +126,17 @@ export function formatMetrics(metrics: PostMetrics): string {
     .join(" · ");
 }
 
+/** YYYY-MM-DD of an instant in the given timezone (UTC when none is known). */
+export function localDate(iso: string, timeZone = "UTC"): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+      new Date(iso),
+    );
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 function excerpt(text: string, length = 60): string {
   const flat = text.replaceAll(/\s+/g, " ").trim();
   return flat.length > length ? `${flat.slice(0, length - 1)}…` : flat || "(no text)";
@@ -137,7 +148,7 @@ function pad(text: string, width: number, align: "start" | "end" = "start"): str
 
 export function renderSummary(response: AnalyticsSummaryResponse, colors: Colors): string {
   const { summary } = response;
-  const day = (iso: string) => iso.slice(0, 10);
+  const day = (iso: string) => localDate(iso, summary.period.timeZone);
   const end = new Date(new Date(summary.period.end).getTime() - 1).toISOString();
   const lines = [
     colors.bold(`Analytics · ${summary.period.key.replaceAll("_", " ")}`) +
@@ -208,12 +219,19 @@ export function renderSummary(response: AnalyticsSummaryResponse, colors: Colors
     );
   if (summary.coverage.pending > 0)
     lines.push(
-      colors.dim(`${summary.coverage.pending} publications have not been read yet; run again with --refresh auto.`),
+      colors.dim(
+        `${summary.coverage.pending} publications have not been read yet; SimplePost reads them shortly. Use --refresh force to read them now.`,
+      ),
     );
   return lines.join("\n");
 }
 
-export function renderPostList(response: AnalyticsPostsResponse, sortBy: string, colors: Colors): string {
+export function renderPostList(
+  response: AnalyticsPostsResponse & { period?: { timeZone?: string } },
+  sortBy: string,
+  colors: Colors,
+): string {
+  const timeZone = response.period?.timeZone;
   if (response.posts.length === 0) return "No published posts in this period.";
   const offset = (response.pagination.page - 1) * response.pagination.limit;
   const lines = [
@@ -224,7 +242,7 @@ export function renderPostList(response: AnalyticsPostsResponse, sortBy: string,
   ];
   for (const [index, post] of response.posts.entries())
     lines.push(
-      `${pad(String(offset + index + 1), 3, "end")}. ${excerpt(post.message)} ${colors.dim(`(${post.platforms.map(platformLabel).join(", ")}, ${post.publishedAt.slice(0, 10)})`)}`,
+      `${pad(String(offset + index + 1), 3, "end")}. ${excerpt(post.message)} ${colors.dim(`(${post.platforms.map(platformLabel).join(", ")}, ${localDate(post.publishedAt, timeZone)})`)}`,
       `     ${formatMetrics(post.metrics) || "no metrics yet"}${post.engagements === null ? "" : ` · Engagements ${formatNumber(post.engagements)}`}${
         post.engagementRate === null ? "" : ` · Rate ${formatRate(post.engagementRate)}`
       } ${colors.dim(post.postId)}`,
@@ -247,7 +265,11 @@ export function renderPostAnalytics(response: PostAnalyticsResponse, colors: Col
   for (const account of analytics.accounts) {
     const who = `${platformLabel(account.platform)}${account.username ? ` @${account.username.replace(/^@/, "")}` : ""}`;
     const status = account.status === "ok" ? colors.lime("●") : colors.dim("○");
-    lines.push(`  ${status} ${who}: ${formatMetrics(account.metrics) || colors.dim(account.status)}`);
+    const metrics = formatMetrics(account.metrics);
+    // Keep a non-ok status visible next to last-known numbers.
+    const statusNote =
+      account.status === "ok" ? "" : colors.dim(metrics ? ` (${account.status}, last known)` : account.status);
+    lines.push(`  ${status} ${who}: ${metrics}${statusNote}`);
     if (account.message) lines.push(colors.dim(`      ${account.message}`));
     if (account.postUrl) lines.push(colors.dim(`      ${account.postUrl}`));
     if (showNative)

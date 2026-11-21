@@ -50,7 +50,8 @@ export function browserTimeZone(): string {
 }
 
 /** Analytics of one post; stale values are refreshed in the background after the cached ones render. */
-export function usePostAnalytics(postId: string, enabled = true) {
+export function usePostAnalytics(postId: string, options: { enabled?: boolean; readOnly?: boolean } = {}) {
+  const enabled = options.enabled ?? true;
   const { copy } = useUiCopy();
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -79,19 +80,23 @@ export function usePostAnalytics(postId: string, enabled = true) {
   // Opening a post fetches fresh numbers once when the cached ones are stale.
   const autoRefreshed = useRef<string | null>(null);
   useEffect(() => {
-    if (!query.data?.isStale || autoRefreshed.current === postId || refresh.isPending) return;
+    if (options.readOnly || !query.data?.isStale || autoRefreshed.current === postId || refresh.isPending) return;
     autoRefreshed.current = postId;
     refresh.mutate(false);
-  }, [postId, query.data?.isStale, refresh]);
+  }, [options.readOnly, postId, query.data?.isStale, refresh]);
 
   return { ...query, refresh };
 }
 
-export function useAnalyticsSummary(filters: AnalyticsFilters & { topSortBy?: SortableMetric; topLimit?: number }) {
+export function useAnalyticsSummary(
+  filters: AnalyticsFilters & { topSortBy?: SortableMetric; topLimit?: number },
+  enabled = true,
+) {
   const { copy } = useUiCopy();
   const params = toSearchParams({ ...filters, refresh: "none" });
   return useQuery({
     queryKey: queryKeys.analyticsSummary(params),
+    enabled,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
     queryFn: async () =>
@@ -147,6 +152,8 @@ export function useRefreshAnalytics() {
       from?: string;
       to?: string;
       timeZone?: string;
+      mode?: SummaryMode;
+      platforms?: string[];
       force?: boolean;
     }) => {
       const response = await fetch("/api/v1/analytics/refresh", {

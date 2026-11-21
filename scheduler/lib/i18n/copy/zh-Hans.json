@@ -1284,5 +1284,6 @@
   "What to measure": "统计口径",
   "Yesterday": "昨天",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "你在{{day}} {{hour}}左右发布的帖子互动最多。",
-  "Your posts published on {{day}} get the most engagement.": "你在{{day}}发布的帖子互动最多。"
+  "Your posts published on {{day}} get the most engagement.": "你在{{day}}发布的帖子互动最多。",
+  "Pick a start and end date for the custom range.": "请为自定义时间范围选择开始和结束日期。"
 }

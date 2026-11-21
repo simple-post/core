@@ -1322,5 +1322,6 @@
   "{{period}} · by publish date": "{{period}} · yayın tarihine göre",
   "{{period}} · gained per interval": "{{period}} · aralık başına kazanım",
   "Based on {{count, number}} posts": "{{count, number}} gönderiye göre",
-  "{{count, number}} waiting for their first read.": "{{count, number}} tanesi ilk okumayı bekliyor."
+  "{{count, number}} waiting for their first read.": "{{count, number}} tanesi ilk okumayı bekliyor.",
+  "Pick a start and end date for the custom range.": "Özel aralık için bir başlangıç ve bitiş tarihi seç."
 }

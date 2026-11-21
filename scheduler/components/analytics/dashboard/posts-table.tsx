@@ -39,7 +39,7 @@ export function PostsTable({
     setLastFilterKey(filterKey);
     setPage(1);
   }
-  const { data, isLoading } = useAnalyticsPosts({ ...filters, sortBy, order, page, limit: 20 });
+  const { data, isLoading, isError } = useAnalyticsPosts({ ...filters, sortBy, order, page, limit: 20 });
   const columns = BASE_COLUMNS.filter(
     (column) => column === "engagements" || column === "engagementRate" || supportedMetrics.has(column as PostMetric),
   );
@@ -117,10 +117,12 @@ export function PostsTable({
                 ))}
               </tr>
             ))}
-            {!isLoading && (data?.posts.length ?? 0) === 0 ? (
+            {!isLoading && (isError || (data?.posts.length ?? 0) === 0) ? (
               <tr>
                 <td colSpan={columns.length + 2} className="py-8 text-center text-muted-foreground">
-                  {copy("No published posts in this period.")}
+                  {isError
+                    ? copy("Analytics could not be loaded. Please try again.")
+                    : copy("No published posts in this period.")}
                 </td>
               </tr>
             ) : null}

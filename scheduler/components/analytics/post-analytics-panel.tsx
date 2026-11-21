@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { ChevronDown, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { toast } from "sonner";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,7 @@ const STATUS_TONE: Record<string, string> = {
 export function PostAnalyticsPanel({ postId, readOnly }: { postId: string; readOnly?: boolean }) {
   const { copy, locale } = useUiCopy();
   const labels = useAnalyticsLabels();
-  const { data, isLoading, isError, refresh } = usePostAnalytics(postId);
+  const { data, isLoading, isError, refresh } = usePostAnalytics(postId, { readOnly });
   const [chartMetric, setChartMetric] = useState<"views" | "engagements">("engagements");
   const [showDetails, setShowDetails] = useState(false);
 
@@ -84,7 +85,8 @@ export function PostAnalyticsPanel({ postId, readOnly }: { postId: string; readO
       </section>
     );
   }
-  if (isError || !data || data.notPublished) return null;
+  // A failed background refetch keeps the last data on screen.
+  if ((isError && !data) || !data || data.notPublished) return null;
 
   // Only metrics with a value: a platform that supports a metric may still not report it for this post.
   const tiles = TILE_ORDER.filter((metric) => {
@@ -122,7 +124,12 @@ export function PostAnalyticsPanel({ postId, readOnly }: { postId: string; readO
               size="sm"
               className="h-8 gap-1.5 px-2"
               disabled={refresh.isPending}
-              onClick={() => refresh.mutate(true)}>
+              onClick={() =>
+                refresh.mutate(true, {
+                  onError: (error) =>
+                    toast.error(error instanceof Error ? error.message : copy("Failed to refresh analytics")),
+                })
+              }>
               <RefreshCw className={cn("h-3.5 w-3.5", refresh.isPending && "animate-spin")} />
               {copy("Refresh")}
             </Button>

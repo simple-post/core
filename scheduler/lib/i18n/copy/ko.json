@@ -1284,5 +1284,6 @@
   "What to measure": "측정 기준",
   "Yesterday": "어제",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "{{day}} {{hour}}쯤 게시한 게시물의 참여가 가장 많습니다.",
-  "Your posts published on {{day}} get the most engagement.": "{{day}}에 게시한 게시물의 참여가 가장 많습니다."
+  "Your posts published on {{day}} get the most engagement.": "{{day}}에 게시한 게시물의 참여가 가장 많습니다.",
+  "Pick a start and end date for the custom range.": "사용자 지정 기간의 시작일과 종료일을 선택하세요."
 }

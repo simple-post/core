@@ -1474,5 +1474,6 @@
   "What to measure": "ما يتم قياسه",
   "Yesterday": "أمس",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "تحصل منشوراتك التي تُنشر يوم {{day}} نحو الساعة {{hour}} على أكبر قدر من التفاعل.",
-  "Your posts published on {{day}} get the most engagement.": "تحصل منشوراتك التي تُنشر يوم {{day}} على أكبر قدر من التفاعل."
+  "Your posts published on {{day}} get the most engagement.": "تحصل منشوراتك التي تُنشر يوم {{day}} على أكبر قدر من التفاعل.",
+  "Pick a start and end date for the custom range.": "اختر تاريخ البداية والنهاية للفترة المخصصة."
 }

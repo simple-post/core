@@ -1322,5 +1322,6 @@
   "{{period}} · by publish date": "{{period}} · प्रकाशन की तारीख के हिसाब से",
   "{{period}} · gained per interval": "{{period}} · हर अंतराल में बढ़त",
   "Based on {{count, number}} posts": "{{count, number}} पोस्ट के आधार पर",
-  "{{count, number}} waiting for their first read.": "{{count, number}} पहली रीडिंग के इंतज़ार में हैं।"
+  "{{count, number}} waiting for their first read.": "{{count, number}} पहली रीडिंग के इंतज़ार में हैं।",
+  "Pick a start and end date for the custom range.": "कस्टम अवधि के लिए शुरू और खत्म होने की तारीख चुनें।"
 }

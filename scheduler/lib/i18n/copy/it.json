@@ -1360,5 +1360,6 @@
   "What to measure": "Cosa misurare",
   "Yesterday": "Ieri",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "I tuoi post pubblicati di {{day}} intorno alle {{hour}} ottengono più interazioni.",
-  "Your posts published on {{day}} get the most engagement.": "I tuoi post pubblicati di {{day}} ottengono più interazioni."
+  "Your posts published on {{day}} get the most engagement.": "I tuoi post pubblicati di {{day}} ottengono più interazioni.",
+  "Pick a start and end date for the custom range.": "Scegli una data di inizio e di fine per l'intervallo personalizzato."
 }

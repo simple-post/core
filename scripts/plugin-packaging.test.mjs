@@ -7,7 +7,8 @@ import { claudeSkillFiles, destination, root, syncClaudeSkill, treeFiles } from 
 
 test("Claude adapter contains only the hosted connector workflow and valid local references", async () => {
   const files = await claudeSkillFiles();
-  assert.deepEqual([...files.keys()].sort(), ["SKILL.md", "agents/openai.yaml", "references/mcp.md"]);
+  assert.deepEqual([...files.keys()].sort(), ["SKILL.md", "references/mcp.md"]);
+  assert.match(files.get("SKILL.md"), /^---\nname: simplepost\ndescription: [^\n]+\n---\n/);
   for (const [relative, content] of files) {
     for (const match of content.matchAll(/\]\(([^)]+)\)/g)) {
       const target = match[1];

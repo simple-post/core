@@ -5085,6 +5085,7 @@ __metadata:
     "@simple-post/sdk": "npm:^1.4.0"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^24.0.0"
+    "@types/proper-lockfile": "npm:^4.1.4"
     eslint: "npm:^9.30.1"
     eslint-config-prettier: "npm:^10.1.5"
     eslint-import-resolver-typescript: "npm:^4.4.4"
@@ -5094,6 +5095,7 @@ __metadata:
     jest: "npm:^30.0.0"
     keytar: "npm:^7.9.0"
     prettier: "npm:^3.4.2"
+    proper-lockfile: "npm:^4.1.2"
     selfsigned: "npm:^5.5.0"
     ts-jest: "npm:^29.4.0"
     typescript: "npm:^5.8.3"
@@ -6038,6 +6040,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/proper-lockfile@npm:^4.1.4":
+  version: 4.1.4
+  resolution: "@types/proper-lockfile@npm:4.1.4"
+  dependencies:
+    "@types/retry": "npm:*"
+  checksum: 10c0/d597846d6f7860da2470623d3f11b6e5b39864719c3c18b5a5e55f783c5e432fe49dcdcf6341b3903428fdf103f2bdc68eba263ce1ce3cbe8070cbcb54bbf230
+  languageName: node
+  linkType: hard
+
 "@types/qs@npm:*":
   version: 6.14.0
   resolution: "@types/qs@npm:6.14.0"
@@ -6067,6 +6078,13 @@ __metadata:
   dependencies:
     csstype: "npm:^3.2.2"
   checksum: 10c0/7d25bf41b57719452d86d2ac0570b659210402707313a36ee612666bf11275a1c69824f8c3ee1fdca077ccfe15452f6da8f1224529b917050eb2d861e52b59b7
+  languageName: node
+  linkType: hard
+
+"@types/retry@npm:*":
+  version: 0.12.5
+  resolution: "@types/retry@npm:0.12.5"
+  checksum: 10c0/eaaca483cc62f2f02c0b8486847ee70986ca7f97afd7363037247dbe3e98df8bd56a5b50d58b1e96768a5a1be0307010d86e9991bd458d72e8df88be471bd720
   languageName: node
   linkType: hard
 
@@ -14503,6 +14521,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"proper-lockfile@npm:^4.1.2":
+  version: 4.1.2
+  resolution: "proper-lockfile@npm:4.1.2"
+  dependencies:
+    graceful-fs: "npm:^4.2.4"
+    retry: "npm:^0.12.0"
+    signal-exit: "npm:^3.0.2"
+  checksum: 10c0/2f265dbad15897a43110a02dae55105c04d356ec4ed560723dcb9f0d34bc4fb2f13f79bb930e7561be10278e2314db5aca2527d5d3dcbbdee5e6b331d1571f6d
+  languageName: node
+  linkType: hard
+
 "proxy-addr@npm:^2.0.7, proxy-addr@npm:~2.0.7":
   version: 2.0.7
   resolution: "proxy-addr@npm:2.0.7"
@@ -15714,7 +15743,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"signal-exit@npm:^3.0.3":
+"signal-exit@npm:^3.0.2, signal-exit@npm:^3.0.3":
   version: 3.0.7
   resolution: "signal-exit@npm:3.0.7"
   checksum: 10c0/25d272fa73e146048565e08f3309d5b942c1979a6f4a58a8c59d5fa299728e9c2fcd1a759ec870863b1fd38653670240cd420dad2ad9330c71f36608a6a1c912

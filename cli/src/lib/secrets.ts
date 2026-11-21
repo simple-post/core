@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
+
+import lockfile from "proper-lockfile";
 
 import {
   DEFAULT_PASSWORD_ENV_VAR,
@@ -24,11 +26,18 @@ import type { PromptSession } from "./ux/prompt.js";
 const scrypt = promisify(crypto.scrypt);
 const passwordCache = new Map<string, string>();
 
-interface SecretStore {
+interface SecretBackendStore {
   readonly backend: SecretBackend;
   delete(secretRef: string): Promise<boolean>;
   read(secretRef: string): Promise<SecretPayload | null>;
   write(secretRef: string, payload: SecretPayload): Promise<void>;
+}
+
+interface SecretStore extends SecretBackendStore {
+  update(
+    secretRef: string,
+    change: (current: SecretPayload | null) => SecretPayload | undefined | Promise<SecretPayload | undefined>,
+  ): Promise<SecretPayload | null>;
 }
 
 interface KeytarModule {
@@ -62,18 +71,13 @@ async function ensureDir(paths: CliPaths): Promise<void> {
   await mkdir(paths.configDir, { recursive: true, mode: 0o700 });
 }
 
-/**
- * Writes a secrets file readable only by the owner. The mode on writeFile
- * applies only when the file is created, so an explicit chmod tightens
- * pre-existing files too (best-effort on platforms without POSIX modes).
- */
 async function writeSecretsFile(filePath: string, contents: string): Promise<void> {
-  await writeFile(filePath, contents, { encoding: "utf8", mode: 0o600 });
+  const temporaryPath = `${filePath}.${crypto.randomUUID()}.tmp`;
   try {
-    await chmod(filePath, 0o600);
-  } catch {
-    // Ignore chmod errors (e.g. unsupported filesystem); the file was still
-    // created with a restrictive mode above.
+    await writeFile(temporaryPath, contents, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await rename(temporaryPath, filePath);
+  } finally {
+    await rm(temporaryPath, { force: true });
   }
 }
 
@@ -155,7 +159,7 @@ async function importKeytar(): Promise<KeytarModule> {
   }
 }
 
-class PlainFileSecretStore implements SecretStore {
+class PlainFileSecretStore implements SecretBackendStore {
   public readonly backend = "file-plain" as const;
 
   public constructor(private readonly paths: CliPaths) {}
@@ -205,7 +209,7 @@ class PlainFileSecretStore implements SecretStore {
   }
 }
 
-class EncryptedFileSecretStore implements SecretStore {
+class EncryptedFileSecretStore implements SecretBackendStore {
   public readonly backend = "file-encrypted" as const;
 
   public constructor(
@@ -283,7 +287,7 @@ class EncryptedFileSecretStore implements SecretStore {
   }
 }
 
-class KeychainSecretStore implements SecretStore {
+class KeychainSecretStore implements SecretBackendStore {
   public readonly backend = "keychain" as const;
   private readonly keytarPromise: Promise<KeytarModule>;
 
@@ -349,19 +353,48 @@ export async function probeKeychain(): Promise<ProbeResult> {
 }
 
 export function createSecretStore(paths: CliPaths, storage: CliStorageConfig, prompt: PromptSession): SecretStore {
-  switch (storage.backend) {
-    case "file-plain": {
-      return new PlainFileSecretStore(paths);
-    }
+  const backends = {
+    "file-plain": () => new PlainFileSecretStore(paths),
+    "file-encrypted": () => new EncryptedFileSecretStore(paths, storage, prompt),
+    keychain: () => new KeychainSecretStore(),
+  };
+  const store = backends[storage.backend]();
+  const lockPaths = {
+    "file-plain": paths.plainSecretsFile,
+    "file-encrypted": paths.encryptedSecretsFile,
+    keychain: paths.configFile,
+  };
 
-    case "file-encrypted": {
-      return new EncryptedFileSecretStore(paths, storage, prompt);
-    }
-
-    case "keychain": {
-      return new KeychainSecretStore();
+  // File backends store all accounts in one file. Serialize every writer
+  // with the read, provider request, and write of a rotating token.
+  async function withLock<T>(operation: () => Promise<T>): Promise<T> {
+    await ensureDir(paths);
+    const release = await lockfile.lock(lockPaths[storage.backend], {
+      realpath: false,
+      stale: 30_000,
+      update: 5000,
+      retries: { retries: 130, factor: 1, minTimeout: 250 },
+    });
+    try {
+      return await operation();
+    } finally {
+      await release();
     }
   }
+
+  return {
+    backend: store.backend,
+    read: (secretRef) => store.read(secretRef),
+    write: (secretRef, payload) => withLock(() => store.write(secretRef, payload)),
+    delete: (secretRef) => withLock(() => store.delete(secretRef)),
+    update: (secretRef, change) =>
+      withLock(async () => {
+        const current = await store.read(secretRef);
+        const next = await change(current);
+        if (next) await store.write(secretRef, next);
+        return next ?? current;
+      }),
+  };
 }
 
 export async function copySecretRef(

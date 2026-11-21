@@ -1,6 +1,6 @@
 # SimplePost for the Personal Muse AI agent
 
-Prepared against [Meta's Personal Muse connector guidelines](https://muse.ai/platform/docs) on **2026-10-03**, using the latest `core`. This package is specifically for the consumer/personal Muse agent and its connector directory. Muse Code, Meta models and the separate Meta AI app/web/glasses developer preview are different surfaces.
+Prepared against [Meta's Personal Muse connector guidelines](https://platform.muse.ai/docs) on **2026-10-03**, using the latest `core`. This package is specifically for the consumer/personal Muse agent and its connector directory. Muse Code, Meta models and the separate Meta AI app/web/glasses developer preview are different surfaces.
 
 The integration uses the existing production OAuth-enabled MCP server at **https://app.simplepost.social/mcp**. Meta's published guidelines accept **API or MCP** documentation. No new publishing service, social provider, model credentials or duplicate skill is needed. The canonical [`skills/simplepost`](../../skills/simplepost) remains the behavior reference; there is no assumption that Personal Muse imports coding-agent skills.
 
@@ -24,6 +24,8 @@ This is **prepared, not submitted, approved or live-tested in Personal Muse**. P
 4. Start a fresh Muse authorization. Confirm **Read and write** is selected, and explicitly choose **Read only** to test the restricted grant. Existing credentials are not silently downgraded or opted into new REST enforcement; obtain a fresh grant for reviewer testing.
 
 The server checks the approved client ID again when processing consent. Other clients' requests ignore the Muse-only `access_mode` field and retain their original scopes. No public environment variable or arbitrary authorization URL hint can enable the option.
+
+Deploy the enforcement code to every Scheduler instance before setting the allowlist. If rolling back to an older build that does not enforce REST scopes, stop issuing Muse grants and invalidate the affected authorization codes and tokens before routing requests to it. Removing an ID from the allowlist alone does not revoke credentials.
 
 ### Generate locally
 

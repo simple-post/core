@@ -6,8 +6,6 @@ import { ensureTrialStarted } from "@/lib/billing/trial";
 import { createAuthorizationCode, updateClientScope, validateClient } from "@/lib/mcp/oauth";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 
-jest.mock("@/lib/billing/trial", () => ({ ensureTrialStarted: jest.fn().mockResolvedValue(undefined) }));
-
 jest.mock("@/lib/billing/subscriptions", () => ({
   assertActiveSubscription: jest.fn(),
 }));

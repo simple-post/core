@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { assertActiveSubscription, assertPlanFeature, type BillingGateContext } from "@/lib/billing/subscriptions";
 import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
+import { serverMessage } from "@/lib/i18n/server";
 import { rememberRequestUser } from "@/lib/logger/request-context";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
 import { allowsMcpRestRequest } from "@/lib/mcp/rest-scopes";
@@ -123,15 +124,24 @@ async function authenticateApiKey(req: NextRequest) {
  * Requires authentication and returns the session
  * Throws UnauthorizedError if not authenticated
  */
-export async function requireAuth(req: NextRequest, billingContext: BillingGateContext = {}) {
+export async function requireAuth(
+  req: NextRequest,
+  billingContext: BillingGateContext = {},
+  allowExpiredTrialRead = false,
+) {
+  async function assertAccess(userId: string, kind: "cli" | "api_key" | "mcp" | "browser") {
+    const context = { ...billingContext, action: billingContext.action ?? `${kind}_authenticated_request` };
+    await (kind === "cli" || kind === "api_key"
+      ? assertPlanFeature(userId, kind === "cli" ? "cliAccess" : "apiAccess", context)
+      : assertActiveSubscription(userId, context, {
+          allowExpiredTrialRead: allowExpiredTrialRead && kind === "browser",
+        }));
+  }
   // Try CLI bearer token first
   const cliSession = await authenticateCliToken(req);
   if (cliSession) {
     rememberRequestUser(req, cliSession.user);
-    await assertPlanFeature(cliSession.user.id, "cliAccess", {
-      ...billingContext,
-      action: billingContext.action ?? "cli_authenticated_request",
-    });
+    await assertAccess(cliSession.user.id, "cli");
     return cliSession;
   }
 
@@ -139,10 +149,7 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
   const mcpSession = await authenticateMcpBearerToken(req);
   if (mcpSession) {
     rememberRequestUser(req, mcpSession.user);
-    await assertActiveSubscription(mcpSession.user.id, {
-      ...billingContext,
-      action: billingContext.action ?? "mcp_authenticated_request",
-    });
+    await assertAccess(mcpSession.user.id, "mcp");
     return mcpSession;
   }
 
@@ -150,10 +157,7 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
   const apiKeySession = await authenticateApiKey(req);
   if (apiKeySession) {
     rememberRequestUser(req, apiKeySession.user);
-    await assertPlanFeature(apiKeySession.user.id, "apiAccess", {
-      ...billingContext,
-      action: billingContext.action ?? "api_key_authenticated_request",
-    });
+    await assertAccess(apiKeySession.user.id, "api_key");
     return apiKeySession;
   }
 
@@ -161,16 +165,18 @@ export async function requireAuth(req: NextRequest, billingContext: BillingGateC
   const session = await auth.api.getSession({ headers: req.headers });
 
   if (!session?.user?.id) {
-    throw new UnauthorizedError("Authentication required");
+    throw new UnauthorizedError(serverMessage("Authentication required"));
   }
 
   rememberRequestUser(req, session.user);
-  await assertActiveSubscription(session.user.id, {
-    ...billingContext,
-    action: billingContext.action ?? "browser_authenticated_request",
-  });
+  await assertAccess(session.user.id, "browser");
 
   return session;
+}
+
+/** Opt in only on handlers that inspect saved workspace data, never on connection or mutation routes. */
+export async function requireReadAuth(req: NextRequest, billingContext: BillingGateContext = {}) {
+  return requireAuth(req, billingContext, req.method === "GET" || req.method === "HEAD");
 }
 
 /**
@@ -209,7 +215,7 @@ export async function requireBrowserSession(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
 
   if (!session?.user?.id) {
-    throw new UnauthorizedError("Authentication required");
+    throw new UnauthorizedError(serverMessage("Authentication required"));
   }
 
   rememberRequestUser(req, session.user);

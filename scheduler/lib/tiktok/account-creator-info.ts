@@ -1,3 +1,4 @@
+import { serverMessage } from "@/lib/i18n/server";
 import { POST_CREDENTIAL_MIN_VALIDITY_MS, refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
 import { prisma } from "@/lib/prisma";
@@ -10,15 +11,15 @@ export async function getAccountTikTokCreatorInfo(userId: string, accountId: str
   const account = storedAccount ? decryptConnectedAccountSecrets(storedAccount) : null;
 
   if (!account) {
-    throw new NotFoundError("Account not found");
+    throw new NotFoundError(serverMessage("Account not found"));
   }
 
   if (account.userId !== userId) {
-    throw new ForbiddenError("You don't have permission to access this account");
+    throw new ForbiddenError(serverMessage("You don't have permission to access this account"));
   }
 
   if (account.platform.toLowerCase() !== "tiktok") {
-    throw new BadRequestError("This endpoint only supports TikTok accounts");
+    throw new BadRequestError(serverMessage("This endpoint only supports TikTok accounts"));
   }
 
   // TikTok rotates refresh tokens; the lock keeps this refresh from racing

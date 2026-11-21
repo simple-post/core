@@ -1,19 +1,24 @@
 "use client";
 
 import { AuthorizePage } from "@/components/authorize-page";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export function OAuthConsent({ allowReadOnly }: { allowReadOnly: boolean }) {
+  const { copy } = useUiCopy();
   return (
     <AuthorizePage
       config={{
-        title: "Connect SimplePost",
+        title: copy("Connect SimplePost"),
         allowReadOnly,
         description: allowReadOnly
-          ? "Muse is requesting permission to access your SimplePost account. Choose read and write access or limit this connection to read only."
-          : "ChatGPT or another MCP client is requesting permission to view connected accounts, inspect post history, validate drafts, and create or manage drafts and scheduled posts through SimplePost.",
-        invalidMessage:
+          ? copy("Choose how much access Muse gets to your SimplePost account.")
+          : copy(
+              "ChatGPT or another MCP client is requesting permission to view connected accounts, inspect post history, validate drafts, and create or manage drafts and scheduled posts through SimplePost.",
+            ),
+        invalidMessage: copy(
           "This authorization link is invalid or has expired. Please try connecting again from your AI assistant.",
-        successMessage: "Authorization successful. You can close this tab and return to your app.",
+        ),
+        successMessage: copy("Authorization successful. You can close this tab and return to your app."),
         loginCallbackPath: "/oauth/authorize",
         validateParams: (params) =>
           !!(

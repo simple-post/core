@@ -4,9 +4,9 @@ Prepared 2026-09-29. Nothing here submits data, accepts terms or creates access.
 
 ## 1. Personal Muse agent: connector directory
 
-Updated **2026-10-03**: the dedicated [Personal Muse review kit](../personal-muse/README.md) now includes read-only OAuth consent, generated current tool schemas/risk classifications, data-processing answers and a detailed [review/publication runbook](../personal-muse/REVIEW.md). [Meta's public connector guidelines](https://muse.ai/platform/docs) explicitly accept API or MCP documentation. Use that kit for the personal agent; the model and Muse Code examples are not a substitute.
+Updated **2026-10-03**: the dedicated [Personal Muse review kit](../personal-muse/README.md) now includes read-only OAuth consent, generated current tool schemas/risk classifications, data-processing answers and a detailed [review/publication runbook](../personal-muse/REVIEW.md). [Meta's public connector guidelines](https://platform.muse.ai/docs) explicitly accept API or MCP documentation. Use that kit for the personal agent; the model and Muse Code examples are not a substitute.
 
-Open [Muse Connector Platform](https://muse.ai/platform), click **Submit a connector**, and log in with your **work email**. Private portal form fields, actual OAuth callback and live Personal Muse approval/UI behavior still need maintainer verification. The listing below is ready-to-copy editorial material, **not** an official manifest/upload format.
+Open [Muse Connector Platform](https://platform.muse.ai/), click **Submit a connector**, and log in with your **work email**. Private portal form fields, actual OAuth callback and live Personal Muse approval/UI behavior still need maintainer verification. The listing below is ready-to-copy editorial material, **not** an official manifest/upload format.
 
 Meta says submitted connectors receive functional, security and legal review with end-to-end testing. Directory publication follows approval, and featured placement is a separate editorial decision.
 

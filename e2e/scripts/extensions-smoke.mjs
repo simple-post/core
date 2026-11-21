@@ -111,7 +111,15 @@ if (location.search.includes('localized-times')) {
    entry.localTime=new Intl.DateTimeFormat('en-US',{timeZone:launch.schedule.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(entry.at));
  }
 }
-if (location.search.includes('onboarding')) launch.accounts=[];
+const query=new URLSearchParams(location.search);
+if (query.has('onboarding')) {
+ const destinations=launch.accounts;
+ launch.accounts=[];
+ launch.hasPost=query.has('existing-post');
+ launch.onboarding={dismissalId:query.has('skip')?'skip-demo':query.has('existing-post')?'existing-post-demo':'onboarding-demo',trialDays:7};
+ window.finishConnecting=()=>{ launch.accounts=destinations; };
+ window.finishOnboarding=()=>{ launch.hasPost=true; };
+}
 if (location.search.includes('readonly')) { launch.canWrite=false; launch.canValidate=false; }
 window.calls=[]; window.contexts=[]; window.messages=[]; window.links=[];
 let session={kind:'editor',sessionId:'3e07953d-c01f-4a95-baf0-20b597ff9373',postId:null,revision:0,baseUpdatedAt:null,committing:false,proposal:null,status:'new',scheduledFor:null,content:{message:'',accountIds:launch.preferences.defaultAccountIds,media:[],thread:[],accountOptions:{},accountOverrides:{},quotePostId:null}};
@@ -123,7 +131,7 @@ if(location.search.includes('review')) {
 window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
  const send=(result)=>event.source.postMessage({jsonrpc:'2.0',id:req.id,result},'*');
- if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
+ if(req.method==='ui/initialize') send({protocolVersion:req.params.protocolVersion,hostInfo:{name:'SimplePost smoke host',version:'1'},hostCapabilities:{serverTools:{},openLinks:{},updateModelContext:{text:{},structuredContent:{}},message:{text:{}}},hostContext:{theme:'dark',locale:new URLSearchParams(location.search).get('locale') || 'en',displayMode:'fullscreen',availableDisplayModes:['fullscreen']}});
  else if(req.method==='ui/notifications/initialized') {
    if(location.search.includes('launch-error')) event.source.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{isError:true,content:[{type:'text',text:'The workspace could not be opened. Reconnect SimplePost and try again.'}]}},'*');
    else if(location.search.includes('missing-result')) { /* Sidebar host did not deliver the opening result. */ }
@@ -198,6 +206,11 @@ try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: "America/Los_Angeles" });
   const errors = [];
+  const requestedLocales = new Set();
+  page.on("request", (request) => {
+    const locale = new URL(request.url()).pathname.match(/\/mcp-widgets\/locale-(.+)-[A-Z0-9]{8}\.js$/)?.[1];
+    if (locale) requestedLocales.add(locale);
+  });
   page.on("pageerror", (error) => {
     errors.push(error.message);
     console.error("Widget error:", error.message);
@@ -361,6 +374,36 @@ try {
   await ui.getByLabel("Post text", { exact: true }).fill("LinkedIn version");
   await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("LinkedIn version");
+  const setWidgetLocale = (locale) =>
+    page.evaluate(
+      (locale) =>
+        document.querySelector("iframe").contentWindow.postMessage(
+          {
+            jsonrpc: "2.0",
+            method: "ui/notifications/host-context-changed",
+            params: { locale },
+          },
+          "*",
+        ),
+      locale,
+    );
+  await setWidgetLocale("ja-JP");
+  await expect(ui.getByLabel("投稿本文", { exact: true })).toHaveValue("LinkedIn version");
+  await ui.getByText("LinkedIn の公開オプション", { exact: true }).click();
+  const audience = ui.locator(".sp-options").getByRole("combobox");
+  await expect(audience).toHaveAccessibleName(/公開範囲/);
+  await audience.selectOption({ label: "つながり" });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.calls.filter((c) => c.name === "update_post_editor_session").at(-1)?.args.content.accountOptions
+            .linkedin?.visibility,
+      ),
+    )
+    .toBe("CONNECTIONS");
+  await setWidgetLocale("en-US");
+  await expect(ui.getByLabel("Post text", { exact: true })).toHaveValue("LinkedIn version");
   await ui.getByRole("tab", { name: "Preview X for Test x", exact: true }).click();
   await expect(ui.locator("simple-post-preview")).toContainText("Launch day. Working on the details.");
   await ui.getByRole("button", { name: "Hide manual editor", exact: true }).click();
@@ -469,10 +512,33 @@ try {
   await page.goto(`${base}/?readonly`);
   await expect(ui.getByRole("button", { name: "New draft", exact: true })).toBeDisabled();
   await page.goto(`${base}/?onboarding`);
-  await expect(ui.getByRole("heading", { name: "Connect your first destination" })).toBeVisible();
-  await expect(ui.getByRole("button", { name: "New draft", exact: true })).toBeDisabled();
-  await ui.getByRole("button", { name: "Connect a platform", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => JSON.stringify(window.links))).toMatch(/accounts\?onboarding=connect/);
+  const onboarding = ui.getByRole("dialog", { name: "Welcome to SimplePost" });
+  await expect(onboarding.getByText("Your 7-day free trial has started.", { exact: true })).toBeVisible();
+  await expect(onboarding.getByRole("listitem").nth(1).getByRole("img", { name: "Complete" })).toBeVisible();
+  await onboarding.getByRole("button", { name: "Connect an account", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.links.at(-1)?.url))
+    .toBe("https://app.simplepost.social/accounts?onboarding=connect&source=workspace");
+  await page.evaluate(() => window.finishConnecting());
+  const focusWidget = () => ui.locator("body").evaluate(() => window.dispatchEvent(new Event("focus")));
+  await focusWidget();
+  await expect(onboarding.getByRole("listitem").first().getByRole("img", { name: "Complete" })).toBeVisible();
+  await expect(onboarding.getByRole("button", { name: "Copy prompt", exact: true })).toBeVisible();
+  await onboarding.getByRole("button", { name: "Write manually", exact: true }).click();
+  await expect(ui.getByLabel("Post text", { exact: true })).toBeVisible();
+  await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();
+  await expect(onboarding).toBeVisible();
+  await page.evaluate(() => window.finishOnboarding());
+  await focusWidget();
+  await expect(onboarding).toHaveCount(0);
+  await page.goto(`${base}/?onboarding&existing-post`);
+  await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
+  await expect(onboarding).toHaveCount(0);
+  await page.goto(`${base}/?onboarding&skip`);
+  await onboarding.getByRole("button", { name: "Skip setup", exact: true }).click();
+  await page.reload();
+  await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
+  await expect(onboarding).toHaveCount(0);
   await page.goto(`${base}/?editor`);
   await expect(ui.getByRole("heading", { name: "Choose a draft to edit" })).toBeVisible();
   await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();
@@ -501,6 +567,20 @@ try {
   await ui.getByRole("radio", { name: "Month view", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.calls.at(-1)?.args.view)).toBe("month");
   await expect(ui.getByRole("button", { name: "Expand", exact: true })).toBeVisible();
+  await page.goto(`${base}/?legacy-schedule&week&locale=ar-EG`);
+  await expect(ui.locator("html")).toHaveAttribute("lang", "ar");
+  await expect(ui.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(ui.getByRole("button", { name: "اليوم", exact: true })).toBeVisible();
+  await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
+  await expect(
+    ui.getByText("A little behind the scenes from today’s launch.", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
+  await setWidgetLocale("ja-JP");
+  await expect(ui.locator("html")).toHaveAttribute("lang", "ja");
+  await expect(ui.locator("html")).toHaveAttribute("dir", "ltr");
+  await expect(ui.getByRole("button", { name: "今日", exact: true })).toBeVisible();
+  await expect(ui.getByText("Europe/Berlin", { exact: true })).toBeVisible();
+  assert.deepEqual([...requestedLocales].sort(), ["ar", "ja"]);
   assert.deepEqual(errors, []);
   console.log(
     "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",

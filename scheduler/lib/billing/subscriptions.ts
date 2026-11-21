@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import { recordFunnelEvent } from "@/lib/analytics/events";
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   getPlanByKey,
@@ -8,10 +9,12 @@ import {
   type AccessPlan,
   type BillingPlan,
 } from "@/lib/billing/plans";
+import { isExpiredTrialReadOnly } from "@/lib/billing/read-only";
 import { getStripe } from "@/lib/billing/stripe";
 import { getTrialDaysRemaining, getTrialPlatformUsage, isTrialActive } from "@/lib/billing/trial";
 import { countAccountsByPlatform, getPlatformName } from "@/lib/config";
 import { env } from "@/lib/env";
+import { serverMessage, type AuthoredMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, PaymentRequiredError } from "@/lib/utils/errors";
 
@@ -340,47 +343,68 @@ async function persistStripeSubscription(subscription: Stripe.Subscription, fall
     return null;
   }
 
-  const { priceId, productId } = getSubscriptionPrice(subscription);
-  const plan = getPlanByStripePriceId(priceId) ?? getPlanByKey(subscription.metadata.planKey);
-  const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(subscription);
+  return prisma.$transaction(
+    async (client) => {
+      // Lock before reading Stripe, not only before writing: concurrent webhook
+      // handlers must not commit customer snapshots fetched in the opposite order.
+      await lockUserForQuota(client, userId);
+      let selected: Stripe.Subscription | null = null;
+      const now = Date.now();
+      const priority = (candidate: Stripe.Subscription) => {
+        const { priceId } = getSubscriptionPrice(candidate);
+        const plan = getPlanByStripePriceId(priceId) ?? getPlanByKey(candidate.metadata.planKey);
+        const { currentPeriodEnd } = getSubscriptionPeriod(candidate);
+        if (!plan || (currentPeriodEnd && currentPeriodEnd.getTime() < now)) return 0;
+        return candidate.status === "active" ? 2 : candidate.status === "trialing" ? 1 : 0;
+      };
 
-  const syncedSubscription = await prisma.userSubscription.upsert({
-    where: { userId },
-    create: {
-      userId,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: priceId,
-      stripeProductId: productId,
-      planKey: plan?.key ?? subscription.metadata.planKey ?? null,
-      status: subscription.status,
-      currentPeriodStart,
-      currentPeriodEnd,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: toDate(subscription.canceled_at),
-      trialEndsAt: toDate(subscription.trial_end),
+      // An invoice retry for an older subscription must not revoke access from
+      // another paid subscription. Include canceled subscriptions and every page
+      // so cancellation and delayed events reconcile the same customer state.
+      for await (const candidate of getStripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 100,
+      })) {
+        if (candidate.metadata.userId && candidate.metadata.userId !== userId) continue;
+        if (
+          !selected ||
+          priority(candidate) > priority(selected) ||
+          (priority(candidate) === priority(selected) &&
+            (candidate.created > selected.created ||
+              (candidate.created === selected.created && candidate.id > selected.id)))
+        ) {
+          selected = candidate;
+        }
+      }
+      if (!selected) throw new Error("No Stripe subscription found for this account");
+
+      const { priceId, productId } = getSubscriptionPrice(selected);
+      const plan = getPlanByStripePriceId(priceId) ?? getPlanByKey(selected.metadata.planKey);
+      const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(selected);
+      const data = {
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: selected.id,
+        stripePriceId: priceId,
+        stripeProductId: productId,
+        planKey: plan?.key ?? selected.metadata.planKey ?? null,
+        status: selected.status,
+        currentPeriodStart,
+        currentPeriodEnd,
+        cancelAtPeriodEnd: selected.cancel_at_period_end,
+        canceledAt: toDate(selected.canceled_at),
+        trialEndsAt: toDate(selected.trial_end),
+      };
+      const syncedSubscription = await client.userSubscription.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
+      });
+      await client.user.update({ where: { id: userId }, data: { stripeCustomerId: customerId } });
+      return syncedSubscription;
     },
-    update: {
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: priceId,
-      stripeProductId: productId,
-      planKey: plan?.key ?? subscription.metadata.planKey ?? null,
-      status: subscription.status,
-      currentPeriodStart,
-      currentPeriodEnd,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: toDate(subscription.canceled_at),
-      trialEndsAt: toDate(subscription.trial_end),
-    },
-  });
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { stripeCustomerId: customerId },
-  });
-
-  return syncedSubscription;
+    { maxWait: 10_000, timeout: 30_000 },
+  );
 }
 
 export async function syncStripeSubscriptionById(subscriptionId: string, fallbackUserId?: string | null) {
@@ -391,9 +415,8 @@ export async function syncStripeSubscriptionById(subscriptionId: string, fallbac
 }
 
 /**
- * Re-fetch the canonical Stripe object before writing local state. Webhook
- * deliveries are not ordered, so persisting event.data.object directly could
- * allow an older event to overwrite a newer subscription state.
+ * Treat webhook objects as notifications. Reconcile canonical customer state,
+ * including other subscriptions, rather than persisting the event payload.
  */
 export async function syncStripeSubscription(subscription: Stripe.Subscription, fallbackUserId?: string | null) {
   return syncStripeSubscriptionById(subscription.id, fallbackUserId);
@@ -460,7 +483,17 @@ async function getBillingEvaluation(userId: string, client: BillingClient = pris
   const subscription = user?.subscription ?? null;
   const complimentaryAccess = user?.complimentaryAccess ?? null;
   const freeTrial = user?.freeTrial ?? null;
-  const subscriptionPlan = resolvePlanForSubscription(subscription);
+  const subscribedPlan = resolvePlanForSubscription(subscription);
+  const subscriptionPlan =
+    subscribedPlan && subscribedPlan.limits.postsPerMonth !== null && subscription?.postsPerMonthOverride != null
+      ? {
+          ...subscribedPlan,
+          limits: {
+            ...subscribedPlan.limits,
+            postsPerMonth: Math.max(subscribedPlan.limits.postsPerMonth, subscription.postsPerMonthOverride),
+          },
+        }
+      : subscribedPlan;
   const complimentaryPlan = resolvePlanForComplimentaryAccess(complimentaryAccess);
   const now = new Date();
   const stripeActive = isSubscriptionRecordActive(subscription) && subscriptionPlan !== null;
@@ -562,6 +595,7 @@ export async function getBillingErrorLogContext(
 async function assertActiveBillingEvaluation(
   userId: string,
   context: BillingGateContext = {},
+  allowExpiredTrialRead = false,
 ): Promise<BillingEvaluation> {
   const evaluation = await getBillingEvaluation(userId);
   const { status, email } = evaluation;
@@ -570,8 +604,17 @@ async function assertActiveBillingEvaluation(
     return evaluation;
   }
 
+  if (allowExpiredTrialRead && isExpiredTrialReadOnly(status)) return evaluation;
+
   if (!status.active || !status.plan) {
     const resolvedContext = await resolveSocialAccountLogContext(userId, context);
+    await recordFunnelEvent(userId, "billing_denied", {
+      key: `${userId}:${context.action ?? "billing_gate"}:${new Date().toISOString().slice(0, 10)}`,
+      properties: {
+        reason: status.trial?.status === "expired" ? "trial_expired" : "no_access",
+        method: context.action ?? "billing_gate",
+      },
+    });
     throw new PaymentRequiredError(
       paymentRequiredMessage(status, "to keep using SimplePost"),
       buildBillingLogContext(userId, email, status, resolvedContext),
@@ -584,8 +627,9 @@ async function assertActiveBillingEvaluation(
 export async function assertActiveSubscription(
   userId: string,
   context: BillingGateContext = {},
+  options: { allowExpiredTrialRead?: boolean } = {},
 ): Promise<BillingStatus> {
-  const evaluation = await assertActiveBillingEvaluation(userId, context);
+  const evaluation = await assertActiveBillingEvaluation(userId, context, options.allowExpiredTrialRead);
   return evaluation.status;
 }
 
@@ -602,12 +646,16 @@ export async function assertPlanFeature(
   const { status, email } = await assertActiveBillingEvaluation(userId, gateContext);
 
   if (!status.plan?.limits[feature]) {
-    const featureLabel = feature === "apiAccess" ? "API access" : "CLI access";
+    const featureMessage =
+      feature === "apiAccess"
+        ? status.plan?.name
+          ? serverMessage("API access is not included in your {{plan}} plan", { plan: status.plan.name })
+          : serverMessage("API access is not included in your current plan")
+        : status.plan?.name
+          ? serverMessage("CLI access is not included in your {{plan}} plan", { plan: status.plan.name })
+          : serverMessage("CLI access is not included in your current plan");
     const resolvedContext = await resolveSocialAccountLogContext(userId, gateContext);
-    throw new ForbiddenError(
-      `${featureLabel} is not included in your ${status.plan?.name ?? "current"} plan`,
-      buildBillingLogContext(userId, email, status, resolvedContext),
-    );
+    throw new ForbiddenError(featureMessage, buildBillingLogContext(userId, email, status, resolvedContext));
   }
 }
 
@@ -616,10 +664,23 @@ export async function assertPlanFeature(
  * access at all: "your trial ended" explains why something that worked
  * yesterday stopped working today.
  */
-function paymentRequiredMessage(status: BillingStatus, purpose: string): string {
-  return status.trial
-    ? `Your free trial has ended. Choose a plan ${purpose}.`
-    : "An active SimplePost subscription is required";
+function paymentRequiredMessage(
+  status: BillingStatus,
+  purpose: "to keep using SimplePost" | "to keep scheduling with SimplePost",
+): AuthoredMessage {
+  if (status.subscription) {
+    if (["past_due", "unpaid", "incomplete"].includes(status.subscription.status)) {
+      return serverMessage("Your subscription payment needs attention. Open Billing to update your payment details.");
+    }
+    return purpose === "to keep using SimplePost"
+      ? serverMessage("Your SimplePost subscription is not active. Choose a plan to keep using SimplePost.")
+      : serverMessage("Your SimplePost subscription is not active. Choose a plan to keep scheduling with SimplePost.");
+  }
+  if (status.trial)
+    return purpose === "to keep using SimplePost"
+      ? serverMessage("Your free trial has ended. Choose a plan to keep using SimplePost.")
+      : serverMessage("Your free trial has ended. Choose a plan to keep scheduling with SimplePost.");
+  return serverMessage("An active SimplePost subscription is required");
 }
 
 /**
@@ -646,8 +707,12 @@ function assertTrialAllowance(
 
   if (maxThreadSegments != null && (context.threadSegments ?? 1) > maxThreadSegments) {
     throw new ForbiddenError(
-      `The free trial allows up to ${maxThreadSegments} posts in a thread. Upgrade to publish longer threads.`,
+      serverMessage(
+        "The free trial allows up to {{maxThreadSegments}} posts in a thread. Upgrade to publish longer threads.",
+        { maxThreadSegments: String(maxThreadSegments) },
+      ),
       buildBillingLogContext(userId, email, status, context),
+      "TRIAL_ALLOWANCE",
     );
   }
 
@@ -664,8 +729,12 @@ function assertTrialAllowance(
 
   if (exceeded.length > 0) {
     throw new ForbiddenError(
-      `The free trial includes ${postsPerPlatform} posts per platform, and ${exceeded.join(", ")} would go over. Choose a plan to keep posting.`,
+      serverMessage(
+        "The free trial includes {{postsPerPlatform}} posts per platform, and {{value2}} would go over. Choose a plan to keep posting.",
+        { postsPerPlatform: String(postsPerPlatform), value2: String(exceeded.join(", ")) },
+      ),
       buildBillingLogContext(userId, email, status, context),
+      "TRIAL_ALLOWANCE",
     );
   }
 }
@@ -690,6 +759,7 @@ export async function assertCanCreatePost(
     throw new PaymentRequiredError(
       paymentRequiredMessage(status, "to keep scheduling with SimplePost"),
       buildBillingLogContext(userId, email, status, gateContext),
+      !status.subscription && status.trial ? "TRIAL_EXPIRED" : undefined,
     );
   }
 
@@ -705,7 +775,12 @@ export async function assertCanCreatePost(
 
   if (limit && status.usage.postsThisPeriod >= limit) {
     throw new ForbiddenError(
-      `Your ${status.plan?.name ?? "current"} plan includes ${limit.toLocaleString()} posts per month`,
+      status.plan?.name
+        ? serverMessage("Your {{plan}} plan includes {{count, number}} posts per month", {
+            plan: status.plan.name,
+            count: limit,
+          })
+        : serverMessage("Your current plan includes {{count, number}} posts per month", { count: limit }),
       buildBillingLogContext(userId, email, status, gateContext),
     );
   }
@@ -749,14 +824,20 @@ export async function assertCanConnectAccount(
   if (!status.active || !status.plan) {
     throw new PaymentRequiredError(
       status.trial
-        ? "Your free trial has ended. Choose a plan to connect more accounts."
-        : "An active SimplePost subscription is required to connect accounts",
+        ? serverMessage("Your free trial has ended. Choose a plan to connect more accounts.")
+        : serverMessage("An active SimplePost subscription is required to connect accounts"),
       logContext,
     );
   }
 
   const accountLimit = status.plan.limits.socialAccounts;
   if (accountLimit !== null && status.usage.connectedAccounts + 1 > accountLimit) {
-    throw new ForbiddenError(`Your ${status.plan.name} plan includes ${accountLimit} social accounts`, logContext);
+    throw new ForbiddenError(
+      serverMessage("Your {{plan}} plan includes {{count, number}} social accounts", {
+        plan: status.plan.name,
+        count: accountLimit,
+      }),
+      logContext,
+    );
   }
 }

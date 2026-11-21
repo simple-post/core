@@ -40,6 +40,7 @@ export interface ConnectedAccountCredentialStatus {
   refreshTokenExpiresAt: string | null;
   lastRefreshAttemptAt: string | null;
   lastRefreshError: string | null;
+  affectedQueuedPosts?: number;
 }
 
 export interface AccountPlatformOptions {
@@ -90,6 +91,7 @@ export interface AccountPlatformOptions {
 
 export interface SocialPost {
   id: string;
+  updatedAt?: Date;
   message: string;
   accountIds: string[];
   media: MediaFile[];

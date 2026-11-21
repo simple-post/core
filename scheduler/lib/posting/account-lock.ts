@@ -62,5 +62,8 @@ export async function reloadAccountSecrets(account: ConnectedAccount): Promise<C
     refreshToken: fresh.refreshToken,
     tokenMetadata: fresh.tokenMetadata,
     expiresAt: fresh.expiresAt,
+    credentialRefreshBlockedAt: fresh.credentialRefreshBlockedAt,
+    credentialRefreshRetryAt: fresh.credentialRefreshRetryAt,
+    updatedAt: fresh.updatedAt,
   };
 }

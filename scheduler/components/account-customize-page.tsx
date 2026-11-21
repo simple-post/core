@@ -16,10 +16,12 @@ import { useOptionalPostDraft, usePostDraft } from "@/components/post-draft-cont
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { UiCopy } from "@/components/ui-copy";
 import { AccountOptionsComponent } from "@/features/platform-options/account-options";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import { getDraftScheduledFor } from "@/lib/validations/scheduled-time";
@@ -57,6 +59,7 @@ export function AccountCustomizePage(props: AccountCustomizePageProps) {
 }
 
 function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePageProps) {
+  const { copy } = useUiCopy();
   const params = useParams<{ accountId: string }>();
   const accountId = params.accountId;
   const { data: accounts = [], isLoading } = useAccounts();
@@ -166,7 +169,7 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
         <Navbar />
         <div className="max-w-4xl mx-auto px-[clamp(18px,4vw,48px)] py-12">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold">Account not found</h1>
+            <h1 className="text-2xl font-semibold">{copy("Account not found")}</h1>
             <Link href={backHref}>
               <Button variant="outline">{backLabel}</Button>
             </Link>
@@ -186,11 +189,14 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />
-              <span className="section-kicker-label">{platformConfig?.name ?? "Account"}</span>
+              <span className="section-kicker-label">{platformConfig?.name ?? copy("Account")}</span>
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground truncate">
-              Customize <span className="text-primary">{accountLabel}</span>
+              <UiCopy
+                source="Customize <part1></part1>"
+                components={{ part1: <span className="text-primary">{accountLabel}</span> }}
+              />
             </h1>
           </div>
         </div>
@@ -202,10 +208,10 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
                   <Info className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      This account isn't selected yet. Add it to include this configuration in the post.
+                      {copy("This account isn't selected yet. Add it to include this configuration in the post.")}{" "}
                     </p>
                     <Button type="button" size="sm" onClick={handleAddToPost}>
-                      Add to post
+                      {copy("Add to post")}{" "}
                     </Button>
                   </div>
                 </div>
@@ -215,7 +221,9 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
             <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="custom-content" className="text-sm font-medium cursor-pointer">
-                  Custom content for {platformConfig?.name ?? "this account"}
+                  {platformConfig?.name
+                    ? copy("Custom content for {{platform}}", { platform: platformConfig.name })
+                    : copy("Custom content for this account")}
                 </Label>
                 <Switch id="custom-content" checked={overrideEnabled} onCheckedChange={handleOverrideToggle} />
               </div>
@@ -223,7 +231,7 @@ function AccountCustomizeContent({ backHref, backLabel }: AccountCustomizePagePr
               {overrideEnabled ? (
                 <PostContentEditor
                   id="override-message"
-                  placeholder="Write a custom message for this account"
+                  placeholder={copy("Write a custom message for this account")}
                   message={overrideMessage}
                   onMessageChange={(value) => setAccountOverrideMessage(accountId, value)}
                   media={overrideMedia}

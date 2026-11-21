@@ -1,8 +1,12 @@
 import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 
+import { direction } from "@/lib/i18n/locales";
+import { serverT } from "@/lib/i18n/server";
 import { getAppBaseUrl } from "@/lib/mcp/config";
+import { mcpUiTranslation, withMcpUiTranslation } from "@/lib/mcp/locale";
 import { WIDGET_RUNTIME_PATH, WIDGET_RUNTIME_TIMEOUT_MS } from "@/lib/mcp/ui/runtime";
 import type { WidgetName } from "@/lib/mcp/ui/widget-assets";
+import { escapeHtml } from "@/lib/resend/email-layout";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
@@ -55,13 +59,23 @@ function widgetHtml(name: WidgetName): string {
   const baseUrl = getAppBaseUrl();
   const runtimeUrl = new URL(WIDGET_RUNTIME_PATH, `${baseUrl}/`);
   runtimeUrl.searchParams.set("mode", name);
+  const locale = mcpUiTranslation().locale;
+  runtimeUrl.searchParams.set("ui_locale", locale);
+  const labels = {
+    loading: serverT("Loading SimplePost…"),
+    retry: serverT("Retry"),
+    failed: serverT("Unable to load SimplePost."),
+    network: serverT("Unable to load SimplePost. Please try again."),
+    timeout: serverT("SimplePost took too long to load. Please try again."),
+  };
 
   return `<!doctype html>
-<html lang="en">
+<html lang="${locale}" dir="${direction(locale)}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="simplepost-base-url" content="${baseUrl}" />
+    <meta name="simplepost-ui-locale" content="${locale}" />
     <title>SimplePost</title>
     <style>
       :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -73,10 +87,11 @@ function widgetHtml(name: WidgetName): string {
     </style>
   </head>
   <body>
-    <div id="root"><div class="simplepost-bootstrap" role="status"><p>Loading SimplePost…</p></div></div>
+    <div id="root"><div class="simplepost-bootstrap" role="status"><p>${escapeHtml(labels.loading)}</p></div></div>
     <script>
       (function () {
         var root = document.getElementById("root");
+        var labels = ${JSON.stringify(labels).replaceAll("<", String.raw`\u003c`)};
         var runtimeUrl = ${JSON.stringify(runtimeUrl.toString())};
         var runtimeStateKey = "__simplepostRuntimeMount";
         var activeScript = null;
@@ -90,14 +105,16 @@ function widgetHtml(name: WidgetName): string {
         }
 
         function showLoading() {
-          root.innerHTML = '<div class="simplepost-bootstrap" role="status"><p>Loading SimplePost…</p></div>';
+          root.innerHTML = '<div class="simplepost-bootstrap" role="status"><p></p></div>';
+          root.querySelector("p").textContent = labels.loading;
         }
 
         function showFailure(message) {
           window[runtimeStateKey] = "";
           clearAttempt();
-          root.innerHTML = '<div class="simplepost-bootstrap" role="alert"><p></p><button type="button">Retry</button></div>';
-          root.querySelector("p").textContent = message || "Unable to load SimplePost.";
+          root.innerHTML = '<div class="simplepost-bootstrap" role="alert"><p></p><button type="button"></button></div>';
+          root.querySelector("p").textContent = message || labels.failed;
+          root.querySelector("button").textContent = labels.retry;
           root.querySelector("button").addEventListener("click", loadRuntime);
         }
 
@@ -116,10 +133,10 @@ function widgetHtml(name: WidgetName): string {
             timeoutId = null;
           }, { once: true });
           script.addEventListener("error", function () {
-            if (activeScript === script) showFailure("Unable to load SimplePost. Please try again.");
+            if (activeScript === script) showFailure(labels.network);
           }, { once: true });
           timeoutId = window.setTimeout(function () {
-            if (activeScript === script) showFailure("SimplePost took too long to load. Please try again.");
+            if (activeScript === script) showFailure(labels.timeout);
           }, ${WIDGET_RUNTIME_TIMEOUT_MS});
           document.head.appendChild(script);
         }
@@ -163,35 +180,42 @@ type WidgetResourceOptions = {
 };
 
 function registerWidgetResource(server: McpServer, options: WidgetResourceOptions): void {
+  const locale = mcpUiTranslation().locale;
   registerAppResource(
     server,
     options.name,
     options.uri,
     {
-      description: options.description,
+      title: serverT(options.name),
+      description: serverT(options.description),
       _meta: {
         ui: widgetUiMeta(),
         "openai/widgetDomain": widgetOrigin(),
       },
     },
-    async (requestedUri) => ({
-      contents: [
-        {
-          uri: requestedUri.toString(),
-          mimeType: RESOURCE_MIME_TYPE,
-          text: widgetHtml(options.widgetName),
-          _meta: {
-            ui: widgetUiMeta(),
-            ...(options.fullscreen
-              ? { "openai/ui": { availableDisplayModes: ["fullscreen"], preferredDisplayMode: "fullscreen" } }
-              : {}),
-            "openai/widgetDescription": options.widgetDescription,
-            "openai/widgetDomain": widgetOrigin(),
-            "openai/widgetPrefersBorder": true,
-          },
-        },
-      ],
-    }),
+    async (requestedUri, ctx) =>
+      withMcpUiTranslation(
+        ctx,
+        async () => ({
+          contents: [
+            {
+              uri: requestedUri.toString(),
+              mimeType: RESOURCE_MIME_TYPE,
+              text: widgetHtml(options.widgetName),
+              _meta: {
+                ui: widgetUiMeta(),
+                ...(options.fullscreen
+                  ? { "openai/ui": { availableDisplayModes: ["fullscreen"], preferredDisplayMode: "fullscreen" } }
+                  : {}),
+                "openai/widgetDescription": serverT(options.widgetDescription),
+                "openai/widgetDomain": widgetOrigin(),
+                "openai/widgetPrefersBorder": true,
+              },
+            },
+          ],
+        }),
+        locale,
+      ),
   );
 }
 

@@ -217,6 +217,7 @@ export type {
   Image,
   Video,
   PostOptions,
+  PostOptionsWithCredentials,
   CommonOptions,
   XOptions,
   TelegramOptions,
@@ -346,6 +347,9 @@ export {
 } from "./types/post";
 
 export { validatePostMedia } from "./utils/post-media-validation";
+export { getMetaCredentialRejection, isMetaCredentialPlatform } from "./utils/meta-credential-rejection";
+export type { MetaCredentialPlatform } from "./utils/meta-credential-rejection";
+export type { CredentialRejection } from "./types/validation";
 
 /** Check current account capabilities without uploading media or creating a post. */
 export async function validatePostReadiness(
@@ -365,3 +369,13 @@ export { ImageFitSchema, canFitImageIssue, IMAGE_FIT_HELP } from "./image-fit";
 export type { ImageFit } from "./image-fit";
 export { fitImage, fitPostImages, fitRemoteImagesForAccounts, ImageFitError } from "./utils/image-fitting";
 export type { ImageFitContent } from "./utils/image-fitting";
+
+export {
+  describeDisplayMessage,
+  displayMessage,
+  getDisplayMessage,
+  copyDisplayMessage,
+  canonicalDisplayMessage,
+  withDisplayMessage,
+} from "./validation/display-message";
+export type { DisplayMessage, DisplayValues } from "./validation/display-message";

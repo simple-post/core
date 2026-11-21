@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { lockUserForQuota } from "@/lib/billing/subscriptions";
+import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
 import { assertStorageAvailable, queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
@@ -278,7 +279,7 @@ export class PostsModel {
 
   async updatePost(
     id: string,
-    updates: Partial<SocialPost>,
+    updates: Partial<SocialPost> & { tiktokRetryApproved?: boolean },
     expected?: Pick<PostSnapshot, "status" | "updatedAt">,
     client: PostWriteClient = prisma,
   ): Promise<PostSnapshot> {
@@ -318,9 +319,18 @@ export class PostsModel {
       quotePostId?: string | null;
       accounts?: { set: Array<{ id: string }> };
       media?: { deleteMany: Record<string, never>; create: Array<Record<string, unknown>> };
-    } = {};
+      tiktokPaused: boolean;
+      tiktokRetryApproved: boolean;
+    } = {
+      // Re-evaluate edited posts at dispatch; an old pause must not strand a
+      // post whose accounts or content changed. Timing-only recovery can set
+      // approval explicitly below.
+      tiktokPaused: false,
+      tiktokRetryApproved: false,
+    };
 
     if (updates.message !== undefined) updateData.message = updates.message;
+    if (updates.tiktokRetryApproved !== undefined) updateData.tiktokRetryApproved = updates.tiktokRetryApproved;
     if (updates.scheduledFor !== undefined) updateData.scheduledFor = updates.scheduledFor;
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.errorMessage !== undefined) updateData.errorMessage = updates.errorMessage || null;
@@ -375,7 +385,9 @@ export class PostsModel {
       })
       .catch((error: unknown) => {
         if (expected && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-          throw new ConflictError("This post changed or started publishing. Reload it before trying again.");
+          throw new ConflictError(
+            serverMessage("This post changed or started publishing. Reload it before trying again."),
+          );
         }
         throw error;
       });
@@ -419,7 +431,7 @@ export class PostsModel {
       })
       .catch((error: unknown) => {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-          throw new ConflictError("This post changed or is publishing. Reload it before trying again.");
+          throw new ConflictError(serverMessage("This post changed or is publishing. Reload it before trying again."));
         }
         throw error;
       });

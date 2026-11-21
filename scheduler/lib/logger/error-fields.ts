@@ -5,7 +5,7 @@ export function diagnosticText(value: string): string {
     .replaceAll(/Bearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
     .replaceAll(/(https?:\/\/[^\s?"'<>]+)\?[^\s"'<>]*/gi, "$1?[REDACTED]")
     .replaceAll(
-      /([?&](?:access_token|refresh_token|client_secret|api_key|token|code|state)=)[^&\s"'<>]*/gi,
+      /([?&](?:handoffToken|access_token|refresh_token|client_secret|api_key|token|code|state)=)[^&\s"'<>]*/gi,
       "$1[REDACTED]",
     )
     .replaceAll(/(api\.telegram\.org\/bot)[^/\s]+/gi, "$1[REDACTED]")

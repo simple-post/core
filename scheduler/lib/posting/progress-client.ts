@@ -1,8 +1,11 @@
+import { ApiResponseError } from "@/lib/utils/api-response-error";
+
 export interface PostingProgressResult {
   accountId: string;
   platform: string;
   accountName?: string;
   success?: boolean;
+  uncertain?: boolean;
   error?: string;
   postUrl?: string;
   postId?: string;
@@ -44,8 +47,18 @@ export function mergePostingProgressResults(
   return results.reduce((merged, result) => mergePostingProgressResult(merged, result), current);
 }
 
-export function failPendingPostingResults(current: PostingProgressResult[], message: string): PostingProgressResult[] {
+export function postingOutcomeUncertain(error: unknown): boolean {
+  return !(error instanceof ApiResponseError && error.status >= 400 && error.status < 500);
+}
+
+export function failPendingPostingResults(
+  current: PostingProgressResult[],
+  message: string,
+  uncertain = false,
+): PostingProgressResult[] {
   return current.map((result) =>
-    result.success === undefined ? { ...result, success: false, error: message } : result,
+    result.success === undefined
+      ? { ...result, success: false, error: message, ...(uncertain ? { uncertain: true } : {}) }
+      : result,
   );
 }

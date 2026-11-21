@@ -25,18 +25,21 @@
     "e2e:auth": "yarn workspace @simple-post/e2e auth",
     "e2e:setup": "yarn workspace @simple-post/e2e setup",
     "e2e:fixtures": "yarn workspace @simple-post/e2e fixtures",
+    "e2e:upload-fixtures": "yarn workspace @simple-post/e2e upload-fixtures",
     "e2e:report": "yarn workspace @simple-post/e2e report",
     "docs:export": "node scripts/export-docs.mjs",
     "hermes:validate": "node scripts/validate-hermes-submission.mjs",
     "muse:check": "node --test integrations/meta-muse/integration.test.mjs",
     "muse:personal:check": "yarn workspace @simple-post/scheduler test --runInBand tests/lib/mcp/personal-muse.test.ts tests/lib/mcp/personal-muse-policy.test.ts tests/lib/mcp/rest-scopes.test.ts tests/lib/middleware/mcp-consent.test.ts tests/app/mcp-oauth-authorize-route.test.ts tests/app/oauth-consent-page.test.ts tests/app/oauth-consent-default.test.ts",
-    "muse:personal:prepare": "node scripts/prepare-personal-muse.mjs"
+    "muse:personal:prepare": "node scripts/prepare-personal-muse.mjs",
+    "test:error-reporting": "node --test tests/error-reporting.test.mjs"
   },
   "resolutions": {
-    "postcss": "^8.5.16"
+    "postcss": "^8.5.16",
+    "@simple-post/preview@npm:0.4.0-i18n.0": "file:./vendor/simple-post-preview-0.4.0-i18n.0.tgz"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1 <27"
   },
   "packageManager": "yarn@4.9.2",
   "devDependencies": {

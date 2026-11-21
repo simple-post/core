@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
@@ -71,7 +72,11 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.webhookEndpoint.count({ where: { userId: session.user.id } });
     if (existing >= MAX_ENDPOINTS_PER_USER) {
-      throw new BadRequestError(`You can register at most ${MAX_ENDPOINTS_PER_USER} webhook endpoints.`);
+      throw new BadRequestError(
+        serverMessage("You can register at most {{MAX_ENDPOINTS_PER_USER}} webhook endpoints.", {
+          MAX_ENDPOINTS_PER_USER: String(MAX_ENDPOINTS_PER_USER),
+        }),
+      );
     }
 
     const secret = `whsec_${crypto.randomBytes(32).toString("base64url")}`;

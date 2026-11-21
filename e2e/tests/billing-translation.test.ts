@@ -20,6 +20,7 @@ test.beforeAll(async () => {
         import BillingPlansPage from './app/(protected)/billing/plans/page';
         import BillingPage from './app/(protected)/billing/page';
         import {BILLING_PLANS} from './lib/billing/plans';
+        import {QueryClientProvider} from './lib/query-client';
         window.billingPlans = BILLING_PLANS;
         window.reactErrors = [];
         class Boundary extends React.Component {
@@ -31,7 +32,7 @@ test.beforeAll(async () => {
           render() { return this.state.failed ? <p>React boundary failed</p> : this.props.children; }
         }
         createRoot(document.getElementById('root')).render(
-          <Boundary>{location.pathname === '/billing' ? <BillingPage/> : <BillingPlansPage/>}</Boundary>
+          <QueryClientProvider><Boundary>{location.pathname === '/billing' ? <BillingPage/> : <BillingPlansPage/>}</Boundary></QueryClientProvider>
         );
       `,
     },
@@ -47,7 +48,9 @@ test.beforeAll(async () => {
             "next/link": "export {default as default} from 'react-link-mock';",
             "next/navigation": `
             const params = new URLSearchParams();
+            const router = { refresh() {}, replace() {} };
             export const usePathname = () => location.pathname;
+            export const useRouter = () => router;
             export const useSearchParams = () => params;
           `,
             "@/lib/auth/auth-client": `export const useSession = () => ({data: {user: {name: 'Test User', email: 'test@example.test'}}}); export const authClient = {};`,

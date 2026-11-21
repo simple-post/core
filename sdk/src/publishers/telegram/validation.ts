@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
@@ -25,62 +26,90 @@ export function validateTelegramContent(content: Content): ValidationResult {
   const mediaCount = media.length;
 
   if (!text.trim() && mediaCount === 0) {
-    errors.push({
-      platform: "telegram",
-      severity: "error",
-      code: "content_required",
-      message: "Telegram posts require text or media.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "telegram",
+          severity: "error",
+          code: "content_required",
+          message: "Telegram posts require text or media.",
+          field: "text",
+        },
+        "Telegram posts require text or media.",
+      ),
+    );
   }
 
   if (mediaCount > 0) {
     if (text.length > TELEGRAM_MAX_CAPTION_LENGTH) {
-      errors.push({
-        platform: "telegram",
-        severity: "error",
-        code: "caption_too_long",
-        message: `Telegram media captions cannot exceed ${TELEGRAM_MAX_CAPTION_LENGTH} characters.`,
-        field: "text",
-        limit: TELEGRAM_MAX_CAPTION_LENGTH,
-        actual: text.length,
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "telegram",
+            severity: "error",
+            code: "caption_too_long",
+            message: `Telegram media captions cannot exceed ${TELEGRAM_MAX_CAPTION_LENGTH} characters.`,
+            field: "text",
+            limit: TELEGRAM_MAX_CAPTION_LENGTH,
+            actual: text.length,
+          },
+          "Telegram media captions cannot exceed {{TELEGRAM_MAX_CAPTION_LENGTH}} characters.",
+          { TELEGRAM_MAX_CAPTION_LENGTH: String(TELEGRAM_MAX_CAPTION_LENGTH) },
+        ),
+      );
     }
   } else if (text.length > TELEGRAM_MAX_TEXT_LENGTH) {
-    errors.push({
-      platform: "telegram",
-      severity: "error",
-      code: "text_too_long",
-      message: `Telegram messages cannot exceed ${TELEGRAM_MAX_TEXT_LENGTH} characters.`,
-      field: "text",
-      limit: TELEGRAM_MAX_TEXT_LENGTH,
-      actual: text.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "telegram",
+          severity: "error",
+          code: "text_too_long",
+          message: `Telegram messages cannot exceed ${TELEGRAM_MAX_TEXT_LENGTH} characters.`,
+          field: "text",
+          limit: TELEGRAM_MAX_TEXT_LENGTH,
+          actual: text.length,
+        },
+        "Telegram messages cannot exceed {{TELEGRAM_MAX_TEXT_LENGTH}} characters.",
+        { TELEGRAM_MAX_TEXT_LENGTH: String(TELEGRAM_MAX_TEXT_LENGTH) },
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "telegram",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "telegram",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (mediaCount > TELEGRAM_MAX_MEDIA_COUNT) {
-    errors.push({
-      platform: "telegram",
-      severity: "error",
-      code: "too_many_media",
-      message: `Telegram albums cannot contain more than ${TELEGRAM_MAX_MEDIA_COUNT} media items.`,
-      field: "media",
-      limit: TELEGRAM_MAX_MEDIA_COUNT,
-      actual: mediaCount,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "telegram",
+          severity: "error",
+          code: "too_many_media",
+          message: `Telegram albums cannot contain more than ${TELEGRAM_MAX_MEDIA_COUNT} media items.`,
+          field: "media",
+          limit: TELEGRAM_MAX_MEDIA_COUNT,
+          actual: mediaCount,
+        },
+        "Telegram albums cannot contain more than {{TELEGRAM_MAX_MEDIA_COUNT}} media items.",
+        { TELEGRAM_MAX_MEDIA_COUNT: String(TELEGRAM_MAX_MEDIA_COUNT) },
+      ),
+    );
   }
 
   errors.push(

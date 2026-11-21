@@ -1,9 +1,19 @@
+import { createElement, type ComponentProps } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
 import { OAuthConsent } from "@/app/oauth/authorize/oauth-consent";
 import OAuthAuthorizePage from "@/app/oauth/authorize/page";
+import { AuthorizePage } from "@/components/authorize-page";
 
-jest.mock("@/components/authorize-page", () => ({ AuthorizePage: () => null }));
+jest.mock("@/components/authorize-page", () => ({ AuthorizePage: jest.fn(() => null) }));
+
+function renderConfig(props: ComponentProps<typeof OAuthConsent>) {
+  renderToStaticMarkup(createElement(OAuthConsent, props));
+  return jest.mocked(AuthorizePage).mock.lastCall![0].config;
+}
 
 afterEach(() => {
+  jest.clearAllMocks();
   jest.restoreAllMocks();
   delete process.env.MUSE_OAUTH_CLIENT_IDS;
 });
@@ -14,7 +24,7 @@ it.each(["chatgpt-client", "claude-client", "cursor-client", undefined, ["muse-c
     process.env.MUSE_OAUTH_CLIENT_IDS = "muse-client";
     const page = await OAuthAuthorizePage({ searchParams: Promise.resolve({ client_id, platform: "muse" }) });
     expect(page.props.allowReadOnly).toBe(false);
-    expect(OAuthConsent(page.props).props.config.allowReadOnly).toBe(false);
+    expect(renderConfig(page.props).allowReadOnly).toBe(false);
   },
 );
 
@@ -34,8 +44,7 @@ it.each(["read_only", "read_write"] as const)(
   "submits the user's %s choice while preserving the OAuth request",
   async (mode) => {
     const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
-    const page = OAuthConsent({ allowReadOnly: true });
-    const config = page.props.config;
+    const config = renderConfig({ allowReadOnly: true });
     expect(config.allowReadOnly).toBe(true);
     const params = new URLSearchParams({
       client_id: "muse-client",
@@ -58,7 +67,7 @@ it.each(["read_only", "read_write"] as const)(
 
 it("omits the Muse form field entirely for other clients", async () => {
   const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
-  const config = OAuthConsent({ allowReadOnly: false }).props.config;
+  const config = renderConfig({ allowReadOnly: false });
   await config.authorize(new URLSearchParams({ client_id: "chatgpt-client" }), "read_only");
   const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
   expect(body).not.toHaveProperty("access_mode");

@@ -2,6 +2,8 @@ export const SCHEDULED_TIME_REQUIRED_MESSAGE = "Choose a date and time before sc
 export const SCHEDULED_TIME_INVALID_MESSAGE = "Choose a valid date and time before scheduling this post.";
 export const SCHEDULED_TIME_PAST_MESSAGE = "Scheduled time must be in the future. Please choose a later date and time.";
 
+export const SCHEDULED_FOR_ISO_MESSAGE = "scheduledFor must be a valid ISO 8601 datetime.";
+
 const DATE_VALUE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_VALUE_PATTERN = /^(\d{2}):(\d{2})$/;
 
@@ -70,7 +72,7 @@ export function getScheduledForValueError(value: string | undefined, now: Date =
 
   const scheduledFor = parseScheduledForValue(value);
   if (!scheduledFor) {
-    return "scheduledFor must be a valid ISO 8601 datetime.";
+    return SCHEDULED_FOR_ISO_MESSAGE;
   }
 
   if (scheduledFor <= now) {

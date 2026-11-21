@@ -7,6 +7,7 @@ import axios from "axios";
 import { BLUESKY_MAX_VIDEO_SIZE_BYTES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
+import { httpStatus, isTransientError, withTransientRetry } from "../../utils/transient-retry";
 
 export interface VideoBlob {
   $type: string;
@@ -49,6 +50,13 @@ function existingJob(error: unknown): VideoJob | undefined {
     : undefined;
 }
 
+/** Named account, quota and verification rejections are conclusive even when sent with a retryable status. */
+function isRetryableVideoRequest(error: unknown): boolean {
+  const name = (error as { response?: { data?: { error?: unknown } } } | undefined)?.response?.data?.error;
+  if (typeof name === "string" && /limit|quota|confirm|auth/i.test(name)) return false;
+  return isTransientError(error);
+}
+
 /** Stream to Bluesky's processor; publish only once it has stored the finished blob on the PDS. */
 export async function uploadBlueskyVideo(
   resolvedPath: string,
@@ -71,25 +79,32 @@ export async function uploadBlueskyVideo(
 
   try {
     const token = await getServiceToken();
-    const stream = fs.createReadStream(resolvedPath);
-    let job: VideoJob;
-    try {
-      const response = await axios.post<VideoResponse>(`${VIDEO_SERVICE}.uploadVideo`, stream, {
-        params: { did, name: path.basename(resolvedPath) },
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "video/mp4", "Content-Length": String(size) },
-        timeout: 120_000,
-        maxBodyLength: BLUESKY_MAX_VIDEO_SIZE_BYTES,
-        maxRedirects: 0,
-      });
-      job = jobFrom(response.data);
-    } catch (error) {
-      // Duplicate uploads can return a non-2xx response containing the existing job/blob.
-      const existing = existingJob(error);
-      if (!existing) throw error;
-      job = existing;
-    } finally {
-      stream.destroy();
-    }
+    // createRecord has not been called, so a repeated upload cannot publish twice;
+    // the service answers a duplicate with the existing job. Each attempt streams
+    // the file again and releases the previous stream first.
+    let job = await withTransientRetry(
+      async () => {
+        const stream = fs.createReadStream(resolvedPath);
+        try {
+          const response = await axios.post<VideoResponse>(`${VIDEO_SERVICE}.uploadVideo`, stream, {
+            params: { did, name: path.basename(resolvedPath) },
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "video/mp4", "Content-Length": String(size) },
+            timeout: 120_000,
+            maxBodyLength: BLUESKY_MAX_VIDEO_SIZE_BYTES,
+            maxRedirects: 0,
+          });
+          return jobFrom(response.data);
+        } catch (error) {
+          // Duplicate uploads can return a non-2xx response containing the existing job/blob.
+          const existing = existingJob(error);
+          if (!existing) throw error;
+          return existing;
+        } finally {
+          stream.destroy();
+        }
+      },
+      { shouldRetry: isRetryableVideoRequest },
+    );
 
     const deadline = Date.now() + PROCESSING_TIMEOUT_MS;
     while (true) {
@@ -116,11 +131,17 @@ export async function uploadBlueskyVideo(
       }
       await delay(Math.min(2000, remaining));
       if (Date.now() >= deadline) continue;
+      const jobId = job.jobId;
       try {
-        const response = await axios.get<{ jobStatus: VideoJob }>(`${VIDEO_SERVICE}.getJobStatus`, {
-          params: { jobId: job.jobId },
-          timeout: Math.min(30_000, deadline - Date.now()),
-        });
+        // Read-only polling reuses the same job within the remaining processing deadline.
+        const response = await withTransientRetry(
+          () =>
+            axios.get<{ jobStatus: VideoJob }>(`${VIDEO_SERVICE}.getJobStatus`, {
+              params: { jobId },
+              timeout: Math.min(30_000, Math.max(1, deadline - Date.now())),
+            }),
+          { deadline, shouldRetry: isRetryableVideoRequest },
+        );
         job = jobFrom(response.data);
       } catch (error) {
         const existing = existingJob(error);
@@ -130,10 +151,16 @@ export async function uploadBlueskyVideo(
     }
   } catch (error) {
     if (error instanceof PostError) throw error;
-    const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string };
+    const status = httpStatus(error);
+    const providerCode = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+    const code =
+      typeof providerCode === "string" && ["EmailNotConfirmed", "DailyUploadLimitExceeded"].includes(providerCode)
+        ? providerCode
+        : undefined;
     throw new PostError(
       PostErrorType.API_ERROR,
-      `Failed to upload Bluesky video: ${err.response?.data?.message || err.response?.data?.error || err.message || "Unknown error"}. Check that your Bluesky email is verified and your video upload quota is available.`,
+      `Failed to upload Bluesky video${code ? ` (${code})` : ""}. Check that your Bluesky email is verified and your video upload quota is available.`,
+      { ...(status && { httpStatus: status }), ...(code && { code }) },
     );
   }
 }

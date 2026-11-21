@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile, rename, readdir } from "node:fs/promises";
+import { readFile, readdir, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { JournalEntry, Materialized, Interface } from "./types.js";
 import { selection, type LiveConfig, type Account } from "./config.js";
 import { selectedCases } from "./catalog.js";
 import { postCost as cost, budgetPlan } from "./budget.js";
+import { atomicJson, withFileLock } from "./files.js";
 export function digest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -41,14 +42,17 @@ export class Journal {
     }
   }
   async save(entry: JournalEntry) {
-    await mkdir(this.dir, { recursive: true, mode: 0o700 });
     entry.updatedAt = new Date().toISOString();
-    const target = this.file(entry.key),
-      tmp = target + ".tmp";
-    await writeFile(tmp, JSON.stringify(entry, null, 2) + "\n", { mode: 0o600 });
-    await rename(tmp, target);
+    await atomicJson(this.file(entry.key), entry);
   }
   async reserve(scenario: Materialized, iface: Interface, account: Account): Promise<JournalEntry> {
+    // Run-wide and daily account budget checks plus the reservation are one
+    // transaction across every platform worker and every run in this runDir.
+    return withFileLock(path.join(this.config.runDir, ".budget.lock"), () =>
+      this.reserveLocked(scenario, iface, account),
+    );
+  }
+  private async reserveLocked(scenario: Materialized, iface: Interface, account: Account): Promise<JournalEntry> {
     const key = `${iface}/${scenario.id}`;
     const fingerprint = digest({
       scenario,
@@ -98,7 +102,11 @@ export class Journal {
       for (const run of await readdir(this.config.runDir, { withFileTypes: true }))
         if (run.isDirectory()) {
           for (const e of await this.entries(path.join(this.config.runDir, run.name)))
-            if (e.accountId === account.id && Date.parse(e.createdAt) > Date.now() - 86_400_000)
+            if (
+              e.platform === scenario.platform &&
+              e.accountId === account.id &&
+              Date.parse(e.createdAt) > Date.now() - 86_400_000
+            )
               used += cost(e.scenario, e.interface);
         }
       if (used + proposed > cap)

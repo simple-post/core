@@ -9,15 +9,12 @@ import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { UiCopy } from "@/components/ui-copy";
 import { startPlanCheckout } from "@/lib/billing/checkout-client";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
-import {
-  BILLING_PLANS,
-  formatAccountLimit,
-  formatPostLimit,
-  getBillingPlanPrice,
-  type PlanKey,
-} from "@/lib/billing/plans";
+import { BILLING_PLANS, getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
+import { planName, accountAllowance, postAllowance } from "@/lib/i18n/billing-display";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 /**
  * Inert stand-in for the app behind the dialog. Rendering the real dashboard
@@ -50,6 +47,7 @@ export function TrialExpiredDialog({
 }: {
   displayCurrency?: BillingDisplayCurrency;
 }) {
+  const { copy } = useUiCopy();
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -57,10 +55,10 @@ export function TrialExpiredDialog({
     setLoadingPlan(planKey);
     setCheckoutError(null);
     try {
-      await startPlanCheckout(planKey);
+      await startPlanCheckout(planKey, copy);
     } catch (error) {
       console.error("Failed to start checkout:", error);
-      setCheckoutError(error instanceof Error ? error.message : "Could not open checkout. Please try again.");
+      setCheckoutError(error instanceof Error ? error.message : copy("Could not open checkout. Please try again."));
       setLoadingPlan(null);
     }
   };
@@ -75,17 +73,20 @@ export function TrialExpiredDialog({
           onInteractOutside={(event) => event.preventDefault()}
           className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="text-xl tracking-[-0.025em]">Your free trial has ended</DialogTitle>
+            <DialogTitle className="text-xl tracking-[-0.025em]">{copy("Your free trial has ended")}</DialogTitle>
             <DialogDescription>
-              Subscribe to keep creating and scheduling posts. Your saved posts and connected accounts are still here.
+              {copy(
+                "Subscribe to keep creating and scheduling posts. Your saved posts and connected accounts are still here.",
+              )}{" "}
             </DialogDescription>
           </DialogHeader>
 
           <p className="text-sm text-muted-foreground">
-            Posts that became due after your trial ended need your attention. After subscribing, review Failed posts and
-            use Edit and Retry. Subscribing does not automatically send them.
+            {copy(
+              "Posts that became due after your trial ended need your attention. After subscribing, review Failed posts and use Edit and Retry. Subscribing does not automatically send them.",
+            )}{" "}
           </p>
-          <HelpLink path="/billing#when-access-ends">Trial expiry and recovery help</HelpLink>
+          <HelpLink path="/billing#when-access-ends">{copy("Trial expiry and recovery help")}</HelpLink>
           {checkoutError ? (
             <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
               {checkoutError}
@@ -99,31 +100,33 @@ export function TrialExpiredDialog({
                   plan.featured ? "border-primary/50 bg-primary/10" : "border-border bg-background"
                 }`}>
                 {plan.featured ? (
-                  <Badge className="absolute right-3 top-3 bg-primary text-primary-foreground hover:bg-primary">
-                    Popular
+                  <Badge className="absolute end-3 top-3 bg-primary text-primary-foreground hover:bg-primary">
+                    {copy("Popular")}{" "}
                   </Badge>
                 ) : null}
 
-                <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
+                <h3 className="text-base font-semibold text-foreground">{planName(plan.name, copy)}</h3>
                 <p className="mt-3 flex items-baseline gap-1.5">
                   <span className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
                     {getBillingPlanPrice(plan, displayCurrency)}
                   </span>
-                  <span className="text-xs text-muted-foreground">/ month</span>
+                  <span className="text-xs text-muted-foreground">{copy("/ month")}</span>
                 </p>
 
                 <ul className="my-4 grid gap-1.5 text-xs text-muted-foreground">
                   <li className="flex items-center gap-1.5">
                     <Check className="h-3 w-3 shrink-0 text-primary" />
-                    {formatAccountLimit(plan)} social accounts
+                    {accountAllowance(plan, copy)}
                   </li>
                   <li className="flex items-center gap-1.5">
                     <Check className="h-3 w-3 shrink-0 text-primary" />
-                    {formatPostLimit(plan)} posts / month
+                    {postAllowance(plan, copy)}
                   </li>
                   <li className="flex items-center gap-1.5">
-                    <Check className="h-3 w-3 shrink-0 text-primary" />
-                    Connect any AI assistant
+                    <UiCopy
+                      source="<part1></part1>Connect any AI assistant"
+                      components={{ part1: <Check className="h-3 w-3 shrink-0 text-primary" /> }}
+                    />
                   </li>
                 </ul>
 
@@ -134,7 +137,11 @@ export function TrialExpiredDialog({
                   disabled={loadingPlan !== null}
                   className="mt-auto gap-2">
                   {loadingPlan === plan.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  <span>{loadingPlan === plan.key ? "Opening Stripe..." : `Subscribe to ${plan.name}`}</span>
+                  <span>
+                    {loadingPlan === plan.key
+                      ? copy("Opening Stripe...")
+                      : copy("Subscribe to {{plan}}", { plan: planName(plan.name, copy) })}
+                  </span>
                 </Button>
               </article>
             ))}

@@ -4,14 +4,16 @@ import type { ReactNode } from "react";
 
 import { Check } from "lucide-react";
 
+import { useUiTranslation } from "@/lib/i18n/client";
+
 import "./account-row-picker.css";
 
 export function AccountRowPicker({
   items,
   selectedIds,
   onToggle,
-  title = "Post to",
-  description = "Choose which accounts to publish your content to",
+  title,
+  description,
   compact = false,
 }: {
   items: Array<{
@@ -29,15 +31,18 @@ export function AccountRowPicker({
   description?: string;
   compact?: boolean;
 }) {
+  const { t } = useUiTranslation();
+  const heading = title ?? t("postTo");
+  const details = description ?? t("choosePostingAccounts");
   return (
-    <section className="account-row-picker" aria-label={title}>
+    <section className="account-row-picker" aria-label={heading}>
       {!compact && (
         <header>
           <div>
-            <h3>{title}</h3>
-            {description && <p>{description}</p>}
+            <h3>{heading}</h3>
+            {details && <p>{details}</p>}
           </div>
-          <span>{selectedIds.length} selected</span>
+          <span>{t("accountsSelected", { count: selectedIds.length })}</span>
         </header>
       )}
       <div className="account-row-picker-grid">

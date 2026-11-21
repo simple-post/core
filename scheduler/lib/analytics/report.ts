@@ -1,3 +1,5 @@
+import { normalizeSource } from "./first-touch";
+
 export interface AcquisitionAccount {
   id: string;
   name: string;
@@ -9,7 +11,7 @@ export interface AcquisitionAccount {
   subscription: { status: string; planKey: string | null } | null;
 }
 
-export function acquisitionLabels(value: unknown) {
+export function acquisitionLabels(value: unknown, model: "first" | "last_non_direct" = "first") {
   // Better Auth's Prisma adapter stores JSON additional fields as serialized text.
   if (typeof value === "string") {
     try {
@@ -18,11 +20,17 @@ export function acquisitionLabels(value: unknown) {
       value = null;
     }
   }
-  const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const original = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const candidate = original.lastNonDirect;
+  const data =
+    model === "last_non_direct" && candidate && typeof candidate === "object" && !Array.isArray(candidate)
+      ? (candidate as Record<string, unknown>)
+      : original;
   return {
-    source: typeof data.source === "string" ? data.source : "unknown",
+    source: typeof data.source === "string" ? normalizeSource(data.source) : "unknown",
     medium: typeof data.medium === "string" ? data.medium : "—",
     campaign: typeof data.campaign === "string" ? data.campaign : "—",
+    content: typeof data.content === "string" ? data.content : "—",
     landingPage: typeof data.landingPage === "string" ? data.landingPage : "—",
     firstSeenAt: typeof data.firstSeenAt === "string" ? data.firstSeenAt : null,
   };
@@ -35,6 +43,7 @@ export function buildAcquisitionReport(accounts: AcquisitionAccount[], now = new
       source: string;
       medium: string;
       campaign: string;
+      content: string;
       signups: number;
       trials: number;
       paid: number;
@@ -46,11 +55,12 @@ export function buildAcquisitionReport(accounts: AcquisitionAccount[], now = new
   >();
   for (const account of accounts) {
     const labels = acquisitionLabels(account.acquisition);
-    const key = JSON.stringify([labels.source, labels.medium, labels.campaign]);
+    const key = JSON.stringify([labels.source, labels.medium, labels.campaign, labels.content]);
     const group = groups.get(key) || {
       source: labels.source,
       medium: labels.medium,
       campaign: labels.campaign,
+      content: labels.content,
       signups: 0,
       trials: 0,
       paid: 0,

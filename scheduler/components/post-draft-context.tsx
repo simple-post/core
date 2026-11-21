@@ -4,6 +4,8 @@ import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSession } from "@/lib/auth/auth-client";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { AccountOptionsMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 export interface DraftAccountOverride {
@@ -61,6 +63,8 @@ interface PostDraftContextValue extends PostDraftState {
   updateThreadSegmentMessage: (index: number, message: string) => void;
   updateThreadSegmentMedia: (index: number, media: MediaFile[]) => void;
   resetDraft: () => void;
+  saveRecoveryDraft: (returnTo: string, accountIds: string[]) => boolean;
+  clearRecoveryDraft: () => void;
 }
 
 const DEFAULT_DRAFT: PostDraftState = {
@@ -249,6 +253,26 @@ function getStorageErrorMessage(error: unknown) {
   return "Draft could not be saved in this browser.";
 }
 
+function storageErrorCopy(message: string | null, copy: SourceCopy): string | null {
+  switch (message) {
+    case "Draft could not be saved because browser storage is full.": {
+      return copy("Draft could not be saved because browser storage is full.");
+    }
+    case "Draft could not be saved in this browser.": {
+      return copy("Draft could not be saved in this browser.");
+    }
+    case "Draft could not be loaded from this browser.": {
+      return copy("Draft could not be loaded from this browser.");
+    }
+    case "Draft could not be restored from this browser.": {
+      return copy("Draft could not be restored from this browser.");
+    }
+    default: {
+      return message;
+    }
+  }
+}
+
 /**
  * Holds the composer's draft across the composer and its per-account pages.
  *
@@ -263,6 +287,7 @@ export function PostDraftProvider({
   children: React.ReactNode;
   initialDraft?: PostDraftState;
 }) {
+  const { copy } = useUiCopy();
   const { data: session } = useSession();
   const storageKey = !initialDraft && session?.user?.id ? `${DRAFT_STORAGE_KEY_PREFIX}:${session.user.id}` : null;
   const [initial] = useState(() => initialDraft ?? DEFAULT_DRAFT);
@@ -270,6 +295,7 @@ export function PostDraftProvider({
   const draftRef = useRef<PostDraftState>(initial);
   const [isHydrated, setIsHydrated] = useState(initialDraft !== undefined);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const recoveryStorageKey = session?.user?.id ? `simplepost:recovery-draft:v1:${session.user.id}` : null;
   const [message, setMessageState] = useState(initial.message);
   const [media, setMediaState] = useState<MediaFile[]>(initial.media);
   const [selectedAccountIds, setSelectedAccountIdsState] = useState<string[]>(initial.selectedAccountIds);
@@ -381,6 +407,36 @@ export function PostDraftProvider({
 
   const hasDraftContent = useMemo(() => hasPersistableDraft(draft), [draft]);
 
+  const clearRecoveryDraft = useCallback(() => {
+    if (!recoveryStorageKey) return;
+    try {
+      window.sessionStorage.removeItem(recoveryStorageKey);
+    } catch {
+      /* Saved server data remains authoritative. */
+    }
+  }, [recoveryStorageKey]);
+
+  const saveRecoveryDraft = useCallback(
+    (returnTo: string, accountIds: string[]) => {
+      if (!recoveryStorageKey) return false;
+      try {
+        window.sessionStorage.setItem(
+          recoveryStorageKey,
+          JSON.stringify({
+            path: returnTo,
+            savedAt: Date.now(),
+            draft: { ...draftRef.current, selectedAccountIds: accountIds },
+          }),
+        );
+        return true;
+      } catch (error) {
+        setStorageError(getStorageErrorMessage(error));
+        return false;
+      }
+    },
+    [recoveryStorageKey],
+  );
+
   useEffect(() => {
     if (!storageKey) {
       return;
@@ -415,6 +471,46 @@ export function PostDraftProvider({
       setIsHydrated(true);
     }
   }, [setDraftState, storageKey]);
+
+  // One tab-scoped snapshot survives full-page provider authorization. Consume
+  // it only on the intended editor, after the normal draft has hydrated.
+  useEffect(() => {
+    if (!recoveryStorageKey || !isHydrated) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("resumeDraft") !== "1") return;
+    const clearMarker = () => {
+      params.delete("resumeDraft");
+      const search = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`,
+      );
+    };
+    try {
+      const value = window.sessionStorage.getItem(recoveryStorageKey);
+      if (!value) {
+        clearMarker();
+        return;
+      }
+      const recovery = JSON.parse(value);
+      if (!Number.isFinite(recovery.savedAt) || Date.now() - recovery.savedAt > 3_600_000) {
+        window.sessionStorage.removeItem(recoveryStorageKey);
+        clearMarker();
+        return;
+      }
+      if (recovery.path !== window.location.pathname) return;
+      const recoveredDraft = normalizeStoredDraft(recovery.draft);
+      if (recoveredDraft) {
+        setDraftState(recoveredDraft);
+        persistDraft(recoveredDraft);
+      }
+      window.sessionStorage.removeItem(recoveryStorageKey);
+      clearMarker();
+    } catch {
+      setStorageError("Draft could not be restored from this browser.");
+    }
+  }, [isHydrated, persistDraft, recoveryStorageKey, setDraftState]);
 
   const updateAccountOverride = useCallback(
     (accountId: string, updates: Partial<DraftAccountOverride>) => {
@@ -508,7 +604,7 @@ export function PostDraftProvider({
     () => ({
       hasDraftContent,
       isHydrated,
-      storageError,
+      storageError: storageErrorCopy(storageError, copy),
       message,
       media,
       selectedAccountIds,
@@ -541,8 +637,11 @@ export function PostDraftProvider({
       updateThreadSegmentMessage,
       updateThreadSegmentMedia,
       resetDraft,
+      saveRecoveryDraft,
+      clearRecoveryDraft,
     }),
     [
+      copy,
       accountOptions,
       accountOverrides,
       hasDraftContent,
@@ -574,6 +673,8 @@ export function PostDraftProvider({
       setAccountOverrideMessage,
       setAccountOverrideThread,
       resetDraft,
+      saveRecoveryDraft,
+      clearRecoveryDraft,
       addThreadSegment,
       removeThreadSegment,
       updateThreadSegmentMessage,

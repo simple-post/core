@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
+import { SetupReminderPreference } from "@/components/onboarding/setup-reminder-preference";
 import { createSlotRows, PostingSlotsSection, type PostingSlotRow } from "@/components/posting-slots-settings";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import { usePostingSlots, useUpdatePostingSlots } from "@/hooks/use-posting-slots";
 import { useRepostSettings, useUpdateRepostSettings } from "@/hooks/use-repost-settings";
+import { useUiTranslation } from "@/lib/i18n/client";
 import { logClientError } from "@/lib/logger/client";
 
 const MIN_DELAY_HOURS = 1;
@@ -38,24 +40,31 @@ function RepostDefaultsSection({
   setDelayHours: Dispatch<SetStateAction<number>>;
   disabled: boolean;
 }) {
+  const { t } = useUiTranslation();
   return (
     <section className="rounded-xl border border-border bg-card p-4 animate-reveal animate-reveal-delay-1">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Repeat2 className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold text-foreground">Automatic reposts</h2>
+          <h2 id="auto-repost-label" className="text-sm font-semibold text-foreground">
+            {t("automaticReposts")}
+          </h2>
         </div>
-        <Switch id="auto-repost-enabled" checked={enabled} disabled={disabled} onCheckedChange={setEnabled} />
+        <Switch
+          id="auto-repost-enabled"
+          aria-labelledby="auto-repost-label"
+          checked={enabled}
+          disabled={disabled}
+          onCheckedChange={setEnabled}
+        />
       </div>
 
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        Default for new posts. Applies to X, Bluesky, Threads, and LinkedIn.
-      </p>
+      <p className="mt-1.5 text-xs text-muted-foreground">{t("repostDefaults")}</p>
 
       {enabled ? (
         <div className="mt-3 flex items-center gap-2">
           <Label htmlFor="repost-delay-hours" className="text-sm font-medium">
-            Repost after
+            {t("repostDelayHours")}
           </Label>
           <NumberInput
             id="repost-delay-hours"
@@ -66,7 +75,6 @@ function RepostDefaultsSection({
             onChange={setDelayHours}
             className="h-8 w-16 px-2"
           />
-          <span className="text-sm text-muted-foreground">hours</span>
         </div>
       ) : null}
     </section>
@@ -74,6 +82,7 @@ function RepostDefaultsSection({
 }
 
 export default function SettingsPage() {
+  const { t } = useUiTranslation();
   const { data: settings, isLoading } = useRepostSettings();
   const updateSettings = useUpdateRepostSettings();
   const { data: savedSlots, isLoading: slotsLoading } = usePostingSlots();
@@ -111,10 +120,10 @@ export default function SettingsPage() {
       setEnabled(saved.enabled);
       setDelayHours(saved.delayHours);
       setSlots(createSlotRows(savedSlotList));
-      toast.success("Settings saved");
+      toast.success(t("settingsSaved"));
     } catch (error) {
       logClientError(error, "Failed to save settings");
-      toast.error("Failed to save settings.");
+      toast.error(t("settingsSaveFailed"));
     }
   };
 
@@ -127,16 +136,16 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3">
             <div className="section-kicker !mb-0">
               <span className="section-kicker-dot" />
-              <span className="section-kicker-label">Account</span>
+              <span className="section-kicker-label">{t("account")}</span>
             </div>
             <span className="h-3 w-px bg-border" />
             <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-              <span className="text-primary">Settings</span>
+              <span className="text-primary">{t("settings")}</span>
             </h1>
           </div>
         </div>
 
-        <HelpLink path="/scheduling#automatic-reposts">Automatic repost help</HelpLink>
+        <HelpLink path="/scheduling#automatic-reposts">{t("automaticRepostHelp")}</HelpLink>
         <RepostDefaultsSection
           enabled={enabled}
           setEnabled={setEnabled}
@@ -145,12 +154,13 @@ export default function SettingsPage() {
           disabled={disabled}
         />
 
-        <HelpLink path="/scheduling#calendar-and-posting-slots">Posting slot help</HelpLink>
+        <HelpLink path="/scheduling#calendar-and-posting-slots">{t("postingSlotHelp")}</HelpLink>
         <PostingSlotsSection slots={slots} onChange={setSlots} disabled={disabled} />
+        <SetupReminderPreference pendingOnly />
 
         <div className="flex justify-center">
           <Button onClick={handleSave} disabled={disabled}>
-            {saving ? "Saving..." : "Save settings"}
+            {saving ? t("saving") : t("saveSettings")}
           </Button>
         </div>
       </main>

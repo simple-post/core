@@ -1,10 +1,14 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { createHash } from "node:crypto";
+
 import { type McpServer } from "@modelcontextprotocol/server";
 import { Feature } from "@prisma/client";
 import { z } from "zod";
 
 import { hasFeature } from "@/lib/features";
+import { serverMessage } from "@/lib/i18n/server";
 import { getAppBaseUrl, hasMcpScope, type McpScope } from "@/lib/mcp/config";
+import { getAccountConnectionLinks } from "@/lib/mcp/connect-guidance";
+import { registerMeasuredTool } from "@/lib/mcp/registration";
 import type { McpToolAuthContext } from "@/lib/mcp/server";
 import { WORKSPACE_WIDGET_URI, EDITOR_WIDGET_URI } from "@/lib/mcp/ui/resources";
 import {
@@ -45,11 +49,13 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
   async function guard(scopes: McpScope[]) {
     if (!(await hasFeature(context.userId, Feature.PLUGIN_EXTENSIONS)))
       throw new ForbiddenError(
-        "The SimplePost workspace is currently unavailable. Existing posting tools remain available.",
+        serverMessage("The SimplePost workspace is currently unavailable. Existing posting tools remain available."),
       );
     for (const scope of scopes)
       if (!hasMcpScope(context.scope, scope))
-        throw new ForbiddenError(`Reconnect SimplePost to approve the required access (${scope}).`);
+        throw new ForbiddenError(
+          serverMessage("Reconnect SimplePost to approve the required access ({{scope}}).", { scope: String(scope) }),
+        );
   }
   function tool<S extends z.ZodObject>(
     name: keyof typeof EXTENSION_TOOL_ANNOTATIONS,
@@ -60,7 +66,8 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
     extraMeta: Record<string, unknown> = {},
     outputSchema?: z.ZodObject,
   ) {
-    registerAppTool(
+    registerMeasuredTool(
+      context,
       server,
       name,
       {
@@ -91,9 +98,16 @@ export function registerExtensionTools(server: McpServer, context: McpToolAuthCo
   const workspace = async (input: z.infer<typeof workspaceInputSchema>) => ({
     ...(await loadWorkspace(context.userId, input)),
     accountsUrl: `${getAppBaseUrl()}/accounts?onboarding=connect`,
+    connectionLinks: getAccountConnectionLinks(context.userId),
     canWrite: hasMcpScope(context.scope, "posts:write"),
     canValidate: hasMcpScope(context.scope, "posts:validate"),
     imageFittingEnabled: await hasFeature(context.userId, Feature.IMAGE_FITTING),
+    onboarding: context.readOnly
+      ? null
+      : {
+          dismissalId: createHash("sha256").update(context.userId).digest("hex"),
+          trialDays: context.onboardingTrialDays ?? null,
+        },
   });
   const openerMeta = (uri: string, type: "global" | "thread") => ({
     ui: { resourceUri: uri, visibility: ["model", "app"] },

@@ -1,0 +1,1 @@
+The preview archive is built from [simple-post/preview at 5115deb](https://github.com/simple-post/preview/commit/5115deb) so this branch can use its locale API before an npm release. After a compatible npm release, replace the file dependencies with registry dependencies and remove the archive(s).

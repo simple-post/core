@@ -1,3 +1,10 @@
+import {
+  describeDisplayMessage,
+  displayMessage,
+  getDisplayMessage,
+  withDisplayMessage,
+  type DisplayMessage,
+} from "./display-message";
 import type { Platform } from "../types/post";
 import type { ValidationIssue } from "../types/validation";
 import type { MediaInspection } from "../utils/media-inspection";
@@ -11,16 +18,22 @@ export function validateInspectedMedia(
   const issues: ValidationIssue[] = [];
   const add = (
     code: string,
-    message: string,
+    message: string | DisplayMessage,
     actual?: number,
     limit?: number,
     severity: "error" | "warning" = "error",
-  ) => issues.push({ platform, severity, code, message, actual, limit });
+  ) => issues.push(withDisplayMessage({ platform, severity, code, actual, limit }, message));
   const range = (name: string, value: number, min: number, max: number) => {
     if (value < min || value > max)
       add(
         `media_${name}_unsupported`,
-        `${platform}: ${name} is ${Number(value.toFixed(3))}; use ${min}–${max}.`,
+        displayMessage("{{platform}}: {{name}} is {{value3}}; use {{min}}–{{max}}.", {
+          platform: String(platform),
+          name: String(name),
+          value3: String(Number(value.toFixed(3))),
+          min: String(min),
+          max: String(max),
+        }),
         value,
         value < min ? min : max,
       );
@@ -30,7 +43,7 @@ export function validateInspectedMedia(
     if (!width || !height) {
       add(
         "image_dimensions_unavailable",
-        "Could not measure this image. Export it again and upload the original file.",
+        displayMessage("Could not measure this image. Export it again and upload the original file."),
       );
       return issues;
     }
@@ -39,7 +52,9 @@ export function validateInspectedMedia(
     if (platform === "threads" && (ratio < 0.01 || ratio > 10))
       add(
         "image_ratio_unverified",
-        "This extreme Threads image ratio may be rejected; crop to a conventional portrait or landscape ratio.",
+        displayMessage(
+          "This extreme Threads image ratio may be rejected; crop to a conventional portrait or landscape ratio.",
+        ),
         undefined,
         undefined,
         "warning",
@@ -55,12 +70,18 @@ export function validateInspectedMedia(
     if (platform === "tiktok" && (Math.min(width, height) > 1080 || Math.max(width, height) > 1920)) {
       add(
         "photo_dimensions_too_large",
-        `TikTok photo is ${width}×${height}. Resize to fit 1080×1920 portrait or 1920×1080 landscape.`,
+        displayMessage(
+          "TikTok photo is {{width}}×{{height}}. Resize to fit 1080×1920 portrait or 1920×1080 landscape.",
+          { width: String(width), height: String(height) },
+        ),
       );
     }
     if (platform === "x" && (media.frames ?? 1) > 1) {
       if (context.mediaCount !== 1)
-        add("animated_gif_must_be_alone", "X animated GIFs must be posted alone. Remove the other attachments.");
+        add(
+          "animated_gif_must_be_alone",
+          displayMessage("X animated GIFs must be posted alone. Remove the other attachments."),
+        );
       range("animation_width", width, 1, 1280);
       range("animation_height", height, 1, 1080);
       range("animation_frames", media.frames!, 1, 350);
@@ -69,19 +90,25 @@ export function validateInspectedMedia(
     if (platform === "pinterest" && context.thumbnail !== true && ratio !== 2 / 3)
       add(
         "recommended_image_ratio",
-        "Pinterest recommends a 2:3 image. Other ratios may be cropped in feeds.",
+        displayMessage("Pinterest recommends a 2:3 image. Other ratios may be cropped in feeds."),
         undefined,
         undefined,
         "warning",
       );
-    for (const issue of issues) issue.message = `${width}×${height} image: ${issue.message}`;
+    for (const issue of issues) {
+      const message = getDisplayMessage(issue) ?? issue.message;
+      issue.message = `${width}×${height} image: ${issue.message}`;
+      describeDisplayMessage(issue, "{{width}}×{{height}} image: {{message}}", { width, height, message });
+    }
     return issues;
   }
   const video = media.video;
   if (!video) {
     add(
       "video_metadata_unavailable",
-      "Could not inspect the video duration and encoding. Upload a complete playable video; validation is incomplete.",
+      displayMessage(
+        "Could not inspect the video duration and encoding. Upload a complete playable video; validation is incomplete.",
+      ),
     );
     return issues;
   }
@@ -90,23 +117,30 @@ export function validateInspectedMedia(
     if (!allowed.includes(video.codec))
       add(
         "video_codec_unsupported",
-        `${platform}: ${video.codec} video is unsupported. Export using ${allowed.join(" or ")}.`,
+        displayMessage("{{platform}}: {{value2}} video is unsupported. Export using {{value3}}.", {
+          platform: String(platform),
+          value2: String(video.codec),
+          value3: String(allowed.join(" or ")),
+        }),
       );
   };
   const audio = () => {
     if (video.audioCodec && video.audioCodec !== "aac")
-      add("audio_codec_unsupported", `${platform}: export the audio track as AAC.`);
+      add(
+        "audio_codec_unsupported",
+        displayMessage("{{platform}}: export the audio track as AAC.", { platform: String(platform) }),
+      );
   };
   if (platform === "instagram" || platform === "threads") {
     codec(["h264", "hevc"]);
     if (platform === "instagram") {
       if (!["video/mp4", "video/quicktime"].includes(media.contentType))
-        add("video_container_unsupported", "Instagram videos must use an MP4 or MOV container.");
+        add("video_container_unsupported", displayMessage("Instagram videos must use an MP4 or MOV container."));
       if (context.mediaCount === 1) range("width", video.width, 1, 1920);
       if (video.audioSampleRate && video.audioSampleRate !== 48_000)
         add(
           "audio_sample_rate_recommendation",
-          "Instagram documents 48 kHz AAC audio. Re-export at 48 kHz if this track is rejected.",
+          displayMessage("Instagram documents 48 kHz AAC audio. Re-export at 48 kHz if this track is rejected."),
           undefined,
           undefined,
           "warning",
@@ -133,7 +167,7 @@ export function validateInspectedMedia(
   }
   if (platform === "bluesky") {
     if (media.contentType !== "video/mp4")
-      add("video_format_unsupported", "Bluesky videos must contain MP4 data, regardless of filename.");
+      add("video_format_unsupported", displayMessage("Bluesky videos must contain MP4 data, regardless of filename."));
     range("duration_seconds", video.durationSec, 0.001, 600);
   }
   if (platform === "x") {
@@ -143,11 +177,11 @@ export function validateInspectedMedia(
     range("frames_per_second", video.fps, 0.001, 60);
     range("aspect_ratio", ratio, 1 / 3, 3);
     if (video.pixelFormat !== "yuv420p")
-      add("pixel_format_unsupported", "X videos must use YUV 4:2:0 (yuv420p). Re-export the video.");
+      add("pixel_format_unsupported", displayMessage("X videos must use YUV 4:2:0 (yuv420p). Re-export the video."));
     if (!["1:1", "0:1"].includes(video.sampleAspectRatio))
-      add("sample_aspect_ratio_unsupported", "X videos require square pixels.");
+      add("sample_aspect_ratio_unsupported", displayMessage("X videos require square pixels."));
     if (video.audioProfile && video.audioProfile !== "LC")
-      add("audio_profile_unsupported", "X requires AAC Low Complexity audio.");
+      add("audio_profile_unsupported", displayMessage("X requires AAC Low Complexity audio."));
   }
   if (platform === "pinterest") {
     codec(["h264", "hevc"]);
@@ -156,14 +190,19 @@ export function validateInspectedMedia(
   if (platform === "telegram" && media.contentType !== "video/mp4")
     add(
       "video_format_unsupported",
-      "Telegram video posts require MP4. Export as MP4 or send the file as a document outside SimplePost.",
+      displayMessage(
+        "Telegram video posts require MP4. Export as MP4 or send the file as a document outside SimplePost.",
+      ),
     );
   if (platform === "youtube") range("duration_seconds", video.durationSec, 0.001, 43_200);
   // These providers accept multiple encodings. Warn rather than apply ad/Reel limits to organic posts.
   if (["facebook", "linkedin"].includes(platform) && !["h264", "hevc"].includes(video.codec))
     add(
       "video_encoding_recommendation",
-      `${platform}: H.264 video with AAC audio is recommended; this encoding's acceptance could not be confirmed.`,
+      displayMessage(
+        "{{platform}}: H.264 video with AAC audio is recommended; this encoding's acceptance could not be confirmed.",
+        { platform: String(platform) },
+      ),
       undefined,
       undefined,
       "warning",

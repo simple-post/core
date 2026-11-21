@@ -126,13 +126,14 @@ if (sessionPath && (!values["from-cli"] || values.session)) {
   );
   if (response?.ok) fingerprint = deploymentFingerprint(await response.text());
 }
-const api = new SchedulerApi(cfg);
-const discovered = await discoverAccounts(
-  (route) => api.request(route),
-  requested as Platform[] | undefined,
-  values["account-id"] ?? [],
-  prior,
-  choose,
+const discovered = await SchedulerApi.scoped(cfg, (api) =>
+  discoverAccounts(
+    (route) => api.request(route),
+    requested as Platform[] | undefined,
+    values["account-id"] ?? [],
+    prior,
+    choose,
+  ),
 );
 if (browserUserId && discovered.userId !== browserUserId)
   throw new Error(

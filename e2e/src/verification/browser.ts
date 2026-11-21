@@ -1,5 +1,11 @@
-import { isVideoFixture } from "../media.js";
-import { expect, type Browser, type Page, type Locator } from "@playwright/test";
+import { isVideoFixture, fixtureDurationSec } from "../media.js";
+import {
+  expect as playwrightExpect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Locator,
+} from "@playwright/test";
 import { verifyYouTubeMetadata, type YouTubeVerification } from "./youtube.js";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -16,6 +22,57 @@ import {
 } from "./telegram.js";
 import { redact } from "../redact.js";
 import { SchedulerApi } from "../http.js";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { formerThreadsReplySelector, threadsDirectParentPaths, threadsPostPath, threadsPostRoot } from "./threads.js";
+import {
+  VerificationDeadlineError,
+  VerificationHttpError,
+  isVerificationLoginUrl,
+  verificationRetry,
+  verificationTimeout,
+  verificationSleep,
+  verificationRead,
+  budgetPoll,
+  type VerificationBudget,
+} from "./retry.js";
+export { VerificationSetupError };
+
+const verificationScope = new AsyncLocalStorage<VerificationBudget & { onAssertion?: (error?: Error) => void }>();
+async function verificationAssertion(label: string, check: () => Promise<void>) {
+  const scope = verificationScope.getStore();
+  const pending = new Error(label);
+  scope?.onAssertion?.(pending);
+  try {
+    await check();
+  } catch (error) {
+    if (error instanceof VerificationDeadlineError) throw new VerificationDeadlineError(pending);
+    scope?.onFailure?.(error);
+    throw error;
+  } finally {
+    scope?.onAssertion?.(undefined);
+  }
+}
+function remainingTimeout(maximum = 5000) {
+  return verificationTimeout(verificationScope.getStore(), maximum);
+}
+function verificationExpect() {
+  return playwrightExpect.configure({ timeout: remainingTimeout() });
+}
+function verificationPoll<T>(
+  actual: () => T | Promise<T>,
+  settings?: { message?: string; timeout?: number; intervals?: number[] },
+) {
+  const budget = verificationScope.getStore();
+  return budgetPoll(
+    actual,
+    { ...settings, timeout: budget ? Math.min(settings?.timeout ?? 5000, 3000) : settings?.timeout },
+    budget,
+  );
+}
+async function schedulerRead<T>(config: LiveConfig, route: string): Promise<T> {
+  return SchedulerApi.scoped(config, (api) => verificationRead<T>(api, route, verificationScope.getStore()));
+}
+
 export interface Surface {
   root: string;
   author: string;
@@ -29,10 +86,11 @@ export interface Surface {
 // No fallback to document.body: navigation chrome or a login screen must never count as a post.
 export const surfaces: Record<Platform, Surface> = {
   x: {
-    root: 'article[data-testid="tweet"], article:has(a[data-timezone][href*="/status/"])',
+    root: 'article[data-testid="tweet"], article:has(a[href*="/status/"])',
     author: '[data-testid="User-Name"] a, a:has(img[alt^="@"])',
     text: '[data-testid="tweetText"], :scope:not([data-testid]) div[dir="auto"]',
-    images: '[data-testid="tweetPhoto"] img, a[aria-label="Image"][href*="/photo/"] img',
+    images:
+      '[data-testid="tweetPhoto"] img, a[aria-label="Image"][href*="/photo/"] img, img[src^="https://pbs.twimg.com/media/"]',
     video: "video",
   },
   instagram: {
@@ -75,10 +133,10 @@ export const surfaces: Record<Platform, Surface> = {
     title: "h1.ytd-watch-metadata",
   },
   pinterest: {
-    root: '[data-test-id="pin-closeup"], [data-test-id="CloseupMainPin"]',
+    root: '[data-test-id="pin-closeup"], [data-test-id="CloseupMainPin"], [data-test-id="closeup-body"]',
     author: '[data-test-id="creator-profile-link"]',
-    text: '[data-test-id="pin-description"], [data-test-id="main-pin-description-text"]',
-    images: '[data-test-id="pin-closeup-image"] img',
+    text: '[data-test-id="pin-description"], [data-test-id="main-pin-description-text"], [data-test-id="structured-description"]',
+    images: '[data-test-id="pin-closeup-image"] img, [data-test-id="closeup-image-main"] img',
     video: "video",
     title: "h1",
   },
@@ -119,6 +177,21 @@ function observerSurface(platform: Platform, account: Account) {
   // Keep intentional custom roots intact.
   if (platform === "instagram" && cfg.root.replace(/\s/g, "") === "main>div:nth-child(2)>div:first-child")
     cfg.root = surfaces.instagram.root;
+  if (platform === "pinterest") {
+    if (cfg.root === '[data-test-id="pin-closeup"], [data-test-id="CloseupMainPin"]')
+      cfg.root = '[data-test-id="closeup-container"]';
+    if (cfg.text === '[data-test-id="pin-description"], [data-test-id="main-pin-description-text"]')
+      cfg.text = '[data-test-id="structured-description"]';
+    if (cfg.images === '[data-test-id="pin-closeup-image"] img') cfg.images = '[data-test-id="closeup-image-main"] img';
+    cfg.fields = { ...cfg.fields };
+    const altText = cfg.fields.altText;
+    if (altText?.selector === '[data-test-id="pin-closeup-image"] img')
+      cfg.fields.altText = { ...altText, selector: '[data-test-id="closeup-image-main"] img' };
+    const link = cfg.fields.link;
+    if (link?.selector === '[data-test-id="main-pin-section-visit-button"] button')
+      cfg.fields.link = { ...link, selector: '[data-test-id="visit-button"]' };
+  }
+  if (platform === "linkedin" && cfg.text === "p") cfg.text = surfaces.linkedin.text;
   return cfg;
 }
 export function allowedHost(platform: Platform, url: string, account: Account): boolean {
@@ -210,7 +283,8 @@ export function assertPostId(platform: Platform, url: string, id?: string) {
     actual = parts.at(-1);
     expected = id.split("/").at(-1)!;
   }
-  if (actual !== undefined) expect(actual, "Platform permalink must match the returned post ID").toBe(expected);
+  if (actual !== undefined)
+    verificationExpect()(actual, "Platform permalink must match the returned post ID").toBe(expected);
 }
 async function assertTikTokNotLoginPage(page: Page) {
   const url = new URL(page.url());
@@ -223,12 +297,47 @@ async function assertTikTokNotLoginPage(page: Page) {
     );
 }
 
+export async function assertObserverReady(page: Page, platform: Platform) {
+  if (platform === "tiktok") await assertTikTokNotLoginPage(page);
+  if (isVerificationLoginUrl(page.url()))
+    throw new VerificationSetupError(
+      "Platform redirected to login or an authentication challenge; restore the observer session. Receipt retained; do not republish.",
+    );
+  if (platform === "pinterest" && (await page.locator('input[type="password"]:visible').count()))
+    throw new VerificationSetupError(
+      "Pinterest is showing a blocking login form. Save its observer session with yarn e2e:auth --chrome https://www.pinterest.com/ .local/auth/pinterest.json, then resume the saved run. Scheduler account authorization does not sign this browser in. Receipt retained; do not republish.",
+    );
+  if (platform === "tiktok") {
+    if (
+      await page
+        .getByText("Drag the slider to fit the puzzle", { exact: true })
+        .isVisible()
+        .catch(() => false)
+    )
+      throw new VerificationSetupError(
+        "TikTok requires an interactive verification challenge. Complete it in your browser and save a working owner session; the existing receipt is retained. Do not republish.",
+      );
+  }
+  // Public pages often have a Sign in button. Only explicit blocking notices qualify.
+  if (
+    await page
+      .getByRole("heading", {
+        name: /^(?:session expired|your session has expired|verify you are human|security check)$/i,
+      })
+      .first()
+      .isVisible()
+      .catch(() => false)
+  )
+    throw new VerificationSetupError(
+      "Observer session expired or requires an interactive challenge. Receipt retained; do not republish.",
+    );
+}
+
 async function discover(page: Page, s: Materialized, account: Account): Promise<string> {
-  await page.goto(account.observer.profileUrl, { waitUntil: "domcontentloaded" });
   if (s.platform === "tiktok") await assertTikTokNotLoginPage(page);
   const surface = observerSurface(s.platform, account);
   const card = page.locator(surface.root).filter({ hasText: s.token });
-  await expect(card, "Find the exact run marker in a post on the configured profile").toHaveCount(1);
+  await verificationExpect()(card, "Find the exact run marker in a post on the configured profile").toHaveCount(1);
   const links = await card.locator("a[href]").evaluateAll((nodes) => nodes.map((n) => (n as HTMLAnchorElement).href));
   const url = links.find(
     (h) => allowedHost(s.platform, h, account) && /\/(status|post|p|reel|photo|video|pin)\//.test(h),
@@ -289,17 +398,20 @@ async function assertText(locator: Locator, expected: string, label: string) {
         .join(" "),
     );
   if (expected === "") {
-    if (await locator.count()) expect(normalized(await readText()), label).toBe("");
+    if (await locator.count()) verificationExpect()(normalized(await readText()), label).toBe("");
     return;
   }
-  await expect
-    .poll(async () => normalized(await readText()), { message: label, timeout: 15_000 })
-    .toContain(normalized(expected));
+  await verificationPoll(async () => normalized(await readText()), { message: label, timeout: 15_000 }).toContain(
+    normalized(expected),
+  );
 }
 async function verifyImageElement(img: Locator, key: string, label: string) {
   const src = await img.getAttribute("src");
   if (src && /^https:\/\//.test(src)) {
-    const response = await fetch(src, { redirect: "error", signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(src, {
+      redirect: "error",
+      signal: verificationScope.getStore()?.signal ?? AbortSignal.timeout(30_000),
+    });
     if (!response.ok) throw new Error(`Platform image unavailable (${response.status})`);
     await verifyFixtureImage(Buffer.from(await response.arrayBuffer()), key, label);
     return;
@@ -307,6 +419,15 @@ async function verifyImageElement(img: Locator, key: string, label: string) {
   await verifyFixtureImage(await img.screenshot(), key, label);
 }
 export async function verifyPage(page: Page, s: Materialized, account: Account): Promise<void> {
+  await assertObserverReady(page, s.platform);
+  if (
+    s.platform === "threads" &&
+    (await page.getByText("Not all who wander are lost, but this page is", { exact: true }).isVisible())
+  ) {
+    const error = new VerificationHttpError(404);
+    error.message = "Threads reports that the saved post permalink is unavailable; receipt retained, do not republish.";
+    throw error;
+  }
   const cfg = observerSurface(s.platform, account);
   const roots = page.locator(cfg.root);
   // Logged-out Facebook video permalinks currently render the player without
@@ -326,66 +447,66 @@ export async function verifyPage(page: Page, s: Materialized, account: Account):
             `a[href=${JSON.stringify(new URL(page.url()).pathname)}], a[href=${JSON.stringify(page.url())}]`,
           ),
         })
-      : s.thread || !s.expectedText
-        ? roots.first()
-        : roots.filter({ hasText: s.token });
-  if (s.platform === "youtube" || s.platform === "instagram") {
-    await expect
-      .poll(
+      : s.platform === "threads"
+        ? threadsPostRoot(page, roots)
+        : s.thread || !s.expectedText
+          ? roots.first()
+          : roots.filter({ hasText: s.token });
+  await verificationAssertion("Exactly one platform post must be identified", async () => {
+    if (s.platform === "youtube" || s.platform === "instagram") {
+      await verificationPoll(
         async () => {
           await dismissCookieConsent(page);
           await dismissLoggedOutPrompt(page);
           return root.count();
         },
         { message: "Exactly one platform post must be identified", timeout: 15_000 },
-      )
-      .toBe(1);
-  } else await expect(root, "Exactly one platform post must be identified").toHaveCount(1);
-  await expect(root).toBeVisible();
+      ).toBe(1);
+    } else await verificationExpect()(root, "Exactly one platform post must be identified").toHaveCount(1);
+  });
+  await verificationExpect()(root).toBeVisible();
   const author = root.locator(cfg.author);
   const identity = account.username.replace(/^@/, "").toLowerCase();
-  await expect
-    .poll(
-      async () => {
-        const names = (await author.allTextContents()).map((t) => t.trim().replace(/^@/, "").toLowerCase());
-        const hrefs = await author.evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href") ?? ""));
-        if (s.platform === "linkedin") {
-          const profile = new URL(account.observer.profileUrl);
-          const canonical = (url: URL) => decodeURIComponent(url.pathname).replace(/\/$/, "").toLowerCase();
-          const expected = canonical(profile);
-          if (!/^\/in\/[^/]+$/.test(expected))
-            throw new VerificationSetupError("LinkedIn requires the exact configured /in/ author profile URL.");
-          return hrefs.some((href) => {
-            try {
-              const url = new URL(href, page.url());
-              return allowedHost("linkedin", url.href, account) && canonical(url) === expected;
-            } catch {
-              return false;
-            }
-          });
-        }
-        return (
-          names.includes(identity) ||
-          hrefs.some((h) => {
-            try {
-              const url = new URL(h, page.url());
-              if (!allowedHost(s.platform, url.href, account)) return false;
-              return (
-                url.pathname.replace(/\/$/, "") === new URL(account.observer.profileUrl).pathname.replace(/\/$/, "") ||
-                decodeURIComponent(url.pathname)
-                  .toLowerCase()
-                  .split("/")
-                  .some((part) => part.replace(/^@/, "") === identity)
-              );
-            } catch {
-              return false;
-            }
-          })
-        );
-      },
-      { message: "Platform post must belong to the configured test account", timeout: 15_000 },
-    )
-    .toBe(true);
+  await verificationPoll(
+    async () => {
+      const names = (await author.allTextContents()).map((t) => t.trim().replace(/^@/, "").toLowerCase());
+      const hrefs = await author.evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href") ?? ""));
+      if (s.platform === "linkedin") {
+        const profile = new URL(account.observer.profileUrl);
+        const canonical = (url: URL) => decodeURIComponent(url.pathname).replace(/\/$/, "").toLowerCase();
+        const expected = canonical(profile);
+        if (!/^\/in\/[^/]+$/.test(expected))
+          throw new VerificationSetupError("LinkedIn requires the exact configured /in/ author profile URL.");
+        return hrefs.some((href) => {
+          try {
+            const url = new URL(href, page.url());
+            return allowedHost("linkedin", url.href, account) && canonical(url) === expected;
+          } catch {
+            return false;
+          }
+        });
+      }
+      return (
+        names.includes(identity) ||
+        hrefs.some((h) => {
+          try {
+            const url = new URL(h, page.url());
+            if (!allowedHost(s.platform, url.href, account)) return false;
+            return (
+              url.pathname.replace(/\/$/, "") === new URL(account.observer.profileUrl).pathname.replace(/\/$/, "") ||
+              decodeURIComponent(url.pathname)
+                .toLowerCase()
+                .split("/")
+                .some((part) => part.replace(/^@/, "") === identity)
+            );
+          } catch {
+            return false;
+          }
+        })
+      );
+    },
+    { message: "Platform post must belong to the configured test account", timeout: 15_000 },
+  ).toBe(true);
   await verifyContent(page, root, s, account);
 }
 async function verifyContent(page: Page, root: Locator, s: Materialized, account: Account) {
@@ -399,7 +520,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
         : root.locator(cfg.text);
   await assertText(textLocator, platformText, "Platform caption must match the requested content");
   if (s.platform === "telegram" && s.media.length > 1)
-    expect(
+    verificationExpect()(
       normalized((await root.locator(cfg.text).allTextContents()).join(" ")),
       "Album caption must appear exactly once",
     ).toBe(normalized(s.expectedText));
@@ -410,20 +531,22 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
   const imageCount = s.media.length - videoCount;
   const instagramCarousel = s.platform === "instagram" && imageCount > 1 && !videoCount;
   const webAlbum = s.platform === "telegram" && s.media.length > 1 && account.observer.telegramWeb;
-  if (webAlbum) await verifyTelegramWebAlbum(page, root, s, webAlbum.botPeerId);
+  if (webAlbum)
+    await verifyTelegramWebAlbum(page, root, s, webAlbum.botPeerId, undefined, verificationScope.getStore());
   if (s.platform === "telegram" && account.observer.telegramWeb && s.options.replyTo)
-    await verifyTelegramWebReply(root, account.resources);
+    await verifyTelegramWebReply(root, account.resources, undefined, verificationScope.getStore());
   if (s.platform === "telegram" && s.media.length > 1 && !webAlbum) {
     // An album has one caption and a sequence of attachments. Check interleaving too:
     // independently counting images/videos would accept a reordered mixed album.
     const items = root.locator(account.observer.mediaItems ?? `${cfg.images}, ${cfg.video}`);
-    await expect(items, "Every Telegram album attachment must be present").toHaveCount(s.media.length);
+    await verificationExpect()(items, "Every Telegram album attachment must be present").toHaveCount(s.media.length);
     for (const [index, key] of s.media.entries()) {
       const item = items.nth(index);
       if (isVideoFixture(key))
-        expect(await item.evaluate((n) => n instanceof HTMLVideoElement), `Album item ${index + 1} must be video`).toBe(
-          true,
-        );
+        verificationExpect()(
+          await item.evaluate((n) => n instanceof HTMLVideoElement),
+          `Album item ${index + 1} must be video`,
+        ).toBe(true);
       else await verifyFixtureImage(await item.screenshot(), key, `Album item ${index + 1}`);
     }
   }
@@ -431,9 +554,9 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
     const images = root.locator(cfg.images);
     // Count only content images, never avatars; carousel controls can provide an exact count
     // when a platform mounts one image at a time (configure fields.mediaCount).
-    if (account.observer.fields.mediaCount) await expect(images.first()).toBeVisible();
-    else await expect(images).toHaveCount(imageCount);
-    await expect(images.first()).toBeVisible();
+    if (account.observer.fields.mediaCount) await verificationExpect()(images.first()).toBeVisible();
+    else await verificationExpect()(images).toHaveCount(imageCount);
+    await verificationExpect()(images.first()).toBeVisible();
     // Solid-color original fixtures make order assertions independent of captions and CDN URLs.
     const keys = s.media.filter((key) => !isVideoFixture(key));
     for (let index = 0; index < keys.length; index++) {
@@ -444,7 +567,7 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
       // fixture cannot be fingerprinted after publication. The saved
       // derivative is independently checked for its byte limit and this
       // assertion still proves that the provider rendered the attachment.
-      if (s.imageFit && keys[index] === "fitNoise") await expect(img).toBeVisible();
+      if (s.imageFit && keys[index] === "fitNoise") await verificationExpect()(img).toBeVisible();
       else await verifyImageElement(img, keys[index], `Carousel photo ${index + 1}`);
       if (instagramCarousel) {
         const next = root.getByRole("button", { name: "Next", exact: true });
@@ -453,19 +576,17 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
           // The dialog hides the background carousel from role queries, even
           // though its images remain in the DOM. Dismiss it during this bounded
           // wait instead of repeatedly navigating before consent appears.
-          await expect
-            .poll(
-              async () => {
-                await dismissCookieConsent(page);
-                await dismissLoggedOutPrompt(page);
-                return next.isVisible();
-              },
-              { message: "Instagram carousel must expose the next requested slide", timeout: 15_000 },
-            )
-            .toBe(true);
+          await verificationPoll(
+            async () => {
+              await dismissCookieConsent(page);
+              await dismissLoggedOutPrompt(page);
+              return next.isVisible();
+            },
+            { message: "Instagram carousel must expose the next requested slide", timeout: 15_000 },
+          ).toBe(true);
           await next.click();
-          await expect(images.nth(index + 1)).toBeInViewport({ ratio: 0.9 });
-        } else await expect(next, "Instagram carousel must not contain extra slides").toHaveCount(0);
+          await verificationExpect()(images.nth(index + 1)).toBeInViewport({ ratio: 0.9 });
+        } else await verificationExpect()(next, "Instagram carousel must not contain extra slides").toHaveCount(0);
       }
       if (account.observer.nextImage && index < keys.length - 1) await page.locator(account.observer.nextImage).click();
     }
@@ -477,21 +598,29 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
           (!n.complete || n.naturalWidth === 0),
       ),
     );
-    expect(broken, "All rendered post images must have loaded").toBe(false);
+    verificationExpect()(broken, "All rendered post images must have loaded").toBe(false);
   }
   if (videoCount && !webAlbum) {
     const videos = root.locator(cfg.video);
-    await expect(videos, "Every requested video must be present").toHaveCount(videoCount);
+    const videoKeys = s.media.filter((key) => isVideoFixture(key));
+    await verificationAssertion("Every requested video must be present", () =>
+      verificationExpect()(videos, "Every requested video must be present").toHaveCount(videoCount),
+    );
     for (let index = 0; index < videoCount; index++) {
       const video = videos.nth(index);
-      await expect(video).toBeVisible();
-      await expect
-        .poll(() => video.evaluate((n) => n instanceof HTMLVideoElement && n.readyState >= 2 && n.videoWidth > 0), {
+      await verificationExpect()(video).toBeVisible();
+      await verificationPoll(
+        () => video.evaluate((n) => n instanceof HTMLVideoElement && n.readyState >= 2 && n.videoWidth > 0),
+        {
           message: "Video must be processed and playable",
           timeout: 30_000,
-        })
-        .toBe(true);
-      expect(await video.evaluate((n) => (n as HTMLVideoElement).duration), "Fixture video duration").toBeCloseTo(4, 0);
+        },
+      ).toBe(true);
+      // Each generated fixture has a known source duration (4 s originals, 30 s upload fixture).
+      verificationExpect()(
+        await video.evaluate((n) => (n as HTMLVideoElement).duration),
+        "Fixture video duration",
+      ).toBeCloseTo(fixtureDurationSec(videoKeys[index])!, 0);
     }
   }
   const required = {
@@ -505,43 +634,67 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
       // post. Match the immediate predecessor, never any earlier ancestor or a
       // recommendation appearing below the reply.
       const parent = root.locator("xpath=preceding::article[1]");
-      await expect(parent, "X reply must display its immediate parent").toHaveCount(1);
-      await expect(parent, "X reply parent must be visible").toBeVisible();
-      await expect
-        .poll(
-          async () => {
-            const hrefs = await parent
-              .locator("a[href]")
-              .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href") ?? ""));
-            return [
-              ...new Set(
-                hrefs.flatMap((href) => {
-                  const url = new URL(href, page.url());
-                  const match = url.pathname.match(/^\/[^/]+\/status\/(\d+)\/?$/);
-                  return allowedHost("x", url.href, account) && match ? [match[1]] : [];
-                }),
-              ),
-            ];
-          },
-          { message: "X reply must be attached to the requested direct parent", timeout: 15_000 },
-        )
-        .toEqual([String(value)]);
+      await verificationExpect()(parent, "X reply must display its immediate parent").toHaveCount(1);
+      await verificationExpect()(parent, "X reply parent must be visible").toBeVisible();
+      await verificationPoll(
+        async () => {
+          const hrefs = await parent
+            .locator("a[href]")
+            .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href") ?? ""));
+          return [
+            ...new Set(
+              hrefs.flatMap((href) => {
+                const url = new URL(href, page.url());
+                const match = url.pathname.match(/^\/[^/]+\/status\/(\d+)\/?$/);
+                return allowedHost("x", url.href, account) && match ? [match[1]] : [];
+              }),
+            ),
+          ];
+        },
+        { message: "X reply must be attached to the requested direct parent", timeout: 15_000 },
+      ).toEqual([String(value)]);
       continue;
     }
-    const probe = account.observer.fields[key];
+    const probe = cfg.fields[key];
     if (!probe)
       throw new Error(`NEEDS VERIFICATION: ${s.platform}.${key} has no platform-side observation configured.`);
+    if (
+      s.platform === "threads" &&
+      key === "replyToId" &&
+      probe.selector.replace(/\s/g, "") === formerThreadsReplySelector.replace(/\s/g, "")
+    ) {
+      const expected = threadsPostPath(probe.values?.[JSON.stringify(value)] ?? probe.values?.[String(value)] ?? "");
+      if (!expected)
+        throw new VerificationSetupError(
+          "Threads reply verification requires a mapped parent permalink for replyToId.",
+        );
+      await verificationAssertion("Threads reply must be attached to the requested direct parent", () =>
+        verificationPoll(() => threadsDirectParentPaths(page, root), {
+          message: "Threads reply must be attached to the requested direct parent",
+          timeout: 15_000,
+        }).toEqual([expected]),
+      );
+      continue;
+    }
     if (s.platform === "pinterest" && key === "link") {
       const destination = new URL(String(value));
-      await expect(
-        page.getByRole("button", { name: "Visit", exact: true }),
-        "Pinterest Pin must expose its external destination control",
-      ).toBeVisible();
-      await assertText(
-        page.locator("body"),
-        destination.hostname,
-        "Pinterest Pin must display the requested destination host",
-      );
+      const visit = root.locator('[data-test-id="visit-button"]');
+      await verificationExpect()(visit, "Pinterest Pin must expose its external destination control").toBeVisible();
+      const href = await visit.getAttribute("href");
+      let actual: URL;
+      try {
+        actual = new URL(href ?? "");
+      } catch {
+        throw new Error("Pinterest Pin must preserve the requested external destination");
+      }
+      if (
+        actual.protocol !== "https:" ||
+        actual.username ||
+        actual.password ||
+        actual.hostname !== destination.hostname ||
+        actual.pathname !== destination.pathname
+      )
+        throw new Error("Pinterest Pin must preserve the requested external destination");
       continue;
     }
     const locator = (probe.scope === "page" ? page : root).locator(probe.selector);
@@ -550,11 +703,16 @@ async function verifyContent(page: Page, root: Locator, s: Materialized, account
       probe.values?.[String(value)] ??
       (Array.isArray(value) ? value.join(", ") : String(value));
     if (key === "thumbnailImage") {
-      await expect(locator).toBeVisible();
+      await verificationExpect()(locator).toBeVisible();
       await verifyImageElement(locator, String(value), "Published thumbnail");
-    } else if (probe.count) await expect(locator).toHaveCount(Number(expected));
-    else if (probe.attribute) await expect(locator).toHaveAttribute(probe.attribute, expected);
-    else await expect(locator).toHaveText(expected);
+    } else if (probe.count) await verificationExpect()(locator).toHaveCount(Number(expected));
+    else if (probe.attribute && s.platform === "pinterest" && key === "altText") {
+      await verificationPoll(
+        async () => (await locator.getAttribute(probe.attribute!))?.replace(/^This contains:\s*/i, "").trim(),
+        { message: "Pinterest Pin must preserve the requested alt text" },
+      ).toBe(expected);
+    } else if (probe.attribute) await verificationExpect()(locator).toHaveAttribute(probe.attribute, expected);
+    else await verificationExpect()(locator).toHaveText(expected);
   }
 }
 export async function verifyOnPlatform(
@@ -569,231 +727,370 @@ export async function verifyOnPlatform(
   if (s.platform === "telegram") assertTelegramObserver(account);
   const linkedinPublic = s.platform === "linkedin" && s.expectedFields.visibility === "PUBLIC";
   const tiktokPublic = s.platform === "tiktok" && s.expectedFields.privacyLevel === "PUBLIC_TO_EVERYONE";
-  const context = await browser.newContext({
-    storageState: linkedinPublic || tiktokPublic ? { cookies: [], origins: [] } : account.observer.storageState,
-    locale: "en-US",
-    viewport: { width: 1440, height: 1100 },
-  });
-  const page = await context.newPage();
-  const evidence: string[] = [];
-  let lastError: unknown;
-  const deadline = Date.now() + config.verifyTimeoutMs;
-  try {
-    do {
-      try {
-        const telegramWeb = s.platform === "telegram" ? account.observer.telegramWeb : undefined;
-        const url = telegramWeb
-          ? `https://web.telegram.org/k/#@${telegramWeb.botUsername}`
-          : s.options.publishMode === "draft"
-            ? account.observer.inboxUrl!
-            : (postUrl(s, account, result) ?? (await discover(page, s, account)));
-        if (!allowedHost(s.platform, url, account)) throw new Error("Unexpected platform verification URL");
-        const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
-        if (response && response.status() >= 400) throw new Error(`Platform page returned ${response.status()}`);
-        await dismissCookieConsent(page);
-        await dismissLoggedOutPrompt(page);
-        if (s.platform === "tiktok") await assertTikTokNotLoginPage(page);
-        if (
-          s.platform === "telegram" &&
-          new URL(page.url()).hostname === "t.me" &&
-          (await page
-            .getByText(/Channel with username .+ not found|Post not found/i)
-            .first()
-            .isVisible())
-        )
-          throw new VerificationSetupError(
-            "Telegram cannot show this channel/message. Check the verification destination; private chats require Telegram Web. The post receipt is saved—do not republish.",
-          );
-        if (!allowedHost(s.platform, page.url(), account))
-          throw new Error("Platform redirected away from the expected host");
-        if (s.options.publishMode !== "draft" && !isPostUrl(s.platform, page.url()))
-          throw new Error("Platform redirected to a profile/login page instead of the actual post");
-        if (s.options.publishMode !== "draft") assertPostId(s.platform, page.url(), result.postId);
-        for (const selector of account.observer.open) await page.locator(selector).click();
-        const browserScenario = { ...s, expectedFields: { ...s.expectedFields } };
-        // Viewing the exact post with no account session proves public access.
-        // All identity, content, playback and receipt checks still run below.
-        if (tiktokPublic) delete browserScenario.expectedFields.privacyLevel;
-        let browserAccount = account;
-        let linkedinVisibilityProof:
-          | {
-              source: "unauthenticated-public-view";
-              platformPostId: string;
-              author: string;
-              connectedAccountId: string;
-            }
-          | undefined;
-        if (linkedinPublic) {
-          expect(result.postId, "PUBLIC guest proof needs an exact LinkedIn receipt URN").toMatch(
-            /^urn:li:(?:share|ugcPost|activity):\d+$/,
-          );
-          const data = await new SchedulerApi(config).request<{
-            accounts: {
-              id: string;
-              userId: string;
-              platform: string;
-              platformAccountId: string;
-              displayName: string;
-            }[];
-          }>("/api/v1/accounts");
-          const connected = data.accounts.find((a) => a.id === account.id);
-          expect(connected, "LinkedIn account must belong to the current test user").toMatchObject({
-            id: account.id,
-            userId: config.userId,
-            platform: "linkedin",
-            platformAccountId: account.platformAccountId,
-          });
-          expect(
-            connected?.displayName,
-            "LinkedIn guest author needs the connected account's exact display name",
-          ).toBeTruthy();
-          browserAccount = { ...account, username: connected!.displayName };
-          const cfg = { ...surfaces.linkedin, ...account.observer };
-          const root = page.locator(cfg.root).filter({ hasText: s.token });
-          await expect
-            .poll(
-              async () =>
-                (await root.locator(cfg.author).allTextContents())
-                  .map(normalized)
-                  .filter((name) => name === normalized(connected!.displayName)).length,
-              { message: "Guest post author must exactly match the connected account", timeout: 15_000 },
-            )
-            .toBe(1);
-          delete browserScenario.expectedFields.visibility;
-          linkedinVisibilityProof = {
-            source: "unauthenticated-public-view",
-            platformPostId: result.postId!,
-            author: connected!.displayName,
-            connectedAccountId: account.id,
-          };
-        }
-        let youtube: YouTubeVerification | undefined;
-        if (s.platform === "youtube" && (account.observer.youtubeAccessTokenEnv || account.observer.youtubeReadback)) {
-          youtube = await verifyYouTubeMetadata(s, account, result, config);
-          for (const key of youtube.verifiedFields) delete browserScenario.expectedFields[key];
-        }
-        let privateNotice: string | undefined;
-        let webMessageId: string | undefined;
-        let telegramRoot: Locator | undefined;
-        if (telegramWeb) {
-          if (!window)
-            throw new VerificationSetupError("Telegram Web verification requires the journal's submission timestamps.");
-          const matched = await telegramWebMessage(page, browserScenario, account, window);
-          webMessageId = matched.id;
-          telegramRoot = matched.root;
-          await verifyContent(page, telegramRoot, browserScenario, account);
-        } else if (youtube?.privateMediaProof) {
-          expect(
-            Object.keys(browserScenario.expectedFields),
-            "Every private video setting must have owner API proof",
-          ).toEqual([]);
-          const notice = page
-            .locator(
-              "#movie_player .ytp-error-content-wrap, ytd-watch-flexy #error-screen yt-player-interstitial-renderer",
-            )
-            .filter({ hasText: /private video|video is private/i })
-            .first();
-          await expect
-            .poll(
-              async () => {
-                await dismissCookieConsent(page);
-                return notice.isVisible();
-              },
-              { message: "Actual YouTube player must show the private-video view", timeout: 15_000 },
-            )
-            .toBe(true);
-          await expect(notice).toContainText(/private video|video is private/i);
-          privateNotice = normalized(await notice.innerText());
-        } else await verifyPage(page, browserScenario, browserAccount);
-        // Consent can navigate after the initial URL checks. Bind the final
-        // observed content to the same platform permalink and receipt as well.
-        if (!telegramWeb && s.options.publishMode !== "draft") {
-          if (!allowedHost(s.platform, page.url(), account) || !isPostUrl(s.platform, page.url()))
-            throw new Error("Platform observation is no longer on the actual post");
-          assertPostId(s.platform, page.url(), result.postId);
-          if (linkedinPublic)
-            expect(
-              decodeURIComponent(new URL(page.url()).pathname).replace(/\/$/, ""),
-              "Guest view must remain on the exact receipt permalink",
-            ).toBe(`/feed/update/${result.postId}`);
-        }
-        const file = path.join(dir, `${s.token}-platform.png`);
-        if (telegramRoot) await telegramRoot.screenshot({ path: file });
-        else await page.screenshot({ path: file, fullPage: true });
-        evidence.push(file);
-        await writeFile(
-          path.join(dir, `${s.token}-observed.json`),
-          JSON.stringify(
-            {
-              url: page.url(),
-              observedAt: new Date().toISOString(),
-              fields: s.expectedFields,
-              text: s.expectedText,
-              verificationMode: youtube?.privateMediaProof
-                ? "private-view/ownerAPI"
-                : linkedinVisibilityProof || tiktokPublic
-                  ? "unauthenticated-public-view"
-                  : "browser-visual",
-              ...(linkedinVisibilityProof ? { linkedinVisibilityProof, observerAuthenticated: false } : {}),
-              ...(tiktokPublic
-                ? {
-                    observerAuthenticated: false,
-                    tiktokVisibilityProof: {
-                      source: "unauthenticated-public-view",
-                      platformPostId: result.postId,
-                      author: account.username,
-                      connectedAccountId: account.id,
-                    },
-                  }
-                : {}),
-              ...(youtube?.privateMediaProof
-                ? {
-                    publicVisualProof: false,
-                    youtubeOwnerMediaProof: youtube.privateMediaProof,
-                    browserPrivateNotice: privateNotice,
-                  }
-                : {}),
-              ...(webMessageId
-                ? {
-                    telegramWebMessageId: webMessageId,
-                    platformPostId: result.postId,
-                    botPeerId: telegramWeb!.botPeerId,
-                    recipientId: account.platformAccountId,
-                  }
-                : {}),
-            },
-            null,
-            2,
-          ),
-          { mode: 0o600 },
-        );
-        return evidence;
-      } catch (error) {
-        if (error instanceof VerificationSetupError) throw error;
-        if (
-          s.platform === "tiktok" &&
-          (await page
-            .getByText("Drag the slider to fit the puzzle", { exact: true })
-            .isVisible()
-            .catch(() => false))
-        )
-          throw new VerificationSetupError(
-            "TikTok requires an interactive verification challenge. Complete it in your browser and save a working owner session; the existing receipt is retained. Do not republish.",
-          );
-        lastError = error;
-        console.log(
-          `[${s.id}] Waiting for platform verification (${Math.max(0, Math.ceil((deadline - Date.now()) / 1000))}s remaining): ${redact((error as Error).message).split("\n")[0]}`,
-        );
-      }
-      if (Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5000));
-    } while (Date.now() < deadline);
-    throw new Error(
-      `Platform verification failed; do not republish: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  if (
+    s.platform === "tiktok" &&
+    s.options.publishMode !== "draft" &&
+    !account.observer.root &&
+    !postUrl(s, account, result)
+  )
+    throw new VerificationSetupError(
+      "TikTok returned a publish handle without a public post URL. Supply the exact post permalink via postUrlTemplate " +
+        "or configure a calibrated profile observer; the default detail-page selectors cannot discover profile posts. " +
+        "Receipt retained; do not republish.",
     );
+  const deadline = Date.now() + config.verifyTimeoutMs;
+  let context: BrowserContext | undefined;
+  let lastError: unknown;
+  let activeAssertion: Error | undefined;
+  const abort = new AbortController();
+  let interrupted: unknown;
+  let closing: Promise<void> | undefined;
+  const interrupt = (error: unknown) => {
+    if (interrupted) return;
+    interrupted = error;
+    abort.abort(error);
+    if (context) closing = context.close().catch(() => {});
+  };
+  const timer = setTimeout(
+    () => interrupt(new VerificationDeadlineError(activeAssertion ?? lastError)),
+    Math.max(1, deadline - Date.now()),
+  );
+  let monitor: ReturnType<typeof setInterval> | undefined;
+  let monitoring: Promise<void> | undefined;
+  try {
+    context = await browser.newContext({
+      storageState: linkedinPublic || tiktokPublic ? { cookies: [], origins: [] } : account.observer.storageState,
+      locale: "en-US",
+      viewport: { width: 1440, height: 1100 },
+    });
+    if (interrupted || Date.now() >= deadline) throw interrupted ?? new VerificationDeadlineError(lastError);
+    const page = await context.newPage();
+    if (interrupted || Date.now() >= deadline) throw interrupted ?? new VerificationDeadlineError(lastError);
+    monitor = setInterval(() => {
+      if (!monitoring && !interrupted) {
+        monitoring = assertObserverReady(page, s.platform)
+          .catch(interrupt)
+          .finally(() => {
+            monitoring = undefined;
+          });
+      }
+    }, 250);
+    return await verificationScope.run(
+      {
+        deadline,
+        signal: abort.signal,
+        onFailure: (error) => {
+          lastError = error;
+        },
+        onAssertion: (error) => {
+          activeAssertion = error;
+        },
+      },
+      async () => {
+        const evidence: string[] = [];
+        let target: string | undefined;
+        let loadedTarget: string | undefined;
+        let lastNavigation = 0;
+        let pollsSinceNavigation = 0;
+        let reload = false;
+        const opened = new Set<string>();
+        let rateLimits = 0;
+        const navigate = async (url: string) => {
+          if (loadedTarget === url && !reload) return;
+          if (!allowedHost(s.platform, url, account)) throw new Error("Unexpected platform verification URL");
+          loadedTarget = undefined;
+          opened.clear();
+          lastNavigation = Date.now();
+          pollsSinceNavigation = 0;
+          reload = false;
+          const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: remainingTimeout(30_000) });
+          await assertObserverReady(page, s.platform);
+          if (response && response.status() >= 400) {
+            if ([401, 403].includes(response.status()))
+              throw new VerificationSetupError(
+                `Platform page returned ${response.status()}; observer access is denied. Receipt retained; do not republish.`,
+              );
+            throw new VerificationHttpError(response.status(), response.headers()["retry-after"]);
+          }
+          loadedTarget = url;
+        };
+        do {
+          try {
+            const telegramWeb = s.platform === "telegram" ? account.observer.telegramWeb : undefined;
+            remainingTimeout();
+            page.setDefaultTimeout(remainingTimeout());
+            page.setDefaultNavigationTimeout(remainingTimeout(30_000));
+            target ??= telegramWeb
+              ? `https://web.telegram.org/k/#@${telegramWeb.botUsername}`
+              : s.options.publishMode === "draft"
+                ? account.observer.inboxUrl!
+                : postUrl(s, account, result);
+            if (!target) {
+              await navigate(account.observer.profileUrl);
+              target = await discover(page, s, account);
+            }
+            await navigate(target);
+            await assertObserverReady(page, s.platform);
+            await dismissCookieConsent(page);
+            await dismissLoggedOutPrompt(page);
+            if (s.platform === "tiktok") await assertTikTokNotLoginPage(page);
+            if (
+              s.platform === "telegram" &&
+              new URL(page.url()).hostname === "t.me" &&
+              (await page
+                .getByText(/Channel with username .+ not found|Post not found/i)
+                .first()
+                .isVisible())
+            )
+              throw new VerificationSetupError(
+                "Telegram cannot show this channel/message. Check the verification destination; private chats require Telegram Web. The post receipt is saved—do not republish.",
+              );
+            if (!allowedHost(s.platform, page.url(), account))
+              throw new Error("Platform redirected away from the expected host");
+            if (s.options.publishMode !== "draft" && !isPostUrl(s.platform, page.url()))
+              throw new Error("Platform redirected to a profile/login page instead of the actual post");
+            if (s.options.publishMode !== "draft") assertPostId(s.platform, page.url(), result.postId);
+            for (const selector of account.observer.open) {
+              if (opened.has(selector)) continue;
+              await page.locator(selector).click();
+              opened.add(selector);
+            }
+            const browserScenario = { ...s, expectedFields: { ...s.expectedFields } };
+            // Viewing the exact post with no account session proves public access.
+            // All identity, content, playback and receipt checks still run below.
+            if (tiktokPublic) delete browserScenario.expectedFields.privacyLevel;
+            let browserAccount = account;
+            let linkedinVisibilityProof:
+              | {
+                  source: "unauthenticated-public-view";
+                  platformPostId: string;
+                  author: string;
+                  connectedAccountId: string;
+                }
+              | undefined;
+            if (linkedinPublic) {
+              verificationExpect()(result.postId, "PUBLIC guest proof needs an exact LinkedIn receipt URN").toMatch(
+                /^urn:li:(?:share|ugcPost|activity):\d+$/,
+              );
+              const data = await schedulerRead<{
+                accounts: {
+                  id: string;
+                  userId: string;
+                  platform: string;
+                  platformAccountId: string;
+                  displayName: string;
+                }[];
+              }>(config, "/api/v1/accounts");
+              const connected = data.accounts.find((a) => a.id === account.id);
+              verificationExpect()(connected, "LinkedIn account must belong to the current test user").toMatchObject({
+                id: account.id,
+                userId: config.userId,
+                platform: "linkedin",
+                platformAccountId: account.platformAccountId,
+              });
+              verificationExpect()(
+                connected?.displayName,
+                "LinkedIn guest author needs the connected account's exact display name",
+              ).toBeTruthy();
+              browserAccount = { ...account, username: connected!.displayName };
+              const cfg = { ...surfaces.linkedin, ...account.observer };
+              const root = page.locator(cfg.root).filter({ hasText: s.token });
+              await verificationPoll(
+                async () =>
+                  (await root.locator(cfg.author).allTextContents())
+                    .map(normalized)
+                    .filter((name) => name === normalized(connected!.displayName)).length,
+                { message: "Guest post author must exactly match the connected account", timeout: 15_000 },
+              ).toBe(1);
+              delete browserScenario.expectedFields.visibility;
+              linkedinVisibilityProof = {
+                source: "unauthenticated-public-view",
+                platformPostId: result.postId!,
+                author: connected!.displayName,
+                connectedAccountId: account.id,
+              };
+            }
+            let youtube: YouTubeVerification | undefined;
+            if (
+              s.platform === "youtube" &&
+              (account.observer.youtubeAccessTokenEnv || account.observer.youtubeReadback)
+            ) {
+              youtube = await verifyYouTubeMetadata(s, account, result, config, verificationScope.getStore());
+              remainingTimeout();
+              for (const key of youtube.verifiedFields) delete browserScenario.expectedFields[key];
+            }
+            let privateNotice: string | undefined;
+            let webMessageId: string | undefined;
+            let telegramRoot: Locator | undefined;
+            if (telegramWeb) {
+              if (!window)
+                throw new VerificationSetupError(
+                  "Telegram Web verification requires the journal's submission timestamps.",
+                );
+              const matched = await telegramWebMessage(
+                page,
+                browserScenario,
+                account,
+                window,
+                verificationScope.getStore(),
+              );
+              remainingTimeout();
+              webMessageId = matched.id;
+              telegramRoot = matched.root;
+              await verifyContent(page, telegramRoot, browserScenario, account);
+            } else if (youtube?.privateMediaProof) {
+              verificationExpect()(
+                Object.keys(browserScenario.expectedFields),
+                "Every private video setting must have owner API proof",
+              ).toEqual([]);
+              const notice = page
+                .locator(
+                  "#movie_player .ytp-error-content-wrap, ytd-watch-flexy #error-screen yt-player-interstitial-renderer",
+                )
+                .filter({ hasText: /private video|video is private/i })
+                .first();
+              await verificationPoll(
+                async () => {
+                  await dismissCookieConsent(page);
+                  return notice.isVisible();
+                },
+                { message: "Actual YouTube player must show the private-video view", timeout: 15_000 },
+              ).toBe(true);
+              await verificationExpect()(notice).toContainText(/private video|video is private/i);
+              privateNotice = normalized(await notice.innerText());
+            } else await verifyPage(page, browserScenario, browserAccount);
+            // Consent can navigate after the initial URL checks. Bind the final
+            // observed content to the same platform permalink and receipt as well.
+            if (!telegramWeb && s.options.publishMode !== "draft") {
+              if (!allowedHost(s.platform, page.url(), account) || !isPostUrl(s.platform, page.url()))
+                throw new Error("Platform observation is no longer on the actual post");
+              assertPostId(s.platform, page.url(), result.postId);
+              if (linkedinPublic)
+                verificationExpect()(
+                  decodeURIComponent(new URL(page.url()).pathname).replace(/\/$/, ""),
+                  "Guest view must remain on the exact receipt permalink",
+                ).toBe(`/feed/update/${result.postId}`);
+            }
+            const file = path.join(dir, `${s.token}-platform.png`);
+            if (telegramRoot) await telegramRoot.screenshot({ path: file });
+            else await page.screenshot({ path: file, fullPage: true });
+            remainingTimeout();
+            evidence.push(file);
+            await writeFile(
+              path.join(dir, `${s.token}-observed.json`),
+              JSON.stringify(
+                {
+                  url: page.url(),
+                  observedAt: new Date().toISOString(),
+                  browserVersion: browser.version?.(),
+                  fields: s.expectedFields,
+                  text: s.expectedText,
+                  verificationMode: youtube?.privateMediaProof
+                    ? "private-view/ownerAPI"
+                    : linkedinVisibilityProof || tiktokPublic
+                      ? "unauthenticated-public-view"
+                      : "browser-visual",
+                  ...(linkedinVisibilityProof ? { linkedinVisibilityProof, observerAuthenticated: false } : {}),
+                  ...(tiktokPublic
+                    ? {
+                        observerAuthenticated: false,
+                        tiktokVisibilityProof: {
+                          source: "unauthenticated-public-view",
+                          platformPostId: result.postId,
+                          author: account.username,
+                          connectedAccountId: account.id,
+                        },
+                      }
+                    : {}),
+                  ...(youtube?.privateMediaProof
+                    ? {
+                        publicVisualProof: false,
+                        youtubeOwnerMediaProof: youtube.privateMediaProof,
+                        browserPrivateNotice: privateNotice,
+                      }
+                    : {}),
+                  ...(webMessageId
+                    ? {
+                        telegramWebMessageId: webMessageId,
+                        platformPostId: result.postId,
+                        botPeerId: telegramWeb!.botPeerId,
+                        recipientId: account.platformAccountId,
+                      }
+                    : {}),
+                },
+                null,
+                2,
+              ),
+              { mode: 0o600 },
+            );
+            remainingTimeout();
+            await assertObserverReady(page, s.platform);
+            return evidence;
+          } catch (error) {
+            if (interrupted) {
+              if (
+                interrupted instanceof VerificationDeadlineError &&
+                error instanceof Error &&
+                !/closed|aborted/i.test(error.message)
+              )
+                throw new VerificationDeadlineError(error);
+              throw interrupted;
+            }
+            if (error instanceof VerificationSetupError) throw error;
+            // These owner-read helpers currently expose status only in their errors.
+            if (
+              error instanceof Error &&
+              /^(?:Scheduler GET .* failed|YouTube metadata read failed) \((?:401|403)\)/.test(error.message)
+            )
+              throw new VerificationSetupError(`Observer owner read is unauthorized: ${redact(error.message)}`);
+            await assertObserverReady(page, s.platform);
+            lastError = error;
+            const decision = verificationRetry({
+              error,
+              now: Date.now(),
+              deadline,
+              lastNavigation,
+              pollsSinceNavigation,
+              rateLimits,
+            });
+            if (!decision.retry) {
+              if (error instanceof VerificationHttpError && error.status === 429)
+                throw new VerificationSetupError(
+                  "Platform 429 rate-limit retry budget exhausted or Retry-After exceeds the remaining bounded wait. Receipt retained; do not republish.",
+                );
+              break;
+            }
+            if (error instanceof VerificationHttpError && error.status === 429) rateLimits++;
+            pollsSinceNavigation++;
+            reload = decision.reload;
+            console.log(
+              `[${s.id}] Waiting ${decision.delayMs}ms before ${reload ? "reloading" : "polling"} platform verification: ${redact((error as Error).message).split("\n")[0]}`,
+            );
+            await verificationSleep(decision.delayMs, verificationScope.getStore());
+          }
+        } while (Date.now() < deadline);
+        throw new Error(
+          `Platform verification failed; do not republish: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+        );
+      },
+    );
+  } catch (error) {
+    const remaining = deadline - Date.now();
+    if (!interrupted && remaining > 0) {
+      await context
+        ?.pages()[0]
+        ?.screenshot({
+          path: path.join(dir, `${s.token}-platform-last.png`),
+          fullPage: true,
+          timeout: Math.min(1000, remaining),
+        })
+        .catch(() => {});
+    }
+    throw error instanceof VerificationDeadlineError ? error : (interrupted ?? error);
   } finally {
-    await page
-      .screenshot({ path: path.join(dir, `${s.token}-platform-last.png`), fullPage: true, timeout: 5000 })
-      .catch(() => {});
-    await context.close();
+    clearTimeout(timer);
+    clearInterval(monitor);
+    await (closing ?? context?.close());
+    await monitoring;
   }
 }

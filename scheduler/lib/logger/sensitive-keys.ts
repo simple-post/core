@@ -7,6 +7,7 @@
 
 /** Exact key names redacted by the server `redact()` helper and pino config. */
 export const SENSITIVE_KEYS = [
+  "handoffToken",
   "accessToken",
   "refreshToken",
   "access_token",

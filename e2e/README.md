@@ -139,6 +139,12 @@ Telegram private chats cannot be verified through public `t.me/username/message`
 
 Live output distinguishes submission, saved receipts, publishing records, and platform verification. Verification retries report their reason; missing Telegram channels/messages fail immediately. A successful saved receipt is retained if platform verification fails or the run is interrupted. Resume using the same run ID after correcting the observer; do not create a new run just to check an existing post.
 
+Pinterest can show a blocking login form at the correct Pin permalink. Connecting the account in SimplePost does not sign the separate verification browser into Pinterest. Save its session with `yarn e2e:auth --chrome https://www.pinterest.com/ .local/auth/pinterest.json`; the default local config automatically discovers this file. Resume the original run to verify retained receipts. Public pages with only a harmless Log in button can still be verified without a session.
+
+Threads verification identifies the exact saved permalink through its timestamp link, including posts without captions. The formerly shipped positional `replyToId` probe is migrated to the immediately preceding conversation pagelet and compared with the configured parent permalink in `observer.fields.replyToId.values`. Intentional custom probes stay in effect. An unavailable post page remains incomplete even when publishing returned success. Threads publishing errors include sanitized stage, container IDs and provider codes; these diagnostics do not enable retries of ambiguous failures.
+
+The JSON report's `summary.platforms` separates `failedThisInvocation` from `lanePaused` and lists each pause reason with its interface counts. A paused case was skipped after an earlier failure; it is not an independently observed publishing failure. Existing coverage totals and the per-platform pause policy are preserved.
+
 The verifier navigates to a post permalink, checks it is on the intended platform, scopes assertions to the post, verifies the author, and compares captions, loaded images and their order, and video readiness. It saves screenshots and an observation record. It rejects login/profile pages as post permalinks. If the CLI returns only a non-public publishing handle, it attempts to discover the unique scenario marker on the configured profile; if it cannot identify exactly one post, verification fails without submitting again.
 
 Default selectors live in `src/verification/browser.ts`. Override an account's `observer.root`, `author`, `text`, `title`, `images`, or `video` when its platform markup differs. `observer.open` is an ordered array of selectors to click on the post page (for example expanding a caption or opening owner settings). `nextImage` advances a carousel that mounts only one photo at a time. Such carousels also need a `mediaCount` probe so visiting two slides cannot hide a third, unwanted slide.
@@ -195,7 +201,31 @@ Setup saves defaults for the interfaces you authenticated. Explicitly select int
 yarn e2e:live --platform tiktok --profile regression --interface mcp,cli-app,cli-local,ui
 ```
 
-Profiles are `smoke`, `full`, `regression`, `lifecycle`, and `negative`; `--all` is shorthand for `--profile full`. `--scenario` filters by scenario ID substring. `--platform` and `--interface` accept comma-separated names or repeated flags. `--config` selects another test configuration. `yarn e2e:live --help` and `yarn e2e:plan --help` list the options. Existing `E2E_*` variables remain supported; command-line options override matching variables. Missing accounts, expired sessions, permission gaps, and unmet field verifiers fail visibly. Unsupported interface combinations appear separately in the coverage matrix.
+Profiles are `smoke`, `full`, `regression`, `lifecycle`, `negative`, `validation`, and `uploads`; `--all` is shorthand for `--profile full`. The `uploads` profile is a separate large-original group described below; it is not part of `smoke` or `full`. `--scenario` filters by scenario ID substring. `--platform` and `--interface` accept comma-separated names or repeated flags. `--config` selects another test configuration. `yarn e2e:live --help` and `yarn e2e:plan --help` list the options. Existing `E2E_*` variables remain supported; command-line options override matching variables. Missing accounts, expired sessions, permission gaps, and unmet field verifiers fail visibly. Unsupported interface combinations appear separately in the coverage matrix.
+
+### Parallel platform lanes and faster verification
+
+Every selected platform runs concurrently by default, with one Playwright worker per platform. Each platform runs its UI, MCP and CLI cases sequentially, including after a worker restart. There is no CPU-based cap on the number of selected lanes. Omit `--platform` to run all platforms discovered by setup, or select a subset:
+
+```sh
+# Full catalog on every configured platform, all running concurrently:
+yarn e2e:live --all
+
+# Full catalog on just these three platforms, also concurrently:
+yarn e2e:live --platform telegram,instagram,bluesky --all
+```
+
+Project names in the Playwright report are platforms; nested groups and annotations identify interfaces. The full case matrix, customer upload paths, persisted options, image fitting assertions and native platform verification remain intact. Unsupported combinations are skipped before browser fixtures start.
+
+A case failure no longer stops unrelated platforms. A confirmed observer login/challenge problem or exhausted rate-limit allowance pauses its platform immediately. `platformFailureLimit` defaults to three consecutive failures before pausing that platform; a successful case resets that counter. Remaining cases in a paused lane are reported as **blocked**, not passed. Shared scheduler authentication failures, identity/payload inconsistencies and exhausted run budgets stop new work across all lanes. Already submitted work may still finish remotely; receipts are retained and uncertain submissions are never automatically retried. A daily platform budget pauses only that platform.
+
+Resuming with the same run ID performs preflight again, clears the selected lanes' pause markers and reuses verified results and accepted receipts. An uncertain submission still requires reconciliation. The existing invocation lock is supplemented by account leases in `runDir/.accounts`, preventing two runs from using the same platform account concurrently. Unresolved submissions and scheduled work retain an account quarantine after the run ends; the owning run can resume to reconcile existing work, but new cases cannot submit while another case on that account remains unresolved. Use the same `runDir` for configurations that share accounts or daily budgets. Stale invocation/account/credential leases and short transaction locks are not automatically removed: inspect their owner and pending receipts before clearing them. Blocked required coverage makes the command fail even when Playwright's only executed cases passed; unsupported combinations do not.
+
+`cli-app` uses its normal connected configuration. `cli-local` uses a private configuration per platform with only the selected account credential staged. Any refreshed credential is merged back under a short lock after the subprocess exits, without serializing publishing across platforms. Keep other CLI writers out of the dedicated test configuration during the run. Encrypted stores use the CLI's usual password environment variable; the harness never prompts or logs secrets. An interrupted credential refresh keeps private pending state for reconciliation. Completed private snapshots are removed during teardown.
+
+Budget reservation and ledger/report writes are protected against concurrent processes. Shared remote fixtures are staged once before workers start. Immutable fixture metadata is cached with change detection; scenario uploads still exercise their normal customer interface. Ordinary scheduler GET reads use `readTimeoutMs` (default 30 seconds), independently of the longer publishing/upload timeout. Native platform checks poll the current page before controlled reloads, retry eventual visibility and temporary server errors, and honor bounded `Retry-After` waits. Navigation and assertions share the overall verification deadline. Confirmed authentication problems fail promptly instead of consuming a three-minute retry loop.
+
+Each case attaches `stage-timings` to its Playwright report and saves them in its journal. Each run writes `setup-timing.json` and `timing-summary.json`, including wall time, per-platform stage totals and the 20 slowest cases. Upload is nested inside submission; stage totals are inclusive and parallel platform totals should not be added to estimate wall time. The aggregate report links to timing summaries for runs with recorded timings. These measurements show where subsequent optimization is worthwhile without changing the real scheduler's dispatch behavior.
 
 For example, preview just the Telegram mixed-album cases:
 
@@ -213,7 +243,7 @@ Scheduling cases create posts through MCP or UI, retain and inspect saved option
 
 Each `yarn e2e:live` invocation takes a private snapshot of the configuration for all workers and reporters. Configuration edits apply on the next invocation, including when resuming the same run ID.
 
-Each mutation has a durable journal entry before submission. Playwright runs one worker with **zero retries** and stops the batch on its first failure. To resume, repeat the same selection with `--run-id ID` using the ID printed by the original run. This continues verification of accepted receipts or finishes unstarted cases. Starting without that ID creates a new run and can publish additional posts. A changed scenario/account/deployment cannot silently reuse an old receipt. An interrupted submission with no receipt is marked ambiguous and is never automatically resubmitted.
+Each mutation has a durable journal entry before submission. Playwright runs one worker per selected platform with **zero retries**; platform pauses and global submission gates follow the rules above. To resume, repeat the same selection with `--run-id ID` using the ID printed by the original run. This continues verification of accepted receipts or finishes unstarted cases after pending work is reconciled. Starting without that ID creates a new run and can publish additional posts. A changed scenario/account/deployment cannot silently reuse an old receipt. An interrupted submission with no receipt is marked ambiguous and is never automatically resubmitted.
 
 For an interrupted positive submission with no receipt, recovery reads the complete published history in pages of 100, capped at 20 pages. It filters by the journal creation time and exact account, caption, media count, and successful account result, then checks saved options before recording a unique match. Invalid pagination, changing counts, duplicate matches, or an incomplete scan fail without recovering or resubmitting. Expected-error scenarios cannot recover a published receipt this way.
 
@@ -253,7 +283,7 @@ The `image-fit` group adds 30 scenarios / 66 supported interface combinations: 1
 
 Saved derivative bytes are downloaded and checked independently for format, dimensions, byte limits, crop/padding markers and unchanged compatible attachments. CLI source files and UI uploaded originals must survive unchanged. Existing native-platform observers still verify the author, exact post, caption, ordered media and image content; a successful resize API response alone never passes a publishing case. Journals retain receipts and image-fit evidence for verification-only resumption. Historical report signatures distinguish methods and reviewed-content flows.
 
-Hosted UI/MCP fitting requires the test user's `IMAGE_FITTING` feature. Each new hosted fitting case reads `/api/v1/features` before its adapter prepares or submits fitting. Missing access, authentication errors, or invalid responses block that case without submitting it; they are not treated as passes or skips. This check does not affect global preflight or non-fitting cases (the runner's normal stop-on-failure policy still applies). Existing receipts can be verified without another fitting request. CLI-app fits locally before uploading, matching the customer CLI path. Existing platform observer requirements still apply, including TikTok's manual challenges and settings observers.
+Hosted UI/MCP fitting requires the test user's `IMAGE_FITTING` feature. Each new hosted fitting case reads `/api/v1/features` before its adapter prepares or submits fitting. Missing access, authentication errors, or invalid responses block that case without submitting it; they are not treated as passes. This check does not affect global preflight or non-fitting cases; platform pause rules apply. Existing receipts can be verified without another fitting request. CLI-app fits locally before uploading, matching the customer CLI path. Existing platform observer requirements still apply, including TikTok's manual challenges and settings observers.
 
 The two new generated fixtures are checked in; `yarn e2e:fixtures` can reproduce them. The high-entropy compression fixture is about 7.6 MB. No credentials or live account configuration were changed when authoring this group.
 
@@ -266,3 +296,22 @@ yarn e2e:live --platform instagram --interface ui --all --scenario '=instagram.f
 Use `--scenario fit-` to select this whole group (or combine it with `--platform telegram`, etc.). Do not start the full group just to list coverage. The associated offline tests cover the real CLI subprocess upload bytes, MCP transport arguments, SDK fixture validity and rejection of incorrect fitting evidence; those tests have also **not been run yet**.
 
 This group does not claim live coverage for EXIF rotation, transparent/animated input flattening, account-specific override/thread image fitting, video covers, or UI image replacement. Existing application tests cover portions of those behaviors; they need separate live scenarios before being counted here.
+
+## Upload acceptance profile (prepared; not run)
+
+`--profile uploads` selects one image and one video per native video platform, with YouTube video only and Forem excluded: **19 cases with one interface**. It defaults to the browser UI, independently of the saved default interfaces. Explicit `--interface` overrides still work and increase the posting budget accordingly. This group is separate from `smoke` and `full`.
+
+The cases reuse the normal account checks, posting path, budgets, journals, resumption, screenshots, timings, and platform verifiers. YouTube uses private visibility with the existing owner readback. Video duration checks use each fixture's metadata, preserving the original four-second checks while supporting the new 30-second file. These are prepared scenarios, not verified passes.
+
+Generate the larger originals locally and inspect the plan before running:
+
+```sh
+yarn e2e:upload-fixtures
+yarn e2e:plan --profile uploads
+```
+
+The generator writes an ignored 1080×1080 JPEG (0.75–1.9 MiB), a 30-second 720×1280 H.264/AAC MP4 at approximately 8 Mbps (20–45 MiB), and `fixtures/generated/upload-manifest.json` with byte counts, hashes, and media metadata. The size limits keep the files within the SDK's Bluesky image and Telegram video limits. It uses sharp and ffmpeg/ffprobe locally, checks its output, and makes no network calls. Ordinary fixture generation does not require these optional files. Their offline contract cases report an explicit skip if the files are absent; live preflight still requires the selected files.
+
+**The deployment under test must be built from this feature branch.** UI, MCP, and CLI-app publishing execute the hosted SDK. Pointing `config.cliCommand` at a local checkout alone cannot verify the hosted changes. Existing Edmund accounts are configured as hosted accounts, without CLI-local credentials.
+
+See [the upload acceptance review](UPLOAD_ACCEPTANCE.md) for the exact scope, prepared private configuration, deployment prerequisite, and intended live command. Live execution is held for user review. A successful upload checks acceptance and processing; recovery under an injected failure is a separate experiment.

@@ -32,8 +32,11 @@ model User {
   email                        String
   emailVerified                Boolean                     @default(false)
   image                        String?
+  uiLocale                     String? // Interface/email preference; independent of post content and timezone.
   stripeCustomerId             String?                     @unique
   isAdmin                      Boolean                     @default(false)
+  analyticsExcluded            Boolean                     @default(false)
+  funnelEvents                 FunnelEvent[]
   acquisition                  String?
   experimentAttribution        String?
   firstPayment                 FirstPayment?
@@ -52,12 +55,14 @@ model User {
   subscription                 UserSubscription?
   complimentaryAccess          ComplimentaryAccess?
   freeTrial                    FreeTrial?
+  billingNotifications         BillingNotification[]
   redeemedComplimentaryInvites ComplimentaryAccessInvite[] @relation("RedeemedComplimentaryInvites")
   repostSettings               UserRepostSettings?
   postingSlots                 PostingSlot[]
   publishingPreferences        UserPublishingPreferences?
   editorSessions               PostEditorSession[]
   activationMilestone          ActivationMilestone?
+  openAiAdsMeasurement         OpenAiAdsMeasurement?
 
   @@unique([email])
   @@map("user")
@@ -133,6 +138,8 @@ model UserSubscription {
   stripePriceId        String?
   stripeProductId      String?
   planKey              String?
+  // Support-managed monthly allowance; null retains the subscribed plan's limit.
+  postsPerMonthOverride Int?
   status               String    @default("incomplete")
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
@@ -276,12 +283,63 @@ model ConnectedAccount {
   updatedAt DateTime @updatedAt
 
   // Relations
-  posts Post[]
+  posts                   Post[]
+  disconnectNotifications AccountDisconnectNotification[]
 
   @@unique([userId, platform, platformAccountId])
   @@index([userId])
   @@index([credentialRefreshBlockedAt, credentialRefreshRetryAt, expiresAt], map: "connected_account_refresh_sweep_idx")
   @@map("connected_account")
+}
+
+// One durable email per confirmed disconnect episode. Credentials are never stored here.
+model AccountDisconnectNotification {
+  id                String           @id @default(cuid())
+  accountId         String
+  account           ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  disconnectedAt    DateTime
+  status            String           @default("pending") // pending, sent, cancelled, failed
+  attempts          Int              @default(0)
+  nextAttemptAt     DateTime         @default(now())
+  leaseToken        String?
+  leaseUntil        DateTime?
+  firstAttemptAt    DateTime?
+  message           Json? // Frozen recipient/from/subject/html/text for idempotent retries.
+  sentAt            DateTime?
+  providerMessageId String?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([accountId, disconnectedAt])
+  @@index([status, nextAttemptAt])
+  @@map("account_disconnect_notification")
+}
+
+// Durable service email queue. The rendered message is frozen for Resend retries.
+model BillingNotification {
+  key               String   @id
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind              String
+  occurredAt        DateTime
+  effectiveAt       DateTime
+  consentRecipient  String?  // For an explicitly requested one-time setup reminder.
+  consentWithdrawnAt DateTime?
+  status            String   @default("pending")
+  nextAttemptAt     DateTime @default(now())
+  attempts          Int      @default(0)
+  firstAttemptAt    DateTime?
+  leaseUntil        DateTime?
+  leaseToken        String?
+  message           Json?
+  providerMessageId String?
+  sentAt            DateTime?
+  lastError         String?
+
+  @@index([status, nextAttemptAt])
+  @@index([userId])
+  @@map("billing_notification")
 }
 
 // Pending OAuth connections (used for Facebook/Instagram account pickers)
@@ -307,6 +365,8 @@ model Post {
   message      String
   scheduledFor DateTime?
   status       String    @default("scheduled") // "draft", "scheduled", "pending", "published", "failed"
+  tiktokPaused Boolean @default(false)
+  tiktokRetryApproved Boolean @default(false)
   errorMessage String? // Human-readable error message when status is "failed"
   errorDetails Json? // Detailed error info (stack trace, API response, etc.)
   publishedAt  DateTime?
@@ -524,6 +584,28 @@ model PublishAttempt {
   @@map("publish_attempt")
 }
 
+// Count actual TikTok initialization requests, including SDK session restarts.
+// Separate from publish attempts: one publish can initialize several sessions.
+model TikTokUploadInitAttempt {
+  id        String   @id @default(cuid())
+  accountId String
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([createdAt])
+  @@map("tiktok_upload_init_attempt")
+}
+
+// Daily/inbox caps require a user-approved probe; short request caps resume automatically.
+model TikTokUploadPause {
+  accountId String @id
+  code String
+  resumeAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@map("tiktok_upload_pause")
+}
+
 // Intent is committed before external I/O. A started/unknown operation must
 // be reconciled, never automatically replayed after a crash.
 model PublishCheckpoint {
@@ -583,6 +665,10 @@ model ActivationMilestone {
   firstPostScheduledAt  DateTime?
   firstPostPublishedAt  DateTime?
   subscriptionStartedAt DateTime?
+  firstToolCalledAt     DateTime?
+  firstToolSucceededAt  DateTime?
+  firstPostAttemptedAt  DateTime?
+  secondPublishingDayAt DateTime?
   reportedKinds         String[]  @default([])
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now())
@@ -635,4 +721,47 @@ model ExperimentExposure {
 
   @@index([experimentId, exposedAt])
   @@map("experiment_exposure")
+}
+
+// Server-owned enrollment and delivery state. Automatic measurement is distinct
+// from historical customer consent; it never fabricates a consent timestamp.
+// Saved opt-outs remain authoritative in either mode.
+model OpenAiAdsMeasurement {
+  userId              String    @id
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollmentMode      String    @default("consent")
+  permissionGrantedAt DateTime? @db.Timestamptz(3)
+  permissionRevokedAt DateTime? @db.Timestamptz(3)
+  clickReference      String?
+  clickCapturedAt     DateTime? @db.Timestamptz(3)
+  reportedKinds       String[]  @default([])
+  skippedKinds        String[]  @default([])
+  nextAttemptAt       DateTime  @default(now()) @db.Timestamptz(3)
+  leaseToken          String?
+  leaseExpiresAt      DateTime? @db.Timestamptz(3)
+  attempts            Int       @default(0)
+  lastError           String?
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([nextAttemptAt])
+  @@map("openai_ads_measurement")
+}
+
+// Internal measurement ledger. No post content, credentials, URLs or email values.
+// Each observation belongs to an account and is removed with it.
+model FunnelEvent {
+  id         String   @id
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String
+  channel    String
+  occurredAt DateTime @default(now())
+  properties Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, kind, occurredAt])
+  @@index([kind, occurredAt])
+  @@index([occurredAt])
+  @@map("funnel_event")
 }

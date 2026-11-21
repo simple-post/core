@@ -2,8 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { McpServer } from "@modelcontextprotocol/server";
-import { z } from "zod";
+import { McpServer, type StandardSchemaWithJSON } from "@modelcontextprotocol/server";
 
 import { applyMcpAccessMode, DEFAULT_MCP_SCOPE, MCP_SCOPES } from "@/lib/mcp/config";
 import { EXTENSION_TOOL_ANNOTATIONS } from "@/lib/mcp/extensions/tool-annotations";
@@ -40,8 +39,9 @@ function register(scope = DEFAULT_MCP_SCOPE, extensions = true, fitting = true) 
 
 function jsonSchema(schema: unknown, io: "input" | "output") {
   if (!schema) return null;
-  const object = schema instanceof z.ZodType ? schema : z.object(schema as z.ZodRawShape);
-  return z.toJSONSchema(object, { io, unrepresentable: "any" });
+  // The live registration wraps Zod with a localized Standard JSON Schema.
+  const standard = (schema as StandardSchemaWithJSON)["~standard"];
+  return standard.jsonSchema[io]({ target: "draft-2020-12" });
 }
 
 it("documents every current tool, including entitled extensions, with conservative risk classifications", () => {
@@ -109,7 +109,8 @@ it("exports the actual registered schemas for every entitlement profile without 
   expect(profiles[3].tools).toHaveLength(23);
   for (const profile of profiles) {
     const validation = profile.tools.find((tool) => tool.name === "validate_post")!;
-    expect(Object.hasOwn(validation.inputSchema!.properties!, "imageFit")).toBe(profile.profile.includes("fitting"));
+    if (profile.profile.includes("fitting")) expect(validation.inputSchema).toHaveProperty("properties.imageFit");
+    else expect(validation.inputSchema).not.toHaveProperty("properties.imageFit");
   }
   // Only the explicit preparation command writes a generated review artifact.
   // Ordinary unit tests have no filesystem output or remote side effects.

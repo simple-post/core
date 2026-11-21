@@ -1,13 +1,24 @@
+import {
+  displayMessage,
+  canonicalDisplayMessage,
+  describeDisplayMessage,
+  type DisplayMessage,
+} from "./display-message";
 /** Telegram formatting grammar, not CommonMark. See https://core.telegram.org/bots/api#formatting-options. */
 export function telegramMarkdown(source: string, legacy = false): { text: string; error?: string } {
   let text = "";
   let index = 0;
   let quote = false;
   const stack: Array<{ token: string; start: number }> = [];
-  const invalid = (reason: string) => ({
-    text,
-    error: `Telegram ${legacy ? "Markdown" : "MarkdownV2"}: ${reason}. Escape literal formatting characters with a backslash or correct the markup.`,
-  });
+  const invalid = (reason: DisplayMessage) =>
+    describeDisplayMessage(
+      {
+        text,
+        error: `Telegram ${legacy ? "Markdown" : "MarkdownV2"}: ${canonicalDisplayMessage(reason)}. Escape literal formatting characters with a backslash or correct the markup.`,
+      },
+      "Telegram {{mode}}: {{reason}}. Escape literal formatting characters with a backslash or correct the markup.",
+      { mode: legacy ? "Markdown" : "MarkdownV2", reason },
+    );
   const fenceStart = () => {
     // Optional language identifier and one opening newline are not visible text.
     const language = /^[^\s`]+(?=\s)/.exec(source.slice(index));
@@ -47,17 +58,17 @@ export function telegramMarkdown(source: string, legacy = false): { text: string
       index += fenced ? 3 : 1;
       if (fenced) fenceStart();
       const end = source.indexOf(endToken, index);
-      if (end === -1) return invalid(`unclosed ${char} entity`);
+      if (end === -1) return invalid(displayMessage("unclosed {{char}} entity", { char: String(char) }));
       text += source.slice(index, end);
       index = end + endToken.length;
-      if (char === "[" && !linkEnd(false)) return invalid("unclosed link URL");
+      if (char === "[" && !linkEnd(false)) return invalid(displayMessage("unclosed link URL"));
       continue;
     }
     if (top?.token === "`" || top?.token === "```") {
       if (source.startsWith(top.token, index)) {
         index += top.token.length;
         stack.pop();
-      } else if (char === "`") return invalid("escape backticks inside a code block");
+      } else if (char === "`") return invalid(displayMessage("escape backticks inside a code block"));
       else {
         text += char;
         index++;
@@ -67,7 +78,7 @@ export function telegramMarkdown(source: string, legacy = false): { text: string
     if (char === "\n") {
       if (quote && next !== ">") {
         if (stack.length === 1 && top?.token === "||" && top.start === index - 2) stack.pop();
-        if (stack.length > 0) return invalid("close formatting before the end of a block quote");
+        if (stack.length > 0) return invalid(displayMessage("close formatting before the end of a block quote"));
         quote = false;
       }
       text += char;
@@ -75,16 +86,17 @@ export function telegramMarkdown(source: string, legacy = false): { text: string
       continue;
     }
     if (char === ">") {
-      if (text.length > 0 && !text.endsWith("\n")) return invalid("escape > outside the start of a block quote");
+      if (text.length > 0 && !text.endsWith("\n"))
+        return invalid(displayMessage("escape > outside the start of a block quote"));
       quote = true;
       index++;
       continue;
     }
     if (char === "]") {
-      if (top?.token !== "[" && top?.token !== "![") return invalid("unexpected ]");
+      if (top?.token !== "[" && top?.token !== "![") return invalid(displayMessage("unexpected ]"));
       stack.pop();
       index++;
-      if (!linkEnd(top.token === "![")) return invalid("invalid or unclosed link URL");
+      if (!linkEnd(top.token === "![")) return invalid(displayMessage("invalid or unclosed link URL"));
       continue;
     }
     let token: string | undefined;
@@ -100,11 +112,13 @@ export function telegramMarkdown(source: string, legacy = false): { text: string
       if (token === "```") fenceStart();
       continue;
     }
-    if ("()#+-=|{}.!".includes(char)) return invalid(`unescaped ${char}`);
+    if ("()#+-=|{}.!".includes(char)) return invalid(displayMessage("unescaped {{char}}", { char: String(char) }));
     text += char;
     index++;
   }
   const top = stack.at(-1);
   if (quote && stack.length === 1 && top?.token === "||" && top.start === source.length - 2) stack.pop();
-  return stack.length > 0 ? invalid(`unclosed ${stack.at(-1)!.token} entity`) : { text };
+  return stack.length > 0
+    ? invalid(displayMessage("unclosed {{value0}} entity", { value0: String(stack.at(-1)!.token) }))
+    : { text };
 }

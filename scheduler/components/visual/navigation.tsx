@@ -1,3 +1,4 @@
+import { useUiTranslation } from "@/lib/i18n/client";
 import type { ReactNode } from "react";
 
 import { LayoutGrid, Users } from "lucide-react";
@@ -19,12 +20,13 @@ export function WorkspaceNavigation({
   active: "posts" | "accounts" | null;
   renderItem: (props: { id: "posts" | "accounts"; label: string; className: string; children: ReactNode }) => ReactNode;
 }) {
+  const { t } = useUiTranslation();
   return (
-    <nav className="simplepost-visual ml-1 flex items-center gap-1 sm:ml-3" aria-label="Workspace sections">
+    <nav className="simplepost-visual ms-1 flex items-center gap-1 sm:ms-3" aria-label={t("workspaceSections")}>
       {(
         [
-          { id: "posts", label: "Posts", Icon: LayoutGrid },
-          { id: "accounts", label: "Accounts", Icon: Users },
+          { id: "posts", label: t("posts"), Icon: LayoutGrid },
+          { id: "accounts", label: t("accounts"), Icon: Users },
         ] as const
       ).map(({ id, label, Icon }) => (
         <span key={id}>

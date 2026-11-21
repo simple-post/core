@@ -1,10 +1,13 @@
 import fs from "node:fs";
+import { Readable } from "node:stream";
 
 import axios from "axios";
 import FormData from "form-data";
 
 import { FacebookPublisher } from "../src/publishers/facebook";
 import { PostError, PostErrorType } from "../src/types";
+import { rememberDownloadedSource } from "../src/utils/resolved-media-source";
+import { getKeyFromUrl } from "../src/utils/s3";
 
 import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 
@@ -12,6 +15,7 @@ import type { Content, PostOptionsWithCredentials } from "../src/types/post";
 jest.mock("axios");
 jest.mock("fs");
 jest.mock("../src/utils/s3", () => ({
+  getKeyFromUrl: jest.fn(),
   S3MediaUploader: jest.fn().mockImplementation(() => ({
     uploadFile: jest.fn(),
     deleteFile: jest.fn(),
@@ -43,16 +47,20 @@ describe("FacebookPublisher", () => {
     // Create mock axios instance
     mockAxiosInstance = {
       post: jest.fn(),
+      get: jest.fn().mockResolvedValue({ data: { status: { video_status: "ready" } } }),
     };
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
 
     // Mock fs
     mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.statSync.mockReturnValue({ size: 10, mtimeMs: 1 } as fs.Stats);
+    mockedFs.createReadStream.mockImplementation(() => Readable.from([Buffer.alloc(10)]) as fs.ReadStream);
     mockedFs.readFileSync.mockReturnValue(Buffer.from("mock file content"));
 
     // Mock FormData
     const mockFormDataInstance = {
       append: jest.fn(),
+      getHeaders: jest.fn().mockReturnValue({ "content-type": "multipart/form-data; boundary=test" }),
     };
     mockedFormData.mockImplementation(() => mockFormDataInstance as any);
 
@@ -168,19 +176,21 @@ describe("FacebookPublisher", () => {
         media: [{ type: "video", path: "/path/to/video.mp4", title: "Test video" }],
       };
 
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { id: "video_id_123" },
-      });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: { video_id: "video_id_123", upload_session_id: "session", start_offset: "0", end_offset: "10" },
+        })
+        .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "10" } })
+        .mockResolvedValueOnce({ data: { success: true } });
 
       const result = await publisher.postContent(content, options);
 
-      const formData = mockedFormData.mock.results[0]?.value as { append: jest.Mock };
-      expect(formData.append).toHaveBeenCalledWith("description", "Check out this video!");
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/videos", expect.any(Object), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const finish = mockAxiosInstance.post.mock.calls[2][1] as URLSearchParams;
+      expect(finish.get("description")).toBe("Check out this video!");
+      expect(finish.get("title")).toBe("Test video");
+      expect(finish.get("upload_phase")).toBe("finish");
+      expect(mockedFs.readFileSync).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ id: "video_id_123", error: PostErrorType.NO_ERROR });
     });
 
@@ -308,20 +318,18 @@ describe("FacebookPublisher", () => {
         },
       };
 
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { id: "scheduled_video_123" },
-      });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: { video_id: "scheduled_video_123", upload_session_id: "session", start_offset: "0", end_offset: "10" },
+        })
+        .mockResolvedValueOnce({ data: { start_offset: "10", end_offset: "10" } })
+        .mockResolvedValueOnce({ data: { success: true } });
 
       const result = await publisher.postContent(content, optionsWithSchedule);
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith("/test_page_id/videos", expect.any(Object), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      // Verify that the FormData constructor was called (indicating video upload)
-      expect(mockedFormData).toHaveBeenCalled();
+      const finish = mockAxiosInstance.post.mock.calls[2][1] as URLSearchParams;
+      expect(finish.get("published")).toBe("false");
+      expect(finish.get("scheduled_publish_time")).toBe(String(Math.floor(new Date(scheduledTime).getTime() / 1000)));
 
       expect(result).toEqual({ id: "scheduled_video_123", error: PostErrorType.NO_ERROR });
     });
@@ -407,6 +415,94 @@ describe("FacebookPublisher", () => {
         message: "Facebook content validation failed",
         details: expect.anything(),
       });
+    });
+
+    it("uses the managed URL after resolution and preserves HTTP 413 at the public SDK boundary", async () => {
+      jest.mocked(getKeyFromUrl).mockReturnValue("uploads/user/video.mp4");
+      const video = {
+        type: "video" as const,
+        path: "/tmp/video.mp4",
+        url: "https://storage.example/uploads/user/video.mp4",
+      };
+      rememberDownloadedSource(video);
+      mockAxiosInstance.post.mockRejectedValueOnce({ response: { status: 413, data: "" } });
+      const result = await publisher.post({ media: [video] }, options);
+      expect(result).toMatchObject({
+        error: PostErrorType.PUBLISH_REJECTED,
+        details: { stage: "url", httpStatus: 413 },
+      });
+      const params = mockAxiosInstance.post.mock.calls[0][1] as URLSearchParams;
+      expect(params.get("file_url")).toBe(video.url);
+      expect(mockedFs.createReadStream).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("preserves an uncertain processing result without converting it into a credential retry", async () => {
+      jest.mocked(getKeyFromUrl).mockReturnValue("uploads/user/video.mp4");
+      const video = {
+        type: "video" as const,
+        path: "/tmp/video.mp4",
+        url: "https://storage.example/uploads/user/video.mp4",
+      };
+      rememberDownloadedSource(video);
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: "accepted_video" } });
+      mockAxiosInstance.get.mockRejectedValueOnce({
+        response: { status: 400, data: { error: { code: 190, error_subcode: 460 } } },
+      });
+      const result = await publisher.post({ media: [video] }, options);
+      expect(result).toMatchObject({
+        error: PostErrorType.API_ERROR,
+        details: { stage: "processing", videoId: "accepted_video" },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("credential revocation", () => {
+    const options: PostOptionsWithCredentials = {
+      facebook: { credentials: { pageAccessToken: "test_access_token", pageId: "test_page_id" } },
+    };
+    const revoked = {
+      message: "request access_token=DO_NOT_STORE",
+      config: { data: "access_token=DO_NOT_STORE" },
+      response: {
+        status: 400,
+        data: {
+          error: { code: 190, error_subcode: 460, message: "The session has been invalidated.", fbtrace_id: "trace" },
+        },
+      },
+    };
+
+    it.each<[string, Content]>([
+      ["feed", { text: "Hello" }],
+      ["photo upload", { text: "Photo", media: [{ type: "image", path: "/path/to/image.jpg" }] }],
+      ["video upload", { text: "Video", media: [{ type: "video", path: "/path/to/video.mp4", title: "Video" }] }],
+    ])("preserves revocation during %s without logging the request", async (_stage, content) => {
+      const logError = jest.spyOn(publisher.logger, "error");
+      mockAxiosInstance.post.mockRejectedValueOnce(revoked);
+      const result = await publisher.post(content, options);
+      expect(result).toEqual({
+        error: PostErrorType.CREDENTIALS_ERROR,
+        message: "Facebook invalidated this connection. Reconnect the account before publishing.",
+        details: [
+          expect.objectContaining({
+            platform: "facebook",
+            credentialRejection: { reason: "session_revoked", code: 190, status: 400, subcode: 460, traceId: "trace" },
+          }),
+        ],
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(logError).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("DO_NOT_STORE");
+    });
+
+    it("keeps ordinary Graph API failures as API errors", async () => {
+      mockAxiosInstance.post.mockRejectedValueOnce({
+        response: { status: 400, data: { error: { code: 100, message: "Invalid parameter" } } },
+      });
+      const result = await publisher.post({ text: "Hello" }, options);
+      expect(result.error).toBe(PostErrorType.API_ERROR);
+      expect(JSON.stringify(result)).not.toContain("credentialRejection");
     });
   });
 });

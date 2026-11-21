@@ -80,6 +80,156 @@ describe("PinterestPublisher", () => {
         fs.rmSync(videoPath, { force: true });
       }
     });
+    describe("bounded video preparation recovery", () => {
+      const options: PostOptionsWithCredentials = {
+        pinterest: { boardId: "board_123", credentials: { accessToken: "test_access_token" } },
+      };
+      const registration = {
+        data: { media_id: "media_123", upload_url: "https://uploads.pinterest.test/media?sig=SECRET" },
+      };
+      let videoPath: string;
+      let streams: fs.ReadStream[];
+      let createReadStream: jest.SpyInstance;
+      const pinCalls = () => mockAxiosInstance.post.mock.calls.filter((call: unknown[]) => call[0] === "/pins");
+      const post = () => publisher.postContent({ media: [{ type: "video", path: videoPath }] }, options);
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        videoPath = path.join(process.cwd(), `.pinterest-retry-${process.pid}-${Math.random()}.mp4`);
+        fs.writeFileSync(videoPath, "video fixture");
+        streams = [];
+        const original = fs.createReadStream;
+        createReadStream = jest.spyOn(fs, "createReadStream").mockImplementation((...args) => {
+          const stream = original(...args);
+          streams.push(stream);
+          return stream;
+        });
+      });
+      afterEach(() => {
+        createReadStream.mockRestore();
+        jest.useRealTimers();
+        fs.rmSync(videoPath, { force: true });
+      });
+
+      it("retries transient registration and upload failures with fresh streams before one Pin", async () => {
+        mockAxiosInstance.post
+          .mockRejectedValueOnce({ response: { status: 503, data: { message: "Unavailable" } } })
+          .mockResolvedValueOnce(registration)
+          .mockResolvedValueOnce({ data: { id: "pin_retry" } });
+        mockedAxios.post.mockRejectedValueOnce({ code: "ECONNRESET" }).mockResolvedValueOnce({ status: 204 } as any);
+        mockAxiosInstance.get
+          .mockResolvedValueOnce({ data: { status: "registered" } })
+          .mockResolvedValueOnce({ data: { status: "succeeded" } });
+
+        const result = post();
+        await jest.runAllTimersAsync();
+
+        await expect(result).resolves.toMatchObject({ id: "pin_retry", error: PostErrorType.NO_ERROR });
+        expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+        expect(streams).toHaveLength(2);
+        expect(streams.every((stream) => stream.destroyed)).toBe(true);
+        expect(pinCalls()).toHaveLength(1);
+        expect(pinCalls()[0][1].media_source.media_id).toBe("media_123");
+      });
+
+      it("reuses media Pinterest already received after an ambiguous upload instead of resending", async () => {
+        mockAxiosInstance.post.mockResolvedValueOnce(registration).mockResolvedValueOnce({ data: { id: "pin_kept" } });
+        mockedAxios.post.mockRejectedValueOnce({ code: "ECONNABORTED", message: "timeout of 600000ms exceeded" });
+        mockAxiosInstance.get
+          .mockResolvedValueOnce({ data: { status: "processing" } })
+          .mockResolvedValueOnce({ data: { status: "succeeded" } });
+
+        const result = post();
+        await jest.runAllTimersAsync();
+
+        await expect(result).resolves.toMatchObject({ id: "pin_kept" });
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+        expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
+        expect(pinCalls()).toHaveLength(1);
+      });
+
+      it("retries a transient status read with the same media ID", async () => {
+        mockAxiosInstance.post
+          .mockResolvedValueOnce(registration)
+          .mockResolvedValueOnce({ data: { id: "pin_status" } });
+        mockedAxios.post.mockResolvedValueOnce({ status: 204 } as any);
+        mockAxiosInstance.get
+          .mockRejectedValueOnce({ response: { status: 503 } })
+          .mockResolvedValueOnce({ data: { status: "succeeded" } });
+
+        const result = post();
+        await jest.runAllTimersAsync();
+
+        await expect(result).resolves.toMatchObject({ id: "pin_status" });
+        expect(mockAxiosInstance.get.mock.calls.map((call: unknown[]) => call[0])).toEqual([
+          "/media/media_123",
+          "/media/media_123",
+        ]);
+        expect(pinCalls()).toHaveLength(1);
+      });
+
+      it("gives up after bounded attempts with a retryable preparation error and no Pin", async () => {
+        mockAxiosInstance.post.mockRejectedValue({
+          message: "Bearer test_access_token",
+          response: {
+            status: 503,
+            data: { message: "Bearer SECRET https://signed.example/token" },
+            headers: { "x-pinterest-rid": "rid-503" },
+          },
+        });
+
+        const outcome = post().catch((error: unknown) => error);
+        await jest.runAllTimersAsync();
+
+        const error = (await outcome) as PostError;
+        expect(error).toMatchObject({
+          errorType: PostErrorType.PREPARATION_ERROR,
+          message: "Pinterest did not register the video. No Pin was created. Retry the post.",
+          details: { provider: "pinterest", stage: "register", status: 503, requestId: "rid-503" },
+        });
+        expect(JSON.stringify({ message: error.message, details: error.details })).not.toMatch(
+          /Bearer|SECRET|signed\.example/,
+        );
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+        expect(pinCalls()).toHaveLength(0);
+      });
+
+      it.each([
+        ["register", { response: { status: 401, data: { message: "Unauthorized" } } }, PostErrorType.CREDENTIALS_ERROR],
+        ["register", { response: { status: 429, headers: { "retry-after": "3600" } } }, PostErrorType.RATE_LIMIT_ERROR],
+        ["status", { data: { status: "failed" } }, PostErrorType.INVALID_CONTENT],
+      ])("fails fast without a Pin on a conclusive %s outcome", async (stage, outcome, errorType) => {
+        if (stage === "register") mockAxiosInstance.post.mockRejectedValue(outcome);
+        else {
+          mockAxiosInstance.post.mockResolvedValueOnce(registration);
+          mockedAxios.post.mockResolvedValueOnce({ status: 204 } as any);
+          mockAxiosInstance.get.mockResolvedValue(outcome);
+        }
+
+        const result = post().catch((error: unknown) => error);
+        await jest.runAllTimersAsync();
+
+        expect(await result).toMatchObject({ errorType, details: expect.objectContaining({ stage }) });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+        expect(mockAxiosInstance.get.mock.calls.length).toBeLessThanOrEqual(1);
+        expect(pinCalls()).toHaveLength(0);
+      });
+
+      it("never resubmits video Pin creation after an ambiguous timeout", async () => {
+        mockAxiosInstance.post
+          .mockResolvedValueOnce(registration)
+          .mockRejectedValueOnce({ code: "ETIMEDOUT", message: "timeout of 30000ms exceeded" });
+        mockedAxios.post.mockResolvedValueOnce({ status: 204 } as any);
+        mockAxiosInstance.get.mockResolvedValue({ data: { status: "succeeded" } });
+
+        const outcome = post().catch((error: unknown) => error);
+        await jest.runAllTimersAsync();
+
+        expect(await outcome).toMatchObject({ errorType: PostErrorType.API_ERROR });
+        expect(pinCalls()).toHaveLength(1);
+      });
+    });
+
     it("should create an image pin successfully", async () => {
       mockAxiosInstance.post.mockResolvedValueOnce({
         data: { id: "pin_123" },
@@ -340,7 +490,7 @@ describe("PinterestPublisher", () => {
           maxBodyLength: Infinity,
         }),
       );
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith("/media/media_123");
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith("/media/media_123", { timeout: 30_000 });
       expect(mockAxiosInstance.post).toHaveBeenLastCalledWith(
         "/pins",
         expect.objectContaining({

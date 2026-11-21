@@ -1,6 +1,6 @@
 # Personal Muse reviewer and publication guide
 
-This is a runbook, not a record of successful live tests. Record actual results, deployed commit, account entitlements, client/protocol version and dates privately. Sources: [Personal Muse guidelines](https://muse.ai/platform/docs), [connector submission portal](https://muse.ai/platform), [SimplePost MCP documentation](https://docs.simplepost.social/mcp).
+This is a runbook, not a record of successful live tests. Record actual results, deployed commit, account entitlements, client/protocol version and dates privately. Sources: [Personal Muse guidelines](https://platform.muse.ai/docs), [connector submission portal](https://platform.muse.ai/), [SimplePost MCP documentation](https://docs.simplepost.social/mcp).
 
 ## Dedicated test access
 
@@ -49,7 +49,7 @@ Capture clean screenshots of the listing/icon, connection/access choice, tool co
 
 - [ ] Merge this new **core** PR. Follow the migration and client configuration steps below before live reviewer testing. Select the clean deployed commit and run `yarn muse:personal:prepare` locally from that commit to generate the review bundle.
 - [ ] Before deploying the new Scheduler, apply its additive Prisma migration (`yarn workspace @simple-post/scheduler exec prisma migrate deploy`) through the normal release process. Existing codes/tokens default to `enforceRestScopes=false`; do not rewrite existing grants.
-- [ ] Sign into [Muse Connector Platform](https://muse.ai/platform) with the authorized company/work account and select **Submit a connector**. Re-read current guidelines and inspect private portal requirements before accepting terms.
+- [ ] Sign into [Muse Connector Platform](https://platform.muse.ai/) with the authorized company/work account and select **Submit a connector**. Re-read current guidelines and inspect private portal requirements before accepting terms.
 - [ ] Complete business verification with the actual company details and authorized developer. Confirm product/support/privacy/terms URLs, brand rights, category, availability and maintenance owner; do not infer missing business facts from repository metadata.
 - [ ] Use `connector.json` for editorial answers and the production MCP URL for technical setup. Confirm Meta's exact OAuth callback and token-authentication method; register those exact settings or use discovery/DCR if supported. Supply secrets only in the private portal.
 - [ ] Verify Muse's actual registered OAuth client ID and set server-only `MUSE_OAUTH_CLIENT_IDS` (comma-separated for verified review/production clients). Do not trust a client name or URL hint. Obtain fresh reviewer grants; confirm read/write is selected by default, read-only is offered only for approved Muse IDs, and ChatGPT/Claude/Cursor keep their original consent and authentication behavior. If DCR creates a new ID, verify and add it before testing its consent flow.
@@ -58,8 +58,8 @@ Capture clean screenshots of the listing/icon, connection/access choice, tool co
 - [ ] Choose a representative base vs entitled tool catalog and account. Include all tools actually advertised, conditional media side effects, errors, status/duplicate handling and supported features; resolve optional MCP Apps/attachment support before claiming it.
 - [ ] Create and privately provide the dedicated reviewer account, maintained entitlement, connected controlled destinations, test fixtures, login instructions and limitations. Do not reuse public credentials or commit secrets.
 - [ ] Confirm owner-only fields in `DATA_PROCESSING.md`: processors/locations, retention/deletion, training/analytics limits, operational contacts and actual security practices. Resolve discrepancies with published policies before submission.
-- [ ] Run the acceptance scenarios in real Personal Muse, including **sensitive approval every use**, read-only REST/MCP denial, account isolation, uncertain-write recovery, changed details, partial failures and revocation. Record evidence privately and fix any failures before review.
-- [ ] Record the demo and screenshots using only approved test content. Attach the icon in the actual format/dimensions requested by the portal, descriptions, schemas, tool classifications, questionnaire and secure test access.
+- [ ] Run the acceptance scenarios in Personal Muse with a tester in a supported region when possible. If you cannot access Muse, disclose which checks remain untested and ask Meta reviewers to verify them using the dedicated account. Verify read-only write denial and approval for every sensitive write before announcing availability.
+- [ ] Attach the icon, descriptions, schemas, tool classifications, questionnaire and secure test access. If the portal requests a demo and live Muse access is unavailable, provide a clearly labeled SimplePost walkthrough and ask Meta whether it is sufficient. Record real Muse screenshots or video only after testing in Muse.
 - [ ] Confirm support/security owners and the applicable Meta incident-notification process. The published guidelines specify a 48-hour connector incident notification window; the owner must review applicable terms and maintain a response process.
 - [ ] Review and accept Meta's current terms yourself, then submit. Nothing in this repository accepts terms or sends a submission.
 - [ ] Track review status in the portal, address requested changes and repeat affected tests. Review approval does not imply featured placement.

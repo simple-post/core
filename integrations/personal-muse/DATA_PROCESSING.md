@@ -1,6 +1,6 @@
 # Personal Muse data-processing questionnaire draft
 
-This is evidence to help the owner fill Meta's questionnaire, **not** legal advice, a compliance attestation or a new privacy policy. The owner must verify actual production practices and Meta's current requirements. Sources: [Personal Muse guidelines](https://muse.ai/platform/docs), [SimplePost privacy policy](https://simplepost.social/privacy), core's MCP/OAuth/auth/media/logging implementation.
+This is evidence to help the owner fill Meta's questionnaire, **not** legal advice, a compliance attestation or a new privacy policy. The owner must verify actual production practices and Meta's current requirements. Sources: [Personal Muse guidelines](https://platform.muse.ai/docs), [SimplePost privacy policy](https://simplepost.social/privacy), core's MCP/OAuth/auth/media/logging implementation.
 
 ## Proposed purpose and data-flow answers
 

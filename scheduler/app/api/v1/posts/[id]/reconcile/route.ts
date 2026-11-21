@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { reconciliationSchema, reconcilePublish } from "@/lib/posting/reconciliation";
 import { prisma } from "@/lib/prisma";
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest, { params }: Context) {
     const session = await requireAuth(req);
     const { id } = await params;
     const post = await prisma.post.findFirst({ where: { id, userId: session.user.id }, select: { id: true } });
-    if (!post) throw new NotFoundError("Post not found");
+    if (!post) throw new NotFoundError(serverMessage("Post not found"));
     const checkpoints = await prisma.publishCheckpoint.findMany({
       where: { postId: id },
       select: { accountId: true, operation: true, segment: true, state: true, updatedAt: true, result: true },

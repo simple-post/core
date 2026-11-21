@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
@@ -20,39 +24,48 @@ import { handleApiError } from "@/lib/utils/errors";
  * Called by the authorize page when the user approves access.
  */
 export async function POST(req: NextRequest) {
+  let measurementUserId: string | null = null;
   try {
     const session = await requireBrowserSession(req);
+    measurementUserId = session.user.id;
+    await recordFunnelEvent(measurementUserId, "assistant_authorization_started");
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
     if (!client_id || !redirect_uri || !state || !code_challenge) {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Missing required parameters" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("Missing required parameters"), { status: 400 });
     }
 
     if (code_challenge_method && code_challenge_method !== "S256") {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Only S256 code_challenge_method is supported" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("Only S256 code_challenge_method is supported"), {
+        status: 400,
+      });
     }
 
     if (nonce != null && (typeof nonce !== "string" || nonce.length > 512)) {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "nonce must be a string of at most 512 characters" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("nonce must be a string of at most 512 characters"), {
+        status: 400,
+      });
     }
 
     // Validate client and redirect URI
     const client = await validateClient(client_id, redirect_uri);
     if (!client) {
-      return NextResponse.json(
-        { error: "invalid_client", error_description: "Unknown client or invalid redirect URI" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_client", serverMessage("Unknown client or invalid redirect URI"), {
+        status: 400,
+      });
     }
 
     const museClient = isPersonalMuseClient(client.clientId);
@@ -70,19 +83,27 @@ export async function POST(req: NextRequest) {
     try {
       resolvedResource = resolveMcpResource(resource);
     } catch (error) {
-      return NextResponse.json(
-        {
-          error: "invalid_target",
-          error_description: error instanceof Error ? error.message : "Unsupported MCP resource",
-        },
+      return oauthError(
+        req,
+        "invalid_target",
+        typeof resource === "string"
+          ? serverMessage("Unsupported MCP resource: {{resource}}", { resource })
+          : error instanceof Error
+            ? error.message
+            : serverMessage("Unsupported MCP resource"),
         { status: 400 },
       );
     }
 
     const scopeResult = validateMcpScope(typeof scope === "string" ? scope : client.scope);
     if (!scopeResult.ok) {
-      return NextResponse.json(
-        { error: "invalid_scope", error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}` },
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(
+        req,
+        "invalid_scope",
+        serverMessage("Unsupported scope(s): {{scopes}}", { scopes: scopeResult.unsupported.join(", ") }),
         { status: 400 },
       );
     }
@@ -108,10 +129,9 @@ export async function POST(req: NextRequest) {
       if (canUpgradeLegacyMcpClientScope(scopeResult.scope, client.scope)) {
         await updateClientScope(client_id, scopeResult.scope);
       } else {
-        return NextResponse.json(
-          { error: "invalid_scope", error_description: "Requested scopes exceed registered client scopes" },
-          { status: 400 },
-        );
+        return oauthError(req, "invalid_scope", serverMessage("Requested scopes exceed registered client scopes"), {
+          status: 400,
+        });
       }
     }
 
@@ -137,6 +157,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ redirectUrl: redirect.toString() });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

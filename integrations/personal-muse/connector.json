@@ -9,8 +9,8 @@
   "privacy": "https://simplepost.social/privacy",
   "terms": "https://simplepost.social/terms",
   "documentation": "https://docs.simplepost.social/mcp",
-  "submissionPortal": "https://muse.ai/platform",
-  "guidelines": "https://muse.ai/platform/docs",
+  "submissionPortal": "https://platform.muse.ai/",
+  "guidelines": "https://platform.muse.ai/docs",
   "mcp": {
     "endpoint": "https://app.simplepost.social/mcp",
     "transport": "Streamable HTTP",

@@ -6,6 +6,7 @@ import {
   computeEngagements,
   normalizeAccountMetrics,
   normalizePostMetrics,
+  PLATFORM_ANALYTICS_CAPABILITIES,
   supportsAccountAnalytics,
   supportsPostAnalytics,
   type AccountAnalyticsResponse,
@@ -35,6 +36,10 @@ const log = createLogger("post-analytics");
 const LEASE_MS = 2 * 60_000;
 /** Concurrent connected accounts refreshed at once. */
 const ACCOUNT_CONCURRENCY = 3;
+const PLATFORMS_WITHOUT_POST_ANALYTICS = Object.entries(PLATFORM_ANALYTICS_CAPABILITIES)
+  .filter(([, capability]) => !capability.posts)
+  .map(([platform]) => platform);
+
 /** Posts updated this recently are re-seeded even when they already have analytics rows. */
 const RECENT_UPDATE_WINDOW_MS = 2 * 24 * 60 * 60_000;
 /** INT columns are 32-bit; clamp absurd provider values instead of failing the write. */
@@ -115,24 +120,33 @@ export async function ensureAnalyticsRows(posts: AnalyticsSourcePost[]): Promise
   await prisma.postAnalytics.createMany({
     data: seeds.map((seed) => ({
       ...seed,
+      sourcePostId: seed.platformPostId,
       status: supportsPostAnalytics(seed.platform) ? "pending" : "unsupported",
       nextRefreshAt: supportsPostAnalytics(seed.platform) ? new Date() : new Date("9999-01-01T00:00:00Z"),
     })),
     skipDuplicates: true,
   });
 
-  // A retried publish can replace an account's platform post id; follow it.
+  // A retried publish can replace an account's platform post id; follow it. Compare with
+  // the id the row was seeded from, not platformPostId, which a read may have resolved
+  // (e.g. a TikTok upload id → its public video id).
   const existing = await prisma.postAnalytics.findMany({
     where: { postId: { in: [...new Set(seeds.map((seed) => seed.postId))] } },
-    select: { id: true, postId: true, accountId: true, platformPostId: true },
+    select: { id: true, postId: true, accountId: true, sourcePostId: true },
   });
   const byKey = new Map(existing.map((row) => [`${row.postId}:${row.accountId}`, row]));
   for (const seed of seeds) {
     const row = byKey.get(`${seed.postId}:${seed.accountId}`);
-    if (row && row.platformPostId !== seed.platformPostId) {
+    if (row && row.sourcePostId !== seed.platformPostId) {
       await prisma.postAnalytics.update({
         where: { id: row.id },
-        data: { platformPostId: seed.platformPostId, status: "pending", nextRefreshAt: new Date(), failureCount: 0 },
+        data: {
+          sourcePostId: seed.platformPostId,
+          platformPostId: seed.platformPostId,
+          status: "pending",
+          nextRefreshAt: new Date(),
+          failureCount: 0,
+        },
       });
     }
   }
@@ -224,13 +238,15 @@ export async function refreshPostAnalytics(params: {
       ...(params.userId ? { userId: params.userId } : {}),
       ...(params.rowIds ? { id: { in: params.rowIds } } : {}),
       ...(params.postIds ? { postId: { in: params.postIds } } : {}),
-      status: { not: "unsupported" },
+      // Platforms without post analytics are never read; every other row, including ones
+      // that reported "unsupported" for a while (e.g. preview accounts), is retried on schedule.
+      platform: { notIn: PLATFORMS_WITHOUT_POST_ANALYTICS },
       ...(params.publishedAfter ? { publishedAt: { gte: params.publishedAfter } } : {}),
       ...(params.platforms?.include || params.platforms?.exclude
         ? {
             platform: {
               ...(params.platforms.include ? { in: params.platforms.include } : {}),
-              ...(params.platforms.exclude ? { notIn: params.platforms.exclude } : {}),
+              notIn: [...PLATFORMS_WITHOUT_POST_ANALYTICS, ...(params.platforms.exclude ?? [])],
             },
           }
         : {}),
@@ -282,7 +298,20 @@ export async function refreshPostAnalytics(params: {
         }
       } catch (error) {
         log.error({ err: serializeError(error), accountId }, "Post analytics refresh failed for account");
-        await releaseLease(rows, leaseToken);
+        // Back off so a broken account cannot occupy the front of the queue on every run.
+        await storeResults(
+          rows,
+          rows.map((row) =>
+            failure(
+              row.platform as Platform,
+              row.platformPostId,
+              "error",
+              "SimplePost could not read analytics for this account. It will try again later.",
+              new Date().toISOString(),
+            ),
+          ),
+          { keepFetchedAt: true },
+        ).catch(() => releaseLease(rows, leaseToken));
         outcome.failed += rows.length;
       }
     }
@@ -332,7 +361,11 @@ async function refreshAccountRows(
   }
 
   if (platform === "x") {
-    const { allowed, deferred } = await applyXDailyBudget(account.userId, rows);
+    // Serialize budget decisions per user in this process and reserve the reads
+    // immediately, so parallel refreshes of the same user cannot overspend.
+    const { allowed, deferred } = await withAccountLock(`x-analytics-budget:${account.userId}`, () =>
+      applyXDailyBudget(account.userId, rows),
+    );
     if (deferred.length > 0) await deferUntilTomorrow(deferred);
     if (allowed.length === 0) return [];
     rows = allowed;
@@ -344,28 +377,27 @@ async function refreshAccountRows(
   });
   const postsById = new Map(posts.map((post) => [post.id, post]));
 
-  const response = await withAccountLock(account.id, async () => {
-    let fresh = await reloadAccountSecrets(account);
-    const refreshResult = await refreshConnectedAccountIfNeeded(fresh, { reason });
-    if (refreshResult.error) {
-      return {
-        platform,
-        results: rows.map((row) =>
-          failure(platform, row.platformPostId, "credentials_error", refreshResult.error!, now()),
-        ),
-      };
-    }
-    fresh = refreshResult.account;
-    const result = await getPostAnalytics({
-      platform,
-      targets: rows.map((row) => analyticsTargetFor(row, postsById.get(row.postId))),
-      options: buildPostOptions(fresh),
-    });
-    if (result.refreshedCredentials) {
-      await persistRefreshedCredentials(fresh, result.refreshedCredentials, log);
-    }
-    return result;
+  // The account lock only covers the credential refresh. Provider reads can take a
+  // while (one request per post on several platforms) and must not hold up publishing.
+  const credentials = await freshCredentials(account, reason);
+  if ("error" in credentials) {
+    const results = rows.map((row) =>
+      failure(platform, row.platformPostId, "credentials_error", credentials.error, now()),
+    );
+    await storeResults(rows, results);
+    return results;
+  }
+  const response = await getPostAnalytics({
+    platform,
+    targets: rows.map((row) => analyticsTargetFor(row, postsById.get(row.postId))),
+    options: buildPostOptions(credentials.account),
   });
+  if (response.refreshedCredentials) {
+    // Should not happen (no refresh material is passed), but never lose rotated tokens.
+    await withAccountLock(account.id, () =>
+      persistRefreshedCredentials(credentials.account, response.refreshedCredentials!, log),
+    );
+  }
 
   await storeResults(rows, response.results);
   return response.results;
@@ -384,9 +416,24 @@ async function applyXDailyBudget(
   const readToday = rows.filter((row) => row.fetchedAt && row.fetchedAt >= dayStart);
   const unread = rows.filter((row) => !row.fetchedAt || row.fetchedAt < dayStart);
   if (unread.length === 0) return { allowed: rows, deferred: [] };
-  const used = await prisma.postAnalytics.count({ where: { userId, platform: "x", fetchedAt: { gte: dayStart } } });
+  // Reads that never reached X (credentials, permissions) are not billed.
+  const used = await prisma.postAnalytics.count({
+    where: {
+      userId,
+      platform: "x",
+      fetchedAt: { gte: dayStart },
+      status: { notIn: ["credentials_error", "missing_permission", "unsupported"] },
+    },
+  });
   const remaining = Math.max(0, xDailyPostReadLimit() - used);
-  return { allowed: [...readToday, ...unread.slice(0, remaining)], deferred: unread.slice(remaining) };
+  const reserved = unread.slice(0, remaining);
+  if (reserved.length > 0) {
+    await prisma.postAnalytics.updateMany({
+      where: { id: { in: reserved.map((row) => row.id) } },
+      data: { fetchedAt: new Date() },
+    });
+  }
+  return { allowed: [...readToday, ...reserved], deferred: unread.slice(remaining) };
 }
 
 async function deferUntilTomorrow(rows: ClaimedRow[]): Promise<void> {
@@ -407,6 +454,17 @@ async function deferUntilTomorrow(rows: ClaimedRow[]): Promise<void> {
   });
 }
 
+async function freshCredentials(
+  account: ConnectedAccount,
+  reason: "manual" | "background",
+): Promise<{ account: ConnectedAccount } | { error: string }> {
+  return withAccountLock(account.id, async () => {
+    const fresh = await reloadAccountSecrets(account);
+    const refreshResult = await refreshConnectedAccountIfNeeded(fresh, { reason });
+    return refreshResult.error ? { error: refreshResult.error } : { account: refreshResult.account };
+  });
+}
+
 function failure(
   platform: Platform,
   postId: string,
@@ -417,7 +475,11 @@ function failure(
   return { platform, postId, status, metrics: {}, message, fetchedAt };
 }
 
-async function storeResults(rows: ClaimedRow[], results: SdkPostAnalytics[]): Promise<void> {
+async function storeResults(
+  rows: ClaimedRow[],
+  results: SdkPostAnalytics[],
+  options: { keepFetchedAt?: boolean } = {},
+): Promise<void> {
   const now = new Date();
   for (const [index, row] of rows.entries()) {
     const result = results.find((candidate) => candidate.postId === row.platformPostId) ?? results[index];
@@ -427,7 +489,7 @@ async function storeResults(rows: ClaimedRow[], results: SdkPostAnalytics[]): Pr
     const columns = ok ? metricColumnsFromMetrics(result.metrics) : undefined;
 
     try {
-      await prisma.postAnalytics.updateMany({
+      const updated = await prisma.postAnalytics.updateMany({
         where: { id: row.id, leaseToken: row.leaseToken },
         data: {
           status: result.status,
@@ -443,14 +505,15 @@ async function storeResults(rows: ClaimedRow[], results: SdkPostAnalytics[]): Pr
           ...(result.resolvedPostId && result.resolvedPostId !== row.platformPostId
             ? { platformPostId: result.resolvedPostId }
             : {}),
-          fetchedAt: now,
+          ...(options.keepFetchedAt ? {} : { fetchedAt: now }),
           failureCount,
           nextRefreshAt: nextRefreshAt({ publishedAt: row.publishedAt, status: result.status, failureCount, now }),
           leaseToken: null,
           leaseUntil: null,
         },
       });
-      if (columns) await maybeSnapshot(row, columns, now);
+      // A lost lease means another worker owns the row now; its read wins.
+      if (columns && updated.count === 1) await maybeSnapshot(row, columns, now);
     } catch (error) {
       log.error({ err: serializeError(error), analyticsId: row.id }, "Could not store post analytics");
     }
@@ -464,8 +527,10 @@ async function maybeSnapshot(row: ClaimedRow, columns: MetricColumns, now: Date)
     select: { id: true, capturedAt: true },
   });
   const interval = snapshotIntervalMs(row.publishedAt, now);
-  if (latest && now.getTime() - latest.capturedAt.getTime() < interval) {
-    // Keep the newest values within the current interval.
+  // Fixed clock buckets (hour/day): refreshes inside the same bucket update its snapshot;
+  // the next bucket always gets a new one, so history accumulates.
+  const bucket = (date: Date) => Math.floor(date.getTime() / interval);
+  if (latest && bucket(latest.capturedAt) === bucket(now)) {
     await prisma.postAnalyticsSnapshot.update({ where: { id: latest.id }, data: { ...columns, capturedAt: now } });
     return;
   }
@@ -492,24 +557,35 @@ export async function refreshAccountAnalytics(params: {
   force?: boolean;
   limit?: number;
   reason?: "manual" | "background";
+  platforms?: string[];
 }): Promise<{ refreshed: number }> {
   const now = new Date();
+  const ttl = params.force ? 2 * 60_000 : ACCOUNT_ANALYTICS_TTL_MS;
+  const cutoff = new Date(now.getTime() - ttl);
+  // Select due accounts in the database (no snapshot newer than the TTL, or reconnected
+  // after a failed read), least recently updated first, so a limit never starves others.
   const accounts = await prisma.connectedAccount.findMany({
     where: {
       ...(params.userId ? { userId: params.userId } : {}),
       ...(params.accountIds ? { id: { in: params.accountIds } } : {}),
+      OR: [
+        { analyticsSnapshots: { none: { capturedAt: { gte: cutoff } } } },
+        { analyticsSnapshots: { some: { capturedAt: { gte: cutoff }, status: { not: "ok" } } } },
+      ],
     },
     include: { analyticsSnapshots: { orderBy: { capturedAt: "desc" }, take: 1 } },
+    orderBy: { updatedAt: "asc" },
     take: params.limit ?? 50,
   });
 
   const due = accounts.filter((account) => {
-    if (!supportsAccountAnalytics(mapPlatformName(account.platform))) return false;
+    const platform = mapPlatformName(account.platform);
+    if (!supportsAccountAnalytics(platform)) return false;
+    if (params.platforms && !params.platforms.includes(platform)) return false;
     const latest = account.analyticsSnapshots[0];
     if (!latest) return true;
     if (account.updatedAt > latest.capturedAt && latest.status !== "ok") return true;
-    const ttl = params.force ? 2 * 60_000 : ACCOUNT_ANALYTICS_TTL_MS;
-    return now.getTime() - latest.capturedAt.getTime() >= ttl;
+    return latest.capturedAt <= cutoff;
   });
 
   let refreshed = 0;
@@ -604,8 +680,13 @@ export async function refreshAnalyticsForUser(
     budgetMs?: number;
     limit?: number;
     accounts?: boolean;
+    /** Only these platforms (a dashboard drill-down should not read, and pay for, other platforms). */
+    platforms?: string[];
   } = {},
 ): Promise<{ posts: RefreshOutcome; accounts: number }> {
+  const platforms = options.platforms?.length
+    ? options.platforms.map((platform) => mapPlatformName(platform))
+    : undefined;
   await ensureAnalyticsRowsForUser(userId, { since: options.since, postIds: options.postIds });
   const posts = await refreshPostAnalytics({
     userId,
@@ -615,8 +696,9 @@ export async function refreshAnalyticsForUser(
     budgetMs: options.budgetMs ?? 15_000,
     publishedAfter: options.since,
     reason: "manual",
+    ...(platforms ? { platforms: { include: platforms } } : {}),
   });
   if (options.accounts === false) return { posts, accounts: 0 };
-  const accounts = await refreshAccountAnalytics({ userId, force: options.force, reason: "manual" });
+  const accounts = await refreshAccountAnalytics({ userId, force: options.force, reason: "manual", platforms });
   return { posts, accounts: accounts.refreshed };
 }

@@ -28,7 +28,8 @@ export async function fetchYouTubePostAnalytics(
 ): Promise<PostAnalytics[]> {
   const ids = targets.map((target) => target.postId);
   const response = await youtube.videos.list(
-    { part: ["statistics", "snippet", "contentDetails"], id: ids, maxResults: ids.length },
+    // maxResults is not supported together with id.
+    { part: ["statistics", "snippet"], id: ids },
     { timeout: REQUEST_TIMEOUT_MS },
   );
   const videos = new Map((response.data.items ?? []).map((item) => [item.id ?? "", item]));
@@ -91,7 +92,9 @@ async function fetchAnalyticsReport(
         dimensions: "video",
         filters: `video==${ids.join(",")}`,
         metrics: metrics.join(","),
-        maxResults: ids.length,
+        // Video-dimension reports require a sort and allow at most 200 rows.
+        sort: "-views",
+        maxResults: Math.min(200, ids.length),
       },
       { timeout: REQUEST_TIMEOUT_MS },
     );

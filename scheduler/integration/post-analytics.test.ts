@@ -343,4 +343,53 @@ describe("post analytics", () => {
     await ensureAnalyticsRowsForUser(userId, { since: new Date(Date.now() - 24 * HOUR) });
     expect(await prisma.postAnalytics.count({ where: { postId: "retry" } })).toBe(2);
   });
+
+  it("keeps a resolved TikTok video id when the post is opened again", async () => {
+    await createAccount("tt1", "tiktok");
+    await createPost("tt", new Date(Date.now() - HOUR), { tt1: { platform: "tiktok", postId: "v_pub_abc" } });
+    mockedPostAnalytics.mockImplementation(async ({ platform, targets }) => ({
+      platform,
+      results: targets.map((target) => ({
+        platform,
+        postId: target.postId,
+        status: "ok" as const,
+        metrics: { views: 10 },
+        resolvedPostId: target.postId === "v_pub_abc" ? "7300" : undefined,
+        fetchedAt: new Date().toISOString(),
+      })),
+    }));
+    await refreshAnalyticsForUser(userId, { postIds: ["tt"] });
+    await ensureAnalyticsRowsForUser(userId, { postIds: ["tt"] });
+    expect(await prisma.postAnalytics.findFirstOrThrow({ where: { postId: "tt" } })).toEqual(
+      expect.objectContaining({ platformPostId: "7300", sourcePostId: "v_pub_abc", status: "ok" }),
+    );
+  });
+
+  it("accumulates snapshots across intervals instead of moving one forward", async () => {
+    await createPost("snap", new Date(Date.now() - 2 * HOUR), { bsky1: { platform: "bluesky", postId: "at://snap" } });
+    respondWith({ "at://snap": { likes: 1 } });
+    await refreshAnalyticsForUser(userId, { postIds: ["snap"] });
+    const row = await prisma.postAnalytics.findFirstOrThrow({ where: { postId: "snap" } });
+    // Pretend the first reading happened in the previous hour bucket.
+    await prisma.postAnalyticsSnapshot.updateMany({
+      where: { analyticsId: row.id },
+      data: { capturedAt: new Date(Math.floor(Date.now() / HOUR) * HOUR - 10 * 60_000) },
+    });
+    await prisma.postAnalytics.update({
+      where: { id: row.id },
+      data: { nextRefreshAt: new Date(0), fetchedAt: new Date(0) },
+    });
+    respondWith({ "at://snap": { likes: 3 } });
+    await refreshAnalyticsForUser(userId, { postIds: ["snap"] });
+    expect(await prisma.postAnalyticsSnapshot.count({ where: { analyticsId: row.id } })).toBe(2);
+  });
+
+  it("backs off rows whose account read throws", async () => {
+    await createPost("boom", new Date(Date.now() - HOUR), { bsky1: { platform: "bluesky", postId: "at://boom" } });
+    mockedPostAnalytics.mockRejectedValue(new Error("unexpected"));
+    await refreshAnalyticsForUser(userId, { postIds: ["boom"] });
+    const row = await prisma.postAnalytics.findFirstOrThrow({ where: { postId: "boom" } });
+    expect(row).toEqual(expect.objectContaining({ status: "error", failureCount: 1, leaseToken: null }));
+    expect(row.nextRefreshAt.getTime()).toBeGreaterThan(Date.now() + 10 * 60_000);
+  });
 });

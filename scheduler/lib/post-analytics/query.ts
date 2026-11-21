@@ -520,7 +520,7 @@ async function valuesForPeriod(
       SELECT DISTINCT ON ("analyticsId") "analyticsId", "views", "reach", "likes", "comments", "shares", "quotes",
         "saves", "clicks", "profileVisits", "follows", "watchTimeSeconds", "averageWatchTimeSeconds", "engagements"
       FROM "post_analytics_snapshot"
-      WHERE "analyticsId" = ANY(${ids}) AND "capturedAt" < ${start}
+      WHERE "analyticsId" = ANY(${ids}) AND "capturedAt" < (${start.toISOString()}::timestamptz AT TIME ZONE 'UTC')
       ORDER BY "analyticsId", "capturedAt" DESC`,
     prisma.postAnalyticsSnapshot.findMany({
       where: { analyticsId: { in: ids }, capturedAt: { gte: start, lt: end } },
@@ -713,7 +713,9 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
       const bucket = timelineMap.get(key);
       if (!bucket) continue;
       bucket.accumulator.add(columns);
-      if (mode === "published") bucket.posts.add(row.postId);
+      // Activity counts the posts that gained anything in the bucket.
+      if (mode === "published" || Object.values(columns).some((value) => typeof value === "number" && value > 0))
+        bucket.posts.add(row.postId);
     }
   }
   if (mode === "published") {
@@ -1043,13 +1045,25 @@ export async function getAccountsAnalytics(userId: string): Promise<AccountAnaly
       distinct: ["accountId"],
     }),
   ]);
+  // A failed read must not hide the numbers captured earlier: fall back to the latest ok snapshot.
+  const lastOk = await prisma.accountAnalyticsSnapshot.findMany({
+    where: {
+      userId,
+      status: "ok",
+      accountId: { in: latest.filter((entry) => entry.status !== "ok").map((entry) => entry.accountId) },
+    },
+    orderBy: { capturedAt: "desc" },
+    distinct: ["accountId"],
+  });
+  const lastOkByAccount = new Map(lastOk.map((entry) => [entry.accountId, entry]));
   const latestByAccount = new Map(latest.map((entry) => [entry.accountId, entry]));
   const scopeByAccount = new Map(scopes.map((entry) => [entry.id, entry]));
   return [...accounts.values()].map((account) => {
     const snapshot = latestByAccount.get(account.accountId);
+    const values = snapshot?.status === "ok" ? snapshot : (lastOkByAccount.get(account.accountId) ?? snapshot);
     const metrics: Partial<Record<AccountMetric, number>> = {};
     for (const metric of ["followers", "following", "posts", "totalViews", "totalLikes"] as const) {
-      const value = snapshot?.[metric];
+      const value = values?.[metric];
       if (typeof value === "number") metrics[metric] = value;
     }
     const accountReadiness = accountAnalyticsReadiness({

@@ -92,6 +92,8 @@ export const ACCOUNT_METRIC_DEFINITIONS: Record<AccountMetric, MetricDefinition>
 export type AnalyticsStatus =
   /** Metrics were read successfully. */
   | "ok"
+  /** The post exists but has no analytics yet (processing, moderation, waiting in an inbox). Retry later. */
+  | "pending"
   /** The post no longer exists or is not visible to the connected account. */
   | "not_found"
   /** The platform cannot report analytics for this post (unsupported platform, inbox draft, …). */

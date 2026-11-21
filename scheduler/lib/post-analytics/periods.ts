@@ -43,6 +43,9 @@ export interface ResolvedPeriod {
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
+/** Periods that end now; their comparison uses the same elapsed span of the previous period. */
+const TO_DATE_PERIODS = new Set<AnalyticsPeriod>(["today", "this_week", "this_month", "this_quarter", "this_year"]);
+
 /** Earliest instant used for "all time" (SimplePost did not exist before this). */
 export const ALL_TIME_START = new Date("2020-01-01T00:00:00Z");
 
@@ -269,6 +272,14 @@ export function resolvePeriod(params: {
   if (previous === undefined) {
     const span = end.getTime() - start.getTime();
     previous = { start: new Date(start.getTime() - span), end: start };
+  } else if (previous && TO_DATE_PERIODS.has(period)) {
+    // "This month so far" is compared with the same elapsed span of last month,
+    // not with the whole previous month.
+    const elapsed = end.getTime() - start.getTime();
+    previous = {
+      start: previous.start,
+      end: new Date(Math.min(previous.end.getTime(), previous.start.getTime() + elapsed)),
+    };
   }
 
   return {

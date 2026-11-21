@@ -80,6 +80,8 @@ export const analyticsRefreshRequestSchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
   timeZone: z.string().optional(),
+  mode: AnalyticsModeSchema.optional().describe("activity refreshes older posts too, since their gains count."),
+  platforms: z.array(PlatformSchema).max(11).optional().describe("Only refresh these platforms."),
   force: z.boolean().optional().describe("Ignore cache freshness (still at most once per two minutes per post)."),
 });
 

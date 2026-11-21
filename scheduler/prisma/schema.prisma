@@ -785,6 +785,8 @@ model PostAnalytics {
   accountId               String
   account                 ConnectedAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
   platform                String
+  // Post id from the publish result; platformPostId can later be resolved to another id.
+  sourcePostId            String
   platformPostId          String
   publishedAt             DateTime
   // "pending" until the first read, then an AnalyticsStatus from the SDK.

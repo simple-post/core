@@ -318,8 +318,15 @@ export async function getPostAnalyticsTool(
   return { result, text };
 }
 
-function sinceFor(input: { period: string; from?: string; to?: string; timeZone?: string }): Date | undefined {
-  if (input.period === "all_time" && !input.from) return undefined;
+function sinceFor(input: {
+  period: string;
+  from?: string;
+  to?: string;
+  timeZone?: string;
+  mode?: string;
+}): Date | undefined {
+  // Activity counts gains on older posts too, so their numbers must be refreshed as well.
+  if (input.mode === "activity" || (input.period === "all_time" && !input.from)) return undefined;
   return resolvePeriod(input as Parameters<typeof resolvePeriod>[0]).start;
 }
 
@@ -330,7 +337,12 @@ export async function getAnalyticsSummaryTool(
 ) {
   const since = sinceFor(input);
   await ((await shouldRefresh(userId, input.refresh, options.readOnly))
-    ? refreshAnalyticsForUser(userId, { since, force: input.refresh === "force", budgetMs: 20_000 })
+    ? refreshAnalyticsForUser(userId, {
+        since,
+        force: input.refresh === "force",
+        budgetMs: 20_000,
+        platforms: input.platforms,
+      })
     : ensureAnalyticsRowsForUser(userId, { since }));
   const summary = await getAnalyticsSummary(userId, { ...input, accountIds: input.accountIds });
   return { result: { kind: "analytics_summary" as const, summary }, text: formatSummary(summary) };
@@ -348,6 +360,7 @@ export async function listPostAnalyticsTool(
         force: input.refresh === "force",
         budgetMs: 20_000,
         accounts: false,
+        platforms: input.platforms,
       })
     : ensureAnalyticsRowsForUser(userId, { since }));
   const list = await listPostAnalytics(userId, input);

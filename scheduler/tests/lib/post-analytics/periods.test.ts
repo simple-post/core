@@ -16,6 +16,8 @@ describe("resolvePeriod", () => {
     const week = resolvePeriod({ period: "this_week", now, timeZone: "Europe/Berlin" });
     expect(week.start.toISOString()).toBe("2026-11-15T23:00:00.000Z"); // Monday 00:00 CET
     expect(week.previous?.start.toISOString()).toBe("2026-11-08T23:00:00.000Z");
+    // Week-to-date compares with the same elapsed span of the previous week.
+    expect(week.previous?.end.toISOString()).toBe("2026-11-14T15:30:00.000Z");
 
     const lastMonth = resolvePeriod({ period: "last_month", now, timeZone: "America/New_York" });
     expect(lastMonth.start.toISOString()).toBe("2026-10-01T04:00:00.000Z"); // EDT
@@ -23,7 +25,7 @@ describe("resolvePeriod", () => {
 
     const year = resolvePeriod({ period: "this_year", now, timeZone: "UTC" });
     expect(year.start.toISOString()).toBe("2026-01-01T00:00:00.000Z");
-    expect(year.previous).toEqual({ start: new Date("2025-01-01T00:00:00Z"), end: year.start });
+    expect(year.previous).toEqual({ start: new Date("2025-01-01T00:00:00Z"), end: new Date("2025-11-21T15:30:00Z") });
     expect(year.granularity).toBe("week");
   });
 

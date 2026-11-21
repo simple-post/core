@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth(req, { action: "refresh_analytics" });
     const body = analyticsRefreshRequestSchema.parse(await req.json().catch(() => ({})));
     let since: Date | undefined;
-    if (!body.postIds && body.period !== "all_time") {
+    if (!body.postIds && body.period !== "all_time" && body.mode !== "activity") {
       try {
         since = resolvePeriod({ ...body, period: body.period ?? "last_90d" }).start;
       } catch (error) {
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       since,
       postIds: body.postIds,
       force: body.force,
+      platforms: body.platforms,
     });
     return NextResponse.json(result);
   } catch (error) {

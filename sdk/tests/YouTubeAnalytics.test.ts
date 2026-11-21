@@ -49,7 +49,12 @@ describe("YouTube analytics", () => {
     const { results } = await publisher.getPostAnalytics([{ postId: "abc" }, { postId: "gone" }]);
 
     expect(reportsQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ ids: "channel==MINE", dimensions: "video", filters: "video==abc,gone" }),
+      expect.objectContaining({
+        ids: "channel==MINE",
+        dimensions: "video",
+        filters: "video==abc,gone",
+        sort: "-views",
+      }),
       expect.anything(),
     );
     expect(results[0]).toEqual(
@@ -68,6 +73,7 @@ describe("YouTube analytics", () => {
       }),
     );
     expect(results[1].status).toBe("not_found");
+    expect(videosList.mock.calls[0][0]).not.toHaveProperty("maxResults");
   });
 
   it("falls back to Data API statistics when the Analytics API is unavailable", async () => {

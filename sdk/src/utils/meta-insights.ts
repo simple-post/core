@@ -15,8 +15,19 @@ function metaErrorCode(error: unknown): number | undefined {
 }
 
 /** Meta answers an unknown/unsupported metric with error code 100 (invalid parameter). */
+/**
+ * Meta also uses code 100 for "object does not exist" (subcode 33). Only treat
+ * code 100 as an invalid metric when it is not about the object itself, so a
+ * deleted post is not misread as a post without metrics.
+ */
 function isInvalidMetricError(error: unknown): boolean {
-  return metaErrorCode(error) === 100;
+  if (metaErrorCode(error) !== 100) return false;
+  const body = (error as { response?: { data?: { error?: { error_subcode?: unknown; message?: unknown } } } })?.response
+    ?.data?.error;
+  if (body?.error_subcode === 33) return false;
+  return !(
+    typeof body?.message === "string" && /does not exist|cannot be loaded|unsupported get request/i.test(body.message)
+  );
 }
 
 function parseValue(value: unknown): InsightValue | undefined {

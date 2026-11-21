@@ -262,8 +262,30 @@ describe("TikTok analytics", () => {
     api.post.mockResolvedValue({ data: { data: { status: "SEND_TO_USER_INBOX" } } });
     const { results } = await new TikTokPublisher(options).getPostAnalytics([{ postId: "v_inbox~1" }]);
     expect(results[0]).toEqual(
-      expect.objectContaining({ status: "unsupported", message: expect.stringContaining("inbox") }),
+      expect.objectContaining({ status: "pending", message: expect.stringContaining("inbox") }),
     );
+  });
+
+  it("isolates a failed upload lookup and caps lookups per call", async () => {
+    const api = client();
+    api.post.mockImplementation(async (url: string, body: { publish_id?: string }) => {
+      if (url === "/v2/post/publish/status/fetch/") {
+        if (body.publish_id === "v_pub_bad")
+          throw httpError(400, { error: { code: "invalid_publish_id", message: "expired" } });
+        return { data: { data: { status: "PROCESSING_UPLOAD" } } };
+      }
+      return { data: { data: { videos: [{ id: "1", view_count: 3 }] }, error: { code: "ok" } } };
+    });
+    const targets = [
+      { postId: "v_pub_bad" },
+      { postId: "1" },
+      ...Array.from({ length: 6 }, (_, i) => ({ postId: `v_pub_${i}` })),
+    ];
+    const { results } = await new TikTokPublisher(options).getPostAnalytics(targets);
+    expect(results[0].status).toBe("error");
+    expect(results[1]).toEqual(expect.objectContaining({ status: "ok", metrics: { views: 3 } }));
+    expect(results.slice(2).every((result) => result.status === "pending")).toBe(true);
+    expect(api.post.mock.calls.filter(([url]) => url === "/v2/post/publish/status/fetch/")).toHaveLength(5);
   });
 
   it("maps a missing scope to missing_permission", async () => {
@@ -422,6 +444,26 @@ describe("Threads analytics", () => {
     const options = { threads: { credentials: { accessToken: "token", userId: "u" } } };
     const { results } = await new ThreadsPublisher(options).getPostAnalytics([{ postId: "t1" }]);
     expect(results[0].metrics).toEqual({ views: 1, likes: 2, comments: 3, shares: 4 + 6, quotes: 5 });
+  });
+});
+
+describe("Meta deleted objects", () => {
+  it("reports a deleted Threads post as not found instead of an empty ok read", async () => {
+    const api = client();
+    api.get.mockRejectedValue(
+      httpError(400, { error: { code: 100, error_subcode: 33, message: "Object with ID 't1' does not exist" } }),
+    );
+    const options = { threads: { credentials: { accessToken: "token", userId: "u" } } };
+    const { results } = await new ThreadsPublisher(options).getPostAnalytics([{ postId: "t1" }]);
+    expect(results[0].status).toBe("not_found");
+    expect(api.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats empty Threads insights (reposts) as not found", async () => {
+    client().get.mockResolvedValue({ data: { data: [] } });
+    const options = { threads: { credentials: { accessToken: "token", userId: "u" } } };
+    const { results } = await new ThreadsPublisher(options).getPostAnalytics([{ postId: "t2" }]);
+    expect(results[0].status).toBe("not_found");
   });
 });
 

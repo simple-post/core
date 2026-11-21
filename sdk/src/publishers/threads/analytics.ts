@@ -18,6 +18,14 @@ export async function fetchThreadsPostAnalytics(
       const insights = await readMetaInsights(client, `/${target.postId}/insights`, POST_METRICS, {
         access_token: accessToken,
       });
+      if (insights.size === 0) {
+        results.push(
+          postAnalyticsResult("threads", target.postId, "not_found", {
+            message: "Threads returned no insights for this post. It may have been deleted, or it is a repost.",
+          }),
+        );
+        continue;
+      }
       const value = (name: string) => insightTotal(insights.get(name));
       const metrics: PostMetrics = {};
       const set = (metric: keyof PostMetrics, metricValue: number | undefined) => {

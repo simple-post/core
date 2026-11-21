@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
       throw new BadRequestError(error instanceof Error ? error.message : "Invalid period");
     }
 
-    const since = query.period === "all_time" ? undefined : period.start;
+    // Activity covers gains on older posts too, so it is not limited to posts published in the period.
+    const since = query.period === "all_time" || query.mode === "activity" ? undefined : period.start;
     await (query.refresh && query.refresh !== "none" && (await canRefreshAnalytics(session.user.id))
       ? refreshAnalyticsForUser(session.user.id, {
           since,

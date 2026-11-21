@@ -1,12 +1,21 @@
-import { AnalyticsError, numericFields, pickMetrics, postAnalyticsResult, toFiniteNumber } from "../../utils/analytics";
+import {
+  AnalyticsError,
+  classifyAnalyticsError,
+  numericFields,
+  pickMetrics,
+  postAnalyticsResult,
+  toFiniteNumber,
+} from "../../utils/analytics";
 import { httpStatus } from "../../utils/transient-retry";
 
-import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
+import type { AccountAnalytics, AnalyticsStatus, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { AxiosInstance } from "axios";
 
 const VIDEO_FIELDS = ["id", "create_time", "share_url", "view_count", "like_count", "comment_count", "share_count"];
 const USER_STATS_FIELDS = ["follower_count", "following_count", "likes_count", "video_count"];
 const REQUEST_TIMEOUT_MS = 15_000;
+/** Publish-id → video-id lookups per call. */
+const MAX_PUBLISH_LOOKUPS = 5;
 
 interface TikTokEnvelope<T> {
   data?: T;
@@ -68,22 +77,38 @@ export async function fetchTikTokPostAnalytics(
   targets: AnalyticsTarget[],
 ): Promise<PostAnalytics[]> {
   const videoIds = new Map<string, string>(); // target post id → public video id
-  const unresolved = new Map<string, string>(); // target post id → reason
+  const unresolved = new Map<string, { status: AnalyticsStatus; message: string }>();
+  let lookups = 0;
 
   for (const target of targets) {
     if (!isTikTokPublishId(target.postId)) {
       videoIds.set(target.postId, target.postId);
       continue;
     }
-    const { id, status } = await resolvePublicId(client, target.postId);
-    if (id) videoIds.set(target.postId, id);
-    else
-      unresolved.set(
-        target.postId,
-        status === "SEND_TO_USER_INBOX"
-          ? "This video is waiting in the TikTok inbox. Statistics appear after it is published in the TikTok app."
-          : "TikTok has not made this post public yet, so it has no statistics. Private posts never get statistics.",
-      );
+    // The status endpoint allows ~30 requests/minute per user; resolve a few per call and retry the rest later.
+    if (lookups >= MAX_PUBLISH_LOOKUPS) {
+      unresolved.set(target.postId, {
+        status: "pending",
+        message: "Waiting to look up the public TikTok video for this upload.",
+      });
+      continue;
+    }
+    lookups += 1;
+    try {
+      const { id, status } = await resolvePublicId(client, target.postId);
+      if (id) videoIds.set(target.postId, id);
+      else
+        unresolved.set(target.postId, {
+          status: "pending",
+          message:
+            status === "SEND_TO_USER_INBOX"
+              ? "This video is waiting in the TikTok inbox. Statistics appear after it is published in the TikTok app."
+              : "TikTok has not made this post public yet (it may still be in review). Private posts never get statistics.",
+        });
+    } catch (error) {
+      // One expired or rejected upload must not fail the other posts in the batch.
+      unresolved.set(target.postId, classifyAnalyticsError(error, "TikTok"));
+    }
   }
 
   const videos = new Map<string, Record<string, unknown>>();
@@ -101,7 +126,7 @@ export async function fetchTikTokPostAnalytics(
 
   return targets.map((target) => {
     const reason = unresolved.get(target.postId);
-    if (reason) return postAnalyticsResult("tiktok", target.postId, "unsupported", { message: reason });
+    if (reason) return postAnalyticsResult("tiktok", target.postId, reason.status, { message: reason.message });
     const videoId = videoIds.get(target.postId)!;
     const video = videos.get(videoId);
     const resolvedPostId = videoId === target.postId ? undefined : videoId;

@@ -5,6 +5,7 @@ CREATE TABLE "post_analytics" (
     "postId" TEXT NOT NULL,
     "accountId" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
+    "sourcePostId" TEXT NOT NULL,
     "platformPostId" TEXT NOT NULL,
     "publishedAt" TIMESTAMP(3) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',

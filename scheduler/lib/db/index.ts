@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
 import { assertStorageAvailable, queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import {
+  type PostAnalyticsBadge,
   type AccountOptionsMap,
   type AccountOverridesMap,
   type AccountResultsMap,
@@ -31,6 +32,45 @@ export interface PaginatedResult<T> {
     totalPages: number;
     hasNextPage: boolean;
     hasPreviousPage: boolean;
+  };
+}
+
+const POST_ANALYTICS_BADGE_SELECT = {
+  views: true,
+  likes: true,
+  comments: true,
+  shares: true,
+  engagements: true,
+  status: true,
+  fetchedAt: true,
+} as const;
+
+/** Compact cross-account totals shown next to published posts in lists. */
+function summarizeAnalyticsBadge(
+  rows: Array<{
+    views: number | null;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    engagements: number | null;
+    status: string;
+    fetchedAt: Date | null;
+  }>,
+): PostAnalyticsBadge | null {
+  if (rows.length === 0) return null;
+  const sum = (key: "views" | "likes" | "comments" | "shares" | "engagements") => {
+    const values = rows.map((row) => row[key]).filter((value): value is number => typeof value === "number");
+    return values.length > 0 ? values.reduce((total, value) => total + value, 0) : null;
+  };
+  const fetched = rows.map((row) => row.fetchedAt?.getTime() ?? 0).filter(Boolean);
+  return {
+    views: sum("views"),
+    likes: sum("likes"),
+    comments: sum("comments"),
+    shares: sum("shares"),
+    engagements: sum("engagements"),
+    updatedAt: fetched.length > 0 ? new Date(Math.max(...fetched)).toISOString() : null,
+    hasData: rows.some((row) => row.fetchedAt !== null && row.status !== "unsupported"),
   };
 }
 
@@ -162,6 +202,7 @@ export class PostsModel {
         include: {
           media: true,
           accounts: true,
+          analytics: { select: POST_ANALYTICS_BADGE_SELECT },
         },
         orderBy: [
           {
@@ -180,7 +221,10 @@ export class PostsModel {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      data: posts.map((post) => this.mapPostToSocialPost(post)),
+      data: posts.map((post) => ({
+        ...this.mapPostToSocialPost(post),
+        analytics: summarizeAnalyticsBadge(post.analytics),
+      })),
       pagination: {
         page,
         limit,

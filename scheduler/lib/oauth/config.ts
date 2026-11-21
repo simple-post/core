@@ -1,4 +1,5 @@
 import { getBlueskyClientId } from "@/lib/oauth/bluesky-client";
+import { withAnalyticsScopes } from "@/lib/post-analytics/permissions";
 
 const BLUESKY_OAUTH_ISSUER = process.env.BLUESKY_OAUTH_ISSUER || "https://bsky.social";
 
@@ -126,5 +127,8 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
 };
 
 export function getPlatformOAuthConfig(platform: string): PlatformOAuthConfig | undefined {
-  return OAUTH_CONFIGS[platform];
+  const config = OAUTH_CONFIGS[platform];
+  // Analytics permissions are opt-in per platform (OAUTH_ANALYTICS_SCOPES) because
+  // requesting an unapproved permission makes the whole authorization fail.
+  return config ? { ...config, scope: withAnalyticsScopes(platform, config.scope) } : undefined;
 }

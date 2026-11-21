@@ -15,19 +15,19 @@ to the sources are listed per platform.
 
 ## Summary
 
-| Platform  | Post metrics SimplePost reads                                                                   | New scopes / permissions                                                                                 | Review needed for the hosted app                       |
-| --------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| X         | views, likes, replies, reposts, quotes, bookmarks, link clicks¹, profile visits¹                 | None (`tweet.read`, `users.read` already granted)                                                         | No. Reads are billed (see X below)                    |
-| Bluesky   | likes, replies, reposts, quotes, bookmarks                                                       | None (public AppView, no auth)                                                                            | No                                                     |
-| Threads   | views, likes, replies, reposts, quotes, shares                                                   | `threads_manage_insights`                                                                                  | Yes: App Review + Advanced Access                      |
-| Facebook  | views, reach, reactions, comments, shares, clicks                                                | `pages_read_engagement`, `read_insights`                                                                   | Yes: App Review + Advanced Access + Business Verification |
-| Instagram | views, reach, likes, comments, shares, saves, profile visits, follows, watch time (Reels)      | Instagram Login: `instagram_business_manage_insights` · Facebook Login: `instagram_manage_insights`        | Yes: App Review + Advanced Access                      |
-| YouTube   | views, likes, comments, shares², watch time², average view duration², subscribers gained²       | None (`youtube.readonly` already granted). Enable the **YouTube Analytics API**                            | No (unless you add `yt-analytics.readonly`)            |
-| TikTok    | views, likes, comments, shares                                                                   | `video.list`, `user.info.stats`                                                                            | Yes: scope review in the TikTok developer portal       |
-| Pinterest | impressions, saves, pin + outbound clicks, comments, reactions                                   | None for hosted (`pins:read`, `user_accounts:read` already granted). CLI: add `pins:read`                 | No (Standard access required)                          |
-| LinkedIn  | impressions, members reached, reactions, comments, reshares                                      | `r_member_postAnalytics`, `r_member_profileAnalytics` (Community Management API)                           | Yes: separate Community Management API application     |
-| Forem/DEV | page views, reactions, comments                                                                  | None (API key)                                                                                             | No                                                     |
-| Telegram  | **none** (bots cannot read views); channel/group member count only                              | None                                                                                                       | No                                                     |
+| Platform  | Post metrics SimplePost reads                                                             | New scopes / permissions                                                                            | Review needed for the hosted app                          |
+| --------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| X         | views, likes, replies, reposts, quotes, bookmarks, link clicks¹, profile visits¹          | None (`tweet.read`, `users.read` already granted)                                                   | No. Reads are billed (see X below)                        |
+| Bluesky   | likes, replies, reposts, quotes, bookmarks                                                | None (public AppView, no auth)                                                                      | No                                                        |
+| Threads   | views, likes, replies, reposts, quotes, shares                                            | `threads_manage_insights`                                                                           | Yes: App Review + Advanced Access                         |
+| Facebook  | views, reach, reactions, comments, shares, clicks                                         | `pages_read_engagement`, `read_insights`                                                            | Yes: App Review + Advanced Access + Business Verification |
+| Instagram | views, reach, likes, comments, shares, saves, profile visits, follows, watch time (Reels) | Instagram Login: `instagram_business_manage_insights` · Facebook Login: `instagram_manage_insights` | Yes: App Review + Advanced Access                         |
+| YouTube   | views, likes, comments, shares², watch time², average view duration², subscribers gained² | None (`youtube.readonly` already granted). Enable the **YouTube Analytics API**                     | No (unless you add `yt-analytics.readonly`)               |
+| TikTok    | views, likes, comments, shares                                                            | `video.list`, `user.info.stats`                                                                     | Yes: scope review in the TikTok developer portal          |
+| Pinterest | impressions, saves, pin + outbound clicks, comments, reactions                            | None for hosted (`pins:read`, `user_accounts:read` already granted). CLI: add `pins:read`           | No (Standard access required)                             |
+| LinkedIn  | impressions, members reached, reactions, comments, reshares                               | `r_member_postAnalytics`, `r_member_profileAnalytics` (Community Management API)                    | Yes: separate Community Management API application        |
+| Forem/DEV | page views, reactions, comments                                                           | None (API key)                                                                                      | No                                                        |
+| Telegram  | **none** (bots cannot read views); channel/group member count only                        | None                                                                                                | No                                                        |
 
 ¹ Only for posts from the last 30 days.
 ² From the YouTube Analytics API, delayed by 2–3 days.
@@ -196,9 +196,9 @@ accounts return insights. Personal accounts cannot be used.
 
 **Scopes**:
 
-| Login used                              | Where                        | Add                                     |
-| --------------------------------------- | ---------------------------- | --------------------------------------- |
-| Instagram Login (`graph.instagram.com`) | Hosted scheduler             | `instagram_business_manage_insights`    |
+| Login used                              | Where                                    | Add                                                                                  |
+| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| Instagram Login (`graph.instagram.com`) | Hosted scheduler                         | `instagram_business_manage_insights`                                                 |
 | Facebook Login (`graph.facebook.com`)   | CLI (`simplepost account add instagram`) | `instagram_manage_insights` (already has `instagram_basic`, `pages_read_engagement`) |
 
 **Hosted**:
@@ -397,9 +397,9 @@ Sources: [Bot API](https://core.telegram.org/bots/api#getchatmembercount),
 
 ## Environment variables (hosted scheduler)
 
-| Variable                              | Default | Meaning                                                                                              |
-| ------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `OAUTH_ANALYTICS_SCOPES`              | empty   | Platforms (or `all`) whose analytics OAuth scopes are requested when users connect accounts.        |
-| `POST_ANALYTICS_BACKGROUND_REFRESH`   | `true`  | Refresh due analytics in the scheduled dispatcher run (in addition to on-demand refreshes).          |
-| `POST_ANALYTICS_BACKGROUND_PLATFORMS` | all except `x` | Platforms refreshed in the background. X is excluded by default because reads are billed.     |
-| `X_ANALYTICS_DAILY_POST_READS`        | `300`   | Maximum distinct X posts read per user per UTC day. `0` disables X analytics.                         |
+| Variable                              | Default        | Meaning                                                                                      |
+| ------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `OAUTH_ANALYTICS_SCOPES`              | empty          | Platforms (or `all`) whose analytics OAuth scopes are requested when users connect accounts. |
+| `POST_ANALYTICS_BACKGROUND_REFRESH`   | `true`         | Refresh due analytics in the scheduled dispatcher run (in addition to on-demand refreshes).  |
+| `POST_ANALYTICS_BACKGROUND_PLATFORMS` | all except `x` | Platforms refreshed in the background. X is excluded by default because reads are billed.    |
+| `X_ANALYTICS_DAILY_POST_READS`        | `300`          | Maximum distinct X posts read per user per UTC day. `0` disables X analytics.                |

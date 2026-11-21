@@ -91,6 +91,13 @@ const workspace = {
     summary: { openSlotCount: 1, scheduledCount: 0, publishedCount: 0, failedCount: 0, pastCount: 0 },
   },
 };
+const previewVideoPath = "/preview-video.webm";
+const previewVideo = {
+  id: "preview-video",
+  type: "video",
+  filename: "preview-video.webm",
+  size: 0,
+};
 const fixture = `
 const launch = ${JSON.stringify(workspace)};
 if (location.search.includes('week') || location.search.includes('month')) {
@@ -125,8 +132,10 @@ window.calls=[]; window.contexts=[]; window.messages=[]; window.links=[];
 let session={kind:'editor',sessionId:'3e07953d-c01f-4a95-baf0-20b597ff9373',postId:null,revision:0,baseUpdatedAt:null,committing:false,proposal:null,status:'new',scheduledFor:null,content:{message:'',accountIds:launch.preferences.defaultAccountIds,media:[],thread:[],accountOptions:{},accountOverrides:{},quotePostId:null}};
 window.propose=(patch)=>{ session={...session,proposal:{patch,explanation:'Shorter proposed text',revision:session.revision}}; document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{content:[],structuredContent:session}},'*'); };
 window.removeSelection=()=>document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/host-context-changed',params:{'openai/modelContext':null}},'*');
-if(location.search.includes('review')) {
- launch.kind='post_preview'; launch.previews=['x','linkedin'].map(platform=>({accountId:platform,platform,platformLabel:platform==='x'?'X':'LinkedIn',accountLabel:'Test '+platform,data:{platform,account:{id:platform,platform,displayName:'Test '+platform,username:'simplepost',profilePicture:null},message:'Scheduled review content',media:[],thread:[],options:{},previewDate:'2026-09-29T14:30:00Z'}}));
+const videoMedia=[{...${JSON.stringify(previewVideo)},url:location.origin+'${previewVideoPath}'}];
+if (query.has('editor-video')) session.content.media=videoMedia;
+if(query.has('review')) {
+ launch.kind='post_preview'; launch.previews=['x','linkedin'].map(platform=>({accountId:platform,platform,platformLabel:platform==='x'?'X':'LinkedIn',accountLabel:'Test '+platform,data:{platform,account:{id:platform,platform,displayName:'Test '+platform,username:'simplepost',profilePicture:null},message:'Scheduled review content',media:videoMedia,thread:[],options:{},previewDate:'2026-09-29T14:30:00Z'}}));
 }
 window.addEventListener('message', async event => {
  const req=event.data; if(req.jsonrpc!=='2.0') return;
@@ -161,7 +170,10 @@ window.addEventListener('message', async event => {
 `;
 const server = createServer(async (req, res) => {
   try {
-    if (req.url.startsWith("/mcp-widgets/")) {
+    if (req.url === previewVideoPath) {
+      res.setHeader("content-type", "video/webm");
+      res.end(await readFile(path.resolve(root, "../sdk/tests/fixtures/slow.webm")));
+    } else if (req.url.startsWith("/mcp-widgets/")) {
       const filename = path.basename(req.url.split("?")[0]);
       res.setHeader(
         "content-type",
@@ -545,14 +557,23 @@ try {
   await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
   await ui.getByRole("button", { name: "Accounts", exact: true }).click();
   await expect(ui.getByRole("heading", { name: "Connected accounts" })).toBeVisible();
+  const playPreviewVideo = async () => {
+    const video = ui.locator("simple-post-preview video[controls]");
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((element) => element.readyState)).toBeGreaterThanOrEqual(2);
+    await video.click();
+    await expect.poll(() => video.evaluate((element) => element.currentTime)).toBeGreaterThan(0.2);
+  };
   // Closing an editor opened through the dedicated entrypoint also returns to the workspace.
-  await page.goto(`${base}/?editor`);
+  await page.goto(`${base}/?editor&editor-video`);
   await ui.getByRole("button", { name: "New draft", exact: true }).click();
+  await playPreviewVideo();
   await ui.getByRole("button", { name: "Back to workspace", exact: true }).click();
   await expect(ui.getByRole("heading", { name: "Your posts", exact: true })).toBeVisible();
   await page.goto(`${base}/?review`);
   await expect(ui.getByRole("tab")).toHaveCount(2);
   await expect(ui.locator("simple-post-preview")).toContainText("Scheduled review content");
+  await playPreviewVideo();
   await ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true }).click();
   await expect(ui.getByRole("tab", { name: "Preview LinkedIn for Test linkedin", exact: true })).toHaveAttribute(
     "aria-selected",
@@ -583,7 +604,7 @@ try {
   assert.deepEqual([...requestedLocales].sort(), ["ar", "ja"]);
   assert.deepEqual(errors, []);
   console.log(
-    "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, legacy review, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
+    "PASS extensions browser smoke: AM/PM labels across calendar views and legacy widget, workspace timezone independent of browser, sidebar startup errors/retry, missing and late launch data, calendar, selection chat, slot time, autosave, 11 platform tabs, keyboard navigation, video playback in editor and post preview, variant isolation, AI proposals, recovery, context removal, explicit review, narrow layout, onboarding, editor entrypoint.",
   );
 } finally {
   await browser?.close();

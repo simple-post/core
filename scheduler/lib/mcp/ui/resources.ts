@@ -154,7 +154,12 @@ function widgetHtml(name: WidgetName): string {
 }
 
 function resourceDomains(): string[] {
-  return [...new Set([widgetOrigin(), ...SOCIAL_MEDIA_RESOURCE_DOMAINS])];
+  const domains = [widgetOrigin(), ...SOCIAL_MEDIA_RESOURCE_DOMAINS];
+  const storage = URL.parse(process.env.S3_STORAGE_BASE_URL ?? "");
+  if (storage && (storage.protocol === "https:" || storage.protocol === "http:")) {
+    domains.push(storage.origin);
+  }
+  return [...new Set(domains)];
 }
 
 function widgetOrigin(): string {

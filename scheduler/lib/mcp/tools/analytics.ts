@@ -296,12 +296,14 @@ export async function getPostAnalyticsTool(
   options: { readOnly?: boolean } = {},
 ) {
   const postIds = [...new Set(input.postIds)];
-  await ((await shouldRefresh(userId, input.refresh, options.readOnly)) ? refreshAnalyticsForUser(userId, {
-      postIds,
-      force: input.refresh === "force",
-      budgetMs: 20_000,
-      accounts: false,
-    }) : ensureAnalyticsRowsForUser(userId, { postIds }));
+  await ((await shouldRefresh(userId, input.refresh, options.readOnly))
+    ? refreshAnalyticsForUser(userId, {
+        postIds,
+        force: input.refresh === "force",
+        budgetMs: 20_000,
+        accounts: false,
+      })
+    : ensureAnalyticsRowsForUser(userId, { postIds }));
   const views = await Promise.all(postIds.map((postId) => getPostAnalyticsView(userId, postId)));
   const posts = views.filter((view): view is PostAnalyticsView => view !== null);
   const result = {
@@ -327,7 +329,9 @@ export async function getAnalyticsSummaryTool(
   options: { readOnly?: boolean } = {},
 ) {
   const since = sinceFor(input);
-  await ((await shouldRefresh(userId, input.refresh, options.readOnly)) ? refreshAnalyticsForUser(userId, { since, force: input.refresh === "force", budgetMs: 20_000 }) : ensureAnalyticsRowsForUser(userId, { since }));
+  await ((await shouldRefresh(userId, input.refresh, options.readOnly))
+    ? refreshAnalyticsForUser(userId, { since, force: input.refresh === "force", budgetMs: 20_000 })
+    : ensureAnalyticsRowsForUser(userId, { since }));
   const summary = await getAnalyticsSummary(userId, { ...input, accountIds: input.accountIds });
   return { result: { kind: "analytics_summary" as const, summary }, text: formatSummary(summary) };
 }
@@ -338,12 +342,14 @@ export async function listPostAnalyticsTool(
   options: { readOnly?: boolean } = {},
 ) {
   const since = sinceFor(input);
-  await ((await shouldRefresh(userId, input.refresh, options.readOnly)) ? refreshAnalyticsForUser(userId, {
-      since,
-      force: input.refresh === "force",
-      budgetMs: 20_000,
-      accounts: false,
-    }) : ensureAnalyticsRowsForUser(userId, { since }));
+  await ((await shouldRefresh(userId, input.refresh, options.readOnly))
+    ? refreshAnalyticsForUser(userId, {
+        since,
+        force: input.refresh === "force",
+        budgetMs: 20_000,
+        accounts: false,
+      })
+    : ensureAnalyticsRowsForUser(userId, { since }));
   const list = await listPostAnalytics(userId, input);
   const offset = (list.pagination.page - 1) * list.pagination.limit;
   const text =

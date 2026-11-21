@@ -20,11 +20,13 @@ export async function GET(req: NextRequest) {
     }
 
     const since = query.period === "all_time" ? undefined : period.start;
-    await (query.refresh && query.refresh !== "none" && (await canRefreshAnalytics(session.user.id)) ? refreshAnalyticsForUser(session.user.id, {
-        since,
-        force: query.refresh === "force",
-        accounts: false,
-      }) : ensureAnalyticsRowsForUser(session.user.id, { since }));
+    await (query.refresh && query.refresh !== "none" && (await canRefreshAnalytics(session.user.id))
+      ? refreshAnalyticsForUser(session.user.id, {
+          since,
+          force: query.refresh === "force",
+          accounts: false,
+        })
+      : ensureAnalyticsRowsForUser(session.user.id, { since }));
 
     const result = await listPostAnalytics(session.user.id, {
       ...query,

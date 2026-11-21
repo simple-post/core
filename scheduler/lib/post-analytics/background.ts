@@ -31,7 +31,13 @@ export async function runBackgroundAnalyticsRefresh(
   let seededPosts = 0;
   try {
     const posts = await prisma.post.findMany({
-      where: { status: "published", publishedAt: { gte: since }, analytics: { none: {} } },
+      where: {
+        status: "published",
+        publishedAt: { gte: since },
+        // Recently updated posts may have published to more accounts on a retry.
+        OR: [{ analytics: { none: {} } }, { updatedAt: { gte: new Date(Date.now() - 2 * 24 * 60 * 60_000) } }],
+      },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         userId: true,

@@ -13,7 +13,7 @@ import {
 import { requireAuth } from "@/lib/middleware/auth";
 import { runBackgroundAnalyticsRefresh } from "@/lib/post-analytics/background";
 import { getAnalyticsSummary, listPostAnalytics } from "@/lib/post-analytics/query";
-import { refreshAnalyticsForUser } from "@/lib/post-analytics/service";
+import { ensureAnalyticsRowsForUser, refreshAnalyticsForUser } from "@/lib/post-analytics/service";
 import { prisma } from "@/lib/prisma";
 import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
@@ -315,5 +315,32 @@ describe("post analytics", () => {
     expect(accounts.text).toContain("followers 100");
     expect(accounts.text).toContain("Telegram @tg1");
     expect(accounts.text).toContain("post analytics unavailable");
+  });
+
+  it("adds rows for accounts that succeed on a retry", async () => {
+    const publishedAt = new Date(Date.now() - HOUR);
+    await createPost("retry", publishedAt, { x1: { platform: "x", postId: "801" } });
+    await prisma.post.update({ where: { id: "retry" }, data: { accounts: { connect: { id: "bsky1" } } } });
+    await ensureAnalyticsRowsForUser(userId, { since: new Date(Date.now() - 24 * HOUR) });
+    expect(await prisma.postAnalytics.count({ where: { postId: "retry" } })).toBe(1);
+
+    const post = await prisma.post.findUniqueOrThrow({ where: { id: "retry" } });
+    await prisma.post.update({
+      where: { id: "retry" },
+      data: {
+        accountResults: {
+          ...(post.accountResults as object),
+          bsky1: {
+            accountId: "bsky1",
+            platform: "bluesky",
+            postId: "at://retry",
+            success: true,
+            completedAt: new Date().toISOString(),
+          },
+        },
+      },
+    });
+    await ensureAnalyticsRowsForUser(userId, { since: new Date(Date.now() - 24 * HOUR) });
+    expect(await prisma.postAnalytics.count({ where: { postId: "retry" } })).toBe(2);
   });
 });

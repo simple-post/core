@@ -35,6 +35,8 @@ const log = createLogger("post-analytics");
 const LEASE_MS = 2 * 60_000;
 /** Concurrent connected accounts refreshed at once. */
 const ACCOUNT_CONCURRENCY = 3;
+/** Posts updated this recently are re-seeded even when they already have analytics rows. */
+const RECENT_UPDATE_WINDOW_MS = 2 * 24 * 60 * 60_000;
 /** INT columns are 32-bit; clamp absurd provider values instead of failing the write. */
 const MAX_INT = 2_147_483_647;
 
@@ -149,8 +151,20 @@ export async function ensureAnalyticsRowsForUser(
       ...(options.since
         ? { OR: [{ publishedAt: { gte: options.since } }, { updatedAt: { gte: options.since } }] }
         : {}),
-      // Skip posts that already have rows for every account (cheap check: any row exists).
-      ...(options.postIds ? {} : { analytics: { none: {} } }),
+      // Posts with rows are skipped, except recently updated ones: a retry can publish
+      // to accounts that failed before, and those accounts need rows too.
+      ...(options.postIds
+        ? {}
+        : {
+            AND: [
+              {
+                OR: [
+                  { analytics: { none: {} } },
+                  { updatedAt: { gte: new Date(Date.now() - RECENT_UPDATE_WINDOW_MS) } },
+                ],
+              },
+            ],
+          }),
     },
     select: {
       id: true,

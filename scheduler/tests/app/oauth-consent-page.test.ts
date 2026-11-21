@@ -1,4 +1,5 @@
 import { createElement, type ComponentProps } from "react";
+
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { OAuthConsent } from "@/app/oauth/authorize/oauth-consent";

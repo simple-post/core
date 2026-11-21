@@ -1,5 +1,6 @@
 import axios from "axios";
 
+import { fetchThreadsAccountAnalytics, fetchThreadsPostAnalytics } from "./analytics";
 import { THREADS_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -9,6 +10,7 @@ import { isTransientError, withTransientRetry } from "../../utils/transient-retr
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult, RepostResult } from "../../types";
 import type {
   PostOptions,
@@ -648,5 +650,17 @@ export class ThreadsPublisher extends Publisher {
         err.response?.data,
       );
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchThreadsPostAnalytics(this.client, this.refreshedCredentials?.accessToken ?? this.accessToken, targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchThreadsAccountAnalytics(
+      this.client,
+      this.refreshedCredentials?.accessToken ?? this.accessToken,
+      this.userId,
+    );
   }
 }

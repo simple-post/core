@@ -1,4 +1,5 @@
 import { describeDisplayMessage } from "../../validation/display-message";
+
 import type { Content } from "../../types/post";
 import type { PlatformValidationRules, ValidationIssue, ValidationResult } from "../../types/validation";
 export const FOREM_MAX_BODY_LENGTH = 100_000;

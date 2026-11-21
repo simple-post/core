@@ -3,6 +3,7 @@ import fs from "node:fs";
 import axios from "axios";
 import { EUploadMimeType, TwitterApi } from "twitter-api-v2";
 
+import { fetchXAccountAnalytics, fetchXPostAnalytics } from "./analytics";
 import {
   X_CASHTAG_LIMIT_MESSAGE,
   X_MAX_GIF_SIZE_BYTES,
@@ -19,6 +20,7 @@ import { httpStatus, isTransientError, withTransientRetry } from "../../utils/tr
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics, RefreshedAnalyticsCredentials } from "../../analytics";
 import type { PostResult, RepostResult } from "../../types";
 import type {
   PostOptions,
@@ -732,5 +734,19 @@ export class XPublisher extends Publisher {
         err.response?.data || err.message,
       );
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    await this.ensureValidToken();
+    return fetchXPostAnalytics(this.getCurrentAccessToken(), targets, this.cachedUsername);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    await this.ensureValidToken();
+    return fetchXAccountAnalytics(this.getCurrentAccessToken());
+  }
+
+  protected getRefreshedAnalyticsCredentials(): RefreshedAnalyticsCredentials | undefined {
+    return this.refreshedCredentials ? { ...this.refreshedCredentials } : undefined;
   }
 }

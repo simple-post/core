@@ -1,15 +1,17 @@
-import { describeDisplayMessage } from "../../validation/display-message";
 import axios from "axios";
 
+import { fetchForemAccountAnalytics, fetchForemPostAnalytics } from "./analytics";
 import { foremSafeLookup, normalizeForemInstanceUrl, validateForemRedirect } from "./security";
 import { FOREM_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
 import { readinessFailure } from "../../utils/account-readiness";
 import { validateContentForPlatform } from "../../validation";
+import { describeDisplayMessage } from "../../validation/display-message";
 import { getForemArticle } from "../../validation/final-options";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, PostOptionsWithCredentials } from "../../types/post";
 import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -137,5 +139,13 @@ export class ForemPublisher extends Publisher {
         err.response?.data,
       );
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchForemPostAnalytics(this.credentials, targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchForemAccountAnalytics(this.credentials);
   }
 }

@@ -3,6 +3,7 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import { fetchBlueskyAccountAnalytics, fetchBlueskyPostAnalytics } from "./analytics";
 import { prepareBlueskyCard } from "./link-card";
 import { blueskyFacets, firstBlueskyLink } from "./richtext";
 import { BLUESKY_MAX_IMAGES, BLUESKY_MAX_IMAGE_SIZE_BYTES, BLUESKY_VALIDATION_RULES } from "./validation";
@@ -14,6 +15,7 @@ import { readinessFailure } from "../../utils/account-readiness";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult, RepostResult } from "../../types";
 import type {
   PostOptions,
@@ -922,5 +924,15 @@ export class BlueskyPublisher extends Publisher {
         err.response?.data,
       );
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchBlueskyPostAnalytics(targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    const actor = this.did || this.identifier;
+    if (!actor) throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Bluesky account identifier is missing.");
+    return fetchBlueskyAccountAnalytics(actor);
   }
 }

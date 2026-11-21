@@ -1,8 +1,8 @@
-import { describeDisplayMessage } from "../../validation/display-message";
 import fs from "node:fs";
 
 import { google } from "googleapis";
 
+import { fetchYouTubeAccountAnalytics, fetchYouTubePostAnalytics } from "./analytics";
 import { uploadYouTubeVideo, YOUTUBE_UPLOAD_ORIGIN } from "./resumable-upload";
 import {
   getYouTubeVideoMetadata,
@@ -15,9 +15,12 @@ import {
 import { PostError, PostErrorType } from "../../types";
 import { resolveMediaPath, resolveThumbnailPath, TempFileManager } from "../../utils";
 import { readinessFailure } from "../../utils/account-readiness";
+import { credentialKey } from "../../utils/analytics";
 import { validateContentForPlatform } from "../../validation";
+import { describeDisplayMessage } from "../../validation/display-message";
 import { Publisher, type MediaRequirement } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, PostOptionsWithCredentials } from "../../types/post";
 import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -34,6 +37,7 @@ export class YouTubePublisher extends Publisher {
 
   private youtube: youtube_v3.Youtube;
   private readonly authClient: Auth.OAuth2Client;
+  private readonly analyticsKey: string;
 
   constructor(options?: PostOptionsWithCredentials) {
     super("YouTube", options, "youtube");
@@ -78,6 +82,18 @@ export class YouTubePublisher extends Publisher {
 
     this.authClient = authClient;
     this.youtube = google.youtube({ version: "v3", auth: authClient });
+    this.analyticsKey = credentialKey(
+      "accessToken" in credentials ? credentials.accessToken : undefined,
+      "refreshToken" in credentials ? credentials.refreshToken : undefined,
+    );
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchYouTubePostAnalytics(this.youtube, this.authClient, targets, this.logger, this.analyticsKey);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchYouTubeAccountAnalytics(this.youtube);
   }
 
   /**

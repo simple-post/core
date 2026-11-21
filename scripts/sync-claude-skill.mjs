@@ -15,7 +15,7 @@ export async function claudeSkillFiles() {
   const frontmatter = skill.match(/^---\nname: simplepost\n[\s\S]*?\n---\n/);
   if (!frontmatter) throw new Error("Canonical SimplePost frontmatter changed");
   // The directory scans packaged frontmatter, including metadata for other hosts.
-  skill = "---\nname: simplepost\ndescription: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing and calendar tasks; not generic copywriting, engagement analytics, private messages, or local credential setup.\n---\n" + skill.slice(frontmatter[0].length);
+  skill = "---\nname: simplepost\ndescription: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing, calendar and post analytics tasks; not generic copywriting, private messages, or local credential setup.\n---\n" + skill.slice(frontmatter[0].length);
   const start = skill.indexOf("## Choose the interface\n");
   const end = skill.indexOf("## Posting workflow\n");
   if (start < 0 || end <= start) throw new Error("Canonical interface routing changed");

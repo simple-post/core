@@ -1,10 +1,15 @@
- 
 import { NextRequest } from "next/server";
 
 import { getAccountAnalytics, getPostAnalytics } from "@simple-post/sdk";
 
 import { GET as getSummary } from "@/app/api/v1/analytics/summary/route";
 import { GET as getPostAnalyticsRoute } from "@/app/api/v1/posts/[id]/analytics/route";
+import {
+  getAccountAnalyticsTool,
+  getAnalyticsSummaryTool,
+  getPostAnalyticsTool,
+  listPostAnalyticsTool,
+} from "@/lib/mcp/tools/analytics";
 import { requireAuth } from "@/lib/middleware/auth";
 import { runBackgroundAnalyticsRefresh } from "@/lib/post-analytics/background";
 import { getAnalyticsSummary, listPostAnalytics } from "@/lib/post-analytics/query";
@@ -263,5 +268,52 @@ describe("post analytics", () => {
     expect(await prisma.postAnalytics.findFirstOrThrow({ where: { postId: "bg", platform: "x" } })).toEqual(
       expect.objectContaining({ status: "pending" }),
     );
+  });
+
+  it("answers MCP analytics questions with structured data and readable text", async () => {
+    const now = Date.now();
+    await createPost("m1", new Date(now - 3 * HOUR), {
+      x1: { platform: "x", postId: "701" },
+      bsky1: { platform: "bluesky", postId: "at://m1" },
+    });
+    await createPost("m2", new Date(now - 30 * HOUR), { bsky1: { platform: "bluesky", postId: "at://m2" } });
+    respondWith({ "701": { views: 900, likes: 30, comments: 3 }, "at://m1": { likes: 12 }, "at://m2": { likes: 50 } });
+
+    const summary = await getAnalyticsSummaryTool(userId, {
+      period: "last_7d",
+      timeZone: "UTC",
+      mode: "published",
+      compare: true,
+      topLimit: 5,
+      topSortBy: "engagements",
+      refresh: "auto",
+    });
+    expect(summary.result.summary.totals.posts).toBe(2);
+    expect(summary.text).toContain("Analytics for the last 7 days");
+    expect(summary.text).toContain("Views: 900");
+    expect(summary.text).toContain("Bluesky: 2 posts");
+    expect(summary.text).toContain("[postId m2]");
+
+    const ranked = await listPostAnalyticsTool(userId, {
+      period: "last_7d",
+      mode: "published",
+      sortBy: "likes",
+      order: "asc",
+      limit: 10,
+      page: 1,
+      refresh: "none",
+    });
+    expect(ranked.result.posts.map((post) => post.postId)).toEqual(["m1", "m2"]);
+    expect(ranked.text).toContain("lowest first");
+
+    const post = await getPostAnalyticsTool(userId, { postIds: ["m1", "missing"], refresh: "none" });
+    expect(post.result.notFound).toEqual(["missing"]);
+    expect(post.text).toContain("X (Twitter) @x1: views 900, likes 30, comments 3");
+    expect(post.text).toContain("Bluesky @bsky1: likes 12");
+
+    const accounts = await getAccountAnalyticsTool(userId, { refresh: "auto" });
+    expect(accounts.text).toContain("followers 100");
+    expect(accounts.text).toContain("Telegram @tg1");
+    expect(accounts.text).toContain("post analytics unavailable");
   });
 });

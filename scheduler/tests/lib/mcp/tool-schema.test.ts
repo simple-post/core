@@ -2,6 +2,12 @@ import { z } from "zod";
 
 import { MCP_ERROR_INSTRUCTIONS } from "@/lib/mcp/tool-errors";
 import { listAccountsOutputSchema, listAccountsSchema } from "@/lib/mcp/tools/accounts";
+import {
+  getAccountAnalyticsSchema,
+  getAnalyticsSummarySchema,
+  getPostAnalyticsSchema,
+  listPostAnalyticsSchema,
+} from "@/lib/mcp/tools/analytics";
 import { UPLOAD_MEDIA_DESCRIPTION, uploadMediaSchema } from "@/lib/mcp/tools/media";
 import { toMediaFiles } from "@/lib/mcp/tools/media-schema";
 import { showPostPreviewOutputSchema, showPostPreviewSchema } from "@/lib/mcp/tools/post-preview-ui";
@@ -40,6 +46,10 @@ const TOOL_INPUT_SCHEMAS = {
   create_post: createPostSchema,
   inspect_posts: inspectPostsSchema,
   get_schedule: showScheduleSchema,
+  get_analytics_summary: getAnalyticsSummarySchema,
+  list_post_analytics: listPostAnalyticsSchema,
+  get_post_analytics: getPostAnalyticsSchema,
+  get_account_analytics: getAccountAnalyticsSchema,
   show_schedule: showScheduleSchema,
   update_scheduled_post: updateScheduledPostSchema,
   discard_scheduled_post: discardScheduledPostSchema,

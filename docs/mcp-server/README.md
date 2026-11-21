@@ -20,6 +20,10 @@ Run the [Scheduler app](../scheduler-app/README.md). Use your deployment's `/mcp
 
 Tool registrations live in [`scheduler/lib/mcp/server.ts`](../../scheduler/lib/mcp/server.ts); implementations live in [`scheduler/lib/mcp/tools`](../../scheduler/lib/mcp/tools/). Widgets use MCP Apps with text/structured fallbacks. Build widgets with `yarn workspace @simple-post/scheduler build:mcp-widgets` from the repository root, or use the Scheduler's `dev`/`build` commands which include this step.
 
+## Analytics tools
+
+`get_analytics_summary`, `list_post_analytics`, `get_post_analytics` and `get_account_analytics` answer performance questions (periods, comparisons, rankings, single posts, followers). Their behavior and the metric model are described in [post analytics](../post-analytics/README.md).
+
 ## Contract checks
 
 Run `yarn docs:export` from the repository root with a sibling docs checkout, then the docs workspace checks. They verify tool coverage and help links. Update the canonical tool guide with any registration or schema change. Read [release checks](https://docs.simplepost.social/release-policy#documentation-release-checklist).

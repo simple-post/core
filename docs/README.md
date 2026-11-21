@@ -14,6 +14,7 @@ For hosted onboarding and product help, start at [docs.simplepost.social](https:
 | Give humans a web UI for writing, previewing, posting, and scheduling | Scheduler app      | [Scheduler app](scheduler-app/README.md)                                                           |
 | Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                                                                               |
 | Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)                                                                 |
+| See how published posts perform (views, likes, followers)             | Any interface      | [Post analytics](post-analytics/README.md)                                                         |
 
 Most users only need one row. The common concepts below explain how the pieces fit together.
 

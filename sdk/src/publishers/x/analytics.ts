@@ -20,7 +20,7 @@ interface XPostLookup {
 export function xPostCreatedAt(postId: string): Date | undefined {
   if (!/^\d{10,20}$/.test(postId)) return undefined;
   try {
-    const ms = Number(BigInt(postId) >> 22n) + X_EPOCH_MS;
+    const ms = Number(BigInt(postId) >> BigInt(22)) + X_EPOCH_MS;
     return Number.isFinite(ms) ? new Date(ms) : undefined;
   } catch {
     return undefined;

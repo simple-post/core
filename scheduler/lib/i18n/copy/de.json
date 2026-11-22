@@ -801,6 +801,7 @@
   "Show {{count, number}} More": "{{count, number}} weitere anzeigen",
   "Show {{count, number}} More_one": "{{count, number}} weitere anzeigen",
   "Show {{count, number}} More_other": "{{count, number}} weitere anzeigen",
+  "Show saved post previews": "Gespeicherte Beitragsvorschauen anzeigen",
   "Sidebar": "Seitenleiste",
   "Signed in as": "Angemeldet als",
   "Signup": "Registrierung",
@@ -1202,5 +1203,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Wenn das Feld leer bleibt, wird der Nachrichtentext verwendet.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "95-%-Wilson-Intervall für die Registrierungsrate von {{variant}}: Beobachtungszeitraum läuft noch",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "95-%-Wilson-Intervall für die Registrierungsrate von {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} offene Registrierungsfenster, {{signups, number}} erfasste Registrierungen innerhalb des Fensters"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} offene Registrierungsfenster, {{signups, number}} erfasste Registrierungen innerhalb des Fensters",
+  "Choose access": "Zugriff auswählen",
+  "Choose how much access Muse gets to your SimplePost account.": "Wähle, welchen Zugriff Muse auf dein SimplePost-Konto erhält.",
+  "Connecting does not approve individual writes.": "Die Verbindung genehmigt keine einzelnen Schreibaktionen.",
+  "Inspect post history and upcoming schedules": "Bisherige und geplante Beiträge ansehen",
+  "Read and write": "Lesen und schreiben",
+  "Read only": "Nur lesen",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "Mit Lesezugriff kannst du keine Entwürfe prüfen, Medien hochladen oder Beiträge ändern."
 }

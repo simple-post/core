@@ -791,6 +791,7 @@
   "Show day, week, or month schedules with posting slots and post statuses": "日、週、月ごとのスケジュールを、投稿枠と投稿ステータス付きで表示する",
   "Show {{count, number}} More": "あと {{count, number}} 件表示",
   "Show {{count, number}} More_other": "あと {{count, number}} 件表示",
+  "Show saved post previews": "保存済みの投稿プレビューを表示",
   "Sidebar": "サイドバー",
   "Signed in as": "ログイン中のアカウント",
   "Signup": "登録",
@@ -1166,5 +1167,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}。空欄の場合はメッセージが使われます。",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "{{variant}} の登録率の95%ウィルソン区間：観測期間の終了待ち",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "{{variant}} の登録率の95%ウィルソン区間：{{lower}}〜{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}：登録期間内で集計待ち {{pending, number}} 件、期間内に確認された登録 {{signups, number}} 件"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}：登録期間内で集計待ち {{pending, number}} 件、期間内に確認された登録 {{signups, number}} 件",
+  "Choose access": "アクセス権限を選択",
+  "Choose how much access Muse gets to your SimplePost account.": "Muse に付与する SimplePost アカウントへのアクセス権限を選択してください。",
+  "Connecting does not approve individual writes.": "アカウントを連携しても、個別の書き込み操作は承認されません。",
+  "Inspect post history and upcoming schedules": "投稿履歴と今後の投稿予定を確認",
+  "Read and write": "読み取りと書き込み",
+  "Read only": "読み取り専用",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "読み取り専用では、下書きの検証、メディアのアップロード、投稿の変更はできません。"
 }

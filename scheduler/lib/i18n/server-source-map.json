@@ -958,6 +958,7 @@
     "lib/mcp/tools/media.ts:341"
   ],
   "The authorizing user no longer exists": ["app/api/oauth/token/route.ts:15"],
+  "The connected app does not have permission for this request": ["lib/middleware/auth.ts:74"],
   "The connection is no longer authorized, so SimplePost cannot publish to this account until you reconnect it.": [
     "lib/notifications/disconnect-email.ts:45"
   ],
@@ -1027,6 +1028,7 @@
   ],
   "The published platform post ID is required.": ["lib/posting/reconciliation.ts:54"],
   "The publishing record changed. Reload it before reconciling.": ["lib/posting/reconciliation.ts:52"],
+  "The requested scopes do not support read-only access": ["app/api/oauth/authorize/route.ts:116"],
   "The saved draft could not be loaded.": ["lib/mcp/extensions/workspace.ts:274"],
   "The saved post changed. Your working copy is safe; reload and compare before saving.": [
     "lib/mcp/extensions/workspace.ts:284"
@@ -1199,6 +1201,7 @@
   "Unknown client or invalid redirect URI": ["app/api/oauth/authorize/route.ts:65"],
   "Unknown plan": ["app/api/billing/change-plan/route.ts:42", "app/api/billing/checkout/route.ts:41"],
   "Unknown SimplePost widget mode.": ["app/mcp-ui/runtime.js/route.ts:25"],
+  "Unsupported access mode": ["app/api/oauth/authorize/route.ts:79"],
   "Unsupported interface language": ["app/api/ui-preference/route.ts:26"],
   "Unsupported MCP resource": ["app/api/oauth/authorize/route.ts:81", "app/api/oauth/token/route.ts:97"],
   "Unsupported MCP resource: {{resource}}": ["app/api/oauth/authorize/route.ts:78", "app/api/oauth/token/route.ts:94"],
